@@ -69,7 +69,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
-import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -131,16 +130,37 @@ import static org.hamcrest.Matchers.equalTo;
 public class ApproximationSupportTests extends ESTestCase {
 
     private static final Set<Class<? extends LogicalPlan>> UNSUPPORTED_COMMANDS = Set.of(
-        // TODO: investigate whether these plans are supported or explain why not
-        Fuse.class,
-        FuseScoreEval.class,
-        MMR.class,
-
         // Timeseries indices are not supported yet.
-        // They require chained Stats commands.
+        // They require chained stats commands.
         TimeSeriesAggregate.class,
         TimeSeriesCollapse.class,
 
+        // PromQL plans are not supported yet.
+        // They require chained stats commands.
+        PromqlCommand.class,
+        UnresolvedPromqlFunction.class,
+        LiteralSelector.class,
+        Selector.class,
+        InstantSelector.class,
+        RangeSelector.class,
+        PromqlFunctionCall.class,
+        WithinSeriesAggregate.class,
+        AcrossSeriesAggregate.class,
+        PlaceholderRelation.class,
+        ScalarConversionFunction.class,
+        ScalarFunction.class,
+        ValueTransformationFunction.class,
+        VectorBinarySet.class,
+        VectorBinaryArithmetic.class,
+        VectorBinaryComparison.class,
+        VectorBinaryOperator.class,
+        VectorConversionFunction.class,
+
+        // Fuse is not supported, because it uses an aggregate internally,
+        // leading to a chained stats.
+        Fuse.class,
+        FuseScoreEval.class,
+        
         // These source commands makes no sense for approximation.
         Explain.class,
         ShowInfo.class,
@@ -168,33 +188,10 @@ public class ApproximationSupportTests extends ESTestCase {
         SparklineGenerateEmptyBuckets.class,
         UnresolvedExternalRelation.class,
         UnresolvedRelation.class,
-        ViewShadowRelation.class,
-
-        // PromQL plans are not supported yet.
-        PromqlCommand.class,
-        UnresolvedPromqlFunction.class,
-        LiteralSelector.class,
-        Selector.class,
-        InstantSelector.class,
-        RangeSelector.class,
-        PromqlFunctionCall.class,
-        WithinSeriesAggregate.class,
-        AcrossSeriesAggregate.class,
-        PlaceholderRelation.class,
-        ScalarConversionFunction.class,
-        ScalarFunction.class,
-        ValueTransformationFunction.class,
-        VectorBinarySet.class,
-        VectorBinaryArithmetic.class,
-        VectorBinaryComparison.class,
-        VectorBinaryOperator.class,
-        VectorConversionFunction.class
+        ViewShadowRelation.class
     );
 
     private static final Set<Class<? extends AggregateFunction>> UNSUPPORTED_AGGS = Set.of(
-        // TODO: investigate whether these aggs are supported or explain why not
-        HistogramMerge.class,
-
         // Counting distinct values is hard to approximate.
         // For more details, see:
         // - https://arxiv.org/pdf/2202.02800
@@ -221,9 +218,12 @@ public class ApproximationSupportTests extends ESTestCase {
         SpatialExtent.class,
         SpatialCentroid.class,
 
-        // These multi-valued aggs are not suitable for approximation.
+        // These multivalued aggs are not suitable for approximation.
         DimensionValues.class,
         Values.class,
+
+        // Histograms are not suitable for approximation.
+        HistogramMerge.class,
 
         // These aggs are superclasses of other aggs.
         AggregateFunction.class,
@@ -301,7 +301,7 @@ public class ApproximationSupportTests extends ESTestCase {
     public void testAllCommandsWhitelistedOrBlacklisted() throws Exception {
         testAllClassesListed(
             LogicalPlan.class,
-            List.of(ApproximationVerifier.SUPPORTED_COMMANDS, ApproximationVerifier.SUPPORTED_COMMANDS_AFTER_STATS, UNSUPPORTED_COMMANDS)
+            List.of(ApproximationVerifier.SUPPORTED_COMMANDS, ApproximationVerifier.SUPPORTED_LIMITING_COMMANDS, UNSUPPORTED_COMMANDS)
         );
     }
 

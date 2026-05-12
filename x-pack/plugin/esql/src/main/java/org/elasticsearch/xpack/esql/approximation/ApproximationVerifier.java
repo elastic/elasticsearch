@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -100,7 +101,7 @@ public class ApproximationVerifier {
      */
     static final Set<Class<? extends LogicalPlan>> SUPPORTED_COMMANDS;
     static {
-        Set<Class<? extends LogicalPlan>> SUPPORTED_COMMANDS_BUILDER = new HashSet<>(
+        Set<Class<? extends LogicalPlan>> BUILDER = new HashSet<>(
             List.of(
                 Aggregate.class,
                 Completion.class,
@@ -130,32 +131,35 @@ public class ApproximationVerifier {
             )
         );
         if (EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN.isEnabled()) {
-            SUPPORTED_COMMANDS_BUILDER.add(Join.class);
+            BUILDER.add(Join.class);
         }
         if (EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled()) {
-            SUPPORTED_COMMANDS_BUILDER.add(InlineJoin.class);
-            SUPPORTED_COMMANDS_BUILDER.add(StubRelation.class);  // temporary node
+            BUILDER.add(InlineJoin.class);
+            BUILDER.add(StubRelation.class);  // temporary node
         }
         if (EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled()) {
-            SUPPORTED_COMMANDS_BUILDER.add(Fork.class);
+            BUILDER.add(Fork.class);
         }
-        SUPPORTED_COMMANDS = Collections.unmodifiableSet(SUPPORTED_COMMANDS_BUILDER);
+        SUPPORTED_COMMANDS = Collections.unmodifiableSet(BUILDER);
     }
 
     /**
-     * These processing commands are only supported after the initial STATS.
+     * These LIMIT-like processing commands are only supported after the STATS.
+     * These commands either limit the result set themselves (explicitly or
+     * implicitly) or require a LIMIT before them.
+     * It makes no sense to approximate stats on a limited result set, and
+     * furthermore it breaks the estimation of the sample probability.
      */
-    static final Set<Class<? extends LogicalPlan>> SUPPORTED_COMMANDS_AFTER_STATS = Set.of(
-        // It makes no sense to approximate "FROM index | LIMIT N | STATS ...".
-        // Furthermore, the LIMIT here breaks the estimation of the sample probability.
-        Limit.class,
-        // Same for LIMIT BY, SORT, or SORT + LIMIT BY
-        LimitBy.class,
-        TopN.class,
-        TopNBy.class,
-        // CHANGE_POINT implicitly uses LIMIT
-        ChangePoint.class
-    );
+    static final Set<Class<? extends LogicalPlan>> SUPPORTED_LIMITING_COMMANDS;
+    static {
+        Set<Class<? extends LogicalPlan>> BUILDER = new HashSet<>(
+            List.of(ChangePoint.class, Limit.class, LimitBy.class, TopN.class, TopNBy.class)
+        );
+        if (EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled()) {
+            BUILDER.add(MMR.class);
+        }
+        SUPPORTED_LIMITING_COMMANDS = Collections.unmodifiableSet(BUILDER);
+    }
 
     /**
      * These index modes of EsRelation are supported.
@@ -248,7 +252,7 @@ public class ApproximationVerifier {
         }
         // Verify that all commands are supported.
         logicalPlan.forEachUp(plan -> {
-            if ((SUPPORTED_COMMANDS.contains(plan.getClass()) == false && SUPPORTED_COMMANDS_AFTER_STATS.contains(plan.getClass()) == false)
+            if ((SUPPORTED_COMMANDS.contains(plan.getClass()) == false && SUPPORTED_LIMITING_COMMANDS.contains(plan.getClass()) == false)
                 || (plan instanceof EsRelation esRelation && SUPPORTED_INDEX_MODES.contains(esRelation.indexMode()) == false)) {
                 // TODO: ideally just return the command from the source
                 // this can give bad messages (e.g. for subqueries) or long ones (many irrelevant extras)
@@ -334,7 +338,7 @@ public class ApproximationVerifier {
 
         logicalPlan.forEachUp(plan -> {
             if (encounteredStats.get() == false) {
-                if (SUPPORTED_COMMANDS_AFTER_STATS.contains(plan.getClass())) {
+                if (SUPPORTED_LIMITING_COMMANDS.contains(plan.getClass())) {
                     throw new VerificationException(
                         "line {}:{}: approximation not supported: query with [{}] before [STATS] cannot be approximated",
                         plan.source().source().getLineNumber(),

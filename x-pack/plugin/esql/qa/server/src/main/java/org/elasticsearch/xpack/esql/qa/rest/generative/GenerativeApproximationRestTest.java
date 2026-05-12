@@ -54,8 +54,7 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
         executeQuery("""
             SET approximation={"rows":2000000000};
             {QUERY}
-            """.replace("{QUERY}", testCase.query)
-        );
+            """.replace("{QUERY}", testCase.query));
 
         try {
             GenerativeForkRestTest.shouldSkipForkTest(testCase);

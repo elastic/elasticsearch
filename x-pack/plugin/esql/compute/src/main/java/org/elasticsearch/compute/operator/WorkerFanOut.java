@@ -133,6 +133,8 @@ public abstract class WorkerFanOut<W extends Releasable> implements Releasable {
             page.releaseBlocks();
             return;
         }
+        assert workerIndex >= 0 && workerIndex < workers.length
+            : "chooseWorker returned " + workerIndex + " but worker count is " + workers.length;
         submitTo(workerIndex, page);
     }
 

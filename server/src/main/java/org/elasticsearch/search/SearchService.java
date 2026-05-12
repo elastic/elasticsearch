@@ -30,6 +30,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
@@ -279,6 +280,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    public static final Setting<ByteSizeValue> FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES = Setting.byteSizeSetting(
+        "search.fetch_phase_chunked_target_chunk_bytes",
+        ByteSizeValue.of(1, ByteSizeUnit.MB),
+        ByteSizeValue.of(256, ByteSizeUnit.KB),
+        ByteSizeValue.of(64, ByteSizeUnit.MB),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final Setting<Integer> MAX_OPEN_SCROLL_CONTEXT = Setting.intSetting(
         "search.max_open_scroll_context",
         500,
@@ -372,6 +382,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private volatile boolean enableQueryPhaseParallelCollection;
     private volatile boolean enableFetchPhaseChunked;
     private volatile int fetchPhaseMaxInFlightChunks;
+    private volatile int fetchPhaseTargetChunkBytes;
 
     private volatile long defaultKeepAlive;
 
@@ -476,11 +487,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         batchQueryPhase = BATCHED_QUERY_PHASE.get(settings);
         enableFetchPhaseChunked = FETCH_PHASE_CHUNKED_ENABLED.get(settings);
         fetchPhaseMaxInFlightChunks = FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS.get(settings);
+        fetchPhaseTargetChunkBytes = Math.toIntExact(FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES.get(settings).getBytes());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED, this::setEnableQueryPhaseParallelCollection);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(FETCH_PHASE_CHUNKED_ENABLED, this::setEnableFetchPhaseChunked);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS, this::setFetchPhaseMaxInFlightChunks);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES, this::setFetchPhaseTargetChunkBytes);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(BATCHED_QUERY_PHASE, bulkExecuteQueryPhase -> this.batchQueryPhase = bulkExecuteQueryPhase);
         memoryAccountingBufferSize = MEMORY_ACCOUNTING_BUFFER_SIZE.get(settings).getBytes();
@@ -531,6 +545,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void setFetchPhaseMaxInFlightChunks(int fetchPhaseMaxInFlightChunks) {
         this.fetchPhaseMaxInFlightChunks = fetchPhaseMaxInFlightChunks;
+    }
+
+    private void setFetchPhaseTargetChunkBytes(ByteSizeValue byteSizeValue) {
+        this.fetchPhaseTargetChunkBytes = Math.toIntExact(byteSizeValue.getBytes());
     }
 
     private static void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -1172,6 +1190,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         null,
                         writer,
                         fetchPhaseMaxInFlightChunks,
+                        fetchPhaseTargetChunkBytes,
                         searchExecutor,
                         newFetchBuildListener(opsListener, searchContext, startTime, closeOnce),
                         newFetchCompletionListener(listener, fetchResult)
@@ -1482,7 +1501,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         indexService,
                         shard,
                         searcherSupplier,
-                        getDefaultKeepAliveInMillis()
+                        getDefaultKeepAliveInMillis(),
+                        // We assume that resharding metadata is irrelevant in this context because:
+                        // 1. Resharding is currently a stateless-only feature (meaning tied to IndexEngine)
+                        // 2. Even if it was implemented in stateful, it makes little sense to perform
+                        // resharding on a shard using ReadOnlyEngine or FrozenEngine since the data is static.
+                        // We assume that before e.g. moving index to frozen tier the system will ensure that
+                        // all resharding operations are complete.
+                        null,
+                        SplitShardCountSummary.IRRELEVANT
                     );
                     logger.debug("Recreated reader context [{}]", readerContext.id());
                 } else {
@@ -1547,7 +1574,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         IndexService indexService,
         IndexShard shard,
         Engine.SearcherSupplier reader,
-        long keepAliveInMillis
+        long keepAliveInMillis,
+        IndexReshardingMetadata relocatedReshardingMetadata,
+        SplitShardCountSummary relocatedSplitShardCountSummary
     ) {
         PitReaderContext readerContext = null;
         try {
@@ -1555,7 +1584,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             // Check that we don't already have a relocation mapping for this context id
             final Long previous = activeReaders.generateRelocationMapping(contextId, newKey);
             if (previous == null) {
-                readerContext = new PitReaderContext(contextId, indexService, shard, reader, keepAliveInMillis);
+                readerContext = new PitReaderContext(
+                    contextId,
+                    indexService,
+                    shard,
+                    reader,
+                    keepAliveInMillis,
+                    relocatedReshardingMetadata,
+                    relocatedSplitShardCountSummary
+                );
                 reader = null;
                 final ReaderContext finalReaderContext = readerContext;
                 final SearchOperationListener searchOperationListener = shard.getSearchOperationListener();
@@ -1600,13 +1637,39 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             Engine.SearcherSupplier searcherSupplier = null;
             ReaderContext readerContext = null;
             try {
+                // Note that resharding metadata obtained here is not necessarily identical
+                // to what will be used when deciding to apply search filters in `acquireExternalSearcherSupplier` just below.
+                // That is not a problem since it can only move "forward" and that is non-breaking.
+                //
+                // If `splitShardCountSummary` is older we'll never apply filters and the only change could be the move
+                // to READY_FOR_CLEANUP which would fail this request anyway.
+                //
+                // If `splitShardCountSummary` is current we'll apply filters unless the shard is DONE
+                // (this applies to both source and target).
+                // It is possible that we don't see DONE in this instance but the search filters logic will.
+                // That is also okay since we'll just apply noop filters when this PIT gets relocated.
+                //
+                // If resharding metadata "appears" right after we obtain it here it's idential to the older summary case.
+                //
+                // If resharding metadata gets removed, then again we may apply noop filters
+                // when PIT is relocated but there is no correctness issues.
+                IndexReshardingMetadata reshardingMetadataForContext = shard.indexSettings().getIndexMetadata().getReshardingMetadata();
+
                 searcherSupplier = shard.acquireExternalSearcherSupplier(splitShardCountSummary);
                 final ShardSearchContextId id = new ShardSearchContextId(
                     sessionId,
                     idGenerator.incrementAndGet(),
                     searcherSupplier.getSearcherId()
                 );
-                readerContext = new PitReaderContext(id, indexService, shard, searcherSupplier, keepAlive.millis());
+                readerContext = new PitReaderContext(
+                    id,
+                    indexService,
+                    shard,
+                    searcherSupplier,
+                    keepAlive.millis(),
+                    reshardingMetadataForContext,
+                    splitShardCountSummary
+                );
                 final ReaderContext finalReaderContext = readerContext;
                 searcherSupplier = null; // transfer ownership to reader context
                 searchOperationListener.onNewReaderContext(readerContext);

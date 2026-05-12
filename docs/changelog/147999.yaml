@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 147999
+summary: "[Native] i7u bulk AVX-512 shared-b"
+type: enhancement

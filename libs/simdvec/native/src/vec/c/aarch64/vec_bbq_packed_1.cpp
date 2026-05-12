@@ -28,6 +28,10 @@
 //   [3*packed_len..4*packed_len) -> stripe 3 (bits 1:0)
 static inline int32_t dotd2q4_packed_inner(const int8_t* a, const int8_t* query, int32_t packed_len) {
     const uint8x16_t mask_two_bits = vdupq_n_u8(0x03);
+
+    // We are avoiding templates here because the masks required to extract the 4 elements from a byte
+    // are different enough to make templated code look less readable.
+    // See commit ddb46a776397ce4293fdff6667eacc0781297119
     uint32x4_t acc_s0 = vdupq_n_u32(0);
     uint32x4_t acc_s1 = vdupq_n_u32(0);
     uint32x4_t acc_s2 = vdupq_n_u32(0);

@@ -162,10 +162,7 @@ public class CountOverTime extends TimeSeriesAggregateFunction
             return new Coalesce(
                 source(),
                 // We need to cast here because ExtractHistogramComponent returns a double.
-                new ToLong(
-                    source(),
-                    ExtractHistogramComponent.create(source(), mergeOverTime, HistogramBlock.Component.COUNT)
-                ),
+                new ToLong(source(), ExtractHistogramComponent.create(source(), mergeOverTime, HistogramBlock.Component.COUNT)),
                 List.of(new Literal(source(), 0L, DataType.LONG))
             );
         }

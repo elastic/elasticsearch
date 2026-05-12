@@ -35,10 +35,7 @@ import static java.util.Collections.emptyList;
 /**
  * Similar to {@link Present}, but it is used to check the presence of values over a time series in the given field.
  */
-public class PresentOverTime extends TimeSeriesAggregateFunction
-    implements
-        AggregateMetricDoubleNativeSupport,
-        ToAggregator {
+public class PresentOverTime extends TimeSeriesAggregateFunction implements AggregateMetricDoubleNativeSupport, ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "PresentOverTime",

@@ -30,12 +30,11 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDef
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
-
-import static org.elasticsearch.compute.data.HistogramBlock.Component;
 import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.compute.data.HistogramBlock.Component;
 
 /**
  * Similar to {@link Min}, but it is used to calculate the minimum value over a time series of values from the given field.

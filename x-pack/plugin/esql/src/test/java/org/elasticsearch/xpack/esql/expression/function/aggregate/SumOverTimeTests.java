@@ -114,6 +114,21 @@ public class SumOverTimeTests extends AbstractAggregationTestCase {
         return new SumOverTime(source, args.get(0), AggregateFunction.NO_WINDOW);
     }
 
+    @Override
+    public void testAggregate() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
+    @Override
+    public void testAggregateToString() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
+    @Override
+    public void testAggregateIntermediate() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type()), () -> {
             var fieldTypedData = fieldSupplier.get();

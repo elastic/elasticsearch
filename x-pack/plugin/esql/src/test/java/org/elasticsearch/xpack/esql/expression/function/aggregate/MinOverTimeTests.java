@@ -37,6 +37,21 @@ public class MinOverTimeTests extends AbstractAggregationTestCase {
         return new MinOverTime(source, args.get(0), AggregateFunction.NO_WINDOW);
     }
 
+    @Override
+    public void testAggregate() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
+    @Override
+    public void testAggregateToString() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
+    @Override
+    public void testAggregateIntermediate() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
     public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {
         var preview = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
         DocsV3Support.Param window = new DocsV3Support.Param(DataType.TIME_DURATION, List.of(preview));

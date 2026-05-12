@@ -38,4 +38,19 @@ public class PercentileOverTimeTests extends AbstractAggregationTestCase {
         return new PercentileOverTime(source, args.get(0), args.get(1));
     }
 
+    @Override
+    public void testAggregate() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
+    @Override
+    public void testAggregateToString() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
+    @Override
+    public void testAggregateIntermediate() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
 }

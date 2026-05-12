@@ -615,6 +615,17 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
      * </p>
      */
     private Expression resolveSubstitutions(Expression expression) {
+        // first do a single surrogate replacement of TimeSeriesAggregateFunction just like TranslateTimeseriesAggregate
+        expression = expression.transformUp(TimeSeriesAggregateFunction.class, tsAgg -> {
+            if (tsAgg instanceof SurrogateExpression se) {
+                var surrogate = se.surrogate();
+                if (surrogate != null) {
+                    return surrogate;
+                }
+            }
+            return tsAgg;
+        });
+        // and now resolve the TimeSeriesAggregateFunction to it's actual, per-series aggregations
         expression = expression.transformUp(TimeSeriesAggregateFunction.class, TimeSeriesAggregateFunction::perTimeSeriesAggregation);
 
         for (int i = 0; i < 2; i++) {

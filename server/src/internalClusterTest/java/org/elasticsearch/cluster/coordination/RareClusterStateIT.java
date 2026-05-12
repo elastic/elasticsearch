@@ -333,10 +333,9 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 assertNotNull(mapper.mappers().getMapper("field2"));
             });
 
-            // Indexing doc 2 triggers a dynamic mapping update. Post-async-applier, the bulk action on the primary
-            // waits for the master's mapping-update response, which in turn waits up to dynamicMappingUpdateTimeout
-            // (30s default) for all data nodes, including the deliberately-blocked replica, to apply the new cluster state.
-            assertBusy(() -> assertTrue(client().prepareGet("index", "2").get().isExists()), 90, TimeUnit.SECONDS);
+            // Indexing doc 2 triggers a dynamic mapping update. The bulk action on the primary waits until the new
+            // mapping CS is applied locally (via observer.waitForState + awaitAllAsyncAppliers), then retries the write.
+            assertBusy(() -> assertTrue(client().prepareGet("index", "2").get().isExists()), 45, TimeUnit.SECONDS);
 
             // The mappings have not been propagated to the replica yet so the document shouldn't be indexed there.
             // We wait on purpose to make sure that the document is not indexed because the shard operation is stalled

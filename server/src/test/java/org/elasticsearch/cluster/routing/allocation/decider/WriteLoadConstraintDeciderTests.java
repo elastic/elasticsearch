@@ -844,7 +844,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         String nodeId,
         float utilization,
         long latency,
-        double maxWriteLoadConcentration
+        double maxWriteLoadProportion
     ) {
         ClusterInfo clusterInfo = ClusterInfo.builder()
             .nodeUsageStatsForThreadPools(
@@ -856,7 +856,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                     )
                 )
             )
-            .shardWriteLoads(generateWriteLoads(state, nodeId, maxWriteLoadConcentration))
+            .shardWriteLoads(generateWriteLoads(state, nodeId, maxWriteLoadProportion))
             .build();
 
         var routingAllocation = TestRoutingAllocationFactory.forClusterState(state)
@@ -867,14 +867,14 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         return routingAllocation;
     }
 
-    private Map<ShardId, Double> generateWriteLoads(ClusterState state, String nodeId, double maxConcentration) {
-        assert maxConcentration > 0.5 && maxConcentration < 1
-            : "maxConcentration must be greater than 0.5 and less than 1.0, was " + maxConcentration;
+    private Map<ShardId, Double> generateWriteLoads(ClusterState state, String nodeId, double maxWriteLoadProportion) {
+        assert maxWriteLoadProportion > 0.5 && maxWriteLoadProportion < 1
+            : "maxWriteLoadProportion must be greater than 0.5 and less than 1.0, was " + maxWriteLoadProportion;
         final var startedShards = state.getRoutingNodes().node(nodeId).shardsWithState(ShardRoutingState.STARTED).toList();
         assert startedShards.size() > 1 : "you need at least two shards for this to work";
         final var writeLoads = new HashMap<ShardId, Double>();
         final double totalWriteLoad = randomDoubleBetween(1.0, 10.0, true);
-        final double busiestShardLoad = totalWriteLoad * maxConcentration;
+        final double busiestShardLoad = totalWriteLoad * maxWriteLoadProportion;
         final double otherShardLoads = (totalWriteLoad - busiestShardLoad) / (startedShards.size() - 1);
         for (ShardRouting shardRouting : startedShards) {
             if (shardRouting.shardId().getId() == 0) {

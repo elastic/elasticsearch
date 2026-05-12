@@ -116,6 +116,12 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
     }
 
     @Override
+    protected boolean fetchVectorIndexModeSupported() throws IOException {
+        return super.fetchVectorIndexModeSupported()
+            && clusterHasCapability(remoteClient(), "PUT", "/{index}", List.of(), List.of("vector_index_mode")).orElse(false);
+    }
+
+    @Override
     protected boolean fetchAllIsCrossCluster() {
         return true;
     }

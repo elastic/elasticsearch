@@ -191,9 +191,13 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     private boolean vectorIndexModeSupported() throws IOException {
         if (vectorIndexModeSupported == null) {
-            vectorIndexModeSupported = clusterHasCapability("PUT", "/{index}", List.of(), List.of("vector_index_mode")).orElse(false);
+            vectorIndexModeSupported = fetchVectorIndexModeSupported();
         }
         return vectorIndexModeSupported;
+    }
+
+    protected boolean fetchVectorIndexModeSupported() throws IOException {
+        return clusterHasCapability("PUT", "/{index}", List.of(), List.of("vector_index_mode")).orElse(false);
     }
 
     protected boolean lookupJoinOnAllIndicesSupported() throws IOException {

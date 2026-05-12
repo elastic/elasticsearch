@@ -63,6 +63,7 @@ import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.randomNonE
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.randomSettings;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -72,7 +73,6 @@ import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;

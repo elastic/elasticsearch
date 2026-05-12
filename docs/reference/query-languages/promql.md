@@ -36,5 +36,5 @@ Use the {{esql}} `PROMQL` source command when you want PromQL as part of a piped
 ## In this section
 
 * [HTTP API](promql/promql-http-api.md): Prometheus-compatible `/_prometheus/` endpoints for queries and discovery.
-* [Limitations](promql/promql-limitations.md): Differences from upstream Prometheus and unsupported areas today.
+* [Limitations](promql/promql-limitations.md): Differences from Prometheus and unsupported areas today.
 * [`PROMQL` command ({{esql}})](/reference/query-languages/esql/commands/promql.md): PromQL inside piped {{esql}} queries.

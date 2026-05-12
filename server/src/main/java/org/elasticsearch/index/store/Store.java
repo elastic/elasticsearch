@@ -167,7 +167,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     );
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
-    private final StoreDirectory directory;
+    private final StoreDirectory storeDirectory;
+    // Wrapped form of {@link #storeDirectory} -- if the FieldInfoCachingDirectory feature flag is enabled, this is the
+    // {@link StoreDirectory} wrapped by a {@link FieldInfoCachingDirectory}. Otherwise it is the same instance as
+    // {@link #storeDirectory}. All external consumers of the Store's Directory see this field so that IndexCommits
+    // produced by engine paths (which call {@link #directory()}) refer to the same Directory instance later code
+    // paths (e.g. snapshot/restore) get back from {@link #directory()}, preserving the reference-identity assertion in
+    // {@link #readSegmentsInfo}.
+    private final Directory directory;
     private final ReentrantReadWriteLock metadataLock = new ReentrantReadWriteLock();
     private final ShardLock shardLock;
     private final OnClose onClose;
@@ -212,7 +219,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         if (DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
             byteSizeDirectory = new StoreMetricsDirectory(byteSizeDirectory, metricHolder);
         }
-        this.directory = new StoreDirectory(byteSizeDirectory, Loggers.getLogger("index.store.deletes", shardId));
+        this.storeDirectory = new StoreDirectory(byteSizeDirectory, Loggers.getLogger("index.store.deletes", shardId));
+        this.directory = FieldInfoCachingDirectory.wrapIfEnabled(this.storeDirectory);
         this.shardLock = shardLock;
         this.onClose = onClose;
         this.hasIndexSort = hasIndexSort;
@@ -403,8 +411,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public StoreStats stats(long reservedBytes, LongUnaryOperator localSizeFunction) throws IOException {
         ensureOpen();
-        long sizeInBytes = directory.estimateSizeInBytes();
-        long dataSetSizeInBytes = directory.estimateDataSetSizeInBytes();
+        long sizeInBytes = storeDirectory.estimateSizeInBytes();
+        long dataSetSizeInBytes = storeDirectory.estimateDataSetSizeInBytes();
         return new StoreStats(localSizeFunction.applyAsLong(sizeInBytes), dataSetSizeInBytes, reservedBytes);
     }
 
@@ -482,7 +490,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         // Leverage try-with-resources to close the shard lock for us
         try (Closeable c = shardLock) {
             try {
-                directory.innerClose(); // this closes the distributorDirectory as well
+                storeDirectory.innerClose(); // this closes the distributorDirectory as well
             } finally {
                 onClose.accept(shardLock);
             }
@@ -711,7 +719,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     continue;
                 }
                 try {
-                    directory.deleteFile(reason, existingFile);
+                    storeDirectory.deleteFile(reason, existingFile);
                     // FNF should not happen since we hold a write lock?
                 } catch (IOException ex) {
                     if (existingFile.startsWith(IndexFileNames.SEGMENTS) || existingFile.startsWith(CORRUPTED_MARKER_NAME_PREFIX)) {
@@ -1380,7 +1388,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     public void deleteQuiet(String... files) {
         ensureOpen();
-        StoreDirectory directory = this.directory;
+        StoreDirectory directory = this.storeDirectory;
         for (String file : files) {
             try {
                 directory.deleteFile("Store.deleteQuiet", file);

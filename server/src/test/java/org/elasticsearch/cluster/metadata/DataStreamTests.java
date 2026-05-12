@@ -536,12 +536,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ds.unsafeRollover(
-                new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),
-                newCoordinates.v2(),
-                IndexMode.LOOKUP,
-                null
-            )
+            () -> ds.unsafeRollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), IndexMode.LOOKUP, null)
         );
         assertThat(e.getMessage(), containsString("is not allowed"));
     }

@@ -121,6 +121,14 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         .setAllowedElasticProductOrigins(KIBANA_PRODUCT_ORIGIN)
         .build();
 
+    public static final SystemIndexDescriptor EVALUATION_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
+        .setIndexPattern(".evaluation*")
+        .setDescription("Evaluations system indices")
+        .setType(Type.EXTERNAL_UNMANAGED)
+        .setAllowedElasticProductOrigins(KIBANA_PRODUCT_ORIGIN)
+        .setAllowsTemplates()
+        .build();
+
     public static final SystemIndexDescriptor WORKFLOWS_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
         .setIndexPattern(WORKFLOWS_SYSTEM_INDEX_PATTERN)
         .setDescription("Workflows system indices")
@@ -137,7 +145,8 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
             ONECHAT_INDEX_DESCRIPTOR,
             WORKFLOWS_INDEX_DESCRIPTOR,
             APM_AGENT_CONFIG_INDEX_DESCRIPTOR,
-            APM_CUSTOM_LINK_INDEX_DESCRIPTOR
+            APM_CUSTOM_LINK_INDEX_DESCRIPTOR,
+            EVALUATION_INDEX_DESCRIPTOR
         );
     }
 

@@ -34,12 +34,12 @@ Every path has two forms:
 - **Explicit index expression:** `GET /_prometheus/{index}/api/v1/...`
 
 The `{index}` segment is an {{es}} index expression (for example, `metrics-prod-*`) that restricts which indices participate **before** expression evaluation or metadata collection.
-That pre-filter keeps work focused when many unrelated [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS) exist in the cluster and usually improves latency.
-When you omit `{index}` in the path, every route uses the default index expression **`metrics-*`** (the {{esql}} `PROMQL` default).
+That pre-filter reduces the input size when many unrelated [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS) exist in the cluster, improving latency and keeping resource consumption at bay.
+When you omit `{index}` in the path, qualifying indices are identified through the default index expression **`metrics-*`** (the {{esql}} `PROMQL` default).
 
 ## `limit` [promql-http-api-limit]
 
-`limit` defaults to **`0`**, which means **no cap from the request** (Prometheus-style unlimited). The server may still truncate very large responses; see [`esql.query.result_truncation_max_size`](/reference/query-languages/esql/limitations.md#esql-max-rows).
+`limit` defaults to **`0`**, which means **no cap from the request** (Prometheus-style unlimited). The server may still truncate very large responses; see [`esql.query.timeseries_result_truncation_max_size `](/reference/query-languages/esql/limitations.md#esql-max-rows).
 
 ## Query endpoints [promql-http-api-query-endpoints]
 
@@ -77,7 +77,7 @@ The `timeout`, `lookback_delta`, and `stats` parameters are not supported yet (s
 
 ## Metadata and discovery endpoints [promql-http-api-metadata]
 
-These routes mirror Prometheus **metadata**, **labels**, **label values**, and **series** APIs so UIs can browse metrics, build selectors, and populate template variables.
+These entrypoints mirror Prometheus **metadata**, **labels**, **label values**, and **series** APIs so UIs can browse metrics, build selectors, and populate template variables.
 
 ### Selectors and time windows
 

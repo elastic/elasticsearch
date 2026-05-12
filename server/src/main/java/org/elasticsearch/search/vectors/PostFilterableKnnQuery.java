@@ -28,7 +28,7 @@ public interface PostFilterableKnnQuery {
      * the target count, regardless of what the binomial variance formula computes. Active
      * when selectivity is near 1, where the variance term collapses to ≈ 0.
      */
-    float POST_FILTER_OVERSAMPLE_FLOOR = 1.3f;
+    float POST_FILTER_OVERSAMPLE_FLOOR = 1.2f;
 
     /**
      * Confidence-level Z-score for the binomial variance term in round-1 sizing.

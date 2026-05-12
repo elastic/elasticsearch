@@ -67,7 +67,7 @@ public record RemoteFetchHandle(String nodeId, String sessionId, int shard, int 
     }
 
     public static RemoteFetchHandle fromBytesRef(BytesRef bytesRef) {
-        try (StreamInput in = StreamInput.wrap(BytesRef.deepCopyOf(bytesRef).bytes)) {
+        try (StreamInput in = StreamInput.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length)) {
             return new RemoteFetchHandle(in);
         } catch (IOException e) {
             throw new UncheckedIOException("failed to decode remote fetch handle", e);

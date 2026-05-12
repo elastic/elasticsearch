@@ -27,7 +27,7 @@ import java.util.List;
 /**
  * Server-side batch operator for remote fetch over bidirectional exchange.
  * Consumes one handles page per batch and emits one or more fetched pages
- * carrying the same batch id.
+ * carrying the same batch ID.
  */
 final class RemoteFetchBatchOperator implements Operator {
     private final List<RemoteFetchService.FetchField> fields;
@@ -60,11 +60,10 @@ final class RemoteFetchBatchOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
-        if (failure != null) {
-            page.releaseBlocks();
-            return;
-        }
         try {
+            if (failure != null) {
+                return;
+            }
             BatchMetadata metadata = page.batchMetadata();
             if (metadata == null) {
                 throw new IllegalStateException("remote fetch batch page missing metadata");
@@ -97,15 +96,15 @@ final class RemoteFetchBatchOperator implements Operator {
 
     @Override
     public Page getOutput() {
-        if (failure != null) {
-            Exception e = failure;
-            failure = null;
-            if (e instanceof RuntimeException re) {
-                throw re;
-            }
-            throw new IllegalStateException("remote fetch batch operator failed", e);
+        if (failure == null) {
+            return outputQueue.pollFirst();
         }
-        return outputQueue.pollFirst();
+        Exception e = failure;
+        failure = null;
+        if (e instanceof RuntimeException re) {
+            throw re;
+        }
+        throw new IllegalStateException("remote fetch batch operator failed", e);
     }
 
     @Override
@@ -120,7 +119,7 @@ final class RemoteFetchBatchOperator implements Operator {
         if (page.getBlockCount() != 1) {
             throw new IllegalStateException("expected a single handle block but got [" + page.getBlockCount() + "]");
         }
-        BytesRefBlock handlesBlock = (BytesRefBlock) page.getBlock(0);
+        BytesRefBlock handlesBlock = page.getBlock(0);
         List<RemoteFetchHandle> handles = new ArrayList<>(page.getPositionCount());
         BytesRef scratch = new BytesRef();
         for (int position = 0; position < page.getPositionCount(); position++) {
@@ -141,16 +140,21 @@ final class RemoteFetchBatchOperator implements Operator {
             return;
         }
         int pageIndex = 0;
-        for (Page fetchedPage : fetchedPages) {
-            Block[] blocks = new Block[fetchedPage.getBlockCount()];
-            for (int i = 0; i < blocks.length; i++) {
-                blocks[i] = fetchedPage.getBlock(i);
-                blocks[i].incRef();
+        try {
+            for (Page fetchedPage : fetchedPages) {
+                Block[] blocks = new Block[fetchedPage.getBlockCount()];
+                for (int i = 0; i < blocks.length; i++) {
+                    blocks[i] = fetchedPage.getBlock(i);
+                    blocks[i].incRef();
+                }
+                boolean isLast = pageIndex == fetchedPages.size() - 1;
+                outputQueue.add(new Page(new BatchMetadata(batchId, pageIndex, isLast), blocks));
+                pageIndex++;
             }
-            boolean isLast = pageIndex == fetchedPages.size() - 1;
-            outputQueue.add(new Page(new BatchMetadata(batchId, pageIndex, isLast), blocks));
-            pageIndex++;
-            fetchedPage.releaseBlocks();
+        } finally {
+            for (Page fetchedPage : fetchedPages) {
+                fetchedPage.releaseBlocks();
+            }
         }
     }
 }

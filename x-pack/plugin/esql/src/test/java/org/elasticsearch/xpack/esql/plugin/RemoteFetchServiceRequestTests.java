@@ -53,12 +53,13 @@ public class RemoteFetchServiceRequestTests extends AbstractWireSerializingTestC
                 randomList(0, 8, this::randomHandle),
                 instance.configuration()
             );
-            default -> new RemoteFetchService.Request(
+            case 3 -> new RemoteFetchService.Request(
                 instance.sessionId(),
                 instance.fields(),
                 instance.handles(),
                 randomValueOtherThan(instance.configuration(), org.elasticsearch.xpack.esql.ConfigurationTestUtils::randomConfiguration)
             );
+            default -> throw new AssertionError("unexpected mutation branch");
         };
     }
 

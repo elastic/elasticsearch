@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
@@ -17,8 +16,6 @@ import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
-
-import java.util.Arrays;
 
 /**
  * Encodes local {@code _doc} references into transport-safe remote fetch handles.
@@ -54,7 +51,6 @@ public final class RemoteFetchHandleOperator extends AbstractPageMappingOperator
         boolean success = false;
         try (BytesRefBlock.Builder handleBuilder = driverContext.blockFactory().newBytesRefBlockBuilder(page.getPositionCount())) {
             DocVector docVector = ((DocBlock) page.getBlock(docChannel)).asVector();
-            BytesRef scratch = new BytesRef();
             for (int position = 0; position < page.getPositionCount(); position++) {
                 handleBuilder.appendBytesRef(
                     new RemoteFetchHandle(
@@ -80,7 +76,7 @@ public final class RemoteFetchHandleOperator extends AbstractPageMappingOperator
         } finally {
             page.releaseBlocks();
             if (success == false) {
-                Releasables.closeExpectNoException(Releasables.wrap(Arrays.asList(blocks)));
+                Releasables.closeExpectNoException(blocks);
             }
         }
     }

@@ -266,7 +266,7 @@ public final class RemoteFetchService {
                     parentTask,
                     TransportRequestOptions.EMPTY,
                     new ActionListenerResponseHandler<>(
-                        setupListener.map(ignored -> (String) null),
+                        setupListener.map(ignored -> null),
                         in -> ActionResponse.Empty.INSTANCE,
                         transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
                     )
@@ -415,9 +415,14 @@ public final class RemoteFetchService {
     }
 
     private void releaseBestEffort(DiscoveryNode targetNode, String sessionId) {
-        releaseAsync(targetNode, sessionId, ActionListener.wrap(ignored -> {}, e -> {
-            logger.debug("failed to release retained remote fetch session [{}] on node [{}]", sessionId, targetNode.getId(), e);
-        }));
+        releaseAsync(
+            targetNode,
+            sessionId,
+            ActionListener.wrap(
+                ignored -> {},
+                e -> logger.debug("failed to release retained remote fetch session [{}] on node [{}]", sessionId, targetNode.getId(), e)
+            )
+        );
     }
 
     private void startExchangeFetchServer(ExchangeSetupRequest request, CancellableTask task, ActionListener<Void> listener) {
@@ -521,8 +526,9 @@ public final class RemoteFetchService {
         compilePushdownFactories(pushdownPlan, factories, shardContexts);
         for (Operator.OperatorFactory factory : factories) {
             List<Page> next = new ArrayList<>();
-            Operator operator = factory.get(new DriverContext(bigArrays, blockFactory, localBreakerSettings, "remote_fetch_pushdown"));
-            try {
+            try (
+                Operator operator = factory.get(new DriverContext(bigArrays, blockFactory, localBreakerSettings, "remote_fetch_pushdown"))
+            ) {
                 for (Page page : current) {
                     operator.addInput(page);
                     Page output;
@@ -537,8 +543,6 @@ public final class RemoteFetchService {
                     output.allowPassingToDifferentDriver();
                     next.add(output);
                 }
-            } finally {
-                operator.close();
             }
             current = next;
         }

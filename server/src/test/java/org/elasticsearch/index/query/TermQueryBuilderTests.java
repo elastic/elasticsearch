@@ -294,19 +294,13 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
                 expected >= LeafQueryBuilder.LEAF_BASE_BYTES
             );
             assertEquals(
-                "construction-pool charge must equal LeafQueryBuilder.estimateRamBytes for the produced clause",
+                "term clauses must charge only the per-clause constant — no parameter-driven dynamic cost",
                 expected,
                 context.getQueryConstructionMemoryUsed()
             );
-            assertEquals(
-                "rewrite pool must not be charged for term clauses (no parameter-driven dynamic cost)",
-                0L,
-                context.getRewriteMemoryUsed()
-            );
-            assertEquals("circuit breaker delta must equal the construction-pool charge", expected, delta);
+            assertEquals("circuit breaker delta must equal the per-clause constant", expected, delta);
         } finally {
             context.releaseQueryConstructionMemory();
-            context.releaseRewriteMemory();
         }
     }
 
@@ -327,7 +321,6 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
             fail("a single cheap clause must not trip a generously-sized breaker: " + e.getMessage());
         } finally {
             context.releaseQueryConstructionMemory();
-            context.releaseRewriteMemory();
         }
     }
 }

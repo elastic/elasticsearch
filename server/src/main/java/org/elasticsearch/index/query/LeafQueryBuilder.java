@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.Accountable;
@@ -44,8 +43,7 @@ public abstract class LeafQueryBuilder<QB extends LeafQueryBuilder<QB>> extends 
      */
     static final long LEAF_BASE_BYTES = 256L;
 
-    protected LeafQueryBuilder() {
-    }
+    protected LeafQueryBuilder() {}
 
     protected LeafQueryBuilder(StreamInput in) throws IOException {
         super(in);

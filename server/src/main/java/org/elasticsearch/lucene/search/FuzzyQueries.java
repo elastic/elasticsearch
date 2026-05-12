@@ -20,9 +20,9 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import java.util.BitSet;
 
 /**
- * Factory for {@link FuzzyQuery} that charges the request circuit breaker:
- * the query object's RAM to the construction pool, and a parameter-driven
- * estimate from {@link FuzzyQueryCostEstimator} to the rewrite pool.
+ * Factory for {@link FuzzyQuery} that charges the request circuit breaker for both the query
+ * object's RAM (constant per-clause cost) and a parameter-driven estimate from
+ * {@link FuzzyQueryCostEstimator} (dynamic cost driven by term length, edit distance, etc.).
  */
 public final class FuzzyQueries {
 
@@ -53,9 +53,9 @@ public final class FuzzyQueries {
     }
 
     /**
-     * Charge the circuit breaker for an already-constructed {@link FuzzyQuery}: query RAM
-     * to the construction pool, parameter-driven estimate to the rewrite pool. No-op when
-     * {@code context} or its breaker is {@code null}.
+     * Charge the circuit breaker for an already-constructed {@link FuzzyQuery}: the query
+     * object's bytes plus the parameter-driven cost estimate. No-op when {@code context} or its
+     * breaker is {@code null}.
      */
     public static void chargeQuery(FuzzyQuery query, @Nullable SearchExecutionContext context, String fieldLabel) {
         if (context == null || context.getCircuitBreaker() == null) {
@@ -64,8 +64,8 @@ public final class FuzzyQueries {
         String label = "fuzzy:" + fieldLabel;
         context.addCircuitBreakerMemory(queryRamBytes(query), label);
         BytesRef bytes = query.getTerm().bytes();
-        new FuzzyQueryCostEstimator(bytes.length, countDistinctUtf8Bytes(bytes), query.getMaxEdits(), query.getPrefixLength())
-            .chargeRewrite(context, label);
+        new FuzzyQueryCostEstimator(bytes.length, countDistinctUtf8Bytes(bytes), query.getMaxEdits(), query.getPrefixLength()).
+            charge(context, label);
     }
 
     /** RAM bytes retained by the {@link FuzzyQuery} object (excluding compiled automata). */

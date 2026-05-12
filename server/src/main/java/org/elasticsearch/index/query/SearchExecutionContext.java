@@ -123,7 +123,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
     @Nullable
     private final CircuitBreaker circuitBreaker;
     private final AtomicLong queryConstructionMemoryUsed = new AtomicLong(0);
-    private final AtomicLong rewriteMemoryUsed = new AtomicLong(0);
 
     public SearchExecutionContext(
         int shardId,
@@ -755,17 +754,14 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * Adds memory usage to the circuit breaker for query construction.
-     * <p>
-     * This method tracks memory used during query construction and enforces circuit breaker limits
-     * to prevent excessive memory usage. The tracked memory can later be released using
-     * {@link #releaseQueryConstructionMemory()}.
+     * Adds memory usage to the request circuit breaker, accumulating against the single
+     * per-request pool drained by {@link #releaseQueryConstructionMemory()}.
      *
      * @param bytes the number of bytes to add to the circuit breaker
      * @param label a descriptive label for the memory allocation, used in circuit breaker error messages
      */
     public void addCircuitBreakerMemory(long bytes, String label) {
-        if (circuitBreaker != null) {
+        if (circuitBreaker != null && bytes > 0) {
             circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);
             queryConstructionMemoryUsed.addAndGet(bytes);
         }
@@ -779,47 +775,11 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * Release all accumulated query construction memory back to the circuit breaker.
+     * Release all accumulated query construction memory back to the circuit breaker. Safe to
+     * call multiple times; subsequent calls after the pool is drained are no-ops.
      */
     public void releaseQueryConstructionMemory() {
         long memoryToRelease = queryConstructionMemoryUsed.getAndSet(0);
-        if (memoryToRelease > 0 && circuitBreaker != null) {
-            circuitBreaker.addWithoutBreaking(-memoryToRelease);
-        }
-    }
-
-    /**
-     * Adds memory usage to the circuit breaker for query rewrite-scoped allocations (e.g. Lucene
-     * compiled automata that are materialised lazily during {@link org.apache.lucene.search.MultiTermQuery}
-     * rewrite and live for the duration of the search request).
-     * <p>
-     * Charges are accumulated in a pool released by {@link #releaseRewriteMemory()}, which is
-     * registered as a request-scoped {@code Releasable} on the owning {@code SearchContext} so
-     * the pool is drained on both success and failure paths.
-     *
-     * @param bytes the number of bytes to add to the circuit breaker
-     * @param label a descriptive label for the memory allocation, used in circuit breaker error messages
-     */
-    public void addRewriteCircuitBreakerMemory(long bytes, String label) {
-        if (circuitBreaker != null && bytes > 0) {
-            circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);
-            rewriteMemoryUsed.addAndGet(bytes);
-        }
-    }
-
-    /**
-     * Get total query rewrite memory currently charged against the circuit breaker.
-     */
-    public long getRewriteMemoryUsed() {
-        return rewriteMemoryUsed.get();
-    }
-
-    /**
-     * Release all accumulated query rewrite memory back to the circuit breaker. Safe to call
-     * multiple times; subsequent calls after the pool is drained are no-ops.
-     */
-    public void releaseRewriteMemory() {
-        long memoryToRelease = rewriteMemoryUsed.getAndSet(0);
         if (memoryToRelease > 0 && circuitBreaker != null) {
             circuitBreaker.addWithoutBreaking(-memoryToRelease);
         }

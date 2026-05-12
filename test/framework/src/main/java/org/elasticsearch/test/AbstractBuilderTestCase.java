@@ -485,17 +485,16 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             assertThat(exception.getMessage(), containsString("Data too large"));
         } finally {
             context.releaseQueryConstructionMemory();
-            context.releaseRewriteMemory();
         }
     }
 
     /**
      * Asserts that the circuit breaker correctly accounts for the memory used by the given query.
      *
-     * <p>For Accountable Lucene queries the field-type layer charges
-     * {@code query.ramBytesUsed()} to the construction pool. Every leaf builder additionally
-     * charges {@link org.elasticsearch.index.query.LeafQueryBuilder#estimateRamBytes(Query)} as
-     * the per-type retained-heap charge — which for an Accountable produced query is also
+     * <p>For Accountable Lucene queries the field-type layer charges {@code query.ramBytesUsed()}
+     * against the request circuit breaker. Every leaf builder additionally charges
+     * {@link org.elasticsearch.index.query.LeafQueryBuilder#estimateRamBytes(Query)} as the
+     * per-type retained-heap charge — which for an Accountable produced query is also
      * {@code query.ramBytesUsed()}. The delta is therefore at least {@code ramBytesUsed} (when
      * only one layer fires, e.g. a parser path that bypasses
      * {@link org.elasticsearch.index.query.LeafQueryBuilder}) and at most
@@ -529,7 +528,6 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             }
         } finally {
             context.releaseQueryConstructionMemory();
-            context.releaseRewriteMemory();
         }
     }
 

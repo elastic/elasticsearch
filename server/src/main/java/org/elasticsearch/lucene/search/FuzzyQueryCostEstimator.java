@@ -13,7 +13,7 @@ import org.apache.lucene.util.automaton.LevenshteinAutomata;
 
 /**
  * Coarse, conservative cost estimator for a Lucene {@link org.apache.lucene.search.FuzzyQuery}.
- * Computes the rewrite-pool charge for the request circuit breaker before any compiled
+ * Computes the parameter-driven charge against the request circuit breaker before any compiled
  * automaton is built, using a closed-form formula over the query parameters:
  *
  * <pre>

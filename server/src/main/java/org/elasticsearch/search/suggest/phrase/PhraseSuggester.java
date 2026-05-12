@@ -140,7 +140,6 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                             collateMatch = Lucene.exists(searcher, parsedQuery.query());
                         } finally {
                             searchExecutionContext.releaseQueryConstructionMemory();
-                            searchExecutionContext.releaseRewriteMemory();
                         }
                     }
                 }

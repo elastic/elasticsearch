@@ -337,23 +337,19 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
 
             long fieldTypeBytes = FuzzyQueries.queryRamBytes(query);
             long leafBytes = LeafQueryBuilder.estimateRamBytes(query);
-            long rewriteBytes = context.getRewriteMemoryUsed();
-            assertTrue("field-type fuzzy must charge ramBytesUsed to the construction pool", fieldTypeBytes > 0);
+            long totalCharged = context.getQueryConstructionMemoryUsed();
+            long costEstimate = totalCharged - fieldTypeBytes - leafBytes;
+
+            assertTrue("field-type fuzzy must charge the query object's retained heap", fieldTypeBytes > 0);
             assertTrue("LeafQueryBuilder must add the per-type retained-heap charge for the produced clause", leafBytes > 0);
-            assertTrue("rewrite pool must be charged the parameter-driven cost estimate", rewriteBytes > 0);
+            assertTrue("breaker pool must be charged the parameter-driven cost estimate on top", costEstimate > 0);
             assertEquals(
-                "construction pool must equal the field-type ramBytesUsed plus the LeafQueryBuilder per-type charge",
-                fieldTypeBytes + leafBytes,
-                context.getQueryConstructionMemoryUsed()
-            );
-            assertEquals(
-                "circuit breaker delta must equal the sum of construction and rewrite pool charges",
-                fieldTypeBytes + leafBytes + rewriteBytes,
+                "circuit breaker delta must equal the sum of field-type, leaf, and cost-estimate charges",
+                fieldTypeBytes + leafBytes + costEstimate,
                 delta
             );
         } finally {
             context.releaseQueryConstructionMemory();
-            context.releaseRewriteMemory();
         }
     }
 
@@ -372,11 +368,10 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
             expectThrows(CircuitBreakingException.class, () -> new FuzzyQueryBuilder(TEXT_FIELD_NAME, "value").toQuery(context));
         } finally {
             context.releaseQueryConstructionMemory();
-            context.releaseRewriteMemory();
         }
     }
 
-    public void testRewriteMemoryPoolChargedUpfrontAndReleased() throws IOException {
+    public void testFuzzyCostEstimateChargedUpfrontAndReleased() throws IOException {
         CircuitBreaker cb = createCircuitBreakerService();
         SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
 
@@ -386,21 +381,13 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         long afterConstruction = cb.getUsed();
         assertTrue("construction-time charge should be recorded", afterConstruction > cbBaseline);
 
-        long rewriteCharged = context.getRewriteMemoryUsed();
-        assertTrue("rewrite pool must be charged upfront for the estimated automata cost", rewriteCharged > 0);
-        long constructionCharged = context.getQueryConstructionMemoryUsed();
-        assertEquals(
-            "construction pool must be the sum of the field-type ramBytesUsed and the LeafQueryBuilder per-type charge",
-            FuzzyQueries.queryRamBytes((FuzzyQuery) query) + LeafQueryBuilder.estimateRamBytes(query),
-            constructionCharged
-        );
-        assertEquals(
-            "circuit breaker total must equal the sum of both pool charges",
-            rewriteCharged + constructionCharged,
-            cb.getUsed() - cbBaseline
-        );
+        long totalCharged = context.getQueryConstructionMemoryUsed();
+        long fieldAndLeaf = FuzzyQueries.queryRamBytes((FuzzyQuery) query) + LeafQueryBuilder.estimateRamBytes(query);
+        long costEstimate = totalCharged - fieldAndLeaf;
+        assertTrue("breaker must be charged upfront for the estimated automata cost", costEstimate > 0);
+        assertEquals("circuit breaker total must equal field-type + leaf + cost-estimate charges", totalCharged, cb.getUsed() - cbBaseline);
 
-        // Rewrite at search time must not add any further charge against the rewrite pool.
+        // Rewrite at search time must not add any further charges — all charging is upfront.
         try (Directory dir = new ByteBuffersDirectory()) {
             try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new StandardAnalyzer()))) {
                 for (int i = 0; i < 8; i++) {
@@ -414,32 +401,31 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
             }
         }
         assertEquals(
-            "rewrite must not cause additional charges against the rewrite pool — all charging is upfront",
-            rewriteCharged,
-            context.getRewriteMemoryUsed()
+            "search-time rewrite must not add any further breaker charges — all charging is upfront",
+            totalCharged,
+            context.getQueryConstructionMemoryUsed()
         );
 
         context.releaseQueryConstructionMemory();
-        assertEquals("construction pool drains independently", 0L, context.getQueryConstructionMemoryUsed());
-        context.releaseRewriteMemory();
-        assertEquals("rewrite pool must be drained on release", 0L, context.getRewriteMemoryUsed());
+        assertEquals("breaker pool must be drained on release", 0L, context.getQueryConstructionMemoryUsed());
         assertEquals("circuit breaker bookkeeping must be fully restored", cbBaseline, cb.getUsed());
     }
 
-    public void testRewriteMemoryChargeIsParameterDriven() throws IOException {
+    public void testFuzzyCostEstimateIsParameterDriven() throws IOException {
         CircuitBreaker cb = createCircuitBreakerService();
         SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
         try {
             FuzzyQuery query = (FuzzyQuery) new FuzzyQueryBuilder(TEXT_FIELD_NAME, "value").toQuery(context);
-            assertTrue("rewrite pool charge must be positive for maxEdits >= 1", context.getRewriteMemoryUsed() > 0);
-            assertTrue("rewrite pool charge must scale with maxEdits", query.getMaxEdits() >= 1);
+            long fieldAndLeaf = FuzzyQueries.queryRamBytes(query) + LeafQueryBuilder.estimateRamBytes(query);
+            long costEstimate = context.getQueryConstructionMemoryUsed() - fieldAndLeaf;
+            assertTrue("cost estimate must be positive for maxEdits >= 1", costEstimate > 0);
+            assertTrue("cost estimate must scale with maxEdits", query.getMaxEdits() >= 1);
         } finally {
             context.releaseQueryConstructionMemory();
-            context.releaseRewriteMemory();
         }
     }
 
-    public void testFieldTypeFuzzyQueryChargesBothPoolsUpfront() throws IOException {
+    public void testFieldTypeFuzzyQueryChargesUpfront() throws IOException {
         CircuitBreaker cb = createCircuitBreakerService();
         SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
         try {
@@ -448,20 +434,21 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
                 .fuzzyQuery("value", Fuzziness.fromEdits(2), 1, 50, true, context, null);
 
             assertEquals(FuzzyQuery.class, query.getClass());
-            assertEquals(
-                "field-type fuzzy() must charge ramBytesUsed to the construction pool incrementally for parsers that bypass LeafQueryBuilder",
-                FuzzyQueries.queryRamBytes(query),
-                context.getQueryConstructionMemoryUsed()
+            long fieldTypeBytes = FuzzyQueries.queryRamBytes(query);
+            long totalCharged = context.getQueryConstructionMemoryUsed();
+            long costEstimate = totalCharged - fieldTypeBytes;
+            assertTrue(
+                "field-type fuzzy() must charge the query object's retained heap for parsers that bypass LeafQueryBuilder",
+                fieldTypeBytes > 0
             );
-            assertTrue("rewrite pool must be charged the cost estimate upfront", context.getRewriteMemoryUsed() > 0);
+            assertTrue("cost estimate must be charged upfront", costEstimate > 0);
             assertEquals(
-                "circuit breaker delta must equal the sum of both pool charges",
-                context.getQueryConstructionMemoryUsed() + context.getRewriteMemoryUsed(),
+                "circuit breaker delta must equal the sum of field-type and cost-estimate charges",
+                totalCharged,
                 cb.getUsed() - cbBefore
             );
         } finally {
             context.releaseQueryConstructionMemory();
-            context.releaseRewriteMemory();
         }
     }
 
@@ -480,16 +467,17 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
                 MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE,
                 query.getRewriteMethod()
             );
-            assertEquals(FuzzyQueries.queryRamBytes(query), context.getQueryConstructionMemoryUsed());
-            assertTrue("rewrite pool must be charged upfront regardless of user rewrite", context.getRewriteMemoryUsed() > 0);
+            long fieldTypeBytes = FuzzyQueries.queryRamBytes(query);
+            long totalCharged = context.getQueryConstructionMemoryUsed();
+            long costEstimate = totalCharged - fieldTypeBytes;
+            assertTrue("cost estimate must be charged upfront regardless of user rewrite", costEstimate > 0);
             assertEquals(
-                "circuit breaker delta must equal the sum of both pool charges",
-                FuzzyQueries.queryRamBytes(query) + context.getRewriteMemoryUsed(),
+                "circuit breaker delta must equal the sum of field-type and cost-estimate charges",
+                totalCharged,
                 cb.getUsed() - cbBefore
             );
         } finally {
             context.releaseQueryConstructionMemory();
-            context.releaseRewriteMemory();
         }
     }
 }

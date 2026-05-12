@@ -14,8 +14,8 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 
 /**
  * Conservative, parameter-driven estimate of the additional bytes a single query clause
- * should reserve from the request circuit breaker's rewrite pool, on top of the per-clause
- * constant. Implementations over-estimate rather than under-estimate.
+ * should reserve from the request circuit breaker, on top of the per-clause constant.
+ * Implementations over-estimate rather than under-estimate.
  */
 public interface QueryCostEstimator {
 
@@ -23,11 +23,10 @@ public interface QueryCostEstimator {
     long estimate();
 
     /**
-     * Charge {@link #estimate()} to the rewrite-scoped circuit-breaker pool on {@code ctx},
-     * tagged with {@code label}. No-op when the context, its breaker, or the estimate is
-     * non-positive.
+     * Charge {@link #estimate()} against the request circuit breaker on {@code ctx}, tagged
+     * with {@code label}. No-op when the context, its breaker, or the estimate is non-positive.
      */
-    default void chargeRewrite(@Nullable SearchExecutionContext ctx, String label) {
+    default void charge(@Nullable SearchExecutionContext ctx, String label) {
         if (ctx == null || ctx.getCircuitBreaker() == null) {
             return;
         }
@@ -35,6 +34,6 @@ public interface QueryCostEstimator {
         if (bytes <= 0L) {
             return;
         }
-        ctx.addRewriteCircuitBreakerMemory(bytes, label);
+        ctx.addCircuitBreakerMemory(bytes, label);
     }
 }

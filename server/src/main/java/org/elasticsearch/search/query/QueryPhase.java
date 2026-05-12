@@ -141,7 +141,12 @@ public class QueryPhase {
         // here to make sure it happens during the QUERY phase
         AggregationPhase.preProcess(searchContext);
 
-        addCollectorsAndSearch(searchContext, searchContext.getSearchExecutionContext().getTimeRangeFilterFromMillis());
+        addCollectorsAndSearch(
+            searchContext,
+            searchContext.getSearchExecutionContext().getTimeRangeFilterFromMillis(),
+            searchContext.getSearchExecutionContext().getVectorIndexType(),
+            searchContext.getSearchExecutionContext().isSemanticFieldQueried()
+        );
 
         RescorePhase.execute(searchContext);
         SuggestPhase.execute(searchContext);
@@ -154,11 +159,30 @@ public class QueryPhase {
      * In a package-private method so that it can be tested without having to
      * wire everything (mapperService, etc.)
      */
-    static void addCollectorsAndSearch(SearchContext searchContext, Long timeRangeFilterFromMillis) throws QueryPhaseExecutionException {
+    static void addCollectorsAndSearch(SearchContext searchContext, Long timeRangeFilterFromMillis) {
+        addCollectorsAndSearch(searchContext, timeRangeFilterFromMillis, VectorIndexTypeTelemetry.NONE, false);
+    }
+
+    /**
+     * In a package-private method so that it can be tested without having to
+     * wire everything (mapperService, etc.)
+     */
+    static void addCollectorsAndSearch(
+        SearchContext searchContext,
+        Long timeRangeFilterFromMillis,
+        VectorIndexTypeTelemetry vectorIndexType,
+        boolean semanticFieldQueried
+    ) throws QueryPhaseExecutionException {
         final ContextIndexSearcher searcher = searchContext.searcher();
         final IndexReader reader = searcher.getIndexReader();
         QuerySearchResult queryResult = searchContext.queryResult();
         queryResult.setTimeRangeFilterFromMillis(timeRangeFilterFromMillis);
+        if (vectorIndexType != VectorIndexTypeTelemetry.NONE) {
+            queryResult.setVectorIndexType(vectorIndexType);
+        }
+        if (semanticFieldQueried) {
+            queryResult.setSemanticFieldQueried(true);
+        }
         queryResult.searchTimedOut(false);
         try {
             queryResult.from(searchContext.from());

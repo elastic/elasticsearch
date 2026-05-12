@@ -100,6 +100,12 @@ public class QuerySearchResultTests extends ESTestCase {
         if (randomBoolean()) {
             result.aggregations(InternalAggregationsTests.createTestInstance());
         }
+        if (randomBoolean()) {
+            result.setVectorIndexType(randomFrom(VectorIndexTypeTelemetry.values()));
+        }
+        if (randomBoolean()) {
+            result.setSemanticFieldQueried(randomBoolean());
+        }
         return result;
     }
 
@@ -139,6 +145,8 @@ public class QuerySearchResultTests extends ESTestCase {
                     assertThat(deserialized.aggregations(), is(nullValue()));
                 }
                 assertEquals(querySearchResult.terminatedEarly(), deserialized.terminatedEarly());
+                assertSame(querySearchResult.getVectorIndexType(), deserialized.getVectorIndexType());
+                assertEquals(querySearchResult.isSemanticFieldQueried(), deserialized.isSemanticFieldQueried());
             } finally {
                 releaseCompletionSuggestOptionHits(deserialized);
                 deserialized.decRef();
@@ -146,6 +154,47 @@ public class QuerySearchResultTests extends ESTestCase {
         } finally {
             releaseCompletionSuggestOptionHits(querySearchResult);
             querySearchResult.decRef();
+        }
+    }
+
+    /**
+     * Round-trips every {@code (VectorIndexTypeTelemetry, semanticFieldQueried)} combination through the
+     * wire format to confirm the packed telemetry byte encodes and decodes correctly. Also implicitly
+     * exercises the assertion in {@code writeToNoId} that the vector ordinal fits in 4 bits.
+     */
+    public void testTelemetryByteRoundTrip() throws Exception {
+        for (VectorIndexTypeTelemetry vectorIndexType : VectorIndexTypeTelemetry.values()) {
+            for (boolean semanticFieldQueried : new boolean[] { false, true }) {
+                QuerySearchResult original = createTestInstance();
+                try {
+                    original.setVectorIndexType(vectorIndexType);
+                    original.setSemanticFieldQueried(semanticFieldQueried);
+                    QuerySearchResult deserialized = copyWriteable(
+                        original,
+                        namedWriteableRegistry,
+                        QuerySearchResult::new,
+                        TransportVersion.current()
+                    );
+                    try {
+                        assertSame(
+                            "vectorIndexType did not round-trip for " + vectorIndexType + "/" + semanticFieldQueried,
+                            vectorIndexType,
+                            deserialized.getVectorIndexType()
+                        );
+                        assertEquals(
+                            "semanticFieldQueried did not round-trip for " + vectorIndexType + "/" + semanticFieldQueried,
+                            semanticFieldQueried,
+                            deserialized.isSemanticFieldQueried()
+                        );
+                    } finally {
+                        releaseCompletionSuggestOptionHits(deserialized);
+                        deserialized.decRef();
+                    }
+                } finally {
+                    releaseCompletionSuggestOptionHits(original);
+                    original.decRef();
+                }
+            }
         }
     }
 

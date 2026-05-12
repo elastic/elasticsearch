@@ -310,6 +310,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
         if (fieldType == null) {
             rewritten = new MatchNoneQueryBuilder();
         } else if (fieldType instanceof SemanticFieldMapper.SemanticFieldType semanticFieldType) {
+            indexMetadataContext.recordSemanticFieldQueried();
             rewritten = querySemanticField(indexMetadataContext.getLocalClusterAlias(), semanticFieldType);
         } else {
             rewritten = queryNonSemanticTextField();

@@ -521,6 +521,9 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
             );
         }
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
+        if (vectorFieldType.getIndexOptions() != null) {
+            context.recordVectorIndexType(vectorFieldType.getIndexOptions().getType());
+        }
 
         List<Query> filtersInitial = doFiltersToQuery(context);
 

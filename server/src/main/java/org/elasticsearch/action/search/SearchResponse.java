@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
+import org.elasticsearch.search.query.VectorIndexTypeTelemetry;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -91,6 +92,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final long tookInMillis;
     // only used for telemetry purposes on the coordinating node, where the search response gets created
     private transient Long timeRangeFilterFromMillis;
+    // only used for telemetry purposes on the coordinating node, where the search response gets created
+    private transient VectorIndexTypeTelemetry vectorIndexType;
+    // only used for telemetry purposes on the coordinating node, where the search response gets created
+    private transient boolean semanticFieldQueried;
 
     // SearchHits from top_hits aggs to release when this response is released.
     private final List<SearchHits> topHitsToRelease;
@@ -212,6 +217,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             searchResponseSections.transferCompletionOptionHitsToRelease()
         );
         this.timeRangeFilterFromMillis = searchResponseSections.timeRangeFilterFromMillis;
+        this.vectorIndexType = searchResponseSections.vectorIndexType;
+        this.semanticFieldQueried = searchResponseSections.semanticFieldQueried;
         if (this.profileResults != null) {
             this.profileResults.setOriginalSource(source);
             this.profileResults.setRequestIndices(indices);
@@ -537,6 +544,23 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     public Long getTimeRangeFilterFromMillis() {
         return timeRangeFilterFromMillis;
+    }
+
+    /**
+     * The dense_vector index telemetry bucket used by KNN queries in this search, or
+     * {@link VectorIndexTypeTelemetry#MIXED} when more than one bucket was observed across shards, or
+     * {@link VectorIndexTypeTelemetry#NONE} when no KNN query ran. Coordinator-side telemetry only.
+     */
+    public VectorIndexTypeTelemetry getVectorIndexType() {
+        return vectorIndexType != null ? vectorIndexType : VectorIndexTypeTelemetry.NONE;
+    }
+
+    /**
+     * Whether a semantic-prefixed field (e.g. {@code semantic_text}) was queried on any shard.
+     * Coordinator-side telemetry only.
+     */
+    public boolean isSemanticFieldQueried() {
+        return semanticFieldQueried;
     }
 
     @Override

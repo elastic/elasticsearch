@@ -16,6 +16,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
+import org.elasticsearch.search.query.VectorIndexTypeTelemetry;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.util.Collections;
@@ -37,6 +38,8 @@ public class SearchResponseSections implements Releasable {
         null,
         1,
         null,
+        VectorIndexTypeTelemetry.NONE,
+        false,
         null,
         null
     );
@@ -49,6 +52,8 @@ public class SearchResponseSections implements Releasable {
         null,
         1,
         null,
+        VectorIndexTypeTelemetry.NONE,
+        false,
         null,
         null
     );
@@ -60,6 +65,8 @@ public class SearchResponseSections implements Releasable {
     protected final Boolean terminatedEarly;
     protected final int numReducePhases;
     protected final Long timeRangeFilterFromMillis;
+    protected final VectorIndexTypeTelemetry vectorIndexType;
+    protected final boolean semanticFieldQueried;
     // List of top_hits SearchHits to release; cleared when transferred to SearchResponse so close() does not release
     private List<SearchHits> topHitsToRelease;
     // Completion suggestion option hits (refs taken in merge before fetch result is released); cleared when transferred
@@ -84,6 +91,8 @@ public class SearchResponseSections implements Releasable {
             profileResults,
             numReducePhases,
             timeRangeFilterFromMillis,
+            VectorIndexTypeTelemetry.NONE,
+            false,
             null,
             null
         );
@@ -98,6 +107,8 @@ public class SearchResponseSections implements Releasable {
         SearchProfileResults profileResults,
         int numReducePhases,
         Long timeRangeFilterFromMillis,
+        VectorIndexTypeTelemetry vectorIndexType,
+        boolean semanticFieldQueried,
         @Nullable List<SearchHits> topHitsToRelease,
         @Nullable List<SearchHit> completionOptionHitsToRelease
     ) {
@@ -109,6 +120,8 @@ public class SearchResponseSections implements Releasable {
         this.terminatedEarly = terminatedEarly;
         this.numReducePhases = numReducePhases;
         this.timeRangeFilterFromMillis = timeRangeFilterFromMillis;
+        this.vectorIndexType = vectorIndexType;
+        this.semanticFieldQueried = semanticFieldQueried;
         this.topHitsToRelease = topHitsToRelease;
         this.completionOptionHitsToRelease = completionOptionHitsToRelease;
     }

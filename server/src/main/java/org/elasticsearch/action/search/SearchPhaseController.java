@@ -45,6 +45,7 @@ import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileResultsBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.query.VectorIndexTypeTelemetry;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.sort.ShardDocSortField;
@@ -401,6 +402,8 @@ public final class SearchPhaseController {
                 0,
                 true,
                 null,
+                VectorIndexTypeTelemetry.NONE,
+                false,
                 null
             );
         }
@@ -431,6 +434,8 @@ public final class SearchPhaseController {
         int from = 0;
         int size = 0;
         Long timeRangeFilterFromMillis = null;
+        VectorIndexTypeTelemetry vectorIndexType = VectorIndexTypeTelemetry.NONE;
+        boolean semanticFieldQueried = false;
         DocValueFormat[] sortValueFormats = null;
         for (QuerySearchResult result : nonNullResults) {
             from = result.from();
@@ -448,6 +453,12 @@ public final class SearchPhaseController {
                     // for event.ingested and @timestamp across indices being searched
                     timeRangeFilterFromMillis = Math.min(result.getTimeRangeFilterFromMillis(), timeRangeFilterFromMillis);
                 }
+            }
+
+            vectorIndexType = vectorIndexType.merge(result.getVectorIndexType());
+
+            if (result.isSemanticFieldQueried()) {
+                semanticFieldQueried = true;
             }
 
             if (hasSuggest) {
@@ -506,6 +517,8 @@ public final class SearchPhaseController {
             from,
             false,
             timeRangeFilterFromMillis,
+            vectorIndexType,
+            semanticFieldQueried,
             topHitsToRelease
         );
     }
@@ -591,6 +604,11 @@ public final class SearchPhaseController {
         // <code>true</code> iff the query phase had no results. Otherwise <code>false</code>
         boolean isEmptyResult,
         Long timeRangeFilterFromMillis,
+        // dense_vector index telemetry bucket from KNN queries on this search; NONE when no KNN ran,
+        // MIXED when more than one bucket was observed across shards
+        VectorIndexTypeTelemetry vectorIndexType,
+        // true iff a semantic_text (or other semantic-prefixed) field was queried on any shard
+        boolean semanticFieldQueried,
         // SearchHits from top_hits aggs for release by SearchResponse (may be null)
         @Nullable List<SearchHits> topHitsToRelease
     ) {
@@ -619,6 +637,8 @@ public final class SearchPhaseController {
                 buildSearchProfileResults(fetchResults),
                 numReducePhases,
                 timeRangeFilterFromMillis,
+                vectorIndexType,
+                semanticFieldQueried,
                 topHitsToRelease,
                 completionOptionHitsToRelease
             );

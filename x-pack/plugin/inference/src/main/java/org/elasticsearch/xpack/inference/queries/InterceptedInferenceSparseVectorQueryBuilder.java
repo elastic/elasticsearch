@@ -234,6 +234,7 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
         if (fieldType == null) {
             rewritten = new MatchNoneQueryBuilder();
         } else if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
+            indexMetadataContext.recordSemanticFieldQueried();
             rewritten = querySemanticTextField(indexMetadataContext.getLocalClusterAlias(), semanticTextFieldType);
         } else {
             rewritten = queryNonSemanticTextField();

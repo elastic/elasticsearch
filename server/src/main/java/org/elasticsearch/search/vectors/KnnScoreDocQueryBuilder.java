@@ -15,6 +15,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -148,6 +150,12 @@ public class KnnScoreDocQueryBuilder extends LeafQueryBuilder<KnnScoreDocQueryBu
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        if (fieldName != null) {
+            MappedFieldType fieldType = context.getFieldType(fieldName);
+            if (fieldType instanceof DenseVectorFieldType vectorFieldType && vectorFieldType.getIndexOptions() != null) {
+                context.recordVectorIndexType(vectorFieldType.getIndexOptions().getType());
+            }
+        }
         return new KnnScoreDocQuery(scoreDocs, context.getIndexReader());
     }
 

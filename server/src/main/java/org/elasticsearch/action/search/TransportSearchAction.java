@@ -100,6 +100,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
+import org.elasticsearch.search.query.VectorIndexTypeTelemetry;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -2687,6 +2688,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         @Override
         public void onResponse(SearchResponse searchResponse) {
             try {
+                if (searchResponse.getVectorIndexType() != VectorIndexTypeTelemetry.NONE) {
+                    searchRequestAttributes.put(
+                        SearchRequestAttributesExtractor.VECTOR_INDEX_TYPE_ATTRIBUTE,
+                        searchResponse.getVectorIndexType().label()
+                    );
+                }
+                if (searchResponse.isSemanticFieldQueried()) {
+                    searchRequestAttributes.put(SearchRequestAttributesExtractor.SEMANTIC_ATTRIBUTE, true);
+                }
                 searchResponseMetrics.recordTookTime(
                     searchResponse.getTookInMillis(),
                     searchResponse.getTimeRangeFilterFromMillis(),

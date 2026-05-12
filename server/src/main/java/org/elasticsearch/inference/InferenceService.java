@@ -9,17 +9,23 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.Closeable;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.inference.InferenceStringGroup.containsNonTextEntry;
+import static org.elasticsearch.inference.InferenceStringGroup.indexContainingMultipleInferenceStrings;
 
 public interface InferenceService extends Closeable {
 
@@ -188,6 +194,30 @@ public interface InferenceService extends Closeable {
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     );
+
+    static void validateChunkedInferInputs(InferenceService service, List<ChunkInferenceInput> input) {
+        var inputsAsInferenceStringGroupList = input.stream().map(ChunkInferenceInput::input).toList();
+        if (service.supportsNonTextEmbeddingContent() == false && containsNonTextEntry(inputsAsInferenceStringGroupList)) {
+            throw new ElasticsearchStatusException(
+                Strings.format("The %s service does not support embedding with non-text inputs", service.name()),
+                RestStatus.BAD_REQUEST
+            );
+        }
+        var index = indexContainingMultipleInferenceStrings(inputsAsInferenceStringGroupList);
+        if (index != null) {
+            throw new ElasticsearchStatusException(
+                Strings.format(
+                    "Field [%1$s] must contain a single item for [%2$s] service. "
+                        + "[%1$s] object with multiple items found at $.%3$s.%1$s[%4$d]",
+                    InferenceStringGroup.CONTENT_FIELD,
+                    service.name(),
+                    EmbeddingRequest.INPUT_FIELD,
+                    index
+                ),
+                RestStatus.BAD_REQUEST
+            );
+        }
+    }
 
     /**
      * Override as necessary for services which do not support chunked inference

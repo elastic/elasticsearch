@@ -24,6 +24,7 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -753,31 +754,10 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             return;
         }
 
-        var inputsAsInferenceStringGroupList = input.stream().map(ChunkInferenceInput::input).toList();
-        if (supportsNonTextEmbeddingContent() == false && containsNonTextEntry(inputsAsInferenceStringGroupList)) {
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    Strings.format("The %s service does not support embedding with non-text inputs", name()),
-                    RestStatus.BAD_REQUEST
-                )
-            );
-            return;
-        }
-        var index = indexContainingMultipleInferenceStrings(inputsAsInferenceStringGroupList);
-        if (index != null) {
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    Strings.format(
-                        "Field [%1$s] must contain a single item for [%2$s] service. "
-                            + "[%1$s] object with multiple items found at $.%3$s.%1$s[%4$d]",
-                        InferenceStringGroup.CONTENT_FIELD,
-                        name(),
-                        EmbeddingRequest.INPUT_FIELD,
-                        index
-                    ),
-                    RestStatus.BAD_REQUEST
-                )
-            );
+        try {
+            InferenceService.validateChunkedInferInputs(this, input);
+        } catch (Exception e) {
+            listener.onFailure(e);
             return;
         }
 

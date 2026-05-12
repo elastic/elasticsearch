@@ -395,35 +395,13 @@ public abstract class SenderService<M extends Model> implements InferenceService
                 if (input.isEmpty()) {
                     listener.onResponse(List.of());
                 } else {
-                    var inputsAsInferenceStringGroupList = input.stream().map(ChunkInferenceInput::input).toList();
-                    if (supportsNonTextEmbeddingContent() == false && containsNonTextEntry(inputsAsInferenceStringGroupList)) {
-                        listener.onFailure(
-                            new ElasticsearchStatusException(
-                                Strings.format("The %s service does not support embedding with non-text inputs", name()),
-                                RestStatus.BAD_REQUEST
-                            )
-                        );
+                    try {
+                        InferenceService.validateChunkedInferInputs(this, input);
+                    } catch (Exception e) {
+                        listener.onFailure(e);
                         return;
                     }
-                    var index = indexContainingMultipleInferenceStrings(inputsAsInferenceStringGroupList);
-                    if (index == null) {
-                        // a non-null query is not supported and is dropped by all providers
-                        doChunkedInfer(model, input, taskSettings, inputType, resolvedInferenceTimeout, listener);
-                    } else {
-                        listener.onFailure(
-                            new ElasticsearchStatusException(
-                                Strings.format(
-                                    "Field [%1$s] must contain a single item for [%2$s] service. "
-                                        + "[%1$s] object with multiple items found at $.%3$s.%1$s[%4$d]",
-                                    InferenceStringGroup.CONTENT_FIELD,
-                                    name(),
-                                    EmbeddingRequest.INPUT_FIELD,
-                                    index
-                                ),
-                                RestStatus.BAD_REQUEST
-                            )
-                        );
-                    }
+                    doChunkedInfer(model, input, taskSettings, inputType, resolvedInferenceTimeout, listener);
                 }
             } else {
                 listener.onFailure(

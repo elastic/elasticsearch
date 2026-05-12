@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
@@ -27,7 +26,6 @@ import java.io.Closeable;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.LongSupplier;
 
 /**
  * Drives primary encryption key rotation on a timer.
@@ -46,7 +44,6 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
     private final PrimaryEncryptionKeyService pekService;
     private final TimeValue rotationInterval;
     private final TimeValue checkInterval;
-    private final LongSupplier currentTimeMillisSupplier;
 
     private volatile Scheduler.Cancellable scheduledTask;
     private volatile boolean closed = false;
@@ -62,44 +59,29 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
     ) {
         TimeValue rotationInterval = PrimaryEncryptionKeyService.ROTATION_INTERVAL_SETTING.get(settings);
         TimeValue checkInterval = PrimaryEncryptionKeyService.CHECK_INTERVAL_SETTING.get(settings);
-        if (rotationInterval.duration() > 0 && checkInterval.compareTo(rotationInterval) > 0) {
-            throw new IllegalArgumentException(
-                Strings.format(
-                    "[%s] (%s) must not be greater than [%s] (%s)",
-                    PrimaryEncryptionKeyService.CHECK_INTERVAL_SETTING.getKey(),
-                    checkInterval,
-                    PrimaryEncryptionKeyService.ROTATION_INTERVAL_SETTING.getKey(),
-                    rotationInterval
-                )
-            );
-        }
         KeyRotationCoordinator coordinator = new KeyRotationCoordinator(
             clusterService,
             threadPool,
             pekService,
             rotationInterval,
-            checkInterval,
-            System::currentTimeMillis
+            checkInterval
         );
         clusterService.addLocalNodeMasterListener(coordinator);
         return coordinator;
     }
 
-    // package-private for tests
     KeyRotationCoordinator(
         ClusterService clusterService,
         ThreadPool threadPool,
         PrimaryEncryptionKeyService pekService,
         TimeValue rotationInterval,
-        TimeValue checkInterval,
-        LongSupplier currentTimeMillisSupplier
+        TimeValue checkInterval
     ) {
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.pekService = pekService;
         this.rotationInterval = rotationInterval;
         this.checkInterval = checkInterval;
-        this.currentTimeMillisSupplier = currentTimeMillisSupplier;
     }
 
     @Override
@@ -149,13 +131,13 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
         }
 
         if (metadata.getRotationState() == RotationState.ROTATING) {
-            rotate(metadata);
+            rotate(state, metadata);
             return;
         }
 
         rotatingSince.set(0L);
 
-        long now = currentTimeMillisSupplier.getAsLong();
+        long now = threadPool.absoluteTimeInMillis();
         if (now - metadata.getLastRotatedMillis() < rotationInterval.millis()) {
             return;
         }
@@ -163,11 +145,11 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
             "primary encryption key due for rotation (last rotated {} ago)",
             TimeValue.timeValueMillis(now - metadata.getLastRotatedMillis())
         );
-        pekService.submitBeginRotation();
+        pekService.submitBeginRotation(state);
     }
 
-    private void rotate(PrimaryEncryptionKeyMetadata metadata) {
-        long now = currentTimeMillisSupplier.getAsLong();
+    private void rotate(ClusterState state, PrimaryEncryptionKeyMetadata metadata) {
+        long now = threadPool.absoluteTimeInMillis();
         rotatingSince.compareAndSet(0L, now);
         if (rotating.compareAndSet(false, true) == false) {
             logger.warn(
@@ -182,7 +164,7 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
             var listeners = new RefCountingListener(
                 ActionListener.runAfter(
                     ActionListener.wrap(
-                        unused -> pekService.submitRetireKeys(),
+                        unused -> pekService.submitRetireKeys(state),
                         e -> logger.warn("rotation handlers failed; will retry on next tick", e)
                     ),
                     () -> rotating.set(false)

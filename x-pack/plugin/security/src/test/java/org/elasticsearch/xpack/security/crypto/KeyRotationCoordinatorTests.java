@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata.Rotation
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -74,14 +73,8 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(state);
         ThreadPool threadPool = mock(ThreadPool.class);
-        return new KeyRotationCoordinator(
-            clusterService,
-            threadPool,
-            pekService,
-            rotationInterval,
-            TimeValue.timeValueMinutes(1),
-            () -> now
-        );
+        when(threadPool.absoluteTimeInMillis()).thenReturn(now);
+        return new KeyRotationCoordinator(clusterService, threadPool, pekService, rotationInterval, TimeValue.timeValueMinutes(1));
     }
 
     public void testTickIsNoopWhenRotationDisabled() {
@@ -90,8 +83,8 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         KeyRotationCoordinator coordinator = newCoordinator(pekService, state, 0L, TimeValue.ZERO);
 
         coordinator.tick();
-        verify(pekService, never()).submitBeginRotation();
-        verify(pekService, never()).submitRetireKeys();
+        verify(pekService, never()).submitBeginRotation(state);
+        verify(pekService, never()).submitRetireKeys(state);
     }
 
     public void testTickIsNoopWhenNotMaster() {
@@ -100,7 +93,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         KeyRotationCoordinator coordinator = newCoordinator(pekService, state, 0L, TimeValue.timeValueDays(30));
 
         coordinator.tick();
-        verify(pekService, never()).submitBeginRotation();
+        verify(pekService, never()).submitBeginRotation(state);
     }
 
     public void testTickIsNoopWhenNoMetadataInstalled() {
@@ -110,7 +103,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
 
         KeyRotationCoordinator coordinator = newCoordinator(pekService, state, 0L, TimeValue.timeValueDays(30));
         coordinator.tick();
-        verify(pekService, never()).submitBeginRotation();
+        verify(pekService, never()).submitBeginRotation(state);
     }
 
     public void testTickBeginsRotationWhenDue() {
@@ -129,7 +122,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         KeyRotationCoordinator coordinator = newCoordinator(pekService, state, now, TimeValue.timeValueDays(30));
         coordinator.tick();
 
-        verify(pekService).submitBeginRotation();
+        verify(pekService).submitBeginRotation(state);
     }
 
     public void testTickDoesNotBeginRotationWhenNotDue() {
@@ -148,7 +141,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         KeyRotationCoordinator coordinator = newCoordinator(pekService, state, now, TimeValue.timeValueDays(30));
         coordinator.tick();
 
-        verify(pekService, never()).submitBeginRotation();
+        verify(pekService, never()).submitBeginRotation(state);
     }
 
     public void testTickInvokesAllHandlersAndRetiresOnSuccess() {
@@ -178,7 +171,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         assertEquals(1, betaCalls.get());
         assertEquals(1, gammaCalls.get());
 
-        verify(pekService).submitRetireKeys();
+        verify(pekService).submitRetireKeys(state);
     }
 
     public void testTickRetiresImmediatelyWhenNoHandlersRegistered() {
@@ -196,7 +189,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         KeyRotationCoordinator coordinator = newCoordinator(pekService, state, 0L, TimeValue.timeValueDays(30));
         coordinator.tick();
 
-        verify(pekService).submitRetireKeys();
+        verify(pekService).submitRetireKeys(state);
     }
 
     public void testHandlerFailureDoesNotRetire() {
@@ -219,7 +212,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         coordinator.tick();
 
         assertEquals(1, calls.get());
-        verify(pekService, never()).submitRetireKeys();
+        verify(pekService, never()).submitRetireKeys(state);
     }
 
     public void testPartialFailurePreventsRetire() {
@@ -245,7 +238,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
 
         assertEquals(1, successCalls.get());
         assertEquals(1, failCalls.get());
-        verify(pekService, never()).submitRetireKeys();
+        verify(pekService, never()).submitRetireKeys(state);
     }
 
     public void testNextTickRetriesAllHandlers() {
@@ -270,7 +263,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         coordinator.tick();
 
         assertEquals(3, calls.get());
-        verify(pekService, times(0)).submitRetireKeys();
+        verify(pekService, times(0)).submitRetireKeys(state);
     }
 
     public void testStuckRotationLogsWarnWithDuration() throws Exception {
@@ -301,25 +294,25 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         when(pekService.getCurrentMetadata(any())).thenReturn(metadata);
         when(pekService.getRegisteredHandlers()).thenReturn(List.of(hanging));
 
-        AtomicLong now = new AtomicLong(1_000L);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(state);
         ThreadPool threadPool = mock(ThreadPool.class);
+        long t0 = 1_000L;
+        long t1 = t0 + TimeValue.timeValueMinutes(5).millis();
+        when(threadPool.absoluteTimeInMillis()).thenReturn(t0, t1);
         KeyRotationCoordinator coordinator = new KeyRotationCoordinator(
             clusterService,
             threadPool,
             pekService,
             TimeValue.timeValueDays(30),
-            TimeValue.timeValueMinutes(1),
-            now::get
+            TimeValue.timeValueMinutes(1)
         );
 
-        // First tick: enters rotate(), invokes the hanging handler
+        // First tick: enters rotate(), invokes the hanging handler (reads time = t0)
         coordinator.tick();
         assertEquals(1, calls.get());
 
-        // Advance time and tick again. Should short-circuit and emit a WARN with the elapsed duration.
-        now.set(1_000L + TimeValue.timeValueMinutes(5).millis());
+        // Second tick reads time = t1; rotating is still true so it short-circuits and WARNs with the elapsed duration.
         try (var mockLog = MockLog.capture(KeyRotationCoordinator.class)) {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
@@ -334,7 +327,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         }
         // Second tick must not invoke the handler again (rotating flag prevents re-entry).
         assertEquals(1, calls.get());
-        verify(pekService, never()).submitRetireKeys();
+        verify(pekService, never()).submitRetireKeys(state);
     }
 
     private static KeyRotationHandler handler(String name, AtomicInteger callCount, boolean succeed) {

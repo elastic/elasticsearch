@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata.Rotation
 import java.security.SecureRandom;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -80,7 +81,37 @@ public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyP
     public static final Setting<TimeValue> CHECK_INTERVAL_SETTING = Setting.timeSetting(
         "xpack.security.encryption.key_rotation.check_interval",
         TimeValue.timeValueHours(1),
-        TimeValue.timeValueSeconds(1),
+        new Setting.Validator<>() {
+            @Override
+            public void validate(TimeValue value) {
+                if (value.compareTo(TimeValue.timeValueSeconds(1)) < 0) {
+                    throw new IllegalArgumentException(
+                        "[xpack.security.encryption.key_rotation.check_interval] must be at least 1s, got [" + value + "]"
+                    );
+                }
+            }
+
+            @Override
+            public void validate(TimeValue value, Map<Setting<?>, Object> settings) {
+                TimeValue rotationInterval = (TimeValue) settings.get(ROTATION_INTERVAL_SETTING);
+                if (rotationInterval.duration() > 0 && value.compareTo(rotationInterval) > 0) {
+                    throw new IllegalArgumentException(
+                        "[xpack.security.encryption.key_rotation.check_interval] ("
+                            + value
+                            + ") must not be greater than ["
+                            + ROTATION_INTERVAL_SETTING.getKey()
+                            + "] ("
+                            + rotationInterval
+                            + ")"
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(ROTATION_INTERVAL_SETTING).iterator();
+            }
+        },
         Property.NodeScope
     );
 
@@ -145,12 +176,7 @@ public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyP
         }
 
         if (event.localNodeMaster() && cache.activeKeyId == null) {
-            if (featureService.clusterHasFeature(state, PRIMARY_ENCRYPTION_KEY_FEATURE) == false) {
-                logger.debug("not all nodes support primary encryption key feature, waiting for rolling upgrade to complete");
-                return;
-            }
-            logger.debug("submitting install-primary-encryption-key task");
-            taskQueue.submitTask("install-primary-encryption-key", new InstallKeyTask(), null);
+            submitInstallKey(state);
         }
     }
 
@@ -204,18 +230,39 @@ public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyP
         return projectState.metadata().custom(PrimaryEncryptionKeyMetadata.TYPE);
     }
 
+    private boolean checkPekFeatureAvailable(ClusterState state) {
+        if (featureService.clusterHasFeature(state, PRIMARY_ENCRYPTION_KEY_FEATURE) == false) {
+            logger.debug("not all nodes support primary encryption key feature, waiting for rolling upgrade to complete");
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Submits a {@link InstallKeyTask}. Idempotent: a no-op if already installed.
+     */
+    public void submitInstallKey(ClusterState state) {
+        if (checkPekFeatureAvailable(state)) {
+            taskQueue.submitTask("install-primary-encryption-key", new InstallKeyTask(), null);
+        }
+    }
+
     /**
      * Submits a {@link BeginRotationTask}. Idempotent: a no-op if a rotation is already in progress.
      */
-    public void submitBeginRotation() {
-        taskQueue.submitTask("begin-primary-encryption-key-rotation", new BeginRotationTask(), null);
+    public void submitBeginRotation(ClusterState state) {
+        if (checkPekFeatureAvailable(state)) {
+            taskQueue.submitTask("begin-primary-encryption-key-rotation", new BeginRotationTask(), null);
+        }
     }
 
     /**
      * Submits a {@link RetireKeysTask} that removes non-active keys and transitions to {@link RotationState#STABLE}.
      */
-    public void submitRetireKeys() {
-        taskQueue.submitTask("retire-primary-encryption-keys", new RetireKeysTask(), null);
+    public void submitRetireKeys(ClusterState state) {
+        if (checkPekFeatureAvailable(state)) {
+            taskQueue.submitTask("retire-primary-encryption-keys", new RetireKeysTask(), null);
+        }
     }
 
     private record KeyCache(String activeKeyId, Map<String, SecretKey> keysByKeyId) {

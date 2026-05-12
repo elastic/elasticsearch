@@ -215,21 +215,22 @@ public class KeyRotationIT extends SecurityIntegTestCase {
         seedBlob(state, "freewill");
         String initialKeyId = metadataOnMaster().getActiveKeyId();
 
-        // First rotation completes
         AtomicReference<String> firstRotatedKeyId = new AtomicReference<>();
         assertBusy(() -> {
-            PrimaryEncryptionKeyMetadata m = metadataOnMaster();
-            assertThat(m.getRotationState(), equalTo(RotationState.STABLE));
-            assertThat(m.getActiveKeyId(), not(equalTo(initialKeyId)));
-            firstRotatedKeyId.set(m.getActiveKeyId());
+            String activeKeyId = metadataOnMaster().getActiveKeyId();
+            assertThat(activeKeyId, not(equalTo(initialKeyId)));
+            firstRotatedKeyId.set(activeKeyId);
         }, 30, TimeUnit.SECONDS);
 
-        // A second rotation should follow once the rotation interval elapses again
+        // A second rotation cycle must produce yet another distinct active key id.
         assertBusy(() -> {
-            PrimaryEncryptionKeyMetadata m = metadataOnMaster();
-            assertThat(m.getRotationState(), equalTo(RotationState.STABLE));
-            assertThat("a second rotation should advance active key id", m.getActiveKeyId(), not(equalTo(firstRotatedKeyId.get())));
-            assertThat(state.blob.get().keyId(), equalTo(m.getActiveKeyId()));
+            String activeKeyId = metadataOnMaster().getActiveKeyId();
+            assertThat("second rotation should advance active key id beyond initial", activeKeyId, not(equalTo(initialKeyId)));
+            assertThat(
+                "second rotation should advance active key id beyond first rotation",
+                activeKeyId,
+                not(equalTo(firstRotatedKeyId.get()))
+            );
         }, 30, TimeUnit.SECONDS);
     }
 

@@ -13,49 +13,47 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.elasticsearch.common.util.FeatureFlag;
-import org.elasticsearch.common.util.StringLiteralDeduplicator;
 
+import java.io.IOException;
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 /**
- * A {@link FilterDirectory} that owns per-Directory caches for FieldInfo
- * deduplication. {@link org.elasticsearch.index.codec.DeduplicatingFieldInfosFormat}
- * consults the caches via {@link #unwrap(Directory)} (using {@code SegmentInfo.dir})
- * to share canonical {@link FieldInfo} instances across all segments and DocValues
- * generations of the same shard.
+ * A {@link FilterDirectory} that owns the per-Directory cache for whole {@link FieldInfo} instances.
+ * {@link org.elasticsearch.index.codec.CachingFieldInfosFormat} consults the cache via {@link #unwrap(Directory)} (using
+ * {@code SegmentInfo.dir}) to share canonical {@link FieldInfo} instances across all segments and DocValues generations of
+ * the same shard.
  *
- * <p>The FieldInfo cache uses weak references so that canonical instances become
- * eligible for GC once no live {@code SegmentReader} references them (e.g. after
- * the segment is merged away and the older readers are closed). A reference queue
- * is drained on every intern call to remove stale keys, so the map never grows
- * past the live working set.
+ * <p>The cache uses weak references so canonical instances become eligible for GC once no live {@code SegmentReader} retains
+ * them (e.g. after the segment is merged away and the older readers are closed). A reference queue is drained on every
+ * intern call to remove stale keys.
  *
- * <p>The attribute-Map cache and string deduplicator use strong references; their
- * keyspace is bounded by the shard's mapping rather than by segment lifecycle, so
- * weak references would gain little. Everything is reclaimed naturally when the
- * Store closes and the directory chain becomes unreachable.
+ * <p>This wrapper sits inside the {@code Store}'s Directory chain, between the underlying {@code ByteSizeDirectory} and the
+ * outer {@code StoreDirectory}, so that {@code store.directory()} continues to return the same {@code StoreDirectory}
+ * external callers have always seen. It extends {@link ByteSizeDirectory} for that reason; its size methods delegate to the
+ * wrapped directory if it is a {@link ByteSizeDirectory}, falling back to a {@link Directory} file walk otherwise.
+ *
+ * <p>Cross-shard attribute-map and field-name interning is intentionally <em>not</em> handled here; that lives in
+ * {@code CachingFieldInfosFormat} (delegating to global utilities) so that nodes hosting many shards from the same data
+ * stream still share canonical attribute maps and name strings across shards.
  */
-public final class FieldInfoCachingDirectory extends FilterDirectory {
+public final class FieldInfoCachingDirectory extends ByteSizeDirectory {
 
     public static final FeatureFlag FEATURE_FLAG = new FeatureFlag("field_info_caching_directory");
 
     private final ConcurrentHashMap<Object, FieldInfoRef> fieldInfoCache = new ConcurrentHashMap<>();
     private final ReferenceQueue<FieldInfo> deadFieldInfoRefs = new ReferenceQueue<>();
-    private final ConcurrentHashMap<Map<String, String>, Map<String, String>> attributesCache = new ConcurrentHashMap<>();
-    private final StringLiteralDeduplicator stringCache = new StringLiteralDeduplicator();
 
     public FieldInfoCachingDirectory(Directory delegate) {
         super(delegate);
     }
 
     /**
-     * Wraps the given directory with a {@link FieldInfoCachingDirectory} if the feature flag is enabled and the directory is
-     * not already wrapped. Otherwise returns the directory unchanged. Idempotent.
+     * Wraps the given directory with a {@link FieldInfoCachingDirectory} if the feature flag is enabled and the directory
+     * is not already wrapped. Otherwise returns the directory unchanged. Idempotent.
      */
     public static Directory wrapIfEnabled(Directory directory) {
         if (FEATURE_FLAG.isEnabled() == false) {
@@ -68,8 +66,8 @@ public final class FieldInfoCachingDirectory extends FilterDirectory {
     }
 
     /**
-     * Walks the {@link FilterDirectory} chain and returns the first {@link FieldInfoCachingDirectory}, or {@code null} if none
-     * is present.
+     * Walks the {@link FilterDirectory} chain and returns the first {@link FieldInfoCachingDirectory}, or {@code null} if
+     * none is present.
      */
     public static FieldInfoCachingDirectory unwrap(Directory directory) {
         Directory d = directory;
@@ -87,8 +85,8 @@ public final class FieldInfoCachingDirectory extends FilterDirectory {
     }
 
     /**
-     * Returns the canonical {@link FieldInfo} for the given key, allocating one via {@code factory} on the first miss. The cache
-     * uses weak references so canonical instances are reclaimed once no live {@code SegmentReader} retains them.
+     * Returns the canonical {@link FieldInfo} for the given key, allocating one via {@code factory} on the first miss. The
+     * cache uses weak references so canonical instances are reclaimed once no live {@code SegmentReader} retains them.
      */
     public FieldInfo internFieldInfo(Object key, Supplier<FieldInfo> factory) {
         drainDeadRefs();
@@ -115,36 +113,29 @@ public final class FieldInfoCachingDirectory extends FilterDirectory {
     }
 
     /**
-     * Returns a canonical immutable copy of the given attribute map, or installs it as canonical on the first occurrence.
-     */
-    public Map<String, String> internAttributes(Map<String, String> attributes) {
-        if (attributes.isEmpty()) {
-            return Map.of();
-        }
-        Map<String, String> existing = attributesCache.get(attributes);
-        if (existing != null) {
-            return existing;
-        }
-        // Intern the keys and values as we copy so the canonical map shares string instances across attribute maps.
-        Map<String, String> deduped = new java.util.HashMap<>(attributes.size());
-        for (var entry : attributes.entrySet()) {
-            deduped.put(stringCache.deduplicate(entry.getKey()), stringCache.deduplicate(entry.getValue()));
-        }
-        Map<String, String> canonical = Map.copyOf(deduped);
-        Map<String, String> prev = attributesCache.putIfAbsent(canonical, canonical);
-        return prev != null ? prev : canonical;
-    }
-
-    public StringLiteralDeduplicator stringCache() {
-        return stringCache;
-    }
-
-    /**
      * Exposed for testing/monitoring: number of live FieldInfo entries currently retained in the cache (including ones whose
      * weak reference may have been cleared but not yet drained).
      */
     public int fieldInfoCacheSize() {
         return fieldInfoCache.size();
+    }
+
+    @Override
+    public long estimateSizeInBytes() throws IOException {
+        Directory delegate = getDelegate();
+        if (delegate instanceof ByteSizeDirectory bsd) {
+            return bsd.estimateSizeInBytes();
+        }
+        return estimateSizeInBytes(delegate);
+    }
+
+    @Override
+    public long estimateDataSetSizeInBytes() throws IOException {
+        Directory delegate = getDelegate();
+        if (delegate instanceof ByteSizeDirectory bsd) {
+            return bsd.estimateDataSetSizeInBytes();
+        }
+        return estimateSizeInBytes(delegate);
     }
 
     private void drainDeadRefs() {

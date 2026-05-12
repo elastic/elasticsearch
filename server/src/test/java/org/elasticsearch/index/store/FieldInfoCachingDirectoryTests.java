@@ -20,7 +20,6 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -93,34 +92,6 @@ public class FieldInfoCachingDirectoryTests extends ESTestCase {
             assertNotSame(gen0, gen1);
             assertEquals(0L, gen0.getDocValuesGen());
             assertEquals(1L, gen1.getDocValuesGen());
-        }
-    }
-
-    public void testInternAttributesCanonicalizes() throws Exception {
-        try (Directory raw = newDirectory()) {
-            FieldInfoCachingDirectory cache = new FieldInfoCachingDirectory(raw);
-            Map<String, String> a = new HashMap<>();
-            a.put("k", "v");
-            Map<String, String> b = new HashMap<>();
-            b.put("k", "v");
-            assertNotSame(a, b);
-
-            Map<String, String> canonicalA = cache.internAttributes(a);
-            Map<String, String> canonicalB = cache.internAttributes(b);
-            assertSame("equal-content attribute maps must canonicalize to the same instance", canonicalA, canonicalB);
-
-            // Different content should produce a different canonical
-            Map<String, String> c = new HashMap<>();
-            c.put("k", "different");
-            assertNotSame(canonicalA, cache.internAttributes(c));
-        }
-    }
-
-    public void testInternAttributesEmptyMap() throws Exception {
-        try (Directory raw = newDirectory()) {
-            FieldInfoCachingDirectory cache = new FieldInfoCachingDirectory(raw);
-            assertSame(Map.of(), cache.internAttributes(new HashMap<>()));
-            assertSame(Map.of(), cache.internAttributes(Map.of()));
         }
     }
 

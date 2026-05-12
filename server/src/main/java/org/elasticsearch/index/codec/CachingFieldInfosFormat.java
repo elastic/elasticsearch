@@ -27,13 +27,20 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * Like {@link DeduplicatingFieldInfosFormat}, but interns the whole {@link FieldInfo} instance (not just names and attribute
- * maps) against a per-Directory cache owned by {@link FieldInfoCachingDirectory}. When the segment's Directory is wrapped,
- * canonical {@link FieldInfo} instances are shared across all segments and DocValues generations of the same shard.
+ * Like {@link DeduplicatingFieldInfosFormat}, but additionally interns the whole {@link FieldInfo} instance against a
+ * per-Directory cache owned by {@link FieldInfoCachingDirectory} so that all segments and DocValues generations of the same
+ * shard share canonical instances.
+ *
+ * <p>Names are interned node-wide via {@link FieldMapper#internFieldName}, and attribute maps are interned node-wide via
+ * {@link DeduplicatingFieldInfosFormat#internStringStringMap}. Different shards (and different indices in the same data
+ * stream) share the same mapping and therefore the same names and attribute maps, but each shard has its own IndexWriter and
+ * so its own field-number assignment -- which means {@code FieldInfo} instances cannot be reference-shared across shards (number
+ * is part of the cache key), but the name {@code String} and attribute {@code Map} <em>can</em>, and the node-wide interns
+ * collapse those allocations across every shard on the node.
  *
  * <p>Selected by {@link CodecService.DeduplicateFieldInfosCodec} when
  * {@link FieldInfoCachingDirectory#FEATURE_FLAG} is enabled. When the segment's Directory is not wrapped (e.g. tooling paths
- * like snapshot inspection or checkindex), the format falls through to a per-call read with no retention.
+ * like snapshot inspection or checkindex), this format falls through to a per-call read with no FieldInfo retention.
  */
 public final class CachingFieldInfosFormat extends FieldInfosFormat {
 
@@ -66,13 +73,12 @@ public final class CachingFieldInfosFormat extends FieldInfosFormat {
         final FieldInfo[] deduplicated = new FieldInfo[fieldInfos.size()];
         int i = 0;
         for (FieldInfo fi : fieldInfos) {
-            // Field names are interned node-wide via FieldMapper#internFieldName rather than via the per-Directory cache.
-            // Different shards (and different indices in the same data stream) share the same mapping and therefore the
-            // same field names, but each shard has its own IndexWriter and so its own field-number assignment -- which
-            // means FieldInfo instances cannot be shared across shards (number is part of the cache key), but the name
-            // String can. The node-wide intern collapses name allocations across every shard on the node.
+            // Node-wide intern of names and attribute maps so that data-stream-style workloads (many shards on one node
+            // sharing the same mapping) share canonical String / Map instances across shards. The per-Directory cache
+            // below only handles the FieldInfo object itself, since field numbering is per-IndexWriter and so
+            // FieldInfo identity cannot cross shard boundaries.
             final String name = FieldMapper.internFieldName(fi.getName());
-            final Map<String, String> attrs = cache.internAttributes(fi.attributes());
+            final Map<String, String> attrs = DeduplicatingFieldInfosFormat.internStringStringMap(fi.attributes());
             final FieldInfoKey key = new FieldInfoKey(
                 name,
                 fi.number,

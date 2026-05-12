@@ -729,7 +729,7 @@ c:long
 inSubqueryReferencingView
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 // employees_all is a view over "FROM employees"
 FROM employees
@@ -747,7 +747,7 @@ emp_no:integer | first_name:keyword
 notInSubqueryReferencingView
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 // NOT IN subquery against the employees_all view
 FROM employees
@@ -765,7 +765,7 @@ emp_no:integer | first_name:keyword
 viewContainingInSubquery
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 // employees_in_subquery is a view: FROM employees | WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
 // The view definition itself contains an IN subquery.
@@ -783,7 +783,7 @@ emp_no:integer | first_name:keyword
 inSubqueryReferencingViewWithInSubquery
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 // employees_in_subquery_stats is a view:
 //   FROM employees | WHERE salary IN (FROM employees | STATS m = MAX(salary) | KEEP m) | KEEP emp_no, first_name, salary
@@ -803,7 +803,7 @@ emp_no:integer | first_name:keyword | salary:integer
 notInSubqueryReferencingViewWithInSubquery
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 // NOT IN variant: exclude the highest earner (from the view with IN subquery inside)
 FROM employees
@@ -822,7 +822,7 @@ emp_no:integer
 inSubqueryReferencingViewWithInSubqueryAndFilter
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 // Combine a regular filter with an IN subquery that references a view containing an IN subquery.
 // employees_in_subquery is a view: FROM employees | WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
@@ -842,7 +842,7 @@ emp_no:integer | first_name:keyword | salary:integer
 inSubqueryReferencingViewTwoInSubqueries
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 // Like inSubqueryReferencingView, but intersect with a second IN subquery (two IN subqueries total).
 FROM employees
@@ -861,7 +861,7 @@ emp_no:integer | first_name:keyword
 notInSubqueryReferencingViewTwoNotInSubqueries
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 // Like notInSubqueryReferencingView, with a second NOT IN subquery (two NOT IN subqueries total).
 FROM employees
@@ -879,7 +879,7 @@ emp_no:integer | first_name:keyword
 viewContainingInSubqueryWithSecondInSubquery
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 // employees_in_subquery already contains an IN subquery; add a second IN subquery in the outer query.
 FROM employees_in_subquery
@@ -896,7 +896,7 @@ emp_no:integer | first_name:keyword
 inSubqueryReferencingViewWithInSubqueryTwoInSubqueries
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 // Like inSubqueryReferencingViewWithInSubquery, with a second IN subquery narrowing by max salary (74999).
 FROM employees
@@ -915,7 +915,7 @@ emp_no:integer | first_name:keyword | salary:integer
 notInSubqueryReferencingViewWithInSubqueryTwoNotInSubqueries
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 // Like notInSubqueryReferencingViewWithInSubquery, with a second NOT IN subquery excluding the highest emp_no.
 FROM employees
@@ -940,7 +940,7 @@ emp_no:integer
 inSubqueryReferencingNestedInSubqueryView
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 // employees_in_subquery_nested_in_subquery nests IN subqueries over employees and languages.
 FROM employees
@@ -965,7 +965,7 @@ emp_no:integer | first_name:keyword
 inSubqueryReferencingConjunctionView
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 // employees_in_subquery_conjunction combines IN on emp_no with languages IN (English/French).
 FROM employees
@@ -981,7 +981,7 @@ emp_no:integer | first_name:keyword
 inSubqueryReferencingDisjunctionView
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 // employees_in_subquery_disjunction uses OR between emp_no IN (first 3) and languages IN (English/French).
 FROM employees
@@ -996,7 +996,7 @@ c:long
 threeInSubqueriesIntersectNestedConjunctionDisjunctionViews
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 // Three IN subqueries, each referencing one of the views; intersection is emp_no 10001 only.
 FROM employees
@@ -1013,7 +1013,7 @@ emp_no:integer | first_name:keyword
 inNestedAndDisjunctionNotInConjunctionViews
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 // Two IN subqueries (nested + disjunction) and NOT IN the conjunction view; drops 10001 from the nested set.
 FROM employees
@@ -1039,7 +1039,7 @@ emp_no:integer | first_name:keyword
 notInNestedInDisjunctionNotInConjunctionViews
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 // NOT IN nested, IN disjunction, NOT IN conjunction: disjunction rows outside the nested emp_no set.
 FROM employees
@@ -1064,7 +1064,7 @@ c:long
 viewContainingInSubqueryAlternateView
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 // employees_in_subquery_view uses employees_rehired for the inner IN subquery (first 3 rehired by emp_no).
 FROM employees_in_subquery_view
@@ -1083,7 +1083,7 @@ emp_no:integer | first_name:keyword
 inSubqueryReferencingViewWithInSubqueryAlternateView
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 // employees_in_subquery_stats_view uses employees_not_rehired for MAX(salary).
 FROM employees
@@ -1100,7 +1100,7 @@ emp_no:integer | first_name:keyword | salary:integer
 notInSubqueryReferencingViewWithInSubqueryAlternateView
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 FROM employees
 | WHERE emp_no NOT IN (FROM employees_in_subquery_stats_view | KEEP emp_no)
@@ -1120,7 +1120,7 @@ emp_no:integer
 inSubqueryReferencingViewWithInSubqueryAndFilterAlternateView
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 FROM employees
 | WHERE salary > 55000 AND emp_no IN (FROM employees_in_subquery_view | KEEP emp_no)
@@ -1140,7 +1140,7 @@ emp_no:integer | first_name:keyword | salary:integer
 viewContainingInSubqueryWithSecondInSubqueryAlternateView
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 // employees_in_subquery_view rows do not overlap the first two employees_all emp_nos (10001, 10002).
 FROM employees_in_subquery_view
@@ -1157,7 +1157,7 @@ emp_no:integer | first_name:keyword
 inSubqueryReferencingViewWithInSubqueryTwoInSubqueriesAlternateView
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 FROM employees
 | WHERE emp_no IN (FROM employees_in_subquery_stats_view | KEEP emp_no)
@@ -1179,7 +1179,7 @@ emp_no:integer | first_name:keyword | salary:integer
 notInSubqueryReferencingViewWithInSubqueryTwoNotInSubqueriesAlternateView
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 FROM employees
 | WHERE emp_no NOT IN (FROM employees_in_subquery_stats_view | KEEP emp_no)
@@ -1200,7 +1200,7 @@ emp_no:integer
 inSubqueryReferencingNestedInSubqueryViewAlternateView
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 // employees_in_subquery_nested_view uses employees_all in the inner FROM.
 FROM employees
@@ -1225,7 +1225,7 @@ emp_no:integer | first_name:keyword
 inSubqueryReferencingConjunctionViewAlternateView
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 // employees_in_subquery_conjunction_view uses employees_rehired for the emp_no IN subquery.
 FROM employees
@@ -1242,7 +1242,7 @@ emp_no:integer | first_name:keyword
 inSubqueryReferencingDisjunctionViewAlternateView
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 // employees_in_subquery_disjunction_view uses employees_not_rehired for the NOT IN subquery.
 FROM employees
@@ -1259,7 +1259,7 @@ c:long
 threeInSubqueriesIntersectNestedConjunctionDisjunctionViewsAlternateView
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 FROM employees
 | WHERE emp_no IN (FROM employees_in_subquery_nested_view | KEEP emp_no)
@@ -1278,7 +1278,7 @@ emp_no:integer | first_name:keyword
 inNestedAndDisjunctionNotInConjunctionViewsAlternateView
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 FROM employees
 | WHERE emp_no IN (FROM employees_in_subquery_nested_view | KEEP emp_no)
@@ -1308,7 +1308,7 @@ emp_no:integer | first_name:keyword
 notInNestedInDisjunctionNotInConjunctionViewsAlternateView
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: where_in_subquery
+required_capability: where_in_subquery_with_view
 
 FROM employees
 | WHERE emp_no NOT IN (FROM employees_in_subquery_nested_view | KEEP emp_no)

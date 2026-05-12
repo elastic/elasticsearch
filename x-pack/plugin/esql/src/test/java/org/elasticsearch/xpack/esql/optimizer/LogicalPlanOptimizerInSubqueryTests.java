@@ -43,7 +43,7 @@ public class LogicalPlanOptimizerInSubqueryTests extends AbstractLogicalPlanOpti
 
     @Before
     public void checkInSubquerySupport() {
-        assumeTrue("Requires IN_SUBQUERY support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        assumeTrue("Requires IN_SUBQUERY support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
         assumeTrue("Requires FROM subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
     }
 

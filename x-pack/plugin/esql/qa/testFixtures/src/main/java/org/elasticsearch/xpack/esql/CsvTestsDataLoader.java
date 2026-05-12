@@ -62,7 +62,7 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.COMMA_ESCAPING_REGEX;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ESCAPED_COMMA_SEQUENCE;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStringArray;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW;
 
 public class CsvTestsDataLoader {
 
@@ -296,16 +296,16 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_all"),
         new ViewConfig("employees_extra"),
         new ViewConfig("view_with_subquery"),
-        new ViewConfig("employees_in_subquery", List.of(WHERE_IN_SUBQUERY)),
-        new ViewConfig("employees_in_subquery_stats", List.of(WHERE_IN_SUBQUERY)),
-        new ViewConfig("employees_in_subquery_conjunction", List.of(WHERE_IN_SUBQUERY)),
-        new ViewConfig("employees_in_subquery_disjunction", List.of(WHERE_IN_SUBQUERY)),
-        new ViewConfig("employees_in_subquery_nested", List.of(WHERE_IN_SUBQUERY)),
-        new ViewConfig("employees_in_subquery_view", List.of(WHERE_IN_SUBQUERY)),
-        new ViewConfig("employees_in_subquery_stats_view", List.of(WHERE_IN_SUBQUERY)),
-        new ViewConfig("employees_in_subquery_conjunction_view", List.of(WHERE_IN_SUBQUERY)),
-        new ViewConfig("employees_in_subquery_disjunction_view", List.of(WHERE_IN_SUBQUERY)),
-        new ViewConfig("employees_in_subquery_nested_view", List.of(WHERE_IN_SUBQUERY))
+        new ViewConfig("employees_in_subquery", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_stats", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_conjunction", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_disjunction", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_nested", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_stats_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_conjunction_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_disjunction_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_nested_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW))
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**

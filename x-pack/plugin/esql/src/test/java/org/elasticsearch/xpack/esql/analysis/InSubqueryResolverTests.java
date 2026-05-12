@@ -45,7 +45,7 @@ public class InSubqueryResolverTests extends ESTestCase {
 
     @Before
     public void checkCapability() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
     }
 
     // ---- positive: WHERE IN subquery → SemiJoin ----

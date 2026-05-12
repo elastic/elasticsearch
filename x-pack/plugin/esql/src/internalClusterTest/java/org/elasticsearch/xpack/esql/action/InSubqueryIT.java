@@ -25,7 +25,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void checkCapability() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
     }
 
     @Before

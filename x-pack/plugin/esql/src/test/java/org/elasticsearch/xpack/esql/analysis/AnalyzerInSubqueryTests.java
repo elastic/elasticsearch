@@ -62,7 +62,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
 
     @Before
     public void checkInSubquerySupport() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
     }
 
     // basic IN subqueries

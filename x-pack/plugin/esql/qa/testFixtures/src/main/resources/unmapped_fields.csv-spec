@@ -644,7 +644,7 @@ required_capability: optional_fields_load_with_lookup_join
 required_capability: join_lookup_v12
 
 SET unmapped_fields="load"\;
-FROM sample_data_no_message
+FROM no_message_sample_data
 | KEEP message
 | LOOKUP JOIN message_types_lookup ON message
 | SORT message ASC, type ASC

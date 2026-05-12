@@ -127,7 +127,7 @@ public class CsvTestsDataLoader {
             "lookup-settings.json"
         ),
         new TestDataset("no_mapping_sample_data", "mapping-no_mapping_sample_data.json", "partial_mapping_sample_data.csv"),
-        new TestDataset("sample_data_no_message", "mapping-sample_data_no_message.json", "sample_data.csv"),
+        new TestDataset("no_message_sample_data", "mapping-no_message_sample_data.json", "sample_data.csv"),
         new TestDataset(
             "partial_mapping_no_source_sample_data",
             "mapping-partial_mapping_no_source_sample_data.json",

@@ -123,6 +123,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateUnitCoun
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DayName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.MonthName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeWithin;
@@ -214,6 +216,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Chunk;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Hash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
@@ -620,11 +623,14 @@ public class EsqlFunctionRegistry {
                 // dense vector functions
                 Magnitude.DEFINITION,
                 // date_range functions
+                RangeContains.DEFINITION,
+                RangeIntersects.DEFINITION,
                 RangeMax.DEFINITION,
                 RangeMin.DEFINITION,
                 RangeWithin.DEFINITION,
                 ToDateRange.DEFINITION,
-                ToText.DEFINITION } };
+                ToText.DEFINITION,
+                FieldExtract.DEFINITION } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {
@@ -878,10 +884,11 @@ public class EsqlFunctionRegistry {
         List<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>(params.length);
         boolean variadic = false;
         int countOfParamsToDescribe = params.length;
+        if (TimestampAware.class.isAssignableFrom(def.clazz())) {
+            countOfParamsToDescribe--; // skip the implicit @timestamp parameter
+        }
         if (TemporalityAware.class.isAssignableFrom(def.clazz())) {
-            countOfParamsToDescribe -= 2; // skip the implicit @timestamp and temporality parameter (last or last before Configuration)
-        } else if (TimestampAware.class.isAssignableFrom(def.clazz())) {
-            countOfParamsToDescribe--; // skip the implicit @timestamp parameter (last or last before Configuration)
+            countOfParamsToDescribe--; // skip the implicit temporality parameter
         }
         if (ConfigurationFunction.class.isAssignableFrom(def.clazz())) {
             // this isn't enforced by the contract, but the convention is: func(..., Expression timestamp, Configuration config)

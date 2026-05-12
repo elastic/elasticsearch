@@ -8,3 +8,6 @@
 `distance`
 :   Buffer distance in the units of the input spatial reference system
 
+`options` {applies_to}`{"serverless": "preview", "stack": "preview 9.5.0"}`
+:   (Optional) ST_BUFFER additional options like `quad_segs`, `endcap`, `join` and `mitre_limit`.
+

@@ -150,6 +150,13 @@ public class EsqlCapabilities {
         ST_SIMPLIFY,
 
         /**
+         * Support for named options ({@code quad_segs}, {@code endcap}, {@code join}, {@code mitre_limit})
+         * on {@code ST_BUFFER}. Requires a wire-protocol bump, so gates new csv-spec tests away from
+         * mixed-version clusters that pre-date the change.
+         */
+        ST_BUFFER_OPTIONS,
+
+        /**
          * The introduction of the {@code VALUES} agg.
          */
         AGG_VALUES,
@@ -1257,6 +1264,14 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/142499
          */
         SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION,
+
+        /**
+         * Support IN non-correlated subqueries in WHERE command.
+         * TODO: drop the {@code Build.current().isSnapshot()} gate (and the matching
+         * {@code {this.isDevVersion()}?} predicates in InExpression.g4 / EsqlBaseParser.g4)
+         * once the InSubquery feature graduates from snapshot-only to production.
+         */
+        WHERE_IN_SUBQUERY(Build.current().isSnapshot()),
 
         /**
          * Support for views in cluster state (and REST API).

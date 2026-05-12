@@ -1259,7 +1259,7 @@ public class ComputeService {
                 ActionListener.releaseAfter(driverListener, () -> Releasables.close(drivers))
             );
         } catch (Exception e) {
-            Releasables.close(context.searchContexts().iterable());
+            context.searchContexts().iterable().forEach(ComputeSearchContext::decRef);
             LOGGER.debug("Error in ComputeService.runCompute for : " + context.description());
             listener.onFailure(e);
         }

@@ -12,6 +12,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.recovery.metering.RecoveryMetricsCollector;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -21,7 +22,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 
-public class RelocationHandoffMetricsIT extends AbstractStatelessPluginIntegTestCase {
+public class RelocationMetricsIT extends AbstractStatelessPluginIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -30,10 +31,10 @@ public class RelocationHandoffMetricsIT extends AbstractStatelessPluginIntegTest
         return plugins;
     }
 
-    public void testHandoffPhaseMetricsRecordedOnTarget() {
+    public void testRelocationPhaseMetricsRecorded() {
         final String sourceNode = startMasterAndIndexNode();
 
-        final String indexName = "test-handoff-metrics";
+        final String indexName = "test-relocation-metrics";
         createIndex(indexName, indexSettings(1, 0).build());
         ensureGreen(indexName);
 
@@ -57,26 +58,32 @@ public class RelocationHandoffMetricsIT extends AbstractStatelessPluginIntegTest
         ensureGreen(indexName);
         assertThat(internalCluster().nodesInclude(indexName), not(hasItem(sourceNode)));
 
-        // Source records the round-trip handoff histogram.
+        // Source records all four source-side phase histograms.
         final TestTelemetryPlugin sourceTelemetry = getTelemetryPlugin(sourceNode);
         sourceTelemetry.collect();
-        assertHistogramRecorded(sourceTelemetry, RelocationHandoffMetrics.HANDOFF_DURATION);
+        assertHistogramRecorded(sourceTelemetry, RecoveryMetricsCollector.RELOCATION_INITIAL_FLUSH_TIME_METRIC_IN_SECONDS);
+        assertHistogramRecorded(sourceTelemetry, RecoveryMetricsCollector.RELOCATION_ACQUIRE_PERMITS_TIME_METRIC_IN_SECONDS);
+        assertHistogramRecorded(sourceTelemetry, RecoveryMetricsCollector.RELOCATION_SECOND_FLUSH_TIME_METRIC_IN_SECONDS);
+        assertHistogramRecorded(sourceTelemetry, RecoveryMetricsCollector.RELOCATION_HANDOFF_TIME_METRIC_IN_SECONDS);
 
-        // Target records each sub-phase histogram.
+        // Target records each handoff sub-phase histogram.
         final TestTelemetryPlugin targetTelemetry = getTelemetryPlugin(targetNode);
         targetTelemetry.collect();
-        assertHistogramRecorded(targetTelemetry, RelocationHandoffMetrics.PRE_RECOVERY_DURATION);
-        assertHistogramRecorded(targetTelemetry, RelocationHandoffMetrics.READ_INDEXING_SHARD_STATE_DURATION);
-        assertHistogramRecorded(targetTelemetry, RelocationHandoffMetrics.OPEN_ENGINE_DURATION);
+        assertHistogramRecorded(targetTelemetry, RecoveryMetricsCollector.RELOCATION_TARGET_PRE_RECOVERY_TIME_METRIC_IN_SECONDS);
+        assertHistogramRecorded(
+            targetTelemetry,
+            RecoveryMetricsCollector.RELOCATION_TARGET_READ_INDEXING_SHARD_STATE_TIME_METRIC_IN_SECONDS
+        );
+        assertHistogramRecorded(targetTelemetry, RecoveryMetricsCollector.RELOCATION_TARGET_OPEN_ENGINE_TIME_METRIC_IN_SECONDS);
     }
 
     private static void assertHistogramRecorded(TestTelemetryPlugin telemetry, String metricName) {
-        List<Measurement> measurements = telemetry.getLongHistogramMeasurement(metricName);
+        List<Measurement> measurements = telemetry.getDoubleHistogramMeasurement(metricName);
         assertThat(metricName + " should have at least one sample", measurements.size(), greaterThanOrEqualTo(1));
         for (Measurement m : measurements) {
             // We use ThreadPool.relativeTimeInMillis in production code to measure elapsed time, and that caches the value,
             // so it's quite likely that the times are 0 since the recovery is quite fast in the test.
-            assertThat(metricName + " values must be non-negative", m.getLong(), greaterThanOrEqualTo(0L));
+            assertThat(metricName + " values must be non-negative", m.getDouble(), greaterThanOrEqualTo(0.0));
         }
     }
 }

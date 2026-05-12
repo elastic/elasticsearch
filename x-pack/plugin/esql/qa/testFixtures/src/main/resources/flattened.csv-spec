@@ -72,3 +72,57 @@ FROM flattened_otel_logs
 @timestamp:date          | first_part:keyword
 2020-01-01T00:02:48.461Z | "{""rally.message_size"":""192"""
 ;
+
+coalesce
+required_capability: flattened_datatype
+required_capability: fn_coalesce_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL c = COALESCE(attributes, resource.attributes)
+| KEEP @timestamp, c
+;
+
+@timestamp:date          | c:flattened
+2020-01-01T00:02:48.461Z | "{""rally.message_size"":""192"",""type"":""beats""}"
+;
+
+coalesceNullFirst
+required_capability: flattened_datatype
+required_capability: fn_coalesce_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL c = COALESCE(null, attributes)
+| KEEP @timestamp, c
+;
+
+@timestamp:date          | c:flattened
+2020-01-01T00:02:48.461Z | "{""rally.message_size"":""192"",""type"":""beats""}"
+;
+
+isNull
+required_capability: flattened_datatype
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL n = attributes IS NULL
+| KEEP @timestamp, n
+;
+
+@timestamp:date          | n:boolean
+2020-01-01T00:02:48.461Z | false
+;
+
+isNotNull
+required_capability: flattened_datatype
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL n = attributes IS NOT NULL
+| KEEP @timestamp, n
+;
+
+@timestamp:date          | n:boolean
+2020-01-01T00:02:48.461Z | true
+;

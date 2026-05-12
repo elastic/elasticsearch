@@ -169,12 +169,7 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
         blockFactory = blockFactory();
         RemoteFetchService remoteFetchService = newRemoteFetchService(blockFactory);
         ReferenceAttribute fetchedAttribute = new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG);
-        ReferenceAttribute positionAttribute = new ReferenceAttribute(
-            Source.EMPTY,
-            null,
-            RemoteFetchPlanner.REMOTE_FETCH_POSITION_NAME,
-            DataType.INTEGER
-        );
+        ReferenceAttribute positionAttribute = new ReferenceAttribute(Source.EMPTY, null, "_remote_fetch_position", DataType.INTEGER);
         PhysicalPlan pushdownPlan = new FilterExec(
             Source.EMPTY,
             new RemoteFetchSourceExec(Source.EMPTY, List.of(fetchedAttribute, positionAttribute)),

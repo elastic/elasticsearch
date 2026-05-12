@@ -46,7 +46,7 @@ public class DateEsField extends EsField {
 
     @Override
     public void writeContent(StreamOutput out) throws IOException {
-        ((PlanStreamOutput) out).writeCachedString(getName());
+        ((PlanStreamOutput) out).writeCachedString(name());
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
         out.writeBoolean(isAggregatable());
         writeTimeSeriesFieldType(out);

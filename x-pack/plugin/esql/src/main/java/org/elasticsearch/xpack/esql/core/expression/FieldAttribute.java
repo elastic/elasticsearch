@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.TypeConflictField;
+import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -236,28 +236,28 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
             if ((synthetic() || name().startsWith(SYNTHETIC_ATTRIBUTE_NAME_PREFIX)) == false) {
                 lazyFieldName = new FieldName(name());
             } else {
-                lazyFieldName = new FieldName(Strings.hasText(parentName) ? parentName + "." + field.getName() : field.getName());
+                lazyFieldName = new FieldName(Strings.hasText(parentName) ? parentName + "." + field.name() : field.name());
             }
         }
         return lazyFieldName;
     }
 
     public boolean hasTypeConflicts() {
-        return field instanceof TypeConflictField;
+        return field instanceof TypeConflictedField;
     }
 
     /**
-     * If the underlying field is a {@link TypeConflictField} (ambiguous type across indices),
+     * If the underlying field is a {@link TypeConflictedField} (ambiguous type across indices),
      * converts this attribute into an {@link UnsupportedAttribute} with a descriptive error message
      * so the analyzer can surface a clear user-facing error.
      */
     public Attribute flagTypeConflicts() {
-        if (field instanceof TypeConflictField imf) {
+        if (field instanceof TypeConflictedField tcf) {
             // Field has conflicting types across indices — build a user-facing error message.
-            String unresolvedMessage = "Cannot use field [" + name() + "] due to ambiguities being " + imf.errorMessage();
-            List<String> types = imf.getTypesToIndices().keySet().stream().toList();
+            String unresolvedMessage = "Cannot use field [" + name() + "] due to ambiguities being " + tcf.errorMessage();
+            List<String> types = tcf.getTypesToIndices().keySet().stream().toList();
             // Preserve the original NameId so downstream attribute-resolution stays consistent.
-            return new UnsupportedAttribute(source(), name(), new UnsupportedEsField(imf.getName(), types), unresolvedMessage, id());
+            return new UnsupportedAttribute(source(), name(), new UnsupportedEsField(tcf.name(), types), unresolvedMessage, id());
         }
         return this;
     }
@@ -288,7 +288,7 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
             source(),
             fieldName().string,
             qualifier(),
-            name() + "." + type.getName(),
+            name() + "." + type.name(),
             type,
             nullable(),
             id(),

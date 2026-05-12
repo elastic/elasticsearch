@@ -24,7 +24,7 @@ import java.util.TreeMap;
  * Memory-frugal counterpart to {@link InvalidMappedField}: stores at most {@value #MAX_INDICES_PER_TYPE} concrete index names per source
  * type instead of the full per-type index list.
  */
-public final class CompactInvalidMappedField extends EsField implements TypeConflictField {
+public final class CompactInvalidMappedField extends TypeConflictedField {
     private static final int MAX_INDICES_PER_TYPE = 3;
 
     private final String errorMessage;
@@ -32,11 +32,11 @@ public final class CompactInvalidMappedField extends EsField implements TypeConf
     private final boolean isPotentiallyUnmapped;
 
     public CompactInvalidMappedField(String name, Map<DataType, Set<String>> typesToIndices) {
-        this(name, makeErrorMessage(typesToIndices, false), truncate(typesToIndices), false);
+        this(name, makeErrorMessage(typesToIndices), truncate(typesToIndices), false);
     }
 
     public static CompactInvalidMappedField potentiallyUnmapped(String name, Map<DataType, Set<String>> typesToIndices) {
-        return new CompactInvalidMappedField(name, makeErrorMessage(typesToIndices, true), truncate(typesToIndices), true);
+        return new CompactInvalidMappedField(name, makeErrorMessage(typesToIndices), truncate(typesToIndices), true);
     }
 
     private CompactInvalidMappedField(
@@ -85,12 +85,12 @@ public final class CompactInvalidMappedField extends EsField implements TypeConf
 
     @Override
     public EsField getExactField() {
-        throw new QlIllegalArgumentException("Field [" + getName() + "] is invalid, cannot access it");
+        throw new QlIllegalArgumentException("Field [" + name() + "] is invalid, cannot access it");
     }
 
     @Override
     public Exact getExactInfo() {
-        return new Exact(false, "Field [" + getName() + "] is invalid, cannot access it");
+        return new Exact(false, "Field [" + name() + "] is invalid, cannot access it");
     }
 
     @Override
@@ -124,13 +124,9 @@ public final class CompactInvalidMappedField extends EsField implements TypeConf
         return Collections.unmodifiableSet(truncated);
     }
 
-    /**
-     * Adapter onto {@link TypeConflictField#makeErrorMessage(Map, boolean)} since that one is shared with {@link InvalidMappedField} and
-     * therefore takes string keys. The string-keyed view is built ad-hoc here, used to render the message, and discarded.
-     */
-    private static String makeErrorMessage(Map<DataType, Set<String>> typesToIndices, boolean includeInsistKeyword) {
+    private static String makeErrorMessage(Map<DataType, Set<String>> typesToIndices) {
         Map<String, Set<String>> stringKeyed = new TreeMap<>();
         typesToIndices.forEach((k, v) -> stringKeyed.put(k.typeName(), v));
-        return TypeConflictField.makeErrorMessage(stringKeyed, includeInsistKeyword);
+        return TypeConflictedField.makeErrorMessage(stringKeyed, false);
     }
 }

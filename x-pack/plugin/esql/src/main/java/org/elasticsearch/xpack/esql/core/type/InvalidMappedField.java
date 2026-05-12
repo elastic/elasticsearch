@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
  * not required through the cluster, only surviving as long as the Analyser phase of query planning.
  * It is used specifically for the 'union types' and 'unmapped fields' feature in ES|QL.
  */
-public final class InvalidMappedField extends EsField implements TypeConflictField {
+public final class InvalidMappedField extends TypeConflictedField {
 
     private final String errorMessage;
     private final Map<String, Set<String>> typesToIndices;
@@ -49,7 +49,7 @@ public final class InvalidMappedField extends EsField implements TypeConflictFie
     public InvalidMappedField(String name, Map<String, Set<String>> typesToIndices) {
         this(
             name,
-            TypeConflictField.makeErrorMessage(typesToIndices, false),
+            TypeConflictedField.makeErrorMessage(typesToIndices, false),
             new TreeMap<>(),
             typesToIndices,
             false,
@@ -65,7 +65,7 @@ public final class InvalidMappedField extends EsField implements TypeConflictFie
     public static InvalidMappedField potentiallyUnmapped(String name, Map<String, Set<String>> typesToIndices) {
         return new InvalidMappedField(
             name,
-            TypeConflictField.makeErrorMessage(typesToIndices, true),
+            TypeConflictedField.makeErrorMessage(typesToIndices, true),
             new TreeMap<>(),
             typesToIndices,
             true,
@@ -100,7 +100,7 @@ public final class InvalidMappedField extends EsField implements TypeConflictFie
 
     @Override
     public void writeContent(StreamOutput out) throws IOException {
-        ((PlanStreamOutput) out).writeCachedString(getName());
+        ((PlanStreamOutput) out).writeCachedString(name());
         out.writeString(errorMessage);
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
         writeTimeSeriesFieldType(out);
@@ -132,13 +132,13 @@ public final class InvalidMappedField extends EsField implements TypeConflictFie
 
     @Override
     public EsField getExactField() {
-        throw new QlIllegalArgumentException("Field [" + getName() + "] is invalid, cannot access it");
+        throw new QlIllegalArgumentException("Field [" + name() + "] is invalid, cannot access it");
 
     }
 
     @Override
     public Exact getExactInfo() {
-        return new Exact(false, "Field [" + getName() + "] is invalid, cannot access it");
+        return new Exact(false, "Field [" + name() + "] is invalid, cannot access it");
     }
 
     @Override

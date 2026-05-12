@@ -73,7 +73,7 @@ public class MultiTypeEsFieldTests extends AbstractEsFieldTypeTests<MultiTypeEsF
 
     @Override
     protected MultiTypeEsField mutateInstance(MultiTypeEsField instance) throws IOException {
-        String name = instance.getName();
+        String name = instance.name();
         DataType dataType = instance.getDataType();
         Map<String, Expression> indexToConvertExpressions = instance.getIndexToConversionExpressions();
         EsField.TimeSeriesFieldType tsType = instance.getTimeSeriesFieldType();

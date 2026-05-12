@@ -21,10 +21,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- * Memory-efficient variant of {@link MultiTypeEsField} that stores the per-source-type conversion
- * expressions directly, rather than expanding them to one entry per index.
- */
+/** Memory-efficient variant of {@link MultiTypeEsField} that stores the per-source-type conversion instead of per-index. */
 public final class CompactMultiTypeEsField extends EsField implements UnionTypeEsField {
     public static final TransportVersion CompactMultiTypeEsField = TransportVersion.fromName("compact_multi_type_es_field");
 
@@ -64,7 +61,7 @@ public final class CompactMultiTypeEsField extends EsField implements UnionTypeE
 
     @Override
     public void writeContent(StreamOutput out) throws IOException {
-        ((PlanStreamOutput) out).writeCachedString(getName());
+        ((PlanStreamOutput) out).writeCachedString(name());
         getDataType().writeTo(out);
         out.writeBoolean(isAggregatable());
         out.writeMap(typeToConversionExpressions, (o, k) -> k.writeTo(o), StreamOutput::writeNamedWriteable);
@@ -94,7 +91,7 @@ public final class CompactMultiTypeEsField extends EsField implements UnionTypeE
     @Override
     public EsField rewrapWithCast(Expression convertExpression) {
         return new CompactMultiTypeEsField(
-            getName(),
+            name(),
             convertExpression.dataType(),
             isAggregatable(),
             UnionTypeEsField.replaceChildrenWithExpressionField(typeToConversionExpressions, convertExpression),
@@ -117,20 +114,20 @@ public final class CompactMultiTypeEsField extends EsField implements UnionTypeE
     }
 
     public static CompactMultiTypeEsField resolveFrom(
-        TypeConflictField imf,
+        TypeConflictedField tcf,
         Map<String, Expression> typesToConversionExpressions,
         @Nullable Expression unmappedConversionExpression
     ) {
-        UnionTypeEsField.Resolution resolution = UnionTypeEsField.resolve(imf, typesToConversionExpressions);
+        UnionTypeEsField.Resolution resolution = UnionTypeEsField.resolve(tcf, typesToConversionExpressions);
         DataType resolvedDataType = resolution.resolvedDataType() == DataType.UNSUPPORTED && unmappedConversionExpression != null
             ? unmappedConversionExpression.dataType()
             : resolution.resolvedDataType();
         return new CompactMultiTypeEsField(
-            imf.getName(),
+            tcf.name(),
             resolvedDataType,
             false,
             resolution.typeToExpr(),
-            imf.getTimeSeriesFieldType(),
+            tcf.getTimeSeriesFieldType(),
             unmappedConversionExpression
         );
     }

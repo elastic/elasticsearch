@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.TypeConflictField;
+import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -40,7 +40,7 @@ public final class Expressions {
      * Converts named expressions to {@link ReferenceAttribute}s, preserving {@link NameId}s for attributes whose name
      * matches one in {@code existingOutput}. Genuinely new attributes get fresh NameIds.
      * <p>
-     * Exception: a {@link FieldAttribute} backed by a {@link TypeConflictField} (ambiguous type across indices) is instead
+     * Exception: a {@link FieldAttribute} backed by a {@link TypeConflictedField} (ambiguous type across indices) is instead
      * converted to an {@link UnsupportedAttribute} via
      * {@link FieldAttribute#flagTypeConflicts()}, so the analyzer can surface a clear user-facing error.
      */
@@ -60,7 +60,7 @@ public final class Expressions {
             Attribute existing = existingByName.get(exp.name());
             NameId id = existing != null ? existing.id() : new NameId();
             Attribute refAttr = switch (exp) {
-                case FieldAttribute fa when fa.field() instanceof TypeConflictField -> fa.flagTypeConflicts();
+                case FieldAttribute fa when fa.field() instanceof TypeConflictedField -> fa.flagTypeConflicts();
                 case ReferenceAttribute ra -> ra.withId(id);
                 default -> new ReferenceAttribute(exp.source(), null, exp.name(), exp.dataType(), exp.nullable(), id, exp.synthetic());
             };

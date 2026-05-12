@@ -62,7 +62,7 @@ public abstract class TimeSeriesAggregateFunction extends AggregateFunction impl
             }
             for (Attribute attr : inputAttributes.get()) {
                 for (EsField f : EsQueryExec.TIME_SERIES_SOURCE_FIELDS) {
-                    if (attr.name().equals(f.getName())) {
+                    if (attr.name().equals(f.name())) {
                         attributes.addAll(attr.references());
                         break;
                     }

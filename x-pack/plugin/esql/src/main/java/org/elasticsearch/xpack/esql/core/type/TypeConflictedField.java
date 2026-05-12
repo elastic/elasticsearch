@@ -7,41 +7,49 @@
 
 package org.elasticsearch.xpack.esql.core.type;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public sealed interface TypeConflictField permits InvalidMappedField, CompactInvalidMappedField {
-    String getName();
+public sealed abstract class TypeConflictedField extends EsField permits InvalidMappedField, CompactInvalidMappedField {
+    public TypeConflictedField(
+        String name,
+        DataType esDataType,
+        Map<String, EsField> properties,
+        boolean aggregatable,
+        TimeSeriesFieldType timeSeriesFieldType
+    ) {
+        super(name, esDataType, properties, aggregatable, timeSeriesFieldType);
+    }
 
-    Map<String, EsField> getProperties();
-
-    boolean isAggregatable();
-
-    EsField.TimeSeriesFieldType getTimeSeriesFieldType();
+    public TypeConflictedField(StreamInput in) throws IOException {
+        super(in);
+    }
 
     /**
      * Pre-rendered, user-facing error message describing the conflict. Built from the full input map at construction time so it
      * survives the index-list truncation done by {@link CompactInvalidMappedField}.
      */
-    String errorMessage();
+    public abstract String errorMessage();
 
     /**
      * Per-source-type indices in which the field appears with that type. Note that {@link CompactInvalidMappedField} caps each set
      * and may include the {@code "..."} sentinel; callers that need a complete index list should use {@link InvalidMappedField}
      * instead.
      */
-    Map<String, Set<String>> getTypesToIndices();
+    public abstract Map<String, Set<String>> getTypesToIndices();
 
     /** Whether the field is unmapped in at least one index, in which case it's treated as {@link DataType#KEYWORD} where it is unmapped. */
-    boolean isPotentiallyUnmapped();
+    public abstract boolean isPotentiallyUnmapped();
 
     /** Source data types observed for this field across all indices. */
-    Set<DataType> types();
+    public abstract Set<DataType> types();
 
-    /**
-     * Build the user-facing error message for a per-type-to-indices map. Shared between both implementations so they stay in sync.
-     */
+    // Utility functions used by implementors.
+
     static String makeErrorMessage(Map<String, Set<String>> typesToIndices, boolean includeInsistKeyword) {
         StringBuilder errorMessage = new StringBuilder();
         var isInsistKeywordOnlyKeyword = includeInsistKeyword && typesToIndices.containsKey(DataType.KEYWORD.typeName()) == false;

@@ -780,7 +780,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         assertThat(attr.name(), startsWith("$$" + fieldName + "$LENGTH$"));
         FunctionEsField field = as(attr.field(), FunctionEsField.class);
         assertThat(field.functionConfig().function(), is(BlockLoaderFunctionConfig.Function.LENGTH));
-        assertThat(field.getName(), equalTo(fieldName));
+        assertThat(field.name(), equalTo(fieldName));
         return attr;
     }
 
@@ -789,7 +789,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         assertThat(attr.name(), startsWith("$$" + fieldName + "$ROUND_TO$"));
         FunctionEsField field = as(attr.field(), FunctionEsField.class);
         assertThat(field.functionConfig().function(), is(BlockLoaderFunctionConfig.Function.ROUND_TO));
-        assertThat(field.getName(), equalTo(fieldName));
+        assertThat(field.name(), equalTo(fieldName));
         return attr;
     }
 

@@ -27,7 +27,7 @@ public class InvalidMappedFieldTests extends AbstractEsFieldTypeTests<InvalidMap
 
     @Override
     protected InvalidMappedField mutateInstance(InvalidMappedField instance) {
-        String name = instance.getName();
+        String name = instance.name();
         String errorMessage = instance.errorMessage();
         Map<String, EsField> properties = instance.getProperties();
         switch (between(0, 2)) {

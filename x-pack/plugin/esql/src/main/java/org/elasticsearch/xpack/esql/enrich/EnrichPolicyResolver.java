@@ -265,7 +265,7 @@ public class EnrichPolicyResolver {
             for (Map.Entry<String, EsField> m : curr.mapping().entrySet()) {
                 EsField field = m.getValue();
                 field = new EsField(
-                    field.getName(),
+                    field.name(),
                     DataType.fromTypeName(field.getDataType().typeName()),
                     field.getProperties(),
                     field.isAggregatable(),

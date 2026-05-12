@@ -82,7 +82,7 @@ public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
 
     @Override
     protected EsField mutateInstance(EsField instance) {
-        String name = instance.getName();
+        String name = instance.name();
         DataType esDataType = instance.getDataType();
         Map<String, EsField> properties = instance.getProperties();
         boolean aggregatable = instance.isAggregatable();

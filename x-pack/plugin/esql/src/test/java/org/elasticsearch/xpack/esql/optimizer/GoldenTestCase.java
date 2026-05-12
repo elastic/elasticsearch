@@ -823,7 +823,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                     DataType dataType = DataType.fromTypeName(entry.getValue());
                     EsField field = targetMap.get(leafName);
                     EsField editedField = new EsField(
-                        field.getName(),
+                        field.name(),
                         dataType,
                         field.getProperties(),
                         field.isAggregatable(),

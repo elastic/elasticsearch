@@ -393,7 +393,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public @Nullable MappedFieldType fieldType(String name) {
             var superResult = super.fieldType(name);
-            return superResult == null && name.equals(unmappedEsField.getName()) ? createUnmappedFieldType(name, this) : superResult;
+            return superResult == null && name.equals(unmappedEsField.name()) ? createUnmappedFieldType(name, this) : superResult;
         }
 
         static MappedFieldType createUnmappedFieldType(String name, DefaultShardContext context) {

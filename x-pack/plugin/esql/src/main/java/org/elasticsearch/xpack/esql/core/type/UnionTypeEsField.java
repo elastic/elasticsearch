@@ -17,16 +17,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Common interface implemented by both {@link MultiTypeEsField} (legacy, keyed by index name) and
- * {@link CompactMultiTypeEsField} (newer, keyed by source data type) so that callers that only care about
- * the existence of a per-(index|type) conversion or about the unmapped-side conversion can treat the
- * two implementations uniformly.
- */
 public sealed interface UnionTypeEsField permits MultiTypeEsField, CompactMultiTypeEsField {
     /**
-     * Conversion expression to apply when the field is unmapped in the index, treating it as {@link DataType#KEYWORD}, or {@code null}
-     * if there is no such conversion (i.e., unmapped indices should produce {@code null}).
+     * Conversion expression to apply when the field is unmapped in the index (treating it as {@link DataType#KEYWORD}) or {@code null} if
+     * there is no such conversion (i.e., unmapped indices should produce {@code null}).
      */
     @Nullable
     Expression getUnmappedConversionExpression();
@@ -39,11 +33,14 @@ public sealed interface UnionTypeEsField permits MultiTypeEsField, CompactMultiT
      */
     EsField rewrapWithCast(Expression convertExpression);
 
+    // Utility functions used by implementors.
     static <K> Map<K, Expression> replaceChildrenWithExpressionField(Map<K, Expression> map, Expression expression) {
         return CollectionUtils.mapValues(map, e -> expression.replaceChildren(List.of(((AbstractConvertFunction) e).field())));
     }
 
-    static Resolution resolve(TypeConflictField field, Map<String, Expression> typesToConversionExpressions) {
+    record Resolution(DataType resolvedDataType, Map<DataType, Expression> typeToExpr) {}
+
+    static Resolution resolve(TypeConflictedField field, Map<String, Expression> typesToConversionExpressions) {
         DataType resolvedDataType = DataType.UNSUPPORTED;
         Map<DataType, Expression> typeToExpr = new HashMap<>();
         for (String typeName : field.getTypesToIndices().keySet()) {
@@ -57,6 +54,4 @@ public sealed interface UnionTypeEsField permits MultiTypeEsField, CompactMultiT
         }
         return new Resolution(resolvedDataType, typeToExpr);
     }
-
-    record Resolution(DataType resolvedDataType, Map<DataType, Expression> typeToExpr) {}
 }

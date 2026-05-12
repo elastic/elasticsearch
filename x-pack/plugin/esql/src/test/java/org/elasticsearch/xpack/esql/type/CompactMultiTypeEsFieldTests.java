@@ -38,9 +38,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 
-/**
- * Mirror of {@link MultiTypeEsFieldTests} for the type-keyed {@link CompactMultiTypeEsField}.
- */
 public class CompactMultiTypeEsFieldTests extends AbstractEsFieldTypeTests<CompactMultiTypeEsField> {
     private Configuration config;
 
@@ -70,7 +67,7 @@ public class CompactMultiTypeEsFieldTests extends AbstractEsFieldTypeTests<Compa
 
     @Override
     protected CompactMultiTypeEsField mutateInstance(CompactMultiTypeEsField instance) throws IOException {
-        String name = instance.getName();
+        String name = instance.name();
         DataType dataType = instance.getDataType();
         Map<DataType, Expression> typeToConvertExpressions = instance.getTypeToConversionExpressions();
         EsField.TimeSeriesFieldType tsType = instance.getTimeSeriesFieldType();
@@ -93,10 +90,6 @@ public class CompactMultiTypeEsFieldTests extends AbstractEsFieldTypeTests<Compa
         return new NamedWriteableRegistry(entries);
     }
 
-    /**
-     * Random map keyed by source {@link DataType}, so it can be used as the source-type map of
-     * {@link CompactMultiTypeEsField}.
-     */
     private Map<DataType, Expression> randomConvertExpressions(String name, boolean toString, DataType dataType) {
         Map<DataType, Expression> typeToConvertExpressions = new HashMap<>();
         if (toString) {

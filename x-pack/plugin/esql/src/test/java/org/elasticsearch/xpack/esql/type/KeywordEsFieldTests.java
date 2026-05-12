@@ -32,7 +32,7 @@ public class KeywordEsFieldTests extends AbstractEsFieldTypeTests<KeywordEsField
 
     @Override
     protected KeywordEsField mutateInstance(KeywordEsField instance) {
-        String name = instance.getName();
+        String name = instance.name();
         Map<String, EsField> properties = instance.getProperties();
         boolean hasDocValues = instance.isAggregatable();
         int precision = instance.getPrecision();

@@ -74,7 +74,7 @@ public final class MultiTypeEsField extends EsField implements UnionTypeEsField 
 
     @Override
     public void writeContent(StreamOutput out) throws IOException {
-        ((PlanStreamOutput) out).writeCachedString(getName());
+        ((PlanStreamOutput) out).writeCachedString(name());
         getDataType().writeTo(out);
         out.writeBoolean(isAggregatable());
         out.writeMap(getIndexToConversionExpressions(), (o, v) -> out.writeNamedWriteable(v));
@@ -114,7 +114,7 @@ public final class MultiTypeEsField extends EsField implements UnionTypeEsField 
     @Override
     public EsField rewrapWithCast(Expression convertExpression) {
         return new MultiTypeEsField(
-            getName(),
+            name(),
             convertExpression.dataType(),
             isAggregatable(),
             UnionTypeEsField.replaceChildrenWithExpressionField(indexToConversionExpressions, convertExpression),
@@ -129,7 +129,7 @@ public final class MultiTypeEsField extends EsField implements UnionTypeEsField 
 
     public MultiTypeEsField withPotentiallyUnmappedExpression(@Nullable Expression potentiallyUnmappedExpression) {
         return new MultiTypeEsField(
-            getName(),
+            name(),
             getDataType(),
             isAggregatable(),
             indexToConversionExpressions,
@@ -139,7 +139,7 @@ public final class MultiTypeEsField extends EsField implements UnionTypeEsField 
     }
 
     public static MultiTypeEsField resolveFrom(
-        TypeConflictField typeConflictedField,
+        TypeConflictedField typeConflictedField,
         Map<String, Expression> typesToConversionExpressions
     ) {
         UnionTypeEsField.Resolution resolution = UnionTypeEsField.resolve(typeConflictedField, typesToConversionExpressions);
@@ -151,7 +151,7 @@ public final class MultiTypeEsField extends EsField implements UnionTypeEsField 
             }
         });
         return new MultiTypeEsField(
-            typeConflictedField.getName(),
+            typeConflictedField.name(),
             resolution.resolvedDataType(),
             false,
             indexToConversionExpressions,

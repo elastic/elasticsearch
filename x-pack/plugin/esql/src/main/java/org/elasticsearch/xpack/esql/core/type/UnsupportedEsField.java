@@ -69,7 +69,7 @@ public class UnsupportedEsField extends EsField {
 
     @Override
     public void writeContent(StreamOutput out) throws IOException {
-        ((PlanStreamOutput) out).writeCachedString(getName());
+        ((PlanStreamOutput) out).writeCachedString(name());
         if (out.getTransportVersion().supports(ESQL_REPORT_ORIGINAL_TYPES)) {
             out.writeCollection(getOriginalTypes(), (o, s) -> ((PlanStreamOutput) o).writeCachedString(s));
         } else {

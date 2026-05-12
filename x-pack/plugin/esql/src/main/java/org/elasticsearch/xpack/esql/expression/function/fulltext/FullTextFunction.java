@@ -577,7 +577,7 @@ public abstract class FullTextFunction extends Function
         String fieldName = fieldAttribute.name();
         if (fieldAttribute.field() instanceof UnionTypeEsField) {
             // If we have multiple field types, we allow the query to be done, but get the underlying field name
-            fieldName = fieldAttribute.field().getName();
+            fieldName = fieldAttribute.field().name();
         }
         return fieldName;
     }

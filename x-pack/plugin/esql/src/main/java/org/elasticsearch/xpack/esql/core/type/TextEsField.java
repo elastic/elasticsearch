@@ -48,7 +48,7 @@ public class TextEsField extends EsField {
 
     @Override
     public void writeContent(StreamOutput out) throws IOException {
-        ((PlanStreamOutput) out).writeCachedString(getName());
+        ((PlanStreamOutput) out).writeCachedString(name());
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
         out.writeBoolean(isAggregatable());
         out.writeBoolean(isAlias());
@@ -78,10 +78,7 @@ public class TextEsField extends EsField {
         for (EsField property : getProperties().values()) {
             if (property.getDataType() == KEYWORD && property.getExactInfo().hasExact()) {
                 if (field != null) {
-                    return new Tuple<>(
-                        null,
-                        "Multiple exact keyword candidates available for [" + getName() + "]; specify which one to use"
-                    );
+                    return new Tuple<>(null, "Multiple exact keyword candidates available for [" + name() + "]; specify which one to use");
                 }
                 field = property;
             }
@@ -89,7 +86,7 @@ public class TextEsField extends EsField {
         if (field == null) {
             return new Tuple<>(
                 null,
-                "No keyword/multi-field defined exact matches for [" + getName() + "]; define one or use MATCH/QUERY instead"
+                "No keyword/multi-field defined exact matches for [" + name() + "]; define one or use MATCH/QUERY instead"
             );
         }
         return new Tuple<>(field, null);

@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.List;
@@ -48,14 +47,6 @@ import static org.hamcrest.Matchers.not;
 public class DatasetRewriterTests extends ESTestCase {
 
     private static final IndexNameExpressionResolver RESOLVER = TestIndexNameExpressionResolver.newInstance();
-
-    @Before
-    public void requireFeatureFlag() {
-        assumeTrue(
-            "ES|QL external datasources feature flag must be enabled",
-            DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
-        );
-    }
 
     public void testNoDatasetsLeavesPlanUnchanged() {
         UnresolvedRelation relation = relationOf("my_index");
@@ -444,19 +435,6 @@ public class DatasetRewriterTests extends ESTestCase {
         UnresolvedRelation relation = relationOf("logs-2026-05-05");
         LogicalPlan rewritten = DatasetRewriter.rewrite(relation, project, RESOLVER);
         assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
-    }
-
-    public void testFeatureFlagOffLeavesPlanUnchanged() {
-        // Production gate: when ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG is off, the rewriter is a
-        // no-op even on a project with registered datasets. The IT tests gate via assumeTrue, so
-        // this is the only place the OFF path is exercised.
-        assumeFalse("requires feature flag OFF", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
-        DataSource parent = dataSource("s3_parent", Map.of());
-        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
-        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
-
-        UnresolvedRelation relation = relationOf("logs");
-        assertSame(relation, DatasetRewriter.rewrite(relation, project, RESOLVER));
     }
 
     public void testNonMatchingExclusionLeavesDatasetsAlone() {

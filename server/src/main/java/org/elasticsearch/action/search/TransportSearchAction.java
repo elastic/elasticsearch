@@ -1737,7 +1737,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     null,
                     searchShardsGroup.preFiltered(),
                     searchShardsGroup.skipped(),
-                    searchShardsGroup.reshardSplitShardCountSummary()
+                    searchShardsGroup.splitShardCountSummary()
                 );
                 remoteShardIterators.add(shardIterator);
             }
@@ -2622,7 +2622,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 shardId,
                 shardRouting.getShardRoutings(),
                 finalIndices,
-                shardRouting.reshardSplitShardCountSummary()
+                shardRouting.splitShardCountSummary()
             );
         }
         // the returned list must support in-place sorting, so this is the most memory efficient we can do here

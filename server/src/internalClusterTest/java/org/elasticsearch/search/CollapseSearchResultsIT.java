@@ -132,22 +132,20 @@ public class CollapseSearchResultsIT extends ESIntegTestCase {
     public void testCollapseWithNestedQueryInnerHits() {
         final String indexName = "test_collapse_nested_inner_hits";
         createIndex(indexName);
-        assertAcked(
-            indicesAdmin().preparePutMapping(indexName).setSource("""
-                {
+        assertAcked(indicesAdmin().preparePutMapping(indexName).setSource("""
+            {
+              "properties": {
+                "group_id":  { "type": "keyword" },
+                "items": {
+                  "type": "nested",
                   "properties": {
-                    "group_id":  { "type": "keyword" },
-                    "items": {
-                      "type": "nested",
-                      "properties": {
-                        "name":  { "type": "keyword" },
-                        "price": { "type": "integer" }
-                      }
-                    }
+                    "name":  { "type": "keyword" },
+                    "price": { "type": "integer" }
                   }
                 }
-                """, XContentType.JSON)
-        );
+              }
+            }
+            """, XContentType.JSON));
 
         index(indexName, "doc1", Map.of("group_id", "A", "items", List.of(Map.of("name", "x", "price", 10))));
         index(indexName, "doc2", Map.of("group_id", "A", "items", List.of(Map.of("name", "y", "price", 5))));
@@ -157,11 +155,12 @@ public class CollapseSearchResultsIT extends ESIntegTestCase {
         assertNoFailuresAndResponse(
             prepareSearch(indexName).setCollapse(
                 new CollapseBuilder("group_id").setInnerHits(new InnerHitBuilder("collapse_hits").setSize(10))
-            ).setQuery(
-                new NestedQueryBuilder("items", new MatchAllQueryBuilder(), ScoreMode.None).innerHit(
-                    new InnerHitBuilder("nested_items").setSize(10)
-                )
-            ),
+            )
+                .setQuery(
+                    new NestedQueryBuilder("items", new MatchAllQueryBuilder(), ScoreMode.None).innerHit(
+                        new InnerHitBuilder("nested_items").setSize(10)
+                    )
+                ),
             response -> {
                 SearchHits hits = response.getHits();
                 assertEquals(2, hits.getHits().length);

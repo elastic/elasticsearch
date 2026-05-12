@@ -537,11 +537,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 );
             mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
                 @Override
-                void sendExecuteMultiSearch(
-                    MultiSearchRequest request,
-                    SearchTask task,
-                    ActionListener<MultiSearchResponse> listener
-                ) {
+                void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
                     try (var sections = new SearchResponseSections(collapseInnerHits, null, null, false, null, null, 1, null)) {
                         mockSearchPhaseContext.sendSearchResponse(sections, null);
                     }

@@ -751,6 +751,8 @@ count_vectors:long | _approximation_confidence_interval(count_vectors):long | _a
 
 Inline stats with MMR
 required_capability: approximation_v7
+required_capability: approximation_fork
+required_capability: approximation_inline_stats_v2
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -1409,6 +1411,7 @@ count:long | country:keyword | _approximation_confidence_interval(count):long | 
 Named subqueries inside subqueries before stats
 required_capability: approximation_v7
 required_capability: approximation_fork
+required_capability: subquery_in_from_command
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 request_stored: skip

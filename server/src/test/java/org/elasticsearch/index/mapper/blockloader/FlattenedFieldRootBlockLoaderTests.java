@@ -107,7 +107,9 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         var ignoreAbove = fieldMapping.get("ignore_above");
 
         boolean hasDocValues = hasDocValues(fieldMapping, true);
-        boolean usesDocValues = hasDocValues && (ignoreAbove == null || params.syntheticSource());
+        boolean usesDocValues = hasDocValues
+            && (ignoreAbove == null || params.syntheticSource())
+            && params.preference() != MappedFieldType.FieldExtractPreference.STORED;
         if (usesDocValues) {
             return applyFlattenedNullValue(value, nullValue);
         }

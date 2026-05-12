@@ -551,3 +551,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
   method: testMixedOperationsDuringSplit
   issue: https://github.com/elastic/elasticsearch/issues/148809
+- class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
+  method: testSearchShardRecoveryAddsTrackingToLatestShardCommit
+  issue: https://github.com/elastic/elasticsearch/issues/148883

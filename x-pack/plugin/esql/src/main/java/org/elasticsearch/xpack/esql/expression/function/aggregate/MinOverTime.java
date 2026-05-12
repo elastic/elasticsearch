@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
@@ -41,7 +40,6 @@ public class MinOverTime extends TimeSeriesAggregateFunction
     implements
         OptionalArgument,
         AggregateMetricDoubleNativeSupport,
-        SurrogateExpression,
         ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -133,11 +131,6 @@ public class MinOverTime extends TimeSeriesAggregateFunction
     @Override
     public DataType dataType() {
         return perTimeSeriesAggregation().dataType();
-    }
-
-    @Override
-    public Expression surrogate() {
-        return perTimeSeriesAggregation();
     }
 
     @Override

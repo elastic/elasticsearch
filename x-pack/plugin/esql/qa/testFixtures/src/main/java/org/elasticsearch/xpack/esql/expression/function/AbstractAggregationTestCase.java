@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
@@ -180,17 +181,13 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
 
         assumeTrue("expression should have no type errors", expression.typeResolved().resolved());
 
-        if (expression instanceof AggregateFunction && expression instanceof SurrogateExpression) {
-            var filter = ((AggregateFunction) expression).filter();
-
-            var surrogate = ((SurrogateExpression) expression).surrogate();
-
-            if (surrogate != null) {
-                surrogate.forEachDown(AggregateFunction.class, child -> {
-                    var surrogateFilter = child.filter();
-                    assertEquals(filter, surrogateFilter);
-                });
-            }
+        if (expression instanceof AggregateFunction agg) {
+            Expression resolved = resolveSubstitutions(agg);
+            var filter = agg.filter();
+            resolved.forEachDown(AggregateFunction.class, child -> {
+                var resolvedFilter = child.filter();
+                assertEquals(filter, resolvedFilter);
+            });
         }
     }
 
@@ -608,6 +605,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
     /**
      * Resolves substitutions of aggregations. This simulates the {@link LogicalPlanOptimizer} rules and order:
      * <ul>
+     *     <li>Time series aggregate functions resolved via {@link TimeSeriesAggregateFunction#perTimeSeriesAggregation()}</li>
      *     <li>Aggregation surrogates ({@link SubstituteSurrogateAggregations}). Executed twice, like in the optimizer.</li>
      *     <li>Expression surrogates ({@link SubstituteSurrogateExpressions})</li>
      *     <li>TransportVersionAware expressions {@link SubstituteTransportVersionAwareExpressions}</li>
@@ -617,6 +615,8 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
      * </p>
      */
     private Expression resolveSubstitutions(Expression expression) {
+        expression = expression.transformUp(TimeSeriesAggregateFunction.class, TimeSeriesAggregateFunction::perTimeSeriesAggregation);
+
         for (int i = 0; i < 2; i++) {
             expression = expression.transformUp(AggregateFunction.class, agg -> {
                 if (agg instanceof SurrogateExpression se) {

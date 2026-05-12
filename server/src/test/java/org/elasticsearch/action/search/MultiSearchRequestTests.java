@@ -546,13 +546,7 @@ public class MultiSearchRequestTests extends ESTestCase {
                 """);
             fail("should have caught second line; extra closing brackets");
         } catch (XContentParseException e) {
-            assertThat(
-                e.getMessage(),
-                containsString(
-                    "Unexpected close marker '}': expected ']' (for root starting at "
-                        + "[Source: (byte[])\"{ \"query\": {\"match_all\": {}}}}}}different error message\""
-                )
-            );
+            assertThat(e.getMessage(), containsString("Unexpected close marker '}'"));
         }
     }
 

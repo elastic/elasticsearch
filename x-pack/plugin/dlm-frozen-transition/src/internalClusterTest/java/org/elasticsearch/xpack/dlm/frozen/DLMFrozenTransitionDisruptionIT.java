@@ -225,6 +225,9 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
             }
         }
         disruptionThreadsToJoin.clear();
+        if (internalCluster().size() == 0) {
+            return;
+        }
         try {
             updateClusterSettings(Settings.builder().putNull(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey()));
         } catch (Exception e) {

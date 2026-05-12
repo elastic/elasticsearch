@@ -505,34 +505,31 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
     }
 
     public void testBuilder_DefaultContextIsEmptyInstance() {
-        var request = InferenceAction.Request.builder(TEST_INFERENCE_ENDPOINT, TaskType.TEXT_EMBEDDING)
-            .setInput(TEST_INPUT)
-            .build();
+        var request = InferenceAction.Request.builder(TEST_INFERENCE_ENDPOINT, TaskType.TEXT_EMBEDDING).setInput(TEST_INPUT).build();
         assertThat(request.getContext(), sameInstance(InferenceContext.EMPTY_INSTANCE));
     }
 
-    public void testBuilder_SetContextNull_ThrowsNullPointerException() {
-        var builder = InferenceAction.Request.builder(TEST_INFERENCE_ENDPOINT, TaskType.TEXT_EMBEDDING);
-        expectThrows(NullPointerException.class, () -> builder.setContext(null));
+    public void testBuilder_SetContextNull_UsesEmptyContext() {
+        var request = InferenceAction.Request.builder(TEST_INFERENCE_ENDPOINT, TaskType.TEXT_EMBEDDING).setContext(null).build();
+        assertThat(request.getContext(), sameInstance(InferenceContext.EMPTY_INSTANCE));
     }
 
-    public void testConstructor_NullContext_ThrowsNullPointerException() {
-        expectThrows(
-            NullPointerException.class,
-            () -> new InferenceAction.Request(
-                TaskType.TEXT_EMBEDDING,
-                TEST_INFERENCE_ENDPOINT,
-                null,
-                null,
-                null,
-                TEST_INPUT,
-                null,
-                null,
-                null,
-                false,
-                null
-            )
+    public void testConstructor_NullContext_UsesEmptyContext() {
+        var request = new InferenceAction.Request(
+            TaskType.TEXT_EMBEDDING,
+            TEST_INFERENCE_ENDPOINT,
+            null,
+            null,
+            null,
+            TEST_INPUT,
+            null,
+            null,
+            null,
+            false,
+            null
         );
+
+        assertThat(request.getContext(), sameInstance(InferenceContext.EMPTY_INSTANCE));
     }
 
     public void testParseRequest_DefaultsInputTypeToIngest() throws IOException {

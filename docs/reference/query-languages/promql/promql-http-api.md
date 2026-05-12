@@ -100,6 +100,8 @@ The third returns `instance` values seen on matching series.
 
 ### Metric metadata: `metadata` [promql-http-api-metadata-endpoint]
 
+{applies_to}`stack: preview 9.5.0` {applies_to}`serverless: preview`
+
 `GET /_prometheus/api/v1/metadata`\
 `GET /_prometheus/{index}/api/v1/metadata`
 

@@ -430,6 +430,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         String sourceIndex = "source";
         String destIndex = "dest";
         createIndex(sourceIndex);
+        ensureGreen(sourceIndex);
         indexRandom(true, prepareIndex(sourceIndex).setId("1").setSource("foo", "bar"));
         indicesAdmin().prepareClose(sourceIndex).get();
 

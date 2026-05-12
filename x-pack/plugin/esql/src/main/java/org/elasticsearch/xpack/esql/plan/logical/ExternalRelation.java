@@ -94,7 +94,16 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         Map<String, Object> config = (Map<String, Object>) in.readGenericValue();
         @SuppressWarnings("unchecked")
         Map<String, Object> sourceMetadata = (Map<String, Object>) in.readGenericValue();
-        var metadata = new SimpleSourceMetadata(output, sourceType, sourcePath, null, null, sourceMetadata, config);
+        // The source's full column layout is wire-encoded separately from {@code output} because the
+        // optimizer narrows {@code output} (e.g. STATS projects to a single aggregated column) before
+        // the plan crosses the coordinator → data-node boundary. The {@link SourceMetadata#schema()}
+        // contract is "positional column layout for the source", which is the file's actual schema —
+        // not the projection. Reusing {@code output} here would mis-align readSchema for any query
+        // that triggers projection pushdown on the external source.
+        List<Attribute> sourceSchema = in.getTransportVersion().supports(ExternalSourceExec.ESQL_EXTERNAL_SOURCE_READ_SCHEMA)
+            ? in.readNamedWriteableCollectionAsList(Attribute.class)
+            : output;
+        var metadata = new SimpleSourceMetadata(sourceSchema, sourceType, sourcePath, null, null, sourceMetadata, config);
         return new ExternalRelation(source, sourcePath, metadata, output, FileList.UNRESOLVED);
     }
 
@@ -106,6 +115,10 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         out.writeNamedWriteableCollection(output);
         out.writeGenericValue(metadata.config());
         out.writeGenericValue(metadata.sourceMetadata());
+        // See {@link #readFrom} for why the schema is serialized separately from {@code output}.
+        if (out.getTransportVersion().supports(ExternalSourceExec.ESQL_EXTERNAL_SOURCE_READ_SCHEMA)) {
+            out.writeNamedWriteableCollection(metadata.schema());
+        }
     }
 
     @Override

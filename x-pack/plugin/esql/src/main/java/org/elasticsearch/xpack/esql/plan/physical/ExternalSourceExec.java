@@ -60,7 +60,9 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     );
 
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_SPLITS = TransportVersion.fromName("esql_external_source_splits");
-    private static final TransportVersion ESQL_EXTERNAL_SOURCE_READ_SCHEMA = TransportVersion.fromName("esql_external_source_read_schema");
+    // Public so the sibling {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation}
+    // can gate its own schema field on the same TV — both writers share the same wire-protocol bump.
+    public static final TransportVersion ESQL_EXTERNAL_SOURCE_READ_SCHEMA = TransportVersion.fromName("esql_external_source_read_schema");
 
     private final String sourcePath;
     private final String sourceType;

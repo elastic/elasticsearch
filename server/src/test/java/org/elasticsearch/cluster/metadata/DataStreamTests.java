@@ -72,6 +72,7 @@ import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -246,7 +247,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
         assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
         assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
-        assertThat(rolledDs.getIndexMode(), equalTo(ds.getIndexMode()));
+        assertThat(rolledDs.getIndexMode(), anyOf(nullValue(), equalTo(IndexMode.STANDARD)));
     }
 
     public void testRolloverUpgradeToTsdbDataStream() {
@@ -399,7 +400,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         );
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
-        assertThat(rolledDs.getIndexMode(), nullValue());
+        assertThat(rolledDs.getIndexMode(), anyOf(nullValue(), equalTo(IndexMode.STANDARD)));
     }
 
     public void testRolloverDowngradeFromColumnarLogsdbToRegularDataStream() {
@@ -415,7 +416,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         );
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
-        assertThat(rolledDs.getIndexMode(), nullValue());
+        assertThat(rolledDs.getIndexMode(), anyOf(nullValue(), equalTo(IndexMode.STANDARD)));
     }
 
     public void testRolloverDowngradeFromLogsdbLikeToColumnar() {

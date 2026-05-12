@@ -880,7 +880,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 && (dsIndexMode == IndexMode.LOGSDB || dsIndexMode == IndexMode.COLUMNAR_LOGSDB)) {
                 LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
             }
-            dsIndexMode = (indexModeFromTemplate == IndexMode.STANDARD) ? null : indexModeFromTemplate;
+            dsIndexMode = indexModeFromTemplate;
         }
         List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices);
         backingIndices.add(writeIndex);

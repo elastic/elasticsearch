@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * Smoke tests for the parallel-final-merge path in {@link TopNOperator}: push enough rows
+ * Smoke tests for the parallel-workers path in {@link TopNOperator}: push enough rows
  * to trigger promotion, then verify the top-K output matches what a sequential sort would
  * produce. Drives the operator directly from the test thread (no Driver).
  *

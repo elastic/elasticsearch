@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * An operator that sorts "rows" of values by encoding the values to sort on, as bytes (using BytesRef). Each data type is encoded
@@ -145,18 +146,18 @@ public class TopNOperator implements Operator, Accountable {
     }
 
     /**
-     * Gates the parallel final-merge path. Auto-enabled in snapshot builds; release
+     * Gates the parallel workers path. Auto-enabled in snapshot builds; release
      * builds require {@code -Des.parallel_topn_feature_flag_enabled=true}. When disabled,
      * the planner refuses to attach a {@link ParallelWorkerConfig}, and the operator
      * stays sequential regardless of input size.
      */
     public static final FeatureFlag PARALLEL_TOPN_FEATURE_FLAG = new FeatureFlag("parallel_topn");
 
-    /** Default row count at which sequential mode promotes itself to parallel final-merge. */
+    /** Default row count at which sequential mode promotes itself to parallel workers. */
     public static final long DEFAULT_PROMOTION_THRESHOLD_ROWS = 1_000_000L;
 
     /**
-     * When passed to the constructor, opts the operator into parallel final-merge.
+     * When passed to the constructor, opts the operator into parallel workers.
      * Promotion happens one-way once row count exceeds {@code promotionThresholdRows}.
      */
     public record ParallelWorkerConfig(Executor executor, int workerCount, int maxInFlightPages, long promotionThresholdRows) {}
@@ -253,7 +254,8 @@ public class TopNOperator implements Operator, Accountable {
 
     private ReleasableIterator<Page> output;
 
-    private long receiveNanos;
+    /** Ingest CPU time, accumulated from the Driver thread (sequential) and from worker threads (parallel). */
+    private final AtomicLong receiveNanos = new AtomicLong();
     private long emitNanos;
 
     /**
@@ -281,7 +283,7 @@ public class TopNOperator implements Operator, Accountable {
     /** Saved here so per-worker {@link TopNQueue}s can be built after promotion. */
     private final int topCount;
 
-    // Parallel-final-merge: when workerConfig != null and rowsReceived crosses
+    // Parallel workers: when workerConfig != null and rowsReceived crosses
     // PROMOTION_THRESHOLD_ROWS, sequentialState is handed to worker 0 of `workers`
     // and lifecycle calls delegate from then on. Null = sequential-only.
     @Nullable
@@ -369,9 +371,7 @@ public class TopNOperator implements Operator, Accountable {
         for (SortOrder so : sortOrders) {
             channelInKey[so.channel] = true;
         }
-        // Drop the parallel-mode wiring if we can never promote: SORTED input is already
-        // O(K) sequential, and a non-null minCompetitive means we publish a skip bound
-        // upstream that promotion would freeze (see shouldPromoteToParallel()).
+        // Drop the parallel-mode wiring if we can never promote
         boolean canPromote = workerConfig != null && inputOrdering != InputOrdering.SORTED && minCompetitive == null;
         this.driverContext = canPromote ? driverContext : null;
         this.workerConfig = canPromote ? workerConfig : null;
@@ -392,13 +392,14 @@ public class TopNOperator implements Operator, Accountable {
         }
         long start = System.nanoTime();
         try {
-            mergePageIntoQueue(page, sequentialState, breaker, inputOrdering, elementTypes, encoders, sortOrders, channelInKey);
-            updateMinCompetitive();
+            if (mergePageIntoQueue(page, sequentialState)) {
+                updateMinCompetitive();
+            }
         } finally {
             page.releaseBlocks();
             pagesReceived++;
             rowsReceived += page.getPositionCount();
-            receiveNanos += System.nanoTime() - start;
+            receiveNanos.addAndGet(System.nanoTime() - start);
         }
         if (shouldPromoteToParallel()) {
             promoteToParallel();
@@ -420,21 +421,15 @@ public class TopNOperator implements Operator, Accountable {
 
     /**
      * Encode rows from {@code page} into top-K candidates and offer them to {@code state.queue}.
+     * Returns {@code true} if any insert/replace happened — sequential mode uses this to skip
+     * an unnecessary {@link #updateMinCompetitive} call when nothing changed.
      * Called from both the sequential and parallel paths; the latter passes the per-worker state directly.
      */
-    static void mergePageIntoQueue(
-        Page page,
-        TopNWorkerState state,
-        CircuitBreaker breaker,
-        InputOrdering inputOrdering,
-        List<ElementType> elementTypes,
-        List<TopNEncoder> encoders,
-        List<SortOrder> sortOrders,
-        boolean[] channelInKey
-    ) {
+    boolean mergePageIntoQueue(Page page, TopNWorkerState state) {
         if (state.queue.topCount <= 0) {
-            return;
+            return false;
         }
+        boolean modified = false;
         RowFiller rowFiller = new RowFiller(elementTypes, encoders, sortOrders, channelInKey, page);
         for (int i = 0; i < page.getPositionCount(); i++) {
             if (state.spare == null) {
@@ -449,17 +444,20 @@ public class TopNOperator implements Operator, Accountable {
                 rowFiller.writeValues(i, state.spare);
                 state.queue.add(state.spare);
                 state.spare = null;
+                modified = true;
             } else if (state.queue.lessThan(state.queue.top(), state.spare)) {
                 TopNRow nextSpare = state.queue.top();
                 rowFiller.writeValues(i, state.spare);
                 state.queue.updateTop(state.spare);
                 state.spare = nextSpare;
+                modified = true;
             } else if (inputOrdering == InputOrdering.SORTED) {
                 // Heap full, input globally sorted — remaining rows can't beat top. Only meaningful
                 // in sequential mode; parallel dispatch shuffles page order across workers.
                 break;
             }
         }
+        return modified;
     }
 
     /**
@@ -572,7 +570,7 @@ public class TopNOperator implements Operator, Accountable {
     @Override
     public Status status() {
         return new TopNOperatorStatus(
-            receiveNanos,
+            receiveNanos.get(),
             emitNanos,
             sequentialState != null ? sequentialState.queue.size() : 0,
             ramBytesUsed(),
@@ -628,11 +626,17 @@ public class TopNOperator implements Operator, Accountable {
 
             @Override
             protected void processPage(TopNWorkerState state, Page page) {
-                mergePageIntoQueue(page, state, breaker, inputOrdering, elementTypes, encoders, sortOrders, channelInKey);
+                long start = System.nanoTime();
+                try {
+                    mergePageIntoQueue(page, state);
+                } finally {
+                    receiveNanos.addAndGet(System.nanoTime() - start);
+                }
             }
 
             @Override
             protected ReleasableIterator<Page> mergeAndBuildResult(List<TopNWorkerState> states) {
+                long start = System.nanoTime();
                 TopNQueue merged = TopNQueue.build(breaker, topCount);
                 boolean success = false;
                 try {
@@ -667,6 +671,7 @@ public class TopNOperator implements Operator, Accountable {
                     if (success == false) {
                         Releasables.closeExpectNoException(merged);
                     }
+                    emitNanos += System.nanoTime() - start;
                 }
             }
         };

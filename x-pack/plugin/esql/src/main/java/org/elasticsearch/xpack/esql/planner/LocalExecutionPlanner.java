@@ -226,7 +226,7 @@ public class LocalExecutionPlanner {
     private final OperatorFactoryRegistry operatorFactoryRegistry;
     /**
      * Executor for operators that fan work out to background tasks (e.g. parallel
-     * final-merge in {@link TopNOperator}). Null in tests; operators stay sequential.
+     * workers in {@link TopNOperator}). Null in tests; operators stay sequential.
      */
     @Nullable
     private final Executor parallelWorkerExecutor;

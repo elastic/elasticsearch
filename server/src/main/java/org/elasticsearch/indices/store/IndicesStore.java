@@ -425,9 +425,22 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
             } else if (shardActive(indexShard)) {
                 sendResult(true, channel, request);
             } else {
-                // shard is not active, might be POST_RECOVERY. Wait for cluster state changes (and the async appliers behind them)
-                // to transition the shard to STARTED, or for the shard to be removed from this node entirely.
-                waitForShardActive(request, channel, request.timeout);
+                // Shard is not yet active (e.g. POST_RECOVERY). IndicesClusterStateService applies cluster states
+                // asynchronously, so the shard may transition to STARTED once the current in-flight state
+                // application finishes, without any new cluster state being published. Wait for async appliers
+                // to complete before deciding whether to block on a new state change.
+                clusterService.getClusterApplierService().awaitAllAsyncAppliers(ActionListener.running(() -> {
+                    final IndexShard currentShard = getShard(request);
+                    if (currentShard == null) {
+                        sendResult(false, channel, request);
+                    } else if (shardActive(currentShard)) {
+                        sendResult(true, channel, request);
+                    } else {
+                        // Still not active after the current state was applied; wait for the next cluster state
+                        // change (and the async appliers behind it) to transition the shard.
+                        waitForShardActive(request, channel, request.timeout);
+                    }
+                }));
             }
         }
 

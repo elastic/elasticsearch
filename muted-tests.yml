@@ -563,9 +563,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessIndexCommitListenerIT
   method: testRefIsNotReleasedUponNotificationFailure
   issue: https://github.com/elastic/elasticsearch/issues/148471
-- class: org.elasticsearch.common.io.stream.RecyclerBytesStreamOutputTests
-  method: testCircuitBreakerMoveToBytesReference
-  issue: https://github.com/elastic/elasticsearch/issues/148799
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testDeleteIndexWhileNodeStopping
   issue: https://github.com/elastic/elasticsearch/issues/148807

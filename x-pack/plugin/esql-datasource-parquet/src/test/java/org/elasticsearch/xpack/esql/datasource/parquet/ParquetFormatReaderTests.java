@@ -39,6 +39,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.UninitializedArrayAllocator;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -53,6 +54,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
+import org.junit.BeforeClass;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -79,6 +81,13 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ParquetFormatReaderTests extends ESTestCase {
+
+    @BeforeClass
+    public static void assertUninitializedArrayAllocatorFastPath() {
+        // The parquet read path relies on UninitializedArrayAllocator's Unsafe-backed allocation;
+        // fail loudly rather than silently exercising the zero-initialized fallback.
+        UninitializedArrayAllocator.ensureUnsafeEnabled();
+    }
 
     private BlockFactory blockFactory;
 

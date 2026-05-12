@@ -36,6 +36,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.UninitializedArrayAllocator;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
@@ -114,6 +115,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
 
     /** Keys recognised by {@link #withConfigTrackingConsumedKeys(Map)}. */
     static final Set<String> RECOGNIZED_KEYS = Set.of(CONFIG_OPTIMIZED_READER, CONFIG_LATE_MATERIALIZATION);
+
+    static {
+        // Don't allow slow path.
+        UninitializedArrayAllocator.ensureUnsafeEnabled();
+    }
 
     public ParquetFormatReader(BlockFactory blockFactory) {
         this(blockFactory, FilterCompat.NOOP, null, false, true, true);
@@ -1380,7 +1386,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         }
 
         private Block readBooleanColumn(ColumnReader cr, int maxDef, int rows) {
-            boolean[] values = new boolean[rows];
+            boolean[] values = UninitializedArrayAllocator.newBooleanArray(rows);
             boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
@@ -1405,7 +1411,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         }
 
         private Block readIntColumn(ColumnReader cr, int maxDef, int rows) {
-            int[] values = new int[rows];
+            int[] values = UninitializedArrayAllocator.newIntArray(rows);
             boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
@@ -1433,7 +1439,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
          * Parquet INT32 columns do not support {@link ColumnReader#getLong()}; widen safely to long for planner LONG.
          */
         private Block readInt32WidenedToLongColumn(ColumnReader cr, int maxDef, int rows) {
-            long[] values = new long[rows];
+            long[] values = UninitializedArrayAllocator.newLongArray(rows);
             boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
@@ -1449,7 +1455,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         }
 
         private Block readLongColumn(ColumnReader cr, int maxDef, int rows) {
-            long[] values = new long[rows];
+            long[] values = UninitializedArrayAllocator.newLongArray(rows);
             boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
@@ -1472,7 +1478,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             if (logical instanceof LogicalTypeAnnotation.Float16LogicalTypeAnnotation) {
                 return readFloat16Column(cr, info.maxDefLevel(), rows);
             }
-            double[] values = new double[rows];
+            double[] values = UninitializedArrayAllocator.newDoubleArray(rows);
             boolean[] isNull = info.maxDefLevel() > 0 ? new boolean[rows] : null;
             boolean noNulls = true;
             boolean isFloat = info.parquetType() == PrimitiveType.PrimitiveTypeName.FLOAT;
@@ -1489,7 +1495,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         }
 
         private Block readDecimalAsDoubleColumn(ColumnReader cr, ColumnInfo info, int scale, int rows) {
-            double[] values = new double[rows];
+            double[] values = UninitializedArrayAllocator.newDoubleArray(rows);
             boolean[] isNull = info.maxDefLevel() > 0 ? new boolean[rows] : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
@@ -1511,7 +1517,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         }
 
         private Block readFloat16Column(ColumnReader cr, int maxDef, int rows) {
-            double[] values = new double[rows];
+            double[] values = UninitializedArrayAllocator.newDoubleArray(rows);
             boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
@@ -1553,7 +1559,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT96) {
                 return readInt96TimestampColumn(cr, info.maxDefLevel(), rows);
             }
-            long[] values = new long[rows];
+            long[] values = UninitializedArrayAllocator.newLongArray(rows);
             boolean[] isNull = info.maxDefLevel() > 0 ? new boolean[rows] : null;
             boolean noNulls = true;
             boolean isDate = info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32;
@@ -1577,7 +1583,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
          * to epoch milliseconds.
          */
         private Block readInt96TimestampColumn(ColumnReader cr, int maxDef, int rows) {
-            long[] values = new long[rows];
+            long[] values = UninitializedArrayAllocator.newLongArray(rows);
             boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {

@@ -174,7 +174,7 @@ public final class ColumnBlockConversions {
         return blockFactory.newDoubleArrayBlock(doubles, rowCount, null, toBitSet(isNull, rowCount), Block.MvOrdering.UNORDERED);
     }
 
-    private static BitSet toBitSet(boolean[] isNull, int length) {
+    public static BitSet toBitSet(boolean[] isNull, int length) {
         BitSet bits = new BitSet(length);
         for (int i = 0; i < length; i++) {
             if (isNull[i]) {

@@ -35,7 +35,6 @@ When you omit `{index}` in the path, qualifying indices are identified through t
 ## Query endpoints [promql-http-api-query-endpoints]
 
 These endpoints mirror the Prometheus [range query](https://prometheus.io/docs/prometheus/latest/querying/api/#range-queries) and [instant query](https://prometheus.io/docs/prometheus/latest/querying/api/#instant-queries) APIs.
-They take a PromQL `query` string and do not use the repeatable `match[]` parameters from the [metadata and discovery endpoints](#promql-http-api-metadata).
 
 ### Range query [promql-http-api-query-range]
 
@@ -155,9 +154,9 @@ Each value must be URL-encoded. Syntax is the same as Prometheus [time series se
 
 Repeatable query parameters use a `[]` suffix, matching Prometheus. Whether any `match[]` must be present is defined in each endpoint’s parameter table.
 
-### Step (`query_range`) [promql-http-api-param-step]
+### Step [promql-http-api-param-step]
 
-The `step` query parameter on [`query_range`](#promql-http-api-query-range) accepts:
+The `step` query parameter accepts:
 
 - A non-negative decimal integer string: seconds between samples (for example, `15` for 15s resolution).
 - Or Prometheus-style duration literals such as `30s`, `5m`, or `1h30m`: a non-negative integer plus a unit suffix (`ms`, `s`, `m`, `h`, `d`, `w`, or `y`), repeated and concatenated when needed (for example, `1h30m`). See Prometheus [float literals and time durations](https://prometheus.io/docs/prometheus/latest/querying/basics/#float-literals-and-time-durations).

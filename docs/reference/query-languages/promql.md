@@ -30,7 +30,7 @@ All TSDS are supported, including metrics ingested through [OpenTelemetry Protoc
 
 When you use the Prometheus-compatible HTTP API or embed PromQL in an {{esql}} query through the `PROMQL` source command, {{es}} parses PromQL into {{esql}} logical plans and evaluates those plans against TSDS metrics.
 
-{{es}} uses the same {{esql}} compute engine as the [`TS` source command](/reference/query-languages/esql/commands/ts.md).
+{{es}} uses the same {{esql}} compute engine for PromQL as for the [`TS` source command](/reference/query-languages/esql/commands/ts.md).
 
 ## In this section
 

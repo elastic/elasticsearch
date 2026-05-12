@@ -24,13 +24,13 @@ Elastic will work to fix any issues, but features in technical preview are not s
 PromQL support is not limited to metrics ingested through [Prometheus remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md).
 All TSDS are supported, including metrics ingested through [OpenTelemetry Protocol (OTLP)](docs-content://manage-data/data-store/data-streams/tsds-ingest-otlp.md), and the [bulk API]({{es-apis}}operation/operation-bulk).
 
-{{es}} supports PromQL in two ways: through a [Prometheus-compatible HTTP API](promql/promql-http-api.md) (for Prometheus-compatible clients) and as a [`PROMQL` source command](/reference/query-languages/esql/commands/promql.md) inside piped {{esql}} queries that allows for post-processing via regular {{esql}}.
+{{es}} supports PromQL in two ways: through a [Prometheus-compatible HTTP API](promql/promql-http-api.md) (for Prometheus-compatible clients) and as a [`PROMQL` source command](/reference/query-languages/esql/commands/promql.md) inside piped {{esql}} queries that allow post-processing through regular {{esql}}.
 
 ## How does it work? [promql-how]
 
-When you use the Prometheus-compatible HTTP API or embed PromQL in an {{esql}} query through the `PROMQL` source command, {{es}} parses PromQL into {{esql}} logical plans, evaluates those plans against TSDS metrics.
+When you use the Prometheus-compatible HTTP API or embed PromQL in an {{esql}} query through the `PROMQL` source command, {{es}} parses PromQL into {{esql}} logical plans and evaluates those plans against TSDS metrics.
 
-{{es}} utilizes the same {{esql}} compute engine that is also used for the [`TS` source command](/reference/query-languages/esql/commands/ts.md).
+{{es}} uses the same {{esql}} compute engine as the [`TS` source command](/reference/query-languages/esql/commands/ts.md).
 
 ## In this section
 

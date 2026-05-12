@@ -28,14 +28,14 @@ Every path has two forms:
 - Explicit index expression: `GET /_prometheus/{index}/api/v1/<path>`
 
 The `{index}` segment is an {{es}} index expression (for example, `metrics-generic.prometheus-*`) that restricts which indices are considered in the query.
-This can reduce latency on clusters with different large time series data streams.
+This can reduce latency on clusters that contain many large time series data streams when you query a subset of indices.
 
 When you omit `{index}` in the path, qualifying indices are identified through the default index expression `metrics-*`.
 
 ## Query endpoints [promql-http-api-query-endpoints]
 
 These endpoints mirror the Prometheus [range query](https://prometheus.io/docs/prometheus/latest/querying/api/#range-queries) and [instant query](https://prometheus.io/docs/prometheus/latest/querying/api/#instant-queries) APIs.
-They take a PromQL `query` string and do not use the repeatable `match[]` parameters from the discovery routes below.
+They take a PromQL `query` string and do not use the repeatable `match[]` parameters from the [metadata and discovery endpoints](#promql-http-api-metadata).
 
 ### Range query [promql-http-api-query-range]
 
@@ -64,7 +64,7 @@ This endpoint evaluates at a single instant and returns vector data (`resultType
 | Parameter | Required | Description |
 | --- | --- | --- |
 | `query` | Yes | PromQL expression |
-| `time` | No (default: now) | Evaluation instant, [Timestamp](#promql-http-api-param-timestamp). The handler still uses an internal 5 minute range ending at this time (see [Limitations](promql-limitations.md)) |
+| `time` | No (default: now) | Evaluation instant, [Timestamp](#promql-http-api-param-timestamp). The handler still uses an internal five-minute range ending at this time (see [Limitations](promql-limitations.md)) |
 | `limit` | No (default: `0`) | Maximum number of series returned, [`limit`](#promql-http-api-limit) |
 
 The `timeout`, `lookback_delta`, and `stats` parameters are not supported yet (see [Limitations](promql-limitations.md#promql-limitations-unsupported-query-params)).
@@ -132,11 +132,11 @@ This endpoint returns metric-level information such as type, help, and unit, ana
 
 The `help` field is always an empty string for now (see [Limitations](promql-limitations.md#promql-limitations-metadata-help)).
 
-| Parameter          | Required                              | Description                                            |
-|--------------------|---------------------------------------|--------------------------------------------------------|
-| `metric`           | No (default: all metrics in lookback) | Restrict to a single metric name                       |
-| `limit`            | No (default: `0`)                     | Maximum number of distinct metrics in the response, [`limit`](#promql-http-api-limit)     |
-| `limit_per_metric` | No (default: `0`)                     | Maximum number of metadata entries returned per metric, [`limit`](#promql-http-api-limit) |
+| Parameter | Required | Description |
+| --- | --- | --- |
+| `metric` | No (default: all metrics in lookback) | Restrict to a single metric name |
+| `limit` | No (default: `0`) | Maximum number of distinct metrics in the response, [`limit`](#promql-http-api-limit) |
+| `limit_per_metric` | No (default: `0`) | Maximum number of metadata entries returned per metric, [`limit`](#promql-http-api-limit) |
 
 The `metadata` route does not support `match[]`, `start`, or `end`.
 {{es}} discovers type and unit using the {{esql}} [`METRICS_INFO`](/reference/query-languages/esql/commands/metrics-info.md) command over [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS), with a fixed 24-hour lookback ending when the request runs.
@@ -147,11 +147,11 @@ Parameter encodings match the [Prometheus HTTP API](https://prometheus.io/docs/p
 
 ### Timestamps [promql-http-api-param-timestamp]
 
-Values may be a [RFC3339](https://www.ietf.org/rfc/rfc3339.txt) instant or Unix time in seconds as a numeric string, with optional fractional digits for sub-second precision. This matches Prometheus request parsing. Sample timestamps inside JSON results use Unix seconds, as in Prometheus.
+Values may be an [RFC 3339](https://www.ietf.org/rfc/rfc3339.txt) timestamp or Unix time in seconds as a numeric string, with optional fractional digits for sub-second precision. This matches Prometheus request parsing. Sample timestamps inside JSON results use Unix seconds, as in Prometheus.
 
 ### Selectors (`match[]`) [promql-http-api-param-match]
 
-Each value must be URL-encoded. Syntax is the same as Prometheus [time series selectors](https://prometheus.io/docs/prometheus/latest/querying/basics/#time-series-selectors) (for example `up` or `http_requests_total{job="api"}`).
+Each value must be URL-encoded. Syntax is the same as Prometheus [time series selectors](https://prometheus.io/docs/prometheus/latest/querying/basics/#time-series-selectors) (for example, `up` or `http_requests_total{job="api"}`).
 
 Repeatable query parameters use a `[]` suffix, matching Prometheus. Whether any `match[]` must be present is defined in each endpoint’s parameter table.
 
@@ -159,8 +159,8 @@ Repeatable query parameters use a `[]` suffix, matching Prometheus. Whether any 
 
 The `step` query parameter on [`query_range`](#promql-http-api-query-range) accepts:
 
-- A non-negative decimal integer string: seconds between samples (for example `15` for 15s resolution).
-- Or Prometheus-style duration literals such as `30s`, `5m`, or `1h30m`: a non-negative integer plus a unit suffix (`ms`, `s`, `m`, `h`, `d`, `w`, or `y`), repeated and concatenated when needed (for example `1h30m`). See Prometheus [float literals and time durations](https://prometheus.io/docs/prometheus/latest/querying/basics/#float-literals-and-time-durations).
+- A non-negative decimal integer string: seconds between samples (for example, `15` for 15s resolution).
+- Or Prometheus-style duration literals such as `30s`, `5m`, or `1h30m`: a non-negative integer plus a unit suffix (`ms`, `s`, `m`, `h`, `d`, `w`, or `y`), repeated and concatenated when needed (for example, `1h30m`). See Prometheus [float literals and time durations](https://prometheus.io/docs/prometheus/latest/querying/basics/#float-literals-and-time-durations).
 
 ### `limit` [promql-http-api-limit]
 
@@ -179,7 +179,7 @@ Responses use JSON. Successful calls return HTTP 200 with:
 }
 ```
 
-The `data` object shape depends on the route (for example `resultType` and `result` for `query` / `query_range`).
+The `data` object shape depends on the route (for example, `resultType` and `result` for `query` / `query_range`).
 
 When the `limit` is reached and the server detects truncation, the response might include a top-level `warnings` array (strings). The preview uses a fixed message such as `results truncated due to limit`.
 

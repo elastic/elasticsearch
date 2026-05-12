@@ -27,7 +27,7 @@ If your Prometheus-compatible client defaults to `POST` for queries, configure i
 
 ## Unsupported Prometheus query parameters (HTTP API) [promql-limitations-unsupported-query-params]
 
-The [PromQL HTTP API](promql-http-api.md) documents only the parameters each route accepts. Extra parameters from the [Prometheus HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/) are not supported yet. {{es}} does not ignore them: the request fails with 400 Bad Request. Configure clients and integrations to omit them (for example there is no per-request `timeout` query parameter). Cancellation and runtime limits follow {{esql}} and cluster settings.
+The [PromQL HTTP API](promql-http-api.md) documents only the parameters each route accepts. Extra parameters from the [Prometheus HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/) are not supported yet. {{es}} does not ignore them: the request fails with 400 Bad Request. Configure clients and integrations to omit them (for example, there is no per-request `timeout` query parameter). Cancellation and runtime limits follow {{esql}} and cluster settings.
 
 ## Instant query is an approximation [promql-limitations-instant-query]
 
@@ -54,7 +54,7 @@ The following constructs are not evaluated yet, so they return a client error (4
 ## Metric metadata `help` (HTTP API) [promql-limitations-metadata-help]
 
 On [`/api/v1/metadata`](promql-http-api.md#promql-http-api-metadata-endpoint), each metric includes a `help` string shaped like Prometheus `HELP` lines.
-In this preview the `help` field is always an empty string. Docstring text from metrics is not surfaced yet.
+In this preview the `help` field is always an empty string. Help text from metric definitions is not surfaced yet.
 
 ## Exemplar queries (HTTP API) [promql-limitations-exemplars]
 

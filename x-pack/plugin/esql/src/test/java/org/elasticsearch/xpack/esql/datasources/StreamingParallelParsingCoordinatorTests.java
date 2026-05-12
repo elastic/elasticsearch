@@ -426,6 +426,52 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * Stress test the consumer's EOF predicate against the race between the segmentator's final
+     * {@code chunksDispatched.incrementAndGet()} and its subsequent {@code segmentatorDone = true}.
+     * The consumer must re-read {@code chunksDispatched} after observing {@code segmentatorDone}
+     * so that the last chunk's pages are not silently dropped; that re-read is the load-bearing
+     * invariant in {@code takeNextPage}'s EOF branch.
+     * <p>
+     * Tiny chunks + small input + high parallelism maximises the chance that the consumer arrives
+     * at the EOF check exactly inside the increment-then-flip window. A regression that reorders
+     * those writes — or removes the re-read — drops a chunk in a small fraction of iterations and
+     * trips the exact-row-count assertion below within a few hundred runs.
+     */
+    public void testStressEofDetectionRace() throws Exception {
+        int iterations = 1000;
+        int lineCount = 50;        // few lines → tight race window
+        int parallelism = 8;
+        int batchSize = 4;         // small batches → many EOF-check cycles per query
+        int chunkSize = 32;        // tiny chunks → many dispatch/done interleavings
+
+        String content = buildContent(lineCount);
+        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+        ExecutorService executor = Executors.newFixedThreadPool(parallelism + 1);
+        try {
+            for (int iter = 0; iter < iterations; iter++) {
+                LineFormatReader reader = new LineFormatReader(chunkSize);
+                List<String> got = collectLines(
+                    StreamingParallelParsingCoordinator.parallelRead(
+                        reader,
+                        new ByteArrayInputStream(bytes),
+                        List.of("line"),
+                        batchSize,
+                        parallelism,
+                        executor,
+                        ErrorPolicy.STRICT
+                    )
+                );
+                assertEquals("iter " + iter, lineCount, got.size());
+                for (int i = 0; i < lineCount; i++) {
+                    assertEquals("iter " + iter + " line " + i, "line-" + String.format(java.util.Locale.ROOT, "%04d", i), got.get(i));
+                }
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
      * Executor that forwards the first {@code allowedSubmissions} runnables to a backing
      * executor and silently drops the rest (without throwing). Models a saturated
      * scaling-pool whose work queue accepts a submission but never schedules it because

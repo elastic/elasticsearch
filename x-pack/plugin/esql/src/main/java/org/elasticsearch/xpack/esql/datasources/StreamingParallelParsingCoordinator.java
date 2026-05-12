@@ -762,7 +762,18 @@ public final class StreamingParallelParsingCoordinator {
             // Wake any consumer parked in takeNextPage on dispatchSignal; its top-of-loop closed-check
             // returns null immediately.
             dispatchSignal.release();
-            drainAllQueues();
+            // We deliberately do NOT drain chunkQueue on close. Items in chunkQueue are either:
+            // - POISONs the segmentator pushed in its finally — consuming them here would
+            // starve parsers parked on chunkQueue.take(), leaving them as zombies that
+            // pin pool threads across iterator lifetimes.
+            // - real chunks whose buffers are plain byte[]s — parsers naturally drain them
+            // (they stay live until inFlightWorkers hits zero, and their finally recycles
+            // the chunk buffer); whatever survives gets GC'd with the iterator. No
+            // CircuitBreaker accounting attached, so no real leak.
+            // pageQueues, on the other hand, hold Pages whose Blocks are charged to a
+            // CircuitBreaker — those MUST be released explicitly, since GC alone does not
+            // decrement the breaker.
+            releasePendingPages();
             long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(CLOSE_TIMEOUT_SECONDS);
             try {
                 while (inFlightWorkers.get() > 0) {
@@ -785,18 +796,10 @@ public final class StreamingParallelParsingCoordinator {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
-            drainAllQueues();
+            releasePendingPages();
         }
 
-        private void drainAllQueues() {
-            // Drain chunk queue
-            Chunk chunk;
-            while ((chunk = chunkQueue.poll()) != null) {
-                if (chunk != Chunk.POISON) {
-                    recycleBuffer(chunk.buffer);
-                }
-            }
-            // Drain page queues
+        private void releasePendingPages() {
             for (ArrayBlockingQueue<Page> queue : pageQueues) {
                 Page p;
                 while ((p = queue.poll()) != null) {

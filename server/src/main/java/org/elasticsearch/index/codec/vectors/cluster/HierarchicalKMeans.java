@@ -11,13 +11,9 @@ package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
-import java.util.concurrent.Callable;
 
 /**
  * An implementation of the hierarchical k-means algorithm that better partitions data than naive k-means
@@ -267,31 +263,6 @@ public class HierarchicalKMeans {
         return intermediate.centroids();
     }
 
-    private static int findNearestCentroid(float[] vector, float[][] centroids, float[] distances) {
-        int bestCentroid = 0;
-        float minDistance = Float.MAX_VALUE;
-        int i = 0;
-        int limit = centroids.length - 3;
-        for (; i < limit; i += 4) {
-            ESVectorUtil.squareDistanceBulk(vector, centroids[i], centroids[i + 1], centroids[i + 2], centroids[i + 3], 0, distances);
-            for (int j = 0; j < 4; j++) {
-                float distance = distances[j];
-                if (distance < minDistance) {
-                    minDistance = distance;
-                    bestCentroid = i + j;
-                }
-            }
-        }
-        for (; i < centroids.length; i++) {
-            float distance = ESVectorUtil.squareDistance(vector, centroids[i]);
-            if (distance < minDistance) {
-                minDistance = distance;
-                bestCentroid = i;
-            }
-        }
-        return bestCentroid;
-    }
-
     private void assignSoarOnly(ClusteringFloatVectorValues vectors, KMeansIntermediate kMeansIntermediate) throws IOException {
         if (soarLambda < 0) {
             return;
@@ -308,30 +279,9 @@ public class HierarchicalKMeans {
         kMeansIntermediate.setSoarAssignments(new int[vectors.size()]);
         int effectiveWorkers = Math.min(numWorkers, vectors.size() / MIN_VECTORS_PRE_THREAD);
         if (executor != null && effectiveWorkers >= 2) {
-            final int len = vectors.size() / effectiveWorkers;
-            final List<Callable<Void>> runners = new ArrayList<>(effectiveWorkers);
-            final int[] assignments = kMeansIntermediate.assignments();
-            final int[] soarAssignments = kMeansIntermediate.soarAssignments();
-            final NeighborHood[] nh = neighborhoods;
-            for (int i = 0; i < effectiveWorkers; i++) {
-                final int start = i * len;
-                final int end = i == effectiveWorkers - 1 ? vectors.size() : (i + 1) * len;
-                runners.add(() -> {
-                    vectors.copy().assignSpilled(start, end, centroids, nh, soarLambda, assignments, soarAssignments);
-                    return null;
-                });
-            }
-            executor.invokeAll(runners);
+            KMeansLocal.assignSpilledConcurrent(executor, effectiveWorkers, vectors, kMeansIntermediate, neighborhoods, soarLambda);
         } else {
-            vectors.assignSpilled(
-                0,
-                vectors.size(),
-                centroids,
-                neighborhoods,
-                soarLambda,
-                kMeansIntermediate.assignments(),
-                kMeansIntermediate.soarAssignments()
-            );
+            KMeansLocal.assignSpilledSlice(vectors, kMeansIntermediate, neighborhoods, soarLambda, 0, vectors.size());
         }
     }
 

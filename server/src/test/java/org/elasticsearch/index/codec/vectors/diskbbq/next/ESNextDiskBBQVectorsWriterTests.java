@@ -33,7 +33,6 @@ import java.util.Arrays;
 public class ESNextDiskBBQVectorsWriterTests extends ESTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
     }
 

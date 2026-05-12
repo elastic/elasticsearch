@@ -76,6 +76,7 @@ public class InferenceStats {
      * <a href="https://github.com/elastic/kibana/blob/main/x-pack/platform/plugins/shared/inference/server/chat_complete/utils/inference_endpoint_executor.ts#L47">here</a>
      * and <a href="https://github.com/elastic/kibana/blob/main/x-pack/platform/plugins/shared/stack_connectors/server/connector_types/inference/inference.ts#L216">here</a>.
      */
+    @SuppressWarnings("checkstyle:LineLength")
     public static final Set<String> KNOWN_PRODUCT_USE_CASES = Set.of(
         SEMANTIC_TEXT_INFERENCE_SOURCE,
         // Default if no id is specified

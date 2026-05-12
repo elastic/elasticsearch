@@ -288,9 +288,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.TransformCrossProjectIT
   method: testUpdateTransformWithProjectRouting
   issue: https://github.com/elastic/elasticsearch/issues/147655
-- class: org.elasticsearch.xpack.transform.transforms.TransformIndexerStateTests
-  method: testStopAtCheckpointForThrottledTransform
-  issue: https://github.com/elastic/elasticsearch/issues/147716
 - class: org.elasticsearch.compute.aggregation.blockhash.BlockHashRandomizedTests
   method: testWithCranky {forcePackedHash=false groups=2 maxValuesPerPosition=1 dups=0 allowedTypes=[Basic[elementType=LONG], Basic[elementType=INT]]}
   issue: https://github.com/elastic/elasticsearch/issues/147732
@@ -491,9 +488,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testReshardMetrics
   issue: https://github.com/elastic/elasticsearch/issues/148463
-- class: org.elasticsearch.xpack.security.ReindexRelocationWithSecurityIT
-  method: testReindexRelocatesWhenCoordinatorShutsDown
-  issue: https://github.com/elastic/elasticsearch/issues/148373
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionIT
   method: testEndToEndFrozenTransition
   issue: https://github.com/elastic/elasticsearch/issues/148467
@@ -566,6 +560,9 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessIndexCommitListenerIT
   method: testRefIsNotReleasedUponNotificationFailure
   issue: https://github.com/elastic/elasticsearch/issues/148471
-- class: org.elasticsearch.common.io.stream.RecyclerBytesStreamOutputTests
-  method: testCircuitBreakerMoveToBytesReference
-  issue: https://github.com/elastic/elasticsearch/issues/148799
+- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
+  method: testDeleteIndexWhileNodeStopping
+  issue: https://github.com/elastic/elasticsearch/issues/148807
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
+  method: testMixedOperationsDuringSplit
+  issue: https://github.com/elastic/elasticsearch/issues/148809

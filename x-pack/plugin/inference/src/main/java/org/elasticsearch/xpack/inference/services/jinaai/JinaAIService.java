@@ -225,7 +225,8 @@ public class JinaAIService extends SenderService<JinaAIModel> implements Reranki
     }
 
     /**
-     * Jina only supports specifying a single PDF as an input. A request cannot contain more than one PDF, or a PDF plus any other input
+     * Jina only supports specifying a single PDF as an input. A request cannot contain more than one PDF, or a PDF plus any other input.
+     * See <a href="https://api.jina.ai/scalar#tag/search-foundation-models/POST/v1/embeddings">Jina docs</a>
      * @param inputs the list of {@link InferenceStringGroup} inputs
      * @return {@code true} if the provided inputs are invalid in terms of how PDFs are specified
      */

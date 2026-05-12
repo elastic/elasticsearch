@@ -148,6 +148,7 @@ public record JinaAIEmbeddingsRequestEntity(List<InferenceStringGroup> input, @N
         builder.field(INPUT_FIELD);
         if (input.size() == 1 && input.getFirst().containsPdfEntry()) {
             // PDF input must be written as a single entry, not an array
+            // See https://api.jina.ai/scalar#tag/search-foundation-models/POST/v1/embeddings
             writeInferenceStringGroup(builder, input.getFirst());
         } else {
             builder.startArray();

@@ -60,7 +60,10 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
         try (var response = run(syncEsqlQueryRequest("""
             FROM dates | STATS date=VALUES(date) BY BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             """))) {
-            assertThat(findColumn(response, "BUCKET(date, 20, \"1985-01-01T00:00:00Z\", \"1986-01-01T00:00:00Z\")").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
+            assertThat(
+                findColumn(response, "BUCKET(date, 20, \"1985-01-01T00:00:00Z\", \"1986-01-01T00:00:00Z\")").meta(),
+                equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month")))
+            );
         }
     }
 

@@ -251,8 +251,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                             + "rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
                         DataType.DATETIME,
                         resultsMatcher(args)
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
-                        .withExtra(META_DAY_1);
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_DAY_1);
                 }));
                 // same as above, but a low bucket count and datetime bounds that match it (at hour span)
                 suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATETIME, DataType.INTEGER, fromType, toType), () -> {
@@ -266,8 +265,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                         "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[3600000 in Z][fixed]]",
                         DataType.DATETIME,
                         equalTo(Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build().prepareForUnknown().round(date.getAsLong()))
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
-                        .withExtra(META_HOUR_1);
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_HOUR_1);
                 }));
             }
         }
@@ -290,8 +288,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                         Matchers.containsString("rounding=Rounding[WEEK_OF_WEEKYEAR in Z][fixed to midnight]"),
                         DataType.DATETIME,
                         equalTo(Rounding.builder(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR).build().prepareForUnknown().round(date))
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
-                        .withExtra(META_WEEK_1);
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_WEEK_1);
                 }
             )
         );
@@ -312,8 +309,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                         Matchers.containsString("rounding=Rounding[MONTH_OF_YEAR in Z][fixed to midnight]"),
                         DataType.DATETIME,
                         equalTo(Rounding.builder(Rounding.DateTimeUnit.MONTH_OF_YEAR).build().prepareForUnknown().round(date))
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
-                        .withExtra(META_MONTH_1);
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_MONTH_1);
                 }
             )
         );
@@ -541,8 +537,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                             + "rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
                         DataType.DATE_NANOS,
                         resultsMatcher(args)
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
-                        .withExtra(META_DAY_1);
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_DAY_1);
                 }));
                 // same as above, but a low bucket count and datetime bounds that match it (at hour span)
                 suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATE_NANOS, DataType.INTEGER, fromType, toType), () -> {
@@ -556,8 +551,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                         "DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[3600000 in Z][fixed]]",
                         DataType.DATE_NANOS,
                         equalTo(Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build().prepareForUnknown().round(date.getAsLong()))
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
-                        .withExtra(META_HOUR_1);
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_HOUR_1);
                 }));
             }
         }

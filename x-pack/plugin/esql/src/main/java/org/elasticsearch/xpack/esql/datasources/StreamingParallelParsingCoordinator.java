@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
@@ -245,7 +244,7 @@ public final class StreamingParallelParsingCoordinator {
                     int totalBytes = offset + Math.max(bytesRead, 0);
                     boolean isEof = bytesRead < 0 || totalBytes < buf.length;
 
-                    int lastNewline = findLastRecordBoundary(buf, totalBytes);
+                    int lastNewline = reader.findLastRecordBoundary(buf, totalBytes);
 
                     if (lastNewline < 0) {
                         if (isEof) {
@@ -485,43 +484,6 @@ public final class StreamingParallelParsingCoordinator {
             return totalRead;
         }
 
-        private static int findLastNewline(byte[] buf, int length) {
-            for (int i = length - 1; i >= 0; i--) {
-                if (buf[i] == '\n') {
-                    return i;
-                }
-            }
-            return -1;
-        }
-
-        /**
-         * Finds the last <em>record</em> boundary in {@code buf[0..length)}, which for formats
-         * with multi-line quoted fields (CSV) may differ from the last {@code \n}.
-         * <p>
-         * Scans forward through the buffer using {@link SegmentableFormatReader#findNextRecordBoundary}
-         * so that newlines inside quoted fields are correctly skipped. Returns the index of the last
-         * byte that belongs to a complete record (i.e. the position of the terminating {@code \n}),
-         * or {@code -1} if no record boundary exists in the buffer.
-         */
-        private int findLastRecordBoundary(byte[] buf, int length) throws IOException {
-            SegmentableFormatReader r = reader;
-            if (r == null) {
-                return findLastNewline(buf, length);
-            }
-            int lastBoundary = -1;
-            int pos = 0;
-            while (pos < length) {
-                long consumed = r.findNextRecordBoundary(new ByteArrayInputStream(buf, pos, length - pos));
-                if (consumed < 0) {
-                    break;
-                }
-                assert consumed <= Integer.MAX_VALUE : "consumed [" + consumed + "] exceeds int range";
-                pos += (int) consumed;
-                lastBoundary = pos - 1;
-            }
-            return lastBoundary;
-        }
-
         private static byte[] growUntilNewline(InputStream stream, byte[] existing, int existingLen, int growBy) throws IOException {
             byte[] grown = new byte[existingLen + growBy];
             System.arraycopy(existing, 0, grown, 0, existingLen);
@@ -551,19 +513,19 @@ public final class StreamingParallelParsingCoordinator {
 
         /**
          * Like {@link #growUntilNewline} but keeps growing until the accumulated buffer contains at
-         * least one <em>record</em> boundary (as determined by {@link #findLastRecordBoundary}).
+         * least one record boundary (as determined by {@link SegmentableFormatReader#findLastRecordBoundary}).
          * Multi-line quoted fields may contain {@code \n} bytes that are not record boundaries; this
          * method avoids splitting in the middle of such a field.
          * <p>
          * The inner loop uses {@link #growUntilNewline} (raw {@code \n} scan) intentionally: a
          * record boundary always coincides with a {@code \n}, so growing to the next raw
-         * {@code \n} is the minimum I/O needed before re-checking with the quote-aware
-         * {@link #findLastRecordBoundary}. For quoted fields with embedded {@code \n}, the
-         * raw scan stops too early and the boundary check returns {@code -1}, causing another
-         * growth iteration — correct, just not single-pass.
+         * {@code \n} is the minimum I/O needed before re-checking with the quote-aware SPI method.
+         * For quoted fields with embedded {@code \n}, the raw scan stops too early and the
+         * boundary check returns {@code -1}, causing another growth iteration — correct, just
+         * not single-pass.
          *
          * @return a {@link GrowResult} carrying both the grown buffer and the pre-computed boundary
-         *         index, so callers can avoid a redundant {@link #findLastRecordBoundary} rescan
+         *         index, so callers can avoid a redundant boundary rescan
          */
         private GrowResult growUntilRecordBoundary(InputStream stream, byte[] existing, int existingLen, int growBy) throws IOException {
             byte[] buf = existing;
@@ -573,7 +535,7 @@ public final class StreamingParallelParsingCoordinator {
                 if (grown.length == len) {
                     return new GrowResult(grown, -1);
                 }
-                int boundary = findLastRecordBoundary(grown, grown.length);
+                int boundary = reader.findLastRecordBoundary(grown, grown.length);
                 if (boundary >= 0) {
                     return new GrowResult(grown, boundary);
                 }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
@@ -105,7 +106,7 @@ public final class DataSourceModule implements Closeable {
                     }
 
                     @Override
-                    public StorageProvider create(Settings s, Map<String, Object> config) {
+                    public Configured<StorageProvider> createTrackingConsumedKeys(Settings s, Map<String, Object> config) {
                         Map<String, StorageProviderFactory> factories = state.storageFactories();
                         StorageProviderFactory real = factories.get(scheme);
                         if (real == null) {
@@ -117,7 +118,7 @@ public final class DataSourceModule implements Closeable {
                                     + "] but storageProviders() did not return it"
                             );
                         }
-                        return real.create(s, config);
+                        return real.createTrackingConsumedKeys(s, config);
                     }
                 };
                 storageProviderRegistry.registerFactory(scheme, delegating);
@@ -334,6 +335,11 @@ public final class DataSourceModule implements Closeable {
         }
 
         @Override
+        public void validateConfig(String location, Map<String, Object> config) {
+            resolveDelegate().validateConfig(location, config);
+        }
+
+        @Override
         public Connector open(Map<String, Object> config) {
             return resolveDelegate().open(config);
         }
@@ -426,6 +432,11 @@ public final class DataSourceModule implements Closeable {
         @Override
         public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
             return resolveDelegate().resolveMetadata(location, config);
+        }
+
+        @Override
+        public void validateConfig(String location, Map<String, Object> config) {
+            resolveDelegate().validateConfig(location, config);
         }
 
         @Override

@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -509,21 +508,26 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
 
     public double nodeMaxShardWriteLoadProportion(String nodeId, DoubleSupplier computeIfMissing) {
         if (nodeMaxShardWriteLoadProportion.containsKey(nodeId)) {
-            if (Assertions.ENABLED) {
-                final double computed = computeIfMissing.getAsDouble();
-                final double cached = nodeMaxShardWriteLoadProportion.get(nodeId);
-                assert cached == computed
-                    : "We cached a different value than we calculated, this shouldn't happen. cached != computed: "
-                        + cached
-                        + " != "
-                        + computed;
-            }
+            assert cachedValueIsConsistent(nodeId, computeIfMissing);
             return nodeMaxShardWriteLoadProportion.get(nodeId);
         } else {
             double shardWriteLoadProportion = computeIfMissing.getAsDouble();
             nodeMaxShardWriteLoadProportion.put(nodeId, shardWriteLoadProportion);
             return shardWriteLoadProportion;
         }
+    }
+
+    private boolean cachedValueIsConsistent(String nodeId, DoubleSupplier computeIfMissing) {
+        final double computed = computeIfMissing.getAsDouble();
+        final double cached = nodeMaxShardWriteLoadProportion.get(nodeId);
+        assert cached == computed
+            : "We cached a different value than we calculated for "
+                + nodeId
+                + ", this shouldn't happen. cached != computed: "
+                + cached
+                + " != "
+                + computed;
+        return true;
     }
 
     public void invalidateNodeMaxShardWriteLoadProportion(String nodeId) {

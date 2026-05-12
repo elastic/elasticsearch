@@ -3549,7 +3549,6 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
         client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, numShardsAfter)).actionGet();
         waitForReshardCompletion(indexName);
-        ensureGreen(indexName);
 
         var telemetryPlugin = getTelemetryPlugin(indexNode);
         assertThat(getTotalLongCounterValue(ReshardMetrics.RESHARD_COUNT, telemetryPlugin), equalTo(1L));

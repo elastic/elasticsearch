@@ -101,6 +101,63 @@ public class CachingFieldInfosFormatTests extends ESTestCase {
         }
     }
 
+    public void testAttributesMapPaidOncePerFieldPerDirectory() throws Exception {
+        // Within one Directory, the per-Directory cache must produce exactly one canonical FieldInfo per field name across
+        // all segments, and the attributes Map inside that FieldInfo must be the same instance for every read (identity).
+        try (Directory raw = newDirectory()) {
+            FieldInfoCachingDirectory wrapped = new FieldInfoCachingDirectory(raw);
+            indexSegments(wrapped, 3);
+            CachingFieldInfosFormat format = newFormat();
+            SegmentInfos sis = SegmentInfos.readLatestCommit(wrapped);
+            assertThat("test requires multiple segments", sis.size(), Matchers.greaterThan(1));
+
+            java.util.Map<String, FieldInfo> firstSeenFi = new java.util.HashMap<>();
+            for (SegmentCommitInfo sci : sis) {
+                FieldInfos fis = format.read(wrapped, sci.info, "", IOContext.DEFAULT);
+                for (FieldInfo fi : fis) {
+                    FieldInfo prior = firstSeenFi.putIfAbsent(fi.getName(), fi);
+                    if (prior != null) {
+                        // Same FieldInfo instance across segments.
+                        assertSame("FieldInfo for [" + fi.getName() + "] must be reference-equal across segments", prior, fi);
+                        // ...which transitively means the attributes Map is the same instance too.
+                        assertSame(
+                            "attributes Map for [" + fi.getName() + "] must be reference-equal across segments",
+                            prior.attributes(),
+                            fi.attributes()
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    public void testAttributesMapSharedAcrossDirectories() throws Exception {
+        // Across two Directories (simulating two shards of the same data stream), the per-Directory FieldInfo cache produces
+        // distinct FieldInfo instances per shard (field numbering is per-IndexWriter), but the attributes Map MUST still be
+        // shared by reference because it is interned node-wide via DeduplicatingFieldInfosFormat#internStringStringMap.
+        try (Directory rawA = newDirectory(); Directory rawB = newDirectory()) {
+            FieldInfoCachingDirectory wrappedA = new FieldInfoCachingDirectory(rawA);
+            FieldInfoCachingDirectory wrappedB = new FieldInfoCachingDirectory(rawB);
+            indexSegments(wrappedA, 1);
+            indexSegments(wrappedB, 1);
+
+            CachingFieldInfosFormat format = newFormat();
+            FieldInfos fisA = format.read(wrappedA, SegmentInfos.readLatestCommit(wrappedA).iterator().next().info, "", IOContext.DEFAULT);
+            FieldInfos fisB = format.read(wrappedB, SegmentInfos.readLatestCommit(wrappedB).iterator().next().info, "", IOContext.DEFAULT);
+
+            for (FieldInfo fiA : fisA) {
+                FieldInfo fiB = fisB.fieldInfo(fiA.getName());
+                assertNotNull("field [" + fiA.getName() + "] should appear in both shards", fiB);
+                // Attribute Map is node-wide canonical regardless of which Directory it was loaded under.
+                assertSame(
+                    "attributes Map for [" + fiA.getName() + "] must be reference-equal across shards via the node-wide intern",
+                    fiA.attributes(),
+                    fiB.attributes()
+                );
+            }
+        }
+    }
+
     public void testCachingDirectoryRereadOfSameSegmentReusesCanonical() throws Exception {
         try (Directory raw = newDirectory()) {
             FieldInfoCachingDirectory wrapped = new FieldInfoCachingDirectory(raw);

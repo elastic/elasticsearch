@@ -108,11 +108,4 @@ public class ActivityLogger<Context extends ActivityLoggerContext> {
             }
         };
     }
-
-    public <Req, R> void handleException(Exception e, ActivityLoggerContextBuilder<Context, Req, R> contextBuilder) {
-        if (enabled) {
-            Context ctx = contextBuilder.build(e);
-            logAction(ctx);
-        }
-    }
 }

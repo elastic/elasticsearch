@@ -60,7 +60,7 @@ import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
 import org.elasticsearch.xpack.stateless.recovery.RegisterCommitResponse;
-import org.elasticsearch.xpack.stateless.recovery.RelocationHandoffMetrics;
+import org.elasticsearch.xpack.stateless.recovery.metering.RecoveryMetricsCollector;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.elasticsearch.xpack.stateless.snapshots.SnapshotsCommitService;
@@ -99,7 +99,7 @@ class StatelessIndexEventListener implements IndexEventListener {
     private final boolean useInternalFilesReplicatedContentForSearchShards;
     private final SnapshotsCommitService snapshotsCommitService;
     private final ClusterService clusterService;
-    private final RelocationHandoffMetrics relocationHandoffMetrics;
+    private final RecoveryMetricsCollector recoveryMetricsCollector;
 
     StatelessIndexEventListener(
         ThreadPool threadPool,
@@ -117,7 +117,7 @@ class StatelessIndexEventListener implements IndexEventListener {
         StatelessSharedBlobCacheService cacheService,
         SnapshotsCommitService snapshotsCommitService,
         ClusterService clusterService,
-        RelocationHandoffMetrics relocationHandoffMetrics
+        RecoveryMetricsCollector recoveryMetricsCollector
     ) {
         this.threadPool = threadPool;
         this.statelessCommitService = statelessCommitService;
@@ -136,7 +136,7 @@ class StatelessIndexEventListener implements IndexEventListener {
         );
         this.snapshotsCommitService = snapshotsCommitService;
         this.clusterService = clusterService;
-        this.relocationHandoffMetrics = relocationHandoffMetrics;
+        this.recoveryMetricsCollector = recoveryMetricsCollector;
     }
 
     @Override
@@ -292,8 +292,9 @@ class StatelessIndexEventListener implements IndexEventListener {
                 l
             );
         }).<Void>andThen((l, state) -> {
-            relocationHandoffMetrics.readIndexingShardStateDuration()
-                .record(threadPool.relativeTimeInMillis() - readIndexingShardStateStartMillis);
+            recoveryMetricsCollector.recordRelocationTargetReadIndexingShardStateDuration(
+                threadPool.relativeTimeInMillis() - readIndexingShardStateStartMillis
+            );
             recoverBatchedCompoundCommitOnIndexShard(indexShard, state, hasRecentIdLookup, l);
         }).addListener(listener);
     }

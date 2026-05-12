@@ -24,14 +24,14 @@ public class VoyageAIModelTests extends ESTestCase {
         // Known model id -> mapped to "embed_medium" via MODEL_TO_MODEL_FAMILY.
         var knownModel = VoyageAIEmbeddingsModelTests.createModel("url", apiKey, null, "voyage-3.5");
         assertThat(knownModel.getSecretSettings(), notNullValue());
-        assertThat(knownModel.getSecretSettings().apiKey(), notNullValue());
+        assertThat(knownModel.apiKey(), notNullValue());
         var knownHash = knownModel.rateLimitGroupingHash();
         assertThat("hash must be deterministic", knownModel.rateLimitGroupingHash(), equalTo(knownHash));
 
         // Unknown model id -> falls back to DEFAULT_MODEL_FAMILY without throwing.
         var unknownModel = VoyageAIEmbeddingsModelTests.createModel("url", apiKey, null, "no-such-model");
         assertThat(unknownModel.getSecretSettings(), notNullValue());
-        assertThat(unknownModel.getSecretSettings().apiKey(), notNullValue());
+        assertThat(unknownModel.apiKey(), notNullValue());
         assertThat(unknownModel.rateLimitGroupingHash(), equalTo(unknownModel.rateLimitGroupingHash()));
 
         // Same family ("embed_medium") + same api key => same group.
@@ -45,7 +45,7 @@ public class VoyageAIModelTests extends ESTestCase {
         // Rerank concrete subclass also goes through the same VoyageAIModel#rateLimitGroupingHash.
         var rerankModel = VoyageAIRerankModelTests.createModel(apiKey, "rerank-2", null);
         assertThat(rerankModel.getSecretSettings(), notNullValue());
-        assertThat(rerankModel.getSecretSettings().apiKey(), notNullValue());
+        assertThat(rerankModel.apiKey(), notNullValue());
         assertThat(rerankModel.rateLimitGroupingHash(), equalTo(rerankModel.rateLimitGroupingHash()));
     }
 }

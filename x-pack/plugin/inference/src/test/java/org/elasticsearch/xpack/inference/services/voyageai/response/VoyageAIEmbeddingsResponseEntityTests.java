@@ -9,10 +9,21 @@ package org.elasticsearch.xpack.inference.services.voyageai.response;
 
 import org.apache.http.HttpResponse;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingBitResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingBitResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.InputTypeTests;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequest;
 
@@ -49,7 +60,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
-            List.of("abc", "def"),
+            List.of(new InferenceStringGroup("abc"), new InferenceStringGroup("def")),
             InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
@@ -61,7 +72,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
 
         assertThat(
             ((DenseEmbeddingFloatResults) parsedResults).embeddings(),
-            is(List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F })))
+            is(List.of(new EmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F })))
         );
     }
 
@@ -95,7 +106,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
-            List.of("abc", "def"),
+            List.of(new InferenceStringGroup("abc"), new InferenceStringGroup("def")),
             InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
@@ -109,8 +120,8 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             ((DenseEmbeddingFloatResults) parsedResults).embeddings(),
             is(
                 List.of(
-                    new DenseEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F }),
-                    new DenseEmbeddingFloatResults.Embedding(new float[] { 0.0123F, -0.0123F })
+                    new EmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F }),
+                    new EmbeddingFloatResults.Embedding(new float[] { 0.0123F, -0.0123F })
                 )
             )
         );
@@ -138,7 +149,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
-            List.of("abc", "def"),
+            List.of(new InferenceStringGroup("abc"), new InferenceStringGroup("def")),
             InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
@@ -176,7 +187,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
-            List.of("abc", "def"),
+            List.of(new InferenceStringGroup("abc"), new InferenceStringGroup("def")),
             InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
@@ -214,7 +225,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
-            List.of("abc", "def"),
+            List.of(new InferenceStringGroup("abc"), new InferenceStringGroup("def")),
             InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
@@ -251,7 +262,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
-            List.of("abc", "def"),
+            List.of(new InferenceStringGroup("abc"), new InferenceStringGroup("def")),
             InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
@@ -288,7 +299,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
-            List.of("abc", "def"),
+            List.of(new InferenceStringGroup("abc"), new InferenceStringGroup("def")),
             InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
@@ -300,7 +311,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
 
         assertThat(
             ((DenseEmbeddingFloatResults) parsedResults).embeddings(),
-            is(List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 1.0F })))
+            is(List.of(new EmbeddingFloatResults.Embedding(new float[] { 1.0F })))
         );
     }
 
@@ -325,7 +336,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
-            List.of("abc", "def"),
+            List.of(new InferenceStringGroup("abc"), new InferenceStringGroup("def")),
             InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
@@ -337,7 +348,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
 
         assertThat(
             ((DenseEmbeddingFloatResults) parsedResults).embeddings(),
-            is(List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 4.0294965E10F })))
+            is(List.of(new EmbeddingFloatResults.Embedding(new float[] { 4.0294965E10F })))
         );
     }
 
@@ -362,7 +373,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
-            List.of("abc", "def"),
+            List.of(new InferenceStringGroup("abc"), new InferenceStringGroup("def")),
             InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
@@ -417,7 +428,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             }""";
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
-            List.of("abc", "def"),
+            List.of(new InferenceStringGroup("abc"), new InferenceStringGroup("def")),
             InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
@@ -433,11 +444,160 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             ((DenseEmbeddingFloatResults) parsedResults).embeddings(),
             is(
                 List.of(
-                    new DenseEmbeddingFloatResults.Embedding(new float[] { -0.9F, 0.5F, 0.3F }),
-                    new DenseEmbeddingFloatResults.Embedding(new float[] { 0.1F, 0.5F }),
-                    new DenseEmbeddingFloatResults.Embedding(new float[] { 0.5F, 0.5F })
+                    new EmbeddingFloatResults.Embedding(new float[] { -0.9F, 0.5F, 0.3F }),
+                    new EmbeddingFloatResults.Embedding(new float[] { 0.1F, 0.5F }),
+                    new EmbeddingFloatResults.Embedding(new float[] { 0.5F, 0.5F })
                 )
             )
         );
+    }
+
+    public void testFromResponse_CreatesResultsForInt8Embeddings() throws IOException {
+        String responseJson = """
+            {
+              "object": "list",
+              "data": [{"object": "embedding", "index": 0, "embedding": [1, -2, 3]}],
+              "model": "voyage-3-large",
+              "usage": {"total_tokens": 8}
+            }
+            """;
+
+        VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
+            List.of(new InferenceStringGroup("abc")),
+            InputTypeTests.randomSearchAndIngestWithNull(),
+            createModelWithEmbeddingType(VoyageAIEmbeddingType.INT8)
+        );
+
+        InferenceServiceResults parsedResults = VoyageAIEmbeddingsResponseEntity.fromResponse(
+            request,
+            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+        );
+
+        assertThat(parsedResults, instanceOf(DenseEmbeddingByteResults.class));
+        var byteResults = (DenseEmbeddingByteResults) parsedResults;
+        assertThat(byteResults.embeddings().size(), is(1));
+        assertThat(byteResults.embeddings().get(0).values(), is(List.of((byte) 1, (byte) -2, (byte) 3)));
+    }
+
+    public void testFromResponse_CreatesResultsForBitEmbeddings() throws IOException {
+        String responseJson = """
+            {
+              "object": "list",
+              "data": [{"object": "embedding", "index": 0, "embedding": [1, -2, 3]}],
+              "model": "voyage-3-large",
+              "usage": {"total_tokens": 8}
+            }
+            """;
+
+        VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
+            List.of(new InferenceStringGroup("abc")),
+            InputTypeTests.randomSearchAndIngestWithNull(),
+            createModelWithEmbeddingType(VoyageAIEmbeddingType.BIT)
+        );
+
+        InferenceServiceResults parsedResults = VoyageAIEmbeddingsResponseEntity.fromResponse(
+            request,
+            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+        );
+
+        assertThat(parsedResults, instanceOf(DenseEmbeddingBitResults.class));
+        var bitResults = (DenseEmbeddingBitResults) parsedResults;
+        assertThat(bitResults.embeddings().size(), is(1));
+        assertThat(bitResults.embeddings().get(0).values(), is(List.of((byte) 1, (byte) -2, (byte) 3)));
+    }
+
+    public void testFromResponse_ReturnsGenericResults_ForEmbeddingTaskType() throws IOException {
+        String responseJson = """
+            {
+              "object": "list",
+              "data": [{"object": "embedding", "index": 0, "embedding": [0.1, -0.2, 0.3]}],
+              "model": "voyage-multimodal-3.5",
+              "usage": {"total_tokens": 8}
+            }
+            """;
+
+        VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
+            List.of(new InferenceStringGroup("abc")),
+            InputTypeTests.randomSearchAndIngestWithNull(),
+            createMultimodalModelWithEmbeddings()
+        );
+
+        InferenceServiceResults parsedResults = VoyageAIEmbeddingsResponseEntity.fromResponse(
+            request,
+            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+        );
+
+        assertThat(parsedResults, instanceOf(GenericDenseEmbeddingFloatResults.class));
+        var floatResults = (GenericDenseEmbeddingFloatResults) parsedResults;
+        assertThat(floatResults.embeddings().size(), is(1));
+        assertThat(floatResults.embeddings().get(0).values(), is(List.of(0.1F, -0.2F, 0.3F)));
+    }
+
+    public void testFromResponse_ReturnsGenericByteResults_ForInt8EmbeddingTaskType() throws IOException {
+        String responseJson = """
+            {
+              "object": "list",
+              "data": [{"object": "embedding", "index": 0, "embedding": [1, -2, 3]}],
+              "model": "voyage-multimodal-3.5",
+              "usage": {"total_tokens": 8}
+            }
+            """;
+
+        VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
+            List.of(new InferenceStringGroup("abc")),
+            InputTypeTests.randomSearchAndIngestWithNull(),
+            createMultimodalModelWithEmbeddingType(VoyageAIEmbeddingType.INT8)
+        );
+
+        InferenceServiceResults parsedResults = VoyageAIEmbeddingsResponseEntity.fromResponse(
+            request,
+            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+        );
+
+        assertThat(parsedResults, instanceOf(GenericDenseEmbeddingByteResults.class));
+    }
+
+    public void testFromResponse_ReturnsGenericBitResults_ForBitEmbeddingTaskType() throws IOException {
+        String responseJson = """
+            {
+              "object": "list",
+              "data": [{"object": "embedding", "index": 0, "embedding": [1, -2, 3]}],
+              "model": "voyage-multimodal-3.5",
+              "usage": {"total_tokens": 8}
+            }
+            """;
+
+        VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
+            List.of(new InferenceStringGroup("abc")),
+            InputTypeTests.randomSearchAndIngestWithNull(),
+            createMultimodalModelWithEmbeddingType(VoyageAIEmbeddingType.BIT)
+        );
+
+        InferenceServiceResults parsedResults = VoyageAIEmbeddingsResponseEntity.fromResponse(
+            request,
+            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+        );
+
+        assertThat(parsedResults, instanceOf(GenericDenseEmbeddingBitResults.class));
+    }
+
+    private static VoyageAIEmbeddingsModel createModelWithEmbeddingType(VoyageAIEmbeddingType embeddingType) {
+        return VoyageAIEmbeddingsModelTests.createModel(
+            "url",
+            "api_key",
+            VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
+            null,
+            null,
+            "voyage-3-large",
+            embeddingType
+        );
+    }
+
+    private static VoyageAIEmbeddingsModel createMultimodalModelWithEmbeddings() {
+        return VoyageAIEmbeddingsModelTests.createMultimodalModel("url", "api_key", null, null, "voyage-multimodal-3.5");
+    }
+
+    private static VoyageAIEmbeddingsModel createMultimodalModelWithEmbeddingType(VoyageAIEmbeddingType embeddingType) {
+        return VoyageAIEmbeddingsModelTests.createMultimodalModel("url", "api_key", null, null, "voyage-multimodal-3.5", embeddingType);
     }
 }

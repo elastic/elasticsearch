@@ -12,8 +12,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingServiceSettings;
 import org.hamcrest.MatcherAssert;
 
 import java.util.Map;
@@ -80,9 +83,8 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
             "id",
             "service",
             url,
-            new VoyageAIEmbeddingsServiceSettings(
-                model,
-                null,
+            new VoyageAITextEmbeddingServiceSettings(
+                new VoyageAIServiceSettings(model, null),
                 VoyageAIEmbeddingType.FLOAT,
                 SimilarityMeasure.DOT_PRODUCT,
                 dimensions,
@@ -91,7 +93,8 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
             ),
             taskSettings,
             chunkingSettings,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            TaskType.TEXT_EMBEDDING
         );
     }
 
@@ -107,9 +110,8 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
             "id",
             "service",
             url,
-            new VoyageAIEmbeddingsServiceSettings(
-                model,
-                null,
+            new VoyageAITextEmbeddingServiceSettings(
+                new VoyageAIServiceSettings(model, null),
                 VoyageAIEmbeddingType.FLOAT,
                 SimilarityMeasure.DOT_PRODUCT,
                 dimensions,
@@ -118,7 +120,8 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
             ),
             taskSettings,
             null,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            TaskType.TEXT_EMBEDDING
         );
     }
 
@@ -135,10 +138,18 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
             "id",
             "service",
             url,
-            new VoyageAIEmbeddingsServiceSettings(model, null, embeddingType, SimilarityMeasure.DOT_PRODUCT, dimensions, tokenLimit, false),
+            new VoyageAITextEmbeddingServiceSettings(
+                new VoyageAIServiceSettings(model, null),
+                embeddingType,
+                SimilarityMeasure.DOT_PRODUCT,
+                dimensions,
+                tokenLimit,
+                false
+            ),
             taskSettings,
             null,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            TaskType.TEXT_EMBEDDING
         );
     }
 
@@ -155,9 +166,8 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
             "id",
             "service",
             url,
-            new VoyageAIEmbeddingsServiceSettings(
-                model,
-                null,
+            new VoyageAITextEmbeddingServiceSettings(
+                new VoyageAIServiceSettings(model, null),
                 VoyageAIEmbeddingType.FLOAT,
                 similarityMeasure,
                 dimensions,
@@ -166,7 +176,108 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
             ),
             taskSettings,
             null,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            TaskType.TEXT_EMBEDDING
         );
+    }
+
+    public static VoyageAIEmbeddingsModel createMultimodalModel(
+        String url,
+        String apiKey,
+        @Nullable Integer tokenLimit,
+        @Nullable Integer dimensions,
+        String model
+    ) {
+        return new VoyageAIEmbeddingsModel(
+            "id",
+            "service",
+            url,
+            new VoyageAIEmbeddingServiceSettings(
+                new VoyageAIServiceSettings(model, null),
+                VoyageAIEmbeddingType.FLOAT,
+                SimilarityMeasure.DOT_PRODUCT,
+                dimensions,
+                tokenLimit,
+                false,
+                true
+            ),
+            VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
+            null,
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            TaskType.EMBEDDING
+        );
+    }
+
+    public static VoyageAIEmbeddingsModel createMultimodalModel(
+        String url,
+        String apiKey,
+        @Nullable Integer tokenLimit,
+        @Nullable Integer dimensions,
+        String model,
+        VoyageAIEmbeddingType embeddingType
+    ) {
+        return new VoyageAIEmbeddingsModel(
+            "id",
+            "service",
+            url,
+            new VoyageAIEmbeddingServiceSettings(
+                new VoyageAIServiceSettings(model, null),
+                embeddingType,
+                SimilarityMeasure.DOT_PRODUCT,
+                dimensions,
+                tokenLimit,
+                false,
+                true
+            ),
+            VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
+            null,
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            TaskType.EMBEDDING
+        );
+    }
+
+    public void testUri_ReturnsEmbeddingsEndpoint_ForTextModel() {
+        var serviceSettings = new VoyageAITextEmbeddingServiceSettings(
+            new VoyageAIServiceSettings("voyage-3", null),
+            VoyageAIEmbeddingType.FLOAT,
+            SimilarityMeasure.DOT_PRODUCT,
+            null,
+            null,
+            false
+        );
+        var model = new VoyageAIEmbeddingsModel(
+            "id",
+            "service",
+            serviceSettings,
+            VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
+            null,
+            new DefaultSecretSettings(new SecureString("api_key".toCharArray())),
+            null,
+            TaskType.TEXT_EMBEDDING
+        );
+        MatcherAssert.assertThat(model.uri().getPath(), is("/v1/embeddings"));
+    }
+
+    public void testUri_ReturnsMultimodalEmbeddingsEndpoint_ForMultimodalModel() {
+        var serviceSettings = new VoyageAIEmbeddingServiceSettings(
+            new VoyageAIServiceSettings("voyage-multimodal-3.5", null),
+            VoyageAIEmbeddingType.FLOAT,
+            SimilarityMeasure.DOT_PRODUCT,
+            null,
+            null,
+            false,
+            true
+        );
+        var model = new VoyageAIEmbeddingsModel(
+            "id",
+            "service",
+            serviceSettings,
+            VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
+            null,
+            new DefaultSecretSettings(new SecureString("api_key".toCharArray())),
+            null,
+            TaskType.EMBEDDING
+        );
+        MatcherAssert.assertThat(model.uri().getPath(), is("/v1/multimodalembeddings"));
     }
 }

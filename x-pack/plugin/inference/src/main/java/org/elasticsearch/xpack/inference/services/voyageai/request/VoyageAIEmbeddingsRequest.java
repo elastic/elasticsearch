@@ -11,13 +11,15 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundDenseEmbeddingRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.BaseVoyageAIEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettings;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -28,11 +30,11 @@ import static org.elasticsearch.xpack.inference.services.voyageai.request.Voyage
 
 public class VoyageAIEmbeddingsRequest implements OutboundDenseEmbeddingRequest {
 
-    private final List<String> input;
+    private final List<InferenceStringGroup> input;
     private final InputType inputType;
     private final VoyageAIEmbeddingsModel embeddingsModel;
 
-    public VoyageAIEmbeddingsRequest(List<String> input, InputType inputType, VoyageAIEmbeddingsModel embeddingsModel) {
+    public VoyageAIEmbeddingsRequest(List<InferenceStringGroup> input, InputType inputType, VoyageAIEmbeddingsModel embeddingsModel) {
         this.embeddingsModel = Objects.requireNonNull(embeddingsModel);
         this.input = Objects.requireNonNull(input);
         this.inputType = inputType;
@@ -43,14 +45,7 @@ public class VoyageAIEmbeddingsRequest implements OutboundDenseEmbeddingRequest 
         HttpPost httpPost = new HttpPost(embeddingsModel.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(
-                new VoyageAIEmbeddingsRequestEntity(
-                    input,
-                    inputType,
-                    embeddingsModel.getServiceSettings(),
-                    embeddingsModel.getTaskSettings()
-                )
-            ).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new VoyageAIEmbeddingsRequestEntity(input, inputType, embeddingsModel)).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 
@@ -62,11 +57,6 @@ public class VoyageAIEmbeddingsRequest implements OutboundDenseEmbeddingRequest 
     @Override
     public String getInferenceEntityId() {
         return embeddingsModel.getInferenceEntityId();
-    }
-
-    @Override
-    public TaskType getTaskType() {
-        return embeddingsModel.getTaskType();
     }
 
     @Override
@@ -84,7 +74,16 @@ public class VoyageAIEmbeddingsRequest implements OutboundDenseEmbeddingRequest 
         return null;
     }
 
-    public VoyageAIEmbeddingsServiceSettings getServiceSettings() {
+    @Override
+    public TaskType getTaskType() {
+        return embeddingsModel.getTaskType();
+    }
+
+    public BaseVoyageAIEmbeddingsServiceSettings getServiceSettings() {
         return embeddingsModel.getServiceSettings();
+    }
+
+    public VoyageAIEmbeddingType getEmbeddingType() {
+        return embeddingsModel.getServiceSettings().getEmbeddingType();
     }
 }

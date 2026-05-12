@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.voyageai.response;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -19,6 +19,10 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingBitResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingBitResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType;
@@ -72,7 +76,7 @@ public class VoyageAIEmbeddingsResponseEntity {
 
         private static void checkByteBounds(Integer value) {
             if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
-                throw new IllegalArgumentException(Strings.format("Value [%d] is out of range for a byte", value));
+                throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
             }
         }
 
@@ -109,8 +113,8 @@ public class VoyageAIEmbeddingsResponseEntity {
             PARSER.declareFloatArray(constructorArg(), new ParseField("embedding"));
         }
 
-        public DenseEmbeddingFloatResults.Embedding toInferenceFloatEmbedding() {
-            return DenseEmbeddingFloatResults.Embedding.of(embedding);
+        public EmbeddingFloatResults.Embedding toInferenceFloatEmbedding() {
+            return EmbeddingFloatResults.Embedding.of(embedding);
         }
     }
 
@@ -159,36 +163,47 @@ public class VoyageAIEmbeddingsResponseEntity {
      * </code>
      * </pre>
      */
-    public static InferenceServiceResults fromResponse(OutboundRequest outboundRequest, HttpResult response) throws IOException {
+    public static InferenceServiceResults fromResponse(OutboundRequest request, HttpResult response) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-        var embeddingType = ((VoyageAIEmbeddingsRequest) outboundRequest).getServiceSettings().embeddingType();
+        VoyageAIEmbeddingsRequest embeddingsRequest = (VoyageAIEmbeddingsRequest) request;
+        VoyageAIEmbeddingType embeddingType = embeddingsRequest.getEmbeddingType();
+        TaskType taskType = embeddingsRequest.getTaskType();
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
-            switch (embeddingType) {
-                case FLOAT -> {
-                    var embeddingResult = EmbeddingFloatResult.PARSER.apply(jsonParser, null);
+            if (embeddingType == VoyageAIEmbeddingType.FLOAT) {
+                var embeddingResult = EmbeddingFloatResult.PARSER.apply(jsonParser, null);
 
-                    List<DenseEmbeddingFloatResults.Embedding> embeddingList = embeddingResult.entries.stream()
-                        .map(EmbeddingFloatResultEntry::toInferenceFloatEmbedding)
-                        .toList();
-                    return new DenseEmbeddingFloatResults(embeddingList);
+                List<EmbeddingFloatResults.Embedding> embeddingList = embeddingResult.entries.stream()
+                    .map(EmbeddingFloatResultEntry::toInferenceFloatEmbedding)
+                    .toList();
+
+                if (taskType == TaskType.EMBEDDING) {
+                    return new GenericDenseEmbeddingFloatResults(embeddingList);
                 }
-                case INT8 -> {
-                    var embeddingResult = EmbeddingInt8Result.PARSER.apply(jsonParser, null);
-                    List<DenseEmbeddingByteResults.Embedding> embeddingList = embeddingResult.entries.stream()
-                        .map(EmbeddingInt8ResultEntry::toInferenceByteEmbedding)
-                        .toList();
-                    return new DenseEmbeddingByteResults(embeddingList);
+                return new DenseEmbeddingFloatResults(embeddingList);
+            } else if (embeddingType == VoyageAIEmbeddingType.INT8) {
+                var embeddingResult = EmbeddingInt8Result.PARSER.apply(jsonParser, null);
+                List<DenseEmbeddingByteResults.Embedding> embeddingList = embeddingResult.entries.stream()
+                    .map(EmbeddingInt8ResultEntry::toInferenceByteEmbedding)
+                    .toList();
+
+                if (taskType == TaskType.EMBEDDING) {
+                    return new GenericDenseEmbeddingByteResults(embeddingList);
                 }
-                case BIT, BINARY -> {
-                    var embeddingResult = EmbeddingInt8Result.PARSER.apply(jsonParser, null);
-                    List<DenseEmbeddingByteResults.Embedding> embeddingList = embeddingResult.entries.stream()
-                        .map(EmbeddingInt8ResultEntry::toInferenceByteEmbedding)
-                        .toList();
-                    return new DenseEmbeddingBitResults(embeddingList);
+                return new DenseEmbeddingByteResults(embeddingList);
+            } else if (embeddingType == VoyageAIEmbeddingType.BIT || embeddingType == VoyageAIEmbeddingType.BINARY) {
+                var embeddingResult = EmbeddingInt8Result.PARSER.apply(jsonParser, null);
+                List<DenseEmbeddingByteResults.Embedding> embeddingList = embeddingResult.entries.stream()
+                    .map(EmbeddingInt8ResultEntry::toInferenceByteEmbedding)
+                    .toList();
+
+                if (taskType == TaskType.EMBEDDING) {
+                    return new GenericDenseEmbeddingBitResults(embeddingList);
                 }
-                default -> throw new IllegalArgumentException(
-                    Strings.format("Illegal embedding_type value: %s. Supported types are: %s", embeddingType, VALID_EMBEDDING_TYPES_STRING)
+                return new DenseEmbeddingBitResults(embeddingList);
+            } else {
+                throw new IllegalArgumentException(
+                    "Illegal embedding_type value: " + embeddingType + ". Supported types are: " + VALID_EMBEDDING_TYPES_STRING
                 );
             }
         }

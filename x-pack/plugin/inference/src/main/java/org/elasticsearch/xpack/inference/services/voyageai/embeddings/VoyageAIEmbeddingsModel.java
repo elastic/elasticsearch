@@ -12,6 +12,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIUtils
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIUtils.HOST;
@@ -42,16 +44,18 @@ public class VoyageAIEmbeddingsModel extends VoyageAIModel {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        TaskType taskType
     ) {
         this(
             inferenceId,
             service,
-            VoyageAIEmbeddingsServiceSettings.fromMap(serviceSettings, context),
+            createServiceSettings(serviceSettings, taskType, context),
             VoyageAIEmbeddingsTaskSettings.fromMap(taskSettings),
             chunkingSettings,
             DefaultSecretSettings.fromMap(secrets, context),
-            buildUri(VoyageAIService.NAME, VoyageAIEmbeddingsModel::buildRequestUri)
+            null,
+            taskType
         );
     }
 
@@ -62,50 +66,67 @@ public class VoyageAIEmbeddingsModel extends VoyageAIModel {
             .build();
     }
 
+    public static URI buildMultimodalRequestUri() throws URISyntaxException {
+        return new URIBuilder().setScheme("https")
+            .setHost(HOST)
+            .setPathSegments(VoyageAIUtils.VERSION_1, VoyageAIUtils.MULTIMODAL_EMBEDDINGS_PATH)
+            .build();
+    }
+
     // should only be used for testing
     VoyageAIEmbeddingsModel(
         String inferenceId,
         String service,
         String url,
-        VoyageAIEmbeddingsServiceSettings serviceSettings,
-        VoyageAIEmbeddingsTaskSettings taskSettings,
-        ChunkingSettings chunkingSettings,
-        @Nullable DefaultSecretSettings secretSettings
-    ) {
-        this(inferenceId, service, serviceSettings, taskSettings, chunkingSettings, secretSettings, ServiceUtils.createUri(url));
-    }
-
-    private VoyageAIEmbeddingsModel(
-        String inferenceId,
-        String service,
-        VoyageAIEmbeddingsServiceSettings serviceSettings,
+        BaseVoyageAIEmbeddingsServiceSettings serviceSettings,
         VoyageAIEmbeddingsTaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable DefaultSecretSettings secretSettings,
-        URI uri
+        TaskType taskType
+    ) {
+        this(inferenceId, service, serviceSettings, taskSettings, chunkingSettings, secretSettings, ServiceUtils.createUri(url), taskType);
+    }
+
+    VoyageAIEmbeddingsModel(
+        String inferenceId,
+        String service,
+        BaseVoyageAIEmbeddingsServiceSettings serviceSettings,
+        VoyageAIEmbeddingsTaskSettings taskSettings,
+        ChunkingSettings chunkingSettings,
+        @Nullable DefaultSecretSettings secretSettings,
+        @Nullable URI uri,
+        TaskType taskType
     ) {
         super(
-            new ModelConfigurations(inferenceId, TaskType.TEXT_EMBEDDING, service, serviceSettings, taskSettings, chunkingSettings),
+            new ModelConfigurations(inferenceId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secretSettings),
-            uri
+            secretSettings,
+            serviceSettings.getCommonSettings(),
+            Objects.requireNonNullElse(uri, buildUriFromSettings(serviceSettings))
         );
     }
 
     public VoyageAIEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
-        super(modelConfigurations, modelSecrets, buildUri(VoyageAIService.NAME, VoyageAIEmbeddingsModel::buildRequestUri));
+        super(
+            modelConfigurations,
+            modelSecrets,
+            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
+            ((BaseVoyageAIEmbeddingsServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings(),
+            buildUriFromSettings(modelConfigurations.getServiceSettings())
+        );
     }
 
     private VoyageAIEmbeddingsModel(VoyageAIEmbeddingsModel model, VoyageAIEmbeddingsTaskSettings taskSettings) {
         super(model, taskSettings);
     }
 
-    public VoyageAIEmbeddingsModel(VoyageAIEmbeddingsModel model, VoyageAIEmbeddingsServiceSettings serviceSettings) {
+    public VoyageAIEmbeddingsModel(VoyageAIEmbeddingsModel model, BaseVoyageAIEmbeddingsServiceSettings serviceSettings) {
         super(model, serviceSettings);
     }
 
     @Override
-    public VoyageAIEmbeddingsServiceSettings getServiceSettings() {
-        return (VoyageAIEmbeddingsServiceSettings) super.getServiceSettings();
+    public BaseVoyageAIEmbeddingsServiceSettings getServiceSettings() {
+        return (BaseVoyageAIEmbeddingsServiceSettings) super.getServiceSettings();
     }
 
     @Override
@@ -116,5 +137,24 @@ public class VoyageAIEmbeddingsModel extends VoyageAIModel {
     @Override
     public ExecutableAction accept(VoyageAIActionVisitor visitor, Map<String, Object> taskSettings) {
         return visitor.create(this, taskSettings);
+    }
+
+    private static BaseVoyageAIEmbeddingsServiceSettings createServiceSettings(
+        Map<String, Object> serviceSettings,
+        TaskType taskType,
+        ConfigurationParseContext context
+    ) {
+        return switch (taskType) {
+            case TEXT_EMBEDDING -> VoyageAITextEmbeddingServiceSettings.fromMap(serviceSettings, context);
+            case EMBEDDING -> VoyageAIEmbeddingServiceSettings.fromMap(serviceSettings, context);
+            default -> throw new IllegalArgumentException("Unsupported task type for VoyageAI embeddings: " + taskType);
+        };
+    }
+
+    static URI buildUriFromSettings(ServiceSettings serviceSettings) {
+        if (serviceSettings.isMultimodal()) {
+            return buildUri(VoyageAIService.NAME, VoyageAIEmbeddingsModel::buildMultimodalRequestUri);
+        }
+        return buildUri(VoyageAIService.NAME, VoyageAIEmbeddingsModel::buildRequestUri);
     }
 }

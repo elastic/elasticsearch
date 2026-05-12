@@ -7,12 +7,16 @@
 
 package org.elasticsearch.xpack.inference.services.voyageai;
 
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.action.VoyageAIActionVisitor;
@@ -29,63 +33,105 @@ public abstract class VoyageAIModel extends RateLimitGroupingModel {
 
     static {
         Map<String, String> tempMap = new HashMap<>();
+        // V4 models
+        tempMap.put("voyage-4-large", "embed_large");
+        tempMap.put("voyage-4", "embed_medium");
+        tempMap.put("voyage-4-lite", "embed_small");
+        // V3.5 models
         tempMap.put("voyage-3.5", "embed_medium");
         tempMap.put("voyage-3.5-lite", "embed_small");
-        tempMap.put("voyage-multimodal-3", "embed_multimodal");
+        // V3 models
         tempMap.put("voyage-3-large", "embed_large");
         tempMap.put("voyage-code-3", "embed_large");
         tempMap.put("voyage-3", "embed_medium");
         tempMap.put("voyage-3-lite", "embed_small");
+        // Multimodal models
+        tempMap.put("voyage-multimodal-3", "embed_multimodal");
+        tempMap.put("voyage-multimodal-3.5", "embed_multimodal");
+        // V2 models
         tempMap.put("voyage-finance-2", "embed_large");
         tempMap.put("voyage-law-2", "embed_large");
         tempMap.put("voyage-code-2", "embed_large");
+        // Reranker models
+        tempMap.put("rerank-2.5", "rerank_large");
+        tempMap.put("rerank-2.5-lite", "rerank_small");
         tempMap.put("rerank-2", "rerank_large");
         tempMap.put("rerank-2-lite", "rerank_small");
 
         MODEL_TO_MODEL_FAMILY = Collections.unmodifiableMap(tempMap);
     }
 
+    private final SecureString apiKey;
+    private final VoyageAIRateLimitServiceSettings rateLimitServiceSettings;
     private final URI uri;
 
+    public VoyageAIModel(
+        ModelConfigurations configurations,
+        ModelSecrets secrets,
+        @Nullable ApiKeySecrets apiKeySecrets,
+        VoyageAIRateLimitServiceSettings rateLimitServiceSettings,
+        URI uri
+    ) {
+        super(configurations, secrets);
+
+        this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
+        this.apiKey = ServiceUtils.apiKey(apiKeySecrets);
+        this.uri = Objects.requireNonNull(uri);
+    }
+
+    /**
+     * Convenience constructor that extracts the API key from the model secrets
+     * and uses the rerank service settings for rate limiting.
+     */
     public VoyageAIModel(ModelConfigurations configurations, ModelSecrets secrets, URI uri) {
         super(configurations, secrets);
+
+        var secretSettings = (DefaultSecretSettings) secrets.getSecretSettings();
+        this.apiKey = ServiceUtils.apiKey(secretSettings);
+        var serviceSettings = configurations.getServiceSettings();
+        if (serviceSettings instanceof VoyageAIRateLimitServiceSettings rateLimitSettings) {
+            this.rateLimitServiceSettings = rateLimitSettings;
+        } else {
+            this.rateLimitServiceSettings = () -> VoyageAIServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS;
+        }
         this.uri = Objects.requireNonNull(uri);
     }
 
     protected VoyageAIModel(VoyageAIModel model, TaskSettings taskSettings) {
         super(model, taskSettings);
+
+        this.rateLimitServiceSettings = model.rateLimitServiceSettings;
+        this.apiKey = model.apiKey();
         this.uri = model.uri;
     }
 
     protected VoyageAIModel(VoyageAIModel model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
+
+        this.rateLimitServiceSettings = model.rateLimitServiceSettings;
+        this.apiKey = model.apiKey();
         this.uri = model.uri;
     }
 
-    @Override
-    public RateLimitSettings rateLimitSettings() {
-        return getServiceSettings().rateLimitSettings();
+    public SecureString apiKey() {
+        return apiKey;
     }
 
+    @Override
     public int rateLimitGroupingHash() {
         String modelId = getServiceSettings().modelId();
         String modelFamily = MODEL_TO_MODEL_FAMILY.getOrDefault(modelId, DEFAULT_MODEL_FAMILY);
 
-        return Objects.hash(modelFamily, getSecretSettings().apiKey());
+        return Objects.hash(modelFamily, apiKey);
     }
 
     @Override
-    public VoyageAIServiceSettings getServiceSettings() {
-        return (VoyageAIServiceSettings) super.getServiceSettings();
+    public RateLimitSettings rateLimitSettings() {
+        return rateLimitServiceSettings.rateLimitSettings();
     }
 
     public URI uri() {
         return uri;
-    }
-
-    @Override
-    public DefaultSecretSettings getSecretSettings() {
-        return (DefaultSecretSettings) super.getSecretSettings();
     }
 
     public abstract ExecutableAction accept(VoyageAIActionVisitor creator, Map<String, Object> taskSettings);

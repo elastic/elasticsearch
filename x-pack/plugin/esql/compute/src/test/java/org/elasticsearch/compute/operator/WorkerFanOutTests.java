@@ -27,12 +27,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- * Unit tests for {@link WorkerFanOut} that exercise the helper directly, without going through
- * {@link org.elasticsearch.compute.operator.topn.TopNOperator}. These cover the concurrent
- * coordination paths: round-robin fan-out, close/drain races, executor rejection, backpressure
- * via {@code isBlocked()}, and exception propagation.
- */
+/** Exercises {@link WorkerFanOut}'s concurrent coordination paths directly. */
 public class WorkerFanOutTests extends ComputeTestCase {
 
     private ExecutorService executor;
@@ -45,7 +40,6 @@ public class WorkerFanOutTests extends ComputeTestCase {
         }
     }
 
-    /** Trivial per-slot state: counts pages processed and tracks release. */
     private static final class TestState implements Releasable, org.apache.lucene.util.Accountable {
         final AtomicInteger processed = new AtomicInteger();
         volatile boolean closed = false;
@@ -61,10 +55,6 @@ public class WorkerFanOutTests extends ComputeTestCase {
         }
     }
 
-    /**
-     * Configurable test fanout. {@code processPage} can be customised so individual tests can block
-     * or throw; the base behaviour just increments the per-slot counter and releases the page.
-     */
     private static class TestFanOut extends WorkerFanOut<TestState> {
         final AtomicInteger nextWorker = new AtomicInteger();
         final List<TestState> mergedStates = new ArrayList<>();
@@ -86,15 +76,11 @@ public class WorkerFanOutTests extends ComputeTestCase {
 
         @Override
         protected int chooseWorker(Page page) {
-            // Round-robin across slots; modulo by worker count to be safe under wrap-around.
             int n = nextWorker.getAndIncrement();
             int workerCount = getWorkerCountForTest();
             return Math.floorMod(n, workerCount);
         }
 
-        // Helper to read worker count without exposing the private array; we capture it via the
-        // ctor argument indirectly by inspecting the merged states list size at finish. For
-        // chooseWorker we need the count up-front; tests construct subclasses with a known size.
         protected int getWorkerCountForTest() {
             return 2;
         }
@@ -131,7 +117,6 @@ public class WorkerFanOutTests extends ComputeTestCase {
         return new DriverContext(blockFactory.bigArrays(), blockFactory, null);
     }
 
-    /** 1. Smoke test: basic fan-out works end-to-end across two slots. */
     public void testBasicFanOut() throws Exception {
         executor = Executors.newFixedThreadPool(2);
         DriverContext driverContext = newDriverContext();
@@ -144,7 +129,6 @@ public class WorkerFanOutTests extends ComputeTestCase {
             }
             fanOut.finish();
 
-            // Spin until drains complete; cap with a timeout to avoid wedging the suite.
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
             while (fanOut.canProduceMoreDataWithoutExtraInput() == false || fanOut.isFinished() == false) {
                 IsBlockedResult blocked = fanOut.isBlocked();
@@ -153,7 +137,6 @@ public class WorkerFanOutTests extends ComputeTestCase {
                     blocked.listener().addListener(org.elasticsearch.action.ActionListener.running(latch::countDown));
                     latch.await(5, TimeUnit.SECONDS);
                 }
-                // Drain by asking for output (builds the result iterator once in-flight reaches 0).
                 fanOut.getOutput();
                 if (fanOut.isFinished()) {
                     break;
@@ -167,13 +150,11 @@ public class WorkerFanOutTests extends ComputeTestCase {
             assertThat(fanOut.mergedStates.size(), equalTo(2));
             int total = fanOut.mergedStates.stream().mapToInt(s -> s.processed.get()).sum();
             assertThat(total, equalTo(pageCount));
-            // Round-robin across 2 slots and even page count -> equal distribution.
             assertThat(fanOut.mergedStates.get(0).processed.get(), equalTo(pageCount / 2));
             assertThat(fanOut.mergedStates.get(1).processed.get(), equalTo(pageCount / 2));
         }
     }
 
-    /** 2. close() blocks until an in-flight drain completes. */
     public void testCloseWaitsForActiveDrain() throws Exception {
         executor = Executors.newFixedThreadPool(2);
         DriverContext driverContext = newDriverContext();
@@ -186,7 +167,6 @@ public class WorkerFanOutTests extends ComputeTestCase {
         TestFanOut fanOut = new TestFanOut(driverContext, executor, 2, 8);
         fanOut.pageHandler = (state, page, slotIndex) -> {
             processStarted.countDown();
-            // Block the worker thread until the test releases it.
             assertTrue("releaseProcess wait timed out", releaseProcess.await(30, TimeUnit.SECONDS));
             processedAfterLatch.incrementAndGet();
             state.processed.incrementAndGet();
@@ -202,25 +182,18 @@ public class WorkerFanOutTests extends ComputeTestCase {
         }, "fanout-closer");
         closer.start();
 
-        // Give the closer time to enter close() and block on the slot lock.
-        // We can't deterministically observe that without exposing internals, but ~200ms is
-        // plenty for the closer thread to be parked in ReentrantLock.lock(). Verify close has
-        // not returned yet:
+        // ~200ms is enough for the closer to park in ReentrantLock.lock(); we can't observe that directly.
         Thread.sleep(200);
         assertThat("close returned before drain completed", closeReturned.get(), equalTo(0));
 
-        // Release the worker. close() should now return promptly.
         releaseProcess.countDown();
         closer.join(TimeUnit.SECONDS.toMillis(30));
         assertFalse("closer thread still alive", closer.isAlive());
         assertThat(closeReturned.get(), equalTo(1));
-        // The worker did its work before close tore down state.
         assertThat(processedAfterLatch.get(), equalTo(1));
     }
 
-    /** 3. handleRejection path: executor rejects every task; pages are released, failure recorded. */
     public void testHandleRejectionOnShutdownExecutor() throws Exception {
-        // Use a real pool but shut it down immediately so submissions are rejected.
         executor = Executors.newFixedThreadPool(1);
         executor.shutdown();
         assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
@@ -229,22 +202,16 @@ public class WorkerFanOutTests extends ComputeTestCase {
         BlockFactory blockFactory = driverContext.blockFactory();
 
         try (TestFanOut fanOut = new TestFanOut(driverContext, executor, 2, 8)) {
-            // Submit a couple pages; the first will trigger rejection. Subsequent addInput calls
-            // should observe failureCollector.hasFailure() and release directly.
             for (int i = 0; i < 4; i++) {
                 fanOut.addInput(makePage(blockFactory, i));
             }
             assertTrue("failure should have been collected from rejection", fanOut.mergeCalled == false);
-            // getOutput should re-throw via checkFailure().
             Exception caught = expectThrows(RuntimeException.class, fanOut::getOutput);
             assertThat(caught, notNullValue());
-            // needsInput should be false once a failure has been collected.
             assertFalse(fanOut.needsInput());
         }
-        // All pages should have been released; ComputeTestCase's @After verifies breaker accounting.
     }
 
-    /** 4. Backpressure: with maxInFlightPages reached and worker blocked, isBlocked() returns a pending future. */
     public void testBackpressureBlocksWhenAtMaxInFlight() throws Exception {
         executor = Executors.newFixedThreadPool(2);
         DriverContext driverContext = newDriverContext();
@@ -260,7 +227,6 @@ public class WorkerFanOutTests extends ComputeTestCase {
                 state.processed.incrementAndGet();
             };
 
-            // Submit exactly maxInFlightPages = 2 pages, one to each slot (round-robin).
             fanOut.addInput(makePage(blockFactory, 0));
             fanOut.addInput(makePage(blockFactory, 1));
             assertTrue("both workers should pick up their page", processStarted.await(30, TimeUnit.SECONDS));
@@ -270,13 +236,11 @@ public class WorkerFanOutTests extends ComputeTestCase {
             assertNotSame("expected a blocked result", Operator.NOT_BLOCKED, blocked);
             assertFalse("blocked future should not be done while workers are blocked", blocked.listener().isDone());
 
-            // Release the workers; the future should complete and needsInput should flip back to true.
             releaseProcess.countDown();
             CountDownLatch done = new CountDownLatch(1);
             blocked.listener().addListener(org.elasticsearch.action.ActionListener.running(done::countDown));
             assertTrue("blocked future was not signalled", done.await(30, TimeUnit.SECONDS));
 
-            // After drain, needsInput should be true again (still below max, not finished).
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
             while (fanOut.needsInput() == false && System.nanoTime() < deadline) {
                 Thread.sleep(10);
@@ -284,7 +248,6 @@ public class WorkerFanOutTests extends ComputeTestCase {
             assertTrue("needsInput should become true after drain", fanOut.needsInput());
 
             fanOut.finish();
-            // Drive to completion so close() doesn't trip over in-flight work.
             while (fanOut.isFinished() == false) {
                 fanOut.getOutput();
                 IsBlockedResult b = fanOut.isBlocked();
@@ -297,7 +260,6 @@ public class WorkerFanOutTests extends ComputeTestCase {
         }
     }
 
-    /** 5. Exceptions thrown from processPage propagate via failureCollector and re-throw in getOutput. */
     public void testExceptionFromProcessPagePropagates() throws Exception {
         executor = Executors.newFixedThreadPool(2);
         DriverContext driverContext = newDriverContext();
@@ -308,7 +270,6 @@ public class WorkerFanOutTests extends ComputeTestCase {
 
             fanOut.addInput(makePage(blockFactory, 0));
 
-            // Wait for the worker thread to register the failure.
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
             while (System.nanoTime() < deadline) {
                 try {
@@ -323,14 +284,8 @@ public class WorkerFanOutTests extends ComputeTestCase {
         }
     }
 
-    /**
-     * 6. isBlocked() / worker-decrement race — documents the invariant rather than reliably catching the bug.
-     * <p>
-     * The fix made {@code blockedFuture} {@code volatile} so that the worker's lock-free read in
-     * {@code notifyIfBlocked()} observes the Driver's write under the monitor. Reliably hitting the
-     * pre-fix race requires JVM-level instrumentation we don't have here; instead we drive the
-     * Driver-then-worker ordering many times and assert the future is always signalled.
-     */
+    // Exercises the volatile-blockedFuture invariant: Driver asks isBlocked() before releasing the worker,
+    // and the worker's lock-free read in notifyIfBlocked() must observe the write.
     public void testIsBlockedSignalledAfterWorkerDecrement() throws Exception {
         executor = Executors.newFixedThreadPool(2);
         DriverContext driverContext = newDriverContext();
@@ -350,8 +305,6 @@ public class WorkerFanOutTests extends ComputeTestCase {
                 fanOut.addInput(makePage(blockFactory, i));
                 assertTrue(started.await(10, TimeUnit.SECONDS));
 
-                // Driver-side: ask isBlocked() *before* releasing the worker. The worker will
-                // decrement inFlight after release and must observe blockedFuture.
                 IsBlockedResult blocked = fanOut.isBlocked();
                 assertNotSame(Operator.NOT_BLOCKED, blocked);
                 CountDownLatch done = new CountDownLatch(1);
@@ -361,7 +314,6 @@ public class WorkerFanOutTests extends ComputeTestCase {
                 assertTrue("blocked future was not signalled on iteration " + i, done.await(10, TimeUnit.SECONDS));
                 signalled++;
 
-                // Wait for needsInput to settle before the next iteration.
                 long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
                 while (fanOut.needsInput() == false && System.nanoTime() < deadline) {
                     Thread.sleep(1);

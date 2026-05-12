@@ -130,11 +130,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         }
     }
 
-    /**
-     * Returns a random {@link TopNOperator.ParallelWorkerConfig}, or {@code null} to keep
-     * sequential mode. Promotion threshold is 0 so tests with even small inputs exercise
-     * the parallel path. The pool is created lazily and shared across calls within a test.
-     */
+    /** Random parallel config with threshold 0 so small inputs still exercise the parallel path. */
     @Nullable
     protected TopNOperator.ParallelWorkerConfig randomWorkerConfig() {
         if (randomBoolean()) {

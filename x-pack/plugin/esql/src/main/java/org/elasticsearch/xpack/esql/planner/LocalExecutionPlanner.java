@@ -225,16 +225,8 @@ public class LocalExecutionPlanner {
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final PhysicalOperationProviders physicalOperationProviders;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
-    /**
-     * Executor for operators that fan work out to background tasks (e.g. parallel
-     * workers in {@link TopNOperator}). Null in tests; operators stay sequential.
-     *
-     * <p>Today this is the same {@code SEARCH} thread pool that runs Drivers. That is
-     * safe against deadlock because a Driver whose downstream operator has {@code maxInFlightPages}
-     * outstanding work items yields via {@code isBlocked()} and releases its thread,
-     * letting the queued drain tasks run. Under heavy concurrent load the pool can
-     * still saturate — if that becomes a problem we'll need a dedicated small pool.
-     */
+    // Same SEARCH pool that runs Drivers: deadlock-safe because Drivers yield via isBlocked() when
+    // maxInFlightPages is reached, freeing their thread for drain tasks. Null = sequential-only.
     @Nullable
     private final Executor parallelWorkerExecutor;
 
@@ -645,11 +637,6 @@ public class LocalExecutionPlanner {
         );
     }
 
-    /**
-     * Returns {@code null} when no parallel executor is wired in (sequential-only).
-     * Worker count is auto-derived from available cores; cluster settings can layer
-     * over this default later.
-     */
     @Nullable
     private TopNOperator.ParallelWorkerConfig parallelTopNConfig() {
         if (parallelWorkerExecutor == null || TopNOperator.PARALLEL_TOPN_FEATURE_FLAG.isEnabled() == false) {

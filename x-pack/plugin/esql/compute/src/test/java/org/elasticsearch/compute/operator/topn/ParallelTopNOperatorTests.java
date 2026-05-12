@@ -34,17 +34,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * Smoke tests for the parallel-workers path in {@link TopNOperator}: push enough rows
- * to trigger promotion, then verify the top-K output matches what a sequential sort would
- * produce. Drives the operator through a real {@link Driver} via {@link TestDriverRunner} so
- * that the {@link org.elasticsearch.compute.operator.Operator#isBlocked()} path is exercised
- * — a hand-rolled busy-wait loop would never observe the {@link
- * org.elasticsearch.action.support.SubscribableListener} based blocking that the parallel
- * path relies on.
- *
- * <p>The {@link #testParallelUsesMultipleThreads()} variant additionally asserts that the
- * post-promotion work actually distributes across multiple executor threads — otherwise the
- * parallel path would be a no-op.
+ * End-to-end smoke tests for the parallel-workers path in {@link TopNOperator}.
+ * Driven through a real {@link Driver} so {@link org.elasticsearch.compute.operator.Operator#isBlocked()} is exercised.
  */
 public class ParallelTopNOperatorTests extends ComputeTestCase {
 
@@ -62,33 +53,21 @@ public class ParallelTopNOperatorTests extends ComputeTestCase {
         }
     }
 
-    /**
-     * Correctness check across a random small threshold: the boundary between sequential
-     * and parallel modes lands at a different point on each CI run.
-     */
     public void testParallelLongTopNRandomThreshold() throws Exception {
         long threshold = randomLongBetween(50, 500);
         int rowsPerPage = randomIntBetween(5, 50);
         runAndAssertCorrect(1_000, rowsPerPage, threshold);
     }
 
-    /** Promote on the very first page so almost all work runs in parallel. */
     public void testParallelLongTopNZeroThreshold() throws Exception {
         runAndAssertCorrect(1_000, randomIntBetween(5, 50), 0);
     }
 
-    /** Threshold near the end of the input — promotion fires with only a handful of pages left. */
     public void testParallelLongTopNNearEndThreshold() throws Exception {
         runAndAssertCorrect(1_000, 10, 950);
     }
 
-    /**
-     * Push enough post-promotion pages that we can verify the work distributes across
-     * more than one executor thread.
-     */
     public void testParallelUsesMultipleThreads() throws Exception {
-        // Threshold 0 → every page runs in parallel. 2000 rows across small pages gives
-        // many pages and many round-robin cycles, so multiple threads should pick up tasks.
         runAndAssertCorrect(2_000, 10, 0);
         assertThat(
             "expected more than one executor thread to run worker tasks; saw " + observedThreads,
@@ -99,7 +78,6 @@ public class ParallelTopNOperatorTests extends ComputeTestCase {
 
     private void runAndAssertCorrect(int totalRows, int rowsPerPage, long promotionThreshold) throws Exception {
         backingPool = Executors.newFixedThreadPool(WORKER_COUNT);
-        // Wrap so we can observe which threads actually ran worker tasks.
         java.util.concurrent.Executor recordingExecutor = task -> backingPool.execute(() -> {
             observedThreads.add(Thread.currentThread().getName());
             task.run();
@@ -124,9 +102,9 @@ public class ParallelTopNOperatorTests extends ComputeTestCase {
                 topCount,
                 List.of(ElementType.LONG),
                 List.of(TopNEncoder.DEFAULT_SORTABLE),
-                List.of(new TopNOperator.SortOrder(0, true, false)),    // ASC, nulls last
-                Integer.MAX_VALUE,                                      // maxPageRows
-                Long.MAX_VALUE,                                         // jumboPageBytes (no splitting)
+                List.of(new TopNOperator.SortOrder(0, true, false)),
+                Integer.MAX_VALUE,
+                Long.MAX_VALUE,
                 TopNOperator.InputOrdering.NOT_SORTED,
                 null,
                 driverContext,

@@ -146,21 +146,11 @@ public class TopNOperator implements Operator, Accountable {
         }
     }
 
-    /**
-     * Gates the parallel workers path. Auto-enabled in snapshot builds; release
-     * builds require {@code -Des.parallel_topn_feature_flag_enabled=true}. When disabled,
-     * the planner refuses to attach a {@link ParallelWorkerConfig}, and the operator
-     * stays sequential regardless of input size.
-     */
     public static final FeatureFlag PARALLEL_TOPN_FEATURE_FLAG = new FeatureFlag("parallel_topn");
 
-    /** Default row count at which sequential mode promotes itself to parallel workers. */
     public static final long DEFAULT_PROMOTION_THRESHOLD_ROWS = 1_000_000L;
 
-    /**
-     * When passed to the constructor, opts the operator into parallel workers.
-     * Promotion happens one-way once row count exceeds {@code promotionThresholdRows}.
-     */
+    /** Opts the operator into parallel workers; promotion is one-way once {@code promotionThresholdRows} is crossed. */
     public record ParallelWorkerConfig(Executor executor, int workerCount, int maxInFlightPages, long promotionThresholdRows) {}
 
     public record TopNOperatorFactory(
@@ -247,15 +237,12 @@ public class TopNOperator implements Operator, Accountable {
      */
     private int minCompetitiveUpdates;
 
-    /**
-     * Sequential-mode state: queue + reusable scratch row. Null after promotion
-     * (its content was handed to worker 0 of {@link #workers}).
-     */
+    // Null after promotion (handed to worker 0).
     private TopNWorkerState sequentialState;
 
     private ReleasableIterator<Page> output;
 
-    /** Ingest CPU time, accumulated from the Driver thread (sequential) and from worker threads (parallel). */
+    // AtomicLong because workers accumulate into it concurrently in parallel mode.
     private final AtomicLong receiveNanos = new AtomicLong();
     private long emitNanos;
 
@@ -281,31 +268,20 @@ public class TopNOperator implements Operator, Accountable {
 
     private final InputOrdering inputOrdering;
 
-    /** Saved here so per-worker {@link TopNQueue}s can be built after promotion. */
     private final int topCount;
 
-    // Parallel workers: when workerConfig != null and rowsReceived crosses
-    // PROMOTION_THRESHOLD_ROWS, sequentialState is handed to worker 0 of `workers`
-    // and lifecycle calls delegate from then on. Null = sequential-only.
     @Nullable
     private final DriverContext driverContext;
     @Nullable
     private final ParallelWorkerConfig workerConfig;
     @Nullable
     private WorkerFanOut<TopNWorkerState> workers;
-    /**
-     * Latched true the first time {@link #promoteToParallel()} runs (whether construction
-     * of the {@link WorkerFanOut} succeeds or throws). Guards against re-promotion after a
-     * partially-constructed fan-out tore down the seeded {@link #sequentialState}: without
-     * this flag {@link #shouldPromoteToParallel()} would fire again, {@code createWorkerState(0)}
-     * would return {@code null}, and dispatched pages would be silently dropped.
-     */
+    // Latched even if promoteToParallel throws partway, so a re-entry can't find sequentialState
+    // already nulled and silently drop dispatched rows.
     private boolean promotionAttempted;
-    /** Per-slot queue size cache, updated by worker threads and read by {@link #status()}. */
     @Nullable
     private AtomicLong[] occupiedRows;
 
-    /** Sequential-only convenience constructor. */
     public TopNOperator(
         BlockFactory blockFactory,
         CircuitBreaker breaker,
@@ -383,7 +359,7 @@ public class TopNOperator implements Operator, Accountable {
         for (SortOrder so : sortOrders) {
             channelInKey[so.channel] = true;
         }
-        // Drop the parallel-mode wiring if we can never promote
+        // SORTED input or non-null minCompetitive rules out promotion at construction time.
         boolean canPromote = workerConfig != null && inputOrdering != InputOrdering.SORTED && minCompetitive == null;
         this.driverContext = canPromote ? driverContext : null;
         this.workerConfig = canPromote ? workerConfig : null;
@@ -418,15 +394,8 @@ public class TopNOperator implements Operator, Accountable {
         }
     }
 
-    /**
-     * Whether to promote sequential → parallel on the next page. {@code workerConfig}
-     * is already null when SORTED input or a non-null minCompetitive ruled out
-     * promotion at construction (see the constructor).
-     *
-     * <p>TODO: workers could offer their local heap-tops to {@code minCompetitive},
-     * producing {@code max(worker.tops)} as a (looser but correct) parallel skip
-     * bound. That'd let promotion fire under non-null minCompetitive as well.
-     */
+    // TODO: workers could offer local heap-tops to minCompetitive (max as a looser-but-correct bound),
+    // which would let promotion fire under non-null minCompetitive.
     private boolean shouldPromoteToParallel() {
         return workerConfig != null
             && promotionAttempted == false
@@ -435,12 +404,7 @@ public class TopNOperator implements Operator, Accountable {
             && rowsReceived > workerConfig.promotionThresholdRows();
     }
 
-    /**
-     * Encode rows from {@code page} into top-K candidates and offer them to {@code state.queue}.
-     * Returns {@code true} if any insert/replace happened — sequential mode uses this to skip
-     * an unnecessary {@link #updateMinCompetitive} call when nothing changed.
-     * Called from both the sequential and parallel paths; the latter passes the per-worker state directly.
-     */
+    /** Returns true if any insert/replace happened, so callers can skip a no-op {@link #updateMinCompetitive}. */
     boolean mergePageIntoQueue(Page page, TopNWorkerState state) {
         if (state.queue.topCount <= 0) {
             return false;
@@ -454,8 +418,8 @@ public class TopNOperator implements Operator, Accountable {
                 state.spare.clear();
             }
             rowFiller.writeKey(i, state.spare);
-            // Write values before mutating the queue: if writeValues throws (e.g. circuit breaker),
-            // we'd otherwise risk having spare in both the queue and state.spare (double-close).
+            // Write values before mutating the queue so a writeValues throw can't leave spare in both
+            // the queue and state.spare (would double-close).
             if (state.queue.size() < state.queue.topCount) {
                 rowFiller.writeValues(i, state.spare);
                 state.queue.add(state.spare);
@@ -468,8 +432,7 @@ public class TopNOperator implements Operator, Accountable {
                 state.spare = nextSpare;
                 modified = true;
             } else if (inputOrdering == InputOrdering.SORTED) {
-                // Heap full, input globally sorted — remaining rows can't beat top. Only meaningful
-                // in sequential mode; parallel dispatch shuffles page order across workers.
+                // Only meaningful in sequential mode; parallel dispatch shuffles page order across workers.
                 break;
             }
         }
@@ -546,15 +509,7 @@ public class TopNOperator implements Operator, Accountable {
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(
-            // After promotion the fan-out owns the per-worker queues plus any built result iterator.
-            workers,
-            // Sequential queue + scratch row. Null after promotion (handed to worker 0).
-            sequentialState,
-            // Any allocated but un-emitted output rows.
-            output,
-            minCompetitive
-        );
+        Releasables.closeExpectNoException(workers, sequentialState, output, minCompetitive);
         sequentialState = null;
         output = null;
         workers = null;
@@ -618,19 +573,11 @@ public class TopNOperator implements Operator, Accountable {
             + "]";
     }
 
-    /**
-     * Promote sequential → parallel. Worker 0 inherits the pre-promotion
-     * {@link #sequentialState} so no rows are lost. From here on, lifecycle
-     * calls delegate to {@link #workers}.
-     */
     private void promoteToParallel() {
         assert workerConfig != null && driverContext != null : "promoteToParallel() called without parallel config";
-        // Latch before construction: createWorkerState(0) nulls sequentialState, and a later slot's
-        // TopNQueue.build (or any allocation in the WorkerFanOut constructor) can throw. The
-        // constructor's failure-path cleanup will close every state it had already created — including
-        // the seeded one taken from sequentialState. Setting this here guarantees shouldPromoteToParallel()
-        // returns false from then on, so we never re-enter with sequentialState == null && workers == null
-        // (which would silently drop rows dispatched to slot 0).
+        // Latch before construction: if WorkerFanOut throws partway, its cleanup closes the seeded
+        // state from sequentialState. Latching here prevents a re-entry from dispatching to slot 0
+        // with no state.
         promotionAttempted = true;
         final int workerCount = workerConfig.workerCount();
         occupiedRows = new AtomicLong[workerCount];
@@ -643,7 +590,7 @@ public class TopNOperator implements Operator, Accountable {
             @Override
             protected TopNWorkerState createWorkerState(int workerIndex) {
                 if (workerIndex == 0) {
-                    // Worker 0 inherits the sequential state directly.
+                    // Worker 0 inherits the sequential state so no rows are lost.
                     TopNWorkerState seeded = sequentialState;
                     sequentialState = null;
                     return seeded;
@@ -674,8 +621,8 @@ public class TopNOperator implements Operator, Accountable {
                 TopNWorkerState first = states.getFirst();
                 assert first != null && first.queue != null : "worker 0 state must be non-null at merge time";
                 TopNQueue merged = first.queue;
-                first.queue = null;  // ownership transferred to merged
-                first.close();       // closes spare; queue already null
+                first.queue = null;
+                first.close();
                 states.set(0, null);
                 boolean success = false;
                 try {
@@ -701,9 +648,7 @@ public class TopNOperator implements Operator, Accountable {
                     return TopNOperator.this.new Result(resultRows);
                 } finally {
                     if (success == false) {
-                        // Close the merge target plus any worker states that were not yet consumed by the merge loop.
-                        // TopNWorkerState.close() is idempotent (nulls its fields), so re-closing already-closed
-                        // entries is safe; entries successfully consumed in the loop were nulled out in the list.
+                        // TopNWorkerState.close is idempotent; consumed entries were nulled out in the list.
                         Releasables.closeExpectNoException(Releasables.wrap(states), merged);
                     }
                     emitNanos += System.nanoTime() - start;
@@ -712,7 +657,6 @@ public class TopNOperator implements Operator, Accountable {
         };
     }
 
-    /** Per-worker state: a private {@link TopNQueue} plus a reusable scratch row. */
     static final class TopNWorkerState implements Releasable, Accountable {
         TopNQueue queue;
         TopNRow spare;
@@ -735,7 +679,7 @@ public class TopNOperator implements Operator, Accountable {
     }
 
     /**
-     * Build the result iterator. Drains the sequential state's queue and closes it.
+     * Build the result iterator. Moves all rows from the {@link #sequentialState} queue and closes it.
      */
     private ReleasableIterator<Page> buildResult() {
         TopNWorkerState s = sequentialState;

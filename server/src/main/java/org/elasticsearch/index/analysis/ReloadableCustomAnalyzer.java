@@ -44,10 +44,7 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
         @Override
         public TokenStreamComponents getReusableComponents(Analyzer analyzer, String fieldName) {
             ReloadableCustomAnalyzer custom = (ReloadableCustomAnalyzer) analyzer;
-            AnalyzerComponents components = custom.getComponents();
-            AnalyzerComponents storedComponents = custom.getStoredComponents();
-            if (storedComponents == null || components != storedComponents) {
-                custom.setStoredComponents(components);
+            if (custom.pinCurrentComponents() == false) {
                 return null;
             }
             TokenStreamComponents tokenStream = (TokenStreamComponents) getStoredValue(analyzer);
@@ -168,9 +165,12 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
         return new ReuseStrategy() {
             @Override
             public TokenStreamComponents getReusableComponents(Analyzer analyzer, String fieldName) {
-                AnalyzerComponents current = ReloadableCustomAnalyzer.this.getComponents();
+                // Pin storedComponents for this thread via the shared pinning logic.
+                pinCurrentComponents();
+
+                AnalyzerComponents pinned = getStoredComponents();
                 WrapperEntry entry = (WrapperEntry) getStoredValue(analyzer);
-                if (entry == null || entry.components != current) {
+                if (entry == null || entry.components != pinned) {
                     return null;
                 }
                 return entry.tsc;
@@ -178,7 +178,7 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
 
             @Override
             public void setReusableComponents(Analyzer analyzer, String fieldName, TokenStreamComponents tsc) {
-                setStoredValue(analyzer, new WrapperEntry(ReloadableCustomAnalyzer.this.getComponents(), tsc));
+                setStoredValue(analyzer, new WrapperEntry(getStoredComponents(), tsc));
             }
         };
     }
@@ -194,14 +194,27 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
         return storedComponents.get();
     }
 
+    /**
+     * Pins the current {@link AnalyzerComponents} snapshot to {@code storedComponents} for this thread.
+     * Both {@link #UPDATE_STRATEGY} and {@link #createWrapperReuseStrategy()} use this single source
+     * of truth for the "snapshot pinned for this call" contract.
+     *
+     * @return {@code true} if the previously pinned components are still current (reusable),
+     *         {@code false} if components changed and a new snapshot was pinned
+     */
+    private boolean pinCurrentComponents() {
+        AnalyzerComponents current = getComponents();
+        AnalyzerComponents stored = getStoredComponents();
+        if (stored == null || current != stored) {
+            setStoredComponents(current);
+            return false;
+        }
+        return true;
+    }
+
     @Override
     protected TokenStreamComponents createComponents(String fieldName) {
-        AnalyzerComponents components = getStoredComponents();
-        if (components == null) {
-            // Reached via an AnalyzerWrapper chain; storedComponents is only set by UPDATE_STRATEGY
-            // (direct path). Fall back to the current volatile components.
-            components = getComponents();
-        }
+        final AnalyzerComponents components = getStoredComponents();
         Tokenizer tokenizer = components.getTokenizerFactory().create();
         TokenStream tokenStream = tokenizer;
         for (TokenFilterFactory tokenFilter : components.getTokenFilters()) {
@@ -212,10 +225,7 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
 
     @Override
     protected Reader initReader(String fieldName, Reader reader) {
-        AnalyzerComponents components = getStoredComponents();
-        if (components == null) {
-            components = getComponents();
-        }
+        final AnalyzerComponents components = getStoredComponents();
         if (CollectionUtils.isEmpty(components.getCharFilters()) == false) {
             for (CharFilterFactory charFilter : components.getCharFilters()) {
                 reader = charFilter.create(reader);

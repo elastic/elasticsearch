@@ -35,8 +35,8 @@ public class BasicReplicationRequest extends ReplicationRequest<BasicReplication
      * to determine if the request needs to be executed on a split shard not yet seen by the
      * coordinator that sent the request)
      */
-    public BasicReplicationRequest(ShardId shardId, SplitShardCountSummary reshardSplitShardCountSummary) {
-        super(shardId, reshardSplitShardCountSummary);
+    public BasicReplicationRequest(ShardId shardId, SplitShardCountSummary splitShardCountSummary) {
+        super(shardId, splitShardCountSummary);
     }
 
     public BasicReplicationRequest(StreamInput in) throws IOException {

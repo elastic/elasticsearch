@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 143480
-summary: Added missing ST_SIMPLIFY error test and fixed bug with missing errors
-type: bug

@@ -10,6 +10,8 @@
 package org.elasticsearch.reindex;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -36,7 +38,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
@@ -45,10 +47,12 @@ import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.reindex.remote.RemotePitPaginatedHitSource;
 import org.elasticsearch.reindex.remote.RemoteScrollablePaginatedHitSource;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.Metadata;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -77,7 +81,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.BackoffPolicy.exponentialBackoff;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
-import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES;
+import static org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest.MAX_DOCS_ALL_MATCHES;
 import static org.elasticsearch.rest.RestStatus.CONFLICT;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 
@@ -86,7 +90,7 @@ import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
  * their tests can use them. Most methods run in the listener thread pool because they are meant to be fast and don't expect to block.
  */
 public abstract class AbstractAsyncBulkByScrollAction<
-    Request extends AbstractBulkByScrollRequest<Request>,
+    Request extends AbstractBulkByPaginatedSearchRequest<Request>,
     Action extends TransportAction<Request, ?>> {
 
     protected final Logger logger;
@@ -149,6 +153,13 @@ public abstract class AbstractAsyncBulkByScrollAction<
      */
     protected final Version remoteVersion;
 
+    protected final SearchContextKeepaliveDeadline searchContextKeepaliveDeadline;
+
+    @Nullable
+    private final BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics;
+    private final BulkByScrollSearchContextMetrics.TaskKind bulkByScrollTaskKind;
+    private final boolean remoteBulkByScrollSearch;
+
     /**
      * {@code _shard_doc} for search_after compatibility and performance (see paginate-search-results docs) was added in 7.12
      */
@@ -166,6 +177,9 @@ public abstract class AbstractAsyncBulkByScrollAction<
         ActionListener<BulkByScrollResponse> listener,
         @Nullable ScriptService scriptService,
         @Nullable ReindexSslConfig sslConfig,
+        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+        BulkByScrollSearchContextMetrics.TaskKind bulkByScrollTaskKind,
+        boolean remoteBulkByScrollSearch,
         TimeValue maxTaskShutdownGracePeriod
     ) {
         this(
@@ -182,6 +196,9 @@ public abstract class AbstractAsyncBulkByScrollAction<
             scriptService,
             sslConfig,
             null,
+            bulkByScrollSearchContextMetrics,
+            bulkByScrollTaskKind,
+            remoteBulkByScrollSearch,
             maxTaskShutdownGracePeriod
         );
     }
@@ -200,6 +217,9 @@ public abstract class AbstractAsyncBulkByScrollAction<
         @Nullable ScriptService scriptService,
         @Nullable ReindexSslConfig sslConfig,
         @Nullable Version remoteVersion,
+        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+        BulkByScrollSearchContextMetrics.TaskKind bulkByScrollTaskKind,
+        boolean remoteBulkByScrollSearch,
         TimeValue maxTaskShutdownGracePeriod
     ) {
         this.task = task;
@@ -215,6 +235,10 @@ public abstract class AbstractAsyncBulkByScrollAction<
         this.bulkClient = bulkClient;
         this.threadPool = threadPool;
         this.mainRequest = mainRequest;
+        this.searchContextKeepaliveDeadline = new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis);
+        this.bulkByScrollSearchContextMetrics = bulkByScrollSearchContextMetrics;
+        this.bulkByScrollTaskKind = bulkByScrollTaskKind;
+        this.remoteBulkByScrollSearch = remoteBulkByScrollSearch;
         this.relocationCooldownNanos = computeRelocationCooldownNanos(maxTaskShutdownGracePeriod);
         this.listener = listener;
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
@@ -249,7 +273,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * @param remoteVersion when reindexing from remote, the remote cluster version. {@code null} when searching the local cluster.
      */
     // Visible for testing
-    static <Request extends AbstractBulkByScrollRequest<Request>> SearchRequest prepareSearchRequest(
+    static <Request extends AbstractBulkByPaginatedSearchRequest<Request>> SearchRequest prepareSearchRequest(
         Request mainRequest,
         boolean needsSourceDocumentVersions,
         boolean needsSourceDocumentSeqNoAndPrimaryTerm,
@@ -284,6 +308,13 @@ public abstract class AbstractAsyncBulkByScrollAction<
         }
         sourceBuilder.version(needsSourceDocumentVersions);
         sourceBuilder.seqNoAndPrimaryTerm(needsSourceDocumentSeqNoAndPrimaryTerm);
+
+        // Force accurate track_total_hits for PIT reindex so Status#total reflects the actual number of matching
+        // documents instead of being clamped at the search default. Scroll doesn't need this, it already forces
+        // accurate counting
+        if (sourceBuilder.pointInTimeBuilder() != null && sourceBuilder.trackTotalHitsUpTo() == null) {
+            sourceBuilder.trackTotalHits(true);
+        }
 
         if (needsVectors) {
             // always include vectors in the response unless explicitly set
@@ -386,7 +417,8 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 this::onScrollResponse,
                 this::finishHim,
                 searchClient,
-                searchRequest
+                searchRequest,
+                searchContextKeepaliveDeadline
             );
         }
         // Default to scroll
@@ -398,7 +430,8 @@ public abstract class AbstractAsyncBulkByScrollAction<
             this::onScrollResponse,
             this::finishHim,
             searchClient,
-            searchRequest
+            searchRequest,
+            searchContextKeepaliveDeadline
         );
     }
 
@@ -777,6 +810,60 @@ public abstract class AbstractAsyncBulkByScrollAction<
     }
 
     /**
+     * When pagination used PIT and the inferred keep-alive window has passed, {@link SearchContextMissingException} failures are mapped to
+     * HTTP 500; otherwise their default ({@link RestStatus#NOT_FOUND}) is preserved for BWC.
+     */
+    static List<PaginatedSearchFailure> remapSearchFailures(
+        boolean pitPagination,
+        boolean pastKeepaliveDeadline,
+        List<PaginatedSearchFailure> searchFailures
+    ) {
+        if (pitPagination == false || pastKeepaliveDeadline == false || searchFailures.isEmpty()) {
+            return searchFailures;
+        }
+        boolean anyScm = false;
+        for (PaginatedSearchFailure f : searchFailures) {
+            if (ExceptionsHelper.unwrap(f.getReason(), SearchContextMissingException.class) != null) {
+                anyScm = true;
+                break;
+            }
+        }
+        if (anyScm == false) {
+            return searchFailures;
+        }
+        List<PaginatedSearchFailure> remapped = new ArrayList<>(searchFailures.size());
+        for (PaginatedSearchFailure f : searchFailures) {
+            if (ExceptionsHelper.unwrap(f.getReason(), SearchContextMissingException.class) != null) {
+                remapped.add(
+                    new PaginatedSearchFailure(f.getReason(), f.getIndex(), f.getShardId(), f.getNodeId(), RestStatus.INTERNAL_SERVER_ERROR)
+                );
+            } else {
+                remapped.add(f);
+            }
+        }
+        return remapped;
+    }
+
+    /**
+     * Same policy as {@link #remapSearchFailures} for catastrophic failure on {@link ActionListener#onFailure}.
+     */
+    static Exception maybeWrapCatastrophicFailure(boolean pitPagination, boolean pastKeepaliveDeadline, Exception failure) {
+        if (failure == null || pitPagination == false || pastKeepaliveDeadline == false) {
+            return failure;
+        }
+        if (ExceptionsHelper.unwrap(failure, SearchContextMissingException.class) == null) {
+            return failure;
+        }
+        Throwable root = ExceptionsHelper.unwrapCause(failure);
+        String message = root.getMessage();
+        return new ElasticsearchStatusException(
+            message != null ? message : "search context missing",
+            RestStatus.INTERNAL_SERVER_ERROR,
+            failure
+        );
+    }
+
+    /**
      * Finish the request.
      *
      * @param failure if non null then the request failed catastrophically with this exception
@@ -800,6 +887,27 @@ public abstract class AbstractAsyncBulkByScrollAction<
         boolean timedOut
     ) {
         logger.debug("[{}]: finishing without any catastrophic failures", task.getId());
+        if (bulkByScrollSearchContextMetrics != null
+            && searchContextKeepaliveDeadline.shouldRecordKeepaliveExpiry(failure, searchFailures)) {
+            bulkByScrollSearchContextMetrics.recordKeepaliveExpiry(bulkByScrollTaskKind, remoteBulkByScrollSearch);
+            logger.warn(
+                "[{}]: bulk-by-scroll [{}] ({}) likely failed because the {} keep-alive expired",
+                task.getId(),
+                bulkByScrollTaskKind.attributeValue(),
+                remoteBulkByScrollSearch
+                    ? BulkByScrollSearchContextMetrics.ATTRIBUTE_VALUE_SEARCH_SOURCE_REMOTE
+                    : BulkByScrollSearchContextMetrics.ATTRIBUTE_VALUE_SEARCH_SOURCE_LOCAL,
+                paginatedHitSource instanceof PitPaginatedHitSource ? "point-in-time" : "scroll"
+            );
+        }
+        final boolean pitPagination = paginatedHitSource instanceof PitPaginatedHitSource;
+        final boolean pastKeepaliveDeadline = searchContextKeepaliveDeadline.isPastKeepaliveDeadline();
+        final List<PaginatedSearchFailure> resolvedSearchFailures = remapSearchFailures(
+            pitPagination,
+            pastKeepaliveDeadline,
+            searchFailures
+        );
+        final Exception resolvedFailure = maybeWrapCatastrophicFailure(pitPagination, pastKeepaliveDeadline, failure);
         requestFinishing.set(true);
         // Atomically claim the current response. If prepareBulkRequest already claimed it (null), this is a no-op.
         // If we win the CAS, we release any hits that were not yet consumed (i.e. from consumedOffset to end).
@@ -809,16 +917,16 @@ public abstract class AbstractAsyncBulkByScrollAction<
             toRelease.releaseRemainingHits();
         }
         paginatedHitSource.close(threadPool.getThreadContext().preserveContext(() -> {
-            if (failure == null) {
+            if (resolvedFailure == null) {
                 BulkByScrollResponse response = buildResponse(
                     timeValueMillis(System.currentTimeMillis() - startTimeEpochMillis.get()),
                     indexingFailures,
-                    searchFailures,
+                    resolvedSearchFailures,
                     timedOut
                 );
                 listener.onResponse(response);
             } else {
-                listener.onFailure(failure);
+                listener.onFailure(resolvedFailure);
             }
         }));
     }

@@ -13,14 +13,21 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.4.0 [connectors-9.4.0-release-notes]
+
+### Fixes [connectors-9.4.0-fixes]
+* Fixed a bug in the Network Drive connector where users from different domains with the same RID could inherit each other's document permissions. [#3973](https://github.com/elastic/connectors/pull/3973), [#3972](https://github.com/elastic/connectors/issues/3972)
+* Fixed an issue with access control syncs crashing due to `noop` returned from `bulk` API was treated as a failure. [#3961](https://github.com/elastic/connectors/pull/3961), [#3957](https://github.com/elastic/connectors/issues/3957)
+* Fixed a bug where using `id_columns` in advanced sync rules with mixed-case table or column names caused all documents to receive the same `_id`, resulting in document overwrites and only 1 document being indexed instead of the expected count. [#3885](https://github.com/elastic/connectors/pull/3885), [#3884](https://github.com/elastic/connectors/issues/3884)
+
 ## 9.3.4 [connectors-9.3.4-release-notes]
 There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
 
 ## 9.3.3 [connectors-9.3.3-release-notes]
-* Fixed a bug in Network Drive connector where users from different domains with the same RID could inherit each other's document permissions. [#3973]https://github.com/elastic/connectors/pull/3973
+* Fixed a bug in Network Drive connector where users from different domains with the same RID could inherit each other's document permissions. [#3973](https://github.com/elastic/connectors/pull/3973), [#3972](https://github.com/elastic/connectors/issues/3972)
 
 ## 9.2.8 [connectors-9.2.8-release-notes]
-* Fixed a bug in Network Drive connector where users from different domains with the same RID could inherit each other's document permissions. [#3973]https://github.com/elastic/connectors/pull/3973
+* Fixed a bug in Network Drive connector where users from different domains with the same RID could inherit each other's document permissions. [#3973](https://github.com/elastic/connectors/pull/3973), [#3972](https://github.com/elastic/connectors/issues/3972)
 
 ## 9.3.2 [connectors-9.3.2-release-notes]
 

@@ -26,6 +26,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
@@ -47,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.inference.InferenceString.toStringList;
 import static org.elasticsearch.xpack.inference.mock.AbstractTestInferenceService.random;
 
 public class TestRerankingServiceExtension implements InferenceServiceExtension {
@@ -165,6 +167,28 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
                     RestStatus.BAD_REQUEST
                 )
             );
+        }
+
+        @Override
+        public void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+            if (((TestRerankingServiceExtension.TestTaskSettings) model.getTaskSettings()).shouldFailValidation()) {
+                listener.onFailure(new RuntimeException("validation call intentionally failed based on task settings"));
+                return;
+            }
+            TaskSettings taskSettings = model.getTaskSettings().updatedTaskSettings(request.taskSettings());
+
+            if (model.getConfigurations().getTaskType() == TaskType.RERANK) {
+                listener.onResponse(
+                    makeResults(toStringList(request.inputs()), (TestRerankingServiceExtension.TestTaskSettings) taskSettings)
+                );
+            } else {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
+                        RestStatus.BAD_REQUEST
+                    )
+                );
+            }
         }
 
         @Override

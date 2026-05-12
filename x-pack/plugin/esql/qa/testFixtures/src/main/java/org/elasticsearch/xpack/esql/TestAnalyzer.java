@@ -500,22 +500,13 @@ public class TestAnalyzer {
     }
 
     /**
-     * Iteratively resolves views and IN subquery expressions until a fixed point is reached.
-     * Views may contain IN subqueries, and IN subqueries may reference views, so both resolvers
-     * need to alternate until neither produces changes.
+     * Resolves views first, then IN subquery expressions in a single pass — mirroring the production
+     * pipeline in {@code EsqlSession#execute}. Views referenced from inside an IN subquery's plan are
+     * not handled here; that case will be re-enabled when {@code ViewAndInSubqueryResolver} returns.
      */
     private LogicalPlan resolveViewsAndInSubqueries(LogicalPlan plan) {
-        for (int i = 0; i < 10; i++) {
-            LogicalPlan afterViews = views.isEmpty() ? plan : resolveViews(plan);
-            boolean viewsExpanded = afterViews != plan;
-            LogicalPlan afterInSubquery = InSubqueryResolver.resolve(afterViews);
-            boolean inSubqueryResolved = afterInSubquery != afterViews;
-            if (viewsExpanded == false && inSubqueryResolved == false) {
-                return afterInSubquery;
-            }
-            plan = afterInSubquery;
-        }
-        throw new IllegalStateException("Too many view/IN subquery resolution iterations");
+        LogicalPlan afterViews = views.isEmpty() ? plan : resolveViews(plan);
+        return InSubqueryResolver.resolve(afterViews);
     }
 
     // This most primitive view resolution only works for the simple cases being tested

@@ -68,7 +68,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TS_INFO_C
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_NO_BRANCHING;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -240,7 +240,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
         assumeFalse(
             "skip CCS for IN subqueries until convertToRemoteIndices supports IN subquery",
-            testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY.capabilityName())
+            testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITHOUT_VIEW.capabilityName())
         );
     }
 
@@ -381,7 +381,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         // WHERE IN subqueries nest full queries with '|' inside FROM/WHERE; addRemoteIndices splits on '|'
         // naively and cannot rewrite CCS index patterns yet. These cases are skipped in shouldSkipTest;
         // avoid rewriting here so the parameterized constructor does not fail before assumptions run.
-        if (testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY.capabilityName())) {
+        if (testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITHOUT_VIEW.capabilityName())) {
             return testCase;
         }
         if (testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())) {

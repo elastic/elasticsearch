@@ -12,15 +12,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.approximation.Approximation;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
-import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
-import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -39,7 +36,6 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.UnionAllFromDisjunctiveInSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
@@ -62,7 +58,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
 
     @Before
     public void checkInSubquerySupport() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
     }
 
     // basic IN subqueries
@@ -2201,42 +2197,19 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     }
 
     // -- IN subquery with views --
-
-    /**
-     * IN subquery references a view: {@code WHERE emp_no IN (FROM high_earners)}
-     * where {@code high_earners} is defined as {@code FROM employees | WHERE salary > 70000 | KEEP emp_no}.
-     * The iterative resolution first resolves the InSubquery to SemiJoin (exposing the view reference),
-     * then resolves the view in the next iteration.
-     */
-    public void testInSubqueryReferencingView() {
-        LogicalPlan plan = analyzer().addIndex("test", "mapping-basic.json")
-            .addIndex("employees", "mapping-basic.json")
-            .addView("high_earners", "FROM employees | WHERE salary > 70000 | KEEP emp_no")
-            .query("FROM test | WHERE emp_no IN (FROM high_earners)");
-
-        Limit limit = as(plan, Limit.class);
-        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
-        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
-
-        EsRelation leftRelation = as(semiJoin.left(), EsRelation.class);
-        assertEquals("test", leftRelation.indexPattern());
-
-        // Right side: the view was expanded to Project -> Filter[salary > 70000] -> EsRelation[employees]
-        Project rightProject = as(semiJoin.right(), Project.class);
-        Filter rightFilter = as(rightProject.child(), Filter.class);
-        GreaterThan gt = as(rightFilter.condition(), GreaterThan.class);
-        FieldAttribute salary = as(gt.left(), FieldAttribute.class);
-        assertEquals("salary", salary.name());
-        EsRelation rightRelation = as(rightFilter.child(), EsRelation.class);
-        assertEquals("employees", rightRelation.indexPattern());
-    }
+    //
+    // Tests in this section exercise the interaction between {@code ViewResolver} and
+    // {@code InSubqueryResolver}. Until {@code ViewAndInSubqueryResolver} is reintroduced, queries that
+    // reference a view from inside an IN subquery's plan are not supported and the analyzer rejects
+    // them. The negative cases below pin that behavior down so the corresponding positive assertions
+    // can be flipped back on once the resolver lands.
 
     /**
      * View definition contains an IN subquery: the view {@code filtered_emps} is defined as
      * {@code FROM employees | WHERE emp_no IN (FROM test | KEEP emp_no) | KEEP emp_no, salary}.
-     * The iterative resolution first expands the view (introducing the InSubquery), then resolves it.
+     * View resolution expands the view body (which contains the InSubquery against {@code test}); the subsequent
+     * InSubqueryResolver pass then converts that InSubquery into a SemiJoin. Views referenced from inside an
+     * IN subquery's plan are not handled in this PR and will be re-enabled with ViewAndInSubqueryResolver later.
      */
     public void testViewContainingInSubquery() {
         LogicalPlan plan = analyzer().addIndex("test", "mapping-basic.json")
@@ -2263,27 +2236,31 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     }
 
     /**
-     * NOT IN subquery references a view: {@code WHERE emp_no NOT IN (FROM high_earners)}.
+     * IN subquery references a view: {@code WHERE emp_no IN (FROM high_earners)}
+     * where {@code high_earners} is defined as {@code FROM employees | WHERE salary > 70000 | KEEP emp_no}.
+     * <p>
+     * NEGATIVE: until {@code ViewAndInSubqueryResolver} returns, the view reference inside the IN subquery
+     * is left unresolved. Restore the original positive assertions (SemiJoin over emp_no with the view body
+     * expanded as Project &rarr; Filter[salary &gt; 70000] &rarr; EsRelation[employees]) when that lands.
      */
-    public void testNotInSubqueryReferencingView() {
-        LogicalPlan plan = analyzer().addIndex("test", "mapping-basic.json")
+    public void testInSubqueryReferencingView() {
+        analyzer().addIndex("test", "mapping-basic.json")
             .addIndex("employees", "mapping-basic.json")
             .addView("high_earners", "FROM employees | WHERE salary > 70000 | KEEP emp_no")
-            .query("FROM test | WHERE emp_no NOT IN (FROM high_earners)");
+            .error("FROM test | WHERE emp_no IN (FROM high_earners)", containsString("[none specified]"));
+    }
 
-        Limit limit = as(plan, Limit.class);
-        AntiJoin antiJoin = as(limit.child(), AntiJoin.class);
-        assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
-        assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(antiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
-
-        EsRelation leftRelation = as(antiJoin.left(), EsRelation.class);
-        assertEquals("test", leftRelation.indexPattern());
-
-        Project rightProject = as(antiJoin.right(), Project.class);
-        Filter rightFilter = as(rightProject.child(), Filter.class);
-        EsRelation rightRelation = as(rightFilter.child(), EsRelation.class);
-        assertEquals("employees", rightRelation.indexPattern());
+    /**
+     * NOT IN subquery references a view: {@code WHERE emp_no NOT IN (FROM high_earners)}.
+     * <p>
+     * NEGATIVE: see {@link #testInSubqueryReferencingView()} — restore the AntiJoin/expanded-view assertions
+     * when {@code ViewAndInSubqueryResolver} returns.
+     */
+    public void testNotInSubqueryReferencingView() {
+        analyzer().addIndex("test", "mapping-basic.json")
+            .addIndex("employees", "mapping-basic.json")
+            .addView("high_earners", "FROM employees | WHERE salary > 70000 | KEEP emp_no")
+            .error("FROM test | WHERE emp_no NOT IN (FROM high_earners)", containsString("[none specified]"));
     }
 
     /**
@@ -2291,50 +2268,14 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
      * View {@code top3_emps} is defined as {@code FROM employees | WHERE emp_no IN (FROM test | KEEP emp_no) | KEEP emp_no, salary}.
      * Query: {@code FROM test | WHERE emp_no IN (FROM top3_emps | WHERE salary > 50000 | KEEP emp_no)}
      * <p>
-     * Requires 3 iterations of the ViewAndInSubqueryResolver loop:
-     * <ol>
-     *   <li>InSubqueryResolver converts the outer IN subquery to SemiJoin, exposing the view reference</li>
-     *   <li>ViewResolver expands {@code top3_emps}, introducing the view's IN subquery;
-     *       InSubqueryResolver converts the inner IN subquery to SemiJoin</li>
-     *   <li>Fixed point — no more changes</li>
-     * </ol>
+     * NEGATIVE: see {@link #testInSubqueryReferencingView()} — restore the stacked SemiJoin assertions
+     * when {@code ViewAndInSubqueryResolver} returns.
      */
     public void testInSubqueryReferencingViewWithInSubquery() {
-        LogicalPlan plan = analyzer().addIndex("test", "mapping-basic.json")
+        analyzer().addIndex("test", "mapping-basic.json")
             .addIndex("employees", "mapping-basic.json")
             .addView("top3_emps", "FROM employees | WHERE emp_no IN (FROM test | KEEP emp_no) | KEEP emp_no, salary")
-            .query("FROM test | WHERE emp_no IN (FROM top3_emps | WHERE salary > 50000 | KEEP emp_no)");
-
-        // Outer: Limit -> SemiJoin[emp_no]
-        Limit limit = as(plan, Limit.class);
-        SemiJoin outerSemiJoin = as(limit.child(), SemiJoin.class);
-        assertThat(outerSemiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(outerSemiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(outerSemiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
-
-        EsRelation leftRelation = as(outerSemiJoin.left(), EsRelation.class);
-        assertEquals("test", leftRelation.indexPattern());
-
-        // Right side: Project -> Filter[salary > 50000] -> Project -> inner SemiJoin
-        // (the view's KEEP + the query's WHERE + the view's IN subquery)
-        Project rightProject = as(outerSemiJoin.right(), Project.class);
-        Filter rightFilter = as(rightProject.child(), Filter.class);
-        GreaterThan gt = as(rightFilter.condition(), GreaterThan.class);
-        FieldAttribute salary = as(gt.left(), FieldAttribute.class);
-        assertEquals("salary", salary.name());
-
-        Project viewProject = as(rightFilter.child(), Project.class);
-        SemiJoin innerSemiJoin = as(viewProject.child(), SemiJoin.class);
-        assertThat(innerSemiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(innerSemiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(innerSemiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
-
-        EsRelation innerLeft = as(innerSemiJoin.left(), EsRelation.class);
-        assertEquals("employees", innerLeft.indexPattern());
-
-        Project innerRight = as(innerSemiJoin.right(), Project.class);
-        EsRelation innerRightRel = as(innerRight.child(), EsRelation.class);
-        assertEquals("test", innerRightRel.indexPattern());
+            .error("FROM test | WHERE emp_no IN (FROM top3_emps | WHERE salary > 50000 | KEEP emp_no)", containsString("[none specified]"));
     }
 
     /**
@@ -2342,30 +2283,14 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
      * View {@code filtered_emps} is defined as
      * {@code FROM employees | WHERE emp_no IN (FROM test | KEEP emp_no) | KEEP emp_no}.
      * Query: {@code FROM test | WHERE emp_no NOT IN (FROM filtered_emps)}
+     * <p>
+     * NEGATIVE: see {@link #testInSubqueryReferencingView()}.
      */
     public void testNotInSubqueryReferencingViewWithInSubquery() {
-        LogicalPlan plan = analyzer().addIndex("test", "mapping-basic.json")
+        analyzer().addIndex("test", "mapping-basic.json")
             .addIndex("employees", "mapping-basic.json")
             .addView("filtered_emps", "FROM employees | WHERE emp_no IN (FROM test | KEEP emp_no) | KEEP emp_no")
-            .query("FROM test | WHERE emp_no NOT IN (FROM filtered_emps)");
-
-        Limit limit = as(plan, Limit.class);
-        AntiJoin outerAntiJoin = as(limit.child(), AntiJoin.class);
-        assertThat(outerAntiJoin.config().type(), equalTo(JoinTypes.ANTI));
-        assertThat(outerAntiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(outerAntiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
-
-        EsRelation leftRelation = as(outerAntiJoin.left(), EsRelation.class);
-        assertEquals("test", leftRelation.indexPattern());
-
-        // Right side: the view was expanded, containing an inner SemiJoin from the view's IN subquery
-        Project rightProject = as(outerAntiJoin.right(), Project.class);
-        SemiJoin innerSemiJoin = as(rightProject.child(), SemiJoin.class);
-        assertThat(innerSemiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(innerSemiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-
-        EsRelation innerLeft = as(innerSemiJoin.left(), EsRelation.class);
-        assertEquals("employees", innerLeft.indexPattern());
+            .error("FROM test | WHERE emp_no NOT IN (FROM filtered_emps)", containsString("[none specified]"));
     }
 
     /**
@@ -2373,38 +2298,14 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
      * View {@code in_sub_view} is defined as
      * {@code FROM employees | WHERE salary IN (FROM test | KEEP salary) | KEEP emp_no}.
      * Query: {@code FROM test | WHERE salary > 50000 AND emp_no IN (FROM in_sub_view)}
+     * <p>
+     * NEGATIVE: see {@link #testInSubqueryReferencingView()}.
      */
     public void testInSubqueryReferencingViewWithInSubqueryAndPredicate() {
-        LogicalPlan plan = analyzer().addIndex("test", "mapping-basic.json")
+        analyzer().addIndex("test", "mapping-basic.json")
             .addIndex("employees", "mapping-basic.json")
             .addView("in_sub_view", "FROM employees | WHERE salary IN (FROM test | KEEP salary) | KEEP emp_no")
-            .query("FROM test | WHERE salary > 50000 AND emp_no IN (FROM in_sub_view)");
-
-        Limit limit = as(plan, Limit.class);
-        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
-        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
-
-        // Left side: Filter[salary > 50000] -> EsRelation[test]
-        Filter leftFilter = as(semiJoin.left(), Filter.class);
-        GreaterThan gt = as(leftFilter.condition(), GreaterThan.class);
-        FieldAttribute salary = as(gt.left(), FieldAttribute.class);
-        assertEquals("salary", salary.name());
-        EsRelation leftRelation = as(leftFilter.child(), EsRelation.class);
-        assertEquals("test", leftRelation.indexPattern());
-
-        // Right side: view expanded with inner SemiJoin from the view's salary IN subquery
-        Project rightProject = as(semiJoin.right(), Project.class);
-        SemiJoin innerSemiJoin = as(rightProject.child(), SemiJoin.class);
-        assertThat(innerSemiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(innerSemiJoin.config().leftFields().get(0).name(), equalTo("salary"));
-
-        EsRelation innerLeft = as(innerSemiJoin.left(), EsRelation.class);
-        assertEquals("employees", innerLeft.indexPattern());
-        Project innerRight = as(innerSemiJoin.right(), Project.class);
-        EsRelation innerRightRel = as(innerRight.child(), EsRelation.class);
-        assertEquals("test", innerRightRel.indexPattern());
+            .error("FROM test | WHERE salary > 50000 AND emp_no IN (FROM in_sub_view)", containsString("[none specified]"));
     }
 
     /**
@@ -2412,45 +2313,19 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
      * View {@code high_earners} is {@code FROM employees | WHERE salary > 70000 | KEEP emp_no}.
      * Query:
      * {@code FROM test | WHERE emp_no IN (FROM high_earners) AND salary IN (FROM (FROM employees | KEEP salary) | KEEP salary)}
+     * <p>
+     * NEGATIVE: see {@link #testInSubqueryReferencingView()}.
      */
     public void testMultipleInSubqueriesWithViewAndFromSubquery() {
         assumeTrue("Requires FROM subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = analyzer().addIndex("test", "mapping-basic.json")
+        analyzer().addIndex("test", "mapping-basic.json")
             .addIndex("employees", "mapping-basic.json")
             .addView("high_earners", "FROM employees | WHERE salary > 70000 | KEEP emp_no")
-            .query("""
+            .error("""
                 FROM test
                 | WHERE emp_no IN (FROM high_earners)
                     AND salary IN (FROM (FROM employees | KEEP salary) | KEEP salary)
-                """);
-
-        Limit limit = as(plan, Limit.class);
-        // Two stacked SemiJoins: salary IN on top, emp_no IN below
-        SemiJoin outerSemiJoin = as(limit.child(), SemiJoin.class);
-        assertThat(outerSemiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(outerSemiJoin.config().leftFields().get(0).name(), equalTo("salary"));
-        assertThat(outerSemiJoin.config().rightFields().get(0).name(), equalTo("salary"));
-
-        EsRelation outerRightRelation = as(unwrapProjects(outerSemiJoin.right()), EsRelation.class);
-        assertEquals("employees", outerRightRelation.indexPattern());
-
-        SemiJoin innerSemiJoin = as(outerSemiJoin.left(), SemiJoin.class);
-        assertThat(innerSemiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(innerSemiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(innerSemiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
-
-        // Inner left: EsRelation[test]
-        EsRelation leftRelation = as(innerSemiJoin.left(), EsRelation.class);
-        assertEquals("test", leftRelation.indexPattern());
-
-        // Inner right: the view expanded to Project -> Filter[salary > 70000] -> EsRelation[employees]
-        Project innerRight = as(innerSemiJoin.right(), Project.class);
-        Filter viewFilter = as(innerRight.child(), Filter.class);
-        GreaterThan gt = as(viewFilter.condition(), GreaterThan.class);
-        FieldAttribute salary = as(gt.left(), FieldAttribute.class);
-        assertEquals("salary", salary.name());
-        EsRelation viewRelation = as(viewFilter.child(), EsRelation.class);
-        assertEquals("employees", viewRelation.indexPattern());
+                """, containsString("[none specified]"));
     }
 
     /**
@@ -2459,45 +2334,19 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
      * Query:
      * {@code FROM test | WHERE emp_no IN (FROM high_earners) AND emp_no NOT IN (FROM (FROM test | KEEP emp_no)
      * | WHERE emp_no > 10050 | KEEP emp_no)}
+     * <p>
+     * NEGATIVE: see {@link #testInSubqueryReferencingView()}.
      */
     public void testInViewAndNotInFromSubquery() {
         assumeTrue("Requires FROM subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = analyzer().addIndex("test", "mapping-basic.json")
+        analyzer().addIndex("test", "mapping-basic.json")
             .addIndex("employees", "mapping-basic.json")
             .addView("high_earners", "FROM employees | WHERE salary > 70000 | KEEP emp_no")
-            .query("""
+            .error("""
                 FROM test
                 | WHERE emp_no IN (FROM high_earners)
                     AND emp_no NOT IN (FROM (FROM test | KEEP emp_no) | WHERE emp_no > 10050 | KEEP emp_no)
-                """);
-
-        Limit limit = as(plan, Limit.class);
-        // AntiJoin on top (NOT IN), SemiJoin below (IN view)
-        AntiJoin antiJoin = as(limit.child(), AntiJoin.class);
-        assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
-        assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-
-        Project outerProject = as(antiJoin.right(), Project.class);
-        Filter outerFilter = as(outerProject.child(), Filter.class);
-        GreaterThan gt = as(outerFilter.condition(), GreaterThan.class);
-        FieldAttribute emp_no = as(gt.left(), FieldAttribute.class);
-        assertEquals("emp_no", emp_no.name());
-        outerProject = as(outerFilter.child(), Project.class);
-        EsRelation outerRelation = as(outerProject.child(), EsRelation.class);
-        assertEquals("test", outerRelation.indexPattern());
-
-        SemiJoin semiJoin = as(antiJoin.left(), SemiJoin.class);
-        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-
-        EsRelation leftRelation = as(semiJoin.left(), EsRelation.class);
-        assertEquals("test", leftRelation.indexPattern());
-
-        // SemiJoin right: view expanded
-        Project viewProject = as(semiJoin.right(), Project.class);
-        Filter viewFilter = as(viewProject.child(), Filter.class);
-        EsRelation viewRelation = as(viewFilter.child(), EsRelation.class);
-        assertEquals("employees", viewRelation.indexPattern());
+                """, containsString("[none specified]"));
     }
 
     /**
@@ -2505,42 +2354,15 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
      * View {@code view_a} is {@code FROM employees | WHERE emp_no IN (FROM test | KEEP emp_no) | KEEP emp_no}.
      * View {@code view_b} is {@code FROM employees | WHERE salary IN (FROM test | KEEP salary) | KEEP salary}.
      * Query: {@code FROM test | WHERE emp_no IN (FROM view_a) AND salary IN (FROM view_b)}
+     * <p>
+     * NEGATIVE: see {@link #testInSubqueryReferencingView()}.
      */
     public void testMultipleInSubqueriesReferencingViewsWithInSubqueries() {
-        LogicalPlan plan = analyzer().addIndex("test", "mapping-basic.json")
+        analyzer().addIndex("test", "mapping-basic.json")
             .addIndex("employees", "mapping-basic.json")
             .addView("view_a", "FROM employees | WHERE emp_no IN (FROM test | KEEP emp_no) | KEEP emp_no")
             .addView("view_b", "FROM employees | WHERE salary IN (FROM test | KEEP salary) | KEEP salary")
-            .query("FROM test | WHERE emp_no IN (FROM view_a) AND salary IN (FROM view_b)");
-
-        Limit limit = as(plan, Limit.class);
-        // Two stacked SemiJoins
-        SemiJoin outerSemiJoin = as(limit.child(), SemiJoin.class);
-        assertThat(outerSemiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(outerSemiJoin.config().leftFields().get(0).name(), equalTo("salary"));
-        assertThat(outerSemiJoin.config().rightFields().get(0).name(), equalTo("salary"));
-
-        SemiJoin innerSemiJoin = as(outerSemiJoin.left(), SemiJoin.class);
-        assertThat(innerSemiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(innerSemiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(innerSemiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
-
-        EsRelation leftRelation = as(innerSemiJoin.left(), EsRelation.class);
-        assertEquals("test", leftRelation.indexPattern());
-
-        // Inner right: view_a expanded, containing a SemiJoin from the view's IN subquery
-        Project viewAProject = as(innerSemiJoin.right(), Project.class);
-        SemiJoin viewASemiJoin = as(viewAProject.child(), SemiJoin.class);
-        assertThat(viewASemiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-        EsRelation viewALeft = as(viewASemiJoin.left(), EsRelation.class);
-        assertEquals("employees", viewALeft.indexPattern());
-
-        // Outer right: view_b expanded, containing a SemiJoin from the view's IN subquery
-        Project viewBProject = as(outerSemiJoin.right(), Project.class);
-        SemiJoin viewBSemiJoin = as(viewBProject.child(), SemiJoin.class);
-        assertThat(viewBSemiJoin.config().leftFields().get(0).name(), equalTo("salary"));
-        EsRelation viewBLeft = as(viewBSemiJoin.left(), EsRelation.class);
-        assertEquals("employees", viewBLeft.indexPattern());
+            .error("FROM test | WHERE emp_no IN (FROM view_a) AND salary IN (FROM view_b)", containsString("[none specified]"));
     }
 
     /**
@@ -2548,248 +2370,132 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
      * {@code employees_in_subquery_nested} in csv tests): employees filtered by {@code emp_no IN}
      * a subquery that itself restricts {@code languages} via {@code IN (1, 2)}.
      * Query: {@code FROM test | WHERE emp_no IN (FROM nested_in_view | KEEP emp_no)}.
+     * <p>
+     * NEGATIVE: see {@link #testInSubqueryReferencingView()}.
      */
     public void testInSubqueryReferencingViewWithNestedInSubqueryInDefinition() {
-        LogicalPlan plan = analyzer().addIndex("test", "mapping-basic.json")
-            .addIndex("employees", "mapping-basic.json")
-            .addView("nested_in_view", """
+        analyzer().addIndex("test", "mapping-basic.json").addIndex("employees", "mapping-basic.json").addView("nested_in_view", """
+            FROM employees
+            | WHERE emp_no IN (
                 FROM employees
-                | WHERE emp_no IN (
-                    FROM employees
-                    | WHERE languages IN (1, 2)
-                    | SORT emp_no ASC
-                    | LIMIT 10
-                    | KEEP emp_no
-                  )
+                | WHERE languages IN (1, 2)
+                | SORT emp_no ASC
+                | LIMIT 10
                 | KEEP emp_no
-                """)
-            .query("FROM test | WHERE emp_no IN (FROM nested_in_view | KEEP emp_no)");
-
-        Limit limit = as(plan, Limit.class);
-        SemiJoin outerSemiJoin = as(limit.child(), SemiJoin.class);
-        assertThat(outerSemiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(outerSemiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(outerSemiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
-
-        EsRelation outerLeft = as(outerSemiJoin.left(), EsRelation.class);
-        assertEquals("test", outerLeft.indexPattern());
-
-        // View expansion: SemiJoin over emp_no; inner subquery uses Filter IN (languages) not a second SemiJoin.
-        SemiJoin innerSemiJoin = as(unwrapProjects(outerSemiJoin.right()), SemiJoin.class);
-        assertThat(innerSemiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(innerSemiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(innerSemiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
-
-        EsRelation innerLeft = as(innerSemiJoin.left(), EsRelation.class);
-        assertEquals("employees", innerLeft.indexPattern());
+              )
+            | KEEP emp_no
+            """).error("FROM test | WHERE emp_no IN (FROM nested_in_view | KEEP emp_no)", containsString("[none specified]"));
     }
 
     /**
      * Conjunction view (like {@code employees_in_subquery_conjunction}): {@code emp_no IN (subquery)}
      * {@code AND languages IN (subquery)}.
      * Query: {@code FROM test | WHERE emp_no IN (FROM conj_in_view | KEEP emp_no)}.
+     * <p>
+     * NEGATIVE: see {@link #testInSubqueryReferencingView()}.
      */
     public void testInSubqueryReferencingConjunctionViewWithTwoInSubqueriesInDefinition() {
-        LogicalPlan plan = analyzer().addIndex("test", "mapping-basic.json")
-            .addIndex("employees", "mapping-basic.json")
-            .addView("conj_in_view", """
-                FROM employees
-                | WHERE emp_no IN (FROM test | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
-                    AND languages IN (FROM test | KEEP languages)
-                | KEEP emp_no
-                """)
-            .query("FROM test | WHERE emp_no IN (FROM conj_in_view | KEEP emp_no)");
-
-        Limit limit = as(plan, Limit.class);
-        SemiJoin outerSemiJoin = as(limit.child(), SemiJoin.class);
-        assertThat(outerSemiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(outerSemiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-
-        // Conjunction view: stacked SemiJoins (languages IN ... on top of emp_no IN ...).
-        SemiJoin languagesSemi = as(unwrapProjects(outerSemiJoin.right()), SemiJoin.class);
-        assertThat(languagesSemi.config().leftFields().get(0).name(), equalTo("languages"));
-        SemiJoin empNoSemi = as(languagesSemi.left(), SemiJoin.class);
-        assertThat(empNoSemi.config().leftFields().get(0).name(), equalTo("emp_no"));
-        EsRelation innerLeft = as(empNoSemi.left(), EsRelation.class);
-        assertEquals("employees", innerLeft.indexPattern());
+        analyzer().addIndex("test", "mapping-basic.json").addIndex("employees", "mapping-basic.json").addView("conj_in_view", """
+            FROM employees
+            | WHERE emp_no IN (FROM test | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+                AND languages IN (FROM test | KEEP languages)
+            | KEEP emp_no
+            """).error("FROM test | WHERE emp_no IN (FROM conj_in_view | KEEP emp_no)", containsString("[none specified]"));
     }
 
     /**
      * Three IN subqueries on {@code emp_no}, each referencing a different view; every view body contains
      * an IN subquery (same idea as {@code threeInSubqueriesIntersectNestedConjunctionDisjunctionViews}).
+     * <p>
+     * NEGATIVE: see {@link #testInSubqueryReferencingView()}.
      */
     public void testThreeInSubqueriesIntersectingViewsEachWithInnerInSubquery() {
-        LogicalPlan plan = analyzer().addIndex("test", "mapping-basic.json")
-            .addIndex("employees", "mapping-basic.json")
-            .addView("v_nested", """
+        analyzer().addIndex("test", "mapping-basic.json").addIndex("employees", "mapping-basic.json").addView("v_nested", """
+            FROM employees
+            | WHERE emp_no IN (
                 FROM employees
-                | WHERE emp_no IN (
-                    FROM employees
-                    | WHERE languages IN (1, 2)
-                    | SORT emp_no ASC
-                    | LIMIT 10
-                    | KEEP emp_no
-                  )
+                | WHERE languages IN (1, 2)
+                | SORT emp_no ASC
+                | LIMIT 10
                 | KEEP emp_no
-                """)
-            .addView("v_conj", """
-                FROM employees
-                | WHERE emp_no IN (FROM test | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
-                    AND languages IN (FROM test | KEEP languages)
-                | KEEP emp_no
-                """)
-            .addView("v_disj", """
-                FROM employees
-                | WHERE emp_no IN (FROM test | KEEP emp_no)
-                    OR languages IN (1, 2)
-                | KEEP emp_no
-                """)
-            .query("""
-                FROM test
-                | WHERE emp_no IN (FROM v_nested | KEEP emp_no)
-                    AND emp_no IN (FROM v_conj | KEEP emp_no)
-                    AND emp_no IN (FROM v_disj | KEEP emp_no)
-                """);
-
-        Limit limit = as(plan, Limit.class);
-        // Three stacked SemiJoins on emp_no (order: outer ... inner)
-        SemiJoin outer = as(limit.child(), SemiJoin.class);
-        assertThat(outer.config().leftFields().get(0).name(), equalTo("emp_no"));
-
-        UnionAllFromDisjunctiveInSubquery unionAll = as(unwrapProjects(outer.right()), UnionAllFromDisjunctiveInSubquery.class);
-        assertEquals(2, unionAll.children().size());
-        Project project = as(unionAll.children().get(0), Project.class);
-        Filter filter = as(project.child(), Filter.class);
-        In in = as(filter.condition(), In.class);
-        assertEquals(2, in.list().size());
-        as(in.value(), FieldAttribute.class);
-        project = as(unionAll.children().get(1), Project.class);
-        SemiJoin viewIn = as(project.child(), SemiJoin.class);
-        filter = as(viewIn.left(), Filter.class);
-        Not not = as(filter.condition(), Not.class);
-        as(not.field(), In.class);
-        EsRelation viewRelation = as(filter.child(), EsRelation.class);
-        assertEquals("employees", viewRelation.indexPattern());
-        project = as(viewIn.right(), Project.class);
-        EsRelation viewInRelation = as(project.child(), EsRelation.class);
-        assertEquals("test", viewInRelation.indexPattern());
-
-        SemiJoin middle = as(outer.left(), SemiJoin.class);
-        assertThat(middle.config().leftFields().get(0).name(), equalTo("emp_no"));
-        SemiJoin inner = as(middle.left(), SemiJoin.class);
-        assertThat(inner.config().leftFields().get(0).name(), equalTo("emp_no"));
-        EsRelation innerLeft = as(inner.left(), EsRelation.class);
-        assertEquals("test", innerLeft.indexPattern());
+              )
+            | KEEP emp_no
+            """).addView("v_conj", """
+            FROM employees
+            | WHERE emp_no IN (FROM test | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+                AND languages IN (FROM test | KEEP languages)
+            | KEEP emp_no
+            """).addView("v_disj", """
+            FROM employees
+            | WHERE emp_no IN (FROM test | KEEP emp_no)
+                OR languages IN (1, 2)
+            | KEEP emp_no
+            """).error("""
+            FROM test
+            | WHERE emp_no IN (FROM v_nested | KEEP emp_no)
+                AND emp_no IN (FROM v_conj | KEEP emp_no)
+                AND emp_no IN (FROM v_disj | KEEP emp_no)
+            """, containsString("[none specified]"));
     }
 
     /**
      * Two IN subqueries and one NOT IN subquery referencing views whose definitions contain IN subqueries
      * (same structure as {@code inNestedAndDisjunctionNotInConjunctionViews}).
+     * <p>
+     * NEGATIVE: see {@link #testInSubqueryReferencingView()}.
      */
     public void testInSubqueryInSubqueryNotInSubqueryReferencingViewsWithInnerInSubqueries() {
-        LogicalPlan plan = analyzer().addIndex("test", "mapping-basic.json")
-            .addIndex("employees", "mapping-basic.json")
-            .addView("v_nested", """
+        analyzer().addIndex("test", "mapping-basic.json").addIndex("employees", "mapping-basic.json").addView("v_nested", """
+            FROM employees
+            | WHERE emp_no IN (
                 FROM employees
-                | WHERE emp_no IN (
-                    FROM employees
-                    | WHERE languages IN (1, 2)
-                    | SORT emp_no ASC
-                    | LIMIT 10
-                    | KEEP emp_no
-                  )
+                | WHERE languages IN (1, 2)
+                | SORT emp_no ASC
+                | LIMIT 10
                 | KEEP emp_no
-                """)
-            .addView("v_disj", """
-                FROM employees
-                | WHERE emp_no IN (FROM test | KEEP emp_no)
-                    OR languages IN (1, 2)
-                | KEEP emp_no
-                """)
-            .addView("v_conj", "FROM employees | WHERE emp_no IN (FROM test | KEEP emp_no) | KEEP emp_no")
-            .query("""
-                FROM test
-                | WHERE emp_no IN (FROM v_nested | KEEP emp_no)
-                    AND emp_no IN (FROM v_disj | KEEP emp_no)
-                    AND emp_no NOT IN (FROM v_conj | KEEP emp_no)
-                """);
-
-        Limit limit = as(plan, Limit.class);
-        AntiJoin antiJoin = as(limit.child(), AntiJoin.class);
-        assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
-        assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(antiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
-
-        SemiJoin middleSemi = as(antiJoin.left(), SemiJoin.class);
-        assertThat(middleSemi.config().leftFields().get(0).name(), equalTo("emp_no"));
-        SemiJoin innerSemi = as(middleSemi.left(), SemiJoin.class);
-        assertThat(innerSemi.config().leftFields().get(0).name(), equalTo("emp_no"));
-
-        EsRelation testForNestedAndDisj = as(innerSemi.left(), EsRelation.class);
-        assertEquals("test", testForNestedAndDisj.indexPattern());
-        assertExpandedVNestedInSubquerySemiJoin(as(unwrapProjects(innerSemi.right()), SemiJoin.class));
-
-        assertExpandedVDisjUnionAllFromDisjunctiveInSubquery(
-            as(unwrapProjects(middleSemi.right()), UnionAllFromDisjunctiveInSubquery.class)
-        );
-
-        SemiJoin conjSemi = as(unwrapProjects(antiJoin.right()), SemiJoin.class);
-        assertExpandedVConjViewSemiJoin(conjSemi);
+              )
+            | KEEP emp_no
+            """).addView("v_disj", """
+            FROM employees
+            | WHERE emp_no IN (FROM test | KEEP emp_no)
+                OR languages IN (1, 2)
+            | KEEP emp_no
+            """).addView("v_conj", "FROM employees | WHERE emp_no IN (FROM test | KEEP emp_no) | KEEP emp_no").error("""
+            FROM test
+            | WHERE emp_no IN (FROM v_nested | KEEP emp_no)
+                AND emp_no IN (FROM v_disj | KEEP emp_no)
+                AND emp_no NOT IN (FROM v_conj | KEEP emp_no)
+            """, containsString("[none specified]"));
     }
 
     /**
      * NOT IN, IN, and NOT IN subqueries referencing views with inner IN subqueries (same idea as
      * {@code notInNestedInDisjunctionNotInConjunctionViews}).
+     * <p>
+     * NEGATIVE: see {@link #testInSubqueryReferencingView()}.
      */
     public void testNotInNestedInDisjunctionNotInConjunctionViews() {
-        LogicalPlan plan = analyzer().addIndex("test", "mapping-basic.json")
-            .addIndex("employees", "mapping-basic.json")
-            .addView("v_nested", """
+        analyzer().addIndex("test", "mapping-basic.json").addIndex("employees", "mapping-basic.json").addView("v_nested", """
+            FROM employees
+            | WHERE emp_no IN (
                 FROM employees
-                | WHERE emp_no IN (
-                    FROM employees
-                    | WHERE languages IN (1, 2)
-                    | SORT emp_no ASC
-                    | LIMIT 10
-                    | KEEP emp_no
-                  )
+                | WHERE languages IN (1, 2)
+                | SORT emp_no ASC
+                | LIMIT 10
                 | KEEP emp_no
-                """)
-            .addView("v_disj", """
-                FROM employees
-                | WHERE emp_no IN (FROM test | KEEP emp_no)
-                    OR languages IN (1, 2)
-                | KEEP emp_no
-                """)
-            .addView("v_conj", "FROM employees | WHERE emp_no IN (FROM test | KEEP emp_no) | KEEP emp_no")
-            .query("""
-                FROM test
-                | WHERE emp_no NOT IN (FROM v_nested | KEEP emp_no)
-                    AND emp_no IN (FROM v_disj | KEEP emp_no)
-                    AND emp_no NOT IN (FROM v_conj | KEEP emp_no)
-                """);
-
-        Limit limit = as(plan, Limit.class);
-        AntiJoin outerAnti = as(limit.child(), AntiJoin.class);
-        assertThat(outerAnti.config().type(), equalTo(JoinTypes.ANTI));
-        assertThat(outerAnti.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(outerAnti.config().rightFields().get(0).name(), equalTo("emp_no"));
-
-        SemiJoin inDisj = as(outerAnti.left(), SemiJoin.class);
-        assertThat(inDisj.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(inDisj.config().leftFields().get(0).name(), equalTo("emp_no"));
-
-        AntiJoin notInNested = as(inDisj.left(), AntiJoin.class);
-        assertThat(notInNested.config().type(), equalTo(JoinTypes.ANTI));
-        assertThat(notInNested.config().leftFields().get(0).name(), equalTo("emp_no"));
-        EsRelation testForNested = as(notInNested.left(), EsRelation.class);
-        assertEquals("test", testForNested.indexPattern());
-        assertExpandedVNestedInSubquerySemiJoin(as(unwrapProjects(notInNested.right()), SemiJoin.class));
-
-        assertExpandedVDisjUnionAllFromDisjunctiveInSubquery(as(unwrapProjects(inDisj.right()), UnionAllFromDisjunctiveInSubquery.class));
-
-        SemiJoin conjSemi = as(unwrapProjects(outerAnti.right()), SemiJoin.class);
-        assertExpandedVConjViewSemiJoin(conjSemi);
+              )
+            | KEEP emp_no
+            """).addView("v_disj", """
+            FROM employees
+            | WHERE emp_no IN (FROM test | KEEP emp_no)
+                OR languages IN (1, 2)
+            | KEEP emp_no
+            """).addView("v_conj", "FROM employees | WHERE emp_no IN (FROM test | KEEP emp_no) | KEEP emp_no").error("""
+            FROM test
+            | WHERE emp_no NOT IN (FROM v_nested | KEEP emp_no)
+                AND emp_no IN (FROM v_disj | KEEP emp_no)
+                AND emp_no NOT IN (FROM v_conj | KEEP emp_no)
+            """, containsString("[none specified]"));
     }
 
     // -- IN subquery with UnionAll (FROM view, (FROM subquery)) --
@@ -2799,146 +2505,75 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
      * {@code WHERE emp_no IN (FROM employees_view, (FROM employees | WHERE salary > 70000) | KEEP emp_no)}
      * View {@code employees_view} is {@code FROM employees | WHERE salary > 60000 | KEEP emp_no}.
      * The subquery plan is a UnionAll of the view expansion and the FROM subquery.
+     * <p>
+     * NEGATIVE: see {@link #testInSubqueryReferencingView()}.
      */
     public void testInSubqueryWithUnionAllOfViewAndFromSubquery() {
         assumeTrue("Requires FROM subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = analyzer().addIndex("test", "mapping-basic.json")
+        analyzer().addIndex("test", "mapping-basic.json")
             .addIndex("employees", "mapping-basic.json")
             .addView("employees_view", "FROM employees | WHERE salary > 60000 | KEEP emp_no")
-            .query("""
+            .error("""
                 FROM test
                 | WHERE emp_no IN (FROM employees_view, (FROM employees | WHERE salary > 70000) | KEEP emp_no)
-                """);
-
-        Limit limit = as(plan, Limit.class);
-        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
-        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
-
-        EsRelation leftRelation = as(semiJoin.left(), EsRelation.class);
-        assertEquals("test", leftRelation.indexPattern());
-
-        // Right side: Project -> UnionAll[view expansion, FROM subquery]
-        Project rightProject = as(semiJoin.right(), Project.class);
-        UnionAll unionAll = as(rightProject.child(), UnionAll.class);
-        assertUnionAllOfSalaryFilteredViewAndFromEmployeesSalarySubquery(unionAll, 60000, 70000);
+                """, containsString("[none specified]"));
     }
 
     /**
      * NOT IN subquery whose FROM combines a view and a FROM subquery:
      * {@code WHERE emp_no NOT IN (FROM employees_view, (FROM test | KEEP emp_no) | KEEP emp_no)}
+     * <p>
+     * NEGATIVE: see {@link #testInSubqueryReferencingView()}.
      */
     public void testNotInSubqueryWithUnionAllOfViewAndFromSubquery() {
         assumeTrue("Requires FROM subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = analyzer().addIndex("test", "mapping-basic.json")
+        analyzer().addIndex("test", "mapping-basic.json")
             .addIndex("employees", "mapping-basic.json")
             .addView("employees_view", "FROM employees | WHERE salary > 60000 | KEEP emp_no")
-            .query("""
+            .error("""
                 FROM test
                 | WHERE emp_no NOT IN (FROM employees_view, (FROM test | KEEP emp_no) | KEEP emp_no)
-                """);
-
-        Limit limit = as(plan, Limit.class);
-        AntiJoin antiJoin = as(limit.child(), AntiJoin.class);
-        assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
-        assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(antiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
-
-        EsRelation leftRelation = as(antiJoin.left(), EsRelation.class);
-        assertEquals("test", leftRelation.indexPattern());
-
-        Project rightProject = as(antiJoin.right(), Project.class);
-        UnionAll unionAll = as(rightProject.child(), UnionAll.class);
-        assertUnionAllOfSalaryFilteredViewAndFromTestSubquery(unionAll, 60000);
+                """, containsString("[none specified]"));
     }
 
     /**
      * Two IN subqueries, each with a UnionAll FROM combining a view and a FROM subquery:
      * {@code FROM test | WHERE emp_no IN (FROM view_a, (FROM test | KEEP emp_no) | KEEP emp_no)
      *                  AND salary IN (FROM view_b, (FROM employees | KEEP salary) | KEEP salary)}
+     * <p>
+     * NEGATIVE: see {@link #testInSubqueryReferencingView()}.
      */
     public void testMultipleInSubqueriesWithUnionAllViewAndFromSubquery() {
         assumeTrue("Requires FROM subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = analyzer().addIndex("test", "mapping-basic.json")
+        analyzer().addIndex("test", "mapping-basic.json")
             .addIndex("employees", "mapping-basic.json")
             .addView("view_a", "FROM employees | KEEP emp_no")
             .addView("view_b", "FROM employees | KEEP salary")
-            .query("""
+            .error("""
                 FROM test
                 | WHERE emp_no IN (FROM view_a, (FROM test | KEEP emp_no) | KEEP emp_no)
                     AND salary IN (FROM view_b, (FROM employees | KEEP salary) | KEEP salary)
-                """);
-
-        Limit limit = as(plan, Limit.class);
-        // Two stacked SemiJoins
-        SemiJoin outerSemiJoin = as(limit.child(), SemiJoin.class);
-        assertThat(outerSemiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(outerSemiJoin.config().leftFields().get(0).name(), equalTo("salary"));
-
-        SemiJoin innerSemiJoin = as(outerSemiJoin.left(), SemiJoin.class);
-        assertThat(innerSemiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(innerSemiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-
-        EsRelation leftRelation = as(innerSemiJoin.left(), EsRelation.class);
-        assertEquals("test", leftRelation.indexPattern());
-
-        // Inner right: UnionAll from view_a and FROM subquery
-        Project innerRight = as(innerSemiJoin.right(), Project.class);
-        UnionAll innerUnionAll = as(innerRight.child(), UnionAll.class);
-        assertUnionAllOfPlainEmployeesViewAndFromTestEmpNoSubquery(innerUnionAll);
-
-        Project outerRight = as(outerSemiJoin.right(), Project.class);
-        UnionAll outerUnionAll = as(outerRight.child(), UnionAll.class);
-        assertUnionAllOfPlainEmployeesSalaryAndFromEmployeesSalarySubquery(outerUnionAll);
+                """, containsString("[none specified]"));
     }
 
     /**
      * IN and NOT IN subqueries, one with UnionAll FROM, the other with a plain view:
      * {@code FROM test | WHERE emp_no IN (FROM view_a, (FROM test | KEEP emp_no) | KEEP emp_no)
      *                  AND emp_no NOT IN (FROM high_earners)}
+     * <p>
+     * NEGATIVE: see {@link #testInSubqueryReferencingView()}.
      */
     public void testInSubqueryUnionAllAndNotInSubqueryView() {
         assumeTrue("Requires FROM subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = analyzer().addIndex("test", "mapping-basic.json")
+        analyzer().addIndex("test", "mapping-basic.json")
             .addIndex("employees", "mapping-basic.json")
             .addView("view_a", "FROM employees | KEEP emp_no")
             .addView("high_earners", "FROM employees | WHERE salary > 70000 | KEEP emp_no")
-            .query("""
+            .error("""
                 FROM test
                 | WHERE emp_no IN (FROM view_a, (FROM test | KEEP emp_no) | KEEP emp_no)
                     AND emp_no NOT IN (FROM high_earners)
-                """);
-
-        Limit limit = as(plan, Limit.class);
-        // AntiJoin (NOT IN view) on top, SemiJoin (IN union) below
-        AntiJoin antiJoin = as(limit.child(), AntiJoin.class);
-        assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
-        assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(antiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
-
-        // AntiJoin right: view high_earners expanded
-        Project antiRight = as(antiJoin.right(), Project.class);
-        Filter antiRightFilter = as(antiRight.child(), Filter.class);
-        GreaterThan gt = as(antiRightFilter.condition(), GreaterThan.class);
-        FieldAttribute salary = as(gt.left(), FieldAttribute.class);
-        assertEquals("salary", salary.name());
-        assertEquals(70000, as(gt.right(), Literal.class).value());
-        EsRelation antiRightRelation = as(antiRightFilter.child(), EsRelation.class);
-        assertEquals("employees", antiRightRelation.indexPattern());
-
-        // AntiJoin left: SemiJoin (IN union)
-        SemiJoin semiJoin = as(antiJoin.left(), SemiJoin.class);
-        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-
-        EsRelation semiLeft = as(semiJoin.left(), EsRelation.class);
-        assertEquals("test", semiLeft.indexPattern());
-
-        // SemiJoin right: UnionAll from view_a and FROM subquery
-        Project semiRight = as(semiJoin.right(), Project.class);
-        UnionAll unionAll = as(semiRight.child(), UnionAll.class);
-        assertUnionAllOfPlainEmployeesViewAndFromTestEmpNoSubquery(unionAll);
+                """, containsString("[none specified]"));
     }
 
     // -- helpers --
@@ -3010,225 +2645,4 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         assertThat("Approximation should reject this query", Approximation.verifyPlan(plan), nullValue());
     }
 
-    /** Strip leading Project nodes introduced when expanding views. */
-    private static LogicalPlan unwrapProjects(LogicalPlan plan) {
-        LogicalPlan p = plan;
-        while (p instanceof Project) {
-            p = p.children().get(0);
-        }
-        return p;
-    }
-
-    /**
-     * View {@code v_nested}: {@code emp_no IN (FROM employees | WHERE languages IN (1,2) | SORT | LIMIT | KEEP emp_no)} expanded as a
-     * SemiJoin over {@code employees} with the subquery branch {@code OrderBy -> Filter(IN languages) -> EsRelation[employees]}.
-     */
-    private static void assertExpandedVNestedInSubquerySemiJoin(SemiJoin nestedSemi) {
-        assertThat(nestedSemi.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(nestedSemi.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(nestedSemi.config().rightFields().get(0).name(), equalTo("emp_no"));
-        EsRelation nestedLeft = as(nestedSemi.left(), EsRelation.class);
-        assertEquals("employees", nestedLeft.indexPattern());
-        Project nestedRightProject = as(nestedSemi.right(), Project.class);
-        Limit limit = as(nestedRightProject.child(), Limit.class);
-        assertEquals(10, as(limit.limit(), Literal.class).value());
-        OrderBy orderBy = as(limit.child(), OrderBy.class);
-        assertEquals(1, orderBy.order().size());
-        Order empNoOrder = orderBy.order().get(0);
-        assertEquals("emp_no", as(empNoOrder.child(), FieldAttribute.class).name());
-        assertThat(empNoOrder.direction(), equalTo(Order.OrderDirection.ASC));
-        Filter langFilter = as(orderBy.child(), Filter.class);
-        In langIn = as(langFilter.condition(), In.class);
-        assertEquals(2, langIn.list().size());
-        assertEquals(1, as(langIn.list().get(0), Literal.class).value());
-        assertEquals(2, as(langIn.list().get(1), Literal.class).value());
-        assertEquals("languages", as(langIn.value(), FieldAttribute.class).name());
-        EsRelation innerEmployees = as(langFilter.child(), EsRelation.class);
-        assertEquals("employees", innerEmployees.indexPattern());
-    }
-
-    /**
-     * View {@code v_disj}: {@code emp_no IN (FROM test) OR languages IN (1,2)} becomes a
-     * {@link UnionAllFromDisjunctiveInSubquery} (value-list branch + IN subquery branch with negated languages predicate).
-     */
-    private static void assertExpandedVDisjUnionAllFromDisjunctiveInSubquery(UnionAllFromDisjunctiveInSubquery unionAll) {
-        assertEquals(2, unionAll.children().size());
-        Project languagesBranch = as(unionAll.children().get(0), Project.class);
-        assertUnionAllBranchMatchesUnionOutput(unionAll, languagesBranch);
-        Filter filter = as(languagesBranch.child(), Filter.class);
-        In in = as(filter.condition(), In.class);
-        assertEquals(2, in.list().size());
-        assertEquals(1, as(in.list().get(0), Literal.class).value());
-        assertEquals(2, as(in.list().get(1), Literal.class).value());
-        assertEquals("languages", as(in.value(), FieldAttribute.class).name());
-        EsRelation languagesBranchRelation = as(filter.child(), EsRelation.class);
-        assertEquals("employees", languagesBranchRelation.indexPattern());
-
-        Project empNoBranchWrap = as(unionAll.children().get(1), Project.class);
-        assertUnionAllBranchMatchesUnionOutput(unionAll, empNoBranchWrap);
-        SemiJoin viewIn = as(empNoBranchWrap.child(), SemiJoin.class);
-        assertThat(viewIn.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(viewIn.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(viewIn.config().rightFields().get(0).name(), equalTo("emp_no"));
-        filter = as(viewIn.left(), Filter.class);
-        Not not = as(filter.condition(), Not.class);
-        In negatedLanguagesIn = as(not.field(), In.class);
-        assertEquals("languages", as(negatedLanguagesIn.value(), FieldAttribute.class).name());
-        assertEquals(2, negatedLanguagesIn.list().size());
-        assertEquals(1, as(negatedLanguagesIn.list().get(0), Literal.class).value());
-        assertEquals(2, as(negatedLanguagesIn.list().get(1), Literal.class).value());
-        EsRelation viewRelation = as(filter.child(), EsRelation.class);
-        assertEquals("employees", viewRelation.indexPattern());
-        Project empNoSubqueryProject = as(viewIn.right(), Project.class);
-        EsRelation viewInRelation = as(empNoSubqueryProject.child(), EsRelation.class);
-        assertEquals("test", viewInRelation.indexPattern());
-    }
-
-    /** View {@code v_conj}: {@code FROM employees | WHERE emp_no IN (FROM test | KEEP emp_no) | KEEP emp_no}. */
-    private static void assertExpandedVConjViewSemiJoin(SemiJoin conjSemi) {
-        assertThat(conjSemi.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(conjSemi.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(conjSemi.config().rightFields().get(0).name(), equalTo("emp_no"));
-        EsRelation conjLeft = as(conjSemi.left(), EsRelation.class);
-        assertEquals("employees", conjLeft.indexPattern());
-        Project conjRight = as(conjSemi.right(), Project.class);
-        EsRelation conjRightRelation = as(conjRight.child(), EsRelation.class);
-        assertEquals("test", conjRightRelation.indexPattern());
-    }
-
-    /**
-     * UnionAll from {@code FROM employees_view, (FROM employees | WHERE salary > subqMin)} where the view applies
-     * {@code salary > viewMin}; the view branch pads missing columns with {@link Eval} so it unions with the subquery.
-     */
-    private static void assertUnionAllOfSalaryFilteredViewAndFromEmployeesSalarySubquery(
-        UnionAll unionAll,
-        int viewMinSalary,
-        int subqueryMinSalary
-    ) {
-        assertEquals(2, unionAll.children().size());
-        assertTrue(unionAll.output().size() > 1);
-        assertEquals("emp_no", unionAll.output().get(0).name());
-        assertEquals(DataType.INTEGER, unionAll.output().get(0).dataType());
-
-        Project viewBranch = as(unionAll.children().get(0), Project.class);
-        assertUnionAllBranchMatchesUnionOutput(unionAll, viewBranch);
-        Eval eval = as(viewBranch.child(), Eval.class);
-        assertFalse(eval.fields().isEmpty());
-        for (Alias nullPad : eval.fields()) {
-            assertNull(as(nullPad.child(), Literal.class).value());
-        }
-        Project keepEmpNo = as(eval.child(), Project.class);
-        assertEquals(1, keepEmpNo.output().size());
-        assertEquals("emp_no", keepEmpNo.output().get(0).name());
-        assertEquals(DataType.INTEGER, keepEmpNo.output().get(0).dataType());
-        assertEquals(eval.output().size(), unionAll.output().size());
-        Filter salaryFilter = as(keepEmpNo.child(), Filter.class);
-        GreaterThan gt = as(salaryFilter.condition(), GreaterThan.class);
-        assertEquals("salary", as(gt.left(), FieldAttribute.class).name());
-        assertEquals(viewMinSalary, as(gt.right(), Literal.class).value());
-        assertEquals(DataType.INTEGER, as(gt.right(), Literal.class).dataType());
-        assertEquals("employees", as(salaryFilter.child(), EsRelation.class).indexPattern());
-
-        Project subBranch = as(unionAll.children().get(1), Project.class);
-        assertUnionAllBranchMatchesUnionOutput(unionAll, subBranch);
-        Subquery sub = as(subBranch.child(), Subquery.class);
-        Filter subFilter = as(sub.child(), Filter.class);
-        GreaterThan subGt = as(subFilter.condition(), GreaterThan.class);
-        assertEquals("salary", as(subGt.left(), FieldAttribute.class).name());
-        assertEquals(subqueryMinSalary, as(subGt.right(), Literal.class).value());
-        assertEquals(DataType.INTEGER, as(subGt.right(), Literal.class).dataType());
-        assertEquals("employees", as(subFilter.child(), EsRelation.class).indexPattern());
-    }
-
-    /**
-     * UnionAll from {@code FROM employees_view, (FROM test | KEEP emp_no)} with {@code salary > viewMinSalary} on the
-     * expanded view branch.
-     */
-    private static void assertUnionAllOfSalaryFilteredViewAndFromTestSubquery(UnionAll unionAll, int viewMinSalary) {
-        assertEquals(2, unionAll.children().size());
-        assertUnionAllSingleIntegerColumn(unionAll, "emp_no");
-
-        Project viewBranch = as(unionAll.children().get(0), Project.class);
-        assertUnionAllBranchMatchesUnionOutput(unionAll, viewBranch);
-        assertEquals(1, viewBranch.projections().size());
-        Filter salaryFilter = as(viewBranch.child(), Filter.class);
-        GreaterThan gt = as(salaryFilter.condition(), GreaterThan.class);
-        assertEquals("salary", as(gt.left(), FieldAttribute.class).name());
-        assertEquals(viewMinSalary, as(gt.right(), Literal.class).value());
-        assertEquals(DataType.INTEGER, as(gt.right(), Literal.class).dataType());
-        assertEquals("employees", as(salaryFilter.child(), EsRelation.class).indexPattern());
-
-        Project subBranch = as(unionAll.children().get(1), Project.class);
-        assertUnionAllBranchMatchesUnionOutput(unionAll, subBranch);
-        assertEquals(1, subBranch.projections().size());
-        Subquery sub = as(subBranch.child(), Subquery.class);
-        Project innerProj = as(sub.child(), Project.class);
-        assertEquals(1, innerProj.output().size());
-        assertEquals("emp_no", innerProj.output().get(0).name());
-        assertEquals(DataType.INTEGER, innerProj.output().get(0).dataType());
-        assertEquals("test", as(innerProj.child(), EsRelation.class).indexPattern());
-    }
-
-    /** UnionAll from {@code FROM view_a, (FROM test | KEEP emp_no)} with {@code view_a = FROM employees | KEEP emp_no}. */
-    private static void assertUnionAllOfPlainEmployeesViewAndFromTestEmpNoSubquery(UnionAll unionAll) {
-        assertEquals(2, unionAll.children().size());
-        assertUnionAllSingleIntegerColumn(unionAll, "emp_no");
-
-        Project viewBranch = as(unionAll.children().get(0), Project.class);
-        assertUnionAllBranchMatchesUnionOutput(unionAll, viewBranch);
-        assertEquals(1, viewBranch.projections().size());
-        EsRelation viewEmployees = as(viewBranch.child(), EsRelation.class);
-        assertEquals("employees", viewEmployees.indexPattern());
-
-        Project subBranch = as(unionAll.children().get(1), Project.class);
-        assertUnionAllBranchMatchesUnionOutput(unionAll, subBranch);
-        assertEquals(1, subBranch.projections().size());
-        Subquery sub = as(subBranch.child(), Subquery.class);
-        Project innerProj = as(sub.child(), Project.class);
-        assertEquals(1, innerProj.output().size());
-        assertEquals("emp_no", innerProj.output().get(0).name());
-        assertEquals(DataType.INTEGER, innerProj.output().get(0).dataType());
-        assertEquals("test", as(innerProj.child(), EsRelation.class).indexPattern());
-    }
-
-    /**
-     * UnionAll from {@code FROM view_b, (FROM employees | KEEP salary)} with both branches reading {@code employees}.
-     */
-    private static void assertUnionAllOfPlainEmployeesSalaryAndFromEmployeesSalarySubquery(UnionAll unionAll) {
-        assertEquals(2, unionAll.children().size());
-        assertUnionAllSingleIntegerColumn(unionAll, "salary");
-
-        Project viewBranch = as(unionAll.children().get(0), Project.class);
-        assertUnionAllBranchMatchesUnionOutput(unionAll, viewBranch);
-        assertEquals(1, viewBranch.projections().size());
-        EsRelation viewEmployees = as(viewBranch.child(), EsRelation.class);
-        assertEquals("employees", viewEmployees.indexPattern());
-
-        Project subBranch = as(unionAll.children().get(1), Project.class);
-        assertUnionAllBranchMatchesUnionOutput(unionAll, subBranch);
-        assertEquals(1, subBranch.projections().size());
-        Subquery sub = as(subBranch.child(), Subquery.class);
-        Project innerProj = as(sub.child(), Project.class);
-        assertEquals(1, innerProj.output().size());
-        assertEquals("salary", innerProj.output().get(0).name());
-        assertEquals(DataType.INTEGER, innerProj.output().get(0).dataType());
-        assertEquals("employees", as(innerProj.child(), EsRelation.class).indexPattern());
-    }
-
-    /** UnionAll combines branches: each branch {@link Project} must expose the same names and types as the union output. */
-    private static void assertUnionAllBranchMatchesUnionOutput(UnionAll unionAll, Project branch) {
-        List<Attribute> unionOut = unionAll.output();
-        List<Attribute> branchOut = branch.output();
-        assertEquals(unionOut.size(), branchOut.size());
-        for (int i = 0; i < unionOut.size(); i++) {
-            assertEquals(unionOut.get(i).name(), branchOut.get(i).name());
-            assertEquals(unionOut.get(i).dataType(), branchOut.get(i).dataType());
-        }
-    }
-
-    private static void assertUnionAllSingleIntegerColumn(UnionAll unionAll, String columnName) {
-        assertEquals(1, unionAll.output().size());
-        assertEquals(columnName, unionAll.output().get(0).name());
-        assertEquals(DataType.INTEGER, unionAll.output().get(0).dataType());
-    }
 }

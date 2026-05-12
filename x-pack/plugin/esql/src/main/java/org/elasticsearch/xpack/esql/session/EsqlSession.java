@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -170,7 +171,7 @@ public class EsqlSession {
     private final AnalyzerSettings analyzerSettings;
     private final IndexResolver indexResolver;
     private final EnrichPolicyResolver enrichPolicyResolver;
-    private final ViewAndInSubqueryResolver viewAndInSubqueryResolver;
+    private final ViewResolver viewResolver;
     private final ExternalSourceResolver externalSourceResolver;
 
     private final EsqlParser parser;
@@ -222,7 +223,7 @@ public class EsqlSession {
         this.analyzerSettings = analyzerSettings;
         this.indexResolver = indexResolver;
         this.enrichPolicyResolver = enrichPolicyResolver;
-        this.viewAndInSubqueryResolver = new ViewAndInSubqueryResolver(viewResolver, services.clusterService());
+        this.viewResolver = viewResolver;
         this.externalSourceResolver = externalSourceResolver;
         this.parser = parser;
         this.preAnalyzer = preAnalyzer;
@@ -275,9 +276,18 @@ public class EsqlSession {
             inferenceService.inferenceSettings(),
             viewName
         ).plan();
-        viewAndInSubqueryResolver.resolve(statement.plan(), viewParser, listener.delegateFailureAndWrap((l, viewResolution) -> {
+        viewResolver.replaceViews(statement.plan(), viewParser, listener.delegateFailureAndWrap((l, viewResolution) -> {
             viewResolutionProfile.stop();
-            analyseAndExecute(request, executionInfo, planRunner, statement, viewResolution, l);
+            // InSubquery resolution runs immediately after view resolution. Views referenced from inside
+            // an IN subquery are not handled here yet — that requires alternating the two resolvers,
+            // which will be reintroduced in a follow-up.
+            InSubqueryResolver.resolve(viewResolution.plan(), l.delegateFailureAndWrap((ll, resolvedPlan) -> {
+                ViewResolver.ViewResolutionResult resolvedResult = new ViewResolver.ViewResolutionResult(
+                    resolvedPlan,
+                    viewResolution.viewQueries()
+                );
+                analyseAndExecute(request, executionInfo, planRunner, statement, resolvedResult, ll);
+            }));
         }));
     }
 
@@ -947,8 +957,8 @@ public class EsqlSession {
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
 
-        // InSubquery expressions have already been resolved by ViewAndInSubqueryResolver.
-        // Proceed directly to PreAnalyzer.
+        // InSubquery expressions have already been resolved by InSubqueryResolver right after
+        // ViewResolver in execute(). Proceed directly to PreAnalyzer.
         TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
         preAnalysisProfile.start();
         // Rewrite FROM targets that resolve to datasets into UnresolvedExternalRelation so the rest of

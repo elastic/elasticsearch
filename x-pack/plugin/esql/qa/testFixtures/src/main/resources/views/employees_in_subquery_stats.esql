@@ -1,3 +1,0 @@
-FROM employees
-| WHERE salary IN (FROM employees | STATS m = MAX(salary) | KEEP m)
-| KEEP emp_no, first_name, salary

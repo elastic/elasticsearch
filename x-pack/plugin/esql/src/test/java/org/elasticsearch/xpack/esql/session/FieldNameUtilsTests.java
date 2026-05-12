@@ -3390,7 +3390,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     // IN subquery tests
 
     public void testInSubquery() {
-        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         assertFieldNames(
             "FROM employees | WHERE emp_no IN (FROM employees | SORT emp_no | LIMIT 3 | KEEP emp_no) | KEEP emp_no, first_name",
             Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*")
@@ -3398,7 +3398,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testInSubqueryDifferentIndex() {
-        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         // The subquery references a different index; field names from both should be collected
         assertFieldNames(
             "FROM employees | WHERE emp_no IN (FROM languages | KEEP language_id) | KEEP emp_no, first_name",
@@ -3407,7 +3407,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testInSubqueryWithMoreFields() {
-        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         // The subquery references fields (salary) not used in the main query
         assertFieldNames(
             "FROM employees | WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no) | KEEP emp_no",
@@ -3416,7 +3416,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testFromSubqueryInsideInSubquery() {
-        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         assertFieldNames(
             """
                 FROM employees
@@ -3430,7 +3430,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testInSubqueryInsideFromSubquery() {
-        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         assertFieldNames("""
             FROM
                 (FROM employees
@@ -3444,7 +3444,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testNestedInSubqueries() {
-        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         // Nested IN subquery: the inner subquery references salary, the outer references emp_no and first_name
         // The inner subquery's STATS alias (max_sal) is also visible in the plan tree after InSubqueryResolver
         assertFieldNames(
@@ -3473,7 +3473,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testNotInSubquery() {
-        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         assertFieldNames(
             "FROM employees | WHERE emp_no NOT IN (FROM employees | WHERE salary > 70000 | KEEP emp_no) | KEEP emp_no",
             Set.of("_index", "emp_no", "emp_no.*", "salary", "salary.*")
@@ -3481,13 +3481,13 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testInSubqueryNoFieldReduction() {
-        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         // Main query has no KEEP/PROJECT, so it returns ALL_FIELDS regardless of the subquery's KEEP
         assertFieldNames("FROM employees | WHERE emp_no IN (FROM employees | SORT emp_no | LIMIT 3 | KEEP emp_no)", ALL_FIELDS);
     }
 
     public void testInSubqueryWithDateComparison() {
-        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         assertFieldNames("""
             FROM employees
             | WHERE emp_no IN (

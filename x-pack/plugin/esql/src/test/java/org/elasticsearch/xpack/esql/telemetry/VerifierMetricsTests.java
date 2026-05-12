@@ -305,7 +305,7 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     public void testInSubquery() {
-        assumeTrue("requires WHERE IN subquery capability", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        assumeTrue("requires WHERE IN subquery capability", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         // After InSubqueryResolver, the WHERE IN subquery is converted to a SemiJoin,
         // and the subquery's stats is visible in the plan tree.
         Counters c = esql("from employees | where emp_no IN (from employees | stats max(emp_no))");
@@ -313,13 +313,13 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     public void testNotInSubquery() {
-        assumeTrue("requires WHERE IN subquery capability", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        assumeTrue("requires WHERE IN subquery capability", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         Counters c = esql("from employees | where emp_no NOT IN (from employees | stats max(emp_no))");
         assertMetrics(c, Map.of(STATS, 1L, WHERE, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L));
     }
 
     public void testMixedInAndNotInSubqueries() {
-        assumeTrue("requires WHERE IN subquery capability", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        assumeTrue("requires WHERE IN subquery capability", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         Counters c = esql("""
             from employees
             | where emp_no IN (from employees | stats max(emp_no))
@@ -329,7 +329,7 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     public void testMultipleNotInSubqueries() {
-        assumeTrue("requires WHERE IN subquery capability", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        assumeTrue("requires WHERE IN subquery capability", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         Counters c = esql("""
             from employees
             | where emp_no NOT IN (from employees | stats max(emp_no))
@@ -339,7 +339,7 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     public void testMultipleInSubqueries() {
-        assumeTrue("requires WHERE IN subquery capability", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        assumeTrue("requires WHERE IN subquery capability", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         Counters c = esql("""
             from employees
             | where emp_no IN (from employees | stats max(emp_no))

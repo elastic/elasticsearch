@@ -11,8 +11,14 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.TestResultPageSinkOperator;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
+import org.elasticsearch.core.Releasables;
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -30,7 +36,11 @@ import static org.hamcrest.Matchers.greaterThan;
 /**
  * Smoke tests for the parallel-workers path in {@link TopNOperator}: push enough rows
  * to trigger promotion, then verify the top-K output matches what a sequential sort would
- * produce. Drives the operator directly from the test thread (no Driver).
+ * produce. Drives the operator through a real {@link Driver} via {@link TestDriverRunner} so
+ * that the {@link org.elasticsearch.compute.operator.Operator#isBlocked()} path is exercised
+ * — a hand-rolled busy-wait loop would never observe the {@link
+ * org.elasticsearch.action.support.SubscribableListener} based blocking that the parallel
+ * path relies on.
  *
  * <p>The {@link #testParallelUsesMultipleThreads()} variant additionally asserts that the
  * post-promotion work actually distributes across multiple executor threads — otherwise the
@@ -105,9 +115,10 @@ public class ParallelTopNOperatorTests extends ComputeTestCase {
         }
         Collections.shuffle(values, random());
 
-        List<Long> actual = new ArrayList<>(topCount);
-        try (
-            TopNOperator op = new TopNOperator(
+        List<Page> results = new ArrayList<>();
+        boolean success = false;
+        try {
+            TopNOperator topN = new TopNOperator(
                 blockFactory,
                 blockFactory.breaker(),
                 topCount,
@@ -120,48 +131,38 @@ public class ParallelTopNOperatorTests extends ComputeTestCase {
                 null,
                 driverContext,
                 new TopNOperator.ParallelWorkerConfig(recordingExecutor, WORKER_COUNT, MAX_IN_FLIGHT, promotionThreshold)
-            )
-        ) {
-            for (int start = 0; start < totalRows; start += rowsPerPage) {
-                int end = Math.min(start + rowsPerPage, totalRows);
-                try (LongBlock.Builder b = blockFactory.newLongBlockBuilder(end - start)) {
-                    for (int i = start; i < end; i++) {
-                        b.appendLong(values.get(i));
-                    }
-                    while (op.needsInput() == false) {
-                        Thread.sleep(1);
-                    }
-                    op.addInput(new Page(b.build()));
+            );
+            try (
+                Driver driver = TestDriverFactory.create(
+                    driverContext,
+                    new SequenceLongBlockSourceOperator(blockFactory, values, rowsPerPage),
+                    List.of(topN),
+                    new TestResultPageSinkOperator(results::add)
+                )
+            ) {
+                new TestDriverRunner().run(driver);
+            }
+
+            List<Long> actual = new ArrayList<>(topCount);
+            for (Page out : results) {
+                LongBlock block = out.getBlock(0);
+                for (int i = 0; i < block.getPositionCount(); i++) {
+                    actual.add(block.getLong(block.getFirstValueIndex(i)));
                 }
             }
-            op.finish();
 
-            // getOutput() returns null until all workers drain and the merge produces a page.
-            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
-            while (op.isFinished() == false) {
-                Page out = op.getOutput();
-                if (out == null) {
-                    if (System.nanoTime() > deadline) {
-                        fail("operator did not finish within 30s");
-                    }
-                    Thread.sleep(1);
-                    continue;
-                }
-                try {
-                    LongBlock block = out.getBlock(0);
-                    for (int i = 0; i < block.getPositionCount(); i++) {
-                        actual.add(block.getLong(block.getFirstValueIndex(i)));
-                    }
-                } finally {
-                    out.releaseBlocks();
-                }
+            List<Long> expected = new ArrayList<>(topCount);
+            for (long v = 0; v < topCount; v++) {
+                expected.add(v);
+            }
+            assertThat(actual, equalTo(expected));
+            success = true;
+        } finally {
+            if (success) {
+                Releasables.close(() -> results.forEach(Page::releaseBlocks));
+            } else {
+                Releasables.closeExpectNoException(() -> results.forEach(Page::releaseBlocks));
             }
         }
-
-        List<Long> expected = new ArrayList<>(topCount);
-        for (long v = 0; v < topCount; v++) {
-            expected.add(v);
-        }
-        assertThat(actual, equalTo(expected));
     }
 }

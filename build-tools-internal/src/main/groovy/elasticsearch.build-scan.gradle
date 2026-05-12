@@ -192,9 +192,20 @@ develocity {
             } finally {
               if (GcpPreemptionWatchdog.isPreempted()) {
                 def exitCode = System.getenv('GCP_PREEMPTION_EXIT_CODE')?.toInteger() ?: 42
-                logger.lifecycle("[gcp-preemption-watchdog] scan published; halting with exit code ${exitCode}")
-                // halt() rather than exit() so we don't re-enter Gradle shutdown hooks
-                Runtime.runtime.halt(exitCode)
+                // In Gradle 9 the daemon and client are always separate JVMs (even with
+                // --no-daemon). Calling halt() in the daemon would kill it without
+                // propagating exit code 42 to the client, and could interrupt the
+                // daemon's protocol handshake, preventing the scan URL from appearing in
+                // the console. Instead, write the desired exit code to a well-known file
+                // and let the wrapper scripts (run-gradle.sh, post-command hook) re-exit
+                // with it after the client returns normally.
+                def jobId = System.getenv('BUILDKITE_JOB_ID') ?: 'local'
+                try {
+                  new File("/tmp/gradle-preemption-exit-${jobId}").text = exitCode.toString()
+                  logger.lifecycle("[gcp-preemption-watchdog] scan published; wrote preemption exit code {} to file for wrapper scripts", exitCode)
+                } catch (Throwable t) {
+                  logger.warn("[gcp-preemption-watchdog] failed to write preemption exit code file: {}", t.toString())
+                }
               }
             }
           }

@@ -85,6 +85,8 @@ if [[ -n "${TESTS_SEED:-}" ]]; then
   echo "Using test seed: $TESTS_SEED"
 fi
 
+PREEMPTION_FILE="/tmp/gradle-preemption-exit-${BUILDKITE_JOB_ID:-local}"
+set +e
 sudo -E env \
   PATH=$BUILD_JAVA_HOME/bin:`sudo bash -c 'echo -n $PATH'` \
   --unset=ES_JAVA_HOME \
@@ -92,4 +94,15 @@ sudo -E env \
   SYSTEM_JAVA_HOME=`readlink -f -n $BUILD_JAVA_HOME` \
   DOCKER_CONFIG="${HOME}/.docker" \
   ./gradlew -g $HOME/.gradle --console=plain --scan --parallel --build-cache --no-daemon -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ $TESTS_SEED_PARAM --continue $@
+GRADLE_EXIT=$?
+set -e
+
+if [[ -f "$PREEMPTION_FILE" ]]; then
+  PREEMPTION_EXIT=$(cat "$PREEMPTION_FILE")
+  rm -f "$PREEMPTION_FILE"
+  echo "[gcp-preemption-watchdog] exiting with preemption exit code $PREEMPTION_EXIT"
+  exit "$PREEMPTION_EXIT"
+fi
+
+exit "$GRADLE_EXIT"
 

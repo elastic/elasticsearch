@@ -642,7 +642,16 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 // TODO: revert to directly pass data mapped with DatasetUtils.getInstance() to generateGpuGraphAndWriteMeta
                 // when cuvs has fixed this problem
                 int packedRowSize = fieldInfo.getVectorDimension();
+                // Acquire the GPU resource first, before creating the potentially large
+                // temporary memory-mapped copy. This bounds the number of concurrent temp
+                // files to the number of GPU resources (MAX_RESOURCES), preventing the
+                // page thrashing that occurs when many merge threads each create multi-GB
+                // temp copies while waiting for a GPU slot.
                 try (
+                    var resourcesHolder = new ResourcesHolder(
+                        cuVSResourceManager,
+                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams)
+                    );
                     var packedSegmentHolder = getContiguousPackedMemorySegment(
                         memorySegmentAccessInput,
                         mergeState.segmentInfo.dir,
@@ -656,10 +665,6 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                         numVectors,
                         packedRowSize,
                         dataType
-                    );
-                    var resourcesHolder = new ResourcesHolder(
-                        cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams)
                     )
                 ) {
                     generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
@@ -735,19 +740,21 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             IndexInput slice = vectorValues.getSlice();
             var input = FilterIndexInput.unwrap(slice);
             if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
-                // Fast path, possible direct access to mmapped file
+                // Fast path, possible direct access to mmapped file.
+                // Acquire the GPU resource first to limit concurrent temp file creation
+                // (see mergeByteVectorField for full rationale).
                 try (
+                    var resourcesHolder = new ResourcesHolder(
+                        cuVSResourceManager,
+                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams)
+                    );
                     var memorySegmentHolder = getContiguousMemorySegment(
                         memorySegmentAccessInput,
                         mergeState.segmentInfo.dir,
                         mergeState.segmentInfo.name
                     );
                     var dataset = DatasetUtils.getInstance()
-                        .fromInput(memorySegmentHolder.memorySegment(), numVectors, fieldInfo.getVectorDimension(), dataType);
-                    var resourcesHolder = new ResourcesHolder(
-                        cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams)
-                    )
+                        .fromInput(memorySegmentHolder.memorySegment(), numVectors, fieldInfo.getVectorDimension(), dataType)
                 ) {
                     generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
                 }

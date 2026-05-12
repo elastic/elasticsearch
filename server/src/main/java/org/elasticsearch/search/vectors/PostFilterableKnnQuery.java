@@ -66,7 +66,7 @@ public interface PostFilterableKnnQuery {
      * (filter-passing docs only) feed the {@code SeededRetryCollectorManager} as graph entry points.
      * <p>
      * For IVF: {@code excludedDocs} are composed into {@code AcceptDocs} so the codec skips them
-     * during posting-list iteration; {@code seedDocs} are ignored (IVF has no graph seeding).
+     * during posting-list iteration; {@code seedDocs} are ignored.
      *
      * @param reader           the index reader
      * @param excludedDocs     all docs returned across previous rounds, sorted (skip from results)

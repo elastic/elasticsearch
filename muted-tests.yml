@@ -285,6 +285,9 @@ tests:
 - class: org.elasticsearch.search.KnnSearchIT
   method: testKnnSearchWithScroll
   issue: https://github.com/elastic/elasticsearch/issues/148590
+- class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
+  method: testActionType
+  issue: https://github.com/elastic/elasticsearch/issues/148911
 
 # Examples:
 #

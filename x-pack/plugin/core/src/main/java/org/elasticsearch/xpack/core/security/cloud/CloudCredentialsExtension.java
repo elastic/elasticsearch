@@ -35,13 +35,11 @@ public interface CloudCredentialsExtension {
     }
 
     /**
-     * Installs the active extension. Must be called at most once per JVM, replacing the {@link Noop}
-     * default; replacing a non-noop instance trips an assertion.
+     * Sets the active extension.
      */
     static void setInstance(CloudCredentialsExtension instance) {
-        Objects.requireNonNull(instance, "CloudCredentialsExtension instance must not be null");
-        final CloudCredentialsExtension previous = REFERENCE.getAndSet(instance);
-        assert previous instanceof Noop : "CloudCredentialsExtension already installed: " + previous.getClass().getName();
+        Objects.requireNonNull(instance, "extension instance must not be null");
+        REFERENCE.set(instance);
     }
 
     /**

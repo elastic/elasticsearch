@@ -48,7 +48,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -1043,7 +1043,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         DeleteByQueryRequest deleteByQuery = new DeleteByQueryRequest();
 
         deleteByQuery.setAbortOnVersionConflict(false)
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
+            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen());
 
         // disable scoring by using index order

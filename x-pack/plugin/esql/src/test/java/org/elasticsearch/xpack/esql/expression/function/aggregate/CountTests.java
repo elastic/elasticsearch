@@ -66,6 +66,7 @@ public class CountTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.geohexCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
+            MultiRowTestCaseSupplier.flattenedCases(1, 1000),
             MultiRowTestCaseSupplier.tdigestCases(1, 1000)
                 .stream()
                 .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
@@ -90,6 +91,7 @@ public class CountTests extends AbstractAggregationTestCase {
             DataType.IP,
             DataType.VERSION,
             DataType.KEYWORD,
+            DataType.FLATTENED,
             DataType.TDIGEST,
             DataType.TEXT,
             DataType.GEO_POINT,

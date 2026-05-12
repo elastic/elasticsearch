@@ -594,7 +594,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     var indexShard = searchService.getIndicesService()
                         .indexServiceSafe(shard.shardId().getIndex())
                         .getShard(shard.shardId().id());
-                    targetShards.add(new Tuple<>(indexShard, shard.reshardSplitShardCountSummary()));
+                    targetShards.add(new Tuple<>(indexShard, shard.splitShardCountSummary()));
                 } catch (Exception e) {
                     if (addShardLevelFailure(shard.shardId(), e) == false) {
                         listener.onFailure(e);

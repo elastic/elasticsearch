@@ -8,8 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.core.AbstractRefCounted;
-import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -23,26 +22,29 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardCo
  * and node-reduce drivers, such that each data driver will have its own (disjoint) set of contexts, but the node-reduce driver will have
  * access to all contexts created for the data drivers.
  * <p>
- * This class is ref-counted rather than {@link org.elasticsearch.core.Releasable} because it has multiple concurrent owners (the holder
- * that created it and, optionally, a lazily-created {@link ShardContext}). Callers release ownership via {@link #decRef()}, and the
- * underlying {@link SearchContext} is closed only when the count reaches zero.
+ * Closing this will only close the underlying search context, and doing so <i>directly</i> is generally only done during error handling. In
+ * happy-path execution, this class will be closed when the reference count in the {@link ShardContext} returned by {@link #shardContext()}
+ * reaches 0.
+ * <p>
+ * Two flavors of {@link ShardContext} creation are provided:
+ * <ul>
+ *     <li>{@link #shardContext()} — the normal path. The returned {@link ShardContext} holds a releasable back-reference to this context,
+ *     so when operators finish and the shard context's ref count reaches zero, the underlying {@link SearchContext} is closed. This is
+ *     cached via {@link SetOnce} since the same shard context is shared across data and node-reduce drivers.</li>
+ *     <li>{@link #newDetachedShardContext()} — for the retained-contexts path (remote fetch). Creates a <i>fresh, independent</i>
+ *     {@link ShardContext} whose close is a no-op with respect to the underlying {@link SearchContext}. Use this when the
+ *     {@link SearchContext} lifecycle is managed externally (e.g., by a {@link RetainedSearchContextsRegistry} entry) and must outlive any
+ *     single set of operators.</li>
+ * </ul>
  */
-class ComputeSearchContext {
+class ComputeSearchContext implements Releasable {
     private final int index;
     private final SearchContext searchContext;
     private final SetOnce<ShardContext> shardContext = new SetOnce<>();
-    /**
-     * Tracks ownership of the underlying {@link SearchContext}. Starts at 1 (for the holder that created this context); incremented
-     * again if a {@link ShardContext} is lazily created (since it holds a back-reference via {@code this::decRef}). The search context
-     * is closed when the count reaches zero. This is intentionally separate from the operator-level ref counting in
-     * {@link ShardContext}, which tracks how many Lucene operators are actively using the shard context.
-     */
-    private final RefCounted refs;
 
     ComputeSearchContext(int index, SearchContext searchContext) {
         this.index = index;
         this.searchContext = searchContext;
-        this.refs = AbstractRefCounted.of(() -> Releasables.close(searchContext));
     }
 
     public int index() {
@@ -51,12 +53,7 @@ class ComputeSearchContext {
 
     ShardContext shardContext() {
         if (shardContext.get() == null) {
-            synchronized (this) {
-                if (shardContext.get() == null) {
-                    refs.incRef();
-                    shardContext.set(createShardContext());
-                }
-            }
+            shardContext.set(createShardContext());
         }
         return shardContext.get();
     }
@@ -65,11 +62,20 @@ class ComputeSearchContext {
         return searchContext;
     }
 
-    void incRef() {
-        refs.incRef();
+    /**
+     * Creates a fresh, independent {@link ShardContext} whose close does <i>not</i> release the underlying {@link SearchContext}. Use this
+     * when the search context lifecycle is managed externally (e.g., by a {@link RetainedSearchContextsRegistry} entry) and must survive
+     * across multiple sets of operators. Each call returns a new instance with its own ref count.
+     */
+    ShardContext newDetachedShardContext() {
+        return createShardContext(() -> {});
     }
 
     private ShardContext createShardContext() {
+        return createShardContext(this);
+    }
+
+    private ShardContext createShardContext(Releasable releasable) {
         SearchExecutionContext searchExecutionContext = new SearchExecutionContext(searchContext.getSearchExecutionContext()) {
             @Override
             public SourceProvider createSourceProvider(SourceFilter sourceFilter) {
@@ -77,10 +83,11 @@ class ComputeSearchContext {
             }
         };
         searchContext.addReleasable(searchExecutionContext::releaseQueryConstructionMemory);
-        return new DefaultShardContext(index, this::decRef, searchExecutionContext, searchContext.request().getAliasFilter());
+        return new DefaultShardContext(index, releasable, searchExecutionContext, searchContext.request().getAliasFilter());
     }
 
-    boolean decRef() {
-        return refs.decRef();
+    @Override
+    public void close() {
+        Releasables.close(searchContext);
     }
 }

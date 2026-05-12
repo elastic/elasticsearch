@@ -47,6 +47,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
+import org.elasticsearch.index.store.FieldInfoCachingDirectory;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
@@ -164,7 +165,7 @@ public class SearchEngine extends Engine {
         boolean success = false;
         store.incRef();
         try {
-            this.directory = store.directory();
+            this.directory = FieldInfoCachingDirectory.wrapIfEnabled(store.directory());
             this.searchDirectory = SearchDirectory.unwrapDirectory(store.directory());
             directoryReader = ElasticsearchDirectoryReader.wrap(
                 new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(directory, config.getLeafSorter()), Lucene.SOFT_DELETES_FIELD),

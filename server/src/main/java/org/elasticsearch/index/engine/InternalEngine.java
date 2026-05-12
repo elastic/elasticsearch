@@ -99,6 +99,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardSplittingQuery;
+import org.elasticsearch.index.store.FieldInfoCachingDirectory;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
@@ -3089,7 +3090,7 @@ public class InternalEngine extends Engine {
     private IndexWriter createWriter() throws IOException {
         try {
             final IndexWriterConfig iwc = getIndexWriterConfig();
-            return createWriter(store.directory(), iwc);
+            return createWriter(FieldInfoCachingDirectory.wrapIfEnabled(store.directory()), iwc);
         } catch (LockObtainFailedException ex) {
             logger.warn("could not lock IndexWriter", ex);
             throw ex;

@@ -108,7 +108,7 @@ The access control index will contain documents similar to this example:
               },
               {
                 "terms": {
-                  "_allow_access_control.enum": {{#toJson}}access_control{{/toJson}}
+                  "_allow_access_control.keyword": {{#toJson}}access_control{{/toJson}}
                 }
               }
             ]
@@ -121,6 +121,10 @@ The access control index will contain documents similar to this example:
 }
 ```
 % NOTCONSOLE
+
+::::{note}
+These examples use `_allow_access_control.keyword`, which is the default sub-field created by Elasticsearch's dynamic mapping for text fields. If you have defined a custom mapping for `_allow_access_control` (for example, mapping it directly as `keyword`), adjust the field name in the `terms` query accordingly.
+::::
 
 This document contains the Elasticsearch query that describes which documents the user `john@example.com` has access to. The access control information is stored in the `access_control` field. In this case the user has access only to documents that contain `"john@example.co"` or `"Engineering Members"` in the `_allow_access_control` field.
 
@@ -166,7 +170,7 @@ POST /_security/api_key
                     },
                     {
                       "terms": {
-                        "_allow_access_control.enum": {{#toJson}}access_control{{/toJson}}
+                        "_allow_access_control.keyword": {{#toJson}}access_control{{/toJson}}
                       }
                     }
                   ]

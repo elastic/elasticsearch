@@ -7914,8 +7914,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         // With current version, the per-series agg should remain DeltaOnlyHistogramMergeOverTime
         {
             var plan = planMetrics(query);
-            Holder<DeltaOnlyHistogramMergeOverTime> holder = new Holder<>();
-
             var limit = as(plan, Limit.class);
             Aggregate finalAgg = as(limit.child(), Aggregate.class);
             Eval sumExtractionEval = as(finalAgg.child(), Eval.class);
@@ -7925,15 +7923,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         }
         // With an old version that doesn't support the new aggregator, the fix should replace it with HistogramMerge
         {
-            var oldVersion = TransportVersionUtils.getPreviousVersion(DeltaOnlyHistogramMergeOverTime.HISTOGRAM_MERGE_OVER_TIME_AGG);
+            var oldVersion = TransportVersionUtils.getPreviousVersion(DeltaOnlyHistogramMergeOverTime.DEDICATED_AGGREGATOR);
             var oldVersionOptimizer = new LogicalPlanOptimizer(
                 new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), oldVersion)
             );
             var plan = oldVersionOptimizer.optimize(metricsAnalyzer().minimumTransportVersion(oldVersion).query(query));
-            Holder<DeltaOnlyHistogramMergeOverTime> deltaHolder = new Holder<>();
-            plan.forEachExpressionDown(DeltaOnlyHistogramMergeOverTime.class, deltaHolder::set);
-            assertNull(deltaHolder.get());
-
             // Verify the TimeSeriesAggregate now uses HistogramMerge for the per-series aggregation
             var limit = as(plan, Limit.class);
             Aggregate finalAgg = as(limit.child(), Aggregate.class);

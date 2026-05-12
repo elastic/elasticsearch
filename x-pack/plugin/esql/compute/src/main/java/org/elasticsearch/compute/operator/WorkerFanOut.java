@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -44,7 +45,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * lock is uncontended on the hot path — it exists only to let {@link #close()}
  * wait for an active drain before tearing down state.
  */
-public abstract class WorkerFanOut<W extends Releasable> implements Releasable {
+public abstract class WorkerFanOut<W extends Releasable & Accountable> implements Releasable, Accountable {
 
     private final DriverContext driverContext;
     private final Executor executor;
@@ -79,6 +80,9 @@ public abstract class WorkerFanOut<W extends Releasable> implements Releasable {
         try {
             for (int i = 0; i < workerCount; i++) {
                 slots[i] = new WorkerSlot<>(createWorkerState(i));
+                if (slots[i].state != null) {
+                    slots[i].ramBytesSnapshot = slots[i].state.ramBytesUsed();
+                }
             }
             success = true;
         } finally {
@@ -209,6 +213,10 @@ public abstract class WorkerFanOut<W extends Releasable> implements Releasable {
                     notifyIfBlocked();
                 }
             }
+            // Refresh size snapshot for ramBytesUsedByStates() while we still hold the lock.
+            if (slot.state != null) {
+                slot.ramBytesSnapshot = slot.state.ramBytesUsed();
+            }
         } finally {
             slot.lock.unlock();
         }
@@ -276,6 +284,20 @@ public abstract class WorkerFanOut<W extends Releasable> implements Releasable {
         return output.hasNext() ? output.next() : null;
     }
 
+    /**
+     * Sum of per-slot state sizes from the most recent drain. Non-blocking:
+     * each drain refreshes its slot's snapshot before releasing the lock, so the
+     * value is at most one-drain stale and remains live under sustained pressure.
+     */
+    @Override
+    public final long ramBytesUsed() {
+        long total = 0;
+        for (WorkerSlot<W> slot : workers) {
+            total += slot.ramBytesSnapshot;
+        }
+        return total;
+    }
+
     private ReleasableIterator<Page> buildResultFromWorkers() {
         List<W> states = new ArrayList<>(workers.length);
         for (WorkerSlot<W> slot : workers) {
@@ -283,6 +305,7 @@ public abstract class WorkerFanOut<W extends Releasable> implements Releasable {
             try {
                 W s = slot.state;
                 slot.state = null;   // ownership transferred to mergeAndBuildResult
+                slot.ramBytesSnapshot = 0;
                 states.add(s);
             } finally {
                 slot.lock.unlock();
@@ -345,19 +368,25 @@ public abstract class WorkerFanOut<W extends Releasable> implements Releasable {
                 }
                 Releasables.closeExpectNoException(slot.state);
                 slot.state = null;
+                slot.ramBytesSnapshot = 0;
             } finally {
                 slot.lock.unlock();
             }
         }
     }
 
-    private static final class WorkerSlot<W extends Releasable> {
+    private static final class WorkerSlot<W extends Releasable & Accountable> {
         /** Coordinates active drain task with {@link #close()}. */
         final ReentrantLock lock = new ReentrantLock();
         final ConcurrentLinkedDeque<Page> inbox = new ConcurrentLinkedDeque<>();
         /** True iff a drain task is scheduled or running. */
         final AtomicBoolean running = new AtomicBoolean(false);
         W state;
+        /**
+         * Snapshot of {@code state}'s size, refreshed by each drain before releasing
+         * {@link #lock}. Read by {@link #ramBytesUsed()} without a lock.
+         */
+        volatile long ramBytesSnapshot;
 
         WorkerSlot(W state) {
             this.state = state;

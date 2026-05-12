@@ -561,7 +561,10 @@ public class TopNOperator implements Operator, Accountable {
         size += RamUsageEstimator.alignObjectSize(arrHeader + ref * sortOrders.size());
         size += sortOrders.size() * SortOrder.SHALLOW_SIZE;
         if (sequentialState != null) {
-            size += sequentialState.queue.ramBytesUsed();
+            size += sequentialState.ramBytesUsed();
+        }
+        if (workers != null) {
+            size += workers.ramBytesUsed();
         }
         return size;
     }
@@ -604,12 +607,7 @@ public class TopNOperator implements Operator, Accountable {
     private void promoteToParallel() {
         assert workerConfig != null && driverContext != null : "promoteToParallel() called without parallel config";
         final int workerCount = workerConfig.workerCount();
-        workers = new WorkerFanOut<>(
-            driverContext,
-            workerConfig.executor(),
-            workerCount,
-            workerConfig.maxInFlightPages()
-        ) {
+        workers = new WorkerFanOut<>(driverContext, workerConfig.executor(), workerCount, workerConfig.maxInFlightPages()) {
             int dispatchCursor = 0;
 
             @Override
@@ -675,12 +673,17 @@ public class TopNOperator implements Operator, Accountable {
     }
 
     /** Per-worker state: a private {@link TopNQueue} plus a reusable scratch row. */
-    static final class TopNWorkerState implements Releasable {
+    static final class TopNWorkerState implements Releasable, Accountable {
         TopNQueue queue;
         TopNRow spare;
 
         TopNWorkerState(TopNQueue queue) {
             this.queue = queue;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return (queue == null ? 0 : queue.ramBytesUsed()) + (spare == null ? 0 : spare.ramBytesUsed());
         }
 
         @Override

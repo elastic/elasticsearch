@@ -21,13 +21,46 @@ import org.apache.lucene.analysis.AnalyzerWrapper;
  */
 public abstract class ElasticsearchAnalyzerWrapper extends AnalyzerWrapper {
 
+    /**
+     * Reuse strategy for wrappers around a {@link ReloadableCustomAnalyzer}.
+     * Tracks freshness independently by storing the {@link AnalyzerComponents} version
+     * together with the {@link TokenStreamComponents} in the wrapper's per-thread slot.
+     */
+    private static final ReuseStrategy WRAPPER_REUSE_STRATEGY = new ReuseStrategy() {
+        @Override
+        public TokenStreamComponents getReusableComponents(Analyzer analyzer, String fieldName) {
+            ElasticsearchAnalyzerWrapper wrapper = (ElasticsearchAnalyzerWrapper) analyzer;
+            ReloadableCustomAnalyzer rca = (ReloadableCustomAnalyzer) wrapper.getWrappedAnalyzer(fieldName);
+
+            // Pin storedComponents for this thread via the shared pinning logic.
+            rca.pinCurrentComponents();
+
+            AnalyzerComponents pinned = rca.getStoredComponents();
+            WrapperEntry entry = (WrapperEntry) getStoredValue(analyzer);
+            if (entry == null || entry.components != pinned) {
+                return null;
+            }
+            return entry.tsc;
+        }
+
+        @Override
+        public void setReusableComponents(Analyzer analyzer, String fieldName, TokenStreamComponents tsc) {
+            ElasticsearchAnalyzerWrapper wrapper = (ElasticsearchAnalyzerWrapper) analyzer;
+            ReloadableCustomAnalyzer rca = (ReloadableCustomAnalyzer) wrapper.getWrappedAnalyzer(fieldName);
+            setStoredValue(analyzer, new WrapperEntry(rca.getStoredComponents(), tsc));
+        }
+    };
+
+    /** Pairs an {@link AnalyzerComponents} snapshot with the corresponding {@link TokenStreamComponents}. */
+    private record WrapperEntry(AnalyzerComponents components, TokenStreamComponents tsc) {}
+
     protected ElasticsearchAnalyzerWrapper(Analyzer delegate) {
         super(reuseStrategyFor(delegate));
     }
 
     private static ReuseStrategy reuseStrategyFor(Analyzer delegate) {
-        if (delegate instanceof ReloadableCustomAnalyzer rca) {
-            return rca.createWrapperReuseStrategy();
+        if (delegate instanceof ReloadableCustomAnalyzer) {
+            return WRAPPER_REUSE_STRATEGY;
         }
         return delegate.getReuseStrategy();
     }

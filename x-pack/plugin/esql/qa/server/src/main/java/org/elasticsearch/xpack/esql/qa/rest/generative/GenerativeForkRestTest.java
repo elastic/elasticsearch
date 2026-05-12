@@ -78,7 +78,7 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
         );
 
         assumeFalse(
-            "Tests using subqueries are skipped since we don't support nested IN subqueries inside fork",
+            "Tests using subqueries are skipped since we don't support nested disjunctive IN subqueries inside fork",
             testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITHOUT_VIEW.capabilityName())
         );
 

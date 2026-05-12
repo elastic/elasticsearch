@@ -1280,6 +1280,7 @@ public class EsqlCapabilities {
 
         /**
          * Support IN non-correlated subqueries in WHERE command without View.
+         * Add a new capability, so that integration tests don't run on nodes that only have WHERE_IN_SUBQUERY capability.
          */
         WHERE_IN_SUBQUERY_WITHOUT_VIEW(Build.current().isSnapshot()),
 

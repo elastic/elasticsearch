@@ -71,7 +71,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
+import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.ANTI;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
+import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.SEMI;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 
 public class Join extends BinaryPlan implements PostAnalysisVerificationAware, SortAgnostic, ExecutesOn, PostOptimizationVerificationAware {
@@ -237,7 +239,8 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         JoinType joinType = config.type();
         List<NamedExpression> output;
         // TODO: make the other side nullable
-        if (JoinTypes.SEMI.equals(joinType) || JoinTypes.ANTI.equals(joinType)) {
+        if (SEMI.equals(joinType) || ANTI.equals(joinType)) {
+            // SEMI/ANTI join only return left hand side output
             output = new ArrayList<>(leftOutput);
         } else if (LEFT.equals(joinType)) {
             if (config.joinOnConditions() == null) {

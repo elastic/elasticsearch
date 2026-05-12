@@ -3486,6 +3486,33 @@ public class FieldNameUtilsTests extends ESTestCase {
         assertFieldNames("FROM employees | WHERE emp_no IN (FROM employees | SORT emp_no | LIMIT 3 | KEEP emp_no)", ALL_FIELDS);
     }
 
+    public void testInSubqueryNoFieldReductionWithInlineStats() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        assertFieldNames("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | INLINE STATS max_sal = MAX(salary))
+            | KEEP emp_no
+            """, ALL_FIELDS);
+    }
+
+    public void testInSubqueryFieldReductionWithInlineStatsKeep() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        assertFieldNames("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | INLINE STATS max_sal = MAX(salary) | KEEP emp_no)
+            | KEEP emp_no
+            """, Set.of("_index", "emp_no", "emp_no.*", "salary", "salary.*"));
+    }
+
+    public void testInSubqueryFieldReductionWithInlineStatsKeepBeforeAfter() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        assertFieldNames("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | KEEP emp_no, salary | INLINE STATS max_sal = MAX(salary) | KEEP emp_no)
+            | KEEP emp_no
+            """, Set.of("_index", "emp_no", "emp_no.*", "salary", "salary.*"));
+    }
+
     public void testInSubqueryWithDateComparison() {
         assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         assertFieldNames("""

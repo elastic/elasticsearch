@@ -272,7 +272,7 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
 
             String message;
             if (otherFork instanceof UnionAllFromDisjunctiveInSubquery) {
-                message = "FORK after disjunctive (OR) IN/NOT IN subquery is not supported";
+                message = "FORK after disjunctive (OR) IN subquery is not supported";
             } else if (otherFork instanceof UnionAll) {
                 message = "FORK after subquery is not supported";
             } else {

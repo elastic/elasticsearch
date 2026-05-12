@@ -146,7 +146,7 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
                 }
                 String message;
                 if (otherForkOrUnionAll instanceof UnionAllFromDisjunctiveInSubquery) {
-                    message = "Disjunctive (OR) IN/NOT IN subqueries are not supported inside FROM subqueries";
+                    message = "Disjunctive (OR) IN subqueries are not supported inside FROM subqueries";
                 } else if (otherForkOrUnionAll instanceof UnionAll) {
                     message = "Nested subqueries are not supported";
                 } else {

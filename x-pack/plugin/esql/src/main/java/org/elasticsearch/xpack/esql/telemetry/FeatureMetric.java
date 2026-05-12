@@ -116,7 +116,7 @@ public enum FeatureMetric {
     REGISTERED_DOMAIN(RegisteredDomain.class::isInstance),
     TS_INFO(TsInfo.class::isInstance),
     USER_AGENT(UserAgent.class::isInstance),
-    // SemiJoin/AntiJoin originate from WHERE ... IN (subquery); set() also counts WHERE for these
+    // SemiJoin/AntiJoin originate from IN (subquery), set also counts WHERE for them
     IN_SUBQUERY(SemiJoin.class::isInstance);
 
     /**

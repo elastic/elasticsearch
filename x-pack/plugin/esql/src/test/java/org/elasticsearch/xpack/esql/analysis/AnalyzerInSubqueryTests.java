@@ -1866,7 +1866,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         errorWithK8s("""
             FROM k8s
             | WHERE network.total_bytes_in IN (FROM k8s | KEEP network.total_bytes_in)
-            """, containsString("IN/NOT IN subquery with right field [network.total_bytes_in] of type [COUNTER_LONG] is not supported"));
+            """, containsString("IN subquery with right field [network.total_bytes_in] of type [COUNTER_LONG] is not supported"));
     }
 
     /**
@@ -1876,20 +1876,17 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         errorWithK8s("""
             FROM k8s
             | WHERE network.total_cost IN (FROM k8s | KEEP network.total_cost)
-            """, containsString("IN/NOT IN subquery with right field [network.total_cost] of type [COUNTER_DOUBLE] is not supported"));
+            """, containsString("IN subquery with right field [network.total_cost] of type [COUNTER_DOUBLE] is not supported"));
     }
 
     /**
      * Verifies that aggregate_metric_double is rejected as IN subquery join key.
      */
     public void testRejectsAggregateMetricDoubleInSubquery() {
-        errorWithK8sDownsampled(
-            """
-                FROM k8s
-                | WHERE network.eth0.tx IN (FROM k8s | KEEP network.eth0.tx)
-                """,
-            containsString("IN/NOT IN subquery with right field [network.eth0.tx] of type [AGGREGATE_METRIC_DOUBLE] is not supported")
-        );
+        errorWithK8sDownsampled("""
+            FROM k8s
+            | WHERE network.eth0.tx IN (FROM k8s | KEEP network.eth0.tx)
+            """, containsString("IN subquery with right field [network.eth0.tx] of type [AGGREGATE_METRIC_DOUBLE] is not supported"));
     }
 
     /**

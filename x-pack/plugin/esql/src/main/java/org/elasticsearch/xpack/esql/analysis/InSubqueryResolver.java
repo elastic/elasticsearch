@@ -43,7 +43,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * {@link InSubquery} expressions, become children of join nodes and are visible to standard plan
  * tree traversals. This eliminates the need for separate InSubquery-aware traversals in
  * {@link PreAnalyzer}, {@link org.elasticsearch.xpack.esql.session.FieldNameUtils FieldNameUtils},
- * and {@link org.elasticsearch.xpack.esql.inference.InferenceResolver InferenceResolver}.
+ * and {@link org.elasticsearch.xpack.esql.inference.InferenceResolver InferenceResolver} etc.
  * <p>
  * The join's rightFields are left empty at this stage because the subquery output is not yet resolved.
  * The Analyzer's {@code ResolveRefs} fills them in during the Resolution batch.

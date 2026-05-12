@@ -303,6 +303,7 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_all"),
         new ViewConfig("employees_extra"),
         new ViewConfig("view_with_subquery"),
+        // create views with IN subquery inside their definition only if the cluster has the capability to support IN subquery
         new ViewConfig("employees_in_subquery", List.of(WHERE_IN_SUBQUERY_WITHOUT_VIEW))
     ).collect(toMap(ViewConfig::name, Function.identity()));
 

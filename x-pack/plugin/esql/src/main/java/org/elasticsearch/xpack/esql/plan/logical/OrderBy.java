@@ -162,7 +162,7 @@ public class OrderBy extends UnaryPlan
                             fail(
                                 semiJoin,
                                 UNBOUNDED_SORT_NOT_SUPPORTED_FOR_COMMAND_MESSAGE,
-                                "IN/NOT IN subquery",
+                                "IN subquery",
                                 semiJoin.sourceText(),
                                 orderBy.sourceText()
                             )

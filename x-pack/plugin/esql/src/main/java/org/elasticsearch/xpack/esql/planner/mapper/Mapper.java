@@ -279,8 +279,8 @@ public class Mapper {
 
     /**
      * Wraps a bare {@link FragmentExec} in an {@link ExchangeExec} so that ComputeService routes it to data nodes.
-     * Subplans that contain only streaming operators (no pipeline breakers like Limit/Aggregate) map to a bare
-     * FragmentExec and need this wrapping before execution.
+     * Subplans(from IN subquery) that contain only streaming operators (no pipeline breakers like Limit/Aggregate)
+     * map to a bare FragmentExec and need this wrapping before execution.
      */
     public static PhysicalPlan ensureExchangeForSubPlan(PhysicalPlan plan) {
         if (plan instanceof FragmentExec) {

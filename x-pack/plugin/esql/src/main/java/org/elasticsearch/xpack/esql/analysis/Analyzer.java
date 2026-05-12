@@ -1102,19 +1102,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * </ul>
          */
         private SemiJoin resolveSemiAntiJoin(SemiJoin semiJoin) {
-            // --- resolve left fields ---
+            // resolve left fields
             List<Attribute> leftFields = semiJoin.config().leftFields();
             boolean leftResolved = leftFields.stream().noneMatch(UnresolvedAttribute.class::isInstance);
             List<Attribute> leftKeys = leftResolved ? leftFields : resolveUsingColumns(leftFields, semiJoin.left().output(), "left");
 
-            // --- resolve right fields ---
+            // resolve right fields
             List<Attribute> rightFields = resolveRightFields(semiJoin);
 
-            JoinConfig resolved = new JoinConfig(semiJoin.config().type(), leftKeys, rightFields, semiJoin.config().joinOnConditions());
-            if (semiJoin instanceof AntiJoin) {
-                return new AntiJoin(semiJoin.source(), semiJoin.left(), semiJoin.right(), resolved);
-            }
-            return new SemiJoin(semiJoin.source(), semiJoin.left(), semiJoin.right(), resolved);
+            JoinConfig joinConfig = new JoinConfig(semiJoin.config().type(), leftKeys, rightFields, semiJoin.config().joinOnConditions());
+
+            return semiJoin instanceof AntiJoin
+                ? new AntiJoin(semiJoin.source(), semiJoin.left(), semiJoin.right(), joinConfig)
+                : new SemiJoin(semiJoin.source(), semiJoin.left(), semiJoin.right(), joinConfig);
         }
 
         private static List<Attribute> resolveRightFields(SemiJoin semiJoin) {
@@ -3555,5 +3555,4 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return isEmpty.get();
         }
     }
-
 }

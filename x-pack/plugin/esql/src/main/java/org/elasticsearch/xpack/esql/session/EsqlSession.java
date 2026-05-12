@@ -666,7 +666,6 @@ public class EsqlSession {
             }
         }
 
-        // Approximation may apply to the join subplan or the full plan (InlineJoin must be considered first for that subtree).
         LogicalPlan plan = subPlanAndCallback != null ? subPlanAndCallback.subPlan() : mainPlan;
         if (ApproximationPlan.is(plan)) {
             if (approximation.get() == null) {
@@ -694,10 +693,13 @@ public class EsqlSession {
      */
     private static LogicalPlan findFirstSubPlanJoin(LogicalPlan plan, Set<LocalRelation> subPlansResults) {
         Holder<LogicalPlan> result = new Holder<>();
+        // Evaluate the right hand side of a SemiJoin or InlineJoin, unless it is a LocalRelation and registered in subPlansResults already
         plan.forEachUp(p -> {
             if (result.get() != null) {
                 return;
             }
+            // Whether checking SemiJoin or InlineJoin first does not matter, the plan is processed bottom up, looking for
+            // joins whose right child haven't been evaluated yet
             if (p instanceof SemiJoin sj) {
                 if (sj.right() instanceof LocalRelation lr && subPlansResults.contains(lr)) {
                     return; // already processed

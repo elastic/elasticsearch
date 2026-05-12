@@ -505,9 +505,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
     }
 
     public void testBuilder_DefaultContextIsEmptyInstance() {
-        var request = InferenceAction.Request.builder(TEST_INFERENCE_ENDPOINT, TaskType.TEXT_EMBEDDING)
-            .setInput(TEST_INPUT)
-            .build();
+        var request = InferenceAction.Request.builder(TEST_INFERENCE_ENDPOINT, TaskType.TEXT_EMBEDDING).setInput(TEST_INPUT).build();
         assertThat(request.getContext(), sameInstance(InferenceContext.EMPTY_INSTANCE));
     }
 

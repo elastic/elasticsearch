@@ -389,9 +389,37 @@ public class TopNOperator implements Operator, Accountable {
             rowsReceived += page.getPositionCount();
             receiveNanos += System.nanoTime() - start;
         }
-        if (workerConfig != null && workers == null && output == null && rowsReceived > PROMOTION_THRESHOLD_ROWS) {
+        if (shouldPromote()) {
             promote();
         }
+    }
+
+    /**
+     * Gate on promotion to parallel mode. We refuse to promote when either of the
+     * upstream skip optimizations would be hurt:
+     *
+     * <ul>
+     *   <li>{@code InputOrdering.SORTED}: sequential mode already short-circuits each
+     *       page after the heap fills, so there's little CPU left to parallelize, and
+     *       each worker would have to refill its own heap before its short-circuit fires.
+     *   <li>{@link #minCompetitive} non-null: today we only publish updates from the
+     *       sequential path, so promotion would freeze the published skip bound. Once
+     *       promoted, workers don't update it.
+     * </ul>
+     *
+     * <p>TODO: it could be worth publishing {@code minCompetitive} from the parallel
+     * path too — each worker offering its local heap-top to the shared bound would
+     * naturally produce {@code max(worker.tops)}, which is the correct (if looser)
+     * parallel skip threshold. That would let promotion fire under {@code minCompetitive}
+     * as well. Deferred until profiling tells us it's worth the wiring.
+     */
+    private boolean shouldPromote() {
+        return workerConfig != null
+            && workers == null
+            && output == null
+            && rowsReceived > PROMOTION_THRESHOLD_ROWS
+            && inputOrdering != InputOrdering.SORTED
+            && minCompetitive == null;
     }
 
     /**

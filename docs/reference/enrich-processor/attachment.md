@@ -11,7 +11,7 @@ The attachment processor lets Elasticsearch extract file attachments in common f
 
 The source field must be a base64 encoded binary. If you do not want to incur the overhead of converting back and forth between base64, you can use the CBOR format instead of JSON and specify the field as a bytes array instead of a string representation. The processor will skip the base64 decoding then.
 
-The processor parameter `max_field_bytes` and the node setting `ingest.attachment.max_field_size` limit the raw attachment field size (length of a base64 encoded string field, or length in bytes of a CBOR binary field), enforced before base64 decoding.
+You can cap how large that raw source value may be using the processor option `max_field_bytes` and/or the node setting `ingest.attachment.max_field_size`. See [Limit raw attachment field size](#attachment-raw-field-size-limits).
 
 ## Using the attachment processor in a pipeline [using-attachment]
 
@@ -23,7 +23,7 @@ $$$attachment-options$$$
 | `target_field` | no | attachment | The field that will hold the attachment information |
 | `indexed_chars` | no | 100000 | The number of chars being used for extraction to prevent huge fields. Use `-1` for no limit. |
 | `indexed_chars_field` | no | `null` | Field name from which you can overwrite the number of chars being used for extraction. See `indexed_chars`. |
-| `max_field_bytes` | no | `-1` | Maximum allowed size of the attachment `field` value in bytes: length of a string (in case of base64 in JSON; checked before base64 decoding) or `byte[]` length for binary (for example CBOR). If `-1`, there is no per-processor limit. Note that if the node setting `ingest.attachment.max_field_size` is set, it can supercede the per-processor limit. |
+| `max_field_bytes` | no | `-1` | Maximum allowed size of the attachment `field` value in bytes: length of a string (in case of base64 in JSON; checked before base64 decoding) or `byte[]` length for binary (for example CBOR). If `-1`, there is no per-processor limit. The node setting `ingest.attachment.max_field_size` is applied in addition; see [Limit raw attachment field size](#attachment-raw-field-size-limits). |
 | `properties` | no | all properties |  Array of properties to select to be stored. Can be `content`, `title`, `name`, `author`, `keywords`, `date`, `content_type`, `content_length`, `language` |
 | `ignore_missing` | no | `false` | If `true` and `field` does not exist, the processor quietly exits without modifying the document |
 | `remove_binary` | encouraged | `false` | If `true`, the binary `field` will be removed from the document. This option is not required, but setting it explicitly is encouraged, and omitting it will result in a warning. |
@@ -83,6 +83,15 @@ The document’s `attachment` object contains extracted properties for the file:
 }
 ```
 % TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
+
+
+## Limit raw attachment field size [attachment-raw-field-size-limits]
+
+In certain cases, the sizes of the attachments may incur a significant memory overhead, including any further processing that might be required (e.g., by Tika). Either the node setting `ingest.attachment.max_field_size`, and/or the processor parameter `max_field_bytes`, can be used to restrict the raw size of the attachment source field. Limits are enforced early (e.g., before Base64 decoding) to avoid allocating or decoding oversized payloads. If a document exceeds the limit, the resulting ingest failure can be handled with an `on_failure` handler.
+
+The node setting has a default of `-1`, which means no node-wide cap. You can set either an absolute size using byte-size syntax (e.g., `10mb`, `1gb`), or a relative value as a percentage or ratio of the JVM's heap for the node (e.g., `5%` or `0.05`). If there is a node-wide cap, it takes precedence over any processor-specific limits.
+
+In contrast to the node setting, the `max_field_bytes` is a per attachment processor parameter which receives only integer values. The default is `-1`, meaning no per-processor cap (but note that the node setting, if set, can still apply).
 
 
 ## Exported fields [attachment-fields]

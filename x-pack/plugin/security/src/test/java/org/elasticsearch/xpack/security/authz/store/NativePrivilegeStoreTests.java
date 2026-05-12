@@ -146,7 +146,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
             @Override
             public void searchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
-                ActionListener.respondAndRelease(listener, SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY));
+                ActionListener.respondAndRelease(listener, SearchResponse.emptyResponseBuilder().tookInMillis(1L).build());
             }
         };
         securityIndex = mock(SecurityIndexManager.class);

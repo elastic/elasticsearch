@@ -15,6 +15,8 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
@@ -99,6 +101,15 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
 
     public void testDocValuesCanBeEnabled() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(topMapping(b -> b.startObject("_routing").field("doc_values", true).endObject()));
+        RoutingFieldMapper mapper = (RoutingFieldMapper) docMapper.mappers().getMapper("_routing");
+        assertNotNull(mapper);
+        assertTrue("doc_values should be true when configured", mapper.docValues());
+    }
+
+    public void testDocValuesEnabledIfIndexModeIsColumnar() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        var mapperService = createMapperService(Settings.builder().put("index.mode", "columnar").build(), topMapping(b -> {}));
+        DocumentMapper docMapper = mapperService.documentMapper();
         RoutingFieldMapper mapper = (RoutingFieldMapper) docMapper.mappers().getMapper("_routing");
         assertNotNull(mapper);
         assertTrue("doc_values should be true when configured", mapper.docValues());

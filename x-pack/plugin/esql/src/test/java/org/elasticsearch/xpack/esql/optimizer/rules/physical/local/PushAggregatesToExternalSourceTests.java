@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -427,6 +427,38 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
         as(applyRule(agg), AggregateExec.class);
     }
 
+    public void testNotPushedWhenSourceHasPushedFilter() {
+        var ext = externalSourceWithPushedFilter(statsMetadata(1000L, null, null), "some_pushed_filter");
+        var agg = aggregateExec(AggregatorMode.SINGLE, ext, countStarAlias());
+
+        as(applyRule(agg), AggregateExec.class);
+    }
+
+    public void testNotPushedWhenSourceHasPushedFilterInInitialMode() {
+        var ext = externalSourceWithPushedFilter(statsMetadata(1000L, null, null), "some_pushed_filter");
+        var agg = aggregateExec(AggregatorMode.INITIAL, ext, countStarAlias());
+
+        as(applyRule(agg), AggregateExec.class);
+    }
+
+    public void testNotPushedWhenSourceHasPushedFilterWithMinMax() {
+        Map<String, Object> meta = statsMetadata(1000L, "age", 0L);
+        meta.put("_stats.columns.age.min_value", 1);
+        meta.put("_stats.columns.age.max_value", 99);
+        var ext = externalSourceWithPushedFilter(meta, "like_filter");
+        var agg = aggregateExec(AggregatorMode.SINGLE, ext, alias("mn", new Min(Source.EMPTY, AGE)));
+
+        as(applyRule(agg), AggregateExec.class);
+    }
+
+    public void testStillPushedWhenSourceHasNoPushedFilter() {
+        var ext = externalSourceWithPushedFilter(statsMetadata(1000L, null, null), null);
+        var agg = aggregateExec(AggregatorMode.SINGLE, ext, countStarAlias());
+
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        assertEquals(1000L, as(local.supplier().get().getBlock(0), LongBlock.class).getLong(0));
+    }
+
     // --- helpers ---
 
     @SafeVarargs
@@ -458,6 +490,19 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
 
     private static ExternalSourceExec externalSource(Map<String, Object> sourceMetadata) {
         return new ExternalSourceExec(Source.EMPTY, "file:///test.parquet", "parquet", defaultAttrs(), Map.of(), sourceMetadata, null);
+    }
+
+    private static ExternalSourceExec externalSourceWithPushedFilter(Map<String, Object> sourceMetadata, Object pushedFilter) {
+        return new ExternalSourceExec(
+            Source.EMPTY,
+            "file:///test.parquet",
+            "parquet",
+            defaultAttrs(),
+            Map.of(),
+            sourceMetadata,
+            pushedFilter,
+            null
+        );
     }
 
     private static List<Attribute> defaultAttrs() {
@@ -535,7 +580,8 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
     /**
      * Minimal FormatReader stub that only provides aggregate pushdown support.
      */
-    private static class StubFormatReader implements FormatReader {
+    private static class StubFormatReader implements NoConfigFormatReader {
+
         private final AggregatePushdownSupport support;
 
         StubFormatReader(AggregatePushdownSupport support) {

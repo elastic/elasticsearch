@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Nullable;
@@ -21,7 +22,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.util.Objects;
-import java.util.Random;
 import java.util.concurrent.Executor;
 
 /// A [ClusterStateApplier] which delegates asynchronously to another [ClusterStateApplier], and keeps track of
@@ -135,7 +135,7 @@ public class AsyncClusterStateApplier implements ClusterStateApplier {
 
             try {
                 logger.info("--> waiting before async applying [{}]", source);
-                Thread.sleep(new Random().nextInt(50));
+                Thread.sleep(Randomness.get().nextInt(50));
                 logger.info("--> async applying [{}]", source);
 
                 // TODO: could this actually throw? Outside of test assertions.

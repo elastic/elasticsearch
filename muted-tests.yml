@@ -566,3 +566,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:exponential_histogram.max for exponential histogram docs}
   issue: https://github.com/elastic/elasticsearch/issues/148890
+  # TODO: exclude replicas that have not acked cluster state from async await
+- class: org.elasticsearch.cluster.coordination.RareClusterStateIT
+  issue: https://github.com/elastic/elasticsearch/pull/145363

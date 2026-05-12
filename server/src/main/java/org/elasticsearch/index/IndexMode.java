@@ -422,7 +422,7 @@ public enum IndexMode {
 
         @Override
         public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
-            return DEFAULT_MAPPING_TIMESTAMP;
+            return null;
         }
 
         @Override

@@ -64,7 +64,6 @@ import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
@@ -95,6 +94,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.FlattenedCases;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
@@ -1188,7 +1188,7 @@ public final class EsqlTestUtils {
                     throw new UncheckedIOException(e);
                 }
             }
-            case FLATTENED -> randomFlattenedValue();
+            case FLATTENED -> FlattenedCases.RANDOM.get();
             case TSID_DATA_TYPE -> randomTsId().toBytesRef();
             case HISTOGRAM -> randomHistogram();
             case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));
@@ -1294,47 +1294,6 @@ public final class EsqlTestUtils {
             case 2 -> new Version(between(0, 100) + "." + between(0, 100) + "." + between(0, 100));
             default -> throw new IllegalArgumentException();
         };
-    }
-
-    /**
-     * Build a random {@link BytesRef} that mimics what {@code RootFlattenedDocValuesBlockLoader}
-     * produces: a JSON object whose leaf values are always strings (flattened doc values store
-     * everything as strings), where dotted keys are reconstructed as nested objects and
-     * multi-valued keys become string arrays.
-     */
-    private static BytesRef randomFlattenedValue() {
-        try {
-            XContentBuilder builder = JsonXContent.contentBuilder().startObject();
-            int numFields = between(1, 5);
-            for (int i = 0; i < numFields; i++) {
-                String key = randomAlphaOfLength(between(3, 8));
-                switch (between(0, 2)) {
-                    case 0 -> {
-                        // Nested object, as produced from a dotted key like "parent.child"
-                        builder.startObject(key);
-                        builder.field(randomAlphaOfLength(between(3, 8)), randomAlphaOfLength(between(5, 15)));
-                        builder.endObject();
-                    }
-                    case 1 -> {
-                        // Array of strings, as produced from a multi-valued flattened field
-                        int numValues = between(2, 4);
-                        builder.startArray(key);
-                        for (int j = 0; j < numValues; j++) {
-                            builder.value(randomAlphaOfLength(between(5, 15)));
-                        }
-                        builder.endArray();
-                    }
-                    default -> {
-                        // Simple string field
-                        builder.field(key, randomAlphaOfLength(between(5, 15)));
-                    }
-                }
-            }
-            builder.endObject();
-            return BytesReference.bytes(builder).toBytesRef();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
     }
 
     static BytesReference randomTsId() {

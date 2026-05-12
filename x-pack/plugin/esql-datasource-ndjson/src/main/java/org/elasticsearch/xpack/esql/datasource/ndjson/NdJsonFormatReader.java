@@ -298,6 +298,22 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         return scanForTerminator(buffered).consumed();
     }
 
+    /**
+     * NDJSON records never contain embedded newlines, so a backward scan for a line terminator
+     * is always correct and O(1) from the end of the buffer — no per-record allocations needed.
+     * Matches the LF / CRLF / lone-CR contract of {@link #scanForTerminator}.
+     */
+    @Override
+    public int findLastRecordBoundary(byte[] buf, int length) {
+        for (int i = length - 1; i >= 0; i--) {
+            byte b = buf[i];
+            if (b == '\n' || b == '\r') {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     /** Outcome of a single scan for the next record terminator. */
     record LineScan(long consumed, int peekedByte) {
         /** Sentinel returned when the stream ended before any terminator. */

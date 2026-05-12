@@ -72,3 +72,87 @@ FROM flattened_otel_logs
 @timestamp:date          | first_part:keyword
 2020-01-01T00:02:48.461Z | "{""rally.message_size"":""192"""
 ;
+
+coalesce
+required_capability: flattened_datatype
+required_capability: fn_coalesce_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL c = COALESCE(attributes, resource.attributes)
+| KEEP @timestamp, c
+;
+
+@timestamp:date          | c:flattened
+2020-01-01T00:02:48.461Z | "{""rally.message_size"":""192"",""type"":""beats""}"
+;
+
+coalesceNullFirst
+required_capability: flattened_datatype
+required_capability: fn_coalesce_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL c = COALESCE(null, attributes)
+| KEEP @timestamp, c
+;
+
+@timestamp:date          | c:flattened
+2020-01-01T00:02:48.461Z | "{""rally.message_size"":""192"",""type"":""beats""}"
+;
+
+isNull
+required_capability: flattened_datatype
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL n = attributes IS NULL
+| KEEP @timestamp, n
+;
+
+@timestamp:date          | n:boolean
+2020-01-01T00:02:48.461Z | false
+;
+
+isNotNull
+required_capability: flattened_datatype
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL n = attributes IS NOT NULL
+| KEEP @timestamp, n
+;
+
+@timestamp:date          | n:boolean
+2020-01-01T00:02:48.461Z | true
+;
+
+casePicksPerRow
+required_capability: flattened_datatype
+required_capability: fn_case_flattened
+
+FROM flattened_otel_logs
+| SORT @timestamp ASC
+| LIMIT 2
+| EVAL c = CASE(@timestamp < "2020-01-01T00:05:00Z", attributes, resource.attributes)
+| KEEP @timestamp, c
+;
+
+@timestamp:date          | c:flattened
+2020-01-01T00:02:48.461Z | "{""rally.message_size"":""192"",""type"":""beats""}"
+2020-01-01T00:07:43.000Z | "{""agent.id"":""3ac5081d-9275-4cde-a2a8-a00b794a20f4"",""agent.type"":""filebeat"",""host.ip"":[""10.224.0.170"",""fe80::4001:aff:fee0:aa""],""host.name"":""devops-ci-master-blue.c.elastic-ci-prod.internal""}"
+;
+
+caseDefaultArm
+required_capability: flattened_datatype
+required_capability: fn_case_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL c = CASE(@timestamp > "2099-01-01T00:00:00Z", attributes, resource.attributes)
+| KEEP @timestamp, c
+;
+
+@timestamp:date          | c:flattened
+2020-01-01T00:02:48.461Z | "{""agent.id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-6vjxr""}"
+;

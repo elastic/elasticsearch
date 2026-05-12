@@ -29,6 +29,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -1082,6 +1083,23 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         testIndexedVector(VectorSimilarity.COSINE, mapper);
     }
 
+    public void testDefaultElementTypeUnderVectordbDocumentIndexMode() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vectordb_document").build();
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "dense_vector").field("dims", 8)));
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
+        assertEquals(ElementType.BFLOAT16, mapper.fieldType().getElementType());
+    }
+
+    public void testExplicitElementTypeOverridesVectordbDocumentModeDefault() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vectordb_document").build();
+        MapperService mapperService = createMapperService(
+            settings,
+            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 8).field("element_type", "float"))
+        );
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
+        assertEquals(ElementType.FLOAT, mapper.fieldType().getElementType());
+    }
+
     public void testIndexedVector() throws Exception {
         VectorSimilarity similarity = RandomPicks.randomFrom(random(), VectorSimilarity.values());
         DocumentMapper mapper = createDocumentMapper(
@@ -1511,10 +1529,15 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
         int dimensions = randomIntBetween(64, 1024);
         // Build a dense vector field mapper with float element type, which will trigger int8 HNSW index options
-        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder("test", IndexVersion.current(), false, false, List.of(), false)
-            .elementType(ElementType.FLOAT)
-            .dimensions(dimensions)
-            .build(context);
+        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder(
+            "test",
+            IndexVersion.current(),
+            IndexMode.STANDARD,
+            false,
+            false,
+            List.of(),
+            false
+        ).elementType(ElementType.FLOAT).dimensions(dimensions).build(context);
 
         // Change the element type to byte, which is incompatible with int8 HNSW index options
         DenseVectorFieldMapper.Builder builder = (DenseVectorFieldMapper.Builder) mapper.getMergeBuilder();
@@ -2352,9 +2375,11 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         TestDenseVectorIndexOptions testIndexOptions = new TestDenseVectorIndexOptions(
             new DenseVectorFieldMapper.HnswIndexOptions(16, 200, -1)
         );
-        var mapper = new DenseVectorFieldMapper.Builder("field", IndexVersion.current(), true, false, List.of(), false).indexOptions(
-            testIndexOptions
-        ).dimensions(128).elementType(ElementType.FLOAT).build(MapperBuilderContext.root(false, false));
+        var mapper = new DenseVectorFieldMapper.Builder("field", IndexVersion.current(), IndexMode.STANDARD, true, false, List.of(), false)
+            .indexOptions(testIndexOptions)
+            .dimensions(128)
+            .elementType(ElementType.FLOAT)
+            .build(MapperBuilderContext.root(false, false));
         final IndexSettings enabled = IndexSettingsModule.newIndexSettings(
             "foo",
             Settings.builder().put(IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING.getKey(), true).build()

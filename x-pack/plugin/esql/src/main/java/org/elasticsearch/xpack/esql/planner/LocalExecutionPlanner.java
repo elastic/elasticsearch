@@ -644,7 +644,12 @@ public class LocalExecutionPlanner {
         }
         int workerCount = Math.max(2, Math.min(8, Runtime.getRuntime().availableProcessors() / 4));
         int maxInFlightPages = 2 * workerCount;
-        return new TopNOperator.ParallelWorkerConfig(parallelWorkerExecutor, workerCount, maxInFlightPages);
+        return new TopNOperator.ParallelWorkerConfig(
+            parallelWorkerExecutor,
+            workerCount,
+            maxInFlightPages,
+            TopNOperator.DEFAULT_PROMOTION_THRESHOLD_ROWS
+        );
     }
 
     private PhysicalOperation planTopNBy(TopNByExec topNByExec, LocalExecutionPlannerContext context) {

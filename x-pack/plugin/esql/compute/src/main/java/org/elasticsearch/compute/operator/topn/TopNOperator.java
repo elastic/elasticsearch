@@ -143,14 +143,14 @@ public class TopNOperator implements Operator, Accountable {
         }
     }
 
-    /** Row count at which sequential mode promotes itself to parallel final-merge. */
-    public static final long PROMOTION_THRESHOLD_ROWS = 1_000_000L;
+    /** Default row count at which sequential mode promotes itself to parallel final-merge. */
+    public static final long DEFAULT_PROMOTION_THRESHOLD_ROWS = 1_000_000L;
 
     /**
      * When passed to the constructor, opts the operator into parallel final-merge.
-     * Promotion happens one-way once row count exceeds {@link #PROMOTION_THRESHOLD_ROWS}.
+     * Promotion happens one-way once row count exceeds {@code promotionThresholdRows}.
      */
-    public record ParallelWorkerConfig(Executor executor, int workerCount, int maxInFlightPages) {}
+    public record ParallelWorkerConfig(Executor executor, int workerCount, int maxInFlightPages, long promotionThresholdRows) {}
 
     public record TopNOperatorFactory(
         int topCount,
@@ -360,10 +360,12 @@ public class TopNOperator implements Operator, Accountable {
         for (SortOrder so : sortOrders) {
             channelInKey[so.channel] = true;
         }
-        // Sequential mode doesn't need the DriverContext; not retaining it keeps
-        // reflection-based RAM accounting (testRamBytesUsed) accurate.
-        this.driverContext = workerConfig != null ? driverContext : null;
-        this.workerConfig = workerConfig;
+        // Drop the parallel-mode wiring if we can never promote: SORTED input is already
+        // O(K) sequential, and a non-null minCompetitive means we publish a skip bound
+        // upstream that promotion would freeze (see shouldPromoteToParallel()).
+        boolean canPromote = workerConfig != null && inputOrdering != InputOrdering.SORTED && minCompetitive == null;
+        this.driverContext = canPromote ? driverContext : null;
+        this.workerConfig = canPromote ? workerConfig : null;
     }
 
     @Override
@@ -389,37 +391,22 @@ public class TopNOperator implements Operator, Accountable {
             rowsReceived += page.getPositionCount();
             receiveNanos += System.nanoTime() - start;
         }
-        if (shouldPromote()) {
-            promote();
+        if (shouldPromoteToParallel()) {
+            promoteToParallel();
         }
     }
 
     /**
-     * Gate on promotion to parallel mode. We refuse to promote when either of the
-     * upstream skip optimizations would be hurt:
+     * Whether to promote sequential → parallel on the next page. {@code workerConfig}
+     * is already null when SORTED input or a non-null minCompetitive ruled out
+     * promotion at construction (see the constructor).
      *
-     * <ul>
-     *   <li>{@code InputOrdering.SORTED}: sequential mode already short-circuits each
-     *       page after the heap fills, so there's little CPU left to parallelize, and
-     *       each worker would have to refill its own heap before its short-circuit fires.
-     *   <li>{@link #minCompetitive} non-null: today we only publish updates from the
-     *       sequential path, so promotion would freeze the published skip bound. Once
-     *       promoted, workers don't update it.
-     * </ul>
-     *
-     * <p>TODO: it could be worth publishing {@code minCompetitive} from the parallel
-     * path too — each worker offering its local heap-top to the shared bound would
-     * naturally produce {@code max(worker.tops)}, which is the correct (if looser)
-     * parallel skip threshold. That would let promotion fire under {@code minCompetitive}
-     * as well. Deferred until profiling tells us it's worth the wiring.
+     * <p>TODO: workers could offer their local heap-tops to {@code minCompetitive},
+     * producing {@code max(worker.tops)} as a (looser but correct) parallel skip
+     * bound. That'd let promotion fire under non-null minCompetitive as well.
      */
-    private boolean shouldPromote() {
-        return workerConfig != null
-            && workers == null
-            && output == null
-            && rowsReceived > PROMOTION_THRESHOLD_ROWS
-            && inputOrdering != InputOrdering.SORTED
-            && minCompetitive == null;
+    private boolean shouldPromoteToParallel() {
+        return workerConfig != null && workers == null && output == null && rowsReceived > workerConfig.promotionThresholdRows();
     }
 
     /**
@@ -605,8 +592,8 @@ public class TopNOperator implements Operator, Accountable {
      * {@link #sequentialState} so no rows are lost. From here on, lifecycle
      * calls delegate to {@link #workers}.
      */
-    private void promote() {
-        assert workerConfig != null && driverContext != null : "promote() called without parallel config";
+    private void promoteToParallel() {
+        assert workerConfig != null && driverContext != null : "promoteToParallel() called without parallel config";
         final int workerCount = workerConfig.workerCount();
         workers = new WorkerFanOut<>(
             driverContext,

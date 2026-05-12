@@ -291,6 +291,9 @@ tests:
 - class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
   method: testDoExecuteReleasesRegistrationOnLastChunkDeserializationFailure
   issue: https://github.com/elastic/elasticsearch/issues/148912
+- class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
+  method: testDoExecuteReleasesRegistrationWhenDataNodeFailsAfterChunkStreaming
+  issue: https://github.com/elastic/elasticsearch/issues/148913
 
 # Examples:
 #

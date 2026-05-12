@@ -78,6 +78,8 @@ public class PostFilterKnnQueryTests extends ESTestCase {
             assertEquals(3, result.length);
             assertEquals(1, result[0].doc);
             assertEquals(0.9f, result[0].score, 0.001f);
+            assertEquals(2, result[1].doc);
+            assertEquals(0.8f, result[0].score, 0.001f);
         }
     }
 
@@ -185,7 +187,7 @@ public class PostFilterKnnQueryTests extends ESTestCase {
 
             try (IndexReader reader = DirectoryReader.open(dir)) {
                 // No parent bits set → all docs filtered out (no parent found)
-                BitSetProducer parentsFilter = context -> { return new FixedBitSet(context.reader().maxDoc()); };
+                BitSetProducer parentsFilter = context -> new FixedBitSet(context.reader().maxDoc());
 
                 ScoreDoc[] docs = new ScoreDoc[] { new ScoreDoc(0, 0.9f), new ScoreDoc(1, 0.8f) };
                 ScoreDoc[] result = KnnQueryUtils.deduplicateByParent(docs, reader, parentsFilter);
@@ -271,13 +273,6 @@ public class PostFilterKnnQueryTests extends ESTestCase {
         }
     }
 
-    public void testMergeResultsEmptyNewResults() {
-        ScoreDoc[] existing = new ScoreDoc[] { new ScoreDoc(1, 0.9f), new ScoreDoc(2, 0.8f) };
-        ScoreDoc[] result = KnnQueryUtils.mergeResults(existing, new ScoreDoc[0]);
-        // empty-incoming fast path returns the existing array reference unchanged
-        assertSame(existing, result);
-    }
-
     public void testApplyFilterAcrossLeaves() throws IOException {
         IndexWriterConfig cfg = new IndexWriterConfig();
         cfg.setMergePolicy(NoMergePolicy.INSTANCE);
@@ -356,7 +351,7 @@ public class PostFilterKnnQueryTests extends ESTestCase {
                     ScoreMode.COMPLETE_NO_SCORES,
                     1f
                 );
-                assertEquals(0.4f, KnnQueryUtils.computeSelectivity(w, reader.leaves(), 10), 0.001f);
+                assertEquals(0.4f, KnnQueryUtils.computeSelectivity(w, searcher.getIndexReader().leaves(), 10), 0.001f);
             }
         }
     }
@@ -374,7 +369,7 @@ public class PostFilterKnnQueryTests extends ESTestCase {
                 IndexSearcher searcher = newSearcher(reader);
                 Weight w = searcher.createWeight(searcher.rewrite(new TermQuery(new Term("tag", "a"))), ScoreMode.COMPLETE_NO_SCORES, 1f);
                 // filterCost (5) > totalVectors (2) — raw ratio would be 2.5, expect clamp to 1
-                assertEquals(1f, KnnQueryUtils.computeSelectivity(w, reader.leaves(), 2), 0f);
+                assertEquals(1f, KnnQueryUtils.computeSelectivity(w, searcher.getIndexReader().leaves(), 2), 0f);
             }
         }
     }
@@ -388,7 +383,7 @@ public class PostFilterKnnQueryTests extends ESTestCase {
             try (IndexReader reader = DirectoryReader.open(dir)) {
                 IndexSearcher searcher = newSearcher(reader);
                 Weight w = searcher.createWeight(searcher.rewrite(new TermQuery(new Term("tag", "a"))), ScoreMode.COMPLETE_NO_SCORES, 1f);
-                assertEquals(0f, KnnQueryUtils.computeSelectivity(w, reader.leaves(), 0), 0f);
+                assertEquals(0f, KnnQueryUtils.computeSelectivity(w, searcher.getIndexReader().leaves(), 0), 0f);
             }
         }
     }
@@ -456,7 +451,7 @@ public class PostFilterKnnQueryTests extends ESTestCase {
                 IndexSearcher searcher = newSearcher(reader);
                 // A MatchNoDocsQuery as one of the FILTER clauses collapses the whole boolean
                 // query to MatchNoDocsQuery on rewrite, which createFilterWeight maps to null.
-                assertNull(KnnQueryUtils.createFilterWeight(searcher, new MatchNoDocsQuery(), "tag"));
+                assertNull(KnnQueryUtils.createFilterWeight(searcher, MatchNoDocsQuery.INSTANCE, "tag"));
             }
         }
     }

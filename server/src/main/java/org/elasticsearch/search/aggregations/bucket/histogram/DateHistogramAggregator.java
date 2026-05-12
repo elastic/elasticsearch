@@ -91,7 +91,10 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        Rounding.Prepared preparedRounding = valuesSourceConfig.roundingPreparer(context).apply(rounding);
+        // Under a `global` agg the top-level query is ignored, so the rounding must not narrow by it
+        Rounding.Prepared preparedRounding = (BucketsAggregator.descendsFromGlobalAggregator(parent)
+            ? valuesSourceConfig.roundingPreparerForGlobal(context)
+            : valuesSourceConfig.roundingPreparer(context)).apply(rounding);
         Aggregator asRange = adaptIntoRangeOrNull(
             name,
             factories,

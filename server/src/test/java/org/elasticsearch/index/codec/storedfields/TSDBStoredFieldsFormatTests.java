@@ -23,7 +23,6 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 public class TSDBStoredFieldsFormatTests extends BaseStoredFieldsFormatTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 

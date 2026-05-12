@@ -90,7 +90,6 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
     static final float EPSILON = 0.001f;
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
     KnnVectorsFormat format;

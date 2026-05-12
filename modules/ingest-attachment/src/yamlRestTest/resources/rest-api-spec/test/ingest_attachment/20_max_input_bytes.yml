@@ -13,7 +13,7 @@
                   "attachment": {
                     "field": "data",
                     "properties": ["content"],
-                    "max_field_bytes": "10",
+                    "max_field_bytes": 10,
                     "remove_binary": true
                   }
                 }
@@ -46,7 +46,7 @@
                   "attachment": {
                     "field": "data",
                     "properties": ["content"],
-                    "max_field_bytes": "1024",
+                    "max_field_bytes": 1024,
                     "remove_binary": true
                   }
                 }
@@ -79,7 +79,7 @@
                   "attachment": {
                     "field": "data",
                     "properties": ["content"],
-                    "max_field_bytes": "10",
+                    "max_field_bytes": 10,
                     "remove_binary": true,
                     "on_failure": [
                       {

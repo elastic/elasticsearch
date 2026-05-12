@@ -271,12 +271,12 @@ public final class IngestDocument {
      * Returns the raw in-memory size in bytes of a value that {@link #getFieldValueAsBytes(String, Object)} accepts, before any decoding.
      * @param path The path within the document in dot-notation. Only used for the error if the field value is not of the expected type.
      * @param fieldValue the resolved field value
-     * @return size in bytes
+     * @return size in bytes, an integer (because the underlying format can be a byte array or a string)
      * @throws IllegalArgumentException if the field value is not of the expected type.
      */
-    public long getFieldValueRawBytesLength(String path, Object fieldValue) {
+    public int getFieldValueRawBytesLength(String path, Object fieldValue) {
         if (fieldValue == null) {
-            return 0L;
+            return 0;
         } else if (fieldValue instanceof byte[] bytes) {
             return bytes.length;
         } else if (fieldValue instanceof String string) {

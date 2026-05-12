@@ -55,7 +55,8 @@ public final class AttachmentProcessor extends AbstractProcessor {
     /**
      * When set to a value, caps the raw in-memory size of the attachment source {@code field} for any {@code attachment} processor that
      * does not set {@code max_field_bytes}, in a similar way that {@code max_field_bytes} caps. Absolute values apply directly;
-     * ratio or percentage values are resolved against the JVM's maximum heap size for the node. -1 means no limit.
+     * ratio or percentage values are resolved against the JVM's maximum heap size for the node. Note that attachment sizes are
+     * limited to an upper bound of an integer size. -1 means no limit.
      */
     public static final Setting<RelativeByteSizeValue> MAX_FIELD_SIZE_SETTING = new Setting<>(
         "ingest.attachment.max_field_size",
@@ -132,7 +133,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
         return maxFieldSizeFromNode.calculateValue(ByteSizeValue.ofBytes(heapMaxBytes), null).getBytes();
     }
 
-    private void checkMaxAttachmentFieldSize(final long fieldSizeBytes) {
+    private void checkMaxAttachmentFieldSize(final int fieldSizeBytes) {
         if (maxFieldBytesFromProcessor >= 0) {
             if (fieldSizeBytes > maxFieldBytesFromProcessor) {
                 throw new ElasticsearchParseException(

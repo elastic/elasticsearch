@@ -561,7 +561,7 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                     IndexedDocument document = randomFrom(indexed.values());
                     String newFieldValue = randomUnicodeOfCodepointLengthBetween(1, 25);
                     // Update requests can fail to return a response after the data is already in the translog, so we have to assume all
-                    // writes can succeed and record the value before sending
+                    // updates can succeed and record the value before sending
                     document.updateFieldValue(newFieldValue);
                     try {
                         var response = client(coordinatorNode).prepareUpdate(indexName, document.id)

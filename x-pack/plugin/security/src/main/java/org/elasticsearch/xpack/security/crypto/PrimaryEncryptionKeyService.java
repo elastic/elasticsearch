@@ -398,10 +398,13 @@ public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyP
                 System.currentTimeMillis(),
                 RotationState.STABLE
             );
+            Set<String> retiredIds = existing.getKeys().keySet().stream()
+            .filter(id -> id.equals(existing.getActiveKeyId()) == false)
+            .collect(Collectors.toCollection(TreeSet::new));
             logger.info(
-                "primary encryption key rotation complete: retained active key [{}], retired [{}] old key(s)",
+                "primary encryption key rotation complete: retained active key [{}], retired keys {}",
                 existing.getActiveKeyId(),
-                existing.getKeys().size() - 1
+                retiredIds
             );
             return Tuple.tuple(putMetadata(clusterState, projectState, metadata), null);
         }

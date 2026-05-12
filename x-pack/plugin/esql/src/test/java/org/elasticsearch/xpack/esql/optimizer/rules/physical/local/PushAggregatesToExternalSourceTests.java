@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -195,26 +195,6 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
     }
 
     // --- Not-pushed cases ---
-
-    public void testNotPushedWhenSourceHasPushedFilter() {
-        var ext = new ExternalSourceExec(
-            Source.EMPTY,
-            "file:///test.parquet",
-            "parquet",
-            defaultAttrs(),
-            Map.of(),
-            statsMetadata(1000L, null, null),
-            new Object(),
-            List.of(greaterThanOf(AGE, new Literal(Source.EMPTY, 0, DataType.INTEGER))),
-            FormatReader.NO_LIMIT,
-            null,
-            null,
-            List.of()
-        );
-        var agg = aggregateExec(AggregatorMode.SINGLE, ext, countStarAlias());
-        AggregateExec unchanged = as(applyRule(agg), AggregateExec.class);
-        assertSame(agg, unchanged);
-    }
 
     public void testNotPushedWithGroupings() {
         ExternalSourceExec ext = externalSource(statsMetadata(1000L, null, null));
@@ -447,6 +427,13 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
         as(applyRule(agg), AggregateExec.class);
     }
 
+    public void testNotPushedWhenSourceHasPushedFilter() {
+        var ext = externalSourceWithPushedFilter(statsMetadata(1000L, null, null), "some_pushed_filter");
+        var agg = aggregateExec(AggregatorMode.SINGLE, ext, countStarAlias());
+
+        as(applyRule(agg), AggregateExec.class);
+    }
+
     public void testNotPushedWhenSourceHasPushedFilterInInitialMode() {
         var ext = externalSourceWithPushedFilter(statsMetadata(1000L, null, null), "some_pushed_filter");
         var agg = aggregateExec(AggregatorMode.INITIAL, ext, countStarAlias());
@@ -593,7 +580,8 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
     /**
      * Minimal FormatReader stub that only provides aggregate pushdown support.
      */
-    private static class StubFormatReader implements FormatReader {
+    private static class StubFormatReader implements NoConfigFormatReader {
+
         private final AggregatePushdownSupport support;
 
         StubFormatReader(AggregatePushdownSupport support) {

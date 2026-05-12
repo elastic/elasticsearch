@@ -15,6 +15,7 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.io.CloseableIterable;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.TableCatalog;
 
@@ -42,6 +43,14 @@ public class IcebergTableCatalog implements TableCatalog {
         // Check if the path looks like an S3 path and could be an Iceberg table
         // A more robust implementation would check for the presence of metadata directory
         return path != null && (path.startsWith("s3://") || path.startsWith("s3a://") || path.startsWith("s3n://"));
+    }
+
+    @Override
+    public void validateConfig(String location, Map<String, Object> config) {
+        // Iceberg claims no per-query configuration keys today. Delegate to the generic validator
+        // with an empty claimed-set so any non-empty config map is rejected with "unknown option"
+        // — preserving the strict-validation contract until per-query options are wired in.
+        ConfigKeyValidator.check(config, List.of());
     }
 
     @Override

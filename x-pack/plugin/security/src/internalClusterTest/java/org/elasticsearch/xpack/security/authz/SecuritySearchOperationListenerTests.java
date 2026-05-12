@@ -6,7 +6,9 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
@@ -22,6 +24,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -36,6 +39,7 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_VALUE;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_VALUE;
@@ -127,7 +131,10 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
             final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
             AuditTrail auditTrail = mock(AuditTrail.class);
-            AuditTrailService auditTrailService = new AuditTrailService(auditTrail, licenseState);
+            var auditSettings = Settings.builder().put(XPackSettings.AUDIT_ENABLED.getKey(), true).build();
+            var clusterService = mock(ClusterService.class);
+            when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(auditSettings, Set.of(XPackSettings.AUDIT_ENABLED)));
+            AuditTrailService auditTrailService = new AuditTrailService(auditTrail, licenseState, clusterService);
 
             SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, auditTrailService);
             try (StoredContext ignore = threadContext.newStoredContext()) {
@@ -256,7 +263,10 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
             final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, new ThreadContext(Settings.EMPTY));
             final AuditTrail auditTrail = mock(AuditTrail.class);
-            final AuditTrailService auditTrailService = new AuditTrailService(auditTrail, licenseState);
+            var auditSettings = Settings.builder().put(XPackSettings.AUDIT_ENABLED.getKey(), true).build();
+            var clusterService = mock(ClusterService.class);
+            when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(auditSettings, Set.of(XPackSettings.AUDIT_ENABLED)));
+            final AuditTrailService auditTrailService = new AuditTrailService(auditTrail, licenseState, clusterService);
 
             final SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, auditTrailService);
             final TransportRequest request = mock(TransportRequest.class);

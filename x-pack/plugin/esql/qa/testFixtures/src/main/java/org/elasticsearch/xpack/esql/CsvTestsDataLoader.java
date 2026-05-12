@@ -33,6 +33,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -177,7 +178,11 @@ public class CsvTestsDataLoader {
         new TestDataset("date_nanos"),
         new TestDataset("date_nanos_union_types"),
         new TestDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json"),
-        new TestDataset("k8s_unmapped", "mapping-k8s-unmapped.json", "k8s.csv").withSetting("k8s-settings.json"),
+        new TestDataset("k8s_unmapped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
+            .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
+            .withDynamic("false"),
+        new TestDataset("k8s_double_bytes_in", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
+            .withTypeMapping(Map.of("network.bytes_in", "double")),
         new TestDataset("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv", "k8s-settings.json"),
         new TestDataset("k8s-downsampled", "k8s-downsampled-mappings.json", "k8s-downsampled.csv", "k8s-downsampled-settings.json"),
         new TestDataset("distances"),
@@ -1278,6 +1283,20 @@ public class CsvTestsDataLoader {
          * ingestion more fields are added dynamically. Required for csv tests which do not ingest the csvs into real indices.
          */
         public TestDataset withDynamicTypeMapping(Map<String, String> dynamicTypeMapping) {
+            if (dynamicTypeMapping != null && mappingFileName != null) {
+                Map<String, EsField> mappedFields = LoadMapping.loadMapping(streamMapping());
+                for (String fieldName : dynamicTypeMapping.keySet()) {
+                    if (isMappedField(mappedFields, fieldName)) {
+                        throw new IllegalArgumentException(
+                            "Field ["
+                                + fieldName
+                                + "] in dynamicTypeMapping for dataset ["
+                                + indexName
+                                + "] is already mapped; use withTypeMapping instead"
+                        );
+                    }
+                }
+            }
             return new TestDataset(
                 indexName,
                 mappingFileName,
@@ -1290,6 +1309,25 @@ public class CsvTestsDataLoader {
                 inferenceEndpoints,
                 requiredCapabilities
             );
+        }
+
+        private static boolean isMappedField(Map<String, EsField> mapping, String fieldName) {
+            String[] segments = fieldName.split("\\.");
+            Map<String, EsField> currentMap = mapping;
+            for (int i = 0; i < segments.length; i++) {
+                EsField field = currentMap.get(segments[i]);
+                if (field == null) {
+                    return false;
+                }
+                if (i == segments.length - 1) {
+                    return true;
+                }
+                currentMap = field.getProperties();
+                if (currentMap == null || currentMap.isEmpty()) {
+                    return false;
+                }
+            }
+            return false;
         }
 
         /**

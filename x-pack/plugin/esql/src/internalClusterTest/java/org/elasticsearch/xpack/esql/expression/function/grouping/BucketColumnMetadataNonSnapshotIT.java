@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
 
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -37,7 +38,7 @@ public class BucketColumnMetadataNonSnapshotIT extends AbstractEsqlIntegTestCase
         try (var response = run(syncEsqlQueryRequest("""
             FROM dates | STATS c=COUNT(*) BY bucket=BUCKET(date, 1 month)
             """))) {
-            assertThat(response.columns().get(1).name(), org.hamcrest.Matchers.equalTo("bucket"));
+            assertThat(response.columns().get(1).name(), equalTo("bucket"));
             assertThat(response.columns().get(1).meta(), nullValue());
         }
     }

@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -21,10 +21,14 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
@@ -38,12 +42,20 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
  */
 public class ClampMax extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ClampMax", ClampMax::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ClampMax.class).binary(ClampMax::new).name("clamp_max");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .binaryValueTransformation(PromqlFunctionDefinition.MAX_SCALAR, ClampMax::new)
+        .description("Clamps the sample values of all elements to have an upper limit of max.")
+        .example("clamp_max(http_requests_total, 100)")
+        .name("clamp_max");
+
     private DataType resolvedType;
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long", "double", "keyword", "ip", "boolean", "date", "version" },
-        description = "Returns clamps the values of all input samples clamped to have an upper limit of max.",
-        examples = @Example(file = "k8s-timeseries-clamp", tag = "clamp-max")
+        description = "Limits (or clamps) all input sample values to an upper bound of max. Any value above max is reduced to max.",
+        examples = @Example(file = "k8s-timeseries-clamp", tag = "clamp-max"),
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
     )
     public ClampMax(
         Source source,

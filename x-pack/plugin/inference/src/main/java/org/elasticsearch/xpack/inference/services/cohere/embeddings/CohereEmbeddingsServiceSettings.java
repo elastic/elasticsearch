@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -19,6 +18,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
@@ -31,25 +31,32 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
 
+/**
+ * Settings for the Cohere embeddings service.
+ * This class encapsulates the configuration settings required to use Cohere models for generating embeddings.
+ */
 public class CohereEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
     public static final String NAME = "cohere_embeddings_service_settings";
 
-    static final String EMBEDDING_TYPE = "embedding_type";
-
+    /**
+     * Creates {@link CohereEmbeddingsServiceSettings} from a map of settings.
+     * @param map the map to parse
+     * @param context the context in which the parsing is done
+     * @return the created {@link CohereEmbeddingsServiceSettings}
+     * @throws ValidationException If there are validation errors in the provided settings.
+     */
     public static CohereEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
         var commonServiceSettings = CohereServiceSettings.fromMap(map, context);
 
-        CohereEmbeddingType embeddingTypes = parseEmbeddingType(map, context, validationException);
+        var embeddingType = parseEmbeddingType(map, context, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
-        return new CohereEmbeddingsServiceSettings(commonServiceSettings, embeddingTypes);
+        return new CohereEmbeddingsServiceSettings(commonServiceSettings, embeddingType);
     }
 
-    static CohereEmbeddingType parseEmbeddingType(
+    private static CohereEmbeddingType parseEmbeddingType(
         Map<String, Object> map,
         ConfigurationParseContext context,
         ValidationException validationException
@@ -58,7 +65,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
             case REQUEST -> Objects.requireNonNullElse(
                 extractOptionalEnum(
                     map,
-                    EMBEDDING_TYPE,
+                    ServiceFields.EMBEDDING_TYPE,
                     ModelConfigurations.SERVICE_SETTINGS,
                     CohereEmbeddingType::fromString,
                     EnumSet.allOf(CohereEmbeddingType.class),
@@ -69,13 +76,12 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
             case PERSISTENT -> {
                 var embeddingType = ServiceUtils.extractOptionalString(
                     map,
-                    EMBEDDING_TYPE,
+                    ServiceFields.EMBEDDING_TYPE,
                     ModelConfigurations.SERVICE_SETTINGS,
                     validationException
                 );
                 yield fromCohereOrDenseVectorEnumValues(embeddingType, validationException);
             }
-
         };
     }
 
@@ -83,7 +89,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
      * Before TransportVersions::ML_INFERENCE_COHERE_EMBEDDINGS_ADDED element
      * type was persisted as a CohereEmbeddingType enum. After
      * DenseVectorFieldMapper.ElementType was used.
-     *
+     * <p>
      * Parse either and convert to a CohereEmbeddingType
      */
     static CohereEmbeddingType fromCohereOrDenseVectorEnumValues(String enumString, ValidationException validationException) {
@@ -101,7 +107,12 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
                     .map(value -> value.toString().toLowerCase(Locale.ROOT))
                     .toArray(String[]::new);
                 validationException.addValidationError(
-                    ServiceUtils.invalidValue(EMBEDDING_TYPE, ModelConfigurations.SERVICE_SETTINGS, enumString, validValuesAsStrings)
+                    ServiceUtils.invalidValue(
+                        ServiceFields.EMBEDDING_TYPE,
+                        ModelConfigurations.SERVICE_SETTINGS,
+                        enumString,
+                        validValuesAsStrings
+                    )
                 );
                 return null;
             }
@@ -140,6 +151,17 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
         return commonSettings.modelId();
     }
 
+    @Override
+    public CohereEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var commonServiceSettings = this.commonSettings.updateCommonServiceSettings(serviceSettings, validationException);
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new CohereEmbeddingsServiceSettings(commonServiceSettings, this.embeddingType);
+    }
+
     public CohereEmbeddingType getEmbeddingType() {
         return embeddingType;
     }
@@ -159,7 +181,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
         builder.startObject();
 
         commonSettings.toXContentFragment(builder, params);
-        builder.field(EMBEDDING_TYPE, elementType());
+        builder.field(ServiceFields.EMBEDDING_TYPE, elementType());
 
         builder.endObject();
         return builder;
@@ -168,14 +190,14 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         commonSettings.toXContentFragmentOfExposedFields(builder, params);
-        builder.field(EMBEDDING_TYPE, elementType());
+        builder.field(ServiceFields.EMBEDDING_TYPE, elementType());
 
         return builder;
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_13_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

@@ -9,7 +9,15 @@ package org.elasticsearch.xpack.core.inference.chunking;
 
 import com.ibm.icu.text.BreakIterator;
 
+import java.util.Locale;
+
 public class ChunkerUtils {
+
+    public static int countWords(String text) {
+        BreakIterator wordIterator = BreakIterator.getWordInstance(Locale.ROOT);
+        wordIterator.setText(text);
+        return countWords(0, text.length(), wordIterator);
+    }
 
     // setText() should be applied before using this function.
     static int countWords(int start, int end, BreakIterator wordIterator) {

@@ -21,7 +21,6 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.BaseBFloat16KnnVectorsFormatTestCase;
-import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.AssumptionViolatedException;
 import org.junit.Before;
@@ -29,15 +28,18 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER;
-import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
-import static org.hamcrest.Matchers.anEmptyMap;
+import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION;
+import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MAX_PRECONDITIONING_BLOCK_DIMS;
+import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MIN_PRECONDITIONING_BLOCK_DIMS;
+import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVectorsFormatTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
@@ -52,10 +54,28 @@ public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVect
         if (rarely()) {
             format = new ESNextDiskBBQVectorsFormat(
                 encoding,
-                random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, ES920DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER),
-                random().nextInt(8, ES920DiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER),
+                random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
+                random().nextInt(8, MAX_CENTROIDS_PER_PARENT_CLUSTER),
                 DenseVectorFieldMapper.ElementType.BFLOAT16,
-                random().nextBoolean()
+                random().nextBoolean(),
+                null,
+                1,
+                false,
+                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                null
+            );
+        } else if (rarely()) {
+            format = new ESNextDiskBBQVectorsFormat(
+                encoding,
+                random().nextInt(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
+                random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, MAX_CENTROIDS_PER_PARENT_CLUSTER),
+                DenseVectorFieldMapper.ElementType.BFLOAT16,
+                false,
+                null,
+                1,
+                true,
+                random().nextInt(MIN_PRECONDITIONING_BLOCK_DIMS, MAX_PRECONDITIONING_BLOCK_DIMS),
+                null
             );
         } else {
             // run with low numbers to force many clusters with parents
@@ -64,7 +84,12 @@ public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVect
                 random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER),
                 random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
                 DenseVectorFieldMapper.ElementType.BFLOAT16,
-                random().nextBoolean()
+                random().nextBoolean(),
+                null,
+                1,
+                false,
+                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                null
             );
         }
         super.setUp();
@@ -108,9 +133,8 @@ public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVect
             }
             var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
             long totalByteSize = offHeap.values().stream().mapToLong(Long::longValue).sum();
-            // IVF doesn't report stats at the moment
-            assertThat(offHeap, anEmptyMap());
-            assertThat(totalByteSize, equalTo(0L));
+            assertThat(offHeap.size(), equalTo(3));
+            assertThat(totalByteSize, equalTo(offHeap.values().stream().mapToLong(Long::longValue).sum()));
         } else {
             throw new AssertionError("unexpected:" + r.getClass());
         }

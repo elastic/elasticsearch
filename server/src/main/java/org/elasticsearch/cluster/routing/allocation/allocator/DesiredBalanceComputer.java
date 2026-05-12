@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
@@ -90,6 +91,8 @@ public class DesiredBalanceComputer {
     private long numIterationsSinceLastConverged;
     private long lastConvergedTimeMillis;
     private long lastNotConvergedLogMessageTimeMillis;
+    private long firstComputeStartedSinceConvergedTimeMillis;
+    private boolean lastComputeRunConverged;
     private Level convergenceLogMsgLevel;
     private ShardRouting lastTrackedUnassignedShard;
 
@@ -106,6 +109,9 @@ public class DesiredBalanceComputer {
         this.numIterationsSinceLastConverged = 0;
         this.lastConvergedTimeMillis = timeProvider.relativeTimeInMillis();
         this.lastNotConvergedLogMessageTimeMillis = lastConvergedTimeMillis;
+        this.firstComputeStartedSinceConvergedTimeMillis = lastConvergedTimeMillis;
+        // starts counting timing on the first run
+        this.lastComputeRunConverged = true;
         this.convergenceLogMsgLevel = Level.DEBUG;
         clusterSettings.initializeAndWatch(PROGRESS_LOG_INTERVAL_SETTING, value -> this.progressLogInterval = value);
         clusterSettings.initializeAndWatch(
@@ -230,9 +236,9 @@ public class DesiredBalanceComputer {
                         && routingAllocation.deciders()
                             .canAllocate(shardRouting, targetNode, routingAllocation)
                             .type() != Decision.Type.NO) {
-                        final var shardToRelocate = routingNodes.relocateShard(shardRouting, targetNodeId, 0L, "computation", changes).v2();
-                        clusterInfoSimulator.simulateShardStarted(shardToRelocate);
-                        routingNodes.startShard(shardToRelocate, changes, 0L);
+                        final var targetShard = routingNodes.relocateShard(shardRouting, targetNodeId, 0L, "computation", changes).v2();
+                        clusterInfoSimulator.simulateShardStarted(targetShard);
+                        routingNodes.startShard(targetShard, changes, 0L);
                         continue relocateToDesiredLocation;
                     }
                 }
@@ -330,7 +336,14 @@ public class DesiredBalanceComputer {
         final int iterationCountReportInterval = computeIterationCountReportInterval(routingAllocation);
         final long timeWarningInterval = progressLogInterval.millis();
         final long computationStartedTime = timeProvider.relativeTimeInMillis();
-        long nextReportTime = Math.max(lastNotConvergedLogMessageTimeMillis, lastConvergedTimeMillis) + timeWarningInterval;
+        if (lastComputeRunConverged) {
+            // mark our first effort at compute since a convergence,
+            // so that a logging period for non-convergence warning are based from this time
+            firstComputeStartedSinceConvergedTimeMillis = computationStartedTime;
+            lastComputeRunConverged = false;
+        }
+        long nextReportTime = Math.max(lastNotConvergedLogMessageTimeMillis, firstComputeStartedSinceConvergedTimeMillis)
+            + timeWarningInterval;
 
         int i = 0;
         boolean hasChanges = false;
@@ -391,30 +404,35 @@ public class DesiredBalanceComputer {
                         convergenceLogMsgLevel,
                         () -> Strings.format(
                             """
-                                Desired balance computation for [%d] converged after [%s] and [%d] iterations, \
-                                resumed computation [%d] times with [%d] iterations since the last resumption [%s] ago""",
+                                Desired balance computation for [%d] converged after [%s] and [%d] iterations in [%d] rounds, \
+                                [%d] iterations this past round since [%s], last convergence was [%s] ago""",
                             desiredBalanceInput.index(),
-                            TimeValue.timeValueMillis(currentTime - lastConvergedTimeMillis).toString(),
+                            TimeValue.timeValueMillis(currentTime - firstComputeStartedSinceConvergedTimeMillis).toString(),
                             numIterationsSinceLastConverged,
                             numComputeCallsSinceLastConverged,
                             iterations,
-                            TimeValue.timeValueMillis(currentTime - computationStartedTime).toString()
+                            TimeValue.timeValueMillis(currentTime - computationStartedTime).toString(),
+                            TimeValue.timeValueMillis(currentTime - lastConvergedTimeMillis).toString()
                         )
                     );
                 } else {
                     logger.log(
                         convergenceLogMsgLevel,
                         () -> Strings.format(
-                            "Desired balance computation for [%d] converged after [%s] and [%d] iterations",
+                            """
+                                Desired balance computation for [%d] converged after [%s] and [%d] iterations in a single round, \
+                                last convergence was [%s] ago""",
                             desiredBalanceInput.index(),
-                            TimeValue.timeValueMillis(currentTime - lastConvergedTimeMillis).toString(),
-                            numIterationsSinceLastConverged
+                            TimeValue.timeValueMillis(currentTime - computationStartedTime).toString(),
+                            iterations,
+                            TimeValue.timeValueMillis(currentTime - lastConvergedTimeMillis).toString()
                         )
                     );
                 }
                 numComputeCallsSinceLastConverged = 0;
                 numIterationsSinceLastConverged = 0;
                 lastConvergedTimeMillis = currentTime;
+                lastComputeRunConverged = true;
                 break;
             }
             if (isFresh.test(desiredBalanceInput) == false) {
@@ -452,24 +470,28 @@ public class DesiredBalanceComputer {
                     logLevel,
                     () -> Strings.format(
                         """
-                            Desired balance computation for [%d] is still not converged after [%s] and [%d] iterations, \
-                            resumed computation [%d] times with [%d] iterations since the last resumption [%s] ago""",
+                            Desired balance computation for [%d] is still not converged after [%s] and [%d] iterations in [%d] rounds, \
+                            [%d] iterations this past round since [%s], last convergence was [%s] ago""",
                         desiredBalanceInput.index(),
-                        TimeValue.timeValueMillis(currentTime - lastConvergedTimeMillis).toString(),
+                        TimeValue.timeValueMillis(currentTime - firstComputeStartedSinceConvergedTimeMillis).toString(),
                         numIterationsSinceLastConverged,
                         numComputeCallsSinceLastConverged,
                         iterations,
-                        TimeValue.timeValueMillis(currentTime - computationStartedTime).toString()
+                        TimeValue.timeValueMillis(currentTime - computationStartedTime).toString(),
+                        TimeValue.timeValueMillis(currentTime - lastConvergedTimeMillis).toString()
                     )
                 );
             } else {
                 logger.log(
                     logLevel,
                     () -> Strings.format(
-                        "Desired balance computation for [%d] is still not converged after [%s] and [%d] iterations",
+                        """
+                            Desired balance computation for [%d] is still not converged after [%s] and [%d] iterations in a single round, \
+                            last convergence was [%s] ago""",
                         desiredBalanceInput.index(),
-                        TimeValue.timeValueMillis(currentTime - lastConvergedTimeMillis).toString(),
-                        numIterationsSinceLastConverged
+                        TimeValue.timeValueMillis(currentTime - computationStartedTime).toString(),
+                        iterations,
+                        TimeValue.timeValueMillis(currentTime - lastConvergedTimeMillis).toString()
                     )
                 );
             }
@@ -557,6 +579,8 @@ public class DesiredBalanceComputer {
         // For started shards, attempt to find its source node. If found, it is a relocation, otherwise it is a new shard.
         // The same shard on the same source node cannot be relocated twice to different nodes. So we exclude it once used.
         final Map<ShardId, Set<String>> alreadySeenSourceNodes = new HashMap<>();
+        final Map<String, Map<Index, Integer>> mapOfNodeIdsToCountOfNewShardsPerIndex = new HashMap<>();
+        final Map<String, Set<Index>> mapOfNodeIdsToIndicesWithRemovedShards = new HashMap<>();
         for (var startedShard : startedShards) {
             // The source node is found by checking whether the ClusterInfo has a node hosting a shard with the same ShardId
             // and has compatible node role. If multiple nodes are found, simply pick the first one.
@@ -579,9 +603,39 @@ public class DesiredBalanceComputer {
                 .orElse(null);
 
             if (sourceNodeId != null) {
+                mapOfNodeIdsToIndicesWithRemovedShards.computeIfAbsent(sourceNodeId, ignored -> new HashSet<>()).add(startedShard.index());
                 alreadySeenSourceNodes.computeIfAbsent(startedShard.shardId(), k -> new HashSet<>()).add(sourceNodeId);
             }
+
+            var nodeToIndexCountMap = mapOfNodeIdsToCountOfNewShardsPerIndex.computeIfAbsent(
+                startedShard.currentNodeId(),
+                ignored -> new HashMap<>()
+            );
+            nodeToIndexCountMap.put(startedShard.index(), nodeToIndexCountMap.getOrDefault(startedShard.index(), 0) + 1);
+
             clusterInfoSimulator.simulateAlreadyStartedShard(startedShard, sourceNodeId);
+        }
+
+        for (var nodeToIndexCountMap : mapOfNodeIdsToCountOfNewShardsPerIndex.entrySet()) {
+            for (var indexToCount : nodeToIndexCountMap.getValue().entrySet()) {
+                // Check if the number of shards for an index moved to the particular node, since the ClusterInfo was created, is equal to
+                // the total number of shards for that index on that node, in which case the index is new to the node and any index stats
+                // should be added to the node.
+                if (indexToCount.getValue() == routingNodes.node(nodeToIndexCountMap.getKey())
+                    .numberOfStartedShardsForIndex(indexToCount.getKey())) {
+                    clusterInfoSimulator.simulateAddIndexToNode(nodeToIndexCountMap.getKey(), indexToCount.getKey());
+                }
+            }
+        }
+
+        for (var nodeIdToIndicesWithRemovedShards : mapOfNodeIdsToIndicesWithRemovedShards.entrySet()) {
+            // For each index on a node, we need to check whether node no longer holds any shards for that index. If the node no longer
+            // holds the index, then the index stats should be removed from the node.
+            for (var index : nodeIdToIndicesWithRemovedShards.getValue()) {
+                if (routingNodes.node(nodeIdToIndicesWithRemovedShards.getKey()).numberOfStartedShardsForIndex(index) == 0) {
+                    clusterInfoSimulator.simulateRemoveIndexFromNode(nodeIdToIndicesWithRemovedShards.getKey(), index);
+                }
+            }
         }
     }
 
@@ -631,7 +685,7 @@ public class DesiredBalanceComputer {
                     "computation converged for input index [{}] with unassigned shard [{}] due to allocation decision {}",
                     inputIndex,
                     lastTrackedUnassignedShard,
-                    org.elasticsearch.common.Strings.toString(
+                    org.elasticsearch.common.Strings.toTruncatedString(
                         p -> ChunkedToXContentHelper.object("node_allocation_decision", shardAllocationDecision.toXContentChunked(p))
                     )
                 );

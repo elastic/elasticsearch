@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
@@ -17,6 +17,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -59,6 +61,8 @@ import static org.mockito.Mockito.when;
 
 public class RequestExecutorServiceTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private static final String INFERENCE_ID = "id";
+
     private ThreadPool threadPool;
 
     @Before
@@ -102,6 +106,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         service.shutdown();
         service.start();
         latch.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+        service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
 
         assertTrue(service.isTerminated());
     }
@@ -114,12 +119,14 @@ public class RequestExecutorServiceTests extends ESTestCase {
         service.start();
         latch.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
 
+        service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+
         assertTrue(service.isTerminated());
         var exception = expectThrows(AssertionError.class, service::start);
         assertThat(exception.getMessage(), is("start() can only be called once"));
     }
 
-    public void testIsTerminated_AfterStopFromSeparateThread() {
+    public void testIsTerminated_AfterStopFromSeparateThread() throws InterruptedException {
         var waitToShutdown = new CountDownLatch(1);
         var waitToReturnFromSend = new CountDownLatch(1);
 
@@ -150,6 +157,8 @@ public class RequestExecutorServiceTests extends ESTestCase {
             fail(Strings.format("Executor finished before it was signaled to shutdown: %s", e));
         }
 
+        service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+
         assertTrue(service.isShutdown());
         assertTrue(service.isTerminated());
     }
@@ -177,12 +186,12 @@ public class RequestExecutorServiceTests extends ESTestCase {
         assertTrue(thrownException.isExecutorShutdown());
     }
 
-    public void testExecute_Throws_WhenRateLimitedQueueIsFull() {
+    public void testExecute_Throws_WhenRateLimitedQueueIsFull() throws InterruptedException {
         var service = new RequestExecutorService(threadPool, null, createRequestExecutorServiceSettings(1), mock(RetryingHttpSender.class));
-        service.start();
 
+        // Enqueue before start() so the poller cannot drain the queue between submits (avoids rate-limit delay + timeout).
         service.execute(
-            RequestManagerTests.createMockWithRateLimitingEnabled(),
+            RequestManagerTests.createMockWithRateLimitingEnabled("id"),
             new EmbeddingsInput(List.of(), InputTypeTests.randomIngest()),
             null,
             new PlainActionFuture<>()
@@ -204,6 +213,10 @@ public class RequestExecutorServiceTests extends ESTestCase {
             )
         );
         assertFalse(thrownException.isExecutorShutdown());
+
+        service.shutdown();
+        service.start();
+        service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
     }
 
     public void testTaskThrowsError_CallsOnFailure() throws InterruptedException {
@@ -234,12 +247,14 @@ public class RequestExecutorServiceTests extends ESTestCase {
         assertTrue(service.isTerminated());
     }
 
-    public void testShutdown_AllowsMultipleCalls() {
+    public void testShutdown_AllowsMultipleCalls() throws InterruptedException {
         var service = createRequestExecutorServiceWithMocks();
 
         service.shutdown();
         service.shutdown();
         service.start();
+
+        service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
 
         assertTrue(service.isTerminated());
         assertTrue(service.isShutdown());
@@ -250,16 +265,19 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
         var listener = new PlainActionFuture<InferenceServiceResults>();
         service.execute(
-            RequestManagerTests.createMockWithRateLimitingEnabled(),
+            RequestManagerTests.createMockWithRateLimitingEnabled(INFERENCE_ID),
             new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()),
             TimeValue.timeValueNanos(1),
             listener
         );
 
-        var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+        var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
 
-        assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueNanos(1))));
-        assertThat(thrownException.status().getStatus(), is(408));
+        assertThat(
+            thrownException.getMessage(),
+            is(format("Request timed out after [%s] for inference id [%s]", TimeValue.timeValueNanos(1), INFERENCE_ID))
+        );
+        assertThat(thrownException.status(), is(RestStatus.TOO_MANY_REQUESTS));
     }
 
     public void testExecute_PreservesThreadContext() throws InterruptedException, ExecutionException, TimeoutException {
@@ -320,17 +338,19 @@ public class RequestExecutorServiceTests extends ESTestCase {
         Future<?> executorTermination = submitShutdownRequest(waitToShutdown, waitToReturnFromSend, service);
 
         executorTermination.get(TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+
         assertTrue(service.isTerminated());
 
         finishedOnResponse.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
     }
 
-    public void testExecute_NotifiesNonRateLimitedTasksOfShutdown() {
+    public void testExecute_NotifiesNonRateLimitedTasksOfShutdown() throws InterruptedException {
         var service = createRequestExecutorServiceWithMocks();
 
         var requestManager = RequestManagerTests.createMockWithRateLimitingDisabled(mock(RequestSender.class), "id");
         var listener = new PlainActionFuture<InferenceServiceResults>();
-        service.execute(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()), null, listener);
+        service.execute(requestManager, new EmbeddingsInput(List.of(), InputType.SEARCH), null, listener);
 
         service.shutdown();
         service.start();
@@ -342,10 +362,12 @@ public class RequestExecutorServiceTests extends ESTestCase {
             is("Failed to send request for inference id [id] because the request executor service has been shutdown")
         );
         assertTrue(thrownException.isExecutorShutdown());
+        service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+
         assertTrue(service.isTerminated());
     }
 
-    public void testExecute_NotifiesRateLimitedTasksOfShutdown() {
+    public void testExecute_NotifiesRateLimitedTasksOfShutdown() throws InterruptedException {
         var service = createRequestExecutorServiceWithMocks();
 
         var requestManager = RequestManagerTests.createMockWithRateLimitingEnabled(mock(RequestSender.class), "id");
@@ -369,6 +391,8 @@ public class RequestExecutorServiceTests extends ESTestCase {
             )
         );
         assertTrue(thrownException.isExecutorShutdown());
+        service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+
         assertTrue(service.isTerminated());
     }
 
@@ -496,6 +520,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         service.start();
 
         executorTermination.get(TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
         assertTrue(service.isTerminated());
         assertThat(service.remainingQueueCapacity(requestManager), is(1));
         assertThat(service.queueSize(), is(0));
@@ -562,6 +587,8 @@ public class RequestExecutorServiceTests extends ESTestCase {
         service.start();
 
         executorTermination.get(TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+
         assertTrue(service.isTerminated());
         assertThat(service.remainingQueueCapacity(requestManager), is(Integer.MAX_VALUE));
     }

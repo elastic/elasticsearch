@@ -41,6 +41,7 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.repositories.FilterRepository;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.LocalPrimarySnapshotShardContext;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.SnapshotIndexCommit;
 import org.elasticsearch.repositories.SnapshotShardContext;
@@ -143,7 +144,9 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     }
 
     @Override
-    public void snapshotShard(SnapshotShardContext context) {
+    public void snapshotShard(SnapshotShardContext snapshotShardContext) {
+        assert snapshotShardContext instanceof LocalPrimarySnapshotShardContext : snapshotShardContext;
+        final var context = (LocalPrimarySnapshotShardContext) snapshotShardContext;
         final MapperService mapperService = context.mapperService();
         if ((mapperService.documentMapper() != null // if there is no mapping this is null
             && mapperService.documentMapper().sourceMapper().isComplete() == false)
@@ -211,7 +214,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             toClose.add(reader);
             IndexCommit indexCommit = reader.getIndexCommit();
             super.snapshotShard(
-                new SnapshotShardContext(
+                new LocalPrimarySnapshotShardContext(
                     tempStore,
                     mapperService,
                     context.snapshotId(),

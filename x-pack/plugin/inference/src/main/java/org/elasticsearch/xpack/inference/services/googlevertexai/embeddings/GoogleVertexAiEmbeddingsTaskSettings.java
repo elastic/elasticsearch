@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,7 +18,6 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -55,9 +53,7 @@ public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
         );
 
         Boolean autoTruncate = extractOptionalBoolean(map, AUTO_TRUNCATE, validationException);
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate, inputType);
     }
@@ -95,7 +91,7 @@ public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
 
     public GoogleVertexAiEmbeddingsTaskSettings(StreamInput in) throws IOException {
         this.autoTruncate = in.readOptionalBoolean();
-        var inputType = (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) ? in.readOptionalEnum(InputType.class) : null;
+        var inputType = in.readOptionalEnum(InputType.class);
         validateInputType(inputType);
         this.inputType = inputType;
     }
@@ -128,16 +124,13 @@ public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalBoolean(this.autoTruncate);
-
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-            out.writeOptionalEnum(this.inputType);
-        }
+        out.writeOptionalEnum(this.inputType);
     }
 
     @Override
@@ -169,9 +162,7 @@ public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        GoogleVertexAiEmbeddingsRequestTaskSettings updatedSettings = GoogleVertexAiEmbeddingsRequestTaskSettings.fromMap(
-            new HashMap<>(newSettings)
-        );
+        GoogleVertexAiEmbeddingsRequestTaskSettings updatedSettings = GoogleVertexAiEmbeddingsRequestTaskSettings.fromMap(newSettings);
         return of(this, updatedSettings);
     }
 }

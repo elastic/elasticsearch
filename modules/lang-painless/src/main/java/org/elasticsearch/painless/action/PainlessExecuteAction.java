@@ -94,6 +94,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.StringFieldScript;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -351,6 +352,7 @@ public class PainlessExecuteAction {
         private final Script script;
         private final ScriptContext<?> context;
         private final ContextSetup contextSetup;
+        private transient IndicesOptions indicesOptions;
 
         static Request parse(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
@@ -391,6 +393,14 @@ public class PainlessExecuteAction {
         }
 
         @Override
+        public void markOriginOnly() {
+            assert contextSetup != null
+                : "Painless/execute request without context setup can't have index, this method shouldn't be called";
+            // strip off cluster alias from the index in this request
+            index(contextSetup.getIndex());
+        }
+
+        @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
             if (script.getType() != ScriptType.INLINE) {
@@ -405,6 +415,20 @@ public class PainlessExecuteAction {
                 }
             }
             return validationException;
+        }
+
+        public void enableCrossProjectMode() {
+            this.indicesOptions = IndicesOptions.builder(super.indicesOptions())
+                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                .build();
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            if (indicesOptions == null) {
+                return super.indicesOptions();
+            }
+            return indicesOptions;
         }
 
         @Override
@@ -532,7 +556,11 @@ public class PainlessExecuteAction {
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            if (request.getContextSetup() == null || request.getContextSetup().getClusterAlias() == null) {
+            // By this point index resolution has completed, and we should not try to resolve indices for child requests
+            // to avoid the second attempt of project authorization in CPS
+            request.indicesOptions = null;
+
+            if (isLocalIndex(request)) {
                 super.doExecute(task, request, listener);
             } else {
                 // forward to remote cluster after stripping off the clusterAlias from the index expression
@@ -547,10 +575,19 @@ public class PainlessExecuteAction {
             }
         }
 
+        private boolean isLocalIndex(Request request) {
+            if (request.getContextSetup() == null) {
+                return true;
+            }
+            String index = request.index();
+            return index == null || RemoteClusterAware.isRemoteIndexName(index) == false;
+        }
+
         // Visible for testing
         static void removeClusterAliasFromIndexExpression(Request request) {
-            if (request.index() != null) {
-                String[] split = RemoteClusterAware.splitIndexName(request.index());
+            String index = request.index();
+            if (index != null) {
+                String[] split = RemoteClusterAware.splitIndexName(index);
                 if (split[0] != null) {
                     /*
                      * if the cluster alias is null and the index field has a clusterAlias (clusterAlias:index notation)
@@ -843,7 +880,9 @@ public class PainlessExecuteAction {
                             searcher,
                             () -> absoluteStartMillis,
                             null,
-                            emptyMap()
+                            emptyMap(),
+                            null,
+                            null
                         );
                         return handler.apply(context, indexReader.leaves().get(0));
                     }
@@ -854,6 +893,11 @@ public class PainlessExecuteAction {
 
     @ServerlessScope(Scope.PUBLIC)
     public static class RestAction extends BaseRestHandler {
+        private final CrossProjectModeDecider crossProjectModeDecider;
+
+        public RestAction(CrossProjectModeDecider crossProjectModeDecider) {
+            this.crossProjectModeDecider = crossProjectModeDecider;
+        }
 
         @Override
         public List<Route> routes() {
@@ -868,6 +912,10 @@ public class PainlessExecuteAction {
         @Override
         protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
             final Request request = Request.parse(restRequest.contentOrSourceParamParser());
+            if (crossProjectModeDecider.crossProjectEnabled()) {
+                request.enableCrossProjectMode();
+            }
+
             return channel -> client.executeLocally(INSTANCE, request, new RestToXContentListener<>(channel));
         }
     }

@@ -12,11 +12,11 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyCredentials;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
-import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyCredentials;
 import org.elasticsearch.xpack.security.metric.InstrumentedSecurityActionListener;
 import org.elasticsearch.xpack.security.metric.SecurityMetricType;
 import org.elasticsearch.xpack.security.metric.SecurityMetrics;
@@ -28,7 +28,7 @@ import static org.elasticsearch.core.Strings.format;
 
 class ApiKeyAuthenticator implements Authenticator {
 
-    public static final String ATTRIBUTE_API_KEY_TYPE = "es.security.api_key_type";
+    public static final String ATTRIBUTE_API_KEY_TYPE = "es_security_api_key_type";
 
     private static final Logger logger = LogManager.getLogger(ApiKeyAuthenticator.class);
 

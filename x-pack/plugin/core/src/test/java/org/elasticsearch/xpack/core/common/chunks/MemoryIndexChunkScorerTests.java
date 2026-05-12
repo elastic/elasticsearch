@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.core.common.chunks;
 
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -15,6 +18,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class MemoryIndexChunkScorerTests extends ESTestCase {
 
@@ -32,12 +36,12 @@ public class MemoryIndexChunkScorerTests extends ESTestCase {
         String inferenceText = "dogs play walk";
         int maxResults = 3;
 
-        List<MemoryIndexChunkScorer.ScoredChunk> scoredChunks = scorer.scoreChunks(CHUNKS, inferenceText, maxResults);
+        List<ScoredChunk> scoredChunks = scorer.scoreChunks(CHUNKS, inferenceText, maxResults, true);
 
         assertEquals(maxResults, scoredChunks.size());
 
         // The chunks about dogs should score highest, followed by the chunk about cats
-        MemoryIndexChunkScorer.ScoredChunk chunk = scoredChunks.getFirst();
+        ScoredChunk chunk = scoredChunks.getFirst();
         assertTrue(chunk.content().equalsIgnoreCase("Dogs love to play with toys and go for walks"));
         assertThat(chunk.score(), greaterThan(0f));
 
@@ -62,11 +66,11 @@ public class MemoryIndexChunkScorerTests extends ESTestCase {
         MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
 
         // Zero results
-        List<MemoryIndexChunkScorer.ScoredChunk> scoredChunks = scorer.scoreChunks(CHUNKS, "puggles", maxResults);
+        List<ScoredChunk> scoredChunks = scorer.scoreChunks(CHUNKS, "puggles", maxResults, true);
         assertEquals(maxResults, scoredChunks.size());
 
         // There were no results so we return the first N chunks in order
-        MemoryIndexChunkScorer.ScoredChunk chunk = scoredChunks.getFirst();
+        ScoredChunk chunk = scoredChunks.getFirst();
         assertTrue(chunk.content().equalsIgnoreCase("Cats like to sleep all day and play with mice"));
         assertThat(chunk.score(), equalTo(0f));
 
@@ -78,18 +82,100 @@ public class MemoryIndexChunkScorerTests extends ESTestCase {
         assertTrue(chunk.content().equalsIgnoreCase("The weather today is very sunny and warm"));
         assertThat(chunk.score(), equalTo(0f));
 
+        // Zero results with no backfill
+        scoredChunks = scorer.scoreChunks(CHUNKS, "puggles", maxResults, false);
+        assertEquals(0, scoredChunks.size());
+
         // Null and Empty chunk input
-        scoredChunks = scorer.scoreChunks(List.of(), "puggles", maxResults);
+        scoredChunks = scorer.scoreChunks(List.of(), "puggles", maxResults, true);
         assertTrue(scoredChunks.isEmpty());
 
-        scoredChunks = scorer.scoreChunks(CHUNKS, "", maxResults);
+        scoredChunks = scorer.scoreChunks(CHUNKS, "", maxResults, true);
         assertTrue(scoredChunks.isEmpty());
 
-        scoredChunks = scorer.scoreChunks(null, "puggles", maxResults);
+        scoredChunks = scorer.scoreChunks(null, "puggles", maxResults, true);
         assertTrue(scoredChunks.isEmpty());
 
-        scoredChunks = scorer.scoreChunks(CHUNKS, null, maxResults);
+        scoredChunks = scorer.scoreChunks(CHUNKS, " ", maxResults, true);
         assertTrue(scoredChunks.isEmpty());
+
+        scoredChunks = scorer.scoreChunks(CHUNKS, (String) null, maxResults, true);
+        assertTrue(scoredChunks.isEmpty());
+    }
+
+    public void testDefaultConstructorUsesStandardAnalyzer() {
+        assertThat(new MemoryIndexChunkScorer().analyzer(), instanceOf(StandardAnalyzer.class));
+    }
+
+    public void testNullAnalyzerThrowsAssertionError() {
+        expectThrows(AssertionError.class, () -> new MemoryIndexChunkScorer(null));
+    }
+
+    public void testCustomAnalyzer() {
+        var whitespace = new WhitespaceAnalyzer();
+        var scorer = new MemoryIndexChunkScorer(whitespace);
+        assertSame(whitespace, scorer.analyzer());
+
+        List<ScoredChunk> results = scorer.scoreChunks(CHUNKS, "dogs play walk", 3, false);
+        assertFalse(results.isEmpty());
+    }
+
+    public void testBuildQuery() {
+        var scorer = new MemoryIndexChunkScorer();
+        assertNotNull(scorer.buildQuery("dogs play"));
+    }
+
+    public void testScoreChunksWithQuery() {
+        var scorer = new MemoryIndexChunkScorer();
+        Query query = scorer.buildQuery("dogs play walk");
+
+        List<ScoredChunk> withQuery = scorer.scoreChunks(CHUNKS, query, 3, false);
+        List<ScoredChunk> withText = scorer.scoreChunks(CHUNKS, "dogs play walk", 3, false);
+
+        assertThat(withQuery.size(), equalTo(withText.size()));
+        for (int i = 0; i < withQuery.size(); i++) {
+            assertThat(withQuery.get(i).content(), equalTo(withText.get(i).content()));
+            assertThat(withQuery.get(i).score(), equalTo(withText.get(i).score()));
+        }
+    }
+
+    public void testScoreChunksWithNullQuery() {
+        var scorer = new MemoryIndexChunkScorer();
+
+        List<ScoredChunk> noBackfill = scorer.scoreChunks(CHUNKS, (Query) null, 3, false);
+        assertTrue(noBackfill.isEmpty());
+
+        List<ScoredChunk> withBackfill = scorer.scoreChunks(CHUNKS, (Query) null, 3, true);
+        assertThat(withBackfill.size(), equalTo(3));
+        for (ScoredChunk chunk : withBackfill) {
+            assertThat(chunk.score(), equalTo(0.0f));
+        }
+        assertThat(withBackfill.get(0).content(), equalTo(CHUNKS.get(0)));
+        assertThat(withBackfill.get(1).content(), equalTo(CHUNKS.get(1)));
+        assertThat(withBackfill.get(2).content(), equalTo(CHUNKS.get(2)));
+    }
+
+    public void testScoreChunksWithQueryEmptyChunks() {
+        var scorer = new MemoryIndexChunkScorer();
+        Query query = scorer.buildQuery("dogs");
+
+        assertTrue(scorer.scoreChunks(List.of(), query, 3, true).isEmpty());
+        assertTrue(scorer.scoreChunks(null, query, 3, true).isEmpty());
+    }
+
+    public void testOriginalIndexTracking() {
+        var scorer = new MemoryIndexChunkScorer();
+        List<ScoredChunk> results = scorer.scoreChunks(CHUNKS, "dogs play walk", 3, false);
+
+        assertThat(results.size(), equalTo(3));
+        assertThat(results.get(0).originalIndex(), equalTo(3));
+        assertThat(results.get(1).originalIndex(), equalTo(1));
+        assertThat(results.get(2).originalIndex(), equalTo(0));
+
+        for (ScoredChunk chunk : results) {
+            assertTrue(chunk.originalIndex() >= 0);
+            assertThat(chunk.content(), equalTo(CHUNKS.get(chunk.originalIndex())));
+        }
     }
 
 }

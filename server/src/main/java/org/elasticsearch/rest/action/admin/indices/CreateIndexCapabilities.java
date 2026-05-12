@@ -9,6 +9,9 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.elasticsearch.index.IndexMode;
+
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -26,17 +29,35 @@ public class CreateIndexCapabilities {
      */
     private static final String LOOKUP_INDEX_MODE_CAPABILITY = "lookup_index_mode";
 
+    /**
+     * Support for columnar and columnar_logsdb index modes.
+     */
+    private static final String COLUMNAR_INDEX_MODES_CAPABILITY = "columnar_index_modes";
+
     private static final String NESTED_DENSE_VECTOR_SYNTHETIC_TEST = "nested_dense_vector_synthetic_test";
 
     private static final String POORLY_FORMATTED_BAD_REQUEST = "poorly_formatted_bad_request";
 
     private static final String HUNSPELL_DICT_400 = "hunspell_dict_400";
 
-    public static final Set<String> CAPABILITIES = Set.of(
-        LOGSDB_INDEX_MODE_CAPABILITY,
-        LOOKUP_INDEX_MODE_CAPABILITY,
-        NESTED_DENSE_VECTOR_SYNTHETIC_TEST,
-        POORLY_FORMATTED_BAD_REQUEST,
-        HUNSPELL_DICT_400
-    );
+    static final String DISABLE_SEQUENCE_NUMBERS_CAPABILITY = "disable_sequence_numbers";
+
+    public static final Set<String> CAPABILITIES;
+
+    static {
+        var caps = new HashSet<>(
+            Set.of(
+                LOGSDB_INDEX_MODE_CAPABILITY,
+                LOOKUP_INDEX_MODE_CAPABILITY,
+                NESTED_DENSE_VECTOR_SYNTHETIC_TEST,
+                POORLY_FORMATTED_BAD_REQUEST,
+                HUNSPELL_DICT_400,
+                DISABLE_SEQUENCE_NUMBERS_CAPABILITY
+            )
+        );
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
+            caps.add(COLUMNAR_INDEX_MODES_CAPABILITY);
+        }
+        CAPABILITIES = Set.copyOf(caps);
+    }
 }

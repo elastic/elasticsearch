@@ -45,8 +45,8 @@ import static org.elasticsearch.core.Strings.format;
 
 public class RealmsAuthenticator implements Authenticator {
 
-    public static final String ATTRIBUTE_REALM_NAME = "es.security.realm_name";
-    public static final String ATTRIBUTE_REALM_TYPE = "es.security.realm_type";
+    public static final String ATTRIBUTE_REALM_NAME = "es_security_realm_name";
+    public static final String ATTRIBUTE_REALM_TYPE = "es_security_realm_type";
 
     private static final Logger logger = LogManager.getLogger(RealmsAuthenticator.class);
 

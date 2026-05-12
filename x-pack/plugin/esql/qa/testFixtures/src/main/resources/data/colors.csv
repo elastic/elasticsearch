@@ -58,3 +58,4 @@ id:integer,color:text,hex_code:keyword,rgb_vector:dense_vector,rgb_byte_vector:d
 56,silver, #C0C0C0, [192,192,192], [64, 64, 64], false
 57,gainsboro, #DCDCDC, [220,220,220], [92, 92, 92], false
 58,white, #FFFFFF, [255,255,255], [127, 127, 127], true
+

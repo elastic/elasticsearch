@@ -16,8 +16,11 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 
@@ -75,6 +78,78 @@ public class ReplaceRegexMatchTests extends ESTestCase {
         Equals eq = (Equals) e;
         assertEquals(fa, eq.left());
         assertEquals("abc", BytesRefs.toString(eq.right().fold(FoldContext.small())));
+    }
+
+    public void testLikePrefixDecomposesToStartsWith() {
+        WildcardPattern pattern = new WildcardPattern("foo*");
+        FieldAttribute fa = getFieldAttribute();
+        WildcardLike wl = new WildcardLike(EMPTY, fa, pattern);
+        Expression e = replaceRegexMatch(wl);
+        assertEquals(StartsWith.class, e.getClass());
+        StartsWith sw = (StartsWith) e;
+        assertEquals(fa, sw.children().get(0));
+        assertEquals("foo", BytesRefs.toString(sw.children().get(1).fold(FoldContext.small())));
+    }
+
+    public void testLikeSuffixDecomposesToEndsWith() {
+        WildcardPattern pattern = new WildcardPattern("*bar");
+        FieldAttribute fa = getFieldAttribute();
+        WildcardLike wl = new WildcardLike(EMPTY, fa, pattern);
+        Expression e = replaceRegexMatch(wl);
+        assertEquals(EndsWith.class, e.getClass());
+        EndsWith ew = (EndsWith) e;
+        assertEquals(fa, ew.children().get(0));
+        assertEquals("bar", BytesRefs.toString(ew.children().get(1).fold(FoldContext.small())));
+    }
+
+    public void testLikeMixedPatternAddsStartsWithConjunct() {
+        for (String s : asList("foo*bar*", "foo?bar*", "prefix?")) {
+            WildcardPattern pattern = new WildcardPattern(s);
+            FieldAttribute fa = getFieldAttribute();
+            WildcardLike wl = new WildcardLike(EMPTY, fa, pattern);
+            Expression e = replaceRegexMatch(wl);
+            assertEquals(And.class, e.getClass());
+            And and = (And) e;
+            assertEquals(StartsWith.class, and.left().getClass());
+            assertEquals(WildcardLike.class, and.right().getClass());
+        }
+    }
+
+    public void testLikeMixedPatternWithSuffix() {
+        WildcardPattern pattern = new WildcardPattern("foo*bar");
+        FieldAttribute fa = getFieldAttribute();
+        WildcardLike wl = new WildcardLike(EMPTY, fa, pattern);
+        Expression e = replaceRegexMatch(wl);
+        assertEquals(And.class, e.getClass());
+        And and = (And) e;
+        StartsWith sw = (StartsWith) and.left();
+        assertEquals("foo", BytesRefs.toString(sw.children().get(1).fold(FoldContext.small())));
+    }
+
+    public void testLikeNoFixedPrefixUnchanged() {
+        WildcardPattern pattern = new WildcardPattern("*foo*");
+        FieldAttribute fa = getFieldAttribute();
+        WildcardLike wl = new WildcardLike(EMPTY, fa, pattern);
+        Expression e = replaceRegexMatch(wl);
+        assertEquals(WildcardLike.class, e.getClass());
+    }
+
+    public void testLikeEscapedWildcard() {
+        WildcardPattern pattern = new WildcardPattern("foo\\*bar*");
+        FieldAttribute fa = getFieldAttribute();
+        WildcardLike wl = new WildcardLike(EMPTY, fa, pattern);
+        Expression e = replaceRegexMatch(wl);
+        assertEquals(StartsWith.class, e.getClass());
+        StartsWith sw = (StartsWith) e;
+        assertEquals("foo*bar", BytesRefs.toString(sw.children().get(1).fold(FoldContext.small())));
+    }
+
+    public void testCaseInsensitiveLikeNotDecomposed() {
+        WildcardPattern pattern = new WildcardPattern("foo*");
+        FieldAttribute fa = getFieldAttribute();
+        WildcardLike wl = new WildcardLike(EMPTY, fa, pattern, true);
+        Expression e = replaceRegexMatch(wl);
+        assertEquals(WildcardLike.class, e.getClass());
     }
 
 }

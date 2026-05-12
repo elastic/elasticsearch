@@ -114,7 +114,7 @@ gradlePlugin {
     }
     internalTestRerun {
       id = 'elasticsearch.internal-test-rerun'
-      implementationClass = 'org.elasticsearch.gradle.internal.test.rerun.TestRerunPlugin'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rerun.InternalTestRerunPlugin'
     }
     javaToolChainPlugin {
       id = 'elasticsearch.java-toolchain'
@@ -155,6 +155,10 @@ gradlePlugin {
     embeddedProvider {
       id = 'elasticsearch.embedded-providers'
       implementationClass = 'org.elasticsearch.gradle.internal.EmbeddedProviderPlugin'
+    }
+    esqlFunction {
+      id = 'elasticsearch.esql-function'
+      implementationClass = 'org.elasticsearch.gradle.internal.esql.EsqlFunctionPlugin'
     }
     releaseTools {
       id = 'elasticsearch.release-tools'

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.time.ZoneId;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
@@ -16,39 +17,42 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateDiff}.
+ * {@link ExpressionEvaluator} implementation for {@link DateDiff}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class DateDiffNanosEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class DateDiffNanosEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DateDiffNanosEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator unit;
+  private final ExpressionEvaluator unit;
 
-  private final EvalOperator.ExpressionEvaluator startTimestamp;
+  private final ExpressionEvaluator startTimestamp;
 
-  private final EvalOperator.ExpressionEvaluator endTimestamp;
+  private final ExpressionEvaluator endTimestamp;
+
+  private final ZoneId zoneId;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public DateDiffNanosEvaluator(Source source, EvalOperator.ExpressionEvaluator unit,
-      EvalOperator.ExpressionEvaluator startTimestamp,
-      EvalOperator.ExpressionEvaluator endTimestamp, DriverContext driverContext) {
+  public DateDiffNanosEvaluator(Source source, ExpressionEvaluator unit,
+      ExpressionEvaluator startTimestamp, ExpressionEvaluator endTimestamp, ZoneId zoneId,
+      DriverContext driverContext) {
     this.source = source;
     this.unit = unit;
     this.startTimestamp = startTimestamp;
     this.endTimestamp = endTimestamp;
+    this.zoneId = zoneId;
     this.driverContext = driverContext;
   }
 
@@ -126,7 +130,7 @@ public final class DateDiffNanosEvaluator implements EvalOperator.ExpressionEval
         long startTimestamp = startTimestampBlock.getLong(startTimestampBlock.getFirstValueIndex(p));
         long endTimestamp = endTimestampBlock.getLong(endTimestampBlock.getFirstValueIndex(p));
         try {
-          result.appendInt(DateDiff.processNanos(unit, startTimestamp, endTimestamp));
+          result.appendInt(DateDiff.processNanos(unit, startTimestamp, endTimestamp, this.zoneId));
         } catch (IllegalArgumentException | InvalidArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -145,7 +149,7 @@ public final class DateDiffNanosEvaluator implements EvalOperator.ExpressionEval
         long startTimestamp = startTimestampVector.getLong(p);
         long endTimestamp = endTimestampVector.getLong(p);
         try {
-          result.appendInt(DateDiff.processNanos(unit, startTimestamp, endTimestamp));
+          result.appendInt(DateDiff.processNanos(unit, startTimestamp, endTimestamp, this.zoneId));
         } catch (IllegalArgumentException | InvalidArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -157,7 +161,7 @@ public final class DateDiffNanosEvaluator implements EvalOperator.ExpressionEval
 
   @Override
   public String toString() {
-    return "DateDiffNanosEvaluator[" + "unit=" + unit + ", startTimestamp=" + startTimestamp + ", endTimestamp=" + endTimestamp + "]";
+    return "DateDiffNanosEvaluator[" + "unit=" + unit + ", startTimestamp=" + startTimestamp + ", endTimestamp=" + endTimestamp + ", zoneId=" + zoneId + "]";
   }
 
   @Override
@@ -167,42 +171,40 @@ public final class DateDiffNanosEvaluator implements EvalOperator.ExpressionEval
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory unit;
+    private final ExpressionEvaluator.Factory unit;
 
-    private final EvalOperator.ExpressionEvaluator.Factory startTimestamp;
+    private final ExpressionEvaluator.Factory startTimestamp;
 
-    private final EvalOperator.ExpressionEvaluator.Factory endTimestamp;
+    private final ExpressionEvaluator.Factory endTimestamp;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory unit,
-        EvalOperator.ExpressionEvaluator.Factory startTimestamp,
-        EvalOperator.ExpressionEvaluator.Factory endTimestamp) {
+    private final ZoneId zoneId;
+
+    public Factory(Source source, ExpressionEvaluator.Factory unit,
+        ExpressionEvaluator.Factory startTimestamp, ExpressionEvaluator.Factory endTimestamp,
+        ZoneId zoneId) {
       this.source = source;
       this.unit = unit;
       this.startTimestamp = startTimestamp;
       this.endTimestamp = endTimestamp;
+      this.zoneId = zoneId;
     }
 
     @Override
     public DateDiffNanosEvaluator get(DriverContext context) {
-      return new DateDiffNanosEvaluator(source, unit.get(context), startTimestamp.get(context), endTimestamp.get(context), context);
+      return new DateDiffNanosEvaluator(source, unit.get(context), startTimestamp.get(context), endTimestamp.get(context), zoneId, context);
     }
 
     @Override
     public String toString() {
-      return "DateDiffNanosEvaluator[" + "unit=" + unit + ", startTimestamp=" + startTimestamp + ", endTimestamp=" + endTimestamp + "]";
+      return "DateDiffNanosEvaluator[" + "unit=" + unit + ", startTimestamp=" + startTimestamp + ", endTimestamp=" + endTimestamp + ", zoneId=" + zoneId + "]";
     }
   }
 }

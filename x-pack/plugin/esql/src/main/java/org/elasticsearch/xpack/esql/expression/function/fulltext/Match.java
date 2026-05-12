@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -74,6 +74,7 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
 public class Match extends SingleFieldFullTextFunction implements OptionalArgument {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Match.class).ternary(Match::new).name("match");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
         NULL,
         KEYWORD,
@@ -266,10 +267,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
-        QueryBuilder queryBuilder = null;
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        }
+        QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         return new Match(source, field, query, null, queryBuilder);
     }
 
@@ -279,9 +277,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         source().writeTo(out);
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeOptionalNamedWriteable(queryBuilder());
-        }
+        out.writeOptionalNamedWriteable(queryBuilder());
     }
 
     @Override

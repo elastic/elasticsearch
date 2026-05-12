@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 
 public class CustomElandModel extends ElasticsearchInternalModel {
@@ -20,17 +20,11 @@ public class CustomElandModel extends ElasticsearchInternalModel {
         ElasticsearchInternalServiceSettings internalServiceSettings,
         ChunkingSettings chunkingSettings
     ) {
-        super(inferenceEntityId, taskType, service, internalServiceSettings, chunkingSettings);
+        this(new ModelConfigurations(inferenceEntityId, taskType, service, internalServiceSettings, chunkingSettings));
     }
 
-    public CustomElandModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        String service,
-        ElasticsearchInternalServiceSettings internalServiceSettings,
-        TaskSettings taskSettings
-    ) {
-        super(inferenceEntityId, taskType, service, internalServiceSettings, taskSettings);
+    public CustomElandModel(ModelConfigurations modelConfigurations) {
+        super(modelConfigurations);
     }
 
     @Override

@@ -44,9 +44,8 @@ public class LicensingPlugin implements Plugin<Project> {
         Provider<String> agplLicenseURL = licenseCommitProvider.map(
             licenseCommit -> ELASTIC_LICENSE_URL_PREFIX + licenseCommit + AGPL_ELASTIC_LICENSE_URL_POSTFIX
         );
-        // Stick the license urls in project.ext so we can get them if we need to switch to them
+        // But stick the Elastic license url in project.ext so we can get it if we need to switch to it
         project.getExtensions().getExtraProperties().set("elasticLicenseUrl", elasticLicenseURL);
-        project.getExtensions().getExtraProperties().set("agplLicenseUrl", agplLicenseURL);
 
         MapProperty<String, Provider<String>> licensesProperty = project.getObjects()
             .mapProperty(String.class, (Class<Provider<String>>) (Class<?>) Provider.class)

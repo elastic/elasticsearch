@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -23,7 +22,6 @@ import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Locale;
@@ -53,7 +51,7 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
             newSettingsMap.put(GoogleVertexAiEmbeddingsTaskSettings.INPUT_TYPE, newSettings.getInputType().toString());
         }
         GoogleVertexAiEmbeddingsTaskSettings updatedSettings = (GoogleVertexAiEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
-            Collections.unmodifiableMap(newSettingsMap)
+            newSettingsMap
         );
         if (newSettings.autoTruncate() == null) {
             assertEquals(initialSettings.autoTruncate(), updatedSettings.autoTruncate());
@@ -241,10 +239,6 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
         GoogleVertexAiEmbeddingsTaskSettings instance,
         TransportVersion version
     ) {
-        if (version.before(TransportVersions.V_8_17_0)) {
-            // default to null input type if node is on a version before input type was introduced
-            return new GoogleVertexAiEmbeddingsTaskSettings(instance.autoTruncate(), null);
-        }
         return instance;
     }
 

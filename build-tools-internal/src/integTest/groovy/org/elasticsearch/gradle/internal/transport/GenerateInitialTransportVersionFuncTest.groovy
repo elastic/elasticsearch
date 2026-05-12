@@ -48,7 +48,7 @@ class GenerateInitialTransportVersionFuncTest extends AbstractTransportVersionFu
 
     def "setup is valid"() {
         when:
-        def result = runGenerateAndValidateTask("--release-version", "9.0.0").build()
+        def result = runGenerateAndValidateTask("--stack-version", "9.1.0").build()
 
         then:
         assertGenerateAndValidateSuccess(result)
@@ -62,9 +62,7 @@ class GenerateInitialTransportVersionFuncTest extends AbstractTransportVersionFu
         versionPropertiesFile.text = versionPropertiesFile.text.replace("9.2.0", "9.3.0")
 
         when:
-        System.out.println("Running generation initial task")
-        def result = runGenerateAndValidateTask("--release-version", "9.2.0").build()
-        System.out.println("Done running generation task")
+        def result = runGenerateAndValidateTask("--stack-version", "9.2.0").build()
 
         then:
         assertGenerateAndValidateSuccess(result)
@@ -75,7 +73,7 @@ class GenerateInitialTransportVersionFuncTest extends AbstractTransportVersionFu
 
     def "patch updates existing upper bound"() {
         when:
-        def result = runGenerateAndValidateTask("--release-version", "9.1.2").build()
+        def result = runGenerateAndValidateTask("--stack-version", "9.1.2").build()
 
         then:
         assertGenerateAndValidateSuccess(result)
@@ -85,7 +83,7 @@ class GenerateInitialTransportVersionFuncTest extends AbstractTransportVersionFu
 
     def "cannot create upper bound file for patch"() {
         when:
-        def result = runGenerateTask("--release-version", "9.3.7").buildAndFail()
+        def result = runGenerateTask("--stack-version", "9.3.7").buildAndFail()
 
         then:
         assertGenerateFailure(result, "Missing upper bound 9.3 for release version 9.3.7")

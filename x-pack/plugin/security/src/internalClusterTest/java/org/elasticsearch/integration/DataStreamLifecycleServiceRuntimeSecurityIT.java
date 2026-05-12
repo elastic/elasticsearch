@@ -29,8 +29,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
-import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
@@ -59,7 +59,6 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.dataStreamIndexEqualTo;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
-import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -151,10 +150,11 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
     }
 
     public void testUnauthorized() throws Exception {
-        // this is an example index pattern for a system index that the data stream lifecycle does not have access for. Data stream
-        // lifecycle will therefore fail at runtime with an authz exception
-        prepareDataStreamAndIndex(SECURITY_MAIN_ALIAS, null);
-        indexFailedDoc(SECURITY_MAIN_ALIAS);
+        // This system data stream is registered via SystemDataStreamTestPlugin but the DSL internal user does not have
+        // allowRestrictedIndices access for it, so lifecycle operations will fail with an authz exception
+        String dataStreamName = SystemDataStreamTestPlugin.UNAUTHORIZED_SYSTEM_DATA_STREAM_NAME;
+        indexDoc(dataStreamName);
+        indexFailedDoc(dataStreamName);
 
         assertBusy(() -> {
             Map<String, String> indicesAndErrors = collectErrorsFromStoreAsMap();
@@ -223,7 +223,9 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
         var dataLifecycle = retention == null
             ? DataStreamLifecycle.Template.DATA_DEFAULT
             : DataStreamLifecycle.dataLifecycleBuilder().enabled(true).dataRetention(retention).buildTemplate();
-        var failuresLifecycle = retention == null ? null : DataStreamLifecycle.createFailuresLifecycleTemplate(true, retention);
+        var failuresLifecycle = retention == null
+            ? null
+            : DataStreamLifecycle.failuresLifecycleBuilder().enabled(true).dataRetention(retention).buildTemplate();
         putComposableIndexTemplate("id1", """
             {
                 "properties": {
@@ -336,6 +338,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
     public static class SystemDataStreamTestPlugin extends Plugin implements SystemIndexPlugin {
 
         static final String SYSTEM_DATA_STREAM_NAME = ".fleet-actions-results";
+        static final String UNAUTHORIZED_SYSTEM_DATA_STREAM_NAME = ".test-unauthorized-system-ds";
 
         @Override
         public Collection<SystemDataStreamDescriptor> getSystemDataStreamDescriptors() {
@@ -347,6 +350,46 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
                         SystemDataStreamDescriptor.Type.EXTERNAL,
                         ComposableIndexTemplate.builder()
                             .indexPatterns(List.of(SYSTEM_DATA_STREAM_NAME))
+                            .template(
+                                Template.builder()
+                                    .mappings(new CompressedXContent("""
+                                        {
+                                            "properties": {
+                                              "@timestamp" : {
+                                                "type": "date"
+                                              },
+                                              "count": {
+                                                "type": "long"
+                                              }
+                                            }
+                                        }"""))
+                                    .lifecycle(DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO))
+                                    .dataStreamOptions(
+                                        new DataStreamOptions.Template(
+                                            new DataStreamFailureStore.Template(
+                                                true,
+                                                DataStreamLifecycle.failuresLifecycleBuilder().dataRetention(TimeValue.ZERO).buildTemplate()
+                                            )
+                                        )
+                                    )
+                            )
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .build(),
+                        Map.of(),
+                        Collections.singletonList("test"),
+                        "test",
+                        new ExecutorNames(
+                            ThreadPool.Names.SYSTEM_CRITICAL_READ,
+                            ThreadPool.Names.SYSTEM_READ,
+                            ThreadPool.Names.SYSTEM_WRITE
+                        )
+                    ),
+                    new SystemDataStreamDescriptor(
+                        UNAUTHORIZED_SYSTEM_DATA_STREAM_NAME,
+                        "a system data stream the DSL user does not have access to",
+                        SystemDataStreamDescriptor.Type.EXTERNAL,
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of(UNAUTHORIZED_SYSTEM_DATA_STREAM_NAME))
                             .template(
                                 Template.builder()
                                     .mappings(new CompressedXContent("""

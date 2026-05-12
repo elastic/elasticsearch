@@ -448,6 +448,8 @@ synthetic_source match_only_text as multi-field with ignored keyword as parent:
           settings:
             index:
               mapping.source.mode: synthetic
+              # needed to enable binary doc values
+              use_time_series_doc_values_format: true
           mappings:
             properties:
               foo:
@@ -465,7 +467,7 @@ synthetic_source match_only_text as multi-field with ignored keyword as parent:
         id: "1"
         refresh: true
         body:
-          foo: [ "Apache Lucene powers Elasticsearch", "Apache" ]
+          foo: [ "Apache Lucene powers Elasticsearch", "Apache", "Apache Lucene" ]
 
   - do:
       search:
@@ -477,7 +479,8 @@ synthetic_source match_only_text as multi-field with ignored keyword as parent:
 
   - match: { "hits.total.value": 1 }
   - match:
-      hits.hits.0._source.foo: [ "Apache", "Apache Lucene powers Elasticsearch" ]
+      # ignore_above uses binary doc values, which are sorted, so we expect the output to be sorted as well
+      hits.hits.0._source.foo: [ "Apache", "Apache Lucene", "Apache Lucene powers Elasticsearch" ]
 
 ---
 synthetic_source match_only_text as multi-field with stored keyword as parent:

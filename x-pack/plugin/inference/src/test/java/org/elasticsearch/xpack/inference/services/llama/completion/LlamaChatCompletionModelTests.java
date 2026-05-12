@@ -11,6 +11,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
@@ -53,7 +55,7 @@ public class LlamaChatCompletionModelTests extends ESTestCase {
     public void testOverrideWith_UnifiedCompletionRequest_KeepsSameModelId() {
         var model = createCompletionModel("model_name", "url", "api_key");
         var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),
+            List.of(new Message(new ContentString("hello"), "role", null, null)),
             "model_name",
             null,
             null,
@@ -71,7 +73,7 @@ public class LlamaChatCompletionModelTests extends ESTestCase {
     public void testOverrideWith_UnifiedCompletionRequest_OverridesExistingModelId() {
         var model = createCompletionModel("model_name", "url", "api_key");
         var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),
+            List.of(new Message(new ContentString("hello"), "role", null, null)),
             "different_model",
             null,
             null,
@@ -89,7 +91,7 @@ public class LlamaChatCompletionModelTests extends ESTestCase {
     public void testOverrideWith_UnifiedCompletionRequest_OverridesNullModelId() {
         var model = createCompletionModel(null, "url", "api_key");
         var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),
+            List.of(new Message(new ContentString("hello"), "role", null, null)),
             "different_model",
             null,
             null,
@@ -107,7 +109,7 @@ public class LlamaChatCompletionModelTests extends ESTestCase {
     public void testOverrideWith_UnifiedCompletionRequest_KeepsNullIfNoModelIdProvided() {
         var model = createCompletionModel(null, "url", "api_key");
         var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),
+            List.of(new Message(new ContentString("hello"), "role", null, null)),
             null,
             null,
             null,
@@ -125,7 +127,7 @@ public class LlamaChatCompletionModelTests extends ESTestCase {
     public void testOverrideWith_UnifiedCompletionRequest_UsesModelFields_WhenRequestDoesNotOverride() {
         var model = createCompletionModel("model_name", "url", "api_key");
         var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),
+            List.of(new Message(new ContentString("hello"), "role", null, null)),
             null, // not overriding model
             null,
             null,

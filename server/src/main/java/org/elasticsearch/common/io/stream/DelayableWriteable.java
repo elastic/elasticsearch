@@ -126,7 +126,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         public Serialized<T> asSerialized(Reader<T> reader, NamedWriteableRegistry registry) {
             // TODO: this path is currently not used in production code, if it ever is this should start using pooled buffers
             BytesStreamOutput buffer = new BytesStreamOutput();
-            try (var out = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(buffer))) {
+            try (var out = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(buffer)) {
                 out.setTransportVersion(TransportVersion.current());
                 reference.writeTo(out);
             } catch (IOException e) {
@@ -213,6 +213,16 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
             return this; // We're already serialized
         }
 
+        /**
+         * Returns the {@link TransportVersion} at which the serialized bytes were written.
+         * Used by callers that need to detect a version mismatch before delegating to
+         * {@link #writeTo} so they can handle lifecycle (e.g. release pooled resources) after
+         * expanding.
+         */
+        public TransportVersion getSerializedAtVersion() {
+            return serializedAtVersion;
+        }
+
         @Override
         public boolean isSerialized() {
             return true;
@@ -238,7 +248,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         try (CountingStreamOutput out = new CountingStreamOutput()) {
             out.setTransportVersion(TransportVersion.current());
             ref.writeTo(out);
-            return out.size();
+            return out.position();
         } catch (IOException exc) {
             throw new UncheckedIOException(exc);
         }

@@ -13,6 +13,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.ReleasableIterator;
+
+import java.util.Arrays;
 // end generated imports
 
 /**
@@ -36,12 +38,22 @@ final class ConstantBooleanVector extends AbstractVector implements BooleanVecto
     }
 
     @Override
+    public void copyTo(int srcPosition, boolean[] dst, int dstPosition, int length) {
+        Arrays.fill(dst, dstPosition, dstPosition + length, value);
+    }
+
+    @Override
     public BooleanBlock asBlock() {
         return new BooleanVectorBlock(this);
     }
 
     @Override
-    public BooleanVector filter(int... positions) {
+    public int valueMaxByteSize() {
+        return Byte.BYTES;
+    }
+
+    @Override
+    public BooleanVector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstantBooleanVector(value, positions.length);
     }
 
@@ -107,6 +119,15 @@ final class ConstantBooleanVector extends AbstractVector implements BooleanVecto
     @Override
     public boolean allFalse() {
         return value == false;
+    }
+
+    @Override
+    public BooleanVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return blockFactory().newConstantBooleanVector(value, endExclusive - beginInclusive);
     }
 
     @Override

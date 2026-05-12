@@ -57,6 +57,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         List<Object[]> params = new ArrayList<>();
         for (String indexType : ALL_DENSE_VECTOR_INDEX_TYPES) {
             params.add(new Object[] { DenseVectorFieldMapper.ElementType.FLOAT, indexType });
+            params.add(new Object[] { DenseVectorFieldMapper.ElementType.BFLOAT16, indexType });
         }
         for (String indexType : NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES) {
             params.add(new Object[] { DenseVectorFieldMapper.ElementType.BYTE, indexType });
@@ -113,16 +114,16 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testKnnOptions() {
+    public void testKnnKOverridesLimit() {
         float[] queryVector = new float[numDims];
         Arrays.fill(queryVector, 0.0f);
 
         var query = String.format(Locale.ROOT, """
             FROM test METADATA _score
-            | WHERE knn(vector, %s)
+            | WHERE knn(vector, %s, {"k": 5, "min_candidates": 20})
             | KEEP id, _score, vector
             | SORT _score DESC
-            | LIMIT 5
+            | LIMIT 10
             """, Arrays.toString(queryVector));
 
         try (var resp = run(query)) {
@@ -205,6 +206,43 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testKnnAfterMvExpand() {
+        float[] queryVector = new float[numDims];
+        Arrays.fill(queryVector, 0.0f);
+
+        var query = String.format(Locale.ROOT, """
+            FROM test
+            | MV_EXPAND id
+            | WHERE KNN(vector, %s)
+            """, Arrays.toString(queryVector));
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[KNN] function cannot be used after MV_EXPAND"));
+    }
+
+    public void testKnnAfterMvExpandWithIntermediateCommands() {
+        float[] queryVector = new float[numDims];
+        Arrays.fill(queryVector, 0.0f);
+        String vectorStr = Arrays.toString(queryVector);
+
+        var error = expectThrows(VerificationException.class, () -> run(String.format(Locale.ROOT, """
+            FROM test
+            | MV_EXPAND id
+            | EVAL x = id + 1
+            | WHERE KNN(vector, %s)
+            """, vectorStr)));
+        assertThat(error.getMessage(), containsString("[KNN] function cannot be used after MV_EXPAND"));
+
+        error = expectThrows(VerificationException.class, () -> run(String.format(Locale.ROOT, """
+            FROM test
+            | MV_EXPAND id
+            | SORT id
+            | KEEP id, vector
+            | WHERE KNN(vector, %s)
+            """, vectorStr)));
+        assertThat(error.getMessage(), containsString("[KNN] function cannot be used after MV_EXPAND"));
+    }
+
     public void testKnnWithLookupJoin() {
         float[] queryVector = new float[numDims];
         Arrays.fill(queryVector, 0.0f);
@@ -264,7 +302,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
             List<Number> vector = new ArrayList<>(numDims);
             for (int j = 0; j < numDims; j++) {
                 switch (elementType) {
-                    case FLOAT -> vector.add(randomFloatBetween(0F, 1F, true));
+                    case FLOAT, BFLOAT16 -> vector.add(randomFloatBetween(0F, 1F, true));
                     case BYTE, BIT -> vector.add((byte) (randomFloatBetween(0F, 1F, true) * 127.0f));
                     default -> throw new IllegalArgumentException("Unexpected element type: " + elementType);
                 }

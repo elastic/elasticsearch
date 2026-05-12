@@ -10,19 +10,22 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.request;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundDenseEmbeddingRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-public class GoogleVertexAiEmbeddingsRequest implements GoogleVertexAiRequest {
+public class GoogleVertexAiEmbeddingsRequest implements OutboundDenseEmbeddingRequest {
 
     private final Truncator truncator;
 
@@ -45,7 +48,7 @@ public class GoogleVertexAiEmbeddingsRequest implements GoogleVertexAiRequest {
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(model.nonStreamingUri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
@@ -64,11 +67,11 @@ public class GoogleVertexAiEmbeddingsRequest implements GoogleVertexAiRequest {
 
         decorateWithAuth(httpPost);
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     public void decorateWithAuth(HttpPost httpPost) {
-        GoogleVertexAiRequest.decorateWithBearerToken(httpPost, model.getSecretSettings());
+        GoogleVertexAiRequestUtils.decorateWithBearerToken(httpPost, model.getSecretSettings());
     }
 
     Truncator truncator() {
@@ -94,7 +97,7 @@ public class GoogleVertexAiEmbeddingsRequest implements GoogleVertexAiRequest {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         var truncatedInput = truncator.truncate(truncationResult.input());
 
         return new GoogleVertexAiEmbeddingsRequest(truncator, truncatedInput, inputType, model);
@@ -103,5 +106,10 @@ public class GoogleVertexAiEmbeddingsRequest implements GoogleVertexAiRequest {
     @Override
     public boolean[] getTruncationInfo() {
         return truncationResult.truncated().clone();
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return model.getTaskType();
     }
 }

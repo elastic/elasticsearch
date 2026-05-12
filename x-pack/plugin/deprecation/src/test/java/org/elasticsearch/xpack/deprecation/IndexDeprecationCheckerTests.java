@@ -49,8 +49,9 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
     private static final IndexVersion OLD_VERSION = IndexVersion.fromId(7170099);
     private final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
     private final IndexDeprecationChecker checker = new IndexDeprecationChecker(indexNameExpressionResolver);
-    private final TransportDeprecationInfoAction.PrecomputedData emptyPrecomputedData =
-        new TransportDeprecationInfoAction.PrecomputedData();
+    private final TransportDeprecationInfoAction.PrecomputedData emptyPrecomputedData = new TransportDeprecationInfoAction.PrecomputedData(
+        null
+    );
     private final IndexMetadata.State indexMetdataState;
 
     public IndexDeprecationCheckerTests(@Name("indexMetadataState") IndexMetadata.State indexMetdataState) {
@@ -287,7 +288,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             false,
             false,
             randomBoolean(),
-            randomFrom(IndexMode.values()),
+            randomFrom(IndexMode.availableModes()),
             null,
             randomFrom(DataStreamOptions.EMPTY, DataStreamOptions.FAILURE_STORE_DISABLED, DataStreamOptions.FAILURE_STORE_ENABLED, null),
             List.of(),
@@ -723,7 +724,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                 );
             }
         }
-        TransportDeprecationInfoAction.PrecomputedData precomputedData = new TransportDeprecationInfoAction.PrecomputedData();
+        TransportDeprecationInfoAction.PrecomputedData precomputedData = new TransportDeprecationInfoAction.PrecomputedData(null);
         precomputedData.setOnceTransformConfigs(transforms);
         return precomputedData;
     }

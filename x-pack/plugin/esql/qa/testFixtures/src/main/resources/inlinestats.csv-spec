@@ -399,24 +399,22 @@ emp_no:integer |avg_worked_seconds:long|avg_avg_worked_seconds:double|languages:
 10023          |330870342              |3.181719481E8                |null             |5                    |1                     |5                     |F
 ;
 
-// TODO: INLINE STATS unit test needed for this one
-// https://github.com/elastic/elasticsearch/issues/113727
-pushDownSort_To_LeftSideOnly-Ignore
-required_capability: inline_stats
+pushDownSort_To_LeftSideOnly
+required_capability: inline_stats_preceeded_by_sort
 
 from employees
 | sort emp_no
-| inline stats avg = avg(salary) by languages
+| inline stats avg = round(avg(salary)) by languages
 | limit 5
 | keep emp_no, avg, languages, gender
 ;
 
- emp_no:integer| avg:double    |languages:integer|gender:keyword     
-10001          |57305.0        |2                |M              
-10002          |46272.5        |5                |F              
-10003          |61805.0        |4                |M              
-10004          |46272.5        |5                |M              
-10005          |63528.0        |1                |M
+ emp_no:integer| avg:double    |languages:integer|gender:keyword
+10001          |48179.0        |2                |M
+10002          |41681.0        |5                |F
+10003          |47733.0        |4                |M
+10004          |41681.0        |5                |M
+10005          |50577.0        |1                |M
 ;
 
 byMultivaluedSimple
@@ -451,6 +449,10 @@ GWL            |9                  |4                      |military
 
 byMvExpand
 required_capability: inline_stats
+required_capability: st_x_y_quantized
+// ST_X and ST_Y return slightly different precision in older versions
+// So mixed clusters will return no results due to precision differences
+// We could consider relaxing equality for spatial types, but that is expensive
 
 FROM airports
 | MV_EXPAND type
@@ -2420,6 +2422,8 @@ emp_no:integer |  c1:long
 
 simpleCountWithFilteringAndNoGroupingOnFieldWithMultivalues
 required_capability: inline_stats
+required_capability: keywords_mv_count_as_single_value_fix
+
 from employees
 | inline stats c1 = count(job_positions) where emp_no <= 10003
 | keep emp_no, c1
@@ -3496,7 +3500,7 @@ client_ip:ip | event_duration:long |    message:keyword    |count:long|    @time
 172.21.2.113 |             2764889 | Connected to 10.1.0.2 |2         | 2023-10-23T12:27:28.948Z
 ;
 
-multiIndexIndirectUseOfUnionTypesInInlinestats 
+multiIndexIndirectUseOfUnionTypesInInlineStatsGrouping
 required_capability: inline_stats
 
 FROM sample_data, sample_data_ts_long
@@ -3787,6 +3791,29 @@ null               |1995-12-15T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
 null               |1995-12-15T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
 null               |1995-08-22T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
 null               |1995-08-22T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
+;
+
+DateTruncInlinestatsCountStar
+required_capability: inline_stats
+
+FROM employees
+| KEEP emp_no, hire_date
+| INLINE STATS c = count(*) by yr=date_trunc(1 year, hire_date)
+| SORT hire_date DESC
+| LIMIT 10
+;
+
+emp_no:integer | hire_date:datetime       |c:long  | yr:datetime
+10019          | 1999-04-30T00:00:00.000Z | 1      | 1999-01-01T00:00:00.000Z
+10024          | 1997-05-19T00:00:00.000Z | 1      | 1997-01-01T00:00:00.000Z
+10093          | 1996-11-05T00:00:00.000Z | 1      | 1996-01-01T00:00:00.000Z
+10084          | 1995-12-15T00:00:00.000Z | 5      | 1995-01-01T00:00:00.000Z
+10022          | 1995-08-22T00:00:00.000Z | 5      | 1995-01-01T00:00:00.000Z
+10026          | 1995-03-20T00:00:00.000Z | 5      | 1995-01-01T00:00:00.000Z
+10054          | 1995-03-13T00:00:00.000Z | 5      | 1995-01-01T00:00:00.000Z
+10016          | 1995-01-27T00:00:00.000Z | 5      | 1995-01-01T00:00:00.000Z
+10008          | 1994-09-15T00:00:00.000Z | 4      | 1994-01-01T00:00:00.000Z
+10044          | 1994-05-21T00:00:00.000Z | 4      | 1994-01-01T00:00:00.000Z
 ;
 
 ImplicitCastingMultiTypedBucketDateNanosByYear
@@ -4155,12 +4182,13 @@ FROM languages_lookup_non_unique_key
 | EVAL language_code = null::integer
 | INLINE STATS MAX(language_code) BY language_code
 | SORT country
-| LIMIT 5
+| LIMIT 6
 ;
 
 country:keyword   |language_name:keyword |MAX(language_code):integer |language_code:integer
 Atlantis          |null                  |null                       |null
 [Austria, Germany]|German                |null                       |null
+[Belgium, Germany]|German                |null                       |null
 Canada            |English               |null                       |null
 Mv-Land           |Mv-Lang               |null                       |null
 Mv-Land2          |Mv-Lang2              |null                       |null
@@ -4256,7 +4284,7 @@ inlineStatsAfterPruningAggregate6
 required_capability: inline_stats_double_release_fix
 required_capability: join_lookup_v12
 
-from d*,*
+from date*,decades,dense*,distances,*,-addresses_*
 | rename scalerank as other2
 | rename author.keyword as name_str
 | rename intersects as is_active_bool
@@ -4391,4 +4419,1401 @@ row a = 1
 
 c:long
 1
+;
+
+sortBeforeInlinestats1
+required_capability: inline_stats_preceeded_by_sort
+ 
+ROW salary = 12300, emp_no = 5, gender = "F"
+| EVAL salaryK = salary/1000
+| SORT salaryK DESC
+| INLINE STATS sum = SUM(salaryK) BY gender
+| KEEP emp_no
+;
+
+emp_no:integer
+5
+;
+
+sortBeforeInlinestats2
+required_capability: inline_stats_preceeded_by_sort
+
+FROM employees
+| SORT emp_no
+| EVAL salaryK = salary/1000
+| INLINE STATS count = COUNT(*) BY salaryK
+| KEEP emp_no, still_hired, count
+| LIMIT 5
+;
+
+emp_no:integer |still_hired:boolean|count:long
+10001          |true               |1
+10002          |true               |3
+10003          |false              |2
+10004          |true               |2
+10005          |true               |1
+;
+
+// TODO: fails with: java.lang.AssertionError: expected no concrete indices without data node plan
+sortBeforeInlinestats3-Ignore
+required_capability: inline_stats_preceeded_by_sort
+
+FROM employees
+| SORT languages DESC
+| EVAL salaryK = salary/1000
+| INLINE STATS count = COUNT(*) BY salaryK
+| SORT emp_no
+| INLINE STATS min = MIN(MV_COUNT(languages)) BY salaryK
+| KEEP emp_no, still_hired, count
+| LIMIT 5
+;
+
+emp_no:integer |still_hired:boolean|count:long
+10001          |true               |1
+10002          |true               |3
+10003          |false              |2
+10004          |true               |2
+10005          |true               |1
+;
+
+// same as `afterLookup`, swapped SORT position
+sortBeforeInlinestatsAndLookupJoin
+required_capability: inline_stats_preceeded_by_sort
+required_capability: join_lookup_v12
+
+FROM airports
+| EVAL backup_scalerank = scalerank
+| RENAME scalerank AS language_code
+// | SORT abbrev DESC // this would work here, but not in a FORK config (GenerativeForkIT), which disables column pruning
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name as scalerank
+| DROP language_code
+| INLINE STATS count=COUNT(*) BY scalerank
+| SORT abbrev DESC
+| KEEP abbrev, *scalerank
+| LIMIT 5
+;
+
+abbrev:keyword |backup_scalerank:integer| scalerank:keyword
+null           |8                       |null
+null           |8                       |null
+null           |8                       |null
+ZRH            |3                       |Spanish
+ZNZ            |4                       |German
+;
+
+// same as `shadowingAggregateByNextGrouping`, swapped SORT position
+sortBeforeDoubleInlinestats
+required_capability: inline_stats_preceeded_by_sort
+
+FROM employees
+| KEEP gender, languages, emp_no, salary
+| SORT emp_no
+| INLINE STATS gender = count_distinct(gender) BY languages
+| INLINE STATS avg(salary) BY gender
+| LIMIT 3
+;
+
+emp_no:integer |salary:integer |languages:integer|avg(salary):double|gender:long
+10001          |57305          |2                |48248.55          |2
+10002          |56371          |5                |48248.55          |2
+10003          |61805          |4                |48248.55          |2
+;
+
+inlineStatsAfterSortDoubled
+required_capability: inline_stats_preceeded_by_sort
+
+FROM employees
+| SORT emp_no DESC // going to be dropped
+| INLINE STATS min = MIN(salary) BY languages
+| SORT salary ASC
+| INLINE STATS avg = AVG(salary) BY emp_no
+| WHERE emp_no > 10050
+| KEEP emp_no, avg, salary
+| LIMIT 5
+;
+
+emp_no:integer |avg:double |salary:integer
+10092          |25976.0    |25976
+10057          |27215.0    |27215
+10084          |28035.0    |28035
+10068          |28941.0    |28941
+10060          |29175.0    |29175
+;
+
+inlineStatsAfterSortShadowed
+required_capability: inline_stats_preceeded_by_sort
+
+FROM employees
+| EVAL s1 = salary + 1
+| SORT s1
+| WHERE s1 > 50000
+| EVAL ls = languages::string
+| EVAL s1 = salary // s1 is shadowed, not dropped
+| INLINE STATS cd = COUNT_DISTINCT(ls)
+| WHERE emp_no < 10006
+| KEEP emp_no, ls, cd, s1
+;
+
+emp_no:integer |ls:keyword     |cd:long        |s1:integer
+10002          |5              |5              |56371
+10001          |2              |5              |57305
+10003          |4              |5              |61805
+10005          |1              |5              |63528
+;
+
+inlineStatsAfterSortDropped
+required_capability: inline_stats_preceeded_by_sort
+
+FROM employees
+| EVAL s1 = salary + 1
+| SORT s1
+| WHERE s1 > 72000
+| DROP s1
+| INLINE STATS cd = COUNT_DISTINCT(languages)
+| KEEP emp_no, cd, languages, salary
+;
+
+emp_no:integer |cd:long        |languages:integer|salary:integer
+10099          |4              |2                |73578
+10019          |4              |1                |73717
+10027          |4              |null             |73851
+10007          |4              |4                |74572
+10045          |4              |3                |74970
+10029          |4              |null             |74999
+;
+
+mixedShadowingInlineStatsAfterSort
+required_capability: inline_stats_preceeded_by_sort
+
+FROM employees
+| KEEP salary, emp_no, first_name
+| SORT salary, emp_no
+| INLINE STATS salary = COUNT(*) BY emp_no
+| LIMIT 5
+;
+
+first_name:keyword|salary:long    |emp_no:integer
+Guoxiang          |1              |10015
+null              |1              |10035
+Valdiodio         |1              |10092
+Florian           |1              |10048
+Ebbe              |1              |10057
+;
+
+inlineStatsWithAggExpressionAfterSortAndRename
+required_capability: inline_stats_preceeded_by_sort
+
+FROM employees
+| KEEP emp_no, salary, languages
+| SORT emp_no
+| RENAME emp_no AS emp_idx
+| INLINE STATS sum = COUNT(salary) + COUNT(salary) BY languages
+| LIMIT 5
+;
+
+emp_idx:integer|salary:integer |sum:long       |languages:integer
+10001          |57305          |38             |2
+10002          |56371          |42             |5
+10003          |61805          |36             |4
+10004          |36174          |42             |5
+10005          |63528          |30             |1
+;
+
+inlineStatsAfterEnrichAndSort
+required_capability: inline_stats_preceeded_by_sort
+required_capability: enrich_load
+
+FROM employees
+| KEEP emp_no, first_name, salary, languages
+| EVAL language_name = first_name // key in this test is to have a field overwritten by the enrich, and sorting by it before
+| SORT language_name
+| EVAL language_code = languages::KEYWORD
+| ENRICH languages_policy
+| RENAME salary AS sal
+| INLINE STATS cd = COUNT(emp_no) BY languages
+| LIMIT 7
+;
+
+emp_no:integer |first_name:keyword|sal:integer    |language_code:keyword | language_name:keyword |cd:long        |languages:integer
+10059          |Alejandro         |44307          |2                     |French                 |19             |2
+10091          |Amabile           |38645          |3                     |Spanish                |17             |3
+10006          |Anneke            |60335          |3                     |Spanish                |17             |3
+10062          |Anoosh            |65030          |3                     |Spanish                |17             |3
+10094          |Arumugam          |66817          |5                     |null                   |21             |5
+10049          |Basil             |37853          |5                     |null                   |21             |5
+10058          |Berhard           |38376          |3                     |Spanish                |17             |3
+;
+
+inlineStatsAfterSortDroppedWithLimit
+required_capability: inline_stats_preceeded_by_sort
+
+FROM employees
+| KEEP salary, emp_no, first_name, gender
+| EVAL old_salary = salary
+| SORT old_salary, emp_no
+| DROP old_salary
+| INLINE STATS salary = COUNT(*) BY gender
+| LIMIT 5
+;
+
+emp_no:integer |first_name:keyword |salary:long    |gender:keyword
+10015          |Guoxiang           |10             |null
+10035          |null               |57             |M
+10092          |Valdiodio          |33             |F
+10048          |Florian            |57             |M
+10057          |Ebbe               |33             |F
+;
+
+inlineStatsAfterSortDroppedAndResort
+required_capability: inline_stats_preceeded_by_sort
+
+FROM employees
+| KEEP salary, emp_no, first_name, gender
+| EVAL old_salary = salary
+| SORT old_salary, emp_no
+| DROP old_salary
+| EVAL salary = salary / 1000
+| RENAME salary AS s
+| SORT s, first_name
+| INLINE STATS s = COUNT(*) BY gender
+| LIMIT 5
+;
+
+emp_no:integer |first_name:keyword |s:long         |gender:keyword
+10015          |Guoxiang           |10             |null
+10092          |Valdiodio          |33             |F
+10035          |null               |57             |M
+10048          |Florian            |57             |M
+10057          |Ebbe               |33             |F
+;
+
+inlineStatsDoubledAfterSortDropped
+required_capability: inline_stats_preceeded_by_sort
+
+FROM employees
+| EVAL s1 = salary + 1
+| SORT s1
+| WHERE s1 > 72000
+| DROP s1
+| INLINE STATS sum = SUM(languages)
+| INLINE STATS cd = COUNT_DISTINCT(languages)
+| KEEP emp_no, cd, languages, salary, sum
+;
+
+emp_no:integer |cd:long        |languages:integer|salary:integer |sum:long
+10099          |4              |2                |73578          |10
+10019          |4              |1                |73717          |10
+10027          |4              |null             |73851          |10
+10007          |4              |4                |74572          |10
+10045          |4              |3                |74970          |10
+10029          |4              |null             |74999          |10
+;
+
+inlineStatsAfterStats
+required_capability: inline_stats_preceeded_by_sort
+
+FROM employees
+| KEEP salary, emp_no, first_name, gender
+| SORT salary
+| STATS salary = MAX(salary) BY gender
+| INLINE STATS s = COUNT(*) BY gender
+| LIMIT 5
+| SORT salary
+;
+
+salary:integer |s:long         |gender:keyword     
+73717          |1              |null           
+74572          |1              |F              
+74999          |1              |M              
+;
+
+inlineStatsAfterStatsAndSort
+required_capability: inline_stats_preceeded_by_sort
+
+FROM employees
+| KEEP salary, emp_no, first_name, gender
+| SORT salary
+| STATS salary = MAX(salary) BY gender
+| SORT salary DESC
+| INLINE STATS s = COUNT(*) BY gender
+| LIMIT 5
+;
+
+salary:integer |s:long         |gender:keyword     
+74999          |1              |M              
+74572          |1              |F              
+73717          |1              |null           
+;
+
+fixClassCastBugWithSeveralCounts
+required_capability: inline_stats
+required_capability: fix_stats_classcast_exception
+
+FROM sample_data, sample_data_str
+| EVAL one_ip = client_ip::ip
+| INLINE STATS count1=count(client_ip::ip), count2=count(one_ip)
+| KEEP count1, count2
+| LIMIT 3
+;
+
+count1:long    |count2:long
+14             |14 
+14             |14 
+14             |14
+;
+
+pushDown_OneGroupingFilter_PastInlineJoin
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS avg = ROUND(AVG(salary)) BY languages
+| WHERE languages > 2
+| KEEP avg, languages, salary, emp_no
+| SORT emp_no
+| LIMIT 10
+;
+
+      avg:d    |   languages:i |    salary:i   |    emp_no:i     
+41681.0        |5              |56371          |10002          
+47733.0        |4              |61805          |10003          
+41681.0        |5              |36174          |10004          
+52419.0        |3              |60335          |10006          
+47733.0        |4              |74572          |10007          
+47733.0        |4              |45797          |10010          
+41681.0        |5              |31120          |10011          
+41681.0        |5              |48942          |10012          
+41681.0        |5              |37137          |10014          
+41681.0        |5              |25324          |10015          
+;
+
+pushDown_SelectiveGroupingAndFilters_PastInlineJoin
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS avg = ROUND(AVG(salary), 1) BY languages, gender
+| WHERE languages > 2 AND gender IS NOT NULL AND emp_no > 10050
+| KEEP avg, languages, gender, emp_no
+| SORT emp_no
+| LIMIT 10
+;
+
+      avg:d    |   languages:i |    gender:s   |    emp_no:i
+51741.9        |3              |M              |10051          
+53660.0        |3              |F              |10053          
+47058.9        |4              |M              |10054          
+39052.9        |5              |M              |10055          
+49291.5        |4              |F              |10057          
+51741.9        |3              |M              |10058          
+51741.9        |3              |M              |10062          
+53660.0        |3              |F              |10063          
+39052.9        |5              |M              |10064          
+39052.9        |5              |M              |10066          
+;
+
+pushDown_SelectiveGroupingOrFilters_PastInlineJoin
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS avg = AVG(salary) BY languages, gender
+| WHERE languages > 2 AND (gender IS NOT NULL OR emp_no > 10050)
+| KEEP avg, languages, gender, emp_no
+| SORT emp_no
+| LIMIT 10
+;
+
+       avg:d      |   languages:i |    gender:s   |    emp_no:i     
+46705.555555555555|5              |F              |10002          
+47058.90909090909 |4              |M              |10003          
+39052.875         |5              |M              |10004          
+53660.0           |3              |F              |10006          
+49291.5           |4              |F              |10007          
+51741.90909090909 |3              |M              |10030          
+47058.90909090909 |4              |M              |10031          
+53660.0           |3              |F              |10032          
+39052.875         |5              |M              |10035          
+47058.90909090909 |4              |M              |10036          
+;
+
+pushDown_ComplexFiltering_CombinedWithLeftFiltering_PastInlineJoin
+required_capability: inline_stats
+
+FROM employees
+| WHERE emp_no < 10075 AND salary < 60000
+| INLINE STATS avg = AVG(salary) BY languages, gender
+| WHERE languages > 2 AND (gender IS NOT NULL OR emp_no > 10050) AND salary > 50000
+| KEEP avg, languages, gender, emp_no, salary
+| SORT emp_no
+;
+
+     avg:d        |  languages:i  |   gender:s    |   emp_no:i    |   salary:i
+45933.4           |5              |F              |10002          |56371          
+39657.2           |4              |M              |10046          |50064          
+41240.6           |3              |M              |10051          |58121          
+45662.333333333336|3              |F              |10053          |54462          
+45662.333333333336|3              |F              |10063          |52121          
+41240.6           |3              |M              |10070          |54329          
+45933.4           |5              |F              |10072          |54518          
+;
+
+pushDown_ImpossibleFilter_PastInlineJoin
+required_capability: inline_stats
+
+FROM employees
+| WHERE salary < 10000
+| INLINE STATS salary = AVG(salary) BY salary
+| WHERE salary > 10000
+| KEEP salary, emp_no
+;
+warning:Line 3:16: Field 'salary' shadowed by field at line 3:40
+
+    salary:i     |    emp_no:i
+;
+
+dontPushDown_A_SimpleFilter_PastInlineJoin
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS a = ROUND(AVG(salary), 2) BY gender
+| WHERE languages > 2
+| KEEP languages, a, gender, emp_no
+| SORT emp_no
+| LIMIT 10
+;
+
+  languages:i  |      a:d      |   gender:s    |   emp_no:i
+5              |50490.79       |F              |10002          
+4              |46860.6        |M              |10003          
+5              |46860.6        |M              |10004          
+3              |50490.79       |F              |10006          
+4              |50490.79       |F              |10007          
+4              |48760.5        |null           |10010          
+5              |48760.5        |null           |10011          
+5              |48760.5        |null           |10012          
+5              |48760.5        |null           |10014          
+5              |48760.5        |null           |10015          
+;
+
+partiallyPushDown_GroupingFilters_PastTwoInlineJoins1
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS avgByL = ROUND(AVG(salary)) BY languages
+| INLINE STATS avgByG = ROUND(AVG(salary)) BY gender
+| WHERE languages > 2 AND gender IS NOT NULL
+| KEEP avgB*, languages, gender, emp_no
+| SORT emp_no
+| LIMIT 10
+;
+
+  avgByL:d     |    avgByG:d   |   languages:i |   gender:s    |    emp_no:i     
+41681.0        |50491.0        |5              |F              |10002          
+47733.0        |46861.0        |4              |M              |10003          
+41681.0        |46861.0        |5              |M              |10004          
+52419.0        |50491.0        |3              |F              |10006          
+47733.0        |50491.0        |4              |F              |10007          
+52419.0        |46861.0        |3              |M              |10030          
+47733.0        |46861.0        |4              |M              |10031          
+52419.0        |50491.0        |3              |F              |10032          
+41681.0        |46861.0        |5              |M              |10035          
+47733.0        |46861.0        |4              |M              |10036          
+;
+
+partiallyPushDown_GroupingFilters_PastTwoInlineJoins2
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS avgByL = ROUND(AVG(salary)) BY languages
+| INLINE STATS avgByG = ROUND(AVG(salary)) BY gender, languages
+| WHERE languages > 3 AND gender IS NOT NULL AND emp_no > 10050
+| KEEP avgB*, languages, gender, emp_no
+| SORT emp_no
+;
+
+  avgByL:d     |    avgByG:d   |   languages:i |   gender:s    |    emp_no:i     
+47733.0        |47059.0        |4              |M              |10054          
+41681.0        |39053.0        |5              |M              |10055          
+47733.0        |49292.0        |4              |F              |10057          
+41681.0        |39053.0        |5              |M              |10064          
+41681.0        |39053.0        |5              |M              |10066          
+41681.0        |46706.0        |5              |F              |10069          
+41681.0        |46706.0        |5              |F              |10072          
+47733.0        |47059.0        |4              |M              |10073          
+41681.0        |46706.0        |5              |F              |10074          
+41681.0        |46706.0        |5              |F              |10075          
+41681.0        |39053.0        |5              |M              |10077          
+41681.0        |39053.0        |5              |M              |10080          
+47733.0        |47059.0        |4              |M              |10082          
+41681.0        |39053.0        |5              |M              |10085          
+41681.0        |46706.0        |5              |F              |10087          
+41681.0        |46706.0        |5              |F              |10088          
+47733.0        |49292.0        |4              |F              |10089          
+41681.0        |46706.0        |5              |F              |10094          
+47733.0        |47059.0        |4              |M              |10095          
+47733.0        |47059.0        |4              |M              |10096          
+47733.0        |49292.0        |4              |F              |10098          
+47733.0        |49292.0        |4              |F              |10100          
+;
+
+partiallyPushDown_GroupingFilters_PastTwoInlineJoins_ExcludeAggFilters
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS avgByL = ROUND(AVG(salary)) BY languages
+| INLINE STATS avgByG = ROUND(AVG(salary)) BY gender, languages
+| WHERE languages > 3 AND gender IS NOT NULL AND avgByL > 40000
+| KEEP avgB*, languages, gender, emp_no
+| SORT emp_no
+| LIMIT 10
+;
+
+    avgByL:d   |    avgByG:d   |   languages:i |    gender:s   |    emp_no:i
+41681.0        |46706.0        |5              |F              |10002          
+47733.0        |47059.0        |4              |M              |10003          
+41681.0        |39053.0        |5              |M              |10004          
+47733.0        |49292.0        |4              |F              |10007          
+47733.0        |47059.0        |4              |M              |10031          
+41681.0        |39053.0        |5              |M              |10035          
+47733.0        |47059.0        |4              |M              |10036          
+47733.0        |47059.0        |4              |M              |10038          
+47733.0        |49292.0        |4              |F              |10040          
+47733.0        |47059.0        |4              |M              |10046          
+;
+
+partiallyPushDown_RenamedGroupingFilters_PastTwoInlineJoins
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS avgByL = ROUND(AVG(salary)) BY languages
+| RENAME languages AS lang
+| INLINE STATS avgByG = ROUND(AVG(salary)) BY gender, lang
+| WHERE lang > 3 AND gender IS NOT NULL AND emp_no > 10050
+| KEEP avgB*, lang, gender, emp_no
+| SORT emp_no
+| LIMIT 10
+;
+
+    avgByL:d   |    avgByG:d   |     lang:i    |    gender:s   |    emp_no:i
+47733.0        |47059.0        |4              |M              |10054          
+41681.0        |39053.0        |5              |M              |10055          
+47733.0        |49292.0        |4              |F              |10057          
+41681.0        |39053.0        |5              |M              |10064          
+41681.0        |39053.0        |5              |M              |10066          
+41681.0        |46706.0        |5              |F              |10069          
+41681.0        |46706.0        |5              |F              |10072          
+47733.0        |47059.0        |4              |M              |10073          
+41681.0        |46706.0        |5              |F              |10074          
+41681.0        |46706.0        |5              |F              |10075          
+;
+
+pushDown_OneGroupingFilter_PastInlineJoinWithInnerFilter
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS avg = AVG(salary) WHERE salary > 50000  BY languages
+| WHERE languages > 2
+| KEEP avg, languages, salary
+| SORT salary
+| LIMIT 10
+;
+
+     avg:d        |   languages:i |    salary:i     
+56499.0           |5              |25324          
+56499.0           |5              |25945          
+62060.27272727273 |3              |26436          
+63503.333333333336|4              |27215          
+62060.27272727273 |3              |28941          
+62060.27272727273 |3              |30404          
+56499.0           |5              |31120          
+56499.0           |5              |31897          
+56499.0           |5              |32272          
+63503.333333333336|4              |32568          
+;
+
+pushDown_OneGroupingFilter_PastInlineJoinWithInnerFilterAndOuterFilter
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS avg = AVG(salary) WHERE salary > 50000  BY languages
+| WHERE languages > 2 AND salary < 30000
+| KEEP avg, languages, salary
+| SORT salary
+;
+
+       avg:d      |   languages:i |    salary:i
+56499.0           |5              |25324          
+56499.0           |5              |25945          
+62060.27272727273 |3              |26436          
+63503.333333333336|4              |27215          
+62060.27272727273 |3              |28941          
+;
+
+doubleInlineStatsPrunning_With_MV_Functions
+required_capability: fix_inline_stats_incorrect_prunning
+
+FROM employees
+| KEEP languages, salary
+| INLINE STATS languages1 = MV_AVG(languages), avg = AVG(salary) BY languages
+| INLINE STATS languages2 = SUM(languages1), avg = AVG(salary)
+| SORT salary
+| LIMIT 10
+;
+
+    salary:i   |  languages1:d |   languages:i |  languages2:d |      avg:d      
+25324          |5.0            |5              |281.0          |48248.55       
+25945          |5.0            |5              |281.0          |48248.55       
+25976          |1.0            |1              |281.0          |48248.55       
+26436          |3.0            |3              |281.0          |48248.55       
+27215          |4.0            |4              |281.0          |48248.55       
+28035          |1.0            |1              |281.0          |48248.55       
+28336          |null           |null           |281.0          |48248.55       
+28941          |3.0            |3              |281.0          |48248.55       
+29175          |2.0            |2              |281.0          |48248.55       
+30404          |3.0            |3              |281.0          |48248.55       
+;
+
+doubleInlineStatsPrunning_With_MV_Functions2
+required_capability: fix_inline_stats_incorrect_prunning
+
+FROM employees
+| KEEP languages, salary, gender
+| INLINE STATS languages1 = MV_AVG(languages), avg = AVG(salary) BY languages, gender
+| INLINE STATS languages2 = SUM(languages1), avg = ROUND(AVG(salary)) BY languages, gender
+| SORT salary
+| LIMIT 10
+;
+
+    salary:i   |  languages1:d |  languages2:d |      avg:d    |   languages:i |    gender:s     
+25324          |5.0            |20.0           |35631.0        |5              |null           
+25945          |5.0            |40.0           |39053.0        |5              |M              
+25976          |1.0            |4.0            |47073.0        |1              |F              
+26436          |3.0            |33.0           |51742.0        |3              |M              
+27215          |4.0            |24.0           |49292.0        |4              |F              
+28035          |1.0            |9.0            |49767.0        |1              |M              
+28336          |null           |null           |48396.0        |null           |M              
+28941          |3.0            |33.0           |51742.0        |3              |M              
+29175          |2.0            |22.0           |44104.0        |2              |M              
+30404          |3.0            |18.0           |53660.0        |3              |F              
+;
+
+doubleInlineStatsPrunning_With_MV_Functions3
+required_capability: fix_inline_stats_incorrect_prunning
+
+FROM employees
+| KEEP languages, salary
+| INLINE STATS languages1 = MV_AVG(languages), avg = AVG(salary) BY languages
+| INLINE STATS languages2 = SUM(languages1), avg = AVG(salary)
+| DROP languages
+| SORT salary
+| LIMIT 10
+;
+
+    salary:i   |  languages1:d |  languages2:d |      avg:d      
+25324          |5.0            |281.0          |48248.55       
+25945          |5.0            |281.0          |48248.55       
+25976          |1.0            |281.0          |48248.55       
+26436          |3.0            |281.0          |48248.55       
+27215          |4.0            |281.0          |48248.55       
+28035          |1.0            |281.0          |48248.55       
+28336          |null           |281.0          |48248.55       
+28941          |3.0            |281.0          |48248.55       
+29175          |2.0            |281.0          |48248.55       
+30404          |3.0            |281.0          |48248.55       
+;
+
+fixInlineStatsValuesOnReferenceToNullUncasted
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = null
+| INLINE STATS VALUES(x)
+;
+
+x:null | VALUES(x):null
+null   | null
+;
+
+fixInlineStatsValuesOnReferenceToNullCasted
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = null::long
+| INLINE STATS VALUES(x)
+;
+
+x:long | VALUES(x):long
+null   | null
+;
+
+fixInlineStatsValuesOnLiteralNull
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = 1
+| INLINE STATS y = VALUES(null)
+;
+
+x:integer | y:null
+1         | null
+;
+
+fixInlineStatsAggOnNullGivenMultipleAggs
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW w = 1, x = null, y = null, z = 42
+| INLINE STATS a = MIN(w), b = MIN(x), c = MAX(y), d = MEDIAN(z)
+;
+
+w:integer | x:null | y:null | z:integer | a:integer | b:null | c:null | d:double
+1         | null   | null   | 42        | 1         | null   | null   | 42
+;
+
+fixInlineStatsAggOnNullGivenMultipleAggsWithExpressionsAndBy
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW w = 1 * 10, x = null, y = null + 3, z = 42
+| INLINE STATS a = MIN(w) + 1, b = MIN(x), c = MAX(y) by z
+;
+
+w:integer | x:null | y:integer | a:integer | b:null | c:integer | z:integer
+10        | null   | null      | 11        | null   | null      | 42
+;
+
+fixInlineStatsAggOnNullWithSpecialReturnValueAggs
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = null
+| INLINE STATS a = COUNT(x), b = COUNT_DISTINCT(x), c = PRESENT(x), d = ABSENT(x)
+;
+
+x:null | a:long | b:long | c:boolean | d:boolean
+null   | 0      | 0      | false     | true
+;
+
+fixInlineStatsAggOnNullAsChildWithSpecialReturnValueAggs
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = 0
+| INLINE STATS a = COUNT(null), b = COUNT_DISTINCT(null), c = PRESENT(null), d = ABSENT(null)
+;
+
+x:integer | a:long | b:long | c:boolean | d:boolean
+0         | 0      | 0      | false     | true
+;
+
+
+inlineStatsGroupByNull_Basic
+required_capability: fix_inline_stats_group_by_null
+
+ROW x = 1
+| INLINE STATS c = COUNT(*) BY n = null
+| KEEP c, n
+| LIMIT 1
+;
+
+c:long	| n:null
+1     	| null         
+;
+
+
+inlineStatsGroupByNull_WithMultipleAggFunctions
+required_capability: fix_inline_stats_group_by_null
+
+ROW x = 10
+| INLINE STATS c = COUNT(*), s = SUM(x), m = MAX(x) BY n = null
+| KEEP c, s, m, n
+| LIMIT 1
+;
+
+c:long	| s:long	| m:integer	| n:null
+1     	| 10    	| 10       	| null           
+;
+
+
+inlineStatsGroupByNull_WithEval
+required_capability: fix_inline_stats_group_by_null
+
+ROW x = 1, y = 2
+| EVAL z = x + y
+| INLINE STATS c = COUNT(*) BY n = null
+| KEEP x, y, z, c, n
+;
+
+x:integer	| y:integer	| z:integer	| c:long	| n:null
+1        	| 2        	| 3        	| 1     	| null          
+;
+
+
+inlineStatsGroupByNull_WithNullLiteral
+required_capability: fix_inline_stats_group_by_null
+
+ROW x = 1
+| INLINE STATS c = COUNT(*) BY null
+| KEEP c, null
+| LIMIT 1
+;
+
+c:long	| null:null
+1     	| null         
+;
+
+
+inlineStatsGroupByNull_FromEmployees
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS c = COUNT(*) BY n = null
+| KEEP emp_no, c, n
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer	| c:long	| n:null
+10001         	| 100     	| null  
+10002         	| 100     	| null  
+10003         	| 100     	| null          
+;
+
+
+inlineStatsGroupByNull_DoubleInlineStats
+required_capability: fix_inline_stats_group_by_null
+
+ROW x = 1
+| INLINE STATS c1 = COUNT(*) BY n1 = null
+| INLINE STATS c2 = COUNT(*) BY n2 = null
+| KEEP c1, n1, c2, n2
+| LIMIT 1
+;
+
+c1:long	| n1:null	| c2:long	| n2:null
+1      	| null   	| 1      	| null  
+;
+
+
+inlineStatsGroupByNull_MultipleNullKeys
+required_capability: fix_inline_stats_group_by_null
+
+ROW x = 1
+| INLINE STATS c = COUNT(*) BY n1 = null, n2 = null
+| KEEP c, n1, n2
+| LIMIT 1
+;
+
+c:long	| n1:null	| n2:null
+1     	| null   	| null  
+;
+
+
+inlineStatsGroupByNull_MixedNullAndNonNull
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS c = COUNT(*) BY n = null, emp_no
+| KEEP c, n, emp_no
+| SORT emp_no
+| LIMIT 3
+;
+
+c:long	| n:null	| emp_no:integer
+1     	| null  	| 10001         
+1     	| null  	| 10002         
+1     	| null  	| 10003          
+;
+
+
+inlineStatsDroppingGroupingField
+required_capability: inline_stats_drop_groupings_fix
+
+FROM employees
+| KEEP languages, salary
+| INLINE STATS avg_sal = ROUND(AVG(salary)) BY languages
+| DROP languages
+| SORT salary
+| LIMIT 10
+;
+
+    salary:i   |      avg_sal:d
+25324          |41681.0        
+25945          |41681.0        
+25976          |50577.0        
+26436          |52419.0        
+27215          |47733.0        
+28035          |50577.0        
+28336          |52520.0        
+28941          |52419.0        
+29175          |48179.0        
+30404          |52419.0        
+;
+
+inlineStatsDroppingMultipleCommandsGroupingFields
+required_capability: inline_stats_drop_groupings_fix
+
+FROM employees
+| KEEP languages, salary, gender, emp_no, *rehired
+| INLINE STATS avg_sal_by_gender = ROUND(AVG(salary)) BY gender
+| INLINE STATS avg_sal_by_languages = ROUND(AVG(avg_sal_by_gender)) BY languages
+| DROP languages, gender
+| EVAL languages = emp_no
+| INLINE STATS avg_sal_by_emp_no = ROUND(AVG(salary)) BY no = emp_no % 10, rehired = MV_MIN(is_rehired)
+| RENAME no AS NO
+| DROP NO, languages
+| SORT salary
+| LIMIT 10
+;
+
+    salary:i   | emp_no:i      | is_rehired:boolean        | avg_sal_by_gender:d | avg_sal_by_languages:d | avg_sal_by_emp_no:d | rehired:boolean
+25324          |10015          |[false, false, false, true]|48761.0              |48779.0                 |46801.0              |false          
+25945          |10035          |false                      |46861.0              |48779.0                 |46801.0              |false          
+25976          |10092          |[false, false, true, true] |50491.0              |48082.0                 |51831.0              |false          
+26436          |10048          |[true, true]               |46861.0              |48142.0                 |41230.0              |true           
+27215          |10057          |null                       |50491.0              |48177.0                 |36905.0              |null           
+28035          |10084          |false                      |46861.0              |48082.0                 |45508.0              |false          
+28336          |10026          |[false, true]              |46861.0              |47950.0                 |51094.0              |false          
+28941          |10068          |true                       |46861.0              |48142.0                 |41230.0              |true           
+29175          |10060          |[false, false, false, true]|46861.0              |48116.0                 |47571.0              |false          
+30404          |10042          |null                       |50491.0              |48142.0                 |30404.0              |null           
+;
+
+inlineStatsGroupingByMVField
+required_capability: inline_stats_drop_groupings_fix
+
+FROM employees
+| KEEP salary_change, salary
+| INLINE STATS avg_salary_change = MV_AVG(salary_change), avg = AVG(salary) BY salary_change
+| KEEP avg_salary_change
+| SORT avg_salary_change
+| LIMIT 3
+;
+
+avg_salary_change:d
+[-9.81, -1.47, 14.44]       
+[-9.28, 9.42]               
+[-9.23, 5.19, 5.85, 7.5]
+;
+
+chainedInlineStats_BothGroupingByMVField
+required_capability: inline_stats_drop_groupings_fix
+
+FROM employees
+| KEEP salary_change, salary
+| INLINE STATS avg_salary_change = MV_AVG(salary_change), avg = AVG(salary) BY salary_change
+| INLINE STATS sum_avg_salary_change = ROUND(SUM(avg_salary_change), 1), avg = AVG(salary) BY salary_change
+| KEEP sum_avg_salary_change
+| SORT sum_avg_salary_change DESC NULLS LAST
+| LIMIT 3
+;
+
+sum_avg_salary_change:d        
+[27.5, 27.5]         
+[26.8, 26.8, 26.8]   
+[26.7, 26.7]              
+;
+
+chainedInlineStats_OneGroupingByMVField
+required_capability: inline_stats_drop_groupings_fix
+
+FROM employees
+| KEEP salary_change, salary
+| INLINE STATS avg_salary_change = MV_AVG(salary_change), avg = AVG(salary) BY salary_change
+| INLINE STATS sum_avg_salary_change = SUM(avg_salary_change), avg = AVG(salary)
+| KEEP sum_avg_salary_change
+| LIMIT 3
+;
+
+sum_avg_salary_change:d        
+347.99         
+347.99         
+347.99              
+;
+
+inlineStatsGroupByNull_PruneDifferentInlineStats
+required_capability: inline_stats_drop_groupings_fix
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS x = AVG(salary), a = COUNT_DISTINCT(languages) BY emp_no = null
+| INLINE STATS y = AVG(salary), b = COUNT_DISTINCT(languages) BY emp_no = null
+| EVAL x = emp_no
+| INLINE STATS z = AVG(salary), c = COUNT_DISTINCT(languages), d = AVG(languages) BY last_name
+| KEEP x, a, emp_no
+| LIMIT 1
+;
+
+    x:null     |       a:l     |    emp_no:null
+null           |5              |null           
+;
+
+doubleInlineStatsPrunning_MVFunctionsAndDroppingGroupings
+required_capability: inline_stats_drop_groupings_fix
+
+FROM employees
+| KEEP languages, salary
+| INLINE STATS languages1 = MV_AVG(languages), avg1 = ROUND(AVG(salary), languages) BY languages
+| INLINE STATS languages2 = SUM(languages1), avg2 = ROUND(AVG(salary), languages) BY languages
+| DROP languages
+| SORT salary
+| LIMIT 7
+;
+
+    salary:i   |  languages1:d |      avg1:d   |  languages2:d |      avg2:d
+25324          |5.0            |41680.7619     |105.0          |41680.7619     
+25945          |5.0            |41680.7619     |105.0          |41680.7619     
+25976          |1.0            |50576.7        |15.0           |50576.7        
+26436          |3.0            |52418.882      |51.0           |52418.882      
+27215          |4.0            |47733.0        |72.0           |47733.0        
+28035          |1.0            |50576.7        |15.0           |50576.7        
+28336          |null           |null           |null           |null
+;
+
+removeGroupingByKeepingWhereFalse
+required_capability: inline_stats_drop_groupings_fix
+
+FROM employees
+| INLINE STATS x = MAX(salary) WHERE false, c = COUNT(*) BY emp_no
+| KEEP x, c
+| SORT x, c
+| LIMIT 3
+;
+
+x:integer | c:long
+null      | 1
+null      | 1
+null      | 1
+;
+
+constantAggsPruneFieldAggViaKeep
+required_capability: inline_stats_with_constants
+
+FROM employees
+| KEEP emp_no, languages
+| INLINE STATS x = MIN(123) + MAX(123), y = MAX(languages)
+| KEEP x, emp_no
+| SORT emp_no
+| LIMIT 3
+;
+
+x:i | emp_no:i
+246 | 10001
+246 | 10002
+246 | 10003
+;
+
+constantSurrogateAggAndFieldAgg_ByConstantAndLanguageAlias_WithExpression
+required_capability: inline_stats_with_constants
+
+FROM employees
+| KEEP emp_no, languages, salary
+| INLINE STATS base = AVG(123), max_salary = MAX(salary) BY k = 1, l = languages
+| EVAL z = base + max_salary
+| KEEP emp_no, l, k, base, max_salary, z
+| SORT emp_no
+| LIMIT 2
+;
+
+emp_no:integer | l:integer | k:integer | base:double | max_salary:integer | z:double
+10001          | 2         | 1         | 123.0       | 73578              | 73701.0
+10002          | 5         | 1         | 123.0       | 66817              | 66940.0
+;
+
+chainedInlineStats_ConstantAggThenGroupedAgg_UsesConstantInPostEval
+required_capability: inline_stats_with_constants
+
+FROM employees
+| KEEP emp_no, languages, salary
+| INLINE STATS const = MIN(123) + MAX(123)
+| INLINE STATS max_salary = MAX(salary) BY l = languages
+| EVAL z = const + max_salary
+| KEEP emp_no, l, z
+| SORT emp_no
+| LIMIT 2
+;
+
+emp_no:integer | l:integer | z:integer
+10001          | 2         | 73824
+10002          | 5         | 67063
+;
+
+issue142219_minConstant_NoBy
+required_capability: inline_stats_with_constants
+
+FROM employees
+| KEEP emp_no
+| INLINE STATS x = MIN(123)
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | x:integer
+10001          | 123
+10002          | 123
+10003          | 123
+;
+
+issue142219_minPlusMaxConstant_NoBy
+required_capability: inline_stats_with_constants
+
+FROM employees
+| KEEP emp_no
+| INLINE STATS x = MIN(123) + MAX(123)
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | x:integer
+10001          | 246
+10002          | 246
+10003          | 246
+;
+
+issue142219_minNullPlusMedianNull_WithFieldAgg_PruneFieldAgg
+required_capability: inline_stats_with_constants
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+FROM employees
+| KEEP emp_no, languages
+| INLINE STATS x = MIN(null) + MEDIAN(null), y = PRESENT(languages)
+| KEEP emp_no, x
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | x:double
+10001          | null
+10002          | null
+10003          | null
+;
+
+issue142219_unmappedNullify_MinPlusMedian_PruneFieldAgg
+required_capability: optional_fields_nullify_tech_preview
+required_capability: inline_stats_with_constants
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| INLINE STATS x = MIN(foobar) + MEDIAN(foobar), y = PRESENT(languages)
+| KEEP emp_no, x
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | x:double
+10001          | null
+10002          | null
+10003          | null
+;
+
+constantAggAndFilteredFieldAgg_NoBy
+required_capability: inline_stats_with_constants
+
+FROM employees
+| KEEP emp_no, salary
+| INLINE STATS const = MIN(123) + MAX(123), x = MAX(salary) WHERE false
+| KEEP emp_no, const, x
+| SORT emp_no
+| LIMIT 2
+;
+
+emp_no:integer | const:integer | x:integer
+10001          | 246           | null
+10002          | 246           | null
+;
+
+globalAggGroupedByConstant
+required_capability: inline_stats
+
+FROM employees
+| KEEP emp_no, salary
+| INLINE STATS max_salary = MAX(salary) BY k = 1
+| KEEP emp_no, k, max_salary
+| SORT emp_no
+| LIMIT 2
+;
+
+emp_no:integer | k:integer | max_salary:integer
+10001          | 1         | 74999
+10002          | 1         | 74999
+;
+
+rowChainedInlineStats_ConstantThenGroupByIt
+required_capability: inline_stats_with_constants
+
+ROW x = 1, y = 2
+| INLINE STATS c = MIN(123) + MAX(123)
+| WHERE c == 246
+| INLINE STATS s = SUM(y) BY k = c
+| KEEP c, k, s
+;
+
+c:integer | k:integer | s:long
+246       | 246       | 2
+;
+
+inlineStatsFoldableExpressionAggs_NoBy
+required_capability: inline_stats_with_constants
+
+FROM employees
+| KEEP emp_no
+| INLINE STATS x = MIN(100 + 23) + MAX(120 + 3)
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | x:integer
+10001          | 246
+10002          | 246
+10003          | 246
+;
+
+inlineStatsFoldableExpressionByConstant_PruneFieldAgg
+required_capability: inline_stats_with_constants
+
+FROM employees
+| KEEP emp_no, salary
+| INLINE STATS x = MIN(100 + 23), max_salary = MAX(salary) BY k = 1 + 0
+| KEEP emp_no, k, x
+| SORT emp_no
+| LIMIT 2
+;
+
+emp_no:integer | k:integer | x:integer
+10001          | 1         | 123
+10002          | 1         | 123
+;
+
+chainedInlineStats_GroupByPrevConstAndLanguages
+required_capability: inline_stats_with_constants
+
+FROM employees
+| KEEP emp_no, languages, salary
+| INLINE STATS c = MIN(123) + MAX(123)
+| INLINE STATS max_salary = MAX(salary) BY k = c, l = languages
+| KEEP emp_no, k, l, max_salary
+| SORT emp_no
+| LIMIT 2
+;
+
+emp_no:integer | k:integer | l:integer | max_salary:integer
+10001          | 246       | 2         | 73578
+10002          | 246       | 5         | 66817
+;
+
+rowInlineStats_FoldableAggsAndChainedGroupBy
+required_capability: inline_stats_with_constants
+
+ROW y = 5
+| INLINE STATS c = MIN(1 + 2) + MAX(10 - 7)
+| INLINE STATS s = SUM(y) BY k = c
+| KEEP c, k, s
+;
+
+c:integer | k:integer | s:long
+6         | 6         | 5
+;
+
+rowInlineStats_FoldableAggs_WithMVs
+required_capability: inline_stats_with_constants
+
+ROW x = [1,2,3], y = [100,101,102]
+| INLINE STATS minX = MV_MIN(x) BY x
+;
+
+       y:i     |     minX:i    |  x:i
+[100, 101, 102]|[1, 2, 3]      |[1, 2, 3]      
+;
+
+inlineStats_FoldableAggs_WithMVs
+required_capability: inline_stats_with_constants
+
+from employees
+| eval w = [1, 2, 3]
+| keep languages, emp_no, gender, w
+| inline stats w_avg = weighted_avg(mv_min(w), languages) by w
+| sort emp_no
+| limit 5
+;
+
+   languages:i |    emp_no:i   |    gender:s   |     w_avg:d   |   w:i
+2              |10001          |M              |[1.0, 1.0, 1.0]|[1, 2, 3]
+5              |10002          |F              |[1.0, 1.0, 1.0]|[1, 2, 3]
+4              |10003          |M              |[1.0, 1.0, 1.0]|[1, 2, 3]
+5              |10004          |M              |[1.0, 1.0, 1.0]|[1, 2, 3]
+1              |10005          |M              |[1.0, 1.0, 1.0]|[1, 2, 3]
+;
+
+inlineStatsAbsentOnTopWithDateTrunc
+required_capability: fix_push_count_query_and_tags_with_multiple_aggs
+
+FROM date_nanos
+| STATS a = COUNT(*), y = TOP(DATE_TRUNC(1 year, millis), 2, "desc") BY num
+| INLINE STATS x = COUNT(*), z = ABSENT(y)
+| KEEP x, z, a
+;
+ignoreOrder:true
+
+x:long | z:boolean | a:long
+8      | false     | 1
+8      | false     | 1
+8      | false     | 1
+8      | false     | 1
+8      | false     | 1
+8      | false     | 1
+8      | false     | 2
+8      | false     | 2
+;
+
+inlineStatsAbsentOnMaxWithDateTrunc
+required_capability: fix_push_count_query_and_tags_with_multiple_aggs
+
+FROM date_nanos
+| STATS a = COUNT(*), y = MAX(DATE_TRUNC(1 year, millis)) BY num
+| INLINE STATS x = COUNT(*), z = ABSENT(y)
+| KEEP x, z, a
+;
+ignoreOrder:true
+
+x:long | z:boolean | a:long
+8      | false     | 1
+8      | false     | 1
+8      | false     | 1
+8      | false     | 1
+8      | false     | 1
+8      | false     | 1
+8      | false     | 2
+8      | false     | 2
+;
+
+inlineStatsAbsentOnTopHireDateByLanguages
+required_capability: fix_push_count_query_and_tags_with_multiple_aggs
+
+FROM employees
+| STATS a = COUNT(*), y = TOP(DATE_TRUNC(1 year, hire_date), 2, "desc") BY languages
+| INLINE STATS x = COUNT(*), z = ABSENT(y)
+| KEEP x, z, a
+;
+ignoreOrder:true
+
+x:long | z:boolean | a:long
+6      | false     | 10
+6      | false     | 15
+6      | false     | 17
+6      | false     | 18
+6      | false     | 19
+6      | false     | 21
+;
+
+inlineStatsSumCountWithDateTruncDropGroupingKey
+required_capability: fix_push_count_query_and_tags_with_multiple_aggs
+
+FROM employees
+| EVAL x = DATE_TRUNC(1 year, hire_date)
+| STATS a = COUNT(*), y = MAX(salary) BY x
+| INLINE STATS total = SUM(a)
+| KEEP a, y, total
+| SORT a ASC, y ASC
+| LIMIT 5
+;
+
+a:long | y:integer | total:long
+1      | 45656     | 100
+1      | 64675     | 100
+1      | 73717     | 100
+3      | 58715     | 100
+4      | 67492     | 100
 ;

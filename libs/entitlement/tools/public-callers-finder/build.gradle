@@ -71,10 +71,16 @@ dependencies {
   implementation(project(':libs:entitlement:tools:common'))
 
   dumpMethods testArtifact(project(':libs:entitlement'))
+
+  testImplementation project(":test:framework")
 }
 
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.tsv'
 }
 
 tasks.named("thirdPartyAudit").configure {

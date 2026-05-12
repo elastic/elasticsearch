@@ -9,13 +9,10 @@
 
 package org.elasticsearch.action.admin.indices.resolve;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -78,44 +75,22 @@ public class ResolveClusterActionRequest extends LegacyActionRequest implements 
     @SuppressWarnings("this-escape")
     public ResolveClusterActionRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            throw new UnsupportedOperationException(createVersionErrorMessage(in.getTransportVersion()));
-        }
         this.names = in.readStringArray();
         this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         this.localIndicesRequested = localIndicesPresent(names);
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            this.clusterInfoOnly = in.readBoolean();
-            this.isQueryingCluster = in.readBoolean();
-            this.timeout = in.readOptionalTimeValue();
-        } else {
-            this.clusterInfoOnly = false;
-            this.isQueryingCluster = false;
-        }
+        this.clusterInfoOnly = in.readBoolean();
+        this.isQueryingCluster = in.readBoolean();
+        this.timeout = in.readOptionalTimeValue();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            throw new UnsupportedOperationException(createVersionErrorMessage(out.getTransportVersion()));
-        }
         out.writeStringArray(names);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeBoolean(clusterInfoOnly);
-            out.writeBoolean(isQueryingCluster);
-            out.writeOptionalTimeValue(timeout);
-        }
-    }
-
-    static String createVersionErrorMessage(TransportVersion versionFound) {
-        return Strings.format(
-            "%s %s but was %s",
-            TRANSPORT_VERSION_ERROR_MESSAGE_PREFIX,
-            TransportVersions.V_8_13_0.toReleaseVersion(),
-            versionFound.toReleaseVersion()
-        );
+        out.writeBoolean(clusterInfoOnly);
+        out.writeBoolean(isQueryingCluster);
+        out.writeOptionalTimeValue(timeout);
     }
 
     @Override

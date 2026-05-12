@@ -14,7 +14,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
@@ -22,6 +21,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.common.lucene.search.Queries;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -88,7 +88,7 @@ public class KnnScoreDocQuery extends Query {
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
         if (docs.length == 0) {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
         return this;
     }

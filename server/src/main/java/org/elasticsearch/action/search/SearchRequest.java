@@ -10,7 +10,6 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -23,11 +22,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -44,6 +45,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.search.SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS;
 
 /**
  * A request to execute search against one or more indices (or all).
@@ -80,7 +82,13 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     private ResolvedIndexExpressions resolvedIndexExpressions = null;
 
     @Nullable
+    private transient TargetProjects resolvedTargetProjects = null;
+
+    @Nullable
     private String routing;
+    @Nullable
+    private String searchSlice;
+    private boolean routingFromSlice;
     @Nullable
     private String preference;
 
@@ -102,6 +110,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     private boolean ccsMinimizeRoundtrips;
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
+    public static final IndicesOptions DEFAULT_CPS_INDICES_OPTIONS = IndicesOptions.cpsStrictExpandOpenAndForbidClosedIgnoreThrottled();
 
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
@@ -187,6 +196,13 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     }
 
     /**
+     * Clears {@link #getProjectRouting()}
+     */
+    public void clearProjectRouting() {
+        this.projectRouting = null;
+    }
+
+    /**
      * Creates a new sub-search request starting from the original search request that is provided.
      * For internal use only, allows to fork a search request into multiple search requests that will be executed independently.
      * Such requests will not be finally reduced, so that their results can be merged together in one response at completion.
@@ -196,6 +212,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
      * @param parentTaskId          the parent taskId of the original search request
      * @param originalSearchRequest the original search request
      * @param indices               the indices to search against
+     * @param indicesOptions        the indicesOptions to search with
      * @param clusterAlias          the alias to prefix index names with in the returned search results
      * @param absoluteStartMillis   the absolute start time to be used on the remote clusters to ensure that the same value is used
      * @param finalReduce           whether the reduction should be final or not
@@ -204,6 +221,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         TaskId parentTaskId,
         SearchRequest originalSearchRequest,
         String[] indices,
+        IndicesOptions indicesOptions,
         String clusterAlias,
         long absoluteStartMillis,
         boolean finalReduce
@@ -217,6 +235,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         }
         final SearchRequest request = new SearchRequest(originalSearchRequest, indices, clusterAlias, absoluteStartMillis, finalReduce);
         request.setParentTask(parentTaskId);
+        request.indicesOptions(indicesOptions);
         return request;
     }
 
@@ -247,6 +266,10 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         this.waitForCheckpointsTimeout = searchRequest.waitForCheckpointsTimeout;
         this.forceSyntheticSource = searchRequest.forceSyntheticSource;
         this.projectRouting = searchRequest.projectRouting;
+        this.searchSlice = searchRequest.searchSlice;
+        this.routingFromSlice = searchRequest.routingFromSlice;
+        this.resolvedIndexExpressions = searchRequest.resolvedIndexExpressions;
+        this.resolvedTargetProjects = searchRequest.resolvedTargetProjects;
     }
 
     /**
@@ -263,15 +286,6 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         preference = in.readOptionalString();
         scrollKeepAlive = in.readOptionalTimeValue();
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            // types no longer relevant so ignore
-            String[] types = in.readStringArray();
-            if (types.length > 0) {
-                throw new IllegalStateException(
-                    "types are no longer supported in search requests but found [" + Arrays.toString(types) + "]"
-                );
-            }
-        }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         requestCache = in.readOptionalBoolean();
         batchedReduceSize = in.readVInt();
@@ -292,15 +306,18 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         }
         waitForCheckpoints = in.readMap(StreamInput::readLongArray);
         waitForCheckpointsTimeout = in.readTimeValue();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            forceSyntheticSource = in.readBoolean();
-        } else {
-            forceSyntheticSource = false;
-        }
+        forceSyntheticSource = in.readBoolean();
         if (in.getTransportVersion().supports(SEARCH_PROJECT_ROUTING)) {
             this.projectRouting = in.readOptionalString();
         } else {
             this.projectRouting = null;
+        }
+        if (in.getTransportVersion().supports(SliceIndexing.SEARCH_SLICE_ROUTING_STATE_VERSION)) {
+            this.routingFromSlice = in.readBoolean();
+            this.searchSlice = in.readOptionalString();
+        } else {
+            this.routingFromSlice = false;
+            this.searchSlice = null;
         }
     }
 
@@ -320,10 +337,6 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         out.writeOptionalString(preference);
         out.writeOptionalTimeValue(scrollKeepAlive);
         out.writeOptionalWriteable(source);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            // types not supported so send an empty array to previous versions
-            out.writeStringArray(Strings.EMPTY_ARRAY);
-        }
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalBoolean(requestCache);
         out.writeVInt(batchedReduceSize);
@@ -341,15 +354,13 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         }
         out.writeMap(waitForCheckpoints, StreamOutput::writeLongArray);
         out.writeTimeValue(waitForCheckpointsTimeout);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            out.writeBoolean(forceSyntheticSource);
-        } else {
-            if (forceSyntheticSource) {
-                throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
-            }
-        }
+        out.writeBoolean(forceSyntheticSource);
         if (out.getTransportVersion().supports(SEARCH_PROJECT_ROUTING)) {
             out.writeOptionalString(this.projectRouting);
+        }
+        if (out.getTransportVersion().supports(SliceIndexing.SEARCH_SLICE_ROUTING_STATE_VERSION)) {
+            out.writeBoolean(this.routingFromSlice);
+            out.writeOptionalString(this.searchSlice);
         }
     }
 
@@ -357,7 +368,10 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         boolean scroll = scroll() != null;
-        boolean allowPartialSearchResults = allowPartialSearchResults() != null && allowPartialSearchResults();
+
+        boolean allowPartialSearchResults = allowPartialSearchResults() == null
+            ? DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS
+            : allowPartialSearchResults();
 
         if (source != null) {
             validationException = source.validate(validationException, scroll, allowPartialSearchResults);
@@ -377,11 +391,21 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
                     validationException
                 );
             }
-            if (indicesOptions().equals(DEFAULT_INDICES_OPTIONS) == false) {
+            if (indicesOptions().equals(DEFAULT_INDICES_OPTIONS) == false
+                && indicesOptions().equals(DEFAULT_CPS_INDICES_OPTIONS) == false) {
                 validationException = addValidationError("[indicesOptions] cannot be used with point in time", validationException);
+            }
+            if (getProjectRouting() != null) {
+                validationException = addValidationError("[projectRouting] cannot be used with point in time", validationException);
             }
             if (routing() != null) {
                 validationException = addValidationError("[routing] cannot be used with point in time", validationException);
+            }
+            if (isRoutingFromSlice()) {
+                validationException = addValidationError(
+                    "[" + SliceIndexing.PARAM_NAME + "] cannot be used with point in time",
+                    validationException
+                );
             }
             if (preference() != null) {
                 validationException = addValidationError("[preference] cannot be used with point in time", validationException);
@@ -414,8 +438,8 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     /**
      * Returns the current time in milliseconds from the time epoch, to be used for the execution of this search request. Used to
      * ensure that the same value, determined by the coordinating node, is used on all nodes involved in the execution of the search
-     * request. When created through {@link #subSearchRequest(TaskId, SearchRequest, String[], String, long, boolean)}, this method returns
-     * the provided current time, otherwise it will return {@link System#currentTimeMillis()}.
+     * request. When created through {@link #subSearchRequest(TaskId, SearchRequest, String[], IndicesOptions, String, long, boolean)},
+     * this method returns the provided current time, otherwise it will return {@link System#currentTimeMillis()}.
      */
     long getOrCreateAbsoluteStartMillis() {
         return absoluteStartMillis == DEFAULT_ABSOLUTE_START_MILLIS ? System.currentTimeMillis() : absoluteStartMillis;
@@ -448,6 +472,17 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     @Nullable
     public ResolvedIndexExpressions getResolvedIndexExpressions() {
         return resolvedIndexExpressions;
+    }
+
+    @Override
+    public void setResolvedTargetProjects(TargetProjects targetProjects) {
+        this.resolvedTargetProjects = targetProjects;
+    }
+
+    @Override
+    @Nullable
+    public TargetProjects getResolvedTargetProjects() {
+        return resolvedTargetProjects;
     }
 
     private static void validateIndices(String... indices) {
@@ -507,6 +542,31 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
      */
     public SearchRequest routing(String... routings) {
         this.routing = Strings.arrayToCommaDelimitedString(routings);
+        return this;
+    }
+
+    /**
+     * Returns {@code true} when routing was provided through the {@code _slice} REST parameter.
+     */
+    public boolean isRoutingFromSlice() {
+        return routingFromSlice;
+    }
+
+    /**
+     * Returns the requested {@code _slice} value when routing comes from {@code _slice}.
+     */
+    @Nullable
+    public String searchSlice() {
+        return searchSlice;
+    }
+
+    /**
+     * Sets slice-routing provenance and the user-provided {@code _slice} value.
+     * Passing {@code null} clears slice-routing provenance.
+     */
+    public SearchRequest searchSlice(@Nullable String searchSlice) {
+        this.searchSlice = searchSlice;
+        this.routingFromSlice = searchSlice != null;
         return this;
     }
 
@@ -811,6 +871,9 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         if (routing != null) {
             sb.append(", routing[").append(routing).append("]");
         }
+        if (routingFromSlice) {
+            sb.append(", _slice[").append(searchSlice).append("]");
+        }
         if (preference != null) {
             sb.append(", preference[").append(preference).append("]");
         }
@@ -829,6 +892,8 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         return searchType == that.searchType
             && Arrays.equals(indices, that.indices)
             && Objects.equals(routing, that.routing)
+            && Objects.equals(searchSlice, that.searchSlice)
+            && routingFromSlice == that.routingFromSlice
             && Objects.equals(preference, that.preference)
             && Objects.equals(source, that.source)
             && Objects.equals(requestCache, that.requestCache)
@@ -850,6 +915,8 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
             searchType,
             Arrays.hashCode(indices),
             routing,
+            searchSlice,
+            routingFromSlice,
             preference,
             source,
             requestCache,
@@ -878,6 +945,11 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
             + ", routing='"
             + routing
             + '\''
+            + ", searchSlice='"
+            + searchSlice
+            + '\''
+            + ", routingFromSlice="
+            + routingFromSlice
             + ", preference='"
             + preference
             + '\''

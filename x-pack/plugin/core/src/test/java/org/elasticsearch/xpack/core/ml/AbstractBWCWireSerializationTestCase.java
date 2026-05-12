@@ -6,15 +6,20 @@
  */
 package org.elasticsearch.xpack.core.ml;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.test.BWCVersions.DEFAULT_BWC_VERSIONS;
+import static org.hamcrest.Matchers.is;
 
 public abstract class AbstractBWCWireSerializationTestCase<T extends Writeable> extends AbstractWireSerializingTestCase<T> {
 
@@ -63,5 +68,39 @@ public abstract class AbstractBWCWireSerializationTestCase<T extends Writeable> 
         assertNotSame(errorMessage, bwcSerializedObject, testInstance);
         assertEquals(errorMessage, bwcSerializedObject, testInstance);
         assertEquals(errorMessage, bwcSerializedObject.hashCode(), testInstance.hashCode());
+    }
+
+    /**
+     * Helper method to test cases where serialization to older versions is expected to fail. An example of such a case would be an existing
+     * object adding a new Enum value which is not known to older versions and which has no equivalent default value that could be sent
+     * instead. Any attempt to serialize the object will result in an exception on the older node when attempting to deserialize, so to
+     * make the cause of the failure more obvious, an exception is thrown on the node doing the serialization.
+     *
+     * @param featureVersion the {@link TransportVersion} in which the change was introduced
+     * @param expectFailureFunction a function which should return {@code true} if serializing the instance should be expected to fail
+     * @param errorMessage the expected error message when serialization fails
+     */
+    protected void testSerializationIsNotBackwardsCompatible(
+        TransportVersion featureVersion,
+        Function<T, Boolean> expectFailureFunction,
+        String errorMessage
+    ) throws IOException {
+        var unsupportedVersions = DEFAULT_BWC_VERSIONS.stream().filter(Predicate.not(version -> version.supports(featureVersion))).toList();
+        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
+            var testInstance = createTestInstance();
+            for (var unsupportedVersion : unsupportedVersions) {
+                if (expectFailureFunction.apply(testInstance)) {
+                    var statusException = assertThrows(
+                        ElasticsearchStatusException.class,
+                        () -> copyWriteable(testInstance, getNamedWriteableRegistry(), instanceReader(), unsupportedVersion)
+                    );
+                    assertThat(statusException.status(), is(RestStatus.BAD_REQUEST));
+                    assertThat(statusException.getMessage(), is(errorMessage));
+                } else {
+                    // If the instance shouldn't expect serialization to fail, assert that it can still be serialized
+                    assertBwcSerialization(testInstance, unsupportedVersion);
+                }
+            }
+        }
     }
 }

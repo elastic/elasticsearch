@@ -8,15 +8,14 @@
 package org.elasticsearch.xpack.inference.services.contextualai.rerank;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
 import java.util.Map;
@@ -24,33 +23,31 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils.INFERENCE_CONTEXTUAL_AI_ADDED;
 
-public class ContextualAiRerankTaskSettings implements TaskSettings {
+public class ContextualAiRerankTaskSettings implements TopNProvider, TaskSettings {
 
     public static final String NAME = "contextualai_rerank_task_settings";
-    public static final String RETURN_DOCUMENTS = "return_documents";
-    public static final String TOP_N_DOCS_ONLY = "top_n";
-    public static final String INSTRUCTION = "instruction";
 
-    // Default hardcoded instruction for reranking
-    private static final String DEFAULT_INSTRUCTION = "Rerank the given documents based on their relevance to the query.";
+    protected static final String RETURN_DOCUMENTS_FIELD = "return_documents";
+    protected static final String TOP_N_FIELD = "top_n";
+    protected static final String INSTRUCTION_FIELD = "instruction";
 
     public static final ContextualAiRerankTaskSettings EMPTY_SETTINGS = new ContextualAiRerankTaskSettings(null, null, null);
 
     public static ContextualAiRerankTaskSettings fromMap(Map<String, Object> map) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
         if (map == null || map.isEmpty()) {
             return EMPTY_SETTINGS;
         }
 
-        Boolean returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS, validationException);
-        Integer topN = extractOptionalPositiveInteger(map, TOP_N_DOCS_ONLY, ModelConfigurations.TASK_SETTINGS, validationException);
-        String instruction = ServiceUtils.extractOptionalString(map, INSTRUCTION, ModelConfigurations.TASK_SETTINGS, validationException);
+        var returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS_FIELD, validationException);
+        var topN = extractOptionalPositiveInteger(map, TOP_N_FIELD, ModelConfigurations.TASK_SETTINGS, validationException);
+        var instruction = extractOptionalString(map, INSTRUCTION_FIELD, ModelConfigurations.TASK_SETTINGS, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new ContextualAiRerankTaskSettings(returnDocuments, topN, instruction);
     }
@@ -59,13 +56,22 @@ public class ContextualAiRerankTaskSettings implements TaskSettings {
         ContextualAiRerankTaskSettings originalSettings,
         ContextualAiRerankTaskSettings requestSettings
     ) {
-        var returnDocuments = requestSettings.getReturnDocuments() != null
+        var returnDocumentsToUse = requestSettings.getReturnDocuments() != null
             ? requestSettings.getReturnDocuments()
             : originalSettings.getReturnDocuments();
-        var topN = requestSettings.getTopN() != null ? requestSettings.getTopN() : originalSettings.getTopN();
-        var instruction = requestSettings.getInstruction() != null ? requestSettings.getInstruction() : originalSettings.getInstruction();
+        var topNToUse = requestSettings.getTopN() != null ? requestSettings.getTopN() : originalSettings.getTopN();
+        var instructionToUse = requestSettings.getInstruction() != null
+            ? requestSettings.getInstruction()
+            : originalSettings.getInstruction();
 
-        return new ContextualAiRerankTaskSettings(returnDocuments, topN, instruction);
+        // If none of the settings have changed, return the original settings to avoid unnecessary object creation
+        if (Objects.equals(returnDocumentsToUse, originalSettings.getReturnDocuments())
+            && Objects.equals(topNToUse, originalSettings.getTopN())
+            && Objects.equals(instructionToUse, originalSettings.getInstruction())) {
+            return originalSettings;
+        }
+
+        return new ContextualAiRerankTaskSettings(returnDocumentsToUse, topNToUse, instructionToUse);
     }
 
     private final Boolean returnDocuments;
@@ -89,14 +95,15 @@ public class ContextualAiRerankTaskSettings implements TaskSettings {
         return returnDocuments;
     }
 
+    @Override
     @Nullable
     public Integer getTopN() {
         return topN;
     }
 
-    // Return custom instruction if provided, otherwise use default
+    @Nullable
     public String getInstruction() {
-        return instruction != null ? instruction : DEFAULT_INSTRUCTION;
+        return instruction;
     }
 
     @Override
@@ -115,13 +122,13 @@ public class ContextualAiRerankTaskSettings implements TaskSettings {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (returnDocuments != null) {
-            builder.field(RETURN_DOCUMENTS, returnDocuments);
+            builder.field(RETURN_DOCUMENTS_FIELD, returnDocuments);
         }
         if (topN != null) {
-            builder.field(TOP_N_DOCS_ONLY, topN);
+            builder.field(TOP_N_FIELD, topN);
         }
         if (instruction != null) {
-            builder.field(INSTRUCTION, instruction);
+            builder.field(INSTRUCTION_FIELD, instruction);
         }
         builder.endObject();
         return builder;
@@ -149,11 +156,11 @@ public class ContextualAiRerankTaskSettings implements TaskSettings {
 
     @Override
     public boolean isEmpty() {
-        return returnDocuments == null && topN == null && instruction == null;
+        return this.equals(EMPTY_SETTINGS);
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return INFERENCE_CONTEXTUAL_AI_ADDED;
     }
 }

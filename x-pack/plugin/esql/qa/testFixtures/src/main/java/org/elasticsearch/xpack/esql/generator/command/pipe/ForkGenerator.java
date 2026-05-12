@@ -48,7 +48,7 @@ public class ForkGenerator implements CommandGenerator {
 
         StringBuilder forkCmd = new StringBuilder(" | FORK ");
         for (int i = 0; i < branchCount; i++) {
-            var expr = WhereGenerator.randomExpression(randomIntBetween(1, 2), previousOutput);
+            var expr = WhereGenerator.randomExpression(randomIntBetween(1, 2), previousOutput, previousCommands);
             if (expr == null) {
                 expr = "true";
             }
@@ -131,8 +131,6 @@ public class ForkGenerator implements CommandGenerator {
             forkCmd.append(")");
         }
         forkCmd.append(" | WHERE _fork == \"fork").append(branchToRetain).append("\" | DROP _fork");
-
-        // System.out.println("Generated fork command: " + forkCmd);
         return new CommandDescription(FORK, this, forkCmd.toString(), Map.of());
     }
 

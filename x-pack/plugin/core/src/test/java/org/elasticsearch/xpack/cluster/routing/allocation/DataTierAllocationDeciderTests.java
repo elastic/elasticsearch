@@ -22,6 +22,8 @@ import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -38,8 +40,8 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
@@ -100,13 +102,10 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     private static final DesiredNode DATA_DESIRED_NODE = newDesiredNode("node-data", DiscoveryNodeRole.DATA_ROLE);
 
     private final ClusterSettings clusterSettings = createBuiltInClusterSettings();
-    private final AllocationDeciders allocationDeciders = new AllocationDeciders(
-        Arrays.asList(
-            DataTierAllocationDecider.INSTANCE,
-            new SameShardAllocationDecider(clusterSettings),
-            new ReplicaAfterPrimaryActiveAllocationDecider()
-        )
-    );
+    private final AllocationDecider[] allocationDeciders = new AllocationDecider[] {
+        DataTierAllocationDecider.INSTANCE,
+        new SameShardAllocationDecider(clusterSettings),
+        new ReplicaAfterPrimaryActiveAllocationDecider() };
 
     private final ShardRouting shard = ShardRouting.newUnassigned(
         new ShardId("myindex", "myindex", 0),
@@ -119,7 +118,9 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     public void testIndexPrefer() {
         {
             final var desiredNodes = randomBoolean() ? null : createDesiredNodesWithActualizedNodes(HOT_DESIRED_NODE);
+            final ProjectId projectId = randomProjectIdOrDefault();
             final var clusterState = clusterStateWithIndexAndNodes(
+                projectId,
                 "data_warm,data_cold",
                 DiscoveryNodes.builder().add(HOT_NODE).build(),
                 desiredNodes
@@ -128,6 +129,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             for (DiscoveryNode n : Arrays.asList(HOT_NODE, WARM_NODE, COLD_NODE)) {
                 assertAllocationDecision(
                     clusterState,
+                    projectId,
                     n,
                     Decision.Type.NO,
                     "index has a preference for tiers [data_warm,data_cold], "
@@ -138,7 +140,9 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
 
         {
             final var desiredNodes = randomBoolean() ? null : createDesiredNodesWithActualizedNodes(HOT_DESIRED_NODE, COLD_DESIRED_NODE);
+            final ProjectId projectId = randomProjectIdOrDefault();
             final var clusterState = clusterStateWithIndexAndNodes(
+                projectId,
                 "data_warm,data_cold",
                 DiscoveryNodes.builder().add(HOT_NODE).add(COLD_NODE).build(),
                 desiredNodes
@@ -147,6 +151,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             for (DiscoveryNode n : Arrays.asList(HOT_NODE, WARM_NODE)) {
                 assertAllocationDecision(
                     clusterState,
+                    projectId,
                     n,
                     Decision.Type.NO,
                     "index has a preference for tiers [data_warm,data_cold] and node does not meet the required [data_cold] tier"
@@ -155,6 +160,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
 
             assertAllocationDecision(
                 clusterState,
+                projectId,
                 COLD_NODE,
                 Decision.Type.YES,
                 "index has a preference for tiers [data_warm,data_cold] and node has tier [data_cold]"
@@ -164,7 +170,9 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         {
             // Remove the cold tier from desired nodes
             final var desiredNodes = createDesiredNodesWithActualizedNodes(WARM_DESIRED_NODE);
+            final ProjectId projectId = randomProjectIdOrDefault();
             final var state = clusterStateWithIndexAndNodes(
+                projectId,
                 "data_cold,data_warm",
                 DiscoveryNodes.builder().add(WARM_NODE).add(COLD_NODE).build(),
                 desiredNodes
@@ -173,6 +181,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             for (DiscoveryNode node : List.of(HOT_NODE, COLD_NODE)) {
                 assertAllocationDecision(
                     state,
+                    projectId,
                     node,
                     Decision.Type.NO,
                     "index has a preference for tiers [data_cold,data_warm] and node does not meet the required [data_warm] tier"
@@ -181,6 +190,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
 
             assertAllocationDecision(
                 state,
+                projectId,
                 WARM_NODE,
                 Decision.Type.YES,
                 "index has a preference for tiers [data_cold,data_warm] and node has tier [data_warm]"
@@ -190,11 +200,13 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         {
             // There's a warm node in the desired nodes, but it hasn't joined the cluster yet,
             // in that case we consider that there aren't any nodes with the preferred tier in the cluster
+            final ProjectId projectId = randomProjectIdOrDefault();
             final ClusterState clusterState;
             final String tierPreference;
             if (randomBoolean()) {
                 tierPreference = "data_warm,data_cold";
                 clusterState = clusterStateWithIndexAndNodes(
+                    projectId,
                     tierPreference,
                     DiscoveryNodes.builder().add(HOT_NODE).build(),
                     DesiredNodes.create("history", 1, List.of(pendingDesiredNode(WARM_DESIRED_NODE)))
@@ -202,6 +214,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             } else {
                 tierPreference = "data_warm,data_hot";
                 clusterState = clusterStateWithIndexAndNodes(
+                    projectId,
                     tierPreference,
                     DiscoveryNodes.builder().add(COLD_NODE).build(),
                     DesiredNodes.create("history", 1, List.of(pendingDesiredNode(WARM_DESIRED_NODE)))
@@ -211,6 +224,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             for (DiscoveryNode node : List.of(HOT_NODE, WARM_NODE, COLD_NODE)) {
                 assertAllocationDecision(
                     clusterState,
+                    projectId,
                     node,
                     Decision.Type.NO,
                     org.elasticsearch.core.Strings.format(
@@ -221,10 +235,12 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             }
         }
         {
-            final var state = clusterStateWithIndexAndNodes("data_warm", DiscoveryNodes.builder().add(DATA_NODE).build(), null);
+            final ProjectId projectId = randomProjectIdOrDefault();
+            final var state = clusterStateWithIndexAndNodes(projectId, "data_warm", DiscoveryNodes.builder().add(DATA_NODE).build(), null);
 
             assertAllocationDecision(
                 state,
+                projectId,
                 DATA_NODE,
                 Decision.Type.YES,
                 "index has a preference for tiers [data_warm] and node has tier [data]"
@@ -884,17 +900,26 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(DataTier.TIER_PREFERENCE_SETTING.get(settings), equalTo(DATA_FROZEN));
     }
 
-    private ClusterState clusterStateWithIndexAndNodes(String tierPreference, DiscoveryNodes discoveryNodes, DesiredNodes desiredNodes) {
-        final Metadata.Builder metadata = Metadata.builder()
+    private ClusterState clusterStateWithIndexAndNodes(
+        ProjectId projectId,
+        String tierPreference,
+        DiscoveryNodes discoveryNodes,
+        DesiredNodes desiredNodes
+    ) {
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId)
             .put(
                 IndexMetadata.builder(shard.getIndexName())
                     .settings(
                         indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, shard.getIndexName())
                             .put(DataTier.TIER_PREFERENCE, tierPreference)
                     )
-            );
+                    .build(),
+                true
+            )
+            .build();
+        Metadata.Builder metadataBuilder = Metadata.builder().put(projectMetadata);
         if (desiredNodes != null) {
-            metadata.putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(desiredNodes));
+            metadataBuilder.putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(desiredNodes));
         }
 
         RoutingTable.Builder routingTableBuilder = new RoutingTable.Builder();
@@ -902,8 +927,8 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
 
         return ClusterState.builder(new ClusterName("test"))
             .nodes(discoveryNodes)
-            .metadata(metadata)
-            .routingTable(GlobalRoutingTable.builder().put(Metadata.DEFAULT_PROJECT_ID, routingTableBuilder).build())
+            .metadata(metadataBuilder)
+            .routingTable(GlobalRoutingTable.builder().put(projectId, routingTableBuilder.build()).build())
             .build();
     }
 
@@ -937,8 +962,14 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         );
     }
 
-    private void assertAllocationDecision(ClusterState state, DiscoveryNode node, Decision.Type decisionType, String explanationMessage) {
-        final var allocation = new RoutingAllocation(allocationDeciders, null, state, null, null, 0);
+    private void assertAllocationDecision(
+        ClusterState state,
+        ProjectId projectId,
+        DiscoveryNode node,
+        Decision.Type decisionType,
+        String explanationMessage
+    ) {
+        final var allocation = TestRoutingAllocationFactory.forClusterState(state).allocationDeciders(allocationDeciders).build();
         allocation.debugDecision(true);
 
         final var routingNode = RoutingNodesHelper.routingNode(node.getId(), node, shard);
@@ -950,7 +981,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
 
         {
             final var decision = DataTierAllocationDecider.INSTANCE.canRemain(
-                allocation.metadata().getProject().getIndexSafe(shard.index()),
+                allocation.metadata().getProject(projectId).getIndexSafe(shard.index()),
                 shard,
                 routingNode,
                 allocation
@@ -1061,12 +1092,15 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         );
 
         logger.info("Building initial routing table");
-        Metadata metadata = Metadata.builder()
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId)
             .put(
                 IndexMetadata.builder("test")
                     .settings(settings(IndexVersion.current()).put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT))
                     .numberOfShards(5)
                     .numberOfReplicas(1)
+                    .build(),
+                true
             )
             .put(
                 IndexMetadata.builder("test_frozen")
@@ -1077,21 +1111,27 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     )
                     .numberOfShards(5)
                     .numberOfReplicas(1)
+                    .build(),
+                true
             )
             .build();
+        Metadata metadata = Metadata.builder().put(projectMetadata).build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.getProject().index("test"))
-            .addAsNew(metadata.getProject().index("test_frozen"))
+            .addAsNew(projectMetadata.index("test"))
+            .addAsNew(projectMetadata.index("test_frozen"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .putRoutingTable(projectId, initialRoutingTable)
+            .build();
 
-        IndexRoutingTable index = clusterState.routingTable().index("test");
+        IndexRoutingTable index = clusterState.routingTable(projectId).index("test");
         assertThat(index.size(), equalTo(5));
         assertShardsUnassigned(index);
 
-        IndexRoutingTable frozenIndex = clusterState.routingTable().index("test_frozen");
+        IndexRoutingTable frozenIndex = clusterState.routingTable(projectId).index("test_frozen");
         assertThat(frozenIndex.size(), equalTo(5));
         assertShardsUnassigned(index);
 
@@ -1107,19 +1147,19 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             .build();
         clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
-        index = clusterState.routingTable().index("test");
+        index = clusterState.routingTable(projectId).index("test");
         assertPrimariesInitializing(index);
 
-        frozenIndex = clusterState.routingTable().index("test_frozen");
+        frozenIndex = clusterState.routingTable(projectId).index("test_frozen");
         assertPrimariesInitializing(frozenIndex);
 
         logger.info("start all the primary shards, replicas will start initializing");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        index = clusterState.routingTable().index("test");
+        index = clusterState.routingTable(projectId).index("test");
         assertReplicasInitializing(index);
 
-        frozenIndex = clusterState.routingTable().index("test_frozen");
+        frozenIndex = clusterState.routingTable(projectId).index("test_frozen");
         assertReplicasInitializing(frozenIndex);
 
         logger.info("now, start 8 more frozen and hot nodes");

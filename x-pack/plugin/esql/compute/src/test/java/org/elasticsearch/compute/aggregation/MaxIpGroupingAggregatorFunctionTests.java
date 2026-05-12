@@ -13,10 +13,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.LongBytesRefTupleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.LongBytesRefTupleBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.Comparator;
 import java.util.List;
@@ -37,8 +36,8 @@ public class MaxIpGroupingAggregatorFunctionTests extends GroupingAggregatorFunc
     }
 
     @Override
-    protected DataType acceptedDataType() {
-        return DataType.IP;
+    protected DataFormat acceptedDataFormat() {
+        return DataFormat.IP;
     }
 
     @Override

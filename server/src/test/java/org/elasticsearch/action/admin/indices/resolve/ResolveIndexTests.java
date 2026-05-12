@@ -121,7 +121,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
-        TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams);
+        TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams, Set.of());
 
         validateIndices(
             indices,
@@ -148,7 +148,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
-        TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams);
+        TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams, Set.of());
         validateIndices(
             indices,
             ".ds-logs-mysql-prod-" + dateString + "-000001",
@@ -256,7 +256,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
-        TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams);
+        TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams, Set.of());
 
         validateIndices(
             indices,
@@ -283,7 +283,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
-        TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams);
+        TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams, Set.of());
         validateIndices(indices, ".ds-logs-mysql-prod-" + dateString + "-000003", "logs-pgsql-test-20200102");
         validateAliases(aliases, "one-off-alias");
         validateDataStreams(dataStreams, "logs-mysql-test");
@@ -308,7 +308,16 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedIndex> indices = new ArrayList<>();
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
-        TransportAction.resolveIndices(new String[] { "*" }, indicesOptions, projectState, resolver, indices, aliases, dataStreams);
+        TransportAction.resolveIndices(
+            new String[] { "*" },
+            indicesOptions,
+            projectState,
+            resolver,
+            indices,
+            aliases,
+            dataStreams,
+            Set.of()
+        );
 
         assertThat(dataStreams.size(), equalTo(1));
         assertThat(dataStreams.get(0).getBackingIndices(), arrayContaining(names));
@@ -330,6 +339,7 @@ public class ResolveIndexTests extends ESTestCase {
             project,
             IndicesOptions.LENIENT_EXPAND_OPEN,
             true,
+            false,
             requestedIndex
         );
         assertThat(resolvedIndices.size(), is(1));
@@ -367,7 +377,8 @@ public class ResolveIndexTests extends ESTestCase {
                 resolver,
                 indices,
                 aliases,
-                dataStreams
+                dataStreams,
+                Set.of()
             );
             // non net-new system indices are allowed even when no system indices are allowed
             assertThat(indices.stream().map(ResolvedIndex::getName).collect(Collectors.toList()), hasItem(is(".test-system-1")));
@@ -386,7 +397,8 @@ public class ResolveIndexTests extends ESTestCase {
                 resolver,
                 indices,
                 aliases,
-                dataStreams
+                dataStreams,
+                Set.of()
             );
             assertThat(indices.stream().map(ResolvedIndex::getName).collect(Collectors.toList()), hasItem(is(".test-system-1")));
             assertThat(indices.stream().map(ResolvedIndex::getName).collect(Collectors.toList()), hasItem(is(".test-net-new-system-1")));
@@ -398,7 +410,8 @@ public class ResolveIndexTests extends ESTestCase {
                 resolver,
                 indices,
                 aliases,
-                dataStreams
+                dataStreams,
+                Set.of()
             );
             assertThat(indices.stream().map(ResolvedIndex::getName).collect(Collectors.toList()), not(hasItem(is(".test-system-1"))));
             assertThat(indices.stream().map(ResolvedIndex::getName).collect(Collectors.toList()), hasItem(is(".test-net-new-system-1")));
@@ -413,7 +426,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
         IndexNotFoundException infe = expectThrows(
             IndexNotFoundException.class,
-            () -> TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams)
+            () -> TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams, Set.of())
         );
         assertThat(infe.getMessage(), containsString("no such index [missing]"));
     }
@@ -426,7 +439,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
         IndexNotFoundException infe = expectThrows(
             IndexNotFoundException.class,
-            () -> TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams)
+            () -> TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams, Set.of())
         );
         assertThat(infe.getMessage(), containsString("no such index [missing*]"));
     }

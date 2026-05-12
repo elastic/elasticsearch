@@ -15,14 +15,16 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,27 +35,40 @@ import static java.util.Collections.emptyList;
 /**
  * Similar to {@link Avg}, but it is used to calculate the average value over a time series of values from the given field.
  */
-public class AvgOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, SurrogateExpression {
+public class AvgOverTime extends TimeSeriesAggregateFunction
+    implements
+        OptionalArgument,
+        AggregateMetricDoubleNativeSupport,
+        SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "AvgOverTime",
         AvgOverTime::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(AvgOverTime.class)
+        .binary(AvgOverTime::new)
+        .name("avg_over_time");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .withinSeriesOverTime(AvgOverTime::new)
+        .description("Returns the average value of all points in the specified time range.")
+        .example("avg_over_time(http_requests_total[5m])")
+        .name("avg_over_time");
 
     @FunctionInfo(
         returnType = "double",
         description = "Calculates the average over time of a numeric field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
-        preview = true,
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = { @Example(file = "k8s-timeseries", tag = "avg_over_time") }
     )
     public AvgOverTime(
         Source source,
         @Param(
-            name = "number",
-            type = { "aggregate_metric_double", "double", "integer", "long" },
-            description = "Expression that outputs values to average."
+            name = "field",
+            type = { "aggregate_metric_double", "double", "integer", "long", "exponential_histogram", "tdigest" },
+            description = "the metric field to calculate the value for"
         ) Expression field,
         @Param(
             name = "window",
@@ -105,9 +120,7 @@ public class AvgOverTime extends TimeSeriesAggregateFunction implements Optional
 
     @Override
     public Expression surrogate() {
-        Source s = source();
-        Expression f = field();
-        return new Div(s, new SumOverTime(s, f, filter(), window()), new CountOverTime(s, f, filter(), window()), dataType());
+        return perTimeSeriesAggregation();
     }
 
     @Override

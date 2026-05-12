@@ -34,6 +34,7 @@ import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Consumer;
 
 /**
  * The indices request cache allows to cache a shard level request stage responses, helping with improving
@@ -44,9 +45,6 @@ import java.util.concurrent.ConcurrentMap;
  * <p>
  * Currently, the cache is only enabled for count requests, and can only be opted in on an index
  * level setting that can be dynamically changed and defaults to false.
- * <p>
- * There are still several TODOs left in this class, some easily addressable, some more complex, but the support
- * is functional.
  */
 public final class IndicesRequestCache implements Closeable {
 
@@ -97,6 +95,9 @@ public final class IndicesRequestCache implements Closeable {
         cleanCache();
     }
 
+    /**
+     * Get or compute a cache entry without cancellation support (backward compatible).
+     */
     BytesReference getOrCompute(
         CacheEntity cacheEntity,
         CheckedSupplier<BytesReference, IOException> loader,
@@ -104,14 +105,39 @@ public final class IndicesRequestCache implements Closeable {
         DirectoryReader reader,
         BytesReference cacheKey
     ) throws Exception {
+        return getOrCompute(cacheEntity, loader, mappingCacheKey, reader, cacheKey, null);
+    }
+
+    /**
+     * Get or compute a cache entry with cancellation support.
+     *
+     * @param cacheEntity           the cache entity
+     * @param loader                the loader to compute the value if not cached
+     * @param mappingCacheKey       the mapping cache key
+     * @param reader                the directory reader
+     * @param cacheKey              the cache key
+     * @param cancellationRegistrar if non-null, accepts a Runnable to be called when the operation should be cancelled.
+     *                              This allows waiting threads to be notified instantly when their task is cancelled,
+     *                              rather than polling.
+     * @return the cached or computed value
+     * @throws Exception if the computation fails or the operation is cancelled
+     */
+    BytesReference getOrCompute(
+        CacheEntity cacheEntity,
+        CheckedSupplier<BytesReference, IOException> loader,
+        MappingLookup.CacheKey mappingCacheKey,
+        DirectoryReader reader,
+        BytesReference cacheKey,
+        Consumer<Runnable> cancellationRegistrar
+    ) throws Exception {
         final ESCacheHelper cacheHelper = ElasticsearchDirectoryReader.getESReaderCacheHelper(reader);
         assert cacheHelper != null;
         final Key key = new Key(cacheEntity, mappingCacheKey, cacheHelper.getKey(), cacheKey);
         Loader cacheLoader = new Loader(cacheEntity, loader);
-        BytesReference value = cache.computeIfAbsent(key, cacheLoader);
+        BytesReference value = cache.computeIfAbsent(key, cacheLoader, cancellationRegistrar);
         if (cacheLoader.isLoaded()) {
             key.entity.onMiss();
-            // see if its the first time we see this reader, and make sure to register a cleanup key
+            // see if it's the first time we see this reader, and make sure to register a cleanup key
             CleanupKey cleanupKey = new CleanupKey(cacheEntity, cacheHelper.getKey());
             if (registeredClosedListeners.containsKey(cleanupKey) == false) {
                 Boolean previous = registeredClosedListeners.putIfAbsent(cleanupKey, Boolean.TRUE);
@@ -135,14 +161,16 @@ public final class IndicesRequestCache implements Closeable {
     }
 
     /**
-     * Invalidates the given the cache entry for the given key and it's context
+     * Invalidates the given cache entry for the given key and its context
      * @param cacheEntity the cache entity to invalidate for
+     * @param mappingCacheKey the mapping cache key to invalidate the cache entry for
      * @param reader the reader to invalidate the cache entry for
      * @param cacheKey the cache key to invalidate
      */
     void invalidate(CacheEntity cacheEntity, MappingLookup.CacheKey mappingCacheKey, DirectoryReader reader, BytesReference cacheKey) {
-        assert reader.getReaderCacheHelper() != null;
-        cache.invalidate(new Key(cacheEntity, mappingCacheKey, reader.getReaderCacheHelper().getKey(), cacheKey));
+        final ESCacheHelper cacheHelper = ElasticsearchDirectoryReader.getESReaderCacheHelper(reader);
+        assert cacheHelper != null;
+        cache.invalidate(new Key(cacheEntity, mappingCacheKey, cacheHelper.getKey(), cacheKey));
     }
 
     private static class Loader implements CacheLoader<Key, BytesReference> {
@@ -258,7 +286,7 @@ public final class IndicesRequestCache implements Closeable {
                 + entity.getCacheIdentity()
                 + ",value=" // BytesRef's toString already has [] so we don't add it here
                 + value.toBytesRef() // BytesRef has a readable toString
-                + ")";
+                + "])";
         }
     }
 

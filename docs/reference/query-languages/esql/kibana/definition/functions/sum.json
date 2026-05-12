@@ -20,7 +20,31 @@
       "params" : [
         {
           "name" : "number",
+          "type" : "dense_vector",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "dense_vector"
+    },
+    {
+      "params" : [
+        {
+          "name" : "number",
           "type" : "double",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "number",
+          "type" : "exponential_histogram",
           "optional" : false,
           "description" : ""
         }
@@ -51,11 +75,25 @@
       ],
       "variadic" : false,
       "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "number",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
     }
   ],
   "examples" : [
     "FROM employees\n| STATS SUM(languages)",
-    "FROM employees\n| STATS total_salary_changes = SUM(MV_MAX(salary_change))"
+    "FROM employees\n| STATS total_salary_changes = SUM(MV_MAX(salary_change))",
+    "TS exp_histo_sample\n| WHERE instance == \"instance-0\"\n| STATS total = ROUND(SUM(responseTime), 2)",
+    "TS histogram_timeseries_index\n| WHERE instance == \"instance-0\"\n| STATS total = ROUND(SUM(responseTime::tdigest), 2)"
   ],
   "preview" : false,
   "snapshot_only" : false

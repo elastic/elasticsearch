@@ -117,6 +117,11 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public VersionStringFieldMapper build(MapperBuilderContext context) {
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
             return new VersionStringFieldMapper(leafName(), fieldtype, buildFieldType(context, fieldtype), builderParams(this, context));
@@ -312,7 +317,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             failIfNoDocValues();
-            return new BytesRefsFromOrdsBlockLoader(name());
+            return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
         }
 
         @Override

@@ -28,16 +28,30 @@ import org.junit.Before;
 
 import java.io.IOException;
 
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_NUM_MERGE_WORKER;
 import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasToString;
 
 public class ES93HnswBitVectorsFormatTests extends BaseKnnBitVectorsFormatTestCase {
 
     @Override
     protected Codec getCodec() {
-        return TestUtil.alwaysKnnVectorsFormat(new ES93HnswVectorsFormat(DenseVectorFieldMapper.ElementType.BIT));
+        return TestUtil.alwaysKnnVectorsFormat(
+            new ES93HnswVectorsFormat(
+                DEFAULT_MAX_CONN,
+                DEFAULT_BEAM_WIDTH,
+                DenseVectorFieldMapper.ElementType.BIT,
+                DEFAULT_NUM_MERGE_WORKER,
+                null,
+                random().nextInt(1, 20)
+            )
+        );
     }
 
     @Before
@@ -45,9 +59,27 @@ public class ES93HnswBitVectorsFormatTests extends BaseKnnBitVectorsFormatTestCa
         similarityFunction = VectorSimilarityFunction.EUCLIDEAN;
     }
 
+    public void testToString() {
+        var format = new ES93HnswVectorsFormat(10, 20, DenseVectorFieldMapper.ElementType.BIT);
+        assertThat(format, hasToString(containsString("name=ES93HnswVectorsFormat")));
+        assertThat(format, hasToString(containsString("maxConn=10")));
+        assertThat(format, hasToString(containsString("beamWidth=20")));
+        assertThat(format, hasToString(containsString("hnswGraphThreshold=" + ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD)));
+    }
+
     public void testSimpleOffHeapSize() throws IOException {
         byte[] vector = randomVector(random().nextInt(12, 500));
-        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+        // Use threshold=0 to ensure HNSW graph is always built
+        var format = new ES93HnswVectorsFormat(
+            DEFAULT_MAX_CONN,
+            DEFAULT_BEAM_WIDTH,
+            DenseVectorFieldMapper.ElementType.BIT,
+            DEFAULT_NUM_MERGE_WORKER,
+            null,
+            0
+        );
+        var config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format));
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, config)) {
             Document doc = new Document();
             doc.add(new KnnByteVectorField("f", vector, VectorSimilarityFunction.EUCLIDEAN));
             w.addDocument(doc);

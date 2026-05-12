@@ -12,23 +12,35 @@ import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.mrjar'
+apply plugin: 'java-test-fixtures'
 
 dependencies {
   implementation project(':libs:native')
   implementation project(':libs:logging')
   implementation "org.apache.lucene:lucene-core:${versions.lucene}"
 
+  testImplementation(testArtifact(project(':x-pack:plugin:searchable-snapshots')))
+  testImplementation(testFixtures(project(':libs:native')))
   testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'native'
+  }
+  testFixturesImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'native'
   }
 }
 
-// compileMain21Java does not exist within idea (see MrJarPlugin) so we cannot reference directly by name
-tasks.matching { it.name == "compileMain21Java" }.configureEach {
+tasks.named('compileJava').configure {
   options.compilerArgs << '--add-modules=jdk.incubator.vector'
-  // we remove Werror, since incubating suppression (-Xlint:-incubating)
-  // is only support since JDK 22
-  options.compilerArgs -= '-Werror'
+  options.compilerArgs << '--add-reads=org.elasticsearch.simdvec=jdk.incubator.vector'
+}
+
+tasks.named('javadoc').configure {
+  options.addStringOption("-add-modules", "jdk.incubator.vector")
+  options.addStringOption("-add-reads", "org.elasticsearch.simdvec=jdk.incubator.vector")
+}
+
+tasks.withType(CheckForbiddenApisTask).configureEach {
+  ignoreMissingClasses = true
 }
 
 tasks.named('test').configure {
@@ -40,6 +52,3 @@ tasks.named('test').configure {
 tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
 }
-
-// hack for now, fix the jarhell check for MRJar
-tasks.named("jarHell").configure { enabled = false }

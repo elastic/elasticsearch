@@ -10,24 +10,36 @@ package org.elasticsearch.xpack.inference.services.elastic.authorization;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.features.InferenceFeatureService;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsTests;
-import org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
+import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint;
+import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
-import java.util.EnumSet;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -37,8 +49,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.elastic.authorization.EndpointSchemaMigration.ENDPOINT_SCHEMA_VERSION;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeatureTests.createMockCCMFeature;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMServiceTests.createMockCCMService;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.createAuthorizedEndpoint;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.createInvalidTaskTypeAuthorizedEndpoint;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -46,36 +62,45 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class AuthorizationPollerTests extends ESTestCase {
+    private static final AuthorizationPoller.TaskFields TASK_FIELDS = new AuthorizationPoller.TaskFields(
+        0,
+        "abc",
+        "abc",
+        "abc",
+        new TaskId("abc", 0),
+        Map.of()
+    );
+
     private DeterministicTaskQueue taskQueue;
+    private InferenceFeatureService inferenceFeatureServiceMock;
+    private ModelRegistry mockRegistry;
+    private ElasticInferenceServiceAuthorizationRequestHandler mockAuthHandler;
+    private CCMFeature ccmFeature;
+    private CCMService ccmService;
+    private Client mockClient;
+    private ElasticInferenceServiceSettings eisSettings;
 
     @Before
     public void init() throws Exception {
         taskQueue = new DeterministicTaskQueue();
+        inferenceFeatureServiceMock = mock(InferenceFeatureService.class);
+        when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD)).thenReturn(true);
+        mockRegistry = mock(ModelRegistry.class);
+        mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
+        mockClient = mock(Client.class);
+        when(mockClient.threadPool()).thenReturn(taskQueue.getThreadPool());
+        eisSettings = ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true);
     }
 
     public void testDoesNotSendAuthorizationRequest_WhenModelRegistryIsNotReady() {
-        var mockRegistry = mock(ModelRegistry.class);
         when(mockRegistry.isReady()).thenReturn(false);
-
-        var authorizationRequestHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
-
-        var poller = new AuthorizationPoller(
-            new AuthorizationPoller.TaskFields(0, "abc", "abc", "abc", new TaskId("abc", 0), Map.of()),
-            createWithEmptySettings(taskQueue.getThreadPool()),
-            authorizationRequestHandler,
-            mock(Sender.class),
-            ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-            mockRegistry,
-            mock(Client.class),
-            createMockCCMFeature(false),
-            createMockCCMService(false),
-            null
-        );
+        ccmFeature = createMockCCMFeature(false);
+        ccmService = createMockCCMService(false);
+        var poller = createPoller();
 
         var persistentTaskId = "id";
         var allocationId = 0L;
@@ -85,7 +110,7 @@ public class AuthorizationPollerTests extends ESTestCase {
 
         poller.sendAuthorizationRequest();
 
-        verify(authorizationRequestHandler, never()).getAuthorization(any(), any());
+        verify(mockAuthHandler, never()).getAuthorization(any(), any());
         verify(mockPersistentTasksService, never()).sendCompletionRequest(
             eq(persistentTaskId),
             eq(allocationId),
@@ -97,23 +122,10 @@ public class AuthorizationPollerTests extends ESTestCase {
     }
 
     public void testDoesNotSendAuthorizationRequest_WhenCCMIsDisabled() {
-        var mockRegistry = mock(ModelRegistry.class);
         when(mockRegistry.isReady()).thenReturn(true);
-
-        var authorizationRequestHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
-
-        var poller = new AuthorizationPoller(
-            new AuthorizationPoller.TaskFields(0, "abc", "abc", "abc", new TaskId("abc", 0), Map.of()),
-            createWithEmptySettings(taskQueue.getThreadPool()),
-            authorizationRequestHandler,
-            mock(Sender.class),
-            ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-            mockRegistry,
-            mock(Client.class),
-            createMockCCMFeature(true),
-            createMockCCMService(false),
-            null
-        );
+        ccmFeature = createMockCCMFeature(true);
+        ccmService = createMockCCMService(false);
+        var poller = createPoller();
 
         var persistentTaskId = "id";
         var allocationId = 0L;
@@ -123,8 +135,27 @@ public class AuthorizationPollerTests extends ESTestCase {
 
         poller.sendAuthorizationRequest();
 
-        verify(authorizationRequestHandler, never()).getAuthorization(any(), any());
-        verify(mockPersistentTasksService, times(1)).sendCompletionRequest(
+        verify(mockAuthHandler, never()).getAuthorization(any(), any());
+        verify(mockPersistentTasksService).sendCompletionRequest(eq(persistentTaskId), eq(allocationId), isNull(), isNull(), any(), any());
+    }
+
+    public void testDoesNotSendAuthorizationRequest_WhenClusterDoesNotIncludeMetadata_MappingUpdate() {
+        when(mockRegistry.isReady()).thenReturn(true);
+        ccmFeature = createMockCCMFeature(true);
+        ccmService = createMockCCMService(true);
+        when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD)).thenReturn(false);
+        var poller = createPoller();
+
+        var persistentTaskId = "id";
+        var allocationId = 0L;
+
+        var mockPersistentTasksService = mock(PersistentTasksService.class);
+        poller.init(mockPersistentTasksService, mock(TaskManager.class), persistentTaskId, allocationId);
+
+        poller.sendAuthorizationRequest();
+
+        verify(mockAuthHandler, never()).getAuthorization(any(), any());
+        verify(mockPersistentTasksService, never()).sendCompletionRequest(
             eq(persistentTaskId),
             eq(allocationId),
             isNull(),
@@ -135,23 +166,10 @@ public class AuthorizationPollerTests extends ESTestCase {
     }
 
     public void testOnlyMarksCompletedOnce() {
-        var mockRegistry = mock(ModelRegistry.class);
         when(mockRegistry.isReady()).thenReturn(true);
-
-        var authorizationRequestHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
-
-        var poller = new AuthorizationPoller(
-            new AuthorizationPoller.TaskFields(0, "abc", "abc", "abc", new TaskId("abc", 0), Map.of()),
-            createWithEmptySettings(taskQueue.getThreadPool()),
-            authorizationRequestHandler,
-            mock(Sender.class),
-            ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-            mockRegistry,
-            mock(Client.class),
-            createMockCCMFeature(true),
-            createMockCCMService(false),
-            null
-        );
+        ccmFeature = createMockCCMFeature(true);
+        ccmService = createMockCCMService(false);
+        var poller = createPoller();
 
         var persistentTaskId = "id";
         var allocationId = 0L;
@@ -162,55 +180,20 @@ public class AuthorizationPollerTests extends ESTestCase {
         poller.sendAuthorizationRequest();
         poller.sendAuthorizationRequest();
 
-        verify(authorizationRequestHandler, never()).getAuthorization(any(), any());
-        verify(mockPersistentTasksService, times(1)).sendCompletionRequest(
-            eq(persistentTaskId),
-            eq(allocationId),
-            isNull(),
-            isNull(),
-            any(),
-            any()
-        );
+        verify(mockAuthHandler, never()).getAuthorization(any(), any());
+        verify(mockPersistentTasksService).sendCompletionRequest(eq(persistentTaskId), eq(allocationId), isNull(), isNull(), any(), any());
     }
 
     public void testSendsAuthorizationRequest_WhenModelRegistryIsReady() {
-        var mockRegistry = mock(ModelRegistry.class);
         when(mockRegistry.isReady()).thenReturn(true);
-        when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id1", "id2"));
+        ccmFeature = createMockCCMFeature(true);
+        ccmService = createMockCCMService(true);
 
-        var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
-        doAnswer(invocation -> {
-            ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
-            listener.onResponse(
-                ElasticInferenceServiceAuthorizationModel.of(
-                    new ElasticInferenceServiceAuthorizationResponseEntity(
-                        List.of(
-                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
-                                InternalPreconfiguredEndpoints.DEFAULT_ELSER_2_MODEL_ID,
-                                EnumSet.of(TaskType.SPARSE_EMBEDDING)
-                            )
-                        )
-                    )
-                )
-            );
-            return Void.TYPE;
-        }).when(mockAuthHandler).getAuthorization(any(), any());
+        var url = "eis-url";
+        var sparseModel = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING, () -> null);
+        givenAuthHandlerReturnsEndpointsForUrl(url, List.of(sparseModel));
 
-        var mockClient = mock(Client.class);
-        when(mockClient.threadPool()).thenReturn(taskQueue.getThreadPool());
-
-        var poller = new AuthorizationPoller(
-            new AuthorizationPoller.TaskFields(0, "abc", "abc", "abc", new TaskId("abc", 0), Map.of()),
-            createWithEmptySettings(taskQueue.getThreadPool()),
-            mockAuthHandler,
-            mock(Sender.class),
-            ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-            mockRegistry,
-            mockClient,
-            createMockCCMFeature(true),
-            createMockCCMService(true),
-            null
-        );
+        var poller = createPoller();
 
         var persistentTaskId = "id";
         var allocationId = 0L;
@@ -218,22 +201,7 @@ public class AuthorizationPollerTests extends ESTestCase {
         var mockPersistentTasksService = mock(PersistentTasksService.class);
         poller.init(mockPersistentTasksService, mock(TaskManager.class), persistentTaskId, allocationId);
 
-        var requestArgCaptor = ArgumentCaptor.forClass(StoreInferenceEndpointsAction.Request.class);
-
-        poller.sendAuthorizationRequest();
-        verify(mockClient).execute(eq(StoreInferenceEndpointsAction.INSTANCE), requestArgCaptor.capture(), any());
-        var capturedRequest = requestArgCaptor.getValue();
-        assertThat(
-            capturedRequest.getModels(),
-            is(
-                List.of(
-                    PreconfiguredEndpointModelAdapter.createModel(
-                        InternalPreconfiguredEndpoints.getWithInferenceId(InternalPreconfiguredEndpoints.DEFAULT_ELSER_ENDPOINT_ID_V2),
-                        new ElasticInferenceServiceComponents("")
-                    )
-                )
-            )
-        );
+        sendAuthRequestAndVerifyStoreActionCalledForSparseEndpoints(url, poller, sparseModel);
 
         verify(mockPersistentTasksService, never()).sendCompletionRequest(
             eq(persistentTaskId),
@@ -242,48 +210,36 @@ public class AuthorizationPollerTests extends ESTestCase {
             any(),
             any(),
             any()
+        );
+    }
+
+    private ElasticInferenceServiceSparseEmbeddingsModel createSparseEndpoint(
+        String endpointId,
+        String modelName,
+        String url,
+        EndpointMetadata endpointMetadata
+    ) {
+        return new ElasticInferenceServiceSparseEmbeddingsModel(
+            endpointId,
+            TaskType.SPARSE_EMBEDDING,
+            new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelName, null, null),
+            new ElasticInferenceServiceComponents(url),
+            ChunkingSettingsBuilder.DEFAULT_SETTINGS,
+            endpointMetadata
         );
     }
 
     public void testSendsAuthorizationRequest_WhenCCMIsNotConfigurable() {
-        var mockRegistry = mock(ModelRegistry.class);
         when(mockRegistry.isReady()).thenReturn(true);
-        when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id1", "id2"));
+        ccmFeature = createMockCCMFeature(false);
+        ccmService = createMockCCMService(false);
 
-        var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
-        doAnswer(invocation -> {
-            ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
-            listener.onResponse(
-                ElasticInferenceServiceAuthorizationModel.of(
-                    new ElasticInferenceServiceAuthorizationResponseEntity(
-                        List.of(
-                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
-                                InternalPreconfiguredEndpoints.DEFAULT_ELSER_2_MODEL_ID,
-                                EnumSet.of(TaskType.SPARSE_EMBEDDING)
-                            )
-                        )
-                    )
-                )
-            );
-            return Void.TYPE;
-        }).when(mockAuthHandler).getAuthorization(any(), any());
+        var url = "eis-url";
+        var sparseModel = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING, () -> null);
 
-        var mockClient = mock(Client.class);
-        when(mockClient.threadPool()).thenReturn(taskQueue.getThreadPool());
+        givenAuthHandlerReturnsEndpointsForUrl(url, List.of(sparseModel));
 
-        var poller = new AuthorizationPoller(
-            new AuthorizationPoller.TaskFields(0, "abc", "abc", "abc", new TaskId("abc", 0), Map.of()),
-            createWithEmptySettings(taskQueue.getThreadPool()),
-            mockAuthHandler,
-            mock(Sender.class),
-            ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-            mockRegistry,
-            mockClient,
-            // CCM is not configurable so we should send the request because it doesn't depend on an api key
-            createMockCCMFeature(false),
-            createMockCCMService(false),
-            null
-        );
+        var poller = createPoller();
 
         var persistentTaskId = "id";
         var allocationId = 0L;
@@ -291,22 +247,7 @@ public class AuthorizationPollerTests extends ESTestCase {
         var mockPersistentTasksService = mock(PersistentTasksService.class);
         poller.init(mockPersistentTasksService, mock(TaskManager.class), persistentTaskId, allocationId);
 
-        var requestArgCaptor = ArgumentCaptor.forClass(StoreInferenceEndpointsAction.Request.class);
-
-        poller.sendAuthorizationRequest();
-        verify(mockClient).execute(eq(StoreInferenceEndpointsAction.INSTANCE), requestArgCaptor.capture(), any());
-        var capturedRequest = requestArgCaptor.getValue();
-        assertThat(
-            capturedRequest.getModels(),
-            is(
-                List.of(
-                    PreconfiguredEndpointModelAdapter.createModel(
-                        InternalPreconfiguredEndpoints.getWithInferenceId(InternalPreconfiguredEndpoints.DEFAULT_ELSER_ENDPOINT_ID_V2),
-                        new ElasticInferenceServiceComponents("")
-                    )
-                )
-            )
-        );
+        sendAuthRequestAndVerifyStoreActionCalledForSparseEndpoints(url, poller, sparseModel);
 
         verify(mockPersistentTasksService, never()).sendCompletionRequest(
             eq(persistentTaskId),
@@ -318,163 +259,155 @@ public class AuthorizationPollerTests extends ESTestCase {
         );
     }
 
-    public void testSendsAuthorizationRequest_ButDoesNotStoreAnyModels_WhenTheirInferenceIdAlreadyExists() {
-        var mockRegistry = mock(ModelRegistry.class);
+    public void testSendsAuthorizationRequest_ShouldNotStoreAnyModels_WhenTheyAlreadyExistAndHaveMatchingFingerprintsAndVersions() {
+        var url = "eis-url";
+        var sparseModel1 = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING, () -> null);
+        var sparseModel2 = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING, () -> "my_matching_fingerprint_2");
+        var sparseModel3 = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING, () -> "my_matching_fingerprint_3");
+
         when(mockRegistry.isReady()).thenReturn(true);
-        when(mockRegistry.getInferenceIds()).thenReturn(Set.of(InternalPreconfiguredEndpoints.DEFAULT_ELSER_ENDPOINT_ID_V2, "id2"));
-
-        var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
-        doAnswer(invocation -> {
-            ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
-            listener.onResponse(
-                ElasticInferenceServiceAuthorizationModel.of(
-                    new ElasticInferenceServiceAuthorizationResponseEntity(
-                        List.of(
-                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
-                                InternalPreconfiguredEndpoints.DEFAULT_ELSER_2_MODEL_ID,
-                                EnumSet.of(TaskType.SPARSE_EMBEDDING)
-                            )
-                        )
-                    )
-                )
-            );
-            return Void.TYPE;
-        }).when(mockAuthHandler).getAuthorization(any(), any());
-
-        var mockClient = mock(Client.class);
-        when(mockClient.threadPool()).thenReturn(taskQueue.getThreadPool());
-
-        var poller = new AuthorizationPoller(
-            new AuthorizationPoller.TaskFields(0, "abc", "abc", "abc", new TaskId("abc", 0), Map.of()),
-            createWithEmptySettings(taskQueue.getThreadPool()),
-            mockAuthHandler,
-            mock(Sender.class),
-            ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-            mockRegistry,
-            mockClient,
-            createMockCCMFeature(true),
-            createMockCCMService(true),
-            null
+        when(mockRegistry.getMinimalServiceSettings(Set.of(sparseModel1.id(), sparseModel2.id(), sparseModel3.id()), false)).thenReturn(
+            Map.of(
+                sparseModel1.id(),
+                createEisSparseSettingsWithFingerprintAndVersion(null, ENDPOINT_SCHEMA_VERSION),
+                sparseModel2.id(),
+                createEisSparseSettingsWithFingerprintAndVersion("my_matching_fingerprint_2", ENDPOINT_SCHEMA_VERSION),
+                sparseModel3.id(),
+                createEisSparseSettingsWithFingerprintAndVersion("my_matching_fingerprint_3", ENDPOINT_SCHEMA_VERSION)
+            )
         );
+        ccmFeature = createMockCCMFeature(true);
+        ccmService = createMockCCMService(true);
+
+        givenAuthHandlerReturnsEndpointsForUrl(url, List.of(sparseModel1, sparseModel2, sparseModel3));
+
+        var poller = createPoller();
 
         poller.sendAuthorizationRequest();
         verify(mockClient, never()).execute(eq(StoreInferenceEndpointsAction.INSTANCE), any(), any());
     }
 
-    public void testDoesNotAttemptToStoreModelIds_ThatDoNotExistInThePreconfiguredMapping() {
-        var mockRegistry = mock(ModelRegistry.class);
+    public void testSendsAuthorizationRequest_ShouldStoreNewModels() {
+        var url = "eis-url";
+        var sparseModel1 = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING, () -> null);
+        var sparseModel2 = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING, () -> "my_matching_fingerprint_2");
+        var sparseModel3 = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING, () -> "some_fingerprint_3");
+
         when(mockRegistry.isReady()).thenReturn(true);
-        when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id1", "id2"));
-
-        var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
-        doAnswer(invocation -> {
-            ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
-            listener.onResponse(
-                ElasticInferenceServiceAuthorizationModel.of(
-                    new ElasticInferenceServiceAuthorizationResponseEntity(
-                        List.of(
-                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
-                                // This is a model id that does not exist in the preconfigured endpoints map so it will not be stored
-                                "abc",
-                                EnumSet.of(TaskType.SPARSE_EMBEDDING)
-                            )
-                        )
-                    )
-                )
-            );
-            return Void.TYPE;
-        }).when(mockAuthHandler).getAuthorization(any(), any());
-
-        var mockClient = mock(Client.class);
-        when(mockClient.threadPool()).thenReturn(taskQueue.getThreadPool());
-
-        var poller = new AuthorizationPoller(
-            new AuthorizationPoller.TaskFields(0, "abc", "abc", "abc", new TaskId("abc", 0), Map.of()),
-            createWithEmptySettings(taskQueue.getThreadPool()),
-            mockAuthHandler,
-            mock(Sender.class),
-            ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-            mockRegistry,
-            mockClient,
-            createMockCCMFeature(true),
-            createMockCCMService(true),
-            null
+        when(mockRegistry.getMinimalServiceSettings(Set.of(sparseModel1.id(), sparseModel2.id(), sparseModel3.id()), false)).thenReturn(
+            Map.of(
+                sparseModel2.id(),
+                createEisSparseSettingsWithFingerprintAndVersion("my_matching_fingerprint_2", ENDPOINT_SCHEMA_VERSION)
+            )
         );
+        ccmFeature = createMockCCMFeature(true);
+        ccmService = createMockCCMService(true);
 
-        poller.sendAuthorizationRequest();
-        verify(mockClient, never()).execute(eq(StoreInferenceEndpointsAction.INSTANCE), any(), any());
+        givenAuthHandlerReturnsEndpointsForUrl(url, List.of(sparseModel1, sparseModel2, sparseModel3));
+
+        var poller = createPoller();
+
+        sendAuthRequestAndVerifyStoreActionCalledForSparseEndpoints(url, poller, sparseModel1, sparseModel3);
+    }
+
+    public void testSendsAuthorizationRequest_ShouldStoreModelsWithChangedFingerprint() {
+        var url = "eis-url";
+        var sparseModel1 = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING, () -> "non_null_1");
+        var sparseModel2 = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING, () -> "my_matching_fingerprint_2");
+        var sparseModel3 = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING, () -> "my_changed_fingerprint_3");
+
+        when(mockRegistry.isReady()).thenReturn(true);
+        when(mockRegistry.getMinimalServiceSettings(Set.of(sparseModel1.id(), sparseModel2.id(), sparseModel3.id()), false)).thenReturn(
+            Map.of(
+                sparseModel1.id(),
+                createEisSparseSettingsWithFingerprintAndVersion(null, ENDPOINT_SCHEMA_VERSION),
+                sparseModel2.id(),
+                createEisSparseSettingsWithFingerprintAndVersion("my_matching_fingerprint_2", ENDPOINT_SCHEMA_VERSION),
+                sparseModel3.id(),
+                createEisSparseSettingsWithFingerprintAndVersion("my_original_fingerprint_3", ENDPOINT_SCHEMA_VERSION)
+            )
+        );
+        ccmFeature = createMockCCMFeature(true);
+        ccmService = createMockCCMService(true);
+
+        givenAuthHandlerReturnsEndpointsForUrl(url, List.of(sparseModel1, sparseModel2, sparseModel3));
+
+        var poller = createPoller();
+
+        sendAuthRequestAndVerifyStoreActionCalledForSparseEndpoints(url, poller, sparseModel1, sparseModel3);
+    }
+
+    public void testSendsAuthorizationRequest_ShouldStoreModelsWithChangedVersion() {
+        var url = "eis-url";
+        var sparseModel1 = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING, () -> null);
+        var sparseModel2 = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING, () -> "my_matching_fingerprint_2");
+        var sparseModel3 = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING, () -> "my_matching_fingerprint_3");
+
+        when(mockRegistry.isReady()).thenReturn(true);
+        when(mockRegistry.getMinimalServiceSettings(Set.of(sparseModel1.id(), sparseModel2.id(), sparseModel3.id()), false)).thenReturn(
+            Map.of(
+                sparseModel1.id(),
+                createEisSparseSettingsWithFingerprintAndVersion(null, -1L),
+                sparseModel2.id(),
+                createEisSparseSettingsWithFingerprintAndVersion("my_matching_fingerprint_2", -1L),
+                sparseModel3.id(),
+                createEisSparseSettingsWithFingerprintAndVersion("my_matching_fingerprint_3", ENDPOINT_SCHEMA_VERSION)
+            )
+        );
+        ccmFeature = createMockCCMFeature(true);
+        ccmService = createMockCCMService(true);
+
+        givenAuthHandlerReturnsEndpointsForUrl(url, List.of(sparseModel1, sparseModel2, sparseModel3));
+
+        var poller = createPoller();
+
+        sendAuthRequestAndVerifyStoreActionCalledForSparseEndpoints(url, poller, sparseModel1, sparseModel2);
     }
 
     public void testDoesNotAttemptToStoreModelIds_ThatHaveATaskTypeThatTheEISIntegration_DoesNotSupport() {
-        var mockRegistry = mock(ModelRegistry.class);
+        var url = "eis-url";
+        var invalidTaskTypeEndpoint = createInvalidTaskTypeAuthorizedEndpoint();
+
         when(mockRegistry.isReady()).thenReturn(true);
-        when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id1", "id2"));
+        ccmFeature = createMockCCMFeature(true);
+        ccmService = createMockCCMService(true);
 
-        var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
-        doAnswer(invocation -> {
-            ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
-            listener.onResponse(
-                ElasticInferenceServiceAuthorizationModel.of(
-                    new ElasticInferenceServiceAuthorizationResponseEntity(
-                        List.of(
-                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
-                                InternalPreconfiguredEndpoints.DEFAULT_ELSER_2_MODEL_ID,
-                                // EIS does not yet support completions so this model will be ignored
-                                EnumSet.of(TaskType.COMPLETION)
-                            )
-                        )
-                    )
-                )
-            );
-            return Void.TYPE;
-        }).when(mockAuthHandler).getAuthorization(any(), any());
+        givenAuthHandlerReturnsEndpointsForUrl(url, List.of(invalidTaskTypeEndpoint));
 
-        var mockClient = mock(Client.class);
-        when(mockClient.threadPool()).thenReturn(taskQueue.getThreadPool());
-
-        var poller = new AuthorizationPoller(
-            new AuthorizationPoller.TaskFields(0, "abc", "abc", "abc", new TaskId("abc", 0), Map.of()),
-            createWithEmptySettings(taskQueue.getThreadPool()),
-            mockAuthHandler,
-            mock(Sender.class),
-            ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-            mockRegistry,
-            mockClient,
-            createMockCCMFeature(true),
-            createMockCCMService(true),
-            null
-        );
+        var poller = createPoller();
 
         poller.sendAuthorizationRequest();
         verify(mockClient, never()).execute(eq(StoreInferenceEndpointsAction.INSTANCE), any(), any());
     }
 
     public void testSendsTwoAuthorizationRequests() throws InterruptedException {
-        var mockRegistry = mock(ModelRegistry.class);
-        when(mockRegistry.isReady()).thenReturn(true);
-        when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id1", "id2"));
+        var url = "eis-url";
+        var sparseModel = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING, () -> null);
 
-        var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
-        doAnswer(invocation -> {
-            ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
-            listener.onResponse(
-                ElasticInferenceServiceAuthorizationModel.of(
-                    new ElasticInferenceServiceAuthorizationResponseEntity(
-                        List.of(
-                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
-                                // this is an unknown model id so it won't trigger storing an inference endpoint because
-                                // it doesn't map to a known one
-                                "abc",
-                                EnumSet.of(TaskType.SPARSE_EMBEDDING)
-                            )
-                        )
+        when(mockRegistry.isReady()).thenReturn(true);
+        // Since the registry is already aware of the sparse endpoint, the authorization poller will not consider it a new
+        // one and not attempt to store it.
+        when(mockRegistry.getMinimalServiceSettings(Set.of(sparseModel.id()), false)).thenReturn(
+            Map.of(
+                sparseModel.id(),
+                new MinimalServiceSettings(
+                    "eis",
+                    TaskType.SPARSE_EMBEDDING,
+                    null,
+                    null,
+                    null,
+                    new EndpointMetadata(
+                        EndpointMetadata.Heuristics.EMPTY_INSTANCE,
+                        new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
+                        EndpointMetadata.Display.EMPTY_INSTANCE
                     )
                 )
-            );
-            return Void.TYPE;
-        }).when(mockAuthHandler).getAuthorization(any(), any());
+            )
+        );
+        ccmFeature = createMockCCMFeature(true);
+        ccmService = createMockCCMService(true);
 
-        var mockClient = mock(Client.class);
+        givenAuthHandlerReturnsEndpointsForUrl(url, List.of(sparseModel));
 
         var callbackCount = new AtomicInteger(0);
         var latch = new CountDownLatch(2);
@@ -493,18 +426,8 @@ public class AuthorizationPollerTests extends ESTestCase {
             }
         };
 
-        var poller = new AuthorizationPoller(
-            new AuthorizationPoller.TaskFields(0, "abc", "abc", "abc", new TaskId("abc", 0), Map.of()),
-            createWithEmptySettings(taskQueue.getThreadPool()),
-            mockAuthHandler,
-            mock(Sender.class),
-            ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
-            mockRegistry,
-            mockClient,
-            createMockCCMFeature(true),
-            createMockCCMService(true),
-            callback
-        );
+        var poller = createPoller(callback);
+
         pollerRef.set(poller);
         poller.start();
         taskQueue.runAllRunnableTasks();
@@ -515,31 +438,14 @@ public class AuthorizationPollerTests extends ESTestCase {
     }
 
     public void testCallsShutdownAndMarksTaskAsCompleted_WhenSchedulingFails() throws InterruptedException {
-        var mockRegistry = mock(ModelRegistry.class);
+        var url = "eis-url";
+        var sparseModel = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING, () -> null);
+
         when(mockRegistry.isReady()).thenReturn(true);
-        when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id1", "id2"));
+        ccmFeature = createMockCCMFeature(true);
+        ccmService = createMockCCMService(true);
 
-        var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
-        doAnswer(invocation -> {
-            ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
-            listener.onResponse(
-                ElasticInferenceServiceAuthorizationModel.of(
-                    new ElasticInferenceServiceAuthorizationResponseEntity(
-                        List.of(
-                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
-                                // this is an unknown model id so it won't trigger storing an inference endpoint because
-                                // it doesn't map to a known one
-                                "abc",
-                                EnumSet.of(TaskType.SPARSE_EMBEDDING)
-                            )
-                        )
-                    )
-                )
-            );
-            return Void.TYPE;
-        }).when(mockAuthHandler).getAuthorization(any(), any());
-
-        var mockClient = mock(Client.class);
+        givenAuthHandlerReturnsEndpointsForUrl(url, List.of(sparseModel));
 
         var callbackCount = new AtomicInteger(0);
         var latch = new CountDownLatch(1);
@@ -550,23 +456,9 @@ public class AuthorizationPollerTests extends ESTestCase {
         };
 
         var exception = new IllegalStateException("failing");
-        // Simulate scheduling failure by having the settings throw an exception when queried
-        // Throwing an exception should cause the poller to shutdown and mark itself as completed
-        var settingsMock = mock(ElasticInferenceServiceSettings.class);
-        when(settingsMock.isPeriodicAuthorizationEnabled()).thenThrow(exception);
+        givenSchedulingFailure(exception);
 
-        var poller = new AuthorizationPoller(
-            new AuthorizationPoller.TaskFields(0, "abc", "abc", "abc", new TaskId("abc", 0), Map.of()),
-            createWithEmptySettings(taskQueue.getThreadPool()),
-            mockAuthHandler,
-            mock(Sender.class),
-            settingsMock,
-            mockRegistry,
-            mockClient,
-            createMockCCMFeature(true),
-            createMockCCMService(true),
-            callback
-        );
+        var poller = createPoller(callback);
 
         var persistentTaskId = "id";
         var allocationId = 0L;
@@ -579,7 +471,7 @@ public class AuthorizationPollerTests extends ESTestCase {
 
         assertThat(callbackCount.get(), is(1));
         assertTrue(poller.isShutdown());
-        verify(mockPersistentTasksService, times(1)).sendCompletionRequest(
+        verify(mockPersistentTasksService).sendCompletionRequest(
             eq(persistentTaskId),
             eq(allocationId),
             eq(exception),
@@ -597,6 +489,147 @@ public class AuthorizationPollerTests extends ESTestCase {
             isNull(),
             any(),
             any()
+        );
+    }
+
+    public void testSendsAuthorizationRequest_ShouldDeleteRemovedEndpoints() {
+        Set<String> endpointsToDelete = Set.of("id-1", "id-2");
+
+        when(mockRegistry.isReady()).thenReturn(true);
+        when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id-1", "id-2", "id-3"));
+        ccmFeature = createMockCCMFeature(true);
+        ccmService = createMockCCMService(true);
+
+        givenAuthHandlerRespondsForUrl(randomAlphaOfLength(10), List.of(), endpointsToDelete);
+
+        var poller = createPoller();
+        poller.sendAuthorizationRequest();
+
+        verify(mockRegistry).deleteModels(eq(endpointsToDelete), any());
+    }
+
+    public void testSendsAuthorizationRequest_ShouldIgnoreRemovedEndpointsNotInRegistry() {
+        Set<String> endpointsToDelete = Set.of("id-1", "id-3");
+
+        when(mockRegistry.isReady()).thenReturn(true);
+        when(mockRegistry.getInferenceIds()).thenReturn(endpointsToDelete);
+        ccmFeature = createMockCCMFeature(true);
+        ccmService = createMockCCMService(true);
+
+        givenAuthHandlerRespondsForUrl(randomAlphaOfLength(10), List.of(), Set.of("id-1", "id-2", "id-3", "id-4"));
+
+        var poller = createPoller();
+        poller.sendAuthorizationRequest();
+
+        verify(mockRegistry).deleteModels(eq(endpointsToDelete), any());
+    }
+
+    public void testSendsAuthorizationRequest_ShouldNotDeleteAnyWhenNoRemovedEndpointIsPresentInRegistry() {
+        when(mockRegistry.isReady()).thenReturn(true);
+        when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id-1", "id-2"));
+        ccmFeature = createMockCCMFeature(true);
+        ccmService = createMockCCMService(true);
+
+        givenAuthHandlerRespondsForUrl(randomAlphaOfLength(10), List.of(), Set.of("id-3", "id-4"));
+
+        var poller = createPoller();
+        poller.sendAuthorizationRequest();
+
+        verify(mockRegistry, never()).deleteModels(any(), any());
+    }
+
+    private AuthorizationPoller createPoller() {
+        return createPoller(null);
+    }
+
+    private AuthorizationPoller createPoller(Runnable callback) {
+        return new AuthorizationPoller(
+            TASK_FIELDS,
+            createWithEmptySettings(taskQueue.getThreadPool()),
+            mockAuthHandler,
+            mock(Sender.class),
+            eisSettings,
+            mockRegistry,
+            mockClient,
+            ccmFeature,
+            ccmService,
+            callback,
+            inferenceFeatureServiceMock
+        );
+    }
+
+    private void givenAuthHandlerReturnsEndpointsForUrl(String url, List<AuthorizedEndpoint> endpoints) {
+        givenAuthHandlerRespondsForUrl(url, endpoints, Set.of());
+    }
+
+    private void givenAuthHandlerRespondsForUrl(String url, List<AuthorizedEndpoint> endpoints, Set<String> removedEndpoints) {
+        doAnswer(invocation -> {
+            ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
+            listener.onResponse(
+                ElasticInferenceServiceAuthorizationModel.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity(endpoints, removedEndpoints),
+                    url
+                )
+            );
+            return Void.TYPE;
+        }).when(mockAuthHandler).getAuthorization(any(), any());
+    }
+
+    private void givenSchedulingFailure(Exception exception) {
+        // Simulate scheduling failure by having the settings throw an exception when queried
+        // Throwing an exception should cause the poller to shutdown and mark itself as completed
+        eisSettings = mock(ElasticInferenceServiceSettings.class);
+        when(eisSettings.isPeriodicAuthorizationEnabled()).thenThrow(exception);
+    }
+
+    private void sendAuthRequestAndVerifyStoreActionCalledForSparseEndpoints(
+        String url,
+        AuthorizationPoller authorizationPoller,
+        AuthorizedEndpoint... endpoints
+    ) {
+        var requestArgCaptor = ArgumentCaptor.forClass(StoreInferenceEndpointsAction.Request.class);
+        authorizationPoller.sendAuthorizationRequest();
+        verify(mockClient).execute(eq(StoreInferenceEndpointsAction.INSTANCE), requestArgCaptor.capture(), any());
+        var capturedRequest = requestArgCaptor.getValue();
+
+        List<? extends Model> expectedModels = Arrays.stream(endpoints)
+            .map(
+                endpoint -> createSparseEndpoint(
+                    endpoint.id(),
+                    endpoint.modelName(),
+                    url,
+                    new EndpointMetadata(
+                        new EndpointMetadata.Heuristics(
+                            List.of(),
+                            StatusHeuristic.fromString(endpoint.status()),
+                            endpoint.releaseDate(),
+                            endpoint.endOfLifeDate()
+                        ),
+                        new EndpointMetadata.Internal(endpoint.fingerprint(), ENDPOINT_SCHEMA_VERSION),
+                        endpoint.display()
+                    )
+                )
+            )
+            .toList();
+
+        assertThat(capturedRequest.getModels(), containsInAnyOrder(expectedModels.toArray()));
+    }
+
+    private static EndpointMetadata createEndpointMetadataWithInternal(EndpointMetadata.Internal internal) {
+        return new EndpointMetadata(EndpointMetadata.Heuristics.EMPTY_INSTANCE, internal, EndpointMetadata.Display.EMPTY_INSTANCE);
+    }
+
+    private static MinimalServiceSettings createEisSparseSettingsWithFingerprintAndVersion(
+        @Nullable String fingerprint,
+        @Nullable Long version
+    ) {
+        return new MinimalServiceSettings(
+            "eis",
+            TaskType.SPARSE_EMBEDDING,
+            null,
+            null,
+            null,
+            createEndpointMetadataWithInternal(new EndpointMetadata.Internal(fingerprint, version))
         );
     }
 }

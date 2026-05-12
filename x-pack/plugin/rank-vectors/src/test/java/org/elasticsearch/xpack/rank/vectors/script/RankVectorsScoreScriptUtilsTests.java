@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.rank.vectors.script;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.script.ScoreScript;
+import org.elasticsearch.script.field.vectors.BFloat16RankVectorsDocValuesField;
 import org.elasticsearch.script.field.vectors.BitRankVectorsDocValuesField;
 import org.elasticsearch.script.field.vectors.ByteRankVectorsDocValuesField;
 import org.elasticsearch.script.field.vectors.FloatRankVectorsDocValuesField;
@@ -91,6 +92,76 @@ public class RankVectorsScoreScriptUtilsTests extends ESTestCase {
 
             // Check scripting infrastructure integration
             assertEquals(65425.6249, new MaxSimDotProduct(scoreScript, queryVector, fieldName).maxSimDotProduct(), 0.001);
+            when(scoreScript._getDocId()).thenReturn(1);
+            e = expectThrows(
+                IllegalArgumentException.class,
+                () -> new MaxSimDotProduct(scoreScript, queryVector, fieldName).maxSimDotProduct()
+            );
+            assertEquals("A document doesn't have a value for a multi-vector field!", e.getMessage());
+        }
+    }
+
+    public void testBFloat16MultiVectorClassBindings() throws IOException {
+        String fieldName = "vector";
+        int dims = 5;
+        float[][][] docVectors = new float[][][] {
+            { { 230.0f, 300.33f, -34.8988f, 15.555f, -200.0f }, { 100.0f, 200.0f, -50.0f, 10.0f, -150.0f } } };
+        float[][] docMagnitudes = new float[][] { { 0.0f, 0.0f } };
+        for (int i = 0; i < docVectors.length; i++) {
+            for (int j = 0; j < docVectors[i].length; j++) {
+                docMagnitudes[i][j] = (float) Math.sqrt(VectorUtil.dotProduct(docVectors[i][j], docVectors[i][j]));
+            }
+        }
+
+        List<List<Number>> queryVector = List.of(Arrays.asList(0.5f, 111.3f, -13.0f, 14.8f, -156.0f));
+        List<List<Number>> invalidQueryVector = List.of(Arrays.asList(0.5, 111.3));
+
+        List<RankVectorsDocValuesField> fields = List.of(
+            new BFloat16RankVectorsDocValuesField(
+                RankVectorsScriptDocValuesTests.wrap(docVectors, ElementType.BFLOAT16),
+                RankVectorsScriptDocValuesTests.wrap(docMagnitudes),
+                "test",
+                ElementType.BFLOAT16,
+                dims
+            ),
+            new BFloat16RankVectorsDocValuesField(
+                RankVectorsScriptDocValuesTests.wrap(docVectors, ElementType.BFLOAT16),
+                RankVectorsScriptDocValuesTests.wrap(docMagnitudes),
+                "test",
+                ElementType.BFLOAT16,
+                dims
+            )
+        );
+        for (RankVectorsDocValuesField field : fields) {
+            field.setNextDocId(0);
+
+            ScoreScript scoreScript = mock(ScoreScript.class);
+            when(scoreScript.field("vector")).thenAnswer(mock -> field);
+
+            // Test max similarity dot product
+            MaxSimDotProduct maxSimDotProduct = new MaxSimDotProduct(scoreScript, queryVector, fieldName);
+            float maxSimDotProductExpected = 65390.32421875f; // Adjust this value based on expected max similarity
+            assertEquals(
+                "maxSimDotProduct result is not equal to the expected value!",
+                maxSimDotProductExpected,
+                maxSimDotProduct.maxSimDotProduct(),
+                0.1
+            );
+
+            // Check each function rejects query vectors with the wrong dimension
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> new MaxSimDotProduct(scoreScript, invalidQueryVector, fieldName)
+            );
+            assertThat(
+                e.getMessage(),
+                containsString("query vector has a different number of dimensions [2] than the document vectors [5]")
+            );
+            e = expectThrows(IllegalArgumentException.class, () -> new MaxSimInvHamming(scoreScript, invalidQueryVector, fieldName));
+            assertThat(e.getMessage(), containsString("hamming distance is only supported for byte or bit vectors"));
+
+            // Check scripting infrastructure integration
+            assertEquals(65390.32421875, new MaxSimDotProduct(scoreScript, queryVector, fieldName).maxSimDotProduct(), 0.1);
             when(scoreScript._getDocId()).thenReturn(1);
             e = expectThrows(
                 IllegalArgumentException.class,

@@ -11,10 +11,10 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
@@ -122,7 +122,7 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
         withAggregationContext(mapperService, List.of(source(b -> b.field("field", "abc"))), context -> {
             for (NumberFieldMapper.NumberType type : NumberFieldMapper.NumberType.values()) {
-                assertNotNull(pointReaderShim(context(new MatchAllDocsQuery()), null, getVSConfig("number", type, true, context)));
+                assertNotNull(pointReaderShim(context(Queries.ALL_DOCS_INSTANCE), null, getVSConfig("number", type, true, context)));
                 assertNotNull(pointReaderShim(context(null), null, getVSConfig("number", type, true, context)));
                 assertNull(pointReaderShim(context(null), mockAggregator(), getVSConfig("number", type, true, context)));
                 assertNull(
@@ -133,7 +133,7 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
             }
             for (DateFieldMapper.Resolution resolution : DateFieldMapper.Resolution.values()) {
                 assertNull(
-                    pointReaderShim(context(new MatchAllDocsQuery()), mockAggregator(), getVSConfig("number", resolution, true, context))
+                    pointReaderShim(context(Queries.ALL_DOCS_INSTANCE), mockAggregator(), getVSConfig("number", resolution, true, context))
                 );
                 assertNull(
                     pointReaderShim(context(new TermQuery(new Term("foo", "bar"))), null, getVSConfig("number", resolution, true, context))
@@ -147,7 +147,7 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
             LongPoint.encodeDimension(DateFieldMapper.Resolution.MILLISECONDS.convert(expected), scratch, 0);
             assertThat(
                 pointReaderShim(
-                    context(new MatchAllDocsQuery()),
+                    context(Queries.ALL_DOCS_INSTANCE),
                     null,
                     getVSConfig("number", DateFieldMapper.Resolution.MILLISECONDS, true, context)
                 ).apply(scratch),
@@ -156,7 +156,7 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
             LongPoint.encodeDimension(DateFieldMapper.Resolution.NANOSECONDS.convert(expected), scratch, 0);
             assertThat(
                 pointReaderShim(
-                    context(new MatchAllDocsQuery()),
+                    context(Queries.ALL_DOCS_INSTANCE),
                     null,
                     getVSConfig("number", DateFieldMapper.Resolution.NANOSECONDS, true, context)
                 ).apply(scratch),

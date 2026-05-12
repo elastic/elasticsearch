@@ -22,10 +22,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.monitor.StatusInfo;
-import org.elasticsearch.test.EnumSerializationTestUtils;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -985,18 +982,20 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         List<DiscoveryNode> allMasterEligibleNodes = List.of(node1, node2, node3);
         return new ClusterFormationFailureHelper.ClusterFormationState(
             initialMasterNodesSetting,
-            localNode,
-            Map.copyOf(masterEligibleNodesMap),
-            randomLong(),
-            randomLong(),
-            new CoordinationMetadata.VotingConfiguration(Collections.emptySet()),
-            new CoordinationMetadata.VotingConfiguration(Collections.emptySet()),
+            new ClusterFormationFailureHelper.ClusterFormationClusterStateView(
+                localNode,
+                Map.copyOf(masterEligibleNodesMap),
+                randomLong(),
+                randomLong(),
+                new CoordinationMetadata.VotingConfiguration(Collections.emptySet()),
+                new CoordinationMetadata.VotingConfiguration(Collections.emptySet()),
+                randomLong()
+            ),
             Collections.emptyList(),
             hasDiscoveredAllNodes
                 ? allMasterEligibleNodes
                 : randomSubsetOf(randomInt(allMasterEligibleNodes.size() - 1), allMasterEligibleNodes),
             Collections.emptySet(),
-            randomLong(),
             hasDiscoveredQuorum,
             new StatusInfo(randomFrom(StatusInfo.Status.HEALTHY, StatusInfo.Status.UNHEALTHY), randomAlphaOfLength(20)),
             Collections.emptyList()
@@ -1161,6 +1160,50 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         );
     }
 
+    /**
+     * Verifies that {@link CoordinationDiagnosticsService.CoordinationDiagnosticsDetails#EMPTY} has all components null.
+     */
+    public void testCoordinationDiagnosticsDetailsEmptyConstant() {
+        CoordinationDiagnosticsService.CoordinationDiagnosticsDetails empty =
+            CoordinationDiagnosticsService.CoordinationDiagnosticsDetails.EMPTY;
+        assertThat(empty.currentMaster(), equalTo(null));
+        assertThat(empty.recentMasters(), equalTo(null));
+        assertThat(empty.remoteExceptionMessage(), emptyOrNullString());
+        assertThat(empty.remoteExceptionStackTrace(), emptyOrNullString());
+        assertThat(empty.nodeToClusterFormationDescriptionMap(), equalTo(null));
+    }
+
+    /**
+     * Verifies that the {@link CoordinationDiagnosticsService.CoordinationDiagnosticsDetails} constructor that accepts an
+     * {@link Exception} sets {@code remoteExceptionMessage} and {@code remoteExceptionStackTrace} from that exception.
+     */
+    public void testCoordinationDiagnosticsDetailsConstructorWithException() {
+        String message = "test exception message";
+        RuntimeException exception = new RuntimeException(message);
+        CoordinationDiagnosticsService.CoordinationDiagnosticsDetails details =
+            new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(node1, List.of(node1), exception, Map.of());
+        assertThat(details.currentMaster(), equalTo(node1));
+        assertThat(details.recentMasters(), equalTo(List.of(node1)));
+        assertThat(details.remoteExceptionMessage(), equalTo(message));
+        assertThat(details.remoteExceptionStackTrace(), containsString("java.lang.RuntimeException: " + message));
+        assertThat(details.nodeToClusterFormationDescriptionMap(), equalTo(Map.of()));
+    }
+
+    /**
+     * Verifies that when {@code verbose} is false, {@link CoordinationDiagnosticsService#diagnoseMasterStability} returns
+     * a result whose details are {@link CoordinationDiagnosticsService.CoordinationDiagnosticsDetails#EMPTY}.
+     */
+    public void testDiagnoseMasterStabilityNonVerboseReturnsEmptyDetails() throws Exception {
+        AtomicReference<ClusterState> currentClusterState = new AtomicReference<>(node1MasterClusterState);
+        ClusterService clusterService = createClusterService(currentClusterState::get);
+        MasterHistoryService masterHistoryService = createMasterHistoryService(clusterService);
+        MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+        CoordinationDiagnosticsService service = createCoordinationDiagnosticsService(clusterService, masterHistoryService);
+        CoordinationDiagnosticsService.CoordinationDiagnosticsResult result = service.diagnoseMasterStability(false);
+        assertThat(result.details(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsDetails.EMPTY));
+    }
+
     public void testRandomMasterEligibleNode() throws Exception {
         ClusterService clusterService = createClusterService(nullMasterClusterState);
         MasterHistoryService masterHistoryService = createMasterHistoryService(clusterService);
@@ -1188,162 +1231,6 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
             seenMasterEligibleNodes.add(coordinationDiagnosticsService.getRandomMasterEligibleNode());
         }
         assertThat(seenMasterEligibleNodes, equalTo(allMasterEligibleNodes));
-    }
-
-    public void testResultSerialization() {
-        CoordinationDiagnosticsService.CoordinationDiagnosticsStatus status = getRandomStatus();
-        CoordinationDiagnosticsService.CoordinationDiagnosticsDetails details = getRandomDetails();
-        CoordinationDiagnosticsService.CoordinationDiagnosticsResult result =
-            new CoordinationDiagnosticsService.CoordinationDiagnosticsResult(status, randomAlphaOfLength(30), details);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            result,
-            history -> copyWriteable(result, writableRegistry(), CoordinationDiagnosticsService.CoordinationDiagnosticsResult::new),
-            this::mutateResult
-        );
-    }
-
-    public void testStatusSerialization() {
-        CoordinationDiagnosticsService.CoordinationDiagnosticsStatus status = getRandomStatus();
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            status,
-            history -> copyWriteable(
-                status,
-                writableRegistry(),
-                CoordinationDiagnosticsService.CoordinationDiagnosticsStatus::fromStreamInput
-            ),
-            this::mutateStatus
-        );
-    }
-
-    public void testDetailsSerialization() {
-        CoordinationDiagnosticsService.CoordinationDiagnosticsDetails details = getRandomDetails();
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            details,
-            history -> copyWriteable(details, writableRegistry(), CoordinationDiagnosticsService.CoordinationDiagnosticsDetails::new),
-            this::mutateDetails
-        );
-    }
-
-    private CoordinationDiagnosticsService.CoordinationDiagnosticsDetails mutateDetails(
-        CoordinationDiagnosticsService.CoordinationDiagnosticsDetails originalDetails
-    ) {
-        switch (randomIntBetween(1, 5)) {
-            case 1 -> {
-                return new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(
-                    node2,
-                    originalDetails.recentMasters(),
-                    originalDetails.remoteExceptionMessage(),
-                    originalDetails.remoteExceptionStackTrace(),
-                    originalDetails.nodeToClusterFormationDescriptionMap()
-                );
-            }
-            case 2 -> {
-                return new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(
-                    originalDetails.currentMaster(),
-                    List.of(node1, node2, node3),
-                    originalDetails.remoteExceptionMessage(),
-                    originalDetails.remoteExceptionStackTrace(),
-                    originalDetails.nodeToClusterFormationDescriptionMap()
-                );
-            }
-            case 3 -> {
-                return new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(
-                    originalDetails.currentMaster(),
-                    originalDetails.recentMasters(),
-                    randomAlphaOfLength(30),
-                    originalDetails.remoteExceptionStackTrace(),
-                    originalDetails.nodeToClusterFormationDescriptionMap()
-                );
-            }
-            case 4 -> {
-                return new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(
-                    originalDetails.currentMaster(),
-                    originalDetails.recentMasters(),
-                    originalDetails.remoteExceptionMessage(),
-                    randomAlphaOfLength(100),
-                    originalDetails.nodeToClusterFormationDescriptionMap()
-                );
-            }
-            case 5 -> {
-                return new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(
-                    originalDetails.currentMaster(),
-                    originalDetails.recentMasters(),
-                    originalDetails.remoteExceptionMessage(),
-                    originalDetails.remoteExceptionStackTrace(),
-                    randomMap(0, 7, () -> new Tuple<>(randomNodeId(), randomAlphaOfLength(100)))
-                );
-            }
-            default -> throw new IllegalStateException();
-        }
-    }
-
-    private CoordinationDiagnosticsService.CoordinationDiagnosticsStatus mutateStatus(
-        CoordinationDiagnosticsService.CoordinationDiagnosticsStatus originalStatus
-    ) {
-        List<CoordinationDiagnosticsService.CoordinationDiagnosticsStatus> notUsedStatuses = Arrays.stream(
-            CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.values()
-        ).filter(status -> status.equals(originalStatus) == false).toList();
-        return randomFrom(notUsedStatuses);
-    }
-
-    private CoordinationDiagnosticsService.CoordinationDiagnosticsResult mutateResult(
-        CoordinationDiagnosticsService.CoordinationDiagnosticsResult originalResult
-    ) {
-        switch (randomIntBetween(1, 3)) {
-            case 1 -> {
-                return new CoordinationDiagnosticsService.CoordinationDiagnosticsResult(
-                    originalResult.status(),
-                    randomAlphaOfLength(30),
-                    originalResult.details()
-                );
-            }
-            case 2 -> {
-                return new CoordinationDiagnosticsService.CoordinationDiagnosticsResult(
-                    getRandomStatusOtherThan(originalResult.status()),
-                    originalResult.summary(),
-                    originalResult.details()
-                );
-            }
-            case 3 -> {
-                return new CoordinationDiagnosticsService.CoordinationDiagnosticsResult(
-                    originalResult.status(),
-                    originalResult.summary(),
-                    getRandomDetails()
-                );
-            }
-            default -> throw new IllegalStateException();
-        }
-    }
-
-    private CoordinationDiagnosticsService.CoordinationDiagnosticsStatus getRandomStatus() {
-        return randomFrom(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.values());
-    }
-
-    private CoordinationDiagnosticsService.CoordinationDiagnosticsStatus getRandomStatusOtherThan(
-        CoordinationDiagnosticsService.CoordinationDiagnosticsStatus otherThanThis
-    ) {
-        return randomFrom(
-            Arrays.stream(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.values())
-                .filter(status -> status.equals(otherThanThis) == false)
-                .toList()
-        );
-    }
-
-    private CoordinationDiagnosticsService.CoordinationDiagnosticsDetails getRandomDetails() {
-        return new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(
-            node1,
-            List.of(node1, node2),
-            randomNullableStringOfLengthBetween(0, 30),
-            randomNullableStringOfLengthBetween(0, 30),
-            Map.of(randomNodeId(), randomAlphaOfLengthBetween(0, 30))
-        );
-    }
-
-    public static String randomNullableStringOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
-        if (randomBoolean()) {
-            return null;
-        }
-        return randomAlphaOfLengthBetween(minCodeUnits, maxCodeUnits);
     }
 
     /*
@@ -1420,13 +1307,4 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         cluster.clusterNodes.add(nonMasterNode);
     }
 
-    public void testCoordinationDiagnosticsStatusSerialization() {
-        EnumSerializationTestUtils.assertEnumSerialization(
-            CoordinationDiagnosticsStatus.class,
-            CoordinationDiagnosticsStatus.GREEN,
-            CoordinationDiagnosticsStatus.UNKNOWN,
-            CoordinationDiagnosticsStatus.YELLOW,
-            CoordinationDiagnosticsStatus.RED
-        );
-    }
 }

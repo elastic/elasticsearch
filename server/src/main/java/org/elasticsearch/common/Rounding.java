@@ -303,11 +303,19 @@ public abstract class Rounding implements Writeable {
 
         /**
          * If this rounding mechanism precalculates rounding points then
-         * this array stores dates such that each date between each entry.
-         * if the rounding mechanism doesn't precalculate points then this
+         * this array stores those points.  The array is such that for an
+         * index {@code i} and a value {@code v}, if {@code points[i] <= v < points[i+1]}
+         * then {@code v} rounds to {@code points[i]}
+         *
+         * <p>If the rounding mechanism doesn't precalculate points then this
          * is {@code null}.
          */
         long[] fixedRoundingPoints();
+
+        /**
+         * @return the original {@link Rounding} that created this instance.
+         */
+        Rounding getUnprepared();
     }
 
     /**
@@ -719,6 +727,11 @@ public abstract class Rounding implements Writeable {
             }
 
             @Override
+            public Rounding getUnprepared() {
+                return TimeUnitRounding.this;
+            }
+
+            @Override
             public abstract String toString();
         }
 
@@ -1047,7 +1060,7 @@ public abstract class Rounding implements Writeable {
 
         private TimeIntervalPreparedRounding prepareOffsetOrJavaTimeRounding(long minUtcMillis, long maxUtcMillis) {
             long minLookup = minUtcMillis - interval;
-            long maxLookup = maxUtcMillis;
+            long maxLookup = maxUtcMillis + interval;
 
             LocalTimeOffset.Lookup lookup = LocalTimeOffset.lookup(timeZone, minLookup, maxLookup);
             if (lookup == null) {
@@ -1135,6 +1148,11 @@ public abstract class Rounding implements Writeable {
             }
 
             @Override
+            public Rounding getUnprepared() {
+                return TimeIntervalRounding.this;
+            }
+
+            @Override
             public abstract String toString();
         }
 
@@ -1161,8 +1179,7 @@ public abstract class Rounding implements Writeable {
 
             @Override
             public long nextRoundingValue(long utcMillis) {
-                // TODO this is used in date range's collect so we should optimize it too
-                return new JavaTimeRounding().nextRoundingValue(utcMillis);
+                return offset.localToUtcInThisOffset((roundKey(offset.utcToLocalTime(utcMillis), interval) + 1) * interval);
             }
 
             @Override
@@ -1446,6 +1463,11 @@ public abstract class Rounding implements Writeable {
                     // TODO we can likely translate here
                     return null;
                 }
+
+                @Override
+                public Rounding getUnprepared() {
+                    return delegatePrepared.getUnprepared();
+                }
             };
         }
 
@@ -1533,6 +1555,11 @@ public abstract class Rounding implements Writeable {
         @Override
         public long[] fixedRoundingPoints() {
             return Arrays.copyOf(values, max);
+        }
+
+        @Override
+        public Rounding getUnprepared() {
+            return delegate.getUnprepared();
         }
     }
 }

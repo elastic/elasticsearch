@@ -11,55 +11,41 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.NumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.core.SuppressForbidden;
 
-import java.lang.reflect.Field;
 import java.util.Objects;
 
 class MergedDocValuesRangeQuery {
 
-    @SuppressForbidden(reason = "Uses reflection to access package-private lucene class")
+    /**
+     * Attempt to merge together two overlapping NumericDocValuesRangeQuery instances.  Returns
+     * a merged query if successful, otherwise {@code null}
+     */
     public static Query merge(Query query, Query extraQuery) {
-        Class<? extends Query> queryClass = query.getClass();
-        Class<? extends Query> extraQueryClass = extraQuery.getClass();
 
-        if (queryClass.equals(extraQueryClass) == false
-            || queryClass.getCanonicalName().equals("org.apache.lucene.document.SortedNumericDocValuesRangeQuery") == false) {
-            return null;
-        }
+        if (query instanceof NumericDocValuesRangeQuery query1 && extraQuery instanceof NumericDocValuesRangeQuery query2) {
 
-        try {
-            Field fieldName = queryClass.getDeclaredField("field");
-            fieldName.setAccessible(true);
-
-            String field = fieldName.get(query).toString();
-            if (Objects.equals(field, fieldName.get(extraQuery)) == false) {
+            if (Objects.equals(query1.getField(), query2.getField()) == false) {
                 return null;
             }
 
-            Field lowerValue = queryClass.getDeclaredField("lowerValue");
-            Field upperValue = queryClass.getDeclaredField("upperValue");
-            lowerValue.setAccessible(true);
-            upperValue.setAccessible(true);
-
-            long q1LowerValue = lowerValue.getLong(query);
-            long q1UpperValue = upperValue.getLong(query);
-            long q2LowerValue = lowerValue.getLong(extraQuery);
-            long q2UpperValue = upperValue.getLong(extraQuery);
+            long q1LowerValue = query1.lowerValue();
+            long q1UpperValue = query1.upperValue();
+            long q2LowerValue = query2.lowerValue();
+            long q2UpperValue = query2.upperValue();
 
             if (q1UpperValue < q2LowerValue || q2UpperValue < q1LowerValue) {
                 return new MatchNoDocsQuery("Non-overlapping range queries");
             }
 
             return NumericDocValuesField.newSlowRangeQuery(
-                field,
+                query1.getField(),
                 Math.max(q1LowerValue, q2LowerValue),
                 Math.min(q1UpperValue, q2UpperValue)
             );
-
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            return null;
         }
+
+        return null;
     }
 }

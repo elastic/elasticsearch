@@ -19,6 +19,7 @@ import java.time.Clock;
 import java.util.Collection;
 
 import static org.elasticsearch.xpack.security.authc.saml.SamlUtils.samlException;
+import static org.elasticsearch.xpack.security.authc.saml.SamlUtils.samlUnsolicitedInResponseToException;
 
 public class SamlResponseHandler extends SamlObjectHandler {
     public SamlResponseHandler(Clock clock, IdpConfiguration idp, SpConfiguration sp, TimeValue maxSkew) {
@@ -32,11 +33,7 @@ public class SamlResponseHandler extends SamlObjectHandler {
                     + "incorrectly populates the InResponseTo attribute",
                 response.getID()
             );
-            throw samlException(
-                "SAML content is in-response-to [{}] but expected one of {} ",
-                response.getInResponseTo(),
-                allowedSamlRequestIds
-            );
+            throw samlUnsolicitedInResponseToException(response.getInResponseTo(), allowedSamlRequestIds);
         }
     }
 

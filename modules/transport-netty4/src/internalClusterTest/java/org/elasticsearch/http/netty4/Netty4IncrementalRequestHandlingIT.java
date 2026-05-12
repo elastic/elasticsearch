@@ -45,17 +45,12 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -70,7 +65,6 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -530,7 +524,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
     }
 
     public void testBulkIndexingRequestSplitting() throws Exception {
-        final var watermarkBytes = between(100, 200);
+        final var watermarkBytes = between(100, 2000);
         final var tinyNode = internalCluster().startCoordinatingOnlyNode(
             Settings.builder()
                 .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), ByteSizeValue.ofBytes(watermarkBytes))
@@ -546,7 +540,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             final var channel = clientContext.channel();
             channel.writeAndFlush(request);
 
-            final var indexName = randomIdentifier();
+            final var indexName = randomIndexName();
             final var indexCreatedListener = ClusterServiceUtils.addTemporaryStateListener(
                 cs -> Iterators.filter(
                     cs.metadata().indicesAllProjects().iterator(),
@@ -558,13 +552,21 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
             final var valueLength = between(10, 30);
             final var docSizeBytes = "{'field':''}".length() + valueLength;
-            final var itemCount = between(watermarkBytes / docSizeBytes + 1, 300); // enough to split at least once
+            final var minItemCount = watermarkBytes / docSizeBytes + 1;
+            final var itemCount = between(minItemCount, minItemCount * 2); // enough to split at least once
             assertThat(itemCount * docSizeBytes, greaterThan(watermarkBytes));
             for (int i = 0; i < itemCount; i++) {
                 channel.write(new DefaultHttpContent(Unpooled.wrappedBuffer(Strings.format("""
                     {"index":{"_index":"%s"}}
                     {"field":"%s"}
                     """, indexName, randomAlphaOfLength(valueLength)).getBytes(StandardCharsets.UTF_8))));
+
+                if (i == minItemCount && randomBoolean()) {
+                    channel.flush();
+                    if (randomBoolean()) {
+                        safeAwait(indexCreatedListener);
+                    }
+                }
             }
 
             channel.flush();
@@ -924,13 +926,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
         @Override
         public Collection<RestHandler> getRestHandlers(
-            Settings settings,
-            NamedWriteableRegistry namedWriteableRegistry,
-            RestController restController,
-            ClusterSettings clusterSettings,
-            IndexScopedSettings indexScopedSettings,
-            SettingsFilter settingsFilter,
-            IndexNameExpressionResolver indexNameExpressionResolver,
+            RestHandlersServices restHandlersServices,
             Supplier<DiscoveryNodes> nodesInCluster,
             Predicate<NodeFeature> clusterSupportsFeature
         ) {

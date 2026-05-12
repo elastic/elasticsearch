@@ -1,7 +1,6 @@
 setup:
   - requires:
-      cluster_features: ["gte_v8.5.0"]
-      reason: "rollup renamed to downsample in 8.5.0"
+      test_runner_features: allowed_warnings
 
   - do:
       indices.create:
@@ -86,7 +85,7 @@ setup:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T19:50:53.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.37", "multi-counter" : [1000, 1001, 1002], "scaled-counter": 1000.0, "multi-gauge": [99, 100, 110], "scaled-gauge": 99.0, "network": {"tx": 1434587694, "rx": 530604797}, "created_at": "2021-04-28T19:44:00.000Z", "running": true, "number_of_containers": 1, "tags": ["backend", "test", "us-west1"], "values": [4, 5, 2]}}}'
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T19:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.120", "multi-counter" : [76, 77, 78], "scaled-counter": 70.0, "multi-gauge": [95, 98, 100], "scaled-gauge": 95.0, "network": {"tx": 1434595272, "rx": 530605511}, "created_at": "2021-04-28T19:45:00.000Z", "running": true, "number_of_containers": 1, "tags": ["backend", "test", "us-west1"], "values": [3, 2, 1]}}}'
+          - '{"@timestamp": "2021-04-28T19:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.120", "multi-counter" : [76, 77, 78], "scaled-counter": 1070.0, "multi-gauge": [95, 98, 100], "scaled-gauge": 95.0, "network": {"tx": 1434595272, "rx": 530605511}, "created_at": "2021-04-28T19:45:00.000Z", "running": true, "number_of_containers": 1, "tags": ["backend", "test", "us-west1"], "values": [3, 2, 1]}}}'
 
   - do:
       indices.put_settings:
@@ -301,10 +300,16 @@ setup:
 ---
 "Downsample index":
   - requires:
-      cluster_features: ["gte_v8.13.0"]
-      reason: _tsid hashing introduced in 8.13
+      capabilities:
+        - method: POST
+          path: /{index}/_downsample/{target_index}
+          capabilities: [ "downsampling.store_reset_counters" ]
+      test_runner_features: [ "capabilities" ]
+      reason: Storing counter resets when downsampling was added in 9.4
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test
         target_index: test-downsample
@@ -320,14 +325,17 @@ setup:
         body:
           sort: [ "_tsid", "@timestamp" ]
 
-  - length: { hits.hits: 4 }
-  - match:  { hits.hits.0._source._doc_count: 2 }
+  - length: { hits.hits: 7 }
+
+  # Downsampled doc
+  - match:  { hits.hits.0._source._doc_count: 1 }
+  - match:  { hits.hits.0._source.@timestamp: 2021-04-28T18:00:00.000Z }
+  # Dimensions
   - match:  { hits.hits.0._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
   - match:  { hits.hits.0._source.metricset: pod }
-
-  - match:  { hits.hits.0._source.@timestamp: 2021-04-28T18:00:00.000Z }
-  - match:  { hits.hits.0._source.k8s\.pod\.multi-counter: 0 }
-  - match:  { hits.hits.0._source.k8s\.pod\.scaled-counter: 0.00 }
+  # Metrics
+  - match:  { hits.hits.0._source.k8s\.pod\.multi-counter: 7 }
+  - match:  { hits.hits.0._source.k8s\.pod\.scaled-counter: 7.0 }
   - match:  { hits.hits.0._source.k8s\.pod\.multi-gauge.min: 100 }
   - match:  { hits.hits.0._source.k8s\.pod\.multi-gauge.max: 102 }
   - match:  { hits.hits.0._source.k8s\.pod\.multi-gauge.sum: 607 }
@@ -339,6 +347,7 @@ setup:
   - match:  { hits.hits.0._source.k8s\.pod\.network\.tx.min: 1434521831 }
   - match:  { hits.hits.0._source.k8s\.pod\.network\.tx.max: 1434577921 }
   - match:  { hits.hits.0._source.k8s\.pod\.network\.tx.value_count: 2 }
+  # Labels
   - match:  { hits.hits.0._source.k8s\.pod\.ip: "10.10.55.56" }
   - match:  { hits.hits.0._source.k8s\.pod\.created_at: "2021-04-28T19:43:00.000Z" }
   - match:  { hits.hits.0._source.k8s\.pod\.number_of_containers: 1 }
@@ -346,7 +355,42 @@ setup:
   - match:  { hits.hits.0._source.k8s\.pod\.values: [1, 1, 2] }
   - is_false: hits.hits.0._source.k8s\.pod\.running
 
-  # Assert rollup index settings
+  # Doc with counter resets
+  - is_false: hits.hits.1._source._doc_count
+  - match: { hits.hits.1._source.@timestamp: 2021-04-28T18:50:23.142Z }
+  # Dimensions
+  - match: { hits.hits.1._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+  - match: { hits.hits.1._source.metricset: pod }
+  # Metrics
+  - match: { hits.hits.1._source.k8s\.pod\.multi-counter: 0 }
+  - match: { hits.hits.1._source.k8s\.pod\.scaled-counter: 0.0 }
+  # Only dimensions and counters that have been reset are in this doc
+  - is_false: hits.hits.1._source.k8s\.pod\.multi-gauge
+
+  # Next downsampled doc
+  - match:  { hits.hits.2._source._doc_count: 1 }
+  - match:  { hits.hits.2._source.@timestamp: 2021-04-28T19:00:00.000Z }
+  # Dimensions
+  - match:  { hits.hits.2._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+  - match:  { hits.hits.2._source.metricset: pod }
+  # Metrics
+  - match:  { hits.hits.2._source.k8s\.pod\.multi-counter: 1000 }
+  - match:  { hits.hits.2._source.k8s\.pod\.scaled-counter: 1000.0 }
+  - match:  { hits.hits.2._source.k8s\.pod\.multi-gauge.min: 95 }
+
+  # Doc with counter resets
+  - is_false: hits.hits.3._source._doc_count
+  - match: { hits.hits.3._source.@timestamp: 2021-04-28T19:51:03.142Z }
+  # Dimensions
+  - match: { hits.hits.3._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+  - match: { hits.hits.3._source.metricset: pod }
+  # Metrics
+  - match: { hits.hits.3._source.k8s\.pod\.multi-counter: 76 }
+  # Only dimensions and counters that have been reset are in this doc
+  - is_false: hits.hits.3._source.k8s\.pod\.scaled-counter
+  - is_false: hits.hits.3._source.k8s\.pod\.multi-gauge
+
+  # Assert downsample index settings
   - do:
       indices.get_settings:
         index: test-downsample
@@ -358,7 +402,7 @@ setup:
   - match: { test-downsample.settings.index.downsample.source.name: test }
   - match: { test-downsample.settings.index.number_of_shards: "1" }
 
-  # Assert rollup index mapping
+  # Assert downsample index mapping
   - do:
       indices.get_mapping:
         index: test-downsample
@@ -368,7 +412,6 @@ setup:
   - match: { test-downsample.mappings.properties.@timestamp.meta.time_zone: UTC }
   - match: { test-downsample.mappings.properties.k8s\.pod\.multi-gauge.type: aggregate_metric_double }
   - match: { test-downsample.mappings.properties.k8s\.pod\.multi-gauge.metrics: [ "min", "max", "sum", "value_count" ] }
-  - match: { test-downsample.mappings.properties.k8s\.pod\.multi-gauge.default_metric: max }
   - match: { test-downsample.mappings.properties.k8s\.pod\.multi-gauge.time_series_metric: gauge }
   - match: { test-downsample.mappings.properties.k8s\.pod\.multi-counter.type: long }
   - match: { test-downsample.mappings.properties.k8s\.pod\.multi-counter.time_series_metric: counter }
@@ -377,7 +420,6 @@ setup:
   - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-counter.time_series_metric: counter }
   - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-gauge.type: aggregate_metric_double }
   - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-gauge.metrics: [ "min", "max", "sum", "value_count" ] }
-  - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-gauge.default_metric: max }
   - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-gauge.time_series_metric: gauge }
   - match: { test-downsample.mappings.properties.k8s\.pod\.uid.type: keyword }
   - match: { test-downsample.mappings.properties.k8s\.pod\.uid.time_series_dimension: true }
@@ -432,7 +474,7 @@ setup:
   - match:  { hits.hits.0._source.k8s\.pod\.values: [1, 1, 2] }
   - is_false: hits.hits.0._source.k8s\.pod\.running
 
-  # Assert rollup index settings
+  # Assert downsample index settings
   - do:
       indices.get_settings:
         index: test-downsample
@@ -442,7 +484,7 @@ setup:
   - match: { test-downsample.settings.index.time_series.start_time: 2021-04-28T00:00:00Z }
   - match: { test-downsample.settings.index.routing_path: [ "metricset", "k8s.pod.uid"] }
   - match: { test-downsample.settings.index.downsample.source.name: test }
-  - match: { test-downsample.settings.index.downsample.method: last_value }
+  - match: { test-downsample.settings.index.downsample.sampling_method: last_value }
   - match: { test-downsample.settings.index.number_of_shards: "1" }
 
   # Assert rollup index mapping
@@ -686,6 +728,8 @@ setup:
           index.blocks.write: true
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: no-metric-index
         target_index: test-downsample-no-metric
@@ -777,6 +821,8 @@ setup:
           index.blocks.write: true
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: no-metric-no-label-index
         target_index: test-downsample-no-metric-no-label
@@ -810,10 +856,16 @@ setup:
 ---
 "Downsample a downsampled index":
   - requires:
-      cluster_features: ["gte_v8.13.0"]
-      reason: _tsid hashing introduced in 8.13
+      capabilities:
+        - method: POST
+          path: /{index}/_downsample/{target_index}
+          capabilities: [ "downsampling.store_reset_counters" ]
+      test_runner_features: [ "capabilities" ]
+      reason: Storing counter resets when downsampling was added in 9.4
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test
         target_index: test-downsample
@@ -824,6 +876,8 @@ setup:
   - is_true: acknowledged
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-downsample
         target_index: test-downsample-2
@@ -844,7 +898,6 @@ setup:
   - match: { test-downsample-2.mappings.properties.@timestamp.meta.time_zone: UTC }
   - match: { test-downsample-2.mappings.properties.k8s\.pod\.multi-gauge.type: aggregate_metric_double }
   - match: { test-downsample-2.mappings.properties.k8s\.pod\.multi-gauge.metrics: [ "min", "max", "sum", "value_count" ] }
-  - match: { test-downsample-2.mappings.properties.k8s\.pod\.multi-gauge.default_metric: max }
   - match: { test-downsample-2.mappings.properties.k8s\.pod\.multi-gauge.time_series_metric: gauge }
   - match: { test-downsample-2.mappings.properties.k8s\.pod\.multi-counter.type: long }
   - match: { test-downsample-2.mappings.properties.k8s\.pod\.multi-counter.time_series_metric: counter }
@@ -852,7 +905,6 @@ setup:
   - match: { test-downsample-2.mappings.properties.k8s\.pod\.uid.time_series_dimension: true }
   - match: { test-downsample-2.mappings.properties.k8s\.pod\.network\.tx.type: aggregate_metric_double }
   - match: { test-downsample-2.mappings.properties.k8s\.pod\.network\.tx.metrics: [ "min", "max", "sum", "value_count" ] }
-  - match: { test-downsample-2.mappings.properties.k8s\.pod\.network\.tx.default_metric: max }
   - match: { test-downsample-2.mappings.properties.k8s\.pod\.network\.tx.time_series_metric: gauge }
 
   - do:
@@ -861,12 +913,12 @@ setup:
         body:
           sort: [ "_tsid", "@timestamp" ]
 
-  - length: { hits.hits: 3 }
-  - match: { hits.hits.0._source._doc_count: 4 }
+  - length: { hits.hits: 7 }
+  - match: { hits.hits.0._source._doc_count: 1 }
   - match: { hits.hits.0._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
   - match: { hits.hits.0._source.metricset: pod }
   - match: { hits.hits.0._source.@timestamp: 2021-04-28T18:00:00.000Z }
-  - match: { hits.hits.0._source.k8s\.pod\.multi-counter: 76 }
+  - match: { hits.hits.0._source.k8s\.pod\.multi-counter: 7 }
   - match: { hits.hits.0._source.k8s\.pod\.multi-gauge.min: 95.0 }
   - match: { hits.hits.0._source.k8s\.pod\.multi-gauge.max: 110.0 }
   - match: { hits.hits.0._source.k8s\.pod\.multi-gauge.sum: 1209.0 }
@@ -880,17 +932,38 @@ setup:
   - match: { hits.hits.0._source.k8s\.pod\.tags: [ "backend", "test", "us-west1" ] }
   - match: { hits.hits.0._source.k8s\.pod\.values: [ 1, 2, 3 ] }
 
-  - match: { hits.hits.1._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.1._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
   - match: { hits.hits.1._source.metricset: pod }
-  - match: { hits.hits.1._source.@timestamp: 2021-04-28T18:00:00.000Z }
-  - match: { hits.hits.1._source._doc_count: 2 }
+  - match: { hits.hits.1._source.@timestamp: 2021-04-28T18:50:23.142Z }
+  - match: { hits.hits.1._source.k8s\.pod\.multi-counter: 0 }
 
-  - match: { hits.hits.2._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.2._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
   - match: { hits.hits.2._source.metricset: pod }
-  - match: { hits.hits.2._source.@timestamp: 2021-04-28T20:00:00.000Z }
-  - match: { hits.hits.2._source._doc_count: 2 }
+  - match: { hits.hits.2._source.@timestamp: 2021-04-28T19:00:00.000Z }
+  - match: { hits.hits.2._source.k8s\.pod\.multi-counter: 1000 }
+
+  - match: { hits.hits.3._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+  - match: { hits.hits.3._source.metricset: pod }
+  - match: { hits.hits.3._source.@timestamp: 2021-04-28T19:51:03.142Z }
+  - match: { hits.hits.3._source.k8s\.pod\.multi-counter: 76 }
+
+  - match: { hits.hits.4._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.4._source.metricset: pod }
+  - match: { hits.hits.4._source.@timestamp: 2021-04-28T18:00:00.000Z }
+  - match: { hits.hits.4._source._doc_count: 1 }
+
+  - match: { hits.hits.5._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.5._source.metricset: pod }
+  - match: { hits.hits.5._source.@timestamp: 2021-04-28T18:50:24.467Z }
+
+  - match: { hits.hits.6._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.6._source.metricset: pod }
+  - match: { hits.hits.6._source.@timestamp: 2021-04-28T20:00:00.000Z }
+  - match: { hits.hits.6._source._doc_count: 2 }
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-downsample
         target_index: test-downsample-3
@@ -907,6 +980,8 @@ setup:
       reason: "Rollup of rollups introduced in 8.5.0"
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test
         target_index: test-downsample
@@ -957,6 +1032,8 @@ setup:
       reason: Last value sampling method was added in 9.3
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test
         target_index: test-downsample-default
@@ -1001,7 +1078,7 @@ setup:
   - do:
       catch: /Downsampling method \[aggregate\] is not compatible with the source index downsampling method \[last_value\]/
       indices.downsample:
-        index: test-downsample
+        index: test-downsample-last-value
         target_index: test-downsample-2
         body: >
           {
@@ -1016,6 +1093,8 @@ setup:
       reason: _tsid hashing introduced in 8.13
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-histogram
         target_index: test-downsample-histogram
@@ -1040,7 +1119,6 @@ setup:
   - match: { test-downsample-histogram.mappings.properties.k8s\.pod\.uid.time_series_dimension: true }
   - match: { test-downsample-histogram.mappings.properties.k8s\.pod\.network\.tx.type: aggregate_metric_double }
   - match: { test-downsample-histogram.mappings.properties.k8s\.pod\.network\.tx.metrics: [ "min", "max", "sum", "value_count" ] }
-  - match: { test-downsample-histogram.mappings.properties.k8s\.pod\.network\.tx.default_metric: max }
   - match: { test-downsample-histogram.mappings.properties.k8s\.pod\.network\.tx.time_series_metric: gauge }
 
   - do:
@@ -1173,6 +1251,8 @@ setup:
   - is_true: acknowledged
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-timestamp
         target_index: test-downsample-timestamp
@@ -1276,6 +1356,8 @@ setup:
   - is_true: acknowledged
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-timestamp
         target_index: test-downsample-timestamp
@@ -1379,6 +1461,8 @@ setup:
   - is_true: acknowledged
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-timestamp-daily
         target_index: test-downsample-timestamp-hourly
@@ -1431,6 +1515,8 @@ setup:
       reason: _tsid hashing introduced in 8.13
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-object
         target_index: test-downsample-object
@@ -1499,6 +1585,8 @@ setup:
       reason: _tsid hashing introduced in 8.13
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-empty-missing
         target_index: test-downsample-empty-missing
@@ -1551,7 +1639,6 @@ setup:
   - match: { hits.hits.0._source.k8s\.pod\.value.value_count: 4 }
   - match: { hits.hits.0._source.k8s\.pod\.label: "xyz" }
   - match: { hits.hits.0._source.k8s\.pod\.unmapped: "xyz" }
-
 
 ---
 "Downsample label with ignore_above":
@@ -1621,6 +1708,8 @@ setup:
           index.blocks.write: true
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-label-ignore-above
         target_index: test-downsample-label-ignore-above
@@ -1741,6 +1830,8 @@ setup:
           index.blocks.write: true
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-empty-dim
         target_index: test-empty-dim-downsample
@@ -1824,6 +1915,8 @@ setup:
           index.blocks.write: true
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-empty-dim-routing
         target_index: test-empty-dim-routing-downsample
@@ -1846,3 +1939,77 @@ setup:
   - match: { hits.hits.1._source._doc_count: 1 }
   - match: { hits.hits.1._source.k8s\.pod\.name: cat }
   - match: { hits.hits.1._source.k8s\.pod\.empty: "" }
+
+---
+"Downsample index with multi-value dimensions":
+  - requires:
+      test_runner_features: [ "capabilities" ]
+      cluster_features: [ "data_stream.downsample.fix_support_multi_value_dimensions" ]
+      reason: "Support multi-value dimensions in downsampling (bug fix)"
+      capabilities:
+        - method: POST
+          path: /{index}/_downsample/{target_index}
+          capabilities: [ "downsample.sampling_mode.last_value" ]
+
+  - do:
+      indices.create:
+        index: test-multi-value
+        body:
+          settings:
+            number_of_shards: 1
+            index:
+              mode: time_series
+              routing_path: [ metricset ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              multi-counter:
+                type: long
+                time_series_metric: counter
+
+  # Insert documents with multiple-value for a dimensions
+  - do:
+      bulk:
+        refresh: true
+        index: test-multi-value
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:05.467Z", "metricset": ["pod", "app"], "multi-counter" : [10, 11, 12]}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:27.467Z", "metricset": ["pod", "app"], "multi-counter" : [21, 22, 23]}'
+  - is_false: errors
+
+  - do:
+      indices.put_settings:
+        index: test-multi-value
+        body:
+          index.blocks.write: true
+
+  - do:
+      indices.downsample:
+        index: test-multi-value
+        target_index: test-downsample-multi-value
+        body:  >
+          {
+            "fixed_interval": "1h",
+            "sampling_method": "last_value"
+          }
+  - is_true: acknowledged
+
+  - do:
+      search:
+        index: test-downsample-multi-value
+        body:
+          sort: [ "_tsid", "@timestamp" ]
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source._doc_count: 2 }
+  - match: { hits.hits.0._source.metricset: ["app", "pod"] }
+  - match: { hits.hits.0._source.multi-counter: 21 }

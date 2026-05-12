@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
-import org.elasticsearch.compute.lucene.LuceneQueryEvaluator.ShardConfig;
-import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator;
-import org.elasticsearch.compute.lucene.LuceneQueryScoreEvaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
+import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator.ShardConfig;
+import org.elasticsearch.compute.lucene.query.LuceneQueryExpressionEvaluator;
+import org.elasticsearch.compute.lucene.query.LuceneQueryScoreEvaluator;
 import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -21,10 +22,13 @@ import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAwa
 import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -43,9 +47,16 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -154,7 +165,7 @@ public abstract class FullTextFunction extends Function
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), query, queryBuilder);
+        return Objects.hash(super.hashCode(), query, System.identityHashCode(queryBuilder));
     }
 
     @Override
@@ -163,7 +174,9 @@ public abstract class FullTextFunction extends Function
             return false;
         }
 
-        return Objects.equals(queryBuilder, ((FullTextFunction) obj).queryBuilder) && Objects.equals(query, ((FullTextFunction) obj).query);
+        // Compare query builders using identity because that's how they are compared during query rewriting
+        FullTextFunction other = (FullTextFunction) obj;
+        return queryBuilder == other.queryBuilder && Objects.equals(query, other.query);
     }
 
     @Override
@@ -256,7 +269,11 @@ public abstract class FullTextFunction extends Function
                         plan,
                         condition,
                         functionClass,
-                        lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
+                        lp -> (lp instanceof Filter
+                            || lp instanceof OrderBy
+                            || lp instanceof EsRelation
+                            || lp instanceof ParameterizedQuery
+                            || lp instanceof Sample),
                         fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
                         failures
                     );
@@ -267,7 +284,13 @@ public abstract class FullTextFunction extends Function
                 plan,
                 condition,
                 FullTextFunction.class,
-                lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false) && (lp instanceof UnionAll == false),
+                lp -> (lp instanceof Limit == false)
+                    && (lp instanceof Aggregate == false)
+                    && (lp instanceof UnionAll == false)
+                    && (lp instanceof MvExpand == false)
+                    && (lp instanceof Fork == false)
+                    && (lp instanceof LimitBy == false)
+                    && (lp instanceof TopNBy == false),
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures
             );
@@ -388,7 +411,7 @@ public abstract class FullTextFunction extends Function
         if (Expressions.isGuaranteedNull(field)) {
             return;
         }
-        var fieldAttribute = fieldAsFieldAttribute(field);
+        var fieldAttribute = resolveToFieldAttribute(plan, field);
         if (fieldAttribute == null) {
             plan.forEachExpression(function.getClass(), m -> {
                 if (function.children().contains(field) && hasSubqueryInChildrenPlans(plan) == false) {
@@ -433,16 +456,106 @@ public abstract class FullTextFunction extends Function
         }
     }
 
+    /**
+     * Resolves the given field expression to a {@link FieldAttribute} by following rename alias chains
+     * through {@link Project} nodes in the plan.
+     */
+    private FieldAttribute resolveToFieldAttribute(LogicalPlan plan, Expression field) {
+        FieldAttribute fa = fieldAsFieldAttribute(field);
+        if (fa != null) {
+            return fa;
+        }
+
+        Expression fieldExpression = field;
+        if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
+            fieldExpression = convertFunction.field();
+        }
+        if (fieldExpression instanceof Attribute == false) {
+            return null;
+        }
+
+        Holder<Attribute> current = new Holder<>((Attribute) fieldExpression);
+        Holder<FieldAttribute> resolved = new Holder<>();
+        plan.forEachDownMayReturnEarly((p, breakEarly) -> {
+            if (p instanceof Project project) {
+                for (NamedExpression ne : project.projections()) {
+                    if (ne instanceof Alias alias && alias.toAttribute().id().equals(current.get().id())) {
+                        FieldAttribute candidate = fieldAsFieldAttribute(alias.child());
+                        if (candidate != null) {
+                            resolved.set(candidate);
+                            breakEarly.set(true);
+                        } else if (alias.child() instanceof Attribute next) {
+                            current.set(next);
+                        } else {
+                            breakEarly.set(true);
+                        }
+                        return;
+                    }
+                }
+            }
+
+            // Fork's own output exposes ReferenceAttributes, so to reach the underlying
+            // FieldAttribute we look inside each branch's output and match by name.
+            if (p instanceof Fork fork) {
+                String currentName = current.get().name();
+                // resolve when current field is part of the Fork output
+                boolean inForkOutput = fork.output().stream().anyMatch(a -> a.id().equals(current.get().id()));
+                if (inForkOutput == false) {
+                    breakEarly.set(true);
+                    return;
+                }
+
+                // Every branch must contain this field, not just one
+                FieldAttribute candidate = null;
+                for (LogicalPlan branch : fork.children()) {
+                    FieldAttribute match = branch.output()
+                        .stream()
+                        .filter(a -> a.name().equals(currentName) && a instanceof FieldAttribute)
+                        .map(a -> (FieldAttribute) a)
+                        .findFirst()
+                        .orElse(null);
+                    if (match == null) {
+                        candidate = null;
+                        break;
+                    }
+                    candidate = match;
+                }
+                if (candidate != null) {
+                    resolved.set(candidate);
+                }
+                breakEarly.set(true);
+                return;
+            }
+
+            // Resolve the underlying FieldAttribute by stepping through MvExpand
+            // from its `expanded` output back to its `target`.
+            if (p instanceof MvExpand mvExpand && mvExpand.expanded().id().equals(current.get().id())) {
+                FieldAttribute candidate = fieldAsFieldAttribute(mvExpand.target());
+                if (candidate != null) {
+                    resolved.set(candidate);
+                    breakEarly.set(true);
+                } else if (mvExpand.target() instanceof Attribute next) {
+                    current.set(next);
+                } else {
+                    breakEarly.set(true);
+                }
+                return;
+            }
+
+        });
+        return resolved.get();
+    }
+
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return new LuceneQueryExpressionEvaluator.Factory(toShardConfigs(toEvaluator.shardContexts()));
     }
 
     /**
      * Returns the query builder to be used when the function cannot be pushed down to Lucene, but uses a
-     * {@link org.elasticsearch.compute.lucene.LuceneQueryEvaluator} instead
+     * {@link LuceneQueryEvaluator} instead
      *
-     * @return the query builder to be used in the {@link org.elasticsearch.compute.lucene.LuceneQueryEvaluator}
+     * @return the query builder to be used in the {@link LuceneQueryEvaluator}
      */
     protected QueryBuilder evaluatorQueryBuilder() {
         // Use the same query builder as for the translation by default

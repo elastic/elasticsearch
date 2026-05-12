@@ -10,7 +10,6 @@
 package org.elasticsearch.index.stats;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -83,25 +82,12 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         this.currentPrimaryOps = 0;
         this.currentReplicaOps = 0;
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            primaryDocumentRejections = in.readVLong();
-        } else {
-            primaryDocumentRejections = -1L;
-        }
+        primaryDocumentRejections = in.readVLong();
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            totalCoordinatingRequests = in.readVLong();
-        } else {
-            totalCoordinatingRequests = -1L;
-        }
+        totalCoordinatingRequests = in.readVLong();
 
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            lowWaterMarkSplits = in.readVLong();
-            highWaterMarkSplits = in.readVLong();
-        } else {
-            lowWaterMarkSplits = -1L;
-            highWaterMarkSplits = -1L;
-        }
+        lowWaterMarkSplits = in.readVLong();
+        highWaterMarkSplits = in.readVLong();
 
         if (in.getTransportVersion().supports(MAX_OPERATION_SIZE_REJECTIONS_ADDED)) {
             largeOpsRejections = in.readVLong();
@@ -185,18 +171,12 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
 
         out.writeVLong(memoryLimit);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeVLong(primaryDocumentRejections);
-        }
+        out.writeVLong(primaryDocumentRejections);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeVLong(totalCoordinatingRequests);
-        }
+        out.writeVLong(totalCoordinatingRequests);
 
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeVLong(lowWaterMarkSplits);
-            out.writeVLong(highWaterMarkSplits);
-        }
+        out.writeVLong(lowWaterMarkSplits);
+        out.writeVLong(highWaterMarkSplits);
 
         if (out.getTransportVersion().supports(MAX_OPERATION_SIZE_REJECTIONS_ADDED)) {
             out.writeVLong(largeOpsRejections);

@@ -141,8 +141,8 @@ If you are running {{es}} as a Windows service, you can change the heap size usi
 
 Depending on your stack version, {{es}} configures the JVM to dump the heap on out of memory exceptions to the following location by default:
 
-* {applies_to}`stack: ga 9.1` The default logs directory 
-* {applies_to}`stack: ga 9.0` The default data directory
+* {applies_to}`stack: ga 9.1+` The default logs directory 
+* {applies_to}`stack: ga =9.0` The default data directory
 
 Directory location:
 
@@ -177,7 +177,7 @@ To see further options not contained in the original JEP, see [Enable Logging wi
 Change the default GC log output location to `/opt/my-app/gc.log` by creating `$ES_HOME/config/jvm.options.d/gc.options` with some sample options:
 
 ```shell
-# Turn off all previous logging configuratons
+# Turn off all previous logging configurations
 -Xlog:disable
 
 # Default settings from JEP 158, but with `utctime` instead of `uptime` to match the next line

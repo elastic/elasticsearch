@@ -9,6 +9,10 @@
 
 package org.elasticsearch.gradle.internal.release;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
@@ -23,6 +27,10 @@ import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.util.PatternSet;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.util.List;
 
 import javax.inject.Inject;
 
@@ -32,6 +40,7 @@ import javax.inject.Inject;
 public class ReleaseToolsPlugin implements Plugin<Project> {
 
     private static final String RESOURCES = "build-tools-internal/src/main/resources/";
+    private static final String EXTERNAL_SOURCES_CONFIG = "external-changelog-sources.yml";
 
     private final ProjectLayout projectLayout;
 
@@ -52,7 +61,6 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
 
         project.getTasks().register("extractCurrentVersions", ExtractCurrentVersionsTask.class);
         project.getTasks().register("tagVersions", TagVersionsTask.class);
-        project.getTasks().register("setCompatibleVersions", SetCompatibleVersionsTask.class, t -> t.setThisVersion(version));
         project.getTasks().register("updateBranchesJson", UpdateBranchesJsonTask.class);
 
         final Directory changeLogDirectory = projectDirectory.dir("docs/changelog");
@@ -70,11 +78,12 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
 
         final Action<BundleChangelogsTask> configureBundleTask = task -> {
             task.setGroup("Documentation");
-            task.setDescription("Generates release notes from changelog files held in this checkout");
+            task.setDescription("Generates release notes from changelog files held in this checkout and external repos");
             task.setChangelogs(yamlFiles);
             task.setChangelogDirectory(changeLogDirectory);
             task.setChangelogBundlesDirectory(changeLogBundlesDirectory);
             task.setBundleFile(projectDirectory.file("docs/release-notes/changelogs-" + version.toString() + ".yml"));
+            task.setExternalSources(loadExternalSources());
             task.getOutputs().upToDateWhen(o -> false);
         };
 
@@ -111,5 +120,17 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
         });
 
         project.getTasks().named("precommit").configure(task -> task.dependsOn(validateChangelogsTask));
+    }
+
+    private static List<BundleChangelogsTask.ExternalChangelogSource> loadExternalSources() {
+        try (InputStream is = ReleaseToolsPlugin.class.getClassLoader().getResourceAsStream(EXTERNAL_SOURCES_CONFIG)) {
+            if (is == null) {
+                return List.of();
+            }
+            ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+            return mapper.readValue(is, new TypeReference<>() {});
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to load " + EXTERNAL_SOURCES_CONFIG, e);
+        }
     }
 }

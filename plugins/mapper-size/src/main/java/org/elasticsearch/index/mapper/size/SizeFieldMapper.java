@@ -44,6 +44,11 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return NAME;
+        }
+
+        @Override
         public SizeFieldMapper build() {
             return new SizeFieldMapper(enabled.getValue(), new SizeFieldType());
         }
@@ -76,10 +81,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> new SizeFieldMapper(Explicit.IMPLICIT_FALSE, new SizeFieldType()),
-        c -> new Builder()
-    );
+    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> new Builder());
 
     private final Explicit<Boolean> enabled;
 
@@ -103,7 +105,8 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         if (enabled.value() == false) {
             return;
         }
-        final int value = context.sourceToParse().source().length();
+        // TODO: Similar to source mapper optimize in case of not materialized.
+        final int value = context.sourceToParse().source().originalBytes().length();
         NumberType.INTEGER.addFields(context.doc(), fullPath(), value, IndexType.points(true, true), true);
     }
 

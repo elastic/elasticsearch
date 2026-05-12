@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -103,6 +104,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         Logger logger,
         NamedWriteableRegistry namedWriteableRegistry,
         SearchTransportService searchTransportService,
+        BigArrays bigArrays,
         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
         Map<String, AliasFilter> aliasFilter,
         Map<String, Float> concreteIndexBoosts,
@@ -111,12 +113,14 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         SearchRequest request,
         ActionListener<SearchResponse> listener,
         List<SearchShardIterator> shardsIts,
+        Map<String, Integer> skippedByClusterAlias,
         TransportSearchAction.SearchTimeProvider timeProvider,
         ClusterState clusterState,
         SearchTask task,
         SearchResponse.Clusters clusters,
         Client client,
         boolean batchQueryPhase,
+        boolean pitRelocationEnabled,
         SearchResponseMetrics searchResponseMetrics,
         Map<String, Object> searchRequestAttributes
     ) {
@@ -125,6 +129,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             logger,
             namedWriteableRegistry,
             searchTransportService,
+            bigArrays,
             nodeIdToConnection,
             aliasFilter,
             concreteIndexBoosts,
@@ -132,6 +137,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             request,
             listener,
             shardsIts,
+            skippedByClusterAlias,
             timeProvider,
             clusterState,
             task,
@@ -139,7 +145,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             request.getMaxConcurrentShardRequests(),
             clusters,
             searchResponseMetrics,
-            searchRequestAttributes
+            searchRequestAttributes,
+            pitRelocationEnabled
         );
         this.topDocsSize = getTopDocsSize(request);
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
@@ -148,7 +155,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         this.batchQueryPhase = batchQueryPhase;
         // don't build the SearchShard list (can be expensive) if the SearchProgressListener won't use it
         if (progressListener != SearchProgressListener.NOOP) {
-            notifyListShards(progressListener, clusters, request, shardsIts);
+            notifyListShards(progressListener, clusters, request, skippedByClusterAlias);
         }
     }
 
@@ -392,7 +399,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         int shardIndex,
         ShardId shardId,
         ShardSearchContextId contextId,
-        SplitShardCountSummary reshardSplitShardCountSummary
+        SplitShardCountSummary splitShardCountSummary
     ) implements Writeable {
 
         static ShardToQuery readFrom(StreamInput in) throws IOException {
@@ -416,7 +423,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             shardId.writeTo(out);
             out.writeOptionalWriteable(contextId);
             if (out.getTransportVersion().supports(ShardSearchRequest.SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
-                reshardSplitShardCountSummary.writeTo(out);
+                splitShardCountSummary.writeTo(out);
             }
         }
     }
@@ -498,7 +505,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             shardIndex,
                             routing.getShardId(),
                             shardRoutings.getSearchContextId(),
-                            shardRoutings.getReshardSplitShardCountSummary()
+                            shardRoutings.getSplitShardCountSummary()
                         )
                     );
                     var filterForAlias = aliasFilter.getOrDefault(indexUUID, AliasFilter.EMPTY);
@@ -527,6 +534,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 executeWithoutBatching(routing, request);
                 return;
             }
+            final ActionListener<? super SearchPhaseResult> statsCollector = searchTransportService.newStatsCollector(connection);
             searchTransportService.transportService()
                 .sendChildRequest(connection, NODE_SEARCH_ACTION_NAME, request, task, new TransportResponseHandler<NodeQueryResponse>() {
                     @Override
@@ -549,6 +557,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                                 queryPhaseResultConsumer.addBatchedPartialResult(response.topDocsStats, response.mergeResult);
                             }
                         }
+                        SearchPhaseResult lastResult = null;
                         for (int i = 0; i < response.results.length; i++) {
                             var s = request.shards.get(i);
                             int shardIdx = s.shardIndex;
@@ -556,6 +565,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             switch (response.results[i]) {
                                 case Exception e -> onShardFailure(shardIdx, target, shardIterators[shardIdx], e);
                                 case SearchPhaseResult q -> {
+                                    lastResult = q;
                                     q.setShardIndex(shardIdx);
                                     q.setSearchShardTarget(target);
                                     onShardResult(q);
@@ -564,6 +574,12 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                                     assert false : "impossible [" + response.results[i] + "]";
                                 }
                             }
+                        }
+                        if (statsCollector != null && lastResult != null) {
+                            // The last result is the most likely to give us the most recent picture of queue size, as shards queries are
+                            // invoked in the same order as the response's results array.
+                            // The service time may vary across shards so the last result is simply an arbitrary choice.
+                            statsCollector.onResponse(lastResult);
                         }
                     }
 
@@ -579,8 +595,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     }
 
                     /**
-                     * This code is strictly for _snapshot_ backwards compatibility. The feature flag
-                     * {@link SearchService#BATCHED_QUERY_PHASE_FEATURE_FLAG} was not turned on when the transport version
+                     * This code is strictly for _snapshot_ backwards compatibility. The feature flag guarding batched execution
+                     * was not turned on when the transport version
                      * {@link SearchQueryThenFetchAsyncAction#BATCHED_RESPONSE_MIGHT_INCLUDE_REDUCTION_FAILURE} was introduced.
                      */
                     private void bwcHandleException(TransportException e) {
@@ -716,7 +732,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         int totalShardCount,
         long absoluteStartMillis,
         boolean hasResponse,
-        SplitShardCountSummary reshardSplitShardCountSummary
+        SplitShardCountSummary splitShardCountSummary
     ) {
         ShardSearchRequest shardRequest = new ShardSearchRequest(
             originalIndices,
@@ -730,7 +746,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             clusterAlias,
             searchContextId,
             searchContextKeepAlive,
-            reshardSplitShardCountSummary
+            splitShardCountSummary
         );
         // if we already received a search result we can inform the shard that it
         // can return a null response if the request rewrites to match none rather
@@ -769,7 +785,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             nodeQueryRequest.totalShards,
                             nodeQueryRequest.absoluteStartMillis,
                             state.hasResponse.getAcquire(),
-                            shardToQuery.reshardSplitShardCountSummary
+                            shardToQuery.splitShardCountSummary
                         )
                     ),
                     state.task,
@@ -869,7 +885,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 return;
             }
             var channelListener = new ChannelActionListener<>(channel);
-            RecyclerBytesStreamOutput out = dependencies.transportService.newNetworkBytesStream();
+            RecyclerBytesStreamOutput out = dependencies.transportService.newNetworkBytesStream(null);
             out.setTransportVersion(channel.getVersion());
 
             boolean success = false;
@@ -954,8 +970,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         }
 
         /**
-         * This code is strictly for _snapshot_ backwards compatibility. The feature flag
-         * {@link SearchService#BATCHED_QUERY_PHASE_FEATURE_FLAG} was not turned on when the transport version
+         * This code is strictly for _snapshot_ backwards compatibility. The feature flag guarding batched execution
+         * was not turned on when the transport version
          * {@link SearchQueryThenFetchAsyncAction#BATCHED_RESPONSE_MIGHT_INCLUDE_REDUCTION_FAILURE} was introduced.
          */
         void bwcRespond() {
@@ -992,7 +1008,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     }
                 }
                 final int resultCount = queryPhaseResultConsumer.getNumShards();
-                out = dependencies.transportService.newNetworkBytesStream();
+                out = dependencies.transportService.newNetworkBytesStream(null);
                 out.setTransportVersion(channel.getVersion());
                 try {
                     out.writeVInt(resultCount);

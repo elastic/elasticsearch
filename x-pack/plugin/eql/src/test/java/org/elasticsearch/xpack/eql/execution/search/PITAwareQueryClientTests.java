@@ -68,6 +68,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
@@ -104,6 +105,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 1,
                 randomBoolean(),
                 randomBoolean(),
+                null,
                 "",
                 new TaskId("test", 123),
                 new EqlSearchTask(
@@ -139,7 +141,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
                     for (List<HitReference> ref : refs) {
                         List<SearchHit> hits = new ArrayList<>(ref.size());
                         for (HitReference hitRef : ref) {
-                            hits.add(SearchHit.unpooled(-1, hitRef.id()));
+                            hits.add(new SearchHit(-1, hitRef.id()));
                         }
                         searchHits.add(hits);
                     }
@@ -218,7 +220,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 listener.onResponse((Response) response);
             } else if (request instanceof ClosePointInTimeRequest closePIT) {
                 assertTrue(openedPIT);
-                assertEquals(pitId, closePIT.getId());
+                assertThat(closePIT.getId(), equalBytes(pitId));
 
                 openedPIT = false;
                 ClosePointInTimeResponse response = new ClosePointInTimeResponse(true, 1);
@@ -228,7 +230,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 searchRequestsRemainingCount--;
                 assertTrue(searchRequestsRemainingCount >= 0);
 
-                assertEquals(pitId, searchRequest.source().pointInTimeBuilder().getEncodedId());
+                assertThat(searchRequest.source().pointInTimeBuilder().getEncodedId(), equalBytes(pitId));
                 assertEquals(0, searchRequest.indices().length); // no indices set in the search request
                 assertEquals(1, searchRequest.source().subSearches().size());
 
@@ -248,12 +250,12 @@ public class PITAwareQueryClientTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         <Response extends ActionResponse> void handleSearchRequest(ActionListener<Response> listener, SearchRequest searchRequest) {
             int ordinal = searchRequest.source().terminateAfter();
-            SearchHit searchHit = SearchHit.unpooled(ordinal, String.valueOf(ordinal));
+            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal));
             searchHit.sortValues(
                 new SearchSortValues(new Long[] { (long) ordinal, 1L }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW })
             );
 
-            SearchHits searchHits = SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 0.0f);
+            SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 0.0f);
             SearchResponse response = new SearchResponse(
                 searchHits,
                 null,
@@ -269,10 +271,16 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 0,
                 ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY,
-                searchRequest.pointInTimeBuilder().getEncodedId()
+                searchRequest.pointInTimeBuilder().getEncodedId(),
+                null,
+                null
             );
 
-            ActionListener.respondAndRelease(listener, (Response) response);
+            try {
+                ActionListener.respondAndRelease(listener, (Response) response);
+            } finally {
+                searchHits.decRef();
+            }
         }
     }
 

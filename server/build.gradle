@@ -37,6 +37,7 @@ dependencies {
   api project(":libs:plugin-api")
   api project(":libs:plugin-analysis-api")
   api project(':libs:grok')
+  api project(':libs:user-agent-api')
   api project(":libs:tdigest")
   api project(":libs:exponential-histogram")
   implementation project(":libs:simdvec")
@@ -67,6 +68,8 @@ dependencies {
   // logging
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+  annotationProcessor "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  annotationProcessor "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
   // access to native functions
   implementation project(':libs:native')

@@ -19,7 +19,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
@@ -30,6 +29,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.search.RandomApproximationQuery;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
@@ -653,7 +653,7 @@ public class FunctionScoreTests extends ESTestCase {
 
     public void testWeightOnlyCreatesBoostFunction() throws IOException {
         FunctionScoreQuery filtersFunctionScoreQueryWithWeights = new FunctionScoreQuery(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             new WeightFactorFunction(2),
             CombineFunction.MULTIPLY,
             0.0f,
@@ -665,7 +665,7 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     public void testMinScoreExplain() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
         Explanation queryExpl = searcher.explain(query, 0);
 
         FunctionScoreQuery fsq = new FunctionScoreQuery(query, 0f, Float.POSITIVE_INFINITY);
@@ -692,7 +692,7 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     public void testPropagatesApproximations() throws IOException {
-        Query query = new RandomApproximationQuery(new MatchAllDocsQuery(), random());
+        Query query = new RandomApproximationQuery(Queries.ALL_DOCS_INSTANCE, random());
         IndexSearcher searcher = newSearcher(reader);
         searcher.setQueryCache(null); // otherwise we could get a cached entry that does not have approximations
 

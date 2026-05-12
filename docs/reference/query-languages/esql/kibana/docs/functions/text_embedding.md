@@ -4,6 +4,6 @@
 Generates dense vector embeddings from text input using a specified [inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md). Use this function to generate query vectors for KNN searches against your vectorized data or others dense vector based operations.
 
 ```esql
-ROW input="Who is Victor Hugo?"
-| EVAL embedding = TEXT_EMBEDDING("Who is Victor Hugo?", "test_dense_inference")
+FROM dense_vector_text METADATA _score
+| WHERE KNN(text_embedding_field, TEXT_EMBEDDING("be excellent to each other", "test_dense_inference"))
 ```

@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,15 +25,19 @@ import java.util.Objects;
 
 /**
  * "Expands" multivalued blocks by duplicating all the other columns for each value.
- * <pre>
- *     [0, 1, 2] | 2 | "foo"
- * </pre>
+ * {@snippet lang="txt" :
+ * ┌───────────┬───┬───────┐
+ * │ [0, 1, 2] │ 2 │ "foo" │
+ * └───────────┴───┴───────┘
+ * }
  * becomes
- * <pre>
- *     0 | 2 | "foo"
- *     1 | 2 | "foo"
- *     2 | 2 | "foo"
- * </pre>
+ * {@snippet lang="txt" :
+ * ┌───┬───┬───────┐
+ * │ 0 │ 2 │ "foo" │
+ * │ 1 │ 2 │ "foo" │
+ * │ 2 │ 2 │ "foo" │
+ * └───┴───┴───────┘
+ * }
  */
 public class MvExpandOperator implements Operator {
     private static final Logger logger = LogManager.getLogger(MvExpandOperator.class);
@@ -89,6 +92,11 @@ public class MvExpandOperator implements Operator {
         this.channel = channel;
         this.pageSize = pageSize;
         assert pageSize > 0;
+    }
+
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return prev != null;
     }
 
     @Override
@@ -157,7 +165,7 @@ public class MvExpandOperator implements Operator {
             }
             nextItemOnExpanded += expandedMask.length;
             for (int b = 0; b < result.length; b++) {
-                result[b] = b == channel ? expandedBlock.filter(expandedMask) : prev.getBlock(b).filter(duplicateFilter);
+                result[b] = b == channel ? expandedBlock.filter(true, expandedMask) : prev.getBlock(b).filter(true, duplicateFilter);
             }
             success = true;
         } finally {
@@ -292,13 +300,8 @@ public class MvExpandOperator implements Operator {
             pagesReceived = in.readVInt();
             pagesEmitted = in.readVInt();
             noops = in.readVInt();
-            if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-                rowsReceived = in.readVLong();
-                rowsEmitted = in.readVLong();
-            } else {
-                rowsReceived = 0;
-                rowsEmitted = 0;
-            }
+            rowsReceived = in.readVLong();
+            rowsEmitted = in.readVLong();
         }
 
         @Override
@@ -306,10 +309,8 @@ public class MvExpandOperator implements Operator {
             out.writeVInt(pagesReceived);
             out.writeVInt(pagesEmitted);
             out.writeVInt(noops);
-            if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-                out.writeVLong(rowsReceived);
-                out.writeVLong(rowsEmitted);
-            }
+            out.writeVLong(rowsReceived);
+            out.writeVLong(rowsEmitted);
         }
 
         @Override
@@ -376,7 +377,7 @@ public class MvExpandOperator implements Operator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_11_X;
+            return TransportVersion.minimumCompatible();
         }
     }
 }

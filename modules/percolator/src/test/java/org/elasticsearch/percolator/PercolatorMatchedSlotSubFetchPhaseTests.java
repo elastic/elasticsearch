@@ -15,8 +15,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -24,6 +22,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -66,10 +65,10 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                         "_name",
                         queryStore,
                         Collections.emptyList(),
-                        new MatchAllDocsQuery(),
+                        Queries.ALL_DOCS_INSTANCE,
                         memoryIndex.createSearcher(),
                         null,
-                        new MatchNoDocsQuery()
+                        Queries.NO_DOCS_INSTANCE
                     );
 
                     FetchContext sc = mock(FetchContext.class);
@@ -97,10 +96,10 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                         "_name",
                         queryStore,
                         Collections.emptyList(),
-                        new MatchAllDocsQuery(),
+                        Queries.ALL_DOCS_INSTANCE,
                         memoryIndex.createSearcher(),
                         null,
-                        new MatchNoDocsQuery()
+                        Queries.NO_DOCS_INSTANCE
                     );
 
                     FetchContext sc = mock(FetchContext.class);
@@ -127,10 +126,10 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                         "_name",
                         queryStore,
                         Collections.emptyList(),
-                        new MatchAllDocsQuery(),
+                        Queries.ALL_DOCS_INSTANCE,
                         memoryIndex.createSearcher(),
                         null,
-                        new MatchNoDocsQuery()
+                        Queries.NO_DOCS_INSTANCE
                     );
 
                     FetchContext sc = mock(FetchContext.class);

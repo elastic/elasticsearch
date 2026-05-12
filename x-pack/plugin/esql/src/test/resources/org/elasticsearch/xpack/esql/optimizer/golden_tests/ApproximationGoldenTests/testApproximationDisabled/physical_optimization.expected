@@ -1,0 +1,6 @@
+LimitExec[1000[INTEGER],null]
+\_AggregateExec[[],[COUNT(sv{f}#0,true[BOOLEAN],PT0S[TIME_DURATION]) AS COUNT(sv)#1, PERCENTILE(sv{f}#0,true[BOOLEAN],PT0S[TIME_DURATION],50[INTEGER]) AS MEDIAN(sv)#2],FINAL,[$$COUNT(sv)$count{r}#3, $$COUNT(sv)$seen{r}#4, $$MEDIAN(sv)$quart{r}#5],null]
+  \_ExchangeExec[[$$COUNT(sv)$count{r}#3, $$COUNT(sv)$seen{r}#4, $$MEDIAN(sv)$quart{r}#5],true]
+    \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Aggregate[[],[COUNT(sv{f}#0,true[BOOLEAN],PT0S[TIME_DURATION]) AS COUNT(sv)#1, PERCENTILE(sv{f}#0,true[BOOLEAN],PT0S[TIME_DURATION],50[INTEGER]) AS MEDIAN(sv)#2]]
+\_EsRelation[many_numbers][mv{f}#6, sv{f}#0, sv_and_one_mv{f}#7]<>]]

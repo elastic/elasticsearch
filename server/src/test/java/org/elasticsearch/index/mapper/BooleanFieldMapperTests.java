@@ -55,6 +55,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("null_value", b -> b.field("null_value", true));
 
         registerDimensionChecks(checker);
+        registerScriptChecks(checker);
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {
@@ -88,6 +89,16 @@ public class BooleanFieldMapperTests extends MapperTestCase {
             assertEquals(1, values.docValueCount());
             assertEquals(1, values.nextValue());
         });
+    }
+
+    @Override
+    protected boolean supportsMultiValueParameter() {
+        return true;
+    }
+
+    @Override
+    protected DocValuesType expectedSingleValuedDocValuesType() {
+        return DocValuesType.NUMERIC;
     }
 
     public void testSerialization() throws IOException {

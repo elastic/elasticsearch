@@ -261,6 +261,40 @@ public class IndexingPressureTests extends ESTestCase {
         assertEquals(2, indexingPressure.stats().getTotalPrimaryOps());
     }
 
+    public void testPrimaryOperationExpansionSessionAddExpandedBytesReplacesPrior() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+        try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(2, 1024 * 3, false);) {
+            try (IndexingPressure.PrimaryExpansionTracker expansion = indexingPressure.trackPrimaryOperationExpansion(2, 1024 * 3, false)) {
+                assertEquals(1024 * 6, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+                expansion.addExpandedBytes(1024 * 2);
+                assertEquals(1024 * 8, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+                expansion.addExpandedBytes(1024);
+                assertEquals(1024 * 9, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+                expansion.addExpandedBytes(0);
+                assertEquals(1024 * 9, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+            }
+        }
+    }
+
+    public void testPrimaryExpansionTrackerNetExpansionAfterAddRemoveAndClose() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+        final long baselineCombined;
+        try (
+            Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(2, 1024 * 3, false);
+            Releasable primary = indexingPressure.markPrimaryOperationStarted(2, 1024 * 3, false);
+        ) {
+            baselineCombined = indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes();
+            IndexingPressure.PrimaryExpansionTracker expansion = indexingPressure.trackPrimaryOperationExpansion(2, 1024 * 3, false);
+            assertEquals(baselineCombined + 1024 * 3, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+            expansion.addExpandedBytes(1024 * 2);
+            assertEquals(baselineCombined + 1024 * 5, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+            expansion.removeExpandedBytes(1024);
+            assertEquals(baselineCombined + 1024 * 4, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+            expansion.close();
+            assertEquals(baselineCombined, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+        }
+    }
+
     public void testReplicaOperationExpansionAccounting() {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
         // Replica limit is 15kb
@@ -327,6 +361,21 @@ public class IndexingPressureTests extends ESTestCase {
         assertEquals(2 * 2048L, indexingPressure.stats().getTotalLargeRejectedOpsBytes());
         assertEquals(1L, indexingPressure.stats().getPrimaryRejections());
         assertEquals(12L, indexingPressure.stats().getPrimaryDocumentRejections());
+    }
+
+    public void testCoordinatingReduceBytes() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+        IndexingPressure.Coordinating coordinating = indexingPressure.markCoordinatingOperationStarted(1, 1024, false);
+        assertEquals(1024, indexingPressure.stats().getCurrentCoordinatingBytes());
+        assertEquals(1024, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+
+        coordinating.reduceBytes(512);
+        assertEquals(512, indexingPressure.stats().getCurrentCoordinatingBytes());
+        assertEquals(512, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+
+        coordinating.close();
+        assertEquals(0, indexingPressure.stats().getCurrentCoordinatingBytes());
+        assertEquals(0, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
     }
 
     public void testForceExecutionOnCoordinating() {

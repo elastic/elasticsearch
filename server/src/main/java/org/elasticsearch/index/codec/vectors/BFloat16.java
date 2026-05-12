@@ -9,8 +9,11 @@
 
 package org.elasticsearch.index.codec.vectors;
 
-import org.apache.lucene.util.BitUtil;
+import org.elasticsearch.simdvec.BFloat16Support;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.ShortBuffer;
 
 public final class BFloat16 {
@@ -18,41 +21,28 @@ public final class BFloat16 {
     public static final int BYTES = Short.BYTES;
 
     public static short floatToBFloat16(float f) {
-        // this rounds towards 0
-        // zero - zero exp, zero fraction
-        // denormal - zero exp, non-zero fraction
-        // infinity - all-1 exp, zero fraction
-        // NaN - all-1 exp, non-zero fraction
-        // the Float.NaN constant is 0x7fc0_0000, so this won't turn the most common NaN values into
-        // infinities
-        return (short) (Float.floatToIntBits(f) >>> 16);
+        return BFloat16Support.floatToBFloat16(f);
     }
 
     public static float truncateToBFloat16(float f) {
-        return Float.intBitsToFloat(Float.floatToIntBits(f) & 0xffff0000);
+        return BFloat16Support.truncateToBFloat16(f);
     }
 
     public static float bFloat16ToFloat(short bf) {
-        return Float.intBitsToFloat(bf << 16);
+        return BFloat16Support.bFloat16ToFloat(bf);
     }
 
     public static void floatToBFloat16(float[] floats, ShortBuffer bFloats) {
-        for (float v : floats) {
-            bFloats.put(floatToBFloat16(v));
-        }
+        ESVectorUtil.floatToBFloat16(floats, bFloats);
     }
 
     public static void bFloat16ToFloat(byte[] bfBytes, float[] floats) {
         assert floats.length * 2 == bfBytes.length;
-        for (int i = 0; i < floats.length; i++) {
-            floats[i] = bFloat16ToFloat((short) BitUtil.VH_LE_SHORT.get(bfBytes, i * 2));
-        }
+        ESVectorUtil.bFloat16ToFloat(ByteBuffer.wrap(bfBytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer(), floats);
     }
 
     public static void bFloat16ToFloat(ShortBuffer bFloats, float[] floats) {
-        for (int i = 0; i < floats.length; i++) {
-            floats[i] = bFloat16ToFloat(bFloats.get());
-        }
+        ESVectorUtil.bFloat16ToFloat(bFloats, floats);
     }
 
     private BFloat16() {}

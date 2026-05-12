@@ -7,24 +7,34 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+// begin generated imports
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.common.util.LongHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefVector;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeDouble;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.core.ReleasableIterator;
-
 import java.util.BitSet;
+// end generated imports
 
 /**
  * Maps a {@link DoubleBlock} column to group ids.
@@ -32,7 +42,7 @@ import java.util.BitSet;
  */
 final class DoubleBlockHash extends BlockHash {
     private final int channel;
-    final LongHash hash;
+    final LongHashTable hash;
 
     /**
      * Have we seen any {@code null} values?
@@ -46,7 +56,7 @@ final class DoubleBlockHash extends BlockHash {
     DoubleBlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
-        this.hash = new LongHash(1, blockFactory.bigArrays());
+        this.hash = HashImplFactory.newLongHash(blockFactory);
     }
 
     @Override
@@ -136,29 +146,32 @@ final class DoubleBlockHash extends BlockHash {
     }
 
     @Override
-    public DoubleBlock[] getKeys() {
-        if (seenNull) {
-            final int size = Math.toIntExact(hash.size() + 1);
-            final double[] keys = new double[size];
-            for (int i = 1; i < size; i++) {
-                keys[i] = Double.longBitsToDouble(hash.get(i - 1));
+    public DoubleBlock[] getKeys(IntVector selected) {
+        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(selected.getPositionCount())) {
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int groupId = selected.getInt(i);
+                if (groupId == 0) {
+                    builder.appendNull();
+                } else {
+                    builder.appendDouble(Double.longBitsToDouble(hash.get(groupId - 1)));
+                }
             }
-            BitSet nulls = new BitSet(1);
-            nulls.set(0);
-            return new DoubleBlock[] {
-                blockFactory.newDoubleArrayBlock(keys, keys.length, null, nulls, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING) };
+            return new DoubleBlock[] { builder.build() };
         }
-        final int size = Math.toIntExact(hash.size());
-        final double[] keys = new double[size];
-        for (int i = 0; i < size; i++) {
-            keys[i] = Double.longBitsToDouble(hash.get(i));
-        }
-        return new DoubleBlock[] { blockFactory.newDoubleArrayVector(keys, keys.length).asBlock() };
     }
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(seenNull ? 0 : 1, Math.toIntExact(hash.size() + 1), blockFactory);
+        return blockFactory.newIntRangeVector(seenNull ? 0 : 1, Math.toIntExact(hash.size() + 1));
+    }
+
+    @Override
+    public int numKeys() {
+        if (seenNull) {
+            return Math.toIntExact(hash.size() + 1);
+        } else {
+            return Math.toIntExact(hash.size());
+        }
     }
 
     @Override

@@ -21,10 +21,11 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -34,6 +35,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction.Request;
@@ -72,6 +74,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
     private final TransformCheckpointService transformCheckpointService;
     private final Client client;
     private final Settings nodeSettings;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportGetTransformStatsAction(
@@ -79,8 +82,10 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         ActionFilters actionFilters,
         ClusterService clusterService,
         TransformServices transformServices,
+        ThreadPool threadPool,
         Client client,
-        Settings settings
+        Settings settings,
+        ProjectResolver projectResolver
     ) {
         super(
             GetTransformStatsAction.NAME,
@@ -89,12 +94,13 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             actionFilters,
             Request::new,
             Response::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.transformConfigManager = transformServices.configManager();
         this.transformCheckpointService = transformServices.checkpointService();
         this.client = client;
         this.nodeSettings = settings;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -199,10 +205,8 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                 }
 
                 request.setExpandedIds(hitsAndIds.v2().v1());
-                final TransformNodeAssignments transformNodeAssignments = TransformNodes.transformTaskNodes(
-                    hitsAndIds.v2().v1(),
-                    clusterState
-                );
+                final ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
+                final TransformNodeAssignments transformNodeAssignments = TransformNodes.transformTaskNodes(hitsAndIds.v2().v1(), project);
 
                 ActionListener<Response> doExecuteListener = ActionListener.wrap(response -> {
                     PersistentTasksCustomMetadata tasksInProgress = clusterState.getMetadata()
@@ -394,11 +398,12 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         AtomicInteger numberRemaining = new AtomicInteger(statsForTransformsWithoutTasks.size());
         AtomicBoolean isExceptionReported = new AtomicBoolean(false);
 
+        final ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
         statsForTransformsWithoutTasks.forEach(
             stat -> populateSingleStoppedTransformStat(stat, parentTaskId, request, ActionListener.wrap(checkpointingInfo -> {
                 synchronized (allStateAndStats) {
                     if (transformsWaitingForAssignment.contains(stat.getId())) {
-                        Assignment assignment = TransformNodes.getAssignment(stat.getId(), clusterState);
+                        Assignment assignment = TransformNodes.getAssignment(stat.getId(), project);
                         allStateAndStats.add(
                             new TransformStats(
                                 stat.getId(),
@@ -409,16 +414,13 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                                 checkpointingInfo,
                                 TransformHealthChecker.checkUnassignedTransform(
                                     stat.getId(),
-                                    clusterState,
+                                    project,
                                     stat.getTransformState().getAuthState()
                                 )
                             )
                         );
                     } else {
-                        final boolean transformPersistentTaskIsStillRunning = TransformTask.getTransformTask(
-                            stat.getId(),
-                            clusterState
-                        ) != null;
+                        final boolean transformPersistentTaskIsStillRunning = TransformTask.getTransformTask(stat.getId(), project) != null;
                         allStateAndStats.add(
                             new TransformStats(
                                 stat.getId(),

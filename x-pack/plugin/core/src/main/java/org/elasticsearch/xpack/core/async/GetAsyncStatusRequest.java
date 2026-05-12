@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.async;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,18 +34,14 @@ public class GetAsyncStatusRequest extends LegacyActionRequest {
     public GetAsyncStatusRequest(StreamInput in) throws IOException {
         super(in);
         this.id = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            this.keepAlive = in.readTimeValue();
-        }
+        this.keepAlive = in.readTimeValue();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(id);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeTimeValue(keepAlive);
-        }
+        out.writeTimeValue(keepAlive);
     }
 
     @Override

@@ -242,7 +242,7 @@ connectors:
     service_type: "postgresql"
 ```
 
-We provide an [example configuration file](https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example) in the `elastic/connectors` repository for reference.
+We provide an [example configuration file](https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example) in the `elastic/connectors` repository for reference.
 
 
 #### Run the connector service [es-connectors-tutorial-api-run-connector-service]

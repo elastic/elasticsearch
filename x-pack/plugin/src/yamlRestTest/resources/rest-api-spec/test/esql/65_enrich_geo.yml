@@ -1,0 +1,252 @@
+---
+setup:
+  - requires:
+      cluster_features: [ "gte_v8.14.0" ]
+      reason: "GEO_MATCH ENRICH support was added in 8.14.0"
+      test_runner_features: allowed_warnings_regex
+
+  - do:
+      indices.create:
+        index: regions
+        body:
+          mappings:
+            properties:
+              shape:
+                type: geo_shape
+              region:
+                type: keyword
+
+  - do:
+      bulk:
+        index: regions
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "shape": "POLYGON ((12.453 55.7122, 12.4785 55.6563, 12.5332 55.6318, 12.5955 55.6802, 12.5963 55.7125, 12.6398 55.7224, 12.6022 55.7257, 12.5905 55.7097, 12.5659 55.7327, 12.453 55.7122), (12.4913 55.6791, 12.5381 55.6977, 12.5573 55.6817, 12.5233 55.6665, 12.4913 55.6791))", "region": "Copenhagen" }
+          - { "index": { } }
+          - { "shape": "POLYGON ((4.0 50.46, 4.01 50.46, 4.01 50.48, 4.0 50.48, 4.0 50.46))", "region": "Obourg" }
+
+---
+"locations_geo_point_valid_shapes":
+  - do:
+      indices.create:
+        index: locations
+        body:
+          settings:
+            index.number_of_shards: 1
+            index.routing.rebalance.enable: "none"
+          mappings:
+            properties:
+              location:
+                type: geo_point
+              name:
+                type: keyword
+
+  - do:
+      bulk:
+        index: locations
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "location": { "type": "point","coordinates": [ 4.0053486386, 50.4697386503 ] }, "name": "GeoJSON" }
+          - { "index": { } }
+          - { "location": "POINT(4.0053486386 50.4697386503)", "name": "WKT" }
+
+  - do:
+      enrich.put_policy:
+        name: locations-policy
+        body:
+          geo_match:
+            indices: [ "locations" ]
+            match_field: "location"
+            enrich_fields: [ "name", "location" ]
+
+  - do:
+      enrich.execute_policy:
+        name: locations-policy
+
+  - do:
+      cluster.health:
+        wait_for_no_initializing_shards: true
+        wait_for_events: languid
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM regions | ENRICH locations-policy ON shape | SORT region'
+
+  - match: { columns.0.name: "region" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "shape" }
+  - match: { columns.1.type: "geo_shape" }
+  - match: { columns.2.name: "name" }
+  - match: { columns.2.type: "keyword" }
+  - match: { columns.3.name: "location" }
+  - match: { columns.3.type: "geo_shape" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ "Copenhagen", "POLYGON ((12.453 55.7122, 12.4785 55.6563, 12.5332 55.6318, 12.5955 55.6802, 12.5963 55.7125, 12.6398 55.7224, 12.6022 55.7257, 12.5905 55.7097, 12.5659 55.7327, 12.453 55.7122), (12.4913 55.6791, 12.5381 55.6977, 12.5573 55.6817, 12.5233 55.6665, 12.4913 55.6791))", null, null ] }
+  - match: { values.1: [ "Obourg", "POLYGON ((4.0 50.46, 4.01 50.46, 4.01 50.48, 4.0 50.48, 4.0 50.46))", ["GeoJSON", "WKT"], ["POINT (4.0053486386 50.4697386503)", "POINT (4.0053486386 50.4697386503)"] ] }
+
+  - do:
+      enrich.delete_policy:
+        name: locations-policy
+
+---
+"locations_keyword_valid_shapes":
+
+  - do:
+      indices.create:
+        index: locations
+        body:
+          settings:
+            index.number_of_shards: 1
+            index.routing.rebalance.enable: "none"
+          mappings:
+            properties:
+              location:
+                type: keyword
+              name:
+                type: keyword
+
+  - do:
+      bulk:
+        index: locations
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "location": "POINT(4.0053486386 50.4697386503)", "name": "WKT" }
+
+  - do:
+      enrich.put_policy:
+        name: locations-policy
+        body:
+          geo_match:
+            indices: [ "locations" ]
+            match_field: "location"
+            enrich_fields: [ "name", "location" ]
+
+  - do:
+      enrich.execute_policy:
+        name: locations-policy
+
+  - do:
+      cluster.health:
+        wait_for_no_initializing_shards: true
+        wait_for_events: languid
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM regions | ENRICH locations-policy ON shape | SORT region'
+
+  - match: { columns.0.name: "region" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "shape" }
+  - match: { columns.1.type: "geo_shape" }
+  - match: { columns.2.name: "name" }
+  - match: { columns.2.type: "keyword" }
+  - match: { columns.3.name: "location" }
+  - match: { columns.3.type: "geo_shape" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ "Copenhagen", "POLYGON ((12.453 55.7122, 12.4785 55.6563, 12.5332 55.6318, 12.5955 55.6802, 12.5963 55.7125, 12.6398 55.7224, 12.6022 55.7257, 12.5905 55.7097, 12.5659 55.7327, 12.453 55.7122), (12.4913 55.6791, 12.5381 55.6977, 12.5573 55.6817, 12.5233 55.6665, 12.4913 55.6791))", null, null ] }
+  - match: { values.1: [ "Obourg", "POLYGON ((4.0 50.46, 4.01 50.46, 4.01 50.48, 4.0 50.48, 4.0 50.46))", "WKT", "POINT (4.0053486386 50.4697386503)" ] }
+
+  - do:
+      enrich.delete_policy:
+        name: locations-policy
+
+---
+"locations_geo_point_invalid_shapes":
+  - do:
+      indices.create:
+        index: locations
+        body:
+          settings:
+            index.number_of_shards: 1
+            index.routing.rebalance.enable: "none"
+          mappings:
+            properties:
+              location:
+                type: geo_point
+              name:
+                type: keyword
+
+  - do:
+      bulk:
+        index: locations
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "location": { "type": "point","coordinates": [ 4.0053486386, 50.4697386503 ] }, "name": "GeoJSON" }
+          - { "index": { } }
+          - { "location": "POINT(4.0053486386 50.4697386503)", "name": "WKT" }
+          - { "index": { } }
+          - { "location": { "lon": 4.0053486386, "lat": 50.4697386503 }, "name": "Object(lat,lon)" }
+
+  - do:
+      enrich.put_policy:
+        name: locations-policy
+        body:
+          geo_match:
+            indices: [ "locations" ]
+            match_field: "location"
+            enrich_fields: [ "name", "location" ]
+
+  - do:
+      catch: "/Encountered bulk failures during reindex process/"
+      enrich.execute_policy:
+        name: locations-policy
+
+  - do:
+      enrich.delete_policy:
+        name: locations-policy
+
+---
+"locations_keyword_invalid_shapes":
+  - do:
+      indices.create:
+        index: locations
+        body:
+          settings:
+            index.number_of_shards: 1
+            index.routing.rebalance.enable: "none"
+          mappings:
+            properties:
+              location:
+                type: keyword
+              name:
+                type: keyword
+
+  - do:
+      bulk:
+        index: locations
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "location": "POINT(4.0053486386 50.4697386503)", "name": "WKT" }
+          - { "index": { } }
+          - { "location": "50.4697386503,4.0053486386", "name": "lat,lon" }
+
+  - do:
+      enrich.put_policy:
+        name: locations-policy
+        body:
+          geo_match:
+            indices: [ "locations" ]
+            match_field: "location"
+            enrich_fields: [ "name", "location" ]
+
+  - do:
+      catch: "/Encountered bulk failures during reindex process/"
+      enrich.execute_policy:
+        name: locations-policy
+
+  - do:
+      enrich.delete_policy:
+        name: locations-policy

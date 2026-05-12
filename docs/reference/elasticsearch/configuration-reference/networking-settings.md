@@ -24,7 +24,7 @@ Never expose an unprotected node to the public internet. If you do, you are perm
 ::::
 
 
-Configuring {{es}} to bind to a non-local address will [convert some warnings into fatal exceptions](docs-content://deploy-manage/deploy/self-managed/important-system-configuration.md#dev-vs-prod). If a node refuses to start after configuring its network settings then you must address the logged exceptions before proceeding.
+Configuring {{es}} to bind to a non-local address will [convert some warnings into fatal exceptions](docs-content://deploy-manage/deploy/self-managed/bootstrap-checks.md). If a node refuses to start after configuring its network settings then you must address the logged exceptions before proceeding.
 
 ## Commonly used network settings [common-network-settings]
 
@@ -666,11 +666,6 @@ It may also be possible to identify some reasons for delays from the server logs
 
 
 ## TCP readiness port [tcp-readiness-port]
-
-::::{warning}
-This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
 
 If configured, a node can open a TCP port when the node is in a ready state. A node is deemed ready when it has successfully joined a cluster. In a single node configuration, the node is said to be ready, when it’s able to accept requests.
 

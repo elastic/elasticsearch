@@ -195,14 +195,14 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
         // We override equals and hashcode to ignore options when comparing two function instances
         if (o == null || getClass() != o.getClass()) return false;
         SingleFieldFullTextFunction that = (SingleFieldFullTextFunction) o;
-        return Objects.equals(field(), that.field())
-            && Objects.equals(query(), that.query())
-            && Objects.equals(queryBuilder(), that.queryBuilder());
+
+        // Compare query builders using identity because that's how they are compared during query rewriting
+        return Objects.equals(field(), that.field()) && Objects.equals(query(), that.query()) && queryBuilder() == that.queryBuilder();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field(), query(), queryBuilder());
+        return Objects.hash(field(), query(), System.identityHashCode(queryBuilder()));
     }
 
     /**
@@ -240,6 +240,6 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
     }
 
     static String expectedTypesAsString(Set<DataType> dataTypes) {
-        return String.join(", ", dataTypes.stream().map(dt -> dt.name().toLowerCase(Locale.ROOT)).toList());
+        return String.join(", ", dataTypes.stream().map(dt -> dt.name().toLowerCase(Locale.ROOT)).sorted().toList());
     }
 }

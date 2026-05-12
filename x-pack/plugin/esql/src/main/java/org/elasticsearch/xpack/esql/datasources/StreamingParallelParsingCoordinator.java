@@ -143,17 +143,14 @@ public final class StreamingParallelParsingCoordinator {
 
         private final AtomicReference<Throwable> firstError = new AtomicReference<>();
         /**
-         * Worker-completion bookkeeping. {@link #startedWorkers} is incremented by each worker
-         * (segmentator and every parser) as its very first action; {@link #finishedWorkers} is
-         * incremented from each worker's {@code finally}. Consumers and {@link #close} reason about
-         * progress as {@code finishedWorkers == startedWorkers}, not against a fixed count of
-         * <em>submitted</em> tasks, because the executor may queue submissions indefinitely under
-         * saturation. A naive {@code CountDownLatch(1 + parallelism)} would never fire if some
-         * parser runnables sit in the executor queue forever — see issue tracking the streaming
-         * parser deadlock under {@code generic}-pool saturation.
+         * Live worker count: incremented by each worker (segmentator and every parser) as its first
+         * action inside its {@code try} block, decremented in the matching {@code finally}. Workers
+         * that never run never increment, so {@link #close} can wait for {@code inFlightWorkers == 0}
+         * without being held hostage by parser submissions the executor queued but never scheduled.
+         * A naive {@code CountDownLatch(1 + parallelism)} would never fire in that scenario — see
+         * the streaming-parser deadlock fix under {@code generic}-pool saturation.
          */
-        private final AtomicInteger startedWorkers = new AtomicInteger(0);
-        private final AtomicInteger finishedWorkers = new AtomicInteger(0);
+        private final AtomicInteger inFlightWorkers = new AtomicInteger(0);
         /**
          * Flips to {@code true} after the segmentator's main loop has exited AND it has flushed its
          * POISON sentinels to {@link #chunkQueue}. Consumers use this — not a worker-count latch —
@@ -172,6 +169,19 @@ public final class StreamingParallelParsingCoordinator {
          * POISON has been observed.
          */
         private final Semaphore dispatchPermits;
+        /**
+         * Wakes the consumer parked in {@link #takeNextPage} on any state change relevant to its
+         * predicate: a new chunk is dispatched (after {@link #chunksDispatched} increments), the
+         * segmentator finishes (after {@link #segmentatorDone} flips), or the iterator is closed.
+         * Each release pairs with a single {@code tryAcquire} on the consumer side; the timeout on
+         * that acquire is purely a watchdog — under normal operation the signal fires immediately.
+         */
+        private final Semaphore dispatchSignal = new Semaphore(0);
+        /**
+         * Wakes {@link #close} when a worker's {@code finally} runs (after {@link #inFlightWorkers}
+         * decrements). Same watchdog-bounded semantics as {@link #dispatchSignal}.
+         */
+        private final Semaphore completionSignal = new Semaphore(0);
 
         private int currentChunk = 0;
         private Page buffered = null;
@@ -211,16 +221,17 @@ public final class StreamingParallelParsingCoordinator {
                 pageQueues[i] = new ArrayBlockingQueue<>(16);
             }
 
-            // 1 segmentator + N parsers. We do NOT track an upfront expected count here: if the
-            // executor rejects a submission, the corresponding runnable simply never increments
-            // startedWorkers, so finishedWorkers == startedWorkers stays correct. If the segmentator
-            // submission specifically is rejected, we still need to surface that as an error and
-            // mark "segmentation done" so the consumer doesn't wait for chunks that will never come.
+            // 1 segmentator + N parsers. inFlightWorkers is only incremented from inside each
+            // runnable, so rejected or queued-but-never-scheduled submissions don't contribute and
+            // close() is never wedged on them. If the segmentator submission specifically is
+            // rejected we still need to surface the error and mark "segmentator done" so the
+            // consumer doesn't wait for chunks that will never come.
             try {
                 executor.execute(() -> runSegmentator(decompressedStream, this.chunkSize));
             } catch (RejectedExecutionException e) {
                 firstError.compareAndSet(null, e);
                 segmentatorDone = true;
+                dispatchSignal.release();
             }
 
             for (int i = 0; i < parallelism; i++) {
@@ -238,7 +249,7 @@ public final class StreamingParallelParsingCoordinator {
             int chunkIndex = 0;
 
             try {
-                startedWorkers.incrementAndGet();
+                inFlightWorkers.incrementAndGet();
                 while (closed == false && firstError.get() == null) {
                     byte[] buf;
                     try {
@@ -357,7 +368,9 @@ public final class StreamingParallelParsingCoordinator {
                 // (b) every dispatched chunk having a parser-produced (or close-drained)
                 // POISON in its page-queue slot.
                 segmentatorDone = true;
-                finishedWorkers.incrementAndGet();
+                dispatchSignal.release();
+                inFlightWorkers.decrementAndGet();
+                completionSignal.release();
             }
         }
 
@@ -420,12 +433,13 @@ public final class StreamingParallelParsingCoordinator {
                 return false;
             }
             chunksDispatched.incrementAndGet();
+            dispatchSignal.release();
             return true;
         }
 
         private void runParser() {
             try {
-                startedWorkers.incrementAndGet();
+                inFlightWorkers.incrementAndGet();
                 while (closed == false && firstError.get() == null) {
                     Chunk chunk;
                     try {
@@ -490,7 +504,8 @@ public final class StreamingParallelParsingCoordinator {
                     }
                 }
             } finally {
-                finishedWorkers.incrementAndGet();
+                inFlightWorkers.decrementAndGet();
+                completionSignal.release();
             }
         }
 
@@ -650,6 +665,9 @@ public final class StreamingParallelParsingCoordinator {
 
         private Page takeNextPage() throws InterruptedException {
             while (true) {
+                if (closed) {
+                    return null;
+                }
                 checkError();
 
                 if (currentChunk >= chunksDispatched.get()) {
@@ -662,7 +680,11 @@ public final class StreamingParallelParsingCoordinator {
                         checkError();
                         return null;
                     }
-                    Thread.sleep(10);
+                    // Park until a state change releases dispatchSignal: a chunk is dispatched,
+                    // the segmentator finishes, or close() runs. The 100ms timeout is a watchdog;
+                    // every signal site (dispatchChunk, segmentator finally, close) releases a
+                    // permit, so the acquire fires immediately in normal operation.
+                    dispatchSignal.tryAcquire(100, TimeUnit.MILLISECONDS);
                     continue;
                 }
 
@@ -709,9 +731,10 @@ public final class StreamingParallelParsingCoordinator {
          * segmentator to bail on its next post-acquire check), wake any segmentator parked on
          * {@link #dispatchPermits}, and drain whatever is already queued.
          * <p>
-         * Phase 2: wait up to {@link #CLOSE_TIMEOUT_SECONDS} for {@link #finishedWorkers} to catch up
-         * to {@link #startedWorkers}, then drain again to catch pages a parser put into a queue
-         * between the first drain and its own exit.
+         * Phase 2: wait up to {@link #CLOSE_TIMEOUT_SECONDS} for {@link #inFlightWorkers} to reach
+         * zero — signalled via {@link #completionSignal} from each worker's {@code finally} block —
+         * then drain again to catch pages a parser put into a queue between the first drain and its
+         * own exit.
          * <p>
          * <strong>Workers that never ran:</strong> we explicitly do not wait for parser tasks that
          * were submitted to the executor but never started — under saturation those runnables can sit
@@ -736,22 +759,27 @@ public final class StreamingParallelParsingCoordinator {
             // Wake the segmentator if parked on dispatchPermits.acquire(); after a successful acquire it
             // re-checks {@code closed} and exits {@link #dispatchChunk} without enqueueing.
             dispatchPermits.release();
+            // Wake any consumer parked in takeNextPage on dispatchSignal; its top-of-loop closed-check
+            // returns null immediately.
+            dispatchSignal.release();
             drainAllQueues();
             long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(CLOSE_TIMEOUT_SECONDS);
             try {
-                while (finishedWorkers.get() < startedWorkers.get() && System.nanoTime() < deadlineNanos) {
-                    Thread.sleep(20);
+                while (inFlightWorkers.get() > 0) {
+                    long remainingNanos = deadlineNanos - System.nanoTime();
+                    if (remainingNanos <= 0) {
+                        break;
+                    }
+                    completionSignal.tryAcquire(remainingNanos, TimeUnit.NANOSECONDS);
                 }
-                int started = startedWorkers.get();
-                int finished = finishedWorkers.get();
-                if (finished < started) {
+                int stillInFlight = inFlightWorkers.get();
+                if (stillInFlight > 0) {
                     logger.warn(
                         "Timed out waiting for streaming parallel parsing threads to finish after [{}]s "
-                            + "([{}] started, [{}] finished); any pages published by still-running parsers "
+                            + "([{}] still in flight); any pages published by still-running parsers "
                             + "after this point will leak their blocks",
                         CLOSE_TIMEOUT_SECONDS,
-                        started,
-                        finished
+                        stillInFlight
                     );
                 }
             } catch (InterruptedException e) {

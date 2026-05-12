@@ -386,9 +386,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * Closing the iterator must not wait for parser runnables that were submitted but never
      * actually started. Pre-fix, {@code close()} did {@code allDone.await(CLOSE_TIMEOUT)}
      * which timed out after the full 60s because every dropped submission left the latch
-     * one step above zero, so the latch never fired. Post-fix {@code close()} polls
-     * {@code finishedWorkers < startedWorkers}, which is already satisfied by the workers
-     * that did run.
+     * one step above zero, so the latch never fired. Post-fix {@code close()} waits on
+     * {@code inFlightWorkers}, which only counts runnables that actually entered their
+     * {@code try} block.
      */
     public void testCloseReturnsPromptlyWhenSomeParserSubmissionsNeverRun() throws Exception {
         int lineCount = 200;

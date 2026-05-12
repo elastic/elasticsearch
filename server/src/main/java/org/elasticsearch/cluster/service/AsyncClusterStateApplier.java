@@ -21,6 +21,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.util.Objects;
+import java.util.Random;
 import java.util.concurrent.Executor;
 
 /// A [ClusterStateApplier] which delegates asynchronously to another [ClusterStateApplier], and keeps track of
@@ -134,7 +135,7 @@ public class AsyncClusterStateApplier implements ClusterStateApplier {
 
             try {
                 logger.info("--> waiting before async applying [{}]", source);
-                Thread.sleep(50);
+                Thread.sleep(new Random().nextInt(50));
                 logger.info("--> async applying [{}]", source);
 
                 // TODO: could this actually throw? Outside of test assertions.

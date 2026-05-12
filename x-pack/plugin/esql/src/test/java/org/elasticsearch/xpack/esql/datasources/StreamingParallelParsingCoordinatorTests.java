@@ -815,6 +815,29 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             return -1;
         }
 
+        /**
+         * Quote-aware override: drives {@link #findNextRecordBoundary} forward through the buffer.
+         * Bypasses the SPI default (backward {@code \n} scan) because embedded {@code \n} bytes
+         * inside {@code "..."} must not be treated as record terminators.
+         */
+        @Override
+        public int findLastRecordBoundary(byte[] buf, int length) throws IOException {
+            if (length <= 0) {
+                return -1;
+            }
+            int lastBoundary = -1;
+            int cumulative = 0;
+            while (cumulative < length) {
+                long consumed = findNextRecordBoundary(new ByteArrayInputStream(buf, cumulative, length - cumulative));
+                if (consumed < 0) {
+                    return lastBoundary;
+                }
+                cumulative += Math.toIntExact(consumed);
+                lastBoundary = cumulative - 1;
+            }
+            return lastBoundary;
+        }
+
         @Override
         public long minimumSegmentSize() {
             return minSegment;

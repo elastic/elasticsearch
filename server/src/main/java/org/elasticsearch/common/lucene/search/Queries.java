@@ -19,7 +19,9 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
@@ -48,7 +50,33 @@ public final class Queries {
     public static final MatchNoDocsQuery NO_MAPPINGS = new MatchNoDocsQuery("No mappings yet");
     public static final MatchAllDocsQuery ALL_DOCS_INSTANCE = allDocs();
 
+    /**
+     * Per-clause floor charged to the request circuit breaker for leaf queries that don't
+     * implement {@link Accountable}. Sized so a {@code bool} of millions of cheap leaves
+     * (e.g. {@code TermQuery}) is still bounded by the breaker rather than only by
+     * {@link org.apache.lucene.search.IndexSearcher#getMaxClauseCount()}.
+     */
+    public static final long LEAF_BASE_BYTES = 256L;
+
     private Queries() {}
+
+    /**
+     * Conservative upper bound on the retained heap of a Lucene {@link Query}. Used as the
+     * "constant cost to every clause" charge against the request circuit breaker.
+     *
+     * <p>Lucene's {@link Query} is not {@link Accountable}; only some subclasses are
+     * (most {@link org.apache.lucene.search.MultiTermQuery} descendants, {@link BooleanQuery},
+     * {@link org.apache.lucene.search.PointRangeQuery}, {@link org.apache.lucene.search.PhraseQuery}, ...).
+     * This helper returns the precise {@link Accountable#ramBytesUsed()} when available and
+     * falls back to {@link RamUsageEstimator#shallowSizeOf(Object)} plus {@link #LEAF_BASE_BYTES}
+     * otherwise, so non-{@code Accountable} clauses still contribute a non-zero per-clause floor.
+     */
+    public static long estimateRamBytes(Query query) {
+        if (query instanceof Accountable a) {
+            return a.ramBytesUsed();
+        }
+        return RamUsageEstimator.shallowSizeOf(query) + LEAF_BASE_BYTES;
+    }
 
     /** Return a query that matches no document. */
     public static Query newMatchNoDocsQuery(String reason) {

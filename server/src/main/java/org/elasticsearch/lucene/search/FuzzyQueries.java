@@ -23,16 +23,23 @@ import java.util.BitSet;
 /**
  * Factory helpers for constructing fuzzy queries with circuit-breaker accounting. All
  * production paths that build a {@link FuzzyQuery} for search should go through here so the
- * query-object RAM and the Levenshtein automata RAM are charged consistently.
+ * per-clause constant cost and the parameter-driven estimation work are charged consistently.
  *
- * <p>Both contributions are charged <em>upfront</em>, at query construction time, before any
- * automaton is built — this lets the breaker reject oversized queries before any allocation
- * happens. They live in different pools so they can be released independently:
+ * <p>Charges are split across two pools on {@link SearchExecutionContext}, mirroring the
+ * framing in Jim Ferenczi's review of #148621 — &quot;a constant cost to every clause and
+ * when we know that this constant cost can be higher depending on the parameters in the
+ * query then we do the estimation work&quot;:
+ *
  * <ol>
  *   <li>The query object's own RAM ({@link #queryRamBytes}) goes to the construction pool via
- *       {@link SearchExecutionContext#addCircuitBreakerMemory}.</li>
- *   <li>The compiled-automata RAM, estimated by {@link FuzzyAutomatonRamEstimator}, goes to
- *       the rewrite pool via {@link SearchExecutionContext#addRewriteCircuitBreakerMemory}.</li>
+ *       {@link SearchExecutionContext#addCircuitBreakerMemory} — the per-clause constant
+ *       charged at the field-type layer so parsers that bypass
+ *       {@link org.elasticsearch.index.query.LeafQueryBuilder}
+ *       (e.g. {@code QueryStringQueryParser}) still trip the breaker incrementally.</li>
+ *   <li>A coarse, parameter-driven cost estimate from {@link FuzzyQueryCostEstimator} goes to
+ *       the rewrite pool via {@link SearchExecutionContext#addRewriteCircuitBreakerMemory} —
+ *       this is the &quot;estimation work&quot; that earns its keep when the query parameters
+ *       (term length, edit distance, alphabet width) make the clause heavier than typical.</li>
  * </ol>
  *
  * <p>{@link #create} is the normal entry point; {@link #chargeQuery} exists for callers that
@@ -73,8 +80,9 @@ public final class FuzzyQueries {
 
     /**
      * Charge the full circuit-breaker cost of an already-constructed {@link FuzzyQuery} —
-     * query-object RAM to the construction pool and an estimate of the Levenshtein automata
-     * RAM to the rewrite pool. No-op when {@code context} or its breaker is {@code null}.
+     * the per-clause constant (query object RAM) to the construction pool and the
+     * parameter-driven cost estimate to the rewrite pool. No-op when {@code context} or
+     * its breaker is {@code null}.
      */
     public static void chargeQuery(FuzzyQuery query, @Nullable SearchExecutionContext context, String fieldLabel) {
         if (context == null || context.getCircuitBreaker() == null) {
@@ -82,10 +90,9 @@ public final class FuzzyQueries {
         }
         String label = "fuzzy:" + fieldLabel;
         context.addCircuitBreakerMemory(queryRamBytes(query), label);
-        long automataBytes = estimateAutomataBytes(query);
-        if (automataBytes > 0) {
-            context.addRewriteCircuitBreakerMemory(automataBytes, label);
-        }
+        BytesRef bytes = query.getTerm().bytes();
+        new FuzzyQueryCostEstimator(bytes.length, countDistinctUtf8Bytes(bytes), query.getMaxEdits(), query.getPrefixLength())
+            .chargeRewrite(context, label);
     }
 
     /** RAM bytes retained by the {@link FuzzyQuery} object itself (excluding compiled automata). */
@@ -93,38 +100,9 @@ public final class FuzzyQueries {
         return RamUsageEstimator.shallowSizeOfInstance(query.getClass()) + query.getTerm().ramBytesUsed();
     }
 
-    private static long estimateAutomataBytes(FuzzyQuery query) {
-        if (query.getMaxEdits() == 0) {
-            return 0L;
-        }
-        BytesRef bytes = query.getTerm().bytes();
-        return FuzzyAutomatonRamEstimator.estimate(
-            countCodePoints(bytes),
-            bytes.length,
-            countDistinctUtf8Bytes(bytes),
-            query.getMaxEdits(),
-            query.getPrefixLength()
-        );
-    }
-
-    /**
-     * Code-point count of a UTF-8 {@link BytesRef} without materialising a {@code String}.
-     * UTF-8 leading bytes are those <em>not</em> matching {@code 10xxxxxx}.
-     */
-    private static int countCodePoints(BytesRef bytes) {
-        int count = 0;
-        int end = bytes.offset + bytes.length;
-        for (int i = bytes.offset; i < end; i++) {
-            if ((bytes.bytes[i] & 0xC0) != 0x80) {
-                count++;
-            }
-        }
-        return count;
-    }
-
     /**
      * Number of distinct UTF-8 byte values in {@code bytes} — the alphabet hint for
-     * {@link FuzzyAutomatonRamEstimator}. A tighter value tightens the estimate (e.g.
+     * {@link FuzzyQueryCostEstimator}. A tighter value tightens the estimate (e.g.
      * {@code "aaaaa..."} has {@code distinctUtf8Bytes = 1}).
      */
     private static int countDistinctUtf8Bytes(BytesRef bytes) {

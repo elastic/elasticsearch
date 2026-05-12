@@ -35,6 +35,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -491,6 +492,16 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
     /**
      * Asserts that the circuit breaker correctly accounts for the memory used by the given query.
+     *
+     * <p>For Accountable Lucene queries the field-type layer charges
+     * {@code query.ramBytesUsed()} to the construction pool. Every leaf builder additionally
+     * charges {@link Queries#estimateRamBytes(Query)} as the per-type retained-heap charge —
+     * which for an Accountable produced query is also {@code query.ramBytesUsed()}. The delta
+     * is therefore at least {@code ramBytesUsed} (when only one layer fires, e.g. a parser
+     * path that bypasses {@link org.elasticsearch.index.query.LeafQueryBuilder}) and at most
+     * {@code 2 * ramBytesUsed} (when both layers fire on the same clause via the standard
+     * builder path). The conservative double-charge is intentional and consistent with
+     * treating the breaker as a deliberately-pessimistic upper bound.
      */
     protected static void assertCircuitBreakerAccountsForQuery(QueryBuilder queryBuilder) throws IOException {
         CircuitBreaker cb = createCircuitBreakerService();
@@ -505,7 +516,15 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 long queryMemory = accountable.ramBytesUsed();
                 if (queryMemory > 0) {
                     assertTrue("Circuit breaker should account for query memory", after >= before);
-                    assertEquals("Circuit breaker delta should equal query ramBytesUsed", queryMemory, after - before);
+                    long delta = after - before;
+                    assertTrue(
+                        "Circuit breaker delta [" + delta + "] must include the field-type ramBytesUsed [" + queryMemory + "]",
+                        delta >= queryMemory
+                    );
+                    assertTrue(
+                        "Circuit breaker delta [" + delta + "] must not exceed twice the per-clause ramBytesUsed [" + queryMemory + "]",
+                        delta <= 2 * queryMemory
+                    );
                 }
             }
         } finally {

@@ -1,5 +1,9 @@
 area: Search
 issues: []
 pr: 147400
-summary: '`FuzzyQuery` memory cb-accounting'
-type: bug
+summary: |-
+  Account every leaf query against the request circuit breaker (per-clause constant retained
+  heap charge plus a parameter-driven dynamic estimate for fuzzy queries' rewrite cost), so
+  request memory is bounded per-shard rather than relying solely on the global
+  `indices.query.bool.max_clause_count` cap.
+type: enhancement

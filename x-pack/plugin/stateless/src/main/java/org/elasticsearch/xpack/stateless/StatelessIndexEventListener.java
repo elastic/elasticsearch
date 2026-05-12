@@ -60,12 +60,14 @@ import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
 import org.elasticsearch.xpack.stateless.recovery.RegisterCommitResponse;
+import org.elasticsearch.xpack.stateless.recovery.RelocationHandoffMetrics;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.elasticsearch.xpack.stateless.snapshots.SnapshotsCommitService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -76,6 +78,7 @@ import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServ
 import static org.elasticsearch.xpack.stateless.commits.BlobFileRanges.computeBlobFileRanges;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE;
+import static org.elasticsearch.xpack.stateless.engine.IndexEngine.TRANSLOG_RELEASE_END_FILE;
 
 class StatelessIndexEventListener implements IndexEventListener {
 
@@ -96,6 +99,7 @@ class StatelessIndexEventListener implements IndexEventListener {
     private final boolean useInternalFilesReplicatedContentForSearchShards;
     private final SnapshotsCommitService snapshotsCommitService;
     private final ClusterService clusterService;
+    private final RelocationHandoffMetrics relocationHandoffMetrics;
 
     StatelessIndexEventListener(
         ThreadPool threadPool,
@@ -112,7 +116,8 @@ class StatelessIndexEventListener implements IndexEventListener {
         ClusterSettings clusterSettings,
         StatelessSharedBlobCacheService cacheService,
         SnapshotsCommitService snapshotsCommitService,
-        ClusterService clusterService
+        ClusterService clusterService,
+        RelocationHandoffMetrics relocationHandoffMetrics
     ) {
         this.threadPool = threadPool;
         this.statelessCommitService = statelessCommitService;
@@ -131,6 +136,7 @@ class StatelessIndexEventListener implements IndexEventListener {
         );
         this.snapshotsCommitService = snapshotsCommitService;
         this.clusterService = clusterService;
+        this.relocationHandoffMetrics = relocationHandoffMetrics;
     }
 
     @Override
@@ -144,10 +150,16 @@ class StatelessIndexEventListener implements IndexEventListener {
                 return;
             }
             final var startFileValue = Long.parseLong(startFile);
+            final var currentNodeStartFileForNextCommit = translogReplicator.getMaxUploadedFile() + 1;
             if (startFileValue == HOLLOW_TRANSLOG_RECOVERY_START_FILE) {
+                logger.debug("restoring {} from a hollow commit, updating hollow commit markers", indexShard.shardId());
+                final var updatedUserData = new HashMap<>(userData);
+                updatedUserData.put(TRANSLOG_RECOVERY_START_FILE, Long.toString(currentNodeStartFileForNextCommit));
+                final var removed = updatedUserData.remove(TRANSLOG_RELEASE_END_FILE);
+                assert removed != null : "TRANSLOG_RELEASE_END_FILE should be present in userData for hollow commit";
+                store.associateIndexWithNewUserData(updatedUserData);
                 return;
             }
-            final var currentNodeStartFileForNextCommit = translogReplicator.getMaxUploadedFile() + 1;
             if (startFileValue != currentNodeStartFileForNextCommit) {
                 store.associateIndexWithNewUserKeyValueData(TRANSLOG_RECOVERY_START_FILE, Long.toString(currentNodeStartFileForNextCommit));
             }
@@ -261,6 +273,7 @@ class StatelessIndexEventListener implements IndexEventListener {
         final var recoveryInfoFromSource = statelessCommitService.getRecoveryInfoFromSourceEntry(indexShard.shardId());
         final var sourceBlobsInfo = recoveryInfoFromSource == null ? null : recoveryInfoFromSource.sourceBlobsInfo();
         final var hasRecentIdLookup = recoveryInfoFromSource == null ? false : recoveryInfoFromSource.hasRecentIdLookup();
+        final long readIndexingShardStateStartMillis = threadPool.relativeTimeInMillis();
         SubscribableListener.<ObjectStoreService.IndexingShardState>newForked(l -> {
             if (shardContainer == null) {
                 ActionListener.completeWith(l, () -> ObjectStoreService.IndexingShardState.EMPTY);
@@ -278,9 +291,11 @@ class StatelessIndexEventListener implements IndexEventListener {
                 sourceBlobsInfo,
                 l
             );
-        })
-            .<Void>andThen((l, state) -> recoverBatchedCompoundCommitOnIndexShard(indexShard, state, hasRecentIdLookup, l))
-            .addListener(listener);
+        }).<Void>andThen((l, state) -> {
+            relocationHandoffMetrics.readIndexingShardStateDuration()
+                .record(threadPool.relativeTimeInMillis() - readIndexingShardStateStartMillis);
+            recoverBatchedCompoundCommitOnIndexShard(indexShard, state, hasRecentIdLookup, l);
+        }).addListener(listener);
     }
 
     private void recoverBatchedCompoundCommitOnIndexShard(

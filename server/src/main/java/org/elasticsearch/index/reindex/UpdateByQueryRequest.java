@@ -27,7 +27,7 @@ import java.io.IOException;
  * representative set of subrequests. This is best-effort but better than {@linkplain ReindexRequest} because scripts can't change the
  * destination index and things.
  */
-public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<UpdateByQueryRequest>
+public class UpdateByQueryRequest extends AbstractBulkIndexByPaginatedSearchRequest<UpdateByQueryRequest>
     implements
         IndicesRequest.Replaceable,
         ToXContentObject {
@@ -133,8 +133,8 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
     }
 
     @Override
-    public UpdateByQueryRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices) {
-        UpdateByQueryRequest request = doForSlice(new UpdateByQueryRequest(slice, false), slicingTask, totalSlices);
+    public UpdateByQueryRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices, int activeSlices) {
+        UpdateByQueryRequest request = doForSlice(new UpdateByQueryRequest(slice, false), slicingTask, totalSlices, activeSlices);
         request.setPipeline(pipeline);
         return request;
     }

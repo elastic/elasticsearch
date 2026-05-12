@@ -8,46 +8,25 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 
 import java.util.Map;
 
+/**
+ * Verifies that {@link PushFiltersToSource#resolveFormatName} delegates to
+ * {@link FormatNameResolver#resolve}. Comprehensive resolution tests live in
+ * {@link org.elasticsearch.xpack.esql.datasources.FormatNameResolverTests}.
+ */
 public class PushFiltersToSourceTests extends ESTestCase {
 
-    // --- resolveFormatName tests ---
-
-    public void testResolveFormatNameFromConfig() {
-        assertEquals("orc", PushFiltersToSource.resolveFormatName(Map.of("format", "ORC"), "file.parquet"));
+    public void testResolveFormatNameDelegatesToFormatNameResolver() {
+        assertEquals(
+            FormatNameResolver.resolve(Map.of("reader", "java"), "file.parquet"),
+            PushFiltersToSource.resolveFormatName(Map.of("reader", "java"), "file.parquet")
+        );
     }
 
     public void testResolveFormatNameFromExtension() {
         assertEquals("orc", PushFiltersToSource.resolveFormatName(null, "s3://bucket/data/file.orc"));
-    }
-
-    public void testResolveFormatNameFromExtensionWithQueryString() {
-        assertEquals("orc", PushFiltersToSource.resolveFormatName(null, "s3://bucket/file.orc?versionId=123"));
-    }
-
-    public void testResolveFormatNameFromExtensionWithFragment() {
-        assertEquals("parquet", PushFiltersToSource.resolveFormatName(null, "gs://bucket/file.parquet#frag"));
-    }
-
-    public void testResolveFormatNameConfigOverridesExtension() {
-        assertEquals("csv", PushFiltersToSource.resolveFormatName(Map.of("format", "csv"), "file.orc"));
-    }
-
-    public void testResolveFormatNameEmptyConfigFallsBackToExtension() {
-        assertEquals("orc", PushFiltersToSource.resolveFormatName(Map.of("format", ""), "file.orc"));
-    }
-
-    public void testResolveFormatNameNoConfigNoExtension() {
-        assertNull(PushFiltersToSource.resolveFormatName(null, "file_without_extension"));
-    }
-
-    public void testResolveFormatNameNullEverything() {
-        assertNull(PushFiltersToSource.resolveFormatName(null, null));
-    }
-
-    public void testResolveFormatNameEmptyConfigNoPath() {
-        assertNull(PushFiltersToSource.resolveFormatName(Map.of(), null));
     }
 }

@@ -609,7 +609,7 @@ public class OperationRoutingTests extends ESTestCase {
         initialSearchShards.sort(null);
         for (int i = 0; i < shardCount; i++) {
             assertEquals(i, initialSearchShards.get(i).shardId().id());
-            assertEquals(SplitShardCountSummary.fromInt(shardCount), initialSearchShards.get(i).reshardSplitShardCountSummary());
+            assertEquals(SplitShardCountSummary.fromInt(shardCount), initialSearchShards.get(i).splitShardCountSummary());
         }
 
         // We are testing a case when there is routing configuration but not for the index in question.
@@ -620,7 +620,7 @@ public class OperationRoutingTests extends ESTestCase {
         initialSearchShardsWithRouting.sort(null);
         for (int i = 0; i < shardCount; i++) {
             assertEquals(i, initialSearchShardsWithRouting.get(i).shardId().id());
-            assertEquals(SplitShardCountSummary.fromInt(shardCount), initialSearchShardsWithRouting.get(i).reshardSplitShardCountSummary());
+            assertEquals(SplitShardCountSummary.fromInt(shardCount), initialSearchShardsWithRouting.get(i).splitShardCountSummary());
         }
 
         var initialWriteableShards = clusterService.operationRouting()
@@ -658,10 +658,7 @@ public class OperationRoutingTests extends ESTestCase {
         searchShardsWithOneShardHandoff.sort(null);
         for (int i = 0; i < shardCount; i++) {
             assertEquals(i, searchShardsWithOneShardHandoff.get(i).shardId().id());
-            assertEquals(
-                SplitShardCountSummary.fromInt(shardCount),
-                searchShardsWithOneShardHandoff.get(i).reshardSplitShardCountSummary()
-            );
+            assertEquals(SplitShardCountSummary.fromInt(shardCount), searchShardsWithOneShardHandoff.get(i).splitShardCountSummary());
         }
 
         var searchShardsWithOneShardHandoffAndRouting = clusterService.operationRouting()
@@ -672,7 +669,7 @@ public class OperationRoutingTests extends ESTestCase {
             assertEquals(i, searchShardsWithOneShardHandoffAndRouting.get(i).shardId().id());
             assertEquals(
                 SplitShardCountSummary.fromInt(shardCount),
-                searchShardsWithOneShardHandoffAndRouting.get(i).reshardSplitShardCountSummary()
+                searchShardsWithOneShardHandoffAndRouting.get(i).splitShardCountSummary()
             );
         }
 
@@ -716,22 +713,16 @@ public class OperationRoutingTests extends ESTestCase {
             assertEquals(i, searchShardsWithOneShardSplit.get(i).shardId().id());
         }
         assertEquals(shardChangingSplitTargetState, searchShardsWithOneShardSplit.get(indexOfShardWithNewState).shardId().id());
-        // Since the target shard is in SPLIT state, reshardSplitShardCountSummary is updated for it and the corresponding source shard.
+        // Since the target shard is in SPLIT state, splitShardCountSummary is updated for it and the corresponding source shard.
         assertEquals(
             SplitShardCountSummary.fromInt(newShardCount),
-            searchShardsWithOneShardSplit.get(indexOfShardWithNewState).reshardSplitShardCountSummary()
+            searchShardsWithOneShardSplit.get(indexOfShardWithNewState).splitShardCountSummary()
         );
         for (int i = 0; i < shardCount; i++) {
             if (i == sourceShard) {
-                assertEquals(
-                    SplitShardCountSummary.fromInt(newShardCount),
-                    searchShardsWithOneShardSplit.get(i).reshardSplitShardCountSummary()
-                );
+                assertEquals(SplitShardCountSummary.fromInt(newShardCount), searchShardsWithOneShardSplit.get(i).splitShardCountSummary());
             } else {
-                assertEquals(
-                    SplitShardCountSummary.fromInt(shardCount),
-                    searchShardsWithOneShardSplit.get(i).reshardSplitShardCountSummary()
-                );
+                assertEquals(SplitShardCountSummary.fromInt(shardCount), searchShardsWithOneShardSplit.get(i).splitShardCountSummary());
             }
         }
 
@@ -743,21 +734,21 @@ public class OperationRoutingTests extends ESTestCase {
             assertEquals(i, searchShardsWithOneShardSplitAndRouting.get(i).shardId().id());
         }
         assertEquals(shardChangingSplitTargetState, searchShardsWithOneShardSplitAndRouting.get(indexOfShardWithNewState).shardId().id());
-        // Since the target shard is in SPLIT state, reshardSplitShardCountSummary is updated for it and the corresponding source shard.
+        // Since the target shard is in SPLIT state, splitShardCountSummary is updated for it and the corresponding source shard.
         assertEquals(
             SplitShardCountSummary.fromInt(newShardCount),
-            searchShardsWithOneShardSplitAndRouting.get(indexOfShardWithNewState).reshardSplitShardCountSummary()
+            searchShardsWithOneShardSplitAndRouting.get(indexOfShardWithNewState).splitShardCountSummary()
         );
         for (int i = 0; i < shardCount; i++) {
             if (i == sourceShard) {
                 assertEquals(
                     SplitShardCountSummary.fromInt(newShardCount),
-                    searchShardsWithOneShardSplitAndRouting.get(i).reshardSplitShardCountSummary()
+                    searchShardsWithOneShardSplitAndRouting.get(i).splitShardCountSummary()
                 );
             } else {
                 assertEquals(
                     SplitShardCountSummary.fromInt(shardCount),
-                    searchShardsWithOneShardSplitAndRouting.get(i).reshardSplitShardCountSummary()
+                    searchShardsWithOneShardSplitAndRouting.get(i).splitShardCountSummary()
                 );
             }
         }
@@ -796,22 +787,16 @@ public class OperationRoutingTests extends ESTestCase {
             assertEquals(i, searchShardsWithOneShardDone.get(i).shardId().id());
         }
         assertEquals(shardChangingSplitTargetState, searchShardsWithOneShardDone.get(indexOfShardWithNewState).shardId().id());
-        // Since the target shard is past SPLIT state, reshardSplitShardCountSummary is updated for it and the corresponding source shard.
+        // Since the target shard is past SPLIT state, splitShardCountSummary is updated for it and the corresponding source shard.
         assertEquals(
             SplitShardCountSummary.fromInt(newShardCount),
-            searchShardsWithOneShardDone.get(indexOfShardWithNewState).reshardSplitShardCountSummary()
+            searchShardsWithOneShardDone.get(indexOfShardWithNewState).splitShardCountSummary()
         );
         for (int i = 0; i < shardCount; i++) {
             if (i == sourceShard) {
-                assertEquals(
-                    SplitShardCountSummary.fromInt(newShardCount),
-                    searchShardsWithOneShardDone.get(i).reshardSplitShardCountSummary()
-                );
+                assertEquals(SplitShardCountSummary.fromInt(newShardCount), searchShardsWithOneShardDone.get(i).splitShardCountSummary());
             } else {
-                assertEquals(
-                    SplitShardCountSummary.fromInt(shardCount),
-                    searchShardsWithOneShardDone.get(i).reshardSplitShardCountSummary()
-                );
+                assertEquals(SplitShardCountSummary.fromInt(shardCount), searchShardsWithOneShardDone.get(i).splitShardCountSummary());
             }
         }
 
@@ -823,21 +808,21 @@ public class OperationRoutingTests extends ESTestCase {
             assertEquals(i, searchShardsWithOneShardDoneAndRouting.get(i).shardId().id());
         }
         assertEquals(shardChangingSplitTargetState, searchShardsWithOneShardDoneAndRouting.get(indexOfShardWithNewState).shardId().id());
-        // Since the target shard is past SPLIT state, reshardSplitShardCountSummary is updated for it and the corresponding source shard.
+        // Since the target shard is past SPLIT state, splitShardCountSummary is updated for it and the corresponding source shard.
         assertEquals(
             SplitShardCountSummary.fromInt(newShardCount),
-            searchShardsWithOneShardDoneAndRouting.get(indexOfShardWithNewState).reshardSplitShardCountSummary()
+            searchShardsWithOneShardDoneAndRouting.get(indexOfShardWithNewState).splitShardCountSummary()
         );
         for (int i = 0; i < shardCount; i++) {
             if (i == sourceShard) {
                 assertEquals(
                     SplitShardCountSummary.fromInt(newShardCount),
-                    searchShardsWithOneShardDoneAndRouting.get(i).reshardSplitShardCountSummary()
+                    searchShardsWithOneShardDoneAndRouting.get(i).splitShardCountSummary()
                 );
             } else {
                 assertEquals(
                     SplitShardCountSummary.fromInt(shardCount),
-                    searchShardsWithOneShardDoneAndRouting.get(i).reshardSplitShardCountSummary()
+                    searchShardsWithOneShardDoneAndRouting.get(i).splitShardCountSummary()
                 );
             }
         }

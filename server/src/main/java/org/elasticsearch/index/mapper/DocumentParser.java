@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
@@ -81,7 +80,8 @@ public final class DocumentParser {
      * @throws DocumentParsingException whenever there's a problem parsing the document
      */
     public ParsedDocument parseDocument(SourceToParse source, MappingLookup mappingLookup) throws DocumentParsingException {
-        if (source.getEirfParser() == null && source.source() != null && source.source().length() == 0) {
+        SourceToParse.Source sourceObject = source.source();
+        if (sourceObject.isEmpty()) {
             throw new DocumentParsingException(new XContentLocation(0, 0), "failed to parse, document is empty");
         }
         final RootDocumentParserContext context;
@@ -93,13 +93,7 @@ public final class DocumentParser {
                 mappingLookup,
                 mappingParserContext,
                 source,
-                source.getEirfParser() != null
-                    ? source.getEirfParser()
-                    : XContentHelper.createParser(
-                        parserConfiguration.withIncludeSourceOnError(source.getIncludeSourceOnError()),
-                        source.source(),
-                        source.getXContentType()
-                    )
+                sourceObject.parser(parserConfiguration)
             )
         ) {
             context = ctx;
@@ -124,7 +118,6 @@ public final class DocumentParser {
             context.routing(),
             context.reorderParentAndGetDocs(),
             context.sourceToParse().source(),
-            context.sourceToParse().getXContentType(),
             dynamicUpdate,
             source.getMeteringParserDecorator().meteredDocumentSize()
         ) {
@@ -196,10 +189,11 @@ public final class DocumentParser {
                     context.indexSettings(),
                     lookup,
                     context.mappingLookup()::sourcePaths,
+                    () -> false,
                     fto
                 )
             ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
-            (ctx, doc) -> Source.fromBytes(context.sourceToParse().source()),
+            (ctx, doc) -> Source.fromBytes(context.sourceToParse().source().originalBytes()),
             LeafFieldLookupProvider.fromStoredFields()
         );
         // field scripts can be called both by the loop at the end of this method and via
@@ -345,7 +339,7 @@ public final class DocumentParser {
         }
 
         if (context.parent().isNested()) {
-            // Handle a nested object that doesn't contain an array. Arrays are handled in #parseNonDynamicArray.
+            // Handle a nested object that doesn't contain an array. Arrays are handled in #parseArrayElements.
             context = context.createNestedContext((NestedObjectMapper) context.parent());
         }
 
@@ -651,7 +645,7 @@ public final class DocumentParser {
             if (parsesArrayValue(mapper)) {
                 parseObjectOrField(context, mapper);
             } else {
-                parseNonDynamicArray(context, mapper, lastFieldName, lastFieldName);
+                parseArrayElements(context, mapper, lastFieldName, lastFieldName);
             }
         } else {
             parseArrayDynamic(context, lastFieldName);
@@ -716,7 +710,7 @@ public final class DocumentParser {
                 return;
             }
 
-            parseNonDynamicArray(context, null, currentFieldName, currentFieldName);
+            parseArrayElements(context, null, currentFieldName, currentFieldName);
         } else {
             MapperBuilderContext builderContext = context.createDynamicMapperBuilderContext();
             Mapper objectMapperFromTemplate = builderFromTemplate.build(builderContext);
@@ -730,7 +724,7 @@ public final class DocumentParser {
                 parseObjectOrField(context, mapper);
                 context.path().remove();
             } else {
-                parseNonDynamicArray(context, objectMapperFromTemplate, currentFieldName, currentFieldName);
+                parseArrayElements(context, objectMapperFromTemplate, currentFieldName, currentFieldName);
             }
         }
     }
@@ -739,7 +733,7 @@ public final class DocumentParser {
         return mapper instanceof FieldMapper && ((FieldMapper) mapper).parsesArrayValue();
     }
 
-    private static void parseNonDynamicArray(
+    private static void parseArrayElements(
         DocumentParserContext context,
         @Nullable Mapper mapper,
         final String lastFieldName,
@@ -789,6 +783,7 @@ public final class DocumentParser {
         int valueElements = 0;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
+                context.incrementAndCheckObjectArrayElementLimit();
                 parseObject(context, lastFieldName);
             } else if (token == XContentParser.Token.START_ARRAY) {
                 parseArray(context, lastFieldName);
@@ -844,7 +839,8 @@ public final class DocumentParser {
             context.indexSettings().getIndexVersionCreated(),
             IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(context.indexSettings().getSettings()),
             IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(context.indexSettings().getSettings()),
-            context.getVectorFormatProviders()
+            context.getVectorFormatProviders(),
+            context.indexSettings().isIndexDisabledByDefault()
         );
         builder.dimensions(arraySize);
         context.updateDynamicMappers(fullFieldName, List.of(builder));
@@ -1132,7 +1128,9 @@ public final class DocumentParser {
                 && indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource.ForIndexDimensions forIndexDimensions) {
                 // the tsid is normally set on the coordinating node during shard routing and passed to the data node via the index request
                 // but when applying a translog operation, shard routing is not happening, and we have to create the tsid from source
-                tsid = forIndexDimensions.buildTsid(source.getXContentType(), source.source());
+                SourceToParse.Source sourceObject = source.source();
+                // TODO: this can likely operate on eirf if present opposed to materlizing the originl source bytes if not present.
+                tsid = forIndexDimensions.buildTsid(sourceObject.xContentType(), sourceObject.originalBytes());
             }
             this.tsid = tsid;
             assert this.tsid == null || indexSettings.getMode() == IndexMode.TIME_SERIES

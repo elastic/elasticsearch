@@ -124,6 +124,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.crypto.EncryptionService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
@@ -348,6 +349,7 @@ import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.RoleProviders;
+import org.elasticsearch.xpack.security.crypto.AesGcmEncryptionService;
 import org.elasticsearch.xpack.security.crypto.PrimaryEncryptionKeyService;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.operator.DefaultOperatorOnlyRegistry;
@@ -830,10 +832,9 @@ public class Security extends Plugin
         final RestrictedIndices restrictedIndices = new RestrictedIndices(expressionResolver);
 
         // audit trail service construction
-        final AuditTrail auditTrail = XPackSettings.AUDIT_ENABLED.get(settings)
-            ? new LoggingAuditTrail(settings, clusterService, threadPool)
-            : null;
-        final AuditTrailService auditTrailService = new AuditTrailService(auditTrail, getLicenseState());
+        final AuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, threadPool);
+
+        final AuditTrailService auditTrailService = new AuditTrailService(auditTrail, getLicenseState(), clusterService);
         components.add(auditTrailService);
         this.auditTrailService.set(auditTrailService);
 
@@ -1279,7 +1280,9 @@ public class Security extends Plugin
         cacheInvalidatorRegistry.validate();
 
         if (PrimaryEncryptionKeyService.PRIMARY_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()) {
-            components.add(PrimaryEncryptionKeyService.create(clusterService, projectResolver, featureService));
+            PrimaryEncryptionKeyService pekService = PrimaryEncryptionKeyService.create(clusterService, projectResolver, featureService);
+            components.add(new PluginComponentBinding<>(EncryptionService.class, new AesGcmEncryptionService(pekService)));
+            components.add(pekService);
         }
 
         setClosableAndReloadableComponents(components);

@@ -594,7 +594,7 @@ public class TopNOperator implements Operator, Accountable {
     @Override
     public String toString() {
         return "TopNOperator[count="
-            + (sequentialState != null ? sequentialState.queue : "(promoted)")
+            + (sequentialState != null ? sequentialState.queue : "(promoted to parallel)")
             + ", elementTypes="
             + elementTypes
             + ", encoders="
@@ -651,24 +651,21 @@ public class TopNOperator implements Operator, Accountable {
             @Override
             protected ReleasableIterator<Page> mergeAndBuildResult(List<TopNWorkerState> states) {
                 long start = System.nanoTime();
-                TopNQueue merged = TopNQueue.build(breaker, topCount);
+                // Reuse worker 0's queue as the merge target to avoid a fresh allocation.
+                TopNWorkerState first = states.getFirst();
+                assert first != null && first.queue != null : "worker 0 state must be non-null at merge time";
+                TopNQueue merged = first.queue;
+                first.queue = null;  // ownership transferred to merged
+                first.close();       // closes spare; queue already null
                 boolean success = false;
                 try {
-                    for (TopNWorkerState s : states) {
+                    for (int i = 1; i < states.size(); i++) {
+                        TopNWorkerState s = states.get(i);
                         if (s == null) {
                             continue;
                         }
-                        List<TopNRow> drained = new ArrayList<>(s.queue.size());
-                        s.queue.popAllInto(drained);
-                        for (TopNRow row : drained) {
-                            TopNRow leftover = merged.addRow(row);
-                            if (leftover != null) {
-                                leftover.close();
-                            }
-                        }
-                        Releasables.closeExpectNoException(s.spare, s.queue);
-                        s.spare = null;
-                        s.queue = null;
+                        s.queue.popAllInto(merged);
+                        s.close();
                     }
                     if (merged.size() == 0) {
                         merged.close();

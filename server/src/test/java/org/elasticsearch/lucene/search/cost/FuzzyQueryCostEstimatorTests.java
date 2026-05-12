@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.lucene.search;
+package org.elasticsearch.lucene.search.cost;
 
 import org.elasticsearch.test.ESTestCase;
 

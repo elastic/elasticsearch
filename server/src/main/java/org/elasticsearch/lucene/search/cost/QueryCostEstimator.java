@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.lucene.search;
+package org.elasticsearch.lucene.search.cost;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -19,7 +19,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
  */
 public interface QueryCostEstimator {
 
-    /** Upper bound on the additional bytes to charge for this clause. */
+    /** Upper bound on the additional bytes to charge. */
     long estimate();
 
     /**

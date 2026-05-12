@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.search.cost.FuzzyQueryCostEstimator;
 
 import java.util.BitSet;
 
@@ -64,8 +65,10 @@ public final class FuzzyQueries {
         String label = "fuzzy:" + fieldLabel;
         context.addCircuitBreakerMemory(queryRamBytes(query), label);
         BytesRef bytes = query.getTerm().bytes();
-        new FuzzyQueryCostEstimator(bytes.length, countDistinctUtf8Bytes(bytes), query.getMaxEdits(), query.getPrefixLength()).
-            charge(context, label);
+        new FuzzyQueryCostEstimator(bytes.length, countDistinctUtf8Bytes(bytes), query.getMaxEdits(), query.getPrefixLength()).charge(
+            context,
+            label
+        );
     }
 
     /** RAM bytes retained by the {@link FuzzyQuery} object (excluding compiled automata). */

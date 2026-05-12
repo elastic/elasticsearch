@@ -7,31 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.lucene.search;
+package org.elasticsearch.lucene.search.cost;
 
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
 
 /**
- * Coarse, conservative cost estimator for a Lucene {@link org.apache.lucene.search.FuzzyQuery}.
- * Computes the parameter-driven charge against the request circuit breaker before any compiled
- * automaton is built, using a closed-form formula over the query parameters:
- *
- * <pre>
- *     estimate = 0,                                                  if maxEdits == 0
- *              = BASE
- *              + BYTES_PER_BYTE
- *                · effectiveBytes
- *                · (2 · maxEdits + 1)
- *                · alphabetFactor,                                    otherwise
- *
- *     effectiveBytes = max(0, termByteLength - prefixByteLength)
- *     alphabetFactor = (distinctUtf8Bytes &gt; WIDE_ALPHABET_THRESHOLD) ? WIDE_ALPHABET_FACTOR : 1
- * </pre>
- *
- * <p>The {@code (2 · maxEdits + 1)} factor is the Levenshtein automaton's per-suffix-byte
- * state-count growth, so {@code effectiveBytes · (2·maxEdits+1)} is a state-count proxy that
- * upper-bounds both compiled-automaton retained RAM and the per-document automaton-walk work
- * paid at run time.
+ * {@link QueryCostEstimator} for a Lucene {@link org.apache.lucene.search.FuzzyQuery}.
  */
 public final class FuzzyQueryCostEstimator implements QueryCostEstimator {
 
@@ -86,6 +67,28 @@ public final class FuzzyQueryCostEstimator implements QueryCostEstimator {
         this.prefixByteLength = prefixByteLength;
     }
 
+    /**
+     * Coarse, conservative upper bound on the bytes a fuzzy clause should reserve from the
+     * request circuit breaker, computed before any compiled automaton is built using a
+     * closed-form formula over the query parameters:
+     *
+     * <pre>
+     *     estimate = 0,                                                  if maxEdits == 0
+     *              = BASE
+     *              + BYTES_PER_BYTE
+     *                · effectiveBytes
+     *                · (2 · maxEdits + 1)
+     *                · alphabetFactor,                                    otherwise
+     *
+     *     effectiveBytes = max(0, termByteLength - prefixByteLength)
+     *     alphabetFactor = (distinctUtf8Bytes &gt; WIDE_ALPHABET_THRESHOLD) ? WIDE_ALPHABET_FACTOR : 1
+     * </pre>
+     *
+     * <p>The {@code (2 · maxEdits + 1)} factor is the Levenshtein automaton's per-suffix-byte
+     * state-count growth, so {@code effectiveBytes · (2·maxEdits+1)} is a state-count proxy that
+     * upper-bounds both compiled-automaton retained RAM and the per-document automaton-walk work
+     * paid at run time.
+     */
     @Override
     public long estimate() {
         if (maxEdits == 0) {

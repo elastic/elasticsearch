@@ -7,12 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.lucene.search;
+package org.elasticsearch.lucene.search.cost;
 
 /**
- * Skeleton {@link QueryCostEstimator} for {@link org.apache.lucene.search.PointRangeQuery}.
+ * Skeleton {@link QueryCostEstimator} for {@link org.apache.lucene.search.AutomatonQuery}
  */
-public final class PointRangeQueryCostEstimator implements QueryCostEstimator {
+public final class AutomatonQueryCostEstimator implements QueryCostEstimator {
 
     @Override
     public long estimate() {

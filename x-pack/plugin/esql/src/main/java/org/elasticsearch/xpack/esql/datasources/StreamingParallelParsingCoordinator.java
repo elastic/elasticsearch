@@ -639,18 +639,24 @@ public final class StreamingParallelParsingCoordinator {
                 if (buffered != null) {
                     return true;
                 }
-                // takeNextPage returned null — either EOF or "no page yet but more coming".
-                // Distinguish via waitForReady, but tolerate the race where a parser publishes a
-                // page between our takeNextPage call and the waitForReady check: retry takeNextPage
-                // before concluding EOF.
+                // takeNextPage returned null. Could be: (a) EOF, (b) "no page yet, more coming", or
+                // (c) just advanced past POISON into an empty slot whose chunk is still parsing.
+                // We must NOT conclude EOF based solely on waitForReady being done — that listener
+                // could have fired because a POISON landed (transitioning peek != null → true), and
+                // takeNextPage just consumed that POISON. Only conclude EOF when waitForReady is
+                // done AND the EOF condition itself holds (no more chunks, all tasks finished).
                 SubscribableListener<Void> ready = waitForReady();
                 if (ready.isDone()) {
                     buffered = takeNextPage();
                     if (buffered != null) {
                         return true;
                     }
-                    // Still null AND ready is done — truly terminal (allDone fired, no more chunks).
-                    return false;
+                    if (currentChunk >= chunksDispatched.get() && tasksOutstanding.get() == 0) {
+                        return false;
+                    }
+                    // Not EOF — page may have advanced past POISON; loop to re-register a listener
+                    // for the next state transition.
+                    continue;
                 }
                 CountDownLatch latch = new CountDownLatch(1);
                 ready.addListener(ActionListener.running(latch::countDown));

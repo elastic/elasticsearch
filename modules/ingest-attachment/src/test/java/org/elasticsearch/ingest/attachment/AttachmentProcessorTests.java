@@ -710,6 +710,11 @@ public class AttachmentProcessorTests extends ESTestCase {
 
     public void testMaxFieldBytesVariousConfigurations() throws Exception {
         final int bytes = randomIntBetween(-1, 10);
+        var nodeLimit = new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE);
+        if (randomBoolean() && bytes >= 0) {
+            // Put a non-stricter node limit that should not matter
+            nodeLimit = new RelativeByteSizeValue(ByteSizeValue.ofBytes(randomLongBetween(bytes, bytes * 2)));
+        }
         processor = new AttachmentProcessor(
             randomAlphaOfLength(10),
             null,
@@ -722,10 +727,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             null,
             true,
             bytes,
-            // If bytes are set, it shouldn't matter whether the node has a max attachment size configured
-            bytes < 0
-                ? new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE)
-                : new RelativeByteSizeValue(ByteSizeValue.ofBytes(randomIntBetween(-1, 100))),
+            nodeLimit,
             ""
         );
 
@@ -763,6 +765,10 @@ public class AttachmentProcessorTests extends ESTestCase {
             final var testFactory = new AttachmentProcessor.Factory(
                 Settings.builder().put("ingest.attachment.max_field_size", bytes + "b").build()
             );
+            if (randomBoolean() && bytes >= 0) {
+                // Put a non-stricter processor limit that should not matter
+                config.put("max_field_bytes", randomIntBetween(bytes, 100));
+            }
             AttachmentProcessor processor = testFactory.create(null, "t", null, config, null);
             assertThat(processor.getMaxFieldBytesFromProcessor(), equalTo(-1));
             assertThat(processor.getMaxFieldSizeFromNode().getAbsolute(), equalTo(expectedRelativeByteSizeValue.getAbsolute()));
@@ -793,14 +799,23 @@ public class AttachmentProcessorTests extends ESTestCase {
             final var testFactory = new AttachmentProcessor.Factory(
                 Settings.builder().put("ingest.attachment.max_field_size", percent + "%").build()
             );
+            long heapMaxBytes = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
+            assertThat(heapMaxBytes, greaterThan(0L));
+            long maxAttachmentBytes = heapMaxBytes * percent / 100L;
+            int maxAttachmentBytesAsInt = Math.toIntExact(Math.min(maxAttachmentBytes, Integer.MAX_VALUE));
+            if (randomBoolean() && maxAttachmentBytesAsInt >= 0) {
+                // Put a non-stricter processor limit that should not matter
+                config.put(
+                    "max_field_bytes",
+                    randomIntBetween(maxAttachmentBytesAsInt, Math.min(Integer.MAX_VALUE, maxAttachmentBytesAsInt * 2))
+                );
+            }
             AttachmentProcessor processor = testFactory.create(null, "t", null, config, null);
             assertThat(processor.getMaxFieldBytesFromProcessor(), equalTo(-1));
             assertThat(
                 processor.getMaxFieldSizeFromNode().getRatio().getAsPercent(),
                 equalTo(expectedRelativeByteSizeValue.getRatio().getAsPercent())
             );
-            long heapMaxBytes = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
-            assertThat(heapMaxBytes, greaterThan(0L));
             if (percent == 0L) {
                 // Exception should always be thrown
                 ElasticsearchParseException ex = expectThrows(
@@ -809,8 +824,6 @@ public class AttachmentProcessorTests extends ESTestCase {
                 );
                 assertThat(ex.getMessage(), containsString("exceeding the maximum allowed"));
             } else {
-                long maxAttachmentBytes = heapMaxBytes * percent / 100L;
-                int maxAttachmentBytesAsInt = Math.toIntExact(Math.min(maxAttachmentBytes, Integer.MAX_VALUE));
                 // Exception should not be thrown for smaller documents
                 assertThat(
                     parseRandomStringAttachmentAndGetTargetField(randomIntBetween(0, maxAttachmentBytesAsInt / 2), processor),

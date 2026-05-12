@@ -53,10 +53,10 @@ public final class AttachmentProcessor extends AbstractProcessor {
     public static final String TYPE = "attachment";
 
     /**
-     * When set to a value, caps the raw in-memory size of the attachment source {@code field} for any {@code attachment} processor that
-     * does not set {@code max_field_bytes}, in a similar way that {@code max_field_bytes} caps. Absolute values apply directly;
-     * ratio or percentage values are resolved against the JVM's maximum heap size for the node. Note that attachment sizes are
-     * limited to an upper bound of an integer size. -1 means no limit.
+     * When set to a value, caps the raw in-memory size of the attachment source {@code field} for every {@code attachment} processor
+     * on the node, regardless of {@code max_field_bytes}. If both are set, the effective limit is the stricter of the two. Absolute values
+     * apply directly; ratio or percentage values are resolved against the JVM's maximum heap size for the node. Note that attachment
+     * sizes are limited to an upper bound of an integer size. -1 means no node-level limit.
      */
     public static final Setting<RelativeByteSizeValue> MAX_FIELD_SIZE_SETTING = new Setting<>(
         "ingest.attachment.max_field_size",
@@ -82,7 +82,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
     private final boolean removeBinary;
     private final String indexedCharsField;
     private final String resourceName;
-    // Explicit per-processor cap on raw attachment field size in bytes, or -1 to fall back to the node-level cap.
+    // Per-processor cap on raw attachment field size in bytes, or -1 for no per-processor cap (node cap still applies when set).
     private final int maxFieldBytesFromProcessor;
     // Node-level cap from {@link #MAX_FIELD_SIZE_SETTING}, or -1 if not applicable.
     private final RelativeByteSizeValue maxFieldSizeFromNode;
@@ -134,35 +134,32 @@ public final class AttachmentProcessor extends AbstractProcessor {
     }
 
     private void checkMaxAttachmentFieldSize(final int fieldSizeBytes) {
-        if (maxFieldBytesFromProcessor >= 0) {
-            if (fieldSizeBytes > maxFieldBytesFromProcessor) {
+        if (maxFieldSizeFromNodeBytes >= 0 && fieldSizeBytes > maxFieldSizeFromNodeBytes) {
+            if (Strings.hasLength(maxFieldSizeExceededMessage)) {
                 throw new ElasticsearchParseException(
-                    "field [{}] has an attachment field size of [{}] bytes exceeding the maximum allowed processor size of [{}] bytes",
+                    "field [{}] has an attachment field size of [{}] bytes exceeding the maximum allowed input size {}",
                     field,
                     fieldSizeBytes,
-                    maxFieldBytesFromProcessor
+                    maxFieldSizeExceededMessage
                 );
             }
-        } else {
-            if (maxFieldSizeFromNodeBytes >= 0 && fieldSizeBytes > maxFieldSizeFromNodeBytes) {
-                if (Strings.hasLength(maxFieldSizeExceededMessage)) {
-                    throw new ElasticsearchParseException(
-                        "field [{}] has an attachment field size of [{}] bytes exceeding the maximum allowed input size {}",
-                        field,
-                        fieldSizeBytes,
-                        maxFieldSizeExceededMessage
-                    );
-                }
-                throw new ElasticsearchParseException(
-                    "field [{}] has an attachment field size of [{}] bytes exceeding the maximum allowed input size of [{}] bytes "
-                        + "due to setting [{}={}]",
-                    field,
-                    fieldSizeBytes,
-                    maxFieldSizeFromNodeBytes,
-                    MAX_FIELD_SIZE_SETTING.getKey(),
-                    maxFieldSizeFromNode.getStringRep()
-                );
-            }
+            throw new ElasticsearchParseException(
+                "field [{}] has an attachment field size of [{}] bytes exceeding the maximum allowed input size of [{}] bytes "
+                    + "due to setting [{}={}]",
+                field,
+                fieldSizeBytes,
+                maxFieldSizeFromNodeBytes,
+                MAX_FIELD_SIZE_SETTING.getKey(),
+                maxFieldSizeFromNode.getStringRep()
+            );
+        }
+        if (maxFieldBytesFromProcessor >= 0 && fieldSizeBytes > maxFieldBytesFromProcessor) {
+            throw new ElasticsearchParseException(
+                "field [{}] has an attachment field size of [{}] bytes exceeding the maximum allowed processor size of [{}] bytes",
+                field,
+                fieldSizeBytes,
+                maxFieldBytesFromProcessor
+            );
         }
     }
 

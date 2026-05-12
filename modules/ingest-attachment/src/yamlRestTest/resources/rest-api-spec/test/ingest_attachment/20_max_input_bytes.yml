@@ -46,7 +46,7 @@
                   "attachment": {
                     "field": "data",
                     "properties": ["content"],
-                    "max_field_bytes": 1024,
+                    "max_field_bytes": 20,
                     "remove_binary": true
                   }
                 }

@@ -566,3 +566,15 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexRethrottleRelocationIT
   method: testRethrottleByOriginalTaskIdAfterRelocation
   issue: https://github.com/elastic/elasticsearch/issues/148893
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:exponential_histogram.sum for exponential histogram docs}
+  issue: https://github.com/elastic/elasticsearch/issues/148896
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:exponential_histogram.percentile for exponential histogram docs}
+  issue: https://github.com/elastic/elasticsearch/issues/148897
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:exponential_histogram.timeseriesAllAggsNoBucket}
+  issue: https://github.com/elastic/elasticsearch/issues/148898
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:exponential_histogram.min for exponential histogram docs}
+  issue: https://github.com/elastic/elasticsearch/issues/148899

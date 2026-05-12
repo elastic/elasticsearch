@@ -812,7 +812,11 @@ public class Reindexer {
                     index.source(BytesReference.bytes(builder), builder.contentType());
                 } catch (IOException e) {
                     throw new UncheckedIOException(
-                        "failed to convert hit [" + doc.getIndex() + "][" + doc.getId() + "] from "
+                        "failed to convert hit ["
+                            + doc.getIndex()
+                            + "]["
+                            + doc.getId()
+                            + "] from "
                             + sourceXContentType
                             + " to "
                             + mainRequestXContentType,
@@ -821,7 +825,11 @@ public class Reindexer {
                 } catch (XContentParseException e) {
                     throw new XContentParseException(
                         e.getLocation(),
-                        "failed to convert hit [" + doc.getIndex() + "][" + doc.getId() + "] from "
+                        "failed to convert hit ["
+                            + doc.getIndex()
+                            + "]["
+                            + doc.getId()
+                            + "] from "
                             + sourceXContentType
                             + " to "
                             + mainRequestXContentType,

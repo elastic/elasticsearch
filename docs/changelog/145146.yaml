@@ -1,5 +1,5 @@
 pr: 145146
-summary: Include document index and id in reindex parse exception messages
+summary: Reindex parse exception has document index and ID
 area: Reindex
 type: enhancement
 issues:

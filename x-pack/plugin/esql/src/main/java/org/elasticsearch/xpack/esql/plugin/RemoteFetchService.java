@@ -406,8 +406,8 @@ public final class RemoteFetchService {
         return retainedSearchContexts.retainedSessions();
     }
 
-    boolean isRegistered(String sessionId) {
-        return retainedSearchContexts.isRegistered(sessionId);
+    boolean isRetained(String sessionId) {
+        return retainedSearchContexts.isRetained(sessionId);
     }
 
     private void releaseSession(String sessionId) {
@@ -438,7 +438,7 @@ public final class RemoteFetchService {
         }
         final PlannerSettings settings = plannerSettings.get();
         final IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts = lease.searchContexts()
-            .map(ComputeSearchContext::shardContext);
+            .map(ComputeSearchContext::newDetachedShardContext);
         final LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(
             blockFactory.breaker(),
             localBreakerSettings.overReservedBytes(),

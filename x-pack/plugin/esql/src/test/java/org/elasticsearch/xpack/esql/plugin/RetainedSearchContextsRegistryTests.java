@@ -84,15 +84,12 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
         assertTrue(searchContext.isClosed());
     }
 
-    public void testRegistrationKeepsSearchContextAliveWhileExtraReferenceReleases() {
+    public void testRegistrationKeepsSearchContextAliveUntilClosed() {
         SearchContext searchContext = createSearchContext();
         AcquiredSearchContexts contexts = createContexts(searchContext);
 
         try (RetainedSearchContextsRegistry.Registration registration = registry.register("session-1", contexts)) {
-            ComputeSearchContext retainedContext = registration.searchContexts().get(0);
-            retainedContext.incRef();
-            retainedContext.decRef();
-
+            assertNotNull(registration.searchContexts().get(0));
             assertFalse(searchContext.isClosed());
         }
 

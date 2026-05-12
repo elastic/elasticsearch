@@ -66,24 +66,21 @@ public class AnalyzerUnmapped_NonKeyField_Tests extends AnalyzerUnmappedTestBase
 
     public void testLoad_inBoth_lookupTypeWins() {
         // salary: INT in primary, KEYWORD in lookup — lookup type wins regardless of mode.
-        var plan = test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields())
-            .statement(setUnmappedLoad(BASE_QUERY));
+        var plan = test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields()).statement(setUnmappedLoad(BASE_QUERY));
         var salary = plan.output().stream().filter(a -> "salary".equals(a.name())).findFirst().orElseThrow();
         assertThat(salary.dataType(), is(DataType.KEYWORD));
     }
 
     public void testLoad_inPrimaryOnly_passesThrough() {
         // first_name: present in primary, absent from lookup — passes through regardless of mode.
-        var plan = test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields())
-            .statement(setUnmappedLoad(BASE_QUERY));
+        var plan = test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields()).statement(setUnmappedLoad(BASE_QUERY));
         var firstName = plan.output().stream().filter(a -> "first_name".equals(a.name())).findFirst().orElseThrow();
         assertThat(firstName.dataType(), is(DataType.KEYWORD));
     }
 
     public void testLoad_inLookupOnly_appended() {
         // lookup_only: absent from primary, present in lookup — appended regardless of mode.
-        var plan = test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields())
-            .statement(setUnmappedLoad(BASE_QUERY));
+        var plan = test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields()).statement(setUnmappedLoad(BASE_QUERY));
         var lookupOnly = plan.output().stream().filter(a -> "lookup_only".equals(a.name())).findFirst().orElseThrow();
         assertThat(lookupOnly.dataType(), is(DataType.KEYWORD));
     }

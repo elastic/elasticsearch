@@ -16,7 +16,7 @@ Your data may contain unstructured strings that you want to structure. This make
 :alt: unstructured data
 :::
 
-{{es}} can structure your data at index time or query time. At index time, you can use the [Dissect](/reference/ingest-processor/dissect-processor.md) and [Grok](/reference/ingest-processor/grok-processor.md) ingest processors, or the {{ls}} [Dissect](logstash-docs-md://lsr//plugins-filters-dissect.md) and [Grok](logstash-docs-md://lsr//plugins-filters-grok.md) filters. At query time, you can use the {{esql}} [`DISSECT`](/reference/query-languages/esql/commands/dissect.md) and [`GROK`](/reference/query-languages/esql/commands/grok.md) commands.
+{{es}} can structure your data at index time or query time. At index time, you can use the [dissect](/reference/ingest-processor/dissect-processor.md) and [grok](/reference/ingest-processor/grok-processor.md) ingest processors, or the {{ls}} [Dissect](logstash-docs-md://lsr//plugins-filters-dissect.md) and [Grok](logstash-docs-md://lsr//plugins-filters-grok.md) filters. At query time, you can use the {{esql}} [`DISSECT`](/reference/query-languages/esql/commands/dissect.md) and [`GROK`](/reference/query-languages/esql/commands/grok.md) commands.
 
 ## `DISSECT` or `GROK`? Or both? [esql-grok-or-dissect]
 

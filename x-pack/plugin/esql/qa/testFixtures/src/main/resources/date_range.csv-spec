@@ -582,3 +582,136 @@ decade:integer | within:boolean
 2000           | null
 ;
 
+
+
+###############################################
+# RANGE_CONTAINS tests
+###############################################
+
+rangeContainsWithEmployees
+required_capability: fn_range_contains
+
+// tag::rangeContains[]
+FROM employees
+| WHERE RANGE_CONTAINS(TO_DATE_RANGE("1985-02-01..1985-03-01"), hire_date)
+| KEEP emp_no, hire_date
+| SORT emp_no
+// end::rangeContains[]
+;
+
+// tag::rangeContains-result[]
+emp_no:integer | hire_date:date
+10009          | 1985-02-18T00:00:00.000Z
+10048          | 1985-02-24T00:00:00.000Z
+// end::rangeContains-result[]
+;
+
+rangeContainsWithDateRangesTable
+required_capability: fn_range_contains
+
+FROM decades
+| WHERE RANGE_CONTAINS(date_range, TO_DATETIME("1955-06-15"))
+| KEEP decade, description
+;
+
+decade:integer | description:keyword
+1950           | Nifty Fifties
+;
+
+rangeContainsRangeContainingRange
+required_capability: fn_range_contains
+
+ROW outer = TO_DATE_RANGE("1900-01-01..2000-01-01"),
+    inner = TO_DATE_RANGE("1950-01-01..1960-01-01"),
+    overlap = TO_DATE_RANGE("1990-01-01..2010-01-01")
+| EVAL contains_inner = RANGE_CONTAINS(outer, inner),
+       contains_overlap = RANGE_CONTAINS(outer, overlap)
+| KEEP contains_inner, contains_overlap
+;
+
+contains_inner:boolean | contains_overlap:boolean
+true                   | false
+;
+
+
+###############################################
+# RANGE_INTERSECTS tests
+###############################################
+
+rangeIntersectsWithEmployees
+required_capability: fn_range_intersects
+
+// tag::rangeIntersects[]
+FROM employees
+| WHERE RANGE_INTERSECTS(hire_date, TO_DATE_RANGE("1985-02-01..1985-03-01"))
+| KEEP emp_no, hire_date
+| SORT emp_no
+// end::rangeIntersects[]
+;
+
+// tag::rangeIntersects-result[]
+emp_no:integer | hire_date:date
+10009          | 1985-02-18T00:00:00.000Z
+10048          | 1985-02-24T00:00:00.000Z
+// end::rangeIntersects-result[]
+;
+
+rangeIntersectsTwoRanges
+required_capability: fn_range_intersects
+
+ROW a = TO_DATE_RANGE("1900-01-01..2000-01-01"),
+    overlapping = TO_DATE_RANGE("1990-01-01..2010-01-01"),
+    disjoint = TO_DATE_RANGE("2010-01-01..2020-01-01"),
+    touching = TO_DATE_RANGE("2000-01-01..2010-01-01")
+| EVAL hits_overlapping = RANGE_INTERSECTS(a, overlapping),
+       hits_disjoint = RANGE_INTERSECTS(a, disjoint),
+       hits_touching = RANGE_INTERSECTS(a, touching)
+| KEEP hits_overlapping, hits_disjoint, hits_touching
+;
+
+hits_overlapping:boolean | hits_disjoint:boolean | hits_touching:boolean
+true                     | false                 | false
+;
+
+// Argument order doesn't matter for INTERSECTS — both directions return the same boolean.
+rangeIntersectsSymmetric
+required_capability: fn_range_intersects
+
+FROM decades
+| EVAL ab = RANGE_INTERSECTS(date_range, TO_DATE_RANGE("1955-01-01..1975-01-01")),
+       ba = RANGE_INTERSECTS(TO_DATE_RANGE("1955-01-01..1975-01-01"), date_range)
+| WHERE ab != ba
+| KEEP decade
+;
+
+decade:integer
+;
+
+// (date, date_range) — point in range; same answer as RANGE_WITHIN(date, range).
+rangeIntersectsPointInRange
+required_capability: fn_range_intersects
+
+FROM decades
+| WHERE RANGE_INTERSECTS(TO_DATETIME("1965-07-20"), date_range)
+| KEEP decade, description
+;
+
+decade:integer | description:keyword
+1960           | Swinging Sixties
+;
+
+// (date, date) — degenerate; equivalent to a == b. Lowered to Equals via SurrogateExpression.
+rangeIntersectsDateDate
+required_capability: fn_range_intersects
+
+ROW a = TO_DATETIME("2024-06-15"),
+    b = TO_DATETIME("2024-06-15"),
+    c = TO_DATETIME("2024-06-16")
+| EVAL same = RANGE_INTERSECTS(a, b),
+       different = RANGE_INTERSECTS(a, c)
+| KEEP same, different
+;
+
+same:boolean | different:boolean
+true         | false
+;

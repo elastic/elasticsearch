@@ -1,0 +1,5 @@
+area: Infra/Node Lifecycle
+issues: []
+pr: 148817
+summary: Include running time in GET /_nodes/shutdown
+type: enhancement

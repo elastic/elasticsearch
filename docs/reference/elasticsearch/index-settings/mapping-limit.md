@@ -197,6 +197,9 @@ $$$ignore-dynamic-beyond-limit$$$
 `index.mapping.nested_objects.limit`
 :   The maximum number of nested JSON objects that a single document can contain across all `nested` types. This limit helps to prevent out of memory errors when a document contains too many nested objects. Default is `10000`.
 
+`index.mapping.array_objects.limit` {applies_to}`stack: ga 9.5`
+:   The maximum cumulative number of JSON object elements that a single document can contain across all arrays. The count spans every nested and sibling array, so splitting a payload across multiple arrays cannot bypass the limit. This setting guards against "poison documents" whose arrays contain a very large number of objects, which can cause excessive memory consumption during parsing and dynamic mapping materialization. The limit is enforced on the document source at parse time, before mapping is applied: it counts JSON object elements inside arrays, not mappers, and applies whether the surrounding array is mapped (for example as `object` or `nested`) or unmapped. Field types that consume an entire array as a single value (for example `completion`) are not affected. Default is `20000`. The minimum value is `1`. To effectively disable the limit, set it to `9223372036854775807` (`Long.MAX_VALUE`).
+
 `index.mapping.field_name_length.limit`
 :   Setting for the maximum length of a field name. This setting isn’t really something that addresses mappings explosion but might still be useful if you want to limit the field length. It usually shouldn’t be necessary to set this setting. The default is okay unless a user starts to add a huge number of fields with really long names. Default is `Long.MAX_VALUE` (no limit).
 

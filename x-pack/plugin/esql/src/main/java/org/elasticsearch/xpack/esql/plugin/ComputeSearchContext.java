@@ -8,7 +8,8 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -21,19 +22,27 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardCo
  * Search and shard context used as entries in {@link org.elasticsearch.compute.lucene.IndexedByShardId}. These are shared by both the data
  * and node-reduce drivers, such that each data driver will have its own (disjoint) set of contexts, but the node-reduce driver will have
  * access to all contexts created for the data drivers.
- *
- * Closing this will only close the underlying search context, and doing so <i>directly</i> is generally only done during error handling. In
- * happy-path execution, this class will be closed when the reference count in the {@link ShardContext} returned by {@link #shardContext()}
- * reaches 0.
+ * <p>
+ * This class is ref-counted rather than {@link org.elasticsearch.core.Releasable} because it has multiple concurrent owners (the holder
+ * that created it and, optionally, a lazily-created {@link ShardContext}). Callers release ownership via {@link #decRef()}, and the
+ * underlying {@link SearchContext} is closed only when the count reaches zero.
  */
-class ComputeSearchContext implements Releasable {
+class ComputeSearchContext {
     private final int index;
     private final SearchContext searchContext;
     private final SetOnce<ShardContext> shardContext = new SetOnce<>();
+    /**
+     * Tracks ownership of the underlying {@link SearchContext}. Starts at 1 (for the holder that created this context); incremented
+     * again if a {@link ShardContext} is lazily created (since it holds a back-reference via {@code this::decRef}). The search context
+     * is closed when the count reaches zero. This is intentionally separate from the operator-level ref counting in
+     * {@link ShardContext}, which tracks how many Lucene operators are actively using the shard context.
+     */
+    private final RefCounted refs;
 
     ComputeSearchContext(int index, SearchContext searchContext) {
         this.index = index;
         this.searchContext = searchContext;
+        this.refs = AbstractRefCounted.of(() -> Releasables.close(searchContext));
     }
 
     public int index() {
@@ -42,13 +51,22 @@ class ComputeSearchContext implements Releasable {
 
     ShardContext shardContext() {
         if (shardContext.get() == null) {
-            shardContext.set(createShardContext());
+            synchronized (this) {
+                if (shardContext.get() == null) {
+                    refs.incRef();
+                    shardContext.set(createShardContext());
+                }
+            }
         }
         return shardContext.get();
     }
 
     public SearchContext searchContext() {
         return searchContext;
+    }
+
+    void incRef() {
+        refs.incRef();
     }
 
     private ShardContext createShardContext() {
@@ -59,11 +77,10 @@ class ComputeSearchContext implements Releasable {
             }
         };
         searchContext.addReleasable(searchExecutionContext::releaseQueryConstructionMemory);
-        return new DefaultShardContext(index, this, searchExecutionContext, searchContext.request().getAliasFilter());
+        return new DefaultShardContext(index, this::decRef, searchExecutionContext, searchContext.request().getAliasFilter());
     }
 
-    @Override
-    public void close() {
-        Releasables.close(searchContext);
+    boolean decRef() {
+        return refs.decRef();
     }
 }

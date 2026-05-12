@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.Arrays;
@@ -113,7 +112,11 @@ class AcquiredSearchContexts implements Releasable {
         if (isClosed) {
             return;
         }
-        Releasables.close(allContexts);
+        for (ComputeSearchContext ctx : allContexts) {
+            if (ctx != null) {
+                ctx.decRef();
+            }
+        }
         isClosed = true;
     }
 

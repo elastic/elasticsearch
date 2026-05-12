@@ -367,7 +367,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
                         for (boolean docValuesEnabledByDefault : new boolean[] { true, false }) {
                             INSTANCES.put(
                                 new Key(requiredByDefault, required, docValuesEnabledByDefault, docValuesEnabled),
-                                new RoutingFieldMapper(required, requiredByDefault, required, docValuesEnabledByDefault)
+                                new RoutingFieldMapper(required, requiredByDefault, docValuesEnabledByDefault, docValuesEnabled)
                             );
                         }
                     }

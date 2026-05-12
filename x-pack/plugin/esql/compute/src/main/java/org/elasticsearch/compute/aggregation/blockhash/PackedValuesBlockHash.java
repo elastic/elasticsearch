@@ -541,7 +541,7 @@ final class PackedValuesBlockHash extends BlockHash {
         final int[] offsets;
         final int keyLength;
         final byte[] keys;
-        final int[] hashes;
+        final long[] hashes;
         final int[] groupIds;
         private final int emitBatchSize;
         private final BytesRefSwissHash swiss;
@@ -563,10 +563,10 @@ final class PackedValuesBlockHash extends BlockHash {
             this.keyLength = keyLength;
             this.blockFactory = blockFactory;
             this.specs = specs;
-            this.usedBytes = (long) BATCH_SIZE * keyLength + (long) emitBatchSize * Integer.BYTES + (long) BATCH_SIZE * Integer.BYTES;
+            this.usedBytes = (long) BATCH_SIZE * keyLength + (long) emitBatchSize * Integer.BYTES + (long) BATCH_SIZE * Long.BYTES;
             blockFactory.adjustBreaker(usedBytes);
             this.keys = new byte[BATCH_SIZE * keyLength];
-            this.hashes = new int[BATCH_SIZE];
+            this.hashes = new long[BATCH_SIZE];
             this.groupIds = new int[emitBatchSize];
             this.emitBatchSize = emitBatchSize;
         }
@@ -586,7 +586,7 @@ final class PackedValuesBlockHash extends BlockHash {
                     fillKeys(page, positionOffset + batchOffset, chunkSize);
                     if (swiss.shouldPrefetch()) {
                         for (int i = 0; i < chunkSize; i++) {
-                            hashes[i] = BytesRefSwissHash.hash(keys, i * keyLength, keyLength);
+                            hashes[i] = BytesRefSwissHash.hash64(keys, i * keyLength, keyLength);
                             dummy ^= swiss.prefetch(hashes[i]);
                         }
                         for (int i = 0; i < chunkSize; i++) {

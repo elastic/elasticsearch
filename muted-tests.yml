@@ -389,9 +389,6 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexCancelIT
   method: testCancellingChildTaskRejected
   issue: https://github.com/elastic/elasticsearch/issues/147925
-- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
-  method: testRecoverHollowShardReadsSingleRegionAndEvictsCache
-  issue: https://github.com/elastic/elasticsearch/issues/147937
 - class: org.elasticsearch.xpack.sql.qa.single_node.RestSqlIT
   method: testNextPageText
   issue: https://github.com/elastic/elasticsearch/issues/147950
@@ -416,9 +413,12 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithRelocationFailures
   issue: https://github.com/elastic/elasticsearch/issues/148129
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/50_index_patterns/_index LIKE with overly complex pattern}
-  issue: https://github.com/elastic/elasticsearch/issues/148134
+- class: org.elasticsearch.xpack.stateless.StatelessRealTimeTermVectorsIT
+  method: testDocsNotInLiveVersionMapDoNotRefresh
+  issue: https://github.com/elastic/elasticsearch/issues/148138
+- class: org.elasticsearch.index.engine.LuceneChangesSnapshotTests
+  method: testUpdateAndReadChangesConcurrently
+  issue: https://github.com/elastic/elasticsearch/issues/148145
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
   method: testCacheIsWarmedBeforeSearchShardRecoveryWhenVBCCGetsUploaded
   issue: https://github.com/elastic/elasticsearch/issues/148148
@@ -497,9 +497,6 @@ tests:
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionIT
   method: testEndToEndFrozenTransition
   issue: https://github.com/elastic/elasticsearch/issues/148467
-- class: org.elasticsearch.xpack.stateless.StatelessIndexCommitListenerIT
-  method: testRefIsNotReleasedUponNotificationFailure
-  issue: https://github.com/elastic/elasticsearch/issues/148471
 - class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
   method: testCommitPrefetching
   issue: https://github.com/elastic/elasticsearch/issues/148476
@@ -521,14 +518,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148339
-- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
-  issue: https://github.com/elastic/elasticsearch/issues/148598
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148190
-- class: org.elasticsearch.xpack.esql.enrich.LookupFromIndexServiceResponseTests
-  method: testReceiverReleasesAlreadyReadPagesOnBreakerTrip
-  issue: https://github.com/elastic/elasticsearch/issues/148605
 - class: org.elasticsearch.xpack.ml.integration.ForecastIT
   method: testOverflowToDisk
   issue: https://github.com/elastic/elasticsearch/issues/148606
@@ -541,6 +533,45 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148619
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
-  method: test {csv-spec:external-basic.evalComputedColumn [S3]}
-  issue: https://github.com/elastic/elasticsearch/issues/148655
+- class: org.elasticsearch.xpack.stateless.commits.StatelessBatchedBehavioursIT
+  method: testGenerationalFileBlobReferenceIsRetainedCorrectly
+  issue: https://github.com/elastic/elasticsearch/issues/148723
+- class: org.elasticsearch.xpack.spatial.index.query.GeoShapeWithDocValuesQueryTests
+  method: testQueryRandomGeoCollection
+  issue: https://github.com/elastic/elasticsearch/issues/148727
+- class: org.elasticsearch.index.mapper.ArrayObjectsLimitIT
+  method: testDynamicSettingUpdateAffectsSubsequentDocuments
+  issue: https://github.com/elastic/elasticsearch/issues/148745
+- class: org.elasticsearch.index.mapper.ArrayObjectsLimitIT
+  method: testBulkPartialFailureOnArrayObjectsLimit
+  issue: https://github.com/elastic/elasticsearch/issues/148746
+- class: org.elasticsearch.index.mapper.ArrayObjectsLimitIT
+  method: testNestedArrayExceeded
+  issue: https://github.com/elastic/elasticsearch/issues/148747
+- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
+  method: testReindexFailsWhenPitRelocationFails
+  issue: https://github.com/elastic/elasticsearch/issues/148748
+- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRecoveryIT
+  method: testSnapshotRecovery
+  issue: https://github.com/elastic/elasticsearch/issues/148750
+- class: org.elasticsearch.xpack.ml.integration.MlDailyMaintenanceServiceIT
+  method: testTriggerCloseIdleJobsWithStoppedDatafeeds
+  issue: https://github.com/elastic/elasticsearch/issues/148758
+- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceTests
+  method: testIdLookupPreWarming
+  issue: https://github.com/elastic/elasticsearch/issues/148760
+- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationIT
+  method: testRelocateIndexingShardWithActionFailures
+  issue: https://github.com/elastic/elasticsearch/issues/148782
+- class: org.elasticsearch.xpack.stateless.StatelessIndexCommitListenerIT
+  method: testRefIsNotReleasedUponNotificationFailure
+  issue: https://github.com/elastic/elasticsearch/issues/148471
+- class: org.elasticsearch.common.io.stream.RecyclerBytesStreamOutputTests
+  method: testCircuitBreakerMoveToBytesReference
+  issue: https://github.com/elastic/elasticsearch/issues/148799
+- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
+  method: testDeleteIndexWhileNodeStopping
+  issue: https://github.com/elastic/elasticsearch/issues/148807
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
+  method: testMixedOperationsDuringSplit
+  issue: https://github.com/elastic/elasticsearch/issues/148809

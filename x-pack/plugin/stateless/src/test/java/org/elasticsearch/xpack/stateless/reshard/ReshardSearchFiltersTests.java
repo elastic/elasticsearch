@@ -420,6 +420,51 @@ public class ReshardSearchFiltersTests extends ESTestCase {
         );
     }
 
+    public void testAdjustMetadataForPitRelocation() {
+        var relocatedReshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(2, 2);
+
+        var noReshardingMetadata = IndexMetadata.builder("index")
+            .settings(indexSettings(IndexVersion.current(), 4, randomIntBetween(0, 8)))
+            .build();
+        var noReshardingMetadataAdjusted = ReshardSearchFilters.adjustMetadataForPitRelocation(
+            noReshardingMetadata,
+            relocatedReshardingMetadata
+        );
+        assertEquals(4, noReshardingMetadataAdjusted.getNumberOfShards());
+        assertEquals(relocatedReshardingMetadata, noReshardingMetadataAdjusted.getReshardingMetadata());
+
+        var noReshardingMetadataOneSplitAhead = IndexMetadata.builder("index")
+            .settings(indexSettings(IndexVersion.current(), 8, randomIntBetween(0, 8)))
+            .build();
+        var noReshardingMetadataOneSplitAheadAdjusted = ReshardSearchFilters.adjustMetadataForPitRelocation(
+            noReshardingMetadataOneSplitAhead,
+            relocatedReshardingMetadata
+        );
+        assertEquals(4, noReshardingMetadataOneSplitAheadAdjusted.getNumberOfShards());
+        assertEquals(relocatedReshardingMetadata, noReshardingMetadataOneSplitAheadAdjusted.getReshardingMetadata());
+
+        var noReshardingMetadataMultipleSplitsAhead = IndexMetadata.builder("index")
+            .settings(indexSettings(IndexVersion.current(), 32, randomIntBetween(0, 8)))
+            .build();
+        var noReshardingMetadataMultipleSplitsAheadAdjusted = ReshardSearchFilters.adjustMetadataForPitRelocation(
+            noReshardingMetadataMultipleSplitsAhead,
+            relocatedReshardingMetadata
+        );
+        assertEquals(4, noReshardingMetadataMultipleSplitsAheadAdjusted.getNumberOfShards());
+        assertEquals(relocatedReshardingMetadata, noReshardingMetadataMultipleSplitsAheadAdjusted.getReshardingMetadata());
+
+        var anotherSplitInProgress = IndexMetadata.builder("index")
+            .settings(indexSettings(IndexVersion.current(), 16, randomIntBetween(0, 8)))
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(8, 16))
+            .build();
+        var anotherSplitInProgressAdjusted = ReshardSearchFilters.adjustMetadataForPitRelocation(
+            anotherSplitInProgress,
+            relocatedReshardingMetadata
+        );
+        assertEquals(4, anotherSplitInProgressAdjusted.getNumberOfShards());
+        assertEquals(relocatedReshardingMetadata, anotherSplitInProgressAdjusted.getReshardingMetadata());
+    }
+
     private ShardId testShardId(int shardNumber) {
         return new ShardId(new Index("index", "_na_"), shardNumber);
     }

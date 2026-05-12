@@ -28,7 +28,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.lucene.search.FuzzyQueries;
@@ -337,7 +336,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
             long delta = cb.getUsed() - before;
 
             long fieldTypeBytes = FuzzyQueries.queryRamBytes(query);
-            long leafBytes = Queries.estimateRamBytes(query);
+            long leafBytes = LeafQueryBuilder.estimateRamBytes(query);
             long rewriteBytes = context.getRewriteMemoryUsed();
             assertTrue("field-type fuzzy must charge ramBytesUsed to the construction pool", fieldTypeBytes > 0);
             assertTrue("LeafQueryBuilder must add the per-type retained-heap charge for the produced clause", leafBytes > 0);
@@ -392,7 +391,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         long constructionCharged = context.getQueryConstructionMemoryUsed();
         assertEquals(
             "construction pool must be the sum of the field-type ramBytesUsed and the LeafQueryBuilder per-type charge",
-            FuzzyQueries.queryRamBytes((FuzzyQuery) query) + Queries.estimateRamBytes(query),
+            FuzzyQueries.queryRamBytes((FuzzyQuery) query) + LeafQueryBuilder.estimateRamBytes(query),
             constructionCharged
         );
         assertEquals(

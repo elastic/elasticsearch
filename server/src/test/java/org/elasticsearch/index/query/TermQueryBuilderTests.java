@@ -21,7 +21,6 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -289,13 +288,13 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
             Query query = new TermQueryBuilder(KEYWORD_FIELD_NAME, "value").toQuery(context);
             long delta = cb.getUsed() - before;
 
-            long expected = Queries.estimateRamBytes(query);
+            long expected = LeafQueryBuilder.estimateRamBytes(query);
             assertTrue(
                 "non-Accountable leaf clauses must contribute at least the LEAF_BASE_BYTES floor",
-                expected >= Queries.LEAF_BASE_BYTES
+                expected >= LeafQueryBuilder.LEAF_BASE_BYTES
             );
             assertEquals(
-                "construction-pool charge must equal Queries.estimateRamBytes for the produced clause",
+                "construction-pool charge must equal LeafQueryBuilder.estimateRamBytes for the produced clause",
                 expected,
                 context.getQueryConstructionMemoryUsed()
             );

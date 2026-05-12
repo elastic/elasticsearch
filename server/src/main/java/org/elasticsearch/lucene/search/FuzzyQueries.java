@@ -14,51 +14,25 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.BitSet;
 
 /**
- * Factory helpers for constructing fuzzy queries with circuit-breaker accounting. All
- * production paths that build a {@link FuzzyQuery} for search should go through here so the
- * per-clause constant cost and the parameter-driven estimation work are charged consistently.
- *
- * <p>Charges are split across two pools on {@link SearchExecutionContext}, mirroring the
- * framing in Jim Ferenczi's review of #148621 — &quot;a constant cost to every clause and
- * when we know that this constant cost can be higher depending on the parameters in the
- * query then we do the estimation work&quot;:
- *
- * <ol>
- *   <li>The query object's own RAM ({@link #queryRamBytes}) goes to the construction pool via
- *       {@link SearchExecutionContext#addCircuitBreakerMemory} — the per-clause constant
- *       charged at the field-type layer so parsers that bypass
- *       {@link org.elasticsearch.index.query.LeafQueryBuilder}
- *       (e.g. {@code QueryStringQueryParser}) still trip the breaker incrementally.</li>
- *   <li>A coarse, parameter-driven cost estimate from {@link FuzzyQueryCostEstimator} goes to
- *       the rewrite pool via {@link SearchExecutionContext#addRewriteCircuitBreakerMemory} —
- *       this is the &quot;estimation work&quot; that earns its keep when the query parameters
- *       (term length, edit distance, alphabet width) make the clause heavier than typical.</li>
- * </ol>
- *
- * <p>{@link #create} is the normal entry point; {@link #chargeQuery} exists for callers that
- * build their own {@link FuzzyQuery} subclass (e.g. {@code VersionStringFieldMapper}). Both
- * apply the same accounting and no-op when {@code context} or its circuit breaker is
- * {@code null}.
+ * Factory for {@link FuzzyQuery} that charges the request circuit breaker:
+ * the query object's RAM to the construction pool, and a parameter-driven
+ * estimate from {@link FuzzyQueryCostEstimator} to the rewrite pool.
  */
 public final class FuzzyQueries {
 
     private FuzzyQueries() {}
 
     /**
-     * Build a {@link FuzzyQuery} and charge its full circuit-breaker cost upfront on
-     * {@code context}.
+     * Build a {@link FuzzyQuery} and charge the circuit breaker on {@code context}.
      *
-     * @param maxEdits      {@code 0..}{@link LevenshteinAutomata#MAXIMUM_SUPPORTED_DISTANCE}
      * @param rewriteMethod optional; defaults to {@link FuzzyQuery#defaultRewriteMethod(int)}
-     * @param context       may be {@code null} for non-search paths (no charging)
-     * @param fieldLabel    label used in circuit-breaker messages (typically the field name)
+     * @param context       may be {@code null} (no charging)
      */
     public static FuzzyQuery create(
         Term term,
@@ -79,10 +53,9 @@ public final class FuzzyQueries {
     }
 
     /**
-     * Charge the full circuit-breaker cost of an already-constructed {@link FuzzyQuery} —
-     * the per-clause constant (query object RAM) to the construction pool and the
-     * parameter-driven cost estimate to the rewrite pool. No-op when {@code context} or
-     * its breaker is {@code null}.
+     * Charge the circuit breaker for an already-constructed {@link FuzzyQuery}: query RAM
+     * to the construction pool, parameter-driven estimate to the rewrite pool. No-op when
+     * {@code context} or its breaker is {@code null}.
      */
     public static void chargeQuery(FuzzyQuery query, @Nullable SearchExecutionContext context, String fieldLabel) {
         if (context == null || context.getCircuitBreaker() == null) {
@@ -95,16 +68,12 @@ public final class FuzzyQueries {
             .chargeRewrite(context, label);
     }
 
-    /** RAM bytes retained by the {@link FuzzyQuery} object itself (excluding compiled automata). */
+    /** RAM bytes retained by the {@link FuzzyQuery} object (excluding compiled automata). */
     public static long queryRamBytes(FuzzyQuery query) {
         return RamUsageEstimator.shallowSizeOfInstance(query.getClass()) + query.getTerm().ramBytesUsed();
     }
 
-    /**
-     * Number of distinct UTF-8 byte values in {@code bytes} — the alphabet hint for
-     * {@link FuzzyQueryCostEstimator}. A tighter value tightens the estimate (e.g.
-     * {@code "aaaaa..."} has {@code distinctUtf8Bytes = 1}).
-     */
+    /** Distinct UTF-8 byte values in {@code bytes}; alphabet hint for {@link FuzzyQueryCostEstimator}. */
     private static int countDistinctUtf8Bytes(BytesRef bytes) {
         BitSet seen = new BitSet(256);
         int end = bytes.offset + bytes.length;

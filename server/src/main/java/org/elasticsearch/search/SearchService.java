@@ -282,7 +282,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public static final Setting<ByteSizeValue> FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES = Setting.byteSizeSetting(
         "search.fetch_phase_chunked_target_chunk_bytes",
         ByteSizeValue.of(1, ByteSizeUnit.MB),
-        ByteSizeValue.of(1, ByteSizeUnit.MB),
+        ByteSizeValue.of(256, ByteSizeUnit.KB),
         ByteSizeValue.of(64, ByteSizeUnit.MB),
         Property.Dynamic,
         Property.NodeScope

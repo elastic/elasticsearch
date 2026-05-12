@@ -738,7 +738,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         request.setJsonEntity(Strings.toString(body));
 
         Response response = client().performRequest(request);
-        Map<String, Object> responseMap = responseAsMap(response);
+        Map<String, Object> responseMap = responseAsOrderedMap(response);
         HttpHost coordinatorHost = response.getHost();
         NodeInfo coordinator = allNodeToInfo().values().stream().filter(n -> n.boundAddress().contains(coordinatorHost)).findFirst().get();
         TransportVersion coordinatorVersion = coordinator.version();

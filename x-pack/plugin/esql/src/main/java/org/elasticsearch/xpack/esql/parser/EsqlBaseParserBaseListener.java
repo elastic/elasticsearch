@@ -1105,6 +1105,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterLogicalInSubquery(EsqlBaseParser.LogicalInSubqueryContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitLogicalInSubquery(EsqlBaseParser.LogicalInSubqueryContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterRegexExpression(EsqlBaseParser.RegexExpressionContext ctx) { }
   /**
    * {@inheritDoc}

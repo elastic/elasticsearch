@@ -37,6 +37,7 @@ import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -126,7 +127,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         when(blobStore.serverSideEncryption()).thenReturn(serverSideEncryption);
 
         final StorageClass storageClass = randomFrom(StorageClass.values());
-        when(blobStore.getStorageClass()).thenReturn(storageClass);
+        when(blobStore.resolveStorageClass(any(OperationPurpose.class))).thenReturn(storageClass);
 
         final ObjectCannedACL cannedAccessControlList = randomBoolean() ? randomFrom(ObjectCannedACL.values()) : null;
         if (cannedAccessControlList != null) {
@@ -262,7 +263,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         when(blobStore.serverSideEncryption()).thenReturn(serverSideEncryption);
 
         final StorageClass storageClass = randomFrom(StorageClass.values());
-        when(blobStore.getStorageClass()).thenReturn(storageClass);
+        when(blobStore.resolveStorageClass(any(OperationPurpose.class))).thenReturn(storageClass);
 
         final ObjectCannedACL cannedAccessControlList = randomBoolean() ? randomFrom(ObjectCannedACL.values()) : null;
         if (cannedAccessControlList != null) {
@@ -421,7 +422,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.bufferSizeInBytes()).thenReturn(bufferSize);
-        when(blobStore.getStorageClass()).thenReturn(randomFrom(StorageClass.values()));
+        when(blobStore.resolveStorageClass(any(OperationPurpose.class))).thenReturn(randomFrom(StorageClass.values()));
 
         final S3Client client = mock(S3Client.class);
         final SdkHttpClient httpClient = mock(SdkHttpClient.class);
@@ -532,7 +533,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
 
         final var blobStore = mock(S3BlobStore.class);
         when(blobStore.bucket()).thenReturn(sourceBucketName);
-        when(blobStore.getStorageClass()).thenReturn(storageClass);
+        when(blobStore.resolveStorageClass(any(OperationPurpose.class))).thenReturn(storageClass);
         if (cannedAccessControlList != null) {
             when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
         }

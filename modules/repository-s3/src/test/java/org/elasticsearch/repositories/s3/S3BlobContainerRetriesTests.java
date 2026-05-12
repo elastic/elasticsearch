@@ -251,6 +251,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             bufferSize == null ? S3Repository.BUFFER_SIZE_SETTING.getDefault(Settings.EMPTY) : bufferSize,
             S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
             S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
+            S3Repository.DATA_STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
+            S3Repository.METADATA_STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
             S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getDefault(Settings.EMPTY) == Boolean.FALSE,
             repositoryMetadata,
             BigArrays.NON_RECYCLING_INSTANCE,

@@ -157,6 +157,18 @@ class S3Repository extends MeteredBlobStoreRepository {
     static final Setting<String> STORAGE_CLASS_SETTING = Setting.simpleString("storage_class");
 
     /**
+     * Storage class applied to uploads with {@link org.elasticsearch.common.blobstore.OperationPurpose#SNAPSHOT_DATA}.
+     * When unset, falls back to {@link #STORAGE_CLASS_SETTING} (which itself defaults to standard).
+     */
+    static final Setting<String> DATA_STORAGE_CLASS_SETTING = Setting.simpleString("data_storage_class");
+
+    /**
+     * Storage class applied to uploads with {@link org.elasticsearch.common.blobstore.OperationPurpose#SNAPSHOT_METADATA}.
+     * When unset, falls back to {@link #STORAGE_CLASS_SETTING}.
+     */
+    static final Setting<String> METADATA_STORAGE_CLASS_SETTING = Setting.simpleString("metadata_storage_class");
+
+    /**
      * The S3 repository supports all S3 canned ACLs : private, public-read, public-read-write,
      * authenticated-read, log-delivery-write, bucket-owner-read, bucket-owner-full-control. Defaults to private.
      */
@@ -254,6 +266,10 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     private final String storageClass;
 
+    private final String dataStorageClass;
+
+    private final String metadataStorageClass;
+
     private final String cannedACL;
 
     /**
@@ -331,6 +347,8 @@ class S3Repository extends MeteredBlobStoreRepository {
         this.serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(metadata.settings());
 
         this.storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
+        this.dataStorageClass = DATA_STORAGE_CLASS_SETTING.get(metadata.settings());
+        this.metadataStorageClass = METADATA_STORAGE_CLASS_SETTING.get(metadata.settings());
         this.cannedACL = CANNED_ACL_SETTING.get(metadata.settings());
 
         if (S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
@@ -491,6 +509,8 @@ class S3Repository extends MeteredBlobStoreRepository {
             bufferSize,
             cannedACL,
             storageClass,
+            Strings.hasText(dataStorageClass) ? dataStorageClass : storageClass,
+            Strings.hasText(metadataStorageClass) ? metadataStorageClass : storageClass,
             supportsConditionalWrites,
             metadata,
             bigArrays,

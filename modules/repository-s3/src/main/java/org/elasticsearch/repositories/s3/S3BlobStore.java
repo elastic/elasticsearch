@@ -95,6 +95,10 @@ class S3BlobStore implements BlobStore {
 
     private final StorageClass storageClass;
 
+    private final StorageClass dataStorageClass;
+
+    private final StorageClass metadataStorageClass;
+
     private final boolean supportsConditionalWrites;
 
     private final RepositoryMetadata repositoryMetadata;
@@ -129,6 +133,8 @@ class S3BlobStore implements BlobStore {
         ByteSizeValue bufferSize,
         String cannedACL,
         String storageClass,
+        String dataStorageClass,
+        String metadataStorageClass,
         boolean supportConditionalWrites,
         RepositoryMetadata repositoryMetadata,
         BigArrays bigArrays,
@@ -145,6 +151,8 @@ class S3BlobStore implements BlobStore {
         this.maxCopySizeBeforeMultipart = service.settings(projectId, repositoryMetadata).maxCopySizeBeforeMultipart;
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
+        this.dataStorageClass = initStorageClass(dataStorageClass);
+        this.metadataStorageClass = initStorageClass(metadataStorageClass);
         this.supportsConditionalWrites = supportConditionalWrites;
         this.repositoryMetadata = repositoryMetadata;
         this.threadPool = threadPool;
@@ -467,8 +475,12 @@ class S3BlobStore implements BlobStore {
         return cannedACL;
     }
 
-    public StorageClass getStorageClass() {
-        return storageClass;
+    public StorageClass resolveStorageClass(OperationPurpose purpose) {
+        return switch (purpose) {
+            case SNAPSHOT_DATA -> dataStorageClass;
+            case SNAPSHOT_METADATA -> metadataStorageClass;
+            case REPOSITORY_ANALYSIS, CLUSTER_STATE, INDICES, TRANSLOG, RESHARDING -> storageClass;
+        };
     }
 
     public TimeValue getGetRegisterRetryDelay() {

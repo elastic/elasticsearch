@@ -12,6 +12,7 @@ package org.elasticsearch.repositories.s3;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.StorageClass;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -19,6 +20,8 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -239,5 +242,92 @@ public class S3RepositoryTests extends ESTestCase {
         try (var repo = createS3Repo(meta)) {
             assertEquals(ByteSizeValue.ofMb(1_000_000), repo.chunkSize());
         }
+    }
+
+    public void testStorageClassFallbackMatrix() {
+        // Case 1: no storage-class settings → everything resolves to STANDARD.
+        assertResolvedStorageClasses(
+            storageClassSettings(null, null, null),
+            StorageClass.STANDARD,
+            StorageClass.STANDARD,
+            StorageClass.STANDARD
+        );
+
+        // Case 2: only legacy storage_class set → existing behaviour preserved, all three purposes get it.
+        assertResolvedStorageClasses(
+            storageClassSettings("onezone_ia", null, null),
+            StorageClass.ONEZONE_IA,
+            StorageClass.ONEZONE_IA,
+            StorageClass.ONEZONE_IA
+        );
+
+        // Case 3: only data_storage_class set → data uses it; metadata + others fall back to STANDARD (storage_class unset).
+        assertResolvedStorageClasses(
+            storageClassSettings(null, "onezone_ia", null),
+            StorageClass.STANDARD,
+            StorageClass.ONEZONE_IA,
+            StorageClass.STANDARD
+        );
+
+        // Case 4: storage_class + metadata_storage_class set → data falls back to storage_class; metadata uses its override.
+        assertResolvedStorageClasses(
+            storageClassSettings("standard_ia", null, "onezone_ia"),
+            StorageClass.STANDARD_IA,
+            StorageClass.STANDARD_IA,
+            StorageClass.ONEZONE_IA
+        );
+
+        // Case 5: invalid data_storage_class → same BlobStoreException path as today's invalid storage_class.
+        try (var repo = createS3Repo(getRepositoryMetadata(storageClassSettings(null, "whatever", null)))) {
+            repo.start();
+            RepositoryException ex = expectThrows(RepositoryException.class, repo::blobStore);
+            assertThat(ex.getCause(), Matchers.instanceOf(BlobStoreException.class));
+            assertThat(ex.getCause().getMessage(), equalTo("`whatever` is not a known S3 Storage Class."));
+        }
+    }
+
+    public void testResolveStorageClassRouting() {
+        // Three distinct classes so we can tell which lookup fires for which purpose.
+        try (var repo = createS3Repo(getRepositoryMetadata(storageClassSettings("standard_ia", "onezone_ia", "reduced_redundancy")))) {
+            repo.start();
+            final var blobStore = (S3BlobStore) repo.blobStore();
+            assertThat(blobStore.resolveStorageClass(OperationPurpose.SNAPSHOT_DATA), equalTo(StorageClass.ONEZONE_IA));
+            assertThat(blobStore.resolveStorageClass(OperationPurpose.SNAPSHOT_METADATA), equalTo(StorageClass.REDUCED_REDUNDANCY));
+            // All "other" purposes fall through to the legacy storage_class.
+            assertThat(blobStore.resolveStorageClass(OperationPurpose.REPOSITORY_ANALYSIS), equalTo(StorageClass.STANDARD_IA));
+            assertThat(blobStore.resolveStorageClass(OperationPurpose.CLUSTER_STATE), equalTo(StorageClass.STANDARD_IA));
+            assertThat(blobStore.resolveStorageClass(OperationPurpose.INDICES), equalTo(StorageClass.STANDARD_IA));
+            assertThat(blobStore.resolveStorageClass(OperationPurpose.TRANSLOG), equalTo(StorageClass.STANDARD_IA));
+            assertThat(blobStore.resolveStorageClass(OperationPurpose.RESHARDING), equalTo(StorageClass.STANDARD_IA));
+        }
+    }
+
+    private void assertResolvedStorageClasses(
+        Settings settings,
+        StorageClass expectedDefault,
+        StorageClass expectedData,
+        StorageClass expectedMetadata
+    ) {
+        try (var repo = createS3Repo(getRepositoryMetadata(settings))) {
+            repo.start();
+            final var blobStore = (S3BlobStore) repo.blobStore();
+            assertThat(blobStore.resolveStorageClass(OperationPurpose.INDICES), equalTo(expectedDefault));
+            assertThat(blobStore.resolveStorageClass(OperationPurpose.SNAPSHOT_DATA), equalTo(expectedData));
+            assertThat(blobStore.resolveStorageClass(OperationPurpose.SNAPSHOT_METADATA), equalTo(expectedMetadata));
+        }
+    }
+
+    private static Settings storageClassSettings(@Nullable String legacy, @Nullable String data, @Nullable String metadata) {
+        final Settings.Builder builder = Settings.builder().put(S3Repository.BUCKET_SETTING.getKey(), "bucket");
+        if (legacy != null) {
+            builder.put(S3Repository.STORAGE_CLASS_SETTING.getKey(), legacy);
+        }
+        if (data != null) {
+            builder.put(S3Repository.DATA_STORAGE_CLASS_SETTING.getKey(), data);
+        }
+        if (metadata != null) {
+            builder.put(S3Repository.METADATA_STORAGE_CLASS_SETTING.getKey(), metadata);
+        }
+        return builder.build();
     }
 }

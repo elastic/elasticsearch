@@ -226,6 +226,7 @@ public class EsqlCCSUtils {
     static void updateExecutionInfoWithClustersWithNoMatchingIndices(
         EsqlExecutionInfo executionInfo,
         Collection<IndexResolution> indexResolutions,
+        Collection<IndexResolution> optionalLinkedIndexResolution,
         boolean usedFilter
     ) {
         if (executionInfo.clusterInfo.isEmpty()) {
@@ -235,6 +236,11 @@ public class EsqlCCSUtils {
         // NOTE: we assume that updateExecutionInfoWithUnavailableClusters() was already run and took care of unavailable clusters.
         final Set<String> clustersWithNoMatchingIndices = executionInfo.getRunningClusterAliases().collect(toSet());
         for (IndexResolution indexResolution : indexResolutions) {
+            for (String indexName : indexResolution.resolvedIndices()) {
+                clustersWithNoMatchingIndices.remove(RemoteClusterAware.parseClusterAlias(indexName));
+            }
+        }
+        for (IndexResolution indexResolution : optionalLinkedIndexResolution) {
             for (String indexName : indexResolution.resolvedIndices()) {
                 clustersWithNoMatchingIndices.remove(RemoteClusterAware.parseClusterAlias(indexName));
             }
@@ -318,14 +324,6 @@ public class EsqlCCSUtils {
         if (fatalErrorMessage != null) {
             throw new VerificationException(fatalErrorMessage.toString());
         }
-    }
-
-    // Filter-less version, mainly for testing where we don't need filter support
-    static void updateExecutionInfoWithClustersWithNoMatchingIndices(
-        EsqlExecutionInfo executionInfo,
-        Set<IndexResolution> indexResolutions
-    ) {
-        updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolutions, false);
     }
 
     // visible for testing

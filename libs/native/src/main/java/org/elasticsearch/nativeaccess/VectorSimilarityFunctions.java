@@ -80,26 +80,55 @@ public interface VectorSimilarityFunctions {
     }
 
     /**
+     * Doc-side data layout for BBQ kernels. {@link #STRIPED} (bit-plane transposition)
+     * is the original layout used by all {@code vec_dotdNqM} kernels; {@link #PACKED} groups
+     * multiple values into a single byte (K x N-bit doc values per byte, where K x N = 8);
+     * The native symbol suffix is empty for STRIPED to preserve existing names and
+     * {@code _packed} for PACKED, so the two appear as e.g. {@code vec_dotd2q4} and
+     * {@code vec_dotd2q4_packed}.
+     */
+    enum Layout {
+        STRIPED(""),
+        PACKED("_packed");
+
+        private final String suffix;
+
+        Layout(String suffix) {
+            this.suffix = suffix;
+        }
+
+        public String suffix() {
+            return suffix;
+        }
+    }
+
+    /**
      * The various flavors of BBQ indices. Single vector score returns results as a long.
      */
     enum BBQType {
         /**
-         * 1-bit data, 4-bit queries
+         * 1-bit data, 4-bit queries, bit-plane striped layout.
          */
-        D1Q4((byte) 1),
+        D1Q4((byte) 1, Layout.STRIPED),
         /**
-         * 2-bit data, 4-bit queries
+         * 2-bit data, 4-bit queries, bit-plane striped layout.
          */
-        D2Q4((byte) 2),
+        D2Q4((byte) 2, Layout.STRIPED),
         /**
-         * 4-bit data, 4-bit queries
+         * 4-bit data, 4-bit queries, bit-plane striped layout.
          */
-        D4Q4((byte) 4);
+        D4Q4((byte) 4, Layout.STRIPED),
+        /**
+         * 2-bit data, 4-bit queries, packed-quad layout.
+         */
+        D2Q4_PACKED((byte) 2, Layout.PACKED);
 
         private final byte dataBits;
+        private final Layout layout;
 
-        BBQType(byte dataBits) {
+        BBQType(byte dataBits, Layout layout) {
             this.dataBits = dataBits;
+            this.layout = layout;
         }
 
         public byte dataBits() {
@@ -108,6 +137,25 @@ public interface VectorSimilarityFunctions {
 
         public byte queryBits() {
             return 4;
+        }
+
+        public Layout layout() {
+            return layout;
+        }
+
+        /**
+         * Number of query bytes per doc byte, for buffer-size bounds checks.
+         * <ul>
+         *   <li>STRIPED: query is bit-plane transposed at {@code queryBits} planes; total query bytes
+         *       = {@code dims * queryBits / 8} = {@code docBytes * queryBits / dataBits}
+         *       (e.g. D1Q4: x4, D2Q4: x2, D4Q4: x1).</li>
+         *   <li>PACKED: query is a flat one-byte-per-value buffer; total query bytes = {@code dims}
+         *       = {@code docBytes * 8 / dataBits} (the doc packs {@code 8/dataBits} values per byte --
+         *       e.g. D2Q4_PACKED: x4, flat one byte per value).</li>
+         * </ul>
+         */
+        public int queryBytesPerDocByte() {
+            return layout == Layout.PACKED ? 8 / dataBits : queryBits() / dataBits;
         }
     }
 

@@ -246,6 +246,7 @@ public class CsvTestsDataLoader {
         new TestDataset("mmr_text_vector_keyword"),
         new TestDataset("json_logs"),
         new TestDataset("flattened_otel_logs"),
+        new TestDataset("host_threat_list").withSetting("lookup-settings.json"),
         new TestDataset(
             "metric_temporality",
             "metric_temporality-mappings.json",
@@ -293,7 +294,8 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_rehired"),
         new ViewConfig("employees_not_rehired"),
         new ViewConfig("employees_all"),
-        new ViewConfig("employees_extra")
+        new ViewConfig("employees_extra"),
+        new ViewConfig("view_with_subquery")
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**

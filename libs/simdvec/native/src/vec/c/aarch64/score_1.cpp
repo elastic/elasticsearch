@@ -16,10 +16,17 @@
 
 #include "score_common.h"
 
+// BQ corrections for different formats/layouts (DiskBBQ/BBQ).
+// Code is scalar; this is on purpose -- we tried to write vector (NEON) code for it, but it simply did
+// not show any improvement (see https://github.com/elastic/elasticsearch/pull/148594).
+// In case things change (e.g. we get much wider ARM SIMD registers and/or we dramatically increase bulkSize
+// in DiskBBQ) we can revisit that decision, otherwise we'll keep this code scalar (simpler). This is
+// *not* a hot-spot.
+
+
 // BBQ inline correction layout: corrections are stored after each vector's quantized bytes.
 // Per-vector layout at offset (node[i] * pitchInBytes + vectorSizeInBytes):
 //   float lowerInterval, float upperInterval, float additionalCorrection, short targetComponentSum
-
 EXPORT f32_t bbq_apply_corrections_euclidean_bulk(
         const void* const* addresses,
         const int32_t bulkSize,

@@ -150,6 +150,13 @@ public class EsqlCapabilities {
         ST_SIMPLIFY,
 
         /**
+         * Support for named options ({@code quad_segs}, {@code endcap}, {@code join}, {@code mitre_limit})
+         * on {@code ST_BUFFER}. Requires a wire-protocol bump, so gates new csv-spec tests away from
+         * mixed-version clusters that pre-date the change.
+         */
+        ST_BUFFER_OPTIONS,
+
+        /**
          * The introduction of the {@code VALUES} agg.
          */
         AGG_VALUES,
@@ -411,6 +418,11 @@ public class EsqlCapabilities {
          * Support for the {@code flattened} data type in ES|QL, which loads flattened fields as JSON objects.
          */
         FLATTENED_DATATYPE(Build.current().isSnapshot()),
+
+        /**
+         * Support for the {@code field_extract} function, which reads a sub-key from a {@code flattened} field root.
+         */
+        FIELD_EXTRACT_FUNCTION(Build.current().isSnapshot()),
 
         /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
@@ -1262,6 +1274,14 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/142499
          */
         SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION,
+
+        /**
+         * Support IN non-correlated subqueries in WHERE command.
+         * TODO: drop the {@code Build.current().isSnapshot()} gate (and the matching
+         * {@code {this.isDevVersion()}?} predicates in InExpression.g4 / EsqlBaseParser.g4)
+         * once the InSubquery feature graduates from snapshot-only to production.
+         */
+        WHERE_IN_SUBQUERY(Build.current().isSnapshot()),
 
         /**
          * Support for views in cluster state (and REST API).
@@ -2716,6 +2736,12 @@ public class EsqlCapabilities {
          * (e.g. by MV_EXPAND) into many rows reaching the STATS command.
          */
         APPROXIMATION_FIX_MIN_SOURCE_ROW_COUNT,
+
+        /**
+         * Fix for {@code CompoundOutputEval} commands not implementing {@code SortAgnostic}, causing {@code PruneRedundantOrderBy} to
+         * fail when a SORT precedes these commands.
+         */
+        FIX_COMPOUND_OUTPUT_EVAL_SORT_AGNOSTIC,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

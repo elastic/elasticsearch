@@ -146,6 +146,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         when(request.getInferenceEntityId()).thenReturn(inferenceId);
         when(request.getTaskType()).thenReturn(taskType);
         when(request.isStreaming()).thenReturn(stream);
+        when(request.getContext()).thenReturn(InferenceContext.EMPTY_INSTANCE);
         ActionListener<InferenceAction.Response> listener = spy(new ActionListener<>() {
             @Override
             public void onResponse(InferenceAction.Response o) {}

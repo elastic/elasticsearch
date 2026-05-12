@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceService;
@@ -32,7 +33,6 @@ import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 import org.elasticsearch.xpack.inference.telemetry.InferenceTimer;
 
-import java.util.Objects;
 import java.util.concurrent.Flow;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -95,11 +95,10 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
 
         // TODO: this is a temporary solution for passing around the product use case.
         // We want to pass InferenceContext through the various infer methods in InferenceService in the long term
-        var context = request.getContext();
-        if (Objects.nonNull(context)
-            && Objects.isNull(threadPool.getThreadContext().getHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER))) {
-            threadPool.getThreadContext()
-                .putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, context.productUseCase());
+        var productUseCase = request.getContext().productUseCase();
+        if (Strings.isNullOrEmpty(productUseCase) == false
+            && threadPool.getThreadContext().getHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER) == null) {
+            threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
         }
 
         var productContext = InferenceProductContext.create(threadPool.getThreadContext());

@@ -27,8 +27,12 @@ import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_DEP
 import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_REQUEST_COUNT_TOTAL;
 import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_REQUEST_DURATION;
 import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_SOURCE_ATTRIBUTE;
+import static org.elasticsearch.inference.telemetry.InferenceStats.OTHER_VALUE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.PRODUCTION_RELEASE_ATTRIBUTE;
+import static org.elasticsearch.inference.telemetry.InferenceStats.SECURITY_AI_ASSISTANT_USE_CASE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.SERVICE_ATTRIBUTE;
+import static org.elasticsearch.inference.telemetry.InferenceStats.SIEM_MIGRATIONS;
+import static org.elasticsearch.inference.telemetry.InferenceStats.SIEM_MIGRATIONS_PREFIX;
 import static org.elasticsearch.inference.telemetry.InferenceStats.STACK_VERSION_ATTRIBUTE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.STATUS_CODE_ATTRIBUTE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.TASK_TYPE_ATTRIBUTE;
@@ -46,7 +50,6 @@ public class InferenceStatsTests extends ESTestCase {
     private static final String TEST_STACK_VERSION = "8.99.0";
     private static final boolean TEST_IS_PRODUCTION_RELEASE = true;
     private static final String TEST_SERVICE = "service";
-    private static final String TEST_USE_CASE = "my-use-case";
     private static final String TEST_PRODUCT_ORIGIN = "kibana";
 
     public static InferenceStats mockInferenceStats() {
@@ -386,7 +389,7 @@ public class InferenceStatsTests extends ESTestCase {
     public void testWithProductContext_UseCase_Origin_Present() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
-        var ctx = new InferenceProductContext(TEST_USE_CASE, TEST_PRODUCT_ORIGIN);
+        var ctx = new InferenceProductContext(SECURITY_AI_ASSISTANT_USE_CASE, TEST_PRODUCT_ORIGIN);
 
         stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withProductContext(ctx).incrementBy(1);
 
@@ -399,7 +402,7 @@ public class InferenceStatsTests extends ESTestCase {
                     TASK_TYPE_ATTRIBUTE,
                     TaskType.ANY.toString(),
                     INFERENCE_SOURCE_ATTRIBUTE,
-                    TEST_USE_CASE,
+                    SECURITY_AI_ASSISTANT_USE_CASE,
                     ES_PRODUCT_ORIGIN_ATTRIBUTE,
                     TEST_PRODUCT_ORIGIN
                 )
@@ -410,7 +413,7 @@ public class InferenceStatsTests extends ESTestCase {
     public void testWithProductContext_OnlyProductUseCase() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
-        var ctx = new InferenceProductContext(TEST_USE_CASE, null);
+        var ctx = new InferenceProductContext(SECURITY_AI_ASSISTANT_USE_CASE, null);
 
         stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withProductContext(ctx).incrementBy(1);
 
@@ -423,7 +426,7 @@ public class InferenceStatsTests extends ESTestCase {
                     TASK_TYPE_ATTRIBUTE,
                     TaskType.ANY.toString(),
                     INFERENCE_SOURCE_ATTRIBUTE,
-                    TEST_USE_CASE
+                    SECURITY_AI_ASSISTANT_USE_CASE
                 )
             )
         );
@@ -471,6 +474,132 @@ public class InferenceStatsTests extends ESTestCase {
             eq(1L),
             eq(Map.of(SERVICE_ATTRIBUTE, TEST_SERVICE, TASK_TYPE_ATTRIBUTE, TaskType.ANY.toString(), INFERENCE_SOURCE_ATTRIBUTE, useCase))
         );
+    }
+
+    public void testWithProductContext_UnknownUseCase_BucketsAsOther() {
+        var longCounter = mock(LongCounter.class);
+        var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
+        var ctx = new InferenceProductContext("some-bogus-use-case", TEST_PRODUCT_ORIGIN);
+
+        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withProductContext(ctx).incrementBy(1);
+
+        verify(longCounter).incrementBy(
+            eq(1L),
+            eq(
+                Map.of(
+                    SERVICE_ATTRIBUTE,
+                    TEST_SERVICE,
+                    TASK_TYPE_ATTRIBUTE,
+                    TaskType.ANY.toString(),
+                    INFERENCE_SOURCE_ATTRIBUTE,
+                    OTHER_VALUE,
+                    ES_PRODUCT_ORIGIN_ATTRIBUTE,
+                    TEST_PRODUCT_ORIGIN
+                )
+            )
+        );
+    }
+
+    public void testWithProductContext_UnknownOrigin_BucketsAsOther() {
+        var longCounter = mock(LongCounter.class);
+        var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
+        var ctx = new InferenceProductContext(SECURITY_AI_ASSISTANT_USE_CASE, "some-bogus-origin");
+
+        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withProductContext(ctx).incrementBy(1);
+
+        verify(longCounter).incrementBy(
+            eq(1L),
+            eq(
+                Map.of(
+                    SERVICE_ATTRIBUTE,
+                    TEST_SERVICE,
+                    TASK_TYPE_ATTRIBUTE,
+                    TaskType.ANY.toString(),
+                    INFERENCE_SOURCE_ATTRIBUTE,
+                    SECURITY_AI_ASSISTANT_USE_CASE,
+                    ES_PRODUCT_ORIGIN_ATTRIBUTE,
+                    OTHER_VALUE
+                )
+            )
+        );
+    }
+
+    public void testWithProductUseCase_UnknownValue_BucketsAsOther() {
+        var longCounter = mock(LongCounter.class);
+        var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
+
+        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withProductUseCase("some-bogus-use-case").incrementBy(1);
+
+        verify(longCounter).incrementBy(
+            eq(1L),
+            eq(
+                Map.of(
+                    SERVICE_ATTRIBUTE,
+                    TEST_SERVICE,
+                    TASK_TYPE_ATTRIBUTE,
+                    TaskType.ANY.toString(),
+                    INFERENCE_SOURCE_ATTRIBUTE,
+                    OTHER_VALUE
+                )
+            )
+        );
+    }
+
+    public void testWithProductContext_MixedCaseInput_NormalizedToLowercase() {
+        var longCounter = mock(LongCounter.class);
+        var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
+        var ctx = new InferenceProductContext("Security_AI_Assistant", "KIBANA");
+
+        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withProductContext(ctx).incrementBy(1);
+
+        verify(longCounter).incrementBy(
+            eq(1L),
+            eq(
+                Map.of(
+                    SERVICE_ATTRIBUTE,
+                    TEST_SERVICE,
+                    TASK_TYPE_ATTRIBUTE,
+                    TaskType.ANY.toString(),
+                    INFERENCE_SOURCE_ATTRIBUTE,
+                    SECURITY_AI_ASSISTANT_USE_CASE,
+                    ES_PRODUCT_ORIGIN_ATTRIBUTE,
+                    TEST_PRODUCT_ORIGIN
+                )
+            )
+        );
+    }
+
+    public void testWithProductContext_SiemMigrationsVariant_CollapsedToBase() {
+        var longCounter = mock(LongCounter.class);
+        var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
+        var ctx = new InferenceProductContext(SIEM_MIGRATIONS_PREFIX + randomAlphaOfLength(8), TEST_PRODUCT_ORIGIN);
+
+        stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withProductContext(ctx).incrementBy(1);
+
+        verify(longCounter).incrementBy(
+            eq(1L),
+            eq(
+                Map.of(
+                    SERVICE_ATTRIBUTE,
+                    TEST_SERVICE,
+                    TASK_TYPE_ATTRIBUTE,
+                    TaskType.ANY.toString(),
+                    INFERENCE_SOURCE_ATTRIBUTE,
+                    SIEM_MIGRATIONS,
+                    ES_PRODUCT_ORIGIN_ATTRIBUTE,
+                    TEST_PRODUCT_ORIGIN
+                )
+            )
+        );
+    }
+
+    public void testKnownAllowlistEntriesAreLowercase() {
+        for (var value : InferenceStats.KNOWN_PRODUCT_USE_CASES) {
+            assertEquals("KNOWN_INFERENCE_SOURCES entry must be lowercase: " + value, value.toLowerCase(java.util.Locale.ROOT), value);
+        }
+        for (var value : InferenceStats.KNOWN_PRODUCT_ORIGINS) {
+            assertEquals("KNOWN_PRODUCT_ORIGINS entry must be lowercase: " + value, value.toLowerCase(java.util.Locale.ROOT), value);
+        }
     }
 
     private Model model(String service, TaskType taskType) {

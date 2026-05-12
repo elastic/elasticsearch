@@ -366,7 +366,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             private Integer topN;
             private TimeValue timeout = TIMEOUT_NOT_DETERMINED;
             private boolean stream = false;
-            private InferenceContext context;
+            private InferenceContext context = InferenceContext.EMPTY_INSTANCE;
 
             private Builder() {}
 

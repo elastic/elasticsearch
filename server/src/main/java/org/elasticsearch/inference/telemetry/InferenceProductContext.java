@@ -22,8 +22,6 @@ import org.elasticsearch.tasks.Task;
  *                      Can be null if not defined.
  */
 public record InferenceProductContext(@Nullable String productUseCase, @Nullable String productOrigin) {
-    // 'X-Elastic-Product-Use-Case' is Elastic Inference Service specific and is therefore not propagated through the ES-wide Task
-    // like the 'X-Elastic-Product-Origin' header
     public static final String X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER = "X-elastic-product-use-case";
 
     public static final InferenceProductContext EMPTY = new InferenceProductContext(null, null);

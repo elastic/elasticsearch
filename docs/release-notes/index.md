@@ -87,7 +87,7 @@ versatility of ES|QL and makes it easier for users to integrate with Prometheus 
 
 The syntax is illustrated in the following example:
 
-```yaml
+```esql
 PROMQL index=k8s-downsampled start="2026-02-17T08:00:00Z" end="2026-02-17T09:00:00Z" step=30m avg_bytes=(avg(rate(network.total_bytes_in[30m])))
 | SORT avg_bytes DESC, step;
 ```
@@ -152,7 +152,7 @@ is backwards compatible.
 ::::{dropdown} Time series aggregations support windows that are smaller than the time bucket
 Time series aggregations in ES|QL are enhanced to support windows smaller than the time bucket.
 
-```yaml
+```esql
 TS metrics | STATS AVG(RATE(requests, 5m)) BY TBUCKET(10m), host
 ```
 
@@ -162,7 +162,7 @@ Previously, only window values that were equal or exact multiples of the time bu
 ::::{dropdown} Time series aggregations support windows that are not an exact multiple of the bucket
 Time series aggregations in ES|QL are enhanced to support windows that are not an exact multiple of the time bucket.
 
-```yaml
+```esql
 TS metrics | STATS AVG(RATE(requests, 15m)) BY TBUCKET(10m), host
 ```
 

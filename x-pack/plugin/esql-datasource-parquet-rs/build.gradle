@@ -227,9 +227,18 @@ tasks.named("splitPackagesAudit").configure {
   dependsOn extractNativeLibs
 }
 
+tasks.named("sourcesJar").configure {
+  dependsOn extractNativeLibs
+}
+
 // ---------------------------------------------------------------------------
 
 tasks.named("test").configure {
+  if (OS.current() == OS.WINDOWS) {
+    // Not supported
+    enabled = false
+  }
+
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
 }
 

@@ -15,8 +15,8 @@ import jdk.incubator.vector.VectorSpecies;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.MixHash64;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
@@ -147,11 +147,11 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
      */
     @Override
     public long find(BytesRef key) {
-        final int hash = hash(key);
+        final long hash = hash64(key);
         if (smallCore != null) {
             return smallCore.find(key, hash);
         } else {
-            return bigCore.find(key, hash, control(hash));
+            return bigCore.find(key, hash);
         }
     }
 
@@ -166,7 +166,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
      * Prefetch the data at the slot of the given hash. The caller should only call this method
      * when {@link #shouldPrefetch()} return true.
      */
-    public int prefetch(int hash) {
+    public int prefetch(long hash) {
         return bigCore.prefetch(hash);
     }
 
@@ -174,11 +174,11 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
      * Finds an {@code id} by a {@code key}.
      */
     public long find(PagedBytesCursor key) {
-        final int hash = hash(key);
+        final long hash = hash64(key);
         if (smallCore != null) {
             return smallCore.find(key, hash);
         } else {
-            return bigCore.find(key, hash, control(hash));
+            return bigCore.find(key, hash);
         }
     }
 
@@ -189,14 +189,14 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
      */
     @Override
     public long add(BytesRef key) {
-        final int hash = hash(key);
+        final long hash = hash64(key);
         return addWithHash(key, hash);
     }
 
     /**
      * Same semantic as {@link #add(BytesRef)} but accepts a pre-computed hash.
      */
-    public int addWithHash(BytesRef key, int hash) {
+    public int addWithHash(BytesRef key, long hash) {
         if (smallCore != null) {
             if (size < nextGrowSize) {
                 return smallCore.add(key, hash);
@@ -214,7 +214,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
      */
     @Override
     public long add(PagedBytesCursor key) {
-        final int hash = hash(key);
+        final long hash = hash64(key);
         if (smallCore != null) {
             if (size < nextGrowSize) {
                 return smallCore.add(key, hash);
@@ -247,8 +247,8 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
      * and the remaining 7 bits contain the top 7 bits of the hash.
      * So it looks like {@code 0b0xxx_xxxx}.
      */
-    private static byte control(int hash) {
-        return (byte) (hash >>> (Integer.SIZE - 7));
+    private static byte control(long hash) {
+        return (byte) (hash >>> (Long.SIZE - 7));
     }
 
     @Override
@@ -276,103 +276,95 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
      * Open addressed hash table the probes by triangle numbers. Empty
      * {@code id}s are encoded as {@code -1}. This hash table can't
      * grow, and is instead replaced by a {@link BigCore}.
-     *
-     * <p> This uses one page from the {@link PageCacheRecycler} for the
-     * {@code ids}.
      */
     final class SmallCore extends Core {
         static final float FILL_FACTOR = 0.6F;
 
-        private final byte[] idAndHashPage;
+        private final long[] slots;
+        private final byte[] controlData; // stored for rehash
 
         private SmallCore() {
-            boolean success = false;
-            try {
-                idAndHashPage = grabPage();
-                Arrays.fill(idAndHashPage, (byte) 0xff);
-                success = true;
-            } finally {
-                if (success == false) {
-                    close();
-                }
-            }
+            final long requiredBytes = (long) capacity * Long.BYTES + capacity;
+            breaker.addEstimateBytesAndMaybeBreak(requiredBytes, "BytesRefSwissHash-smallCore");
+            usedBytes += requiredBytes;
+            slots = new long[capacity];
+            controlData = new byte[capacity];
+            Arrays.fill(slots, -1L);
         }
 
         /**
-         * Find bytes in the hash. This has a lot of duplication with {@link #find(PagedBytesCursor, int)}
+         * Find bytes in the hash. This has a lot of duplication with {@link #find(PagedBytesCursor, long)}
          * but we're intentionally doing it to make them look exactly the same. And because this
          * is the hottest of the hot path.
          */
-        int find(final BytesRef key, final int hash) {
-            int slot = slot(hash);
+        int find(final BytesRef key, final long hash) {
+            int slot = slot((int) hash);
             for (;; slot = slot(slot + 1)) {
-                long value = (long) LONG_HANDLE.get(idAndHashPage, idAndHashOffset(slot));
-                int id = id(value);
-                if (id == -1 || (hash(value) == hash && matches(key, id))) {
+                final long packed = slots[slot];
+                final int id = (int) (packed >>> 32);
+                if (id == -1 || ((int) packed == (int) hash && matches(key, id))) {
                     return id;
                 }
             }
         }
 
         /**
-         * Find bytes in the hash. This has a lot of duplication with {@link #find(BytesRef, int)}
+         * Find bytes in the hash. This has a lot of duplication with {@link #find(BytesRef, long)}
          * but we're intentionally doing it to make them look exactly the same. And because this
          * is the hottest of the hot path.
          */
-        int find(final PagedBytesCursor key, final int hash) {
-            int slot = slot(hash);
+        int find(final PagedBytesCursor key, final long hash) {
+            int slot = slot((int) hash);
             for (;; slot = slot(slot + 1)) {
-                long value = (long) LONG_HANDLE.get(idAndHashPage, idAndHashOffset(slot));
-                int id = id(value);
-                if (id == -1 || (hash(value) == hash && matches(key, id))) {
+                final long packed = slots[slot];
+                final int id = (int) (packed >>> 32);
+                if (id == -1 || ((int) packed == (int) hash && matches(key, id))) {
                     return id;
                 }
             }
         }
 
         /**
-         * Adds to the hash. This has a lot of duplication with {@link #add(PagedBytesCursor, int)}
+         * Adds to the hash. This has a lot of duplication with {@link #add(PagedBytesCursor, long)}
          * but we're intentionally doing it to make them look exactly the same. And because this
          * is the hottest of the hot path.
          */
-        int add(final BytesRef key, final int hash) {
-            int slot = slot(hash);
+        int add(final BytesRef key, final long hash) {
+            int slot = slot((int) hash);
             for (;; slot = slot(slot + 1)) {
-                final int offset = idAndHashOffset(slot);
-                final long value = (long) LONG_HANDLE.get(idAndHashPage, offset);
-                final int id = id(value);
-                if (id == -1) { // means unset
+                final long packed = slots[slot];
+                final int id = (int) (packed >>> 32);
+                if (id == -1) {
                     final int nextId = (int) bytesRefs.size();
                     bytesRefs.append(key);
-                    final long newValue = ((long) nextId << 32) | Integer.toUnsignedLong(hash);
-                    LONG_HANDLE.set(idAndHashPage, offset, newValue);
+                    slots[slot] = ((long) nextId << 32) | Integer.toUnsignedLong((int) hash);
+                    controlData[slot] = control(hash);
                     size++;
                     return nextId;
-                } else if (hash(value) == hash && matches(key, id)) {
+                } else if ((int) packed == (int) hash && matches(key, id)) {
                     return -1 - id;
                 }
             }
         }
 
         /**
-         * Adds to the hash. This has a lot of duplication with {@link #add(BytesRef, int)}
+         * Adds to the hash. This has a lot of duplication with {@link #add(BytesRef, long)}
          * but we're intentionally doing it to make them look exactly the same. And because this
          * is the hottest of the hot path.
          */
-        int add(final PagedBytesCursor key, final int hash) {
-            int slot = slot(hash);
+        int add(final PagedBytesCursor key, final long hash) {
+            int slot = slot((int) hash);
             for (;; slot = slot(slot + 1)) {
-                final int offset = idAndHashOffset(slot);
-                final long value = (long) LONG_HANDLE.get(idAndHashPage, offset);
-                final int id = id(value);
-                if (id == -1) { // means unset
+                final long packed = slots[slot];
+                final int id = (int) (packed >>> 32);
+                if (id == -1) {
                     final int nextId = (int) bytesRefs.size();
                     bytesRefs.append(key);
-                    final long newValue = ((long) nextId << 32) | Integer.toUnsignedLong(hash);
-                    LONG_HANDLE.set(idAndHashPage, offset, newValue);
+                    slots[slot] = ((long) nextId << 32) | Integer.toUnsignedLong((int) hash);
+                    controlData[slot] = control(hash);
                     size++;
                     return nextId;
-                } else if (hash(value) == hash && matches(key, id)) {
+                } else if ((int) packed == (int) hash && matches(key, id)) {
                     return -1 - id;
                 }
             }
@@ -416,18 +408,13 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
 
         private void rehash(int oldCapacity) {
             for (int slot = 0; slot < oldCapacity; slot++) {
-                final long value = idAndHash(slot);
-                final int id = id(value);
+                final long packed = slots[slot];
+                final int id = (int) (packed >>> 32);
                 if (id < 0) {
                     continue;
                 }
-                final int hash = hash(value);
-                bigCore.insert(hash, control(hash), id);
+                bigCore.insert((int) packed, controlData[slot], id);
             }
-        }
-
-        private long idAndHash(int slot) {
-            return (long) LONG_HANDLE.get(idAndHashPage, idAndHashOffset(slot));
         }
     }
 
@@ -481,11 +468,13 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         }
 
         /**
-         * Find bytes in the hash. This has a lot of duplication with {@link #find(PagedBytesCursor, int, byte)}
+         * Find bytes in the hash. This has a lot of duplication with {@link #find(PagedBytesCursor, long)}
          * but we're intentionally doing it to make them look exactly the same. And because this
          * is the hottest of the hot path.
          */
-        private int find(final BytesRef key, final int hash, final byte control) {
+        private int find(final BytesRef key, final long hash64) {
+            final int hash = hash(hash64);
+            final byte control = control(hash64);
             int group = hash & mask;
             for (;;) {
                 ByteVector vec = ByteVector.fromArray(BS, controlData, group);
@@ -509,11 +498,13 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         }
 
         /**
-         * Find bytes in the hash. This has a lot of duplication with {@link #find(BytesRef, int, byte)}
+         * Find bytes in the hash. This has a lot of duplication with {@link #find(BytesRef, long)}
          * but we're intentionally doing it to make them look exactly the same. And because this
          * is the hottest of the hot path.
          */
-        private int find(final PagedBytesCursor key, final int hash, final byte control) {
+        private int find(final PagedBytesCursor key, final long hash64) {
+            final int hash = hash(hash64);
+            final byte control = control(hash64);
             int group = hash & mask;
             for (;;) {
                 ByteVector vec = ByteVector.fromArray(BS, controlData, group);
@@ -536,24 +527,25 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
             }
         }
 
-        int prefetch(int hash) {
-            final int group = hash & mask;
+        int prefetch(long hash64) {
+            final int group = hash(hash64) & mask;
             final int idOff = idAndHashOffset(group);
             return controlData[group] ^ idAndHashPages[idOff >> PAGE_SHIFT][idOff & PAGE_MASK];
         }
 
-        private int addWithHash(final BytesRef key, final int hash) {
+        private int addWithHash(final BytesRef key, final long hash) {
             maybeGrow();
             return bigCore.addImpl(key, hash);
         }
 
         /**
-         * Adds to the hash. This has a lot of duplication with {@link #addImpl(PagedBytesCursor, int)}
+         * Adds to the hash. This has a lot of duplication with {@link #addImpl(PagedBytesCursor, long)}
          * but we're intentionally doing it to make them look exactly the same. And because this
          * is the hottest of the hot path.
          */
-        private int addImpl(final BytesRef key, final int hash) {
-            final byte control = control(hash);
+        private int addImpl(final BytesRef key, final long hash64) {
+            final int hash = hash(hash64);
+            final byte control = control(hash64);
             int group = hash & mask;
             for (;;) {
                 ByteVector vec = ByteVector.fromArray(BS, controlData, group);
@@ -580,18 +572,19 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
             }
         }
 
-        private int add(final PagedBytesCursor key, final int hash) {
+        private int add(final PagedBytesCursor key, final long hash64) {
             maybeGrow();
-            return bigCore.addImpl(key, hash);
+            return bigCore.addImpl(key, hash64);
         }
 
         /**
-         * Adds to the hash. This has a lot of duplication with {@link #addImpl(BytesRef, int)}
+         * Adds to the hash. This has a lot of duplication with {@link #addImpl(BytesRef, long)}
          * but we're intentionally doing it to make them look exactly the same. And because this
          * is the hottest of the hot path.
          */
-        private int addImpl(final PagedBytesCursor key, final int hash) {
-            final byte control = control(hash);
+        private int addImpl(final PagedBytesCursor key, final long hash64) {
+            final int hash = hash(hash64);
+            final byte control = control(hash64);
             int group = hash & mask;
             for (;;) {
                 ByteVector vec = ByteVector.fromArray(BS, controlData, group);
@@ -674,13 +667,14 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
 
         private void rehash(int oldCapacity, BigCore newBigCore) {
             for (int i = 0; i < oldCapacity; i++) {
-                if (controlData[i] == EMPTY) {
+                final byte control = controlData[i];
+                if (control == EMPTY) {
                     continue;
                 }
                 final long value = idAndHash(i);
                 final int hash = hash(value);
                 final int id = id(value);
-                newBigCore.insert(hash, control(hash), id);
+                newBigCore.insert(hash, control, id);
             }
         }
 
@@ -736,20 +730,20 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         return (int) (value >>> 32);
     }
 
-    int hash(long value) {
+    private static int hash(long value) {
         return (int) value;
     }
 
-    public static int hash(BytesRef v) {
-        return BitMixer.mix32(v.hashCode());
+    public static long hash64(BytesRef v) {
+        return MixHash64.hash64(v);
     }
 
-    public static int hash(byte[] bytes, int offset, int length) {
-        return BitMixer.mix32(StringHelper.murmurhash3_x86_32(bytes, offset, length, StringHelper.GOOD_FAST_HASH_SEED));
+    public static long hash64(byte[] bytes, int offset, int length) {
+        return MixHash64.hash64(bytes, offset, length);
     }
 
-    int hash(PagedBytesCursor cursor) {
-        return BitMixer.mix32(cursor.hashCode());
+    static long hash64(PagedBytesCursor cursor) {
+        return cursor.mixHash64();
     }
 
     int slot(int hash) {
@@ -767,7 +761,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     @Override
     public long ramBytesUsed() {
         long keys = smallCore != null
-            ? smallCore.idAndHashPage.length
+            ? (long) smallCore.slots.length * Long.BYTES + smallCore.controlData.length
             : Arrays.stream(bigCore.idAndHashPages).mapToLong(b -> b.length).sum();
         return BASE_RAM_BYTES_USED + bytesRefs.ramBytesUsed() + keys;
     }

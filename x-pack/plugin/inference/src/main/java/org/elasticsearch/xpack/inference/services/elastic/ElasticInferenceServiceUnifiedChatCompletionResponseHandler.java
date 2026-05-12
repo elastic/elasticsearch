@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
@@ -42,7 +43,12 @@ public class ElasticInferenceServiceUnifiedChatCompletionResponseHandler extends
     }
 
     @Override
-    protected Exception buildError(String message, OutboundRequest outboundRequest, HttpResult result, ErrorResponse errorResponse) {
+    protected ElasticsearchException buildError(
+        String message,
+        OutboundRequest outboundRequest,
+        HttpResult result,
+        ErrorResponse errorResponse
+    ) {
         assert outboundRequest.isStreaming() : "Only streaming requests support this format";
         var responseStatusCode = result.response().getStatusLine().getStatusCode();
         if (outboundRequest.isStreaming()) {

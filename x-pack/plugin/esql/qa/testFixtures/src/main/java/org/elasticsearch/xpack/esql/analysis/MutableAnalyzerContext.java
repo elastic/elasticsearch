@@ -69,6 +69,7 @@ public class MutableAnalyzerContext extends AnalyzerContext {
             null,
             indexResolution,
             lookupResolution,
+            Map.of(),
             enrichResolution,
             inferenceResolution,
             ExternalSourceResolution.EMPTY,

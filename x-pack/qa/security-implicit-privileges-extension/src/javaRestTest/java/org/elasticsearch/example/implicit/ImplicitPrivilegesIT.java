@@ -115,8 +115,10 @@ public class ImplicitPrivilegesIT extends ESRestTestCase {
      * test short-circuits past.
      */
     public void testIncludeImplicitTrueWithNonQualifyingApplicationPrivilegeLeavesResponseUnchanged() throws Exception {
+        // Action-based provider: "non-qualifying" means the privilege's actions do not accept AGENT_ACTION.
+        // Use a disjoint action namespace ("data:write/*") so the resolved descriptor's actions cannot match.
         final String nonQualifyingPriv = "director";
-        putShieldApplicationPrivilege(nonQualifyingPriv);
+        putShieldApplicationPrivilege(nonQualifyingPriv, "data:write/*");
         final String roleName = "field-agent";
         putRoleWithApplicationPrivilege(roleName, SHIELD_APP, nonQualifyingPriv);
 
@@ -147,21 +149,85 @@ public class ImplicitPrivilegesIT extends ESRestTestCase {
         assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("unexpected field [implicitly_granted]"));
     }
 
+    public void testWildcardApplicationPrivilegeWithConcretePrivilegeNameResolvesStoredDescriptor() throws Exception {
+        putShieldAgentApplicationPrivilege();
+        final String roleName = "wildcard-shield-agent";
+        final Request put = new Request("PUT", "/_security/role/" + roleName);
+        put.setJsonEntity("""
+            {
+              "cluster": ["monitor"],
+              "indices": [
+                { "names": ["logs-*"], "privileges": ["read"] }
+              ],
+              "applications": [
+                { "application": "shield*", "privileges": ["agent"], "resources": ["*"] }
+              ]
+            }
+            """);
+        assertOK(client().performRequest(put));
+
+        final RoleResponse response = getRole(roleName, true);
+        assertThat(response.indices(), hasSize(2));
+
+        final IndicesEntry explicit = response.findExplicit();
+        assertThat(explicit.names(), equalTo(List.of("logs-*")));
+
+        final IndicesEntry implicit = response.findImplicit();
+        assertThat(implicit.names(), equalTo(List.of(HELICARRIER_INDEX_PATTERN)));
+        assertThat(implicit.privileges(), equalTo(List.of("read")));
+        assertThat(implicit.query(), notNullValue());
+        assertThat(implicit.query(), containsString("clearance"));
+    }
+
+    public void testWildcardApplicationPrivilegeStillTriggersImplicitGrantViaRawRolePatterns() throws Exception {
+        putShieldAgentApplicationPrivilege();
+        final String roleName = "wildcard-app-role";
+        final Request put = new Request("PUT", "/_security/role/" + roleName);
+        put.setJsonEntity("""
+            {
+              "cluster": ["monitor"],
+              "indices": [
+                { "names": ["logs-*"], "privileges": ["read"] }
+              ],
+              "applications": [
+                { "application": "*", "privileges": ["*"], "resources": ["*"] }
+              ]
+            }
+            """);
+        assertOK(client().performRequest(put));
+
+        final RoleResponse response = getRole(roleName, true);
+        assertThat(response.indices(), hasSize(2));
+
+        final IndicesEntry explicit = response.findExplicit();
+        assertThat(explicit.names(), equalTo(List.of("logs-*")));
+
+        final IndicesEntry implicit = response.findImplicit();
+        assertThat(implicit.names(), equalTo(List.of(HELICARRIER_INDEX_PATTERN)));
+        assertThat(implicit.privileges(), equalTo(List.of("read")));
+        assertThat(implicit.query(), notNullValue());
+        assertThat(implicit.query(), containsString("clearance"));
+    }
+
     private void putShieldAgentApplicationPrivilege() throws Exception {
         putShieldApplicationPrivilege(AGENT_PRIV);
     }
 
     private void putShieldApplicationPrivilege(String privilegeName) throws Exception {
+        putShieldApplicationPrivilege(privilegeName, "data:read/*");
+    }
+
+    private void putShieldApplicationPrivilege(String privilegeName, String actionPattern) throws Exception {
         final Request request = new Request("PUT", "/_security/privilege");
         request.setJsonEntity(String.format(Locale.ROOT, """
             {
               "%s": {
                 "%s": {
-                  "actions": ["data:read/*"]
+                  "actions": ["%s"]
                 }
               }
             }
-            """, SHIELD_APP, privilegeName));
+            """, SHIELD_APP, privilegeName, actionPattern));
         assertOK(client().performRequest(request));
     }
 

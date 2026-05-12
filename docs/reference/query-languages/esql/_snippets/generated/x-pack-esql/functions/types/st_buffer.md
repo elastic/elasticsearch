@@ -2,22 +2,22 @@
 
 ## Supported types
 
-| geometry | distance | result |
-| --- | --- | --- |
-| cartesian_point | double | cartesian_shape |
-| cartesian_point | float | cartesian_shape |
-| cartesian_point | integer | cartesian_shape |
-| cartesian_point | long | cartesian_shape |
-| cartesian_shape | double | cartesian_shape |
-| cartesian_shape | float | cartesian_shape |
-| cartesian_shape | integer | cartesian_shape |
-| cartesian_shape | long | cartesian_shape |
-| geo_point | double | geo_shape |
-| geo_point | float | geo_shape |
-| geo_point | integer | geo_shape |
-| geo_point | long | geo_shape |
-| geo_shape | double | geo_shape |
-| geo_shape | float | geo_shape |
-| geo_shape | integer | geo_shape |
-| geo_shape | long | geo_shape |
+| geometry | distance | options | result |
+| --- | --- | --- | --- |
+| cartesian_point | double | | cartesian_shape |
+| cartesian_point | float | | cartesian_shape |
+| cartesian_point | integer | | cartesian_shape |
+| cartesian_point | long | | cartesian_shape |
+| cartesian_shape | double | | cartesian_shape |
+| cartesian_shape | float | | cartesian_shape |
+| cartesian_shape | integer | | cartesian_shape |
+| cartesian_shape | long | | cartesian_shape |
+| geo_point | double | | geo_shape |
+| geo_point | float | | geo_shape |
+| geo_point | integer | | geo_shape |
+| geo_point | long | | geo_shape |
+| geo_shape | double | | geo_shape |
+| geo_shape | float | | geo_shape |
+| geo_shape | integer | | geo_shape |
+| geo_shape | long | | geo_shape |
 

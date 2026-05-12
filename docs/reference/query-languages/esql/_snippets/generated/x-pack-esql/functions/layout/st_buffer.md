@@ -22,5 +22,11 @@ serverless: preview
 :::{include} ../types/st_buffer.md
 :::
 
+:::{include} ../functionNamedParams/st_buffer.md
+:::
+
 :::{include} ../examples/st_buffer.md
+:::
+
+:::{include} ../diagrams/st_buffer.md
 :::

@@ -118,7 +118,6 @@ public final class AnalyzerTestUtils {
             Map.of(dateDateNanos, dateDateNanosField, dateDateNanosLong, dateDateNanosLongField),
             Map.of("index1", IndexMode.STANDARD, "index2", IndexMode.STANDARD, "index3", IndexMode.STANDARD),
             Map.of(),
-            Map.of(),
             Map.of()
         );
         return IndexResolution.valid(index);

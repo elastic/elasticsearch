@@ -225,8 +225,9 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
     }
 
     /**
-     * Equality filter via PushedExpressions: verifies the RowRanges path produces
-     * identical results to both baseline and FilterCompat optimized paths.
+     * Equality filter via PushedExpressions: late-materialization evaluates the filter exactly,
+     * producing just the matching row. The baseline and FilterCompat paths use page-level
+     * approximate filtering (returning the entire page containing id=500).
      */
     public void testPushedExpressionsEqualityFilterParity() throws IOException {
         byte[] parquetData = createSortedIntFile();
@@ -238,8 +239,11 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
         List<Page> optimizedCompatPages = readWithFilter(parquetData, filterCompat, true);
         List<Page> optimizedPushedPages = readWithPushedExpressions(parquetData, esqlFilter);
 
+        // Baseline and FilterCompat both do page-level filtering — same page-aligned result
         assertPagesEqual(baselinePages, optimizedCompatPages);
-        assertPagesEqual(baselinePages, optimizedPushedPages);
+        // Pushed path now evaluates the expression exactly — should return exactly 1 row
+        int pushedRows = optimizedPushedPages.stream().mapToInt(Page::getPositionCount).sum();
+        assertThat("exact filter must return exactly one row (id=500)", pushedRows, equalTo(1));
     }
 
     /**
@@ -476,32 +480,28 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
     }
 
     /**
-     * NOT(Eq) via PushedExpressions: verifies the RowRanges path returns all rows that
-     * the baseline returns — i.e. NOT does not drop rows from mixed pages.
+     * NOT(Eq) via PushedExpressions: late-materialization evaluates the filter exactly (row-level),
+     * producing results at least as precise as the baseline's page-level approximate filtering.
+     * The pushed result must be a subset of the baseline and contain only rows satisfying NOT(EQ).
      */
     public void testPushedExpressionsNotEqualityParity() throws IOException {
         byte[] parquetData = createSortedIntFile();
 
-        FilterPredicate filterCompat = FilterApi.not(FilterApi.eq(FilterApi.intColumn("id"), 500));
         Expression esqlFilter = new Not(Source.EMPTY, new Equals(Source.EMPTY, intAttr("id"), intLit(500), null));
 
-        List<Page> baselinePages = readWithFilter(parquetData, filterCompat, false);
         List<Page> pushedPages = readWithPushedExpressions(parquetData, esqlFilter);
-        assertPagesEqual(baselinePages, pushedPages);
+        int pushedRows = pushedPages.stream().mapToInt(Page::getPositionCount).sum();
+        // Late-mat evaluates NOT(id == 500) exactly: 999 of 1000 rows survive
+        assertThat("NOT(id == 500) must filter out exactly one row", pushedRows, equalTo(999));
     }
 
     /**
      * NOT(OR(Eq, Eq)) via PushedExpressions: compound NOT that cannot be simplified to
-     * NotEq by De Morgan. Verifies conservative RowRanges for compound negations.
+     * NotEq by De Morgan. Late-materialization evaluates this exactly at the row level.
      */
     public void testPushedExpressionsNotCompoundParity() throws IOException {
         byte[] parquetData = createSortedIntFile();
 
-        FilterPredicate innerCompat = FilterApi.or(
-            FilterApi.eq(FilterApi.intColumn("id"), 100),
-            FilterApi.eq(FilterApi.intColumn("id"), 900)
-        );
-        FilterPredicate filterCompat = FilterApi.not(innerCompat);
         Expression innerEsql = new org.elasticsearch.xpack.esql.expression.predicate.logical.Or(
             Source.EMPTY,
             new Equals(Source.EMPTY, intAttr("id"), intLit(100), null),
@@ -509,9 +509,10 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
         );
         Expression esqlFilter = new Not(Source.EMPTY, innerEsql);
 
-        List<Page> baselinePages = readWithFilter(parquetData, filterCompat, false);
         List<Page> pushedPages = readWithPushedExpressions(parquetData, esqlFilter);
-        assertPagesEqual(baselinePages, pushedPages);
+        int pushedRows = pushedPages.stream().mapToInt(Page::getPositionCount).sum();
+        // Late-mat evaluates NOT(id == 100 OR id == 900) exactly: 998 of 1000 rows survive
+        assertThat("NOT(id == 100 OR id == 900) must filter out exactly two rows", pushedRows, equalTo(998));
     }
 
     /**

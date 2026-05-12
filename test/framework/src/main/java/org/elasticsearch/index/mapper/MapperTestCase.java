@@ -326,11 +326,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         });
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
-            "didn't throw while parsing " + source.source().utf8ToString(),
+            "didn't throw while parsing " + source.source().originalBytes().utf8ToString(),
             () -> mapperService.documentMapper().parse(source)
         );
         assertThat(
-            "incorrect exception while parsing " + source.source().utf8ToString(),
+            "incorrect exception while parsing " + source.source().originalBytes().utf8ToString(),
             e.getCause().getMessage(),
             exceptionMessageMatcher
         );
@@ -710,6 +710,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     mapperService.getIndexSettings(),
                     () -> searchLookup,
                     Set::of,
+                    () -> false,
                     MappedFieldType.FielddataOperation.SCRIPT
                 )
             ).build(null, null);
@@ -2064,6 +2065,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                         mapperService.getIndexSettings(),
                         () -> null,
                         Set::of,
+                        () -> false,
                         MappedFieldType.FielddataOperation.SEARCH
                     )
                 ).build(null, null).sortField(false, IndexVersion.current(), null, MultiValueMode.MIN, null, false);
@@ -2092,7 +2094,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     MappedFieldType ft = mapperService.fieldType(sortShortcutSupport.fieldname);
                     SortField sortField = ft.fielddataBuilder(new FieldDataContext("", mapperService.getIndexSettings(), () -> {
                         throw new UnsupportedOperationException();
-                    }, Set::of, MappedFieldType.FielddataOperation.SEARCH))
+                    }, Set::of, () -> false, MappedFieldType.FielddataOperation.SEARCH))
                         .build(null, null)
                         .sortField(false, getVersion(), null, MultiValueMode.MIN, null, false);
                     var comparator = sortField.getComparator(1, Pruning.GREATER_THAN_OR_EQUAL_TO);

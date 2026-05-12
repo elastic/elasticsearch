@@ -418,7 +418,7 @@ abstract class DataNodeRequestSender {
         ShardId shardId,
         List<DiscoveryNode> remainingNodes,
         AliasFilter aliasFilter,
-        SplitShardCountSummary reshardSplitShardCountSummary
+        SplitShardCountSummary splitShardCountSummary
     ) {}
 
     record NodeRequest(DiscoveryNode node, List<DataNodeRequest.Shard> shards, Map<Index, AliasFilter> aliasFilters) {}
@@ -452,7 +452,7 @@ abstract class DataNodeRequestSender {
                 DiscoveryNode node = nodesIt.next();
                 List<DataNodeRequest.Shard> pendingRequest = nodeToShardMetadata.get(node);
                 if (pendingRequest != null) {
-                    pendingRequest.add(new DataNodeRequest.Shard(shard.shardId, shard.reshardSplitShardCountSummary));
+                    pendingRequest.add(new DataNodeRequest.Shard(shard.shardId, shard.splitShardCountSummary));
                     nodesIt.remove();
                     shardsIt.remove();
                     break;
@@ -461,7 +461,7 @@ abstract class DataNodeRequestSender {
                 if (concurrentRequests == null || concurrentRequests.tryAcquire()) {
                     if (nodePermits.computeIfAbsent(node, n -> new Semaphore(1)).tryAcquire()) {
                         pendingRequest = new ArrayList<>();
-                        pendingRequest.add(new DataNodeRequest.Shard(shard.shardId, shard.reshardSplitShardCountSummary));
+                        pendingRequest.add(new DataNodeRequest.Shard(shard.shardId, shard.splitShardCountSummary));
                         nodeToShardMetadata.put(node, pendingRequest);
 
                         nodesIt.remove();
@@ -521,7 +521,7 @@ abstract class DataNodeRequestSender {
                     allocatedNodes.add(nodes.get(n));
                 }
                 AliasFilter aliasFilter = resp.getAliasFilters().get(shardId.getIndex().getUUID());
-                shards.put(shardId, new TargetShard(shardId, allocatedNodes, aliasFilter, group.reshardSplitShardCountSummary()));
+                shards.put(shardId, new TargetShard(shardId, allocatedNodes, aliasFilter, group.splitShardCountSummary()));
             }
             return new TargetShards(shards, totalShards, skippedShards);
         });

@@ -23,7 +23,7 @@ $$$attachment-options$$$
 | `target_field` | no | attachment | The field that will hold the attachment information |
 | `indexed_chars` | no | 100000 | The number of chars being used for extraction to prevent huge fields. Use `-1` for no limit. |
 | `indexed_chars_field` | no | `null` | Field name from which you can overwrite the number of chars being used for extraction. See `indexed_chars`. |
-| `max_field_bytes` | no | `-1` | Maximum allowed size of the attachment `field` value in bytes: length of a string (in case of base64 in JSON) or `byte[]` length for binary (for example CBOR). Checked before base64 decoding. If `-1`, there is no per-processor limit unless the node setting `ingest.attachment.max_field_size` is set (which then applies the same way). |
+| `max_field_bytes` | no | `-1` | Maximum allowed size of the attachment `field` value in bytes: length of a string (in case of base64 in JSON; checked before base64 decoding) or `byte[]` length for binary (for example CBOR). If `-1`, there is no per-processor limit. Note that if the node setting `ingest.attachment.max_field_size` is set, it can supercede the per-processor limit. |
 | `properties` | no | all properties |  Array of properties to select to be stored. Can be `content`, `title`, `name`, `author`, `keywords`, `date`, `content_type`, `content_length`, `language` |
 | `ignore_missing` | no | `false` | If `true` and `field` does not exist, the processor quietly exits without modifying the document |
 | `remove_binary` | encouraged | `false` | If `true`, the binary `field` will be removed from the document. This option is not required, but setting it explicitly is encouraged, and omitting it will result in a warning. |

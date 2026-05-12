@@ -138,6 +138,25 @@ public class ESClientYamlSuiteTestCaseTests extends ESTestCase {
         assertThat(paths, equalTo(Set.of(rootA.resolve("logging/10_usage.yml"), rootB.resolve("logging/10_usage.yml"))));
     }
 
+    /**
+     * Projects whose yamlRestCompatTest task has no compat tests at all (e.g. {@code modules/user-agent})
+     * expose zero {@code rest-api-spec/test} roots on the test JVM classpath, but the test class still
+     * calls {@code createParameters()} with the default empty path. That must produce an empty parameter
+     * set, not an {@code AssertionError} - JUnit Parameterized treats it as zero candidates and the test
+     * class becomes a no-op. The typo guard must not fire for the "include everything" sentinel.
+     */
+    public void testLoadEmptyPathWithNoRootsReturnsEmpty() throws Exception {
+        // given: no classpath roots at all (mirrors a project with no yaml tests)
+        Path[] roots = new Path[0];
+
+        // when: loading with the default "include everything" sentinel
+        Map<String, Set<Path>> yamlSuites = ESClientYamlSuiteTestCase.loadSuites(roots, "");
+
+        // then: an empty result is returned without firing the typo guard
+        assertThat(yamlSuites, notNullValue());
+        assertThat(yamlSuites.isEmpty(), equalTo(true));
+    }
+
     public void testLoadMissingSuiteFailsWithDescriptiveError() throws Exception {
         // given: a single empty root, so the requested suite cannot resolve anywhere
         Path root = createTempDir();

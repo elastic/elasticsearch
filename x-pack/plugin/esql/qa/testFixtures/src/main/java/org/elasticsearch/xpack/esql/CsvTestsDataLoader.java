@@ -16,7 +16,6 @@ import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.impl.client.BasicCredentialsProvider;
-import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -69,7 +68,6 @@ public class CsvTestsDataLoader {
     static {
         // Ensure the logging factory is initialized before the static logger field below. When running standalone (via main() or
         // Gradle's loadCsvSpecData task), nothing has initialized the ES logging system before this class is loaded.
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
     }
 
@@ -248,12 +246,13 @@ public class CsvTestsDataLoader {
         new TestDataset("mmr_text_vector_keyword"),
         new TestDataset("json_logs"),
         new TestDataset("flattened_otel_logs"),
+        new TestDataset("host_threat_list").withSetting("lookup-settings.json"),
         new TestDataset(
             "metric_temporality",
             "metric_temporality-mappings.json",
             "metric_temporality.csv",
             "metric_temporality-settings.json"
-        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V5),
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V6),
         new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
@@ -295,7 +294,8 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_rehired"),
         new ViewConfig("employees_not_rehired"),
         new ViewConfig("employees_all"),
-        new ViewConfig("employees_extra")
+        new ViewConfig("employees_extra"),
+        new ViewConfig("view_with_subquery")
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**
@@ -316,7 +316,6 @@ public class CsvTestsDataLoader {
      */
     public static void main(String[] args) throws IOException {
         // Need to setup the log configuration properly to avoid messages when creating a new RestClient
-        PluginManager.addPackage(LogConfigurator.class.getPackage().getName());
         LogConfigurator.configureESLogging();
         boolean indexes = false;
         boolean policies = false;

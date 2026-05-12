@@ -107,6 +107,8 @@ import static org.elasticsearch.test.knn.KnnIndexer.VECTOR_FIELD;
 
 public class KnnSearcher {
 
+    private static final String NN_CACHE_DIR = "target/nn_cache/";
+
     private final List<Path> docPath;
     private final Path indexPath;
     private final Path queryPath;
@@ -614,7 +616,7 @@ public class KnnSearcher {
             36
         );
         String nnFileName = "nn-partitioned-" + hash + ".bin";
-        Path nnPath = PathUtils.get("target/" + nnFileName);
+        Path nnPath = PathUtils.get(NN_CACHE_DIR + nnFileName);
 
         if (Files.exists(nnPath)) {
             logger.info("read pre-cached exact partitioned NN from cache file \"{}\"", nnPath);
@@ -637,7 +639,7 @@ public class KnnSearcher {
                             new ComputeNNByteTask(
                                 idx,
                                 params.topK(),
-                                queries.nextByteVector(),
+                                queries.nextByteVector().vector(),
                                 nn,
                                 reader,
                                 combinedFilter,
@@ -649,7 +651,7 @@ public class KnnSearcher {
                             new ComputeNNFloatTask(
                                 idx,
                                 params.topK(),
-                                queries.nextFloatVector(),
+                                queries.nextFloatVector().vector(),
                                 nn,
                                 reader,
                                 combinedFilter,
@@ -670,10 +672,10 @@ public class KnnSearcher {
     private int[][] getOrCalculateExactNN(DataGenerator dataGenerator, SearchParameters searchParameters, Query filterQuery)
         throws IOException {
         // look in working directory for cached nn file
+        // The exact NN ground truth depends only on the document/query vectors, not the index format
         String hash = Integer.toString(
             Objects.hash(
                 docPath,
-                indexPath,
                 queryPath,
                 numDocs,
                 numQueryVectors,
@@ -685,8 +687,8 @@ public class KnnSearcher {
             36
         );
         String nnFileName = "nn-" + hash + ".bin";
-        Path nnPath = PathUtils.get("target/" + nnFileName);
-        if (Files.exists(nnPath) && isNewer(nnPath, docPath, indexPath, queryPath)) {
+        Path nnPath = PathUtils.get(NN_CACHE_DIR + nnFileName);
+        if (Files.exists(nnPath) && isNewer(nnPath, docPath, queryPath)) {
             logger.info("read pre-cached exact match vectors from cache file \"" + nnPath + "\"");
             return readExactNN(nnPath, searchParameters.topK());
         } else {
@@ -854,6 +856,7 @@ public class KnnSearcher {
 
     static void writeNN(int[][] nn, Path nnPath) throws IOException {
         logger.info("writing true nearest neighbors to cache file \"{}\"", nnPath);
+        Files.createDirectories(nnPath.getParent());
         ByteBuffer tmp = ByteBuffer.allocate(nn[0].length * Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         try (OutputStream out = Files.newOutputStream(nnPath)) {
             for (int[] entry : nn) {
@@ -869,7 +872,7 @@ public class KnnSearcher {
             List<Callable<Void>> tasks = new ArrayList<>();
             IndexVectorReader queryReader = dataGenerator.queries();
             for (int i = 0; i < numQueryVectors; i++) {
-                float[] queryVector = queryReader.nextFloatVector();
+                float[] queryVector = queryReader.nextFloatVector().vector();
                 tasks.add(new ComputeNNFloatTask(i, topK, queryVector, result, reader, filterQuery, similarityFunction));
             }
             ForkJoinPool.commonPool().invokeAll(tasks);
@@ -883,7 +886,7 @@ public class KnnSearcher {
             List<Callable<Void>> tasks = new ArrayList<>();
             IndexVectorReader queryReader = dataGenerator.queries();
             for (int i = 0; i < numQueryVectors; i++) {
-                byte[] queryVector = queryReader.nextByteVector();
+                byte[] queryVector = queryReader.nextByteVector().vector();
                 tasks.add(new ComputeNNByteTask(i, topK, queryVector, result, reader, filterQuery, similarityFunction));
             }
             ForkJoinPool.commonPool().invokeAll(tasks);

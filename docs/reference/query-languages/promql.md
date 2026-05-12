@@ -10,7 +10,8 @@ products:
 
 # PromQL reference [promql-language]
 
-PromQL in {{es}} queries metrics in [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS) using the same label and series model as [Prometheus](https://prometheus.io/docs/prometheus/latest/querying/basics/).
+The [Prometheus Query Language (PromQL)](https://prometheus.io/docs/prometheus/latest/querying/basics/) is a functional query language to select and aggregate metrics.
+
 
 ::::{warning}
 This functionality is in technical preview and might be changed or removed in a future release.
@@ -19,25 +20,20 @@ Elastic will work to fix any issues, but features in technical preview are not s
 
 ## What is PromQL in {{es}}? [promql-what]
 
-PromQL is the Prometheus query language. In {{es}}, the {{esql}} compute engine plans and executes expressions against TSDS-backed indices. Labels map to dimensions and metric names to the index mapping. Common ways to ingest metrics into a TSDS include [Prometheus remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md), [OpenTelemetry Protocol (OTLP)](docs-content://manage-data/data-store/data-streams/tsds-ingest-otlp.md) ingestion, and the [bulk API]({{es-apis}}operation/operation-bulk).
+{{es}} supports PromQL queries for metrics in [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS).
+PromQL support is not limited to metrics ingested through [Prometheus remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md).
+All TSDS are supported, including metrics ingested through [OpenTelemetry Protocol (OTLP)](docs-content://manage-data/data-store/data-streams/tsds-ingest-otlp.md), and the [bulk API]({{es-apis}}operation/operation-bulk).
+
+{{es}} supports PromQL in two ways: through a [Prometheus-compatible HTTP API](promql/promql-http-api.md) (for Prometheus-compatible clients) and as a [`PROMQL` source command](/reference/query-languages/esql/commands/promql.md) inside piped {{esql}} queries that allows for post-processing via regular {{esql}}.
 
 ## How does it work? [promql-how]
 
-When you use the Prometheus-compatible HTTP API or embed PromQL in an {{esql}} query through the `PROMQL` source command, {{es}} parses PromQL into {{esql}} logical plans, evaluates those plans against TSDS metrics, and returns tabular or Prometheus-shaped results.
+When you use the Prometheus-compatible HTTP API or embed PromQL in an {{esql}} query through the `PROMQL` source command, {{es}} parses PromQL into {{esql}} logical plans, evaluates those plans against TSDS metrics.
 
-Execution relies on the same {{esql}} compute engine {{es}} uses when you invoke the `TS` source command.
-
-Programmatic access (Prometheus-compatible clients)\
-Use the `/_prometheus/` HTTP API so tools that speak the [Prometheus query API](https://prometheus.io/docs/prometheus/latest/querying/api/), for example Grafana, can run PromQL against {{es}}.
-
-{{esql}} queries\
-Use the {{esql}} `PROMQL` source command when you want PromQL as part of a piped {{esql}} query.
+{{es}} utilizes the same {{esql}} compute engine that is also used for the [`TS` source command](/reference/query-languages/esql/commands/ts.md).
 
 ## In this section
 
 * [HTTP API](promql/promql-http-api.md): Prometheus-compatible `/_prometheus/` endpoints for queries and discovery.
 * [Limitations](promql/promql-limitations.md): How behavior differs from Prometheus, including unsupported PromQL constructs, HTTP behavior, instant-query nuances, staleness semantics, exemplars, and related topics.
 
-## Relevant sections
-
-* [`PROMQL` command ({{esql}})](/reference/query-languages/esql/commands/promql.md): PromQL inside piped {{esql}} queries.

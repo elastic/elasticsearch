@@ -494,6 +494,58 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * Stress test the consumer's EOF predicate against the race between the segmentator's final
+     * {@code chunksDispatched.incrementAndGet()} and the dispatched parser task's
+     * {@code tasksOutstanding.decrementAndGet()} in its {@code finally} block. The EOF condition
+     * — {@code currentChunk >= chunksDispatched && tasksOutstanding == 0} — must be re-checked
+     * after the apparent-empty branch of {@code takeNextPage}; without the re-read, the consumer
+     * can return false while a parser is mid-page-publish, dropping the last chunk's rows.
+     * <p>
+     * Tiny chunks plus a small input plus high parallelism maximises the chance the consumer
+     * arrives at the EOF check exactly inside the dispatch / decrement window. A regression that
+     * reorders the writes or removes the re-read drops a chunk in a small fraction of iterations
+     * and trips the exact-row-count or ordering assertion below within a few hundred runs.
+     * <p>
+     * Lifted from <a href="https://github.com/elastic/elasticsearch/pull/148802">#148802</a>
+     * (closed in favour of this PR's broader fix shape); the test is portable because it asserts
+     * only the externally-visible contract (row count + ordering across {@code N} iterations),
+     * not the internal counter names.
+     */
+    public void testStressEofDetectionRace() throws Exception {
+        int iterations = 1000;
+        int lineCount = 50;
+        int parallelism = 8;
+        int batchSize = 4;
+        int chunkSize = 32;
+
+        String content = buildContent(lineCount);
+        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+        ExecutorService executor = Executors.newFixedThreadPool(parallelism + 1);
+        try {
+            for (int iter = 0; iter < iterations; iter++) {
+                LineFormatReader reader = new LineFormatReader(chunkSize);
+                List<String> got = collectLines(
+                    StreamingParallelParsingCoordinator.parallelRead(
+                        reader,
+                        new ByteArrayInputStream(bytes),
+                        List.of("line"),
+                        batchSize,
+                        parallelism,
+                        executor,
+                        ErrorPolicy.STRICT
+                    )
+                );
+                assertEquals("iter " + iter, lineCount, got.size());
+                for (int i = 0; i < lineCount; i++) {
+                    assertEquals("iter " + iter + " line " + i, "line-" + String.format(java.util.Locale.ROOT, "%04d", i), got.get(i));
+                }
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
     private static String buildContent(int lineCount) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < lineCount; i++) {

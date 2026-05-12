@@ -130,7 +130,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 "--add-opens=java.base/java.net=ALL-UNNAMED",
                 "--add-opens=java.base/javax.net.ssl=ALL-UNNAMED",
                 "--add-opens=java.base/java.nio.file=ALL-UNNAMED",
-                //  Needed by UninitializedArrayAllocator to reflectively access jdk.internal.misc.Unsafe
+                // Needed by UninitializedArrayAllocator to reflectively access jdk.internal.misc.Unsafe
                 "--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED",
                 "--add-opens=java.base/java.time=ALL-UNNAMED",
                 "--add-opens=java.management/java.lang.management=ALL-UNNAMED",

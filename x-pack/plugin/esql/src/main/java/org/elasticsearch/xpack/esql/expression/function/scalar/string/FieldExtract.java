@@ -207,12 +207,10 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
     }
 
     private static void extractTopLevelKey(BytesRefBlock.Builder builder, BytesRef str, String key) {
-        // Flattened doc values are JSON objects, but _source loaders can deliver SMILE/CBOR/YAML.
-        XContentType type = XContentFactory.xContentType(str.bytes, str.offset, str.length);
-        if (type == null) {
-            type = XContentType.JSON;
-        }
-        try (XContentParser parser = type.xContent().createParser(XContentParserConfiguration.EMPTY, str.bytes, str.offset, str.length)) {
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(XContentParserConfiguration.EMPTY, str.bytes, str.offset, str.length)
+        ) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new IllegalArgumentException("path [" + key + "] does not exist");
             }

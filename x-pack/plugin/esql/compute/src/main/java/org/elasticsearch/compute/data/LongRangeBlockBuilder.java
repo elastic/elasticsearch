@@ -76,12 +76,14 @@ public final class LongRangeBlockBuilder extends AbstractBlockBuilder implements
         return this;
     }
 
+    @Override
     public LongRangeBlockBuilder copyFrom(LongRangeBlock block, int pos) {
         if (block.isNull(pos)) {
             appendNull();
             return this;
         }
-        appendLongRange(block.getFromBlock().getLong(pos), block.getToBlock().getLong(pos));
+        fromBuilder.copyFrom(block.getFromBlock(), pos);
+        toBuilder.copyFrom(block.getToBlock(), pos);
         return this;
     }
 
@@ -92,12 +94,27 @@ public final class LongRangeBlockBuilder extends AbstractBlockBuilder implements
         return this;
     }
 
+    @Override
+    public LongRangeBlockBuilder beginPositionEntry() {
+        fromBuilder.beginPositionEntry();
+        toBuilder.beginPositionEntry();
+        return this;
+    }
+
+    @Override
+    public LongRangeBlockBuilder endPositionEntry() {
+        fromBuilder.endPositionEntry();
+        toBuilder.endPositionEntry();
+        return this;
+    }
+
     public LongRangeBlockBuilder appendLongRange(long from, long to) {
         fromBuilder.appendLong(from);
         toBuilder.appendLong(to);
         return this;
     }
 
+    @Override
     public LongRangeBlockBuilder appendLongRange(@Nullable LongRange lit) {
         if (lit == null) {
             appendNull();
@@ -157,7 +174,7 @@ public final class LongRangeBlockBuilder extends AbstractBlockBuilder implements
      * The accessor mutates the scratch in place and returns it,
      * so any reference held by the caller is only valid until the next call.
      */
-    public static final class LongRange implements GenericNamedWriteable {
+    public static final class LongRange implements GenericNamedWriteable, Comparable<LongRange> {
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             GenericNamedWriteable.class,
             "LongRange",
@@ -228,6 +245,12 @@ public final class LongRangeBlockBuilder extends AbstractBlockBuilder implements
         @Override
         public String toString() {
             return "LongRange[from=" + from + ", to=" + to + "]";
+        }
+
+        @Override
+        public int compareTo(LongRange other) {
+            int cmp = Long.compare(from, other.from);
+            return cmp != 0 ? cmp : Long.compare(to, other.to);
         }
     }
 }

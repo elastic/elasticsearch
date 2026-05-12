@@ -1,0 +1,119 @@
+version: 9.4.1
+released: false
+generated: 2026-05-11T17:33:58.553405649Z
+changelogs:
+  - pr: 2841
+    summary: Better messaging regarding OOM process termination
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2846
+    summary: Report the actual memory usage of the autodetect process
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2848
+    summary: Improve adherence to memory limits for the bucket gatherer
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2851
+    summary: Restrict file system access for pytorch models
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2863
+    summary: Update the PyTorch library to version 2.7.1
+    area: Machine Learning
+    type: upgrade
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2889
+    summary: Downgrade log severity for a batch of recoverable errors
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2894
+    summary: Better error handling regarding quantiles state documents
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2895
+    summary: Better handling of invalid JSON state documents
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3008
+    summary: Harden pytorch_inference with TorchScript model graph validation
+    area: Machine Learning
+    type: enhancement
+    issues:
+      - 2890
+    source_repo: elastic/ml-cpp
+  - pr: 3015
+    summary: Add EuroBERT and Jina v5 ops to graph validation allowlist
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3017
+    summary: Fix flaky CIoManagerTest/testFileIoGood test
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 147063
+    summary: "[Inference API] Fix inference initialization thread exhaustion"
+    area: Inference
+    type: bug
+    issues: []
+  - pr: 147678
+    summary: Fix race in `TickerScheduleTriggerEngine` by checking watcher to node allocation
+    area: Watcher
+    type: bug
+    issues:
+      - 146874
+  - pr: 147748
+    summary: "Disallow empty lists in named params, only"
+    area: ES|QL
+    type: bug
+    issues:
+      - 147448
+  - pr: 147886
+    summary: "ES|QL query approximation: enforce minimum number of sampled source rows"
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 147940
+    summary: Bugfix - Block Loader Pushdown + Union Types
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 148111
+    summary: "[DiskBBQ] Check that precondition should not be overwritten on update"
+    area: Vector Search
+    type: bug
+    issues:
+      - 148004
+  - pr: 148154
+    summary: Update failure store redirect logic to exclude backpressure exceptions
+    area: Data streams
+    type: bug
+    issues: []
+  - pr: 148271
+    summary: Update elastic-apm-agent-java8 to 1.55.6
+    area: Security
+    type: upgrade
+    issues: []
+  - pr: 148365
+    summary: Implement `RerankingInferenceService` for Elastic service
+    area: Inference
+    type: bug
+    issues: []

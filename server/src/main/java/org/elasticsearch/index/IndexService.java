@@ -56,7 +56,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsAccounting;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
@@ -203,7 +202,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         List<SearchOperationListener> searchOperationListeners,
         List<IndexingOperationListener> indexingOperationListeners,
         NamedWriteableRegistry namedWriteableRegistry,
-        IdFieldMapper idFieldMapper,
+        BooleanSupplier idFieldDataEnabled,
         BooleanSupplier allowExpensiveQueries,
         IndexNameExpressionResolver expressionResolver,
         ValuesSourceRegistry valuesSourceRegistry,
@@ -242,7 +241,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 mapperRegistry,
                 // we parse all percolator queries as they would be parsed on shard 0
                 () -> newSearchExecutionContext(0, 0, null, System::currentTimeMillis, null, emptyMap(), null, null),
-                idFieldMapper,
+                idFieldDataEnabled,
                 scriptService,
                 bitsetFilterCache::getBitSetProducer,
                 mapperMetrics,

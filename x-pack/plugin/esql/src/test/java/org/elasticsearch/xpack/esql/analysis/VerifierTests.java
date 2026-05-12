@@ -844,7 +844,7 @@ public class VerifierTests extends ESTestCase {
             .error(
                 "FROM decades | LIMIT 1 BY date_range",
                 equalTo(
-                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V4.isEnabled()
+                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V5.isEnabled()
                         ? "1:27: cannot group by on [date_range] type for grouping [date_range]"
                         : "1:27: Cannot use field [date_range] with unsupported type [date_range]"
                 )
@@ -873,7 +873,7 @@ public class VerifierTests extends ESTestCase {
             .error(
                 "FROM decades | STATS count(*) BY date_range",
                 equalTo(
-                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V4.isEnabled()
+                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V5.isEnabled()
                         ? "1:34: cannot group by on [date_range] type for grouping [date_range]"
                         : "1:34: Cannot use field [date_range] with unsupported type [date_range]"
                 )
@@ -2730,6 +2730,34 @@ public class VerifierTests extends ESTestCase {
             equalTo(
                 "1:31: Invalid option [similarity_threshold] in [CATEGORIZE(last_name, { \"similarity_threshold\": { \"aaa\": 123 } })],"
                     + " expected a [INTEGER] value"
+            )
+        );
+    }
+
+    public void testStBufferInvalidOptions() {
+        assumeTrue("st_buffer options must be enabled", EsqlCapabilities.Cap.ST_BUFFER_OPTIONS.isEnabled());
+
+        // Unknown option name is rejected at analysis time and lists the accepted keys.
+        defaultAnalyzer().error(
+            "ROW geom = TO_GEOSHAPE(\"POINT(0 0)\") | EVAL b = ST_BUFFER(geom, 1, { \"foo\": 42 })",
+            equalTo(
+                "1:49: Invalid option [foo] in [ST_BUFFER(geom, 1, { \"foo\": 42 })], "
+                    + "expected one of [endcap, join, mitre_limit, quad_segs]"
+            )
+        );
+        // Wrong value type for a known option is rejected at analysis time.
+        defaultAnalyzer().error(
+            "ROW geom = TO_GEOSHAPE(\"POINT(0 0)\") | EVAL b = ST_BUFFER(geom, 1, { \"quad_segs\": \"eight\" })",
+            equalTo(
+                "1:49: Invalid option [quad_segs] in [ST_BUFFER(geom, 1, { \"quad_segs\": \"eight\" })], "
+                    + "cannot cast [eight] to [integer]"
+            )
+        );
+        defaultAnalyzer().error(
+            "ROW geom = TO_GEOSHAPE(\"POINT(0 0)\") | EVAL b = ST_BUFFER(geom, 1, { \"mitre_limit\": \"big\" })",
+            equalTo(
+                "1:49: Invalid option [mitre_limit] in [ST_BUFFER(geom, 1, { \"mitre_limit\": \"big\" })], "
+                    + "cannot cast [big] to [double]"
             )
         );
     }

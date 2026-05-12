@@ -1267,6 +1267,7 @@ public class StatelessPlugin extends Plugin
             SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING,
             SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING,
             SharedBlobCacheWarmingService.UPLOAD_PREWARM_MAX_SIZE_SETTING,
+            SharedBlobCacheWarmingService.WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING,
@@ -1498,7 +1499,8 @@ public class StatelessPlugin extends Plugin
                 clusterService.get().getClusterSettings(),
                 getStatelessSharedBlobCacheService(),
                 snapshotsCommitService,
-                clusterService.get()
+                clusterService.get(),
+                recoveryMetricsCollector.get()
             )
         );
         indexModule.addIndexEventListener(recoveryMetricsCollector.get());

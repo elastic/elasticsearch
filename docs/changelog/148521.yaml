@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 148500
+pr: 148521
+summary: Make `CompoundOutputEval` implement `SortAgnostic`
+type: bug

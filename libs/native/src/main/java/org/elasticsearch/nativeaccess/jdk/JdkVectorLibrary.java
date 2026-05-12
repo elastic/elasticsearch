@@ -94,9 +94,9 @@ public final class JdkVectorLibrary implements VectorLibrary {
     /**
      * Native functions in the native simdvec library can have multiple implementations, one for each "capability level".
      * A capability level of "0" means that there is no native function for that platform.
-     * Functions for the base ("1") level are exposed with a simple function name (e.g. "vec_dot7u")
+     * Functions for the base ("1") level are exposed with a simple function name (e.g. "vec_doti7u")
      * Functions for the more advanced levels (2, 3, ...) are exported with a name "decorated" by adding the capability level as
-     * a suffix: if the capability level is N, the suffix will be "_N" (e.g. "vec_dot7u_2").
+     * a suffix: if the capability level is N, the suffix will be "_N" (e.g. "vec_doti7u_2").
      * Capability levels maps to the availability of advanced vector instructions sets for a platform. For example, for x64 we currently
      * define 2 capability levels, 1 (base, processor supports AVX2) and 2 (processor supports AVX-512 with VNNI and VPOPCNT).
      * <p>

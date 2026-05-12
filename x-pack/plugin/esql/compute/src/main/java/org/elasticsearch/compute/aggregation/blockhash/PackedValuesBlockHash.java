@@ -800,9 +800,6 @@ final class PackedValuesBlockHash extends BlockHash {
         private final int emitBatchSize;
         private final int nullTrackingBytes;
 
-        /** Per-spec column size: 1/4/8 for fixed-width, {@code -1} sentinel for {@code BYTES_REF}. */
-        private final int[] colSize;
-
         /**
          * Spec indices of the {@code BYTES_REF} columns, in spec order. Lets the per-row sizing loop
          * iterate only over variable-width columns and index directly into {@link #vectors}.
@@ -824,7 +821,13 @@ final class PackedValuesBlockHash extends BlockHash {
          */
         private final int fixedRowBase;
 
-        private final int[] rowOffsets;
+        /**
+         * Per-chunk key slices: {@code rowKeys[i].bytes} points at {@link #keyBuf} and
+         * {@code offset}/{@code length} delimit the serialized bytes for row {@code i}.
+         * Set by {@link #collectRowSizes} (offset + length) and refreshed after every
+         * {@link #ensureKeyBuf} call (bytes pointer, which may change on reallocation).
+         */
+        private final BytesRef[] rowKeys;
         private final long[] hashes;
         private final int[] groupIds;
         /** Per-page resolved vectors, refreshed once at the top of {@link #bulkAdd}. */
@@ -857,13 +860,11 @@ final class PackedValuesBlockHash extends BlockHash {
             this.specs = specs;
             this.emitBatchSize = emitBatchSize;
             this.nullTrackingBytes = nullTrackingBytes;
-            this.colSize = new int[specs.size()];
             this.gToBytesRefIdx = new int[specs.size()];
             int rowBase = nullTrackingBytes;
             int brCount = 0;
             for (int g = 0; g < specs.size(); g++) {
                 int cs = elementSize(specs.get(g).elementType());
-                this.colSize[g] = cs;
                 if (cs >= 0) {
                     rowBase += cs;
                     this.gToBytesRefIdx[g] = -1;
@@ -875,26 +876,29 @@ final class PackedValuesBlockHash extends BlockHash {
             this.fixedRowBase = rowBase;
             this.bytesRefSpecIdx = new int[brCount];
             for (int g = 0, b = 0; g < specs.size(); g++) {
-                if (colSize[g] < 0) {
+                if (specs.get(g).elementType() == ElementType.BYTES_REF) {
                     bytesRefSpecIdx[b++] = g;
                 }
             }
             // Approximate accounting:
-            // rowOffsets(BATCH_SIZE+1) + emitBatchSize + colSize(specs.size()) + gToBytesRefIdx(specs.size()) ints
-            // + hashes(BATCH_SIZE) longs
+            // emitBatchSize + gToBytesRefIdx(specs.size()) ints
+            // + hashes(BATCH_SIZE) longs + rowKeys(BATCH_SIZE) BytesRef objects
             // + keyBuf
-            // + vectors(specs.size()) + brVectors(brCount) refs
+            // + rowKeys(BATCH_SIZE) + vectors(specs.size()) + brVectors(brCount) refs
             // + bytesRefCache: brCount inner-array refs + brCount * BATCH_SIZE refs + brCount * BATCH_SIZE BytesRef objects
             final long brCacheBytes = (long) brCount * (RamUsageEstimator.NUM_BYTES_OBJECT_REF + (long) BATCH_SIZE
                 * (RamUsageEstimator.NUM_BYTES_OBJECT_REF + BYTES_REF_SHALLOW_BYTES));
-            final long refBytes = (long) (specs.size() + brCount) * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
-            final long fixedBytes = (long) ((BATCH_SIZE + 1) + emitBatchSize + 2 * specs.size()) * Integer.BYTES + (long) BATCH_SIZE
-                * Long.BYTES + INITIAL_KEY_BUF + refBytes + brCacheBytes;
+            final long refBytes = (long) (BATCH_SIZE + specs.size() + brCount) * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+            final long fixedBytes = (long) (emitBatchSize + specs.size()) * Integer.BYTES + (long) BATCH_SIZE * (Long.BYTES
+                + BYTES_REF_SHALLOW_BYTES) + INITIAL_KEY_BUF + refBytes + brCacheBytes;
             blockFactory.adjustBreaker(fixedBytes);
             this.usedBytes = fixedBytes;
             boolean success = false;
             try {
-                this.rowOffsets = new int[BATCH_SIZE + 1];
+                this.rowKeys = new BytesRef[BATCH_SIZE];
+                for (int i = 0; i < BATCH_SIZE; i++) {
+                    this.rowKeys[i] = new BytesRef();
+                }
                 this.hashes = new long[BATCH_SIZE];
                 this.groupIds = new int[emitBatchSize];
                 this.keyBuf = new byte[INITIAL_KEY_BUF];
@@ -924,7 +928,6 @@ final class PackedValuesBlockHash extends BlockHash {
         public void bulkAdd(Page page, GroupingAggregatorFunction.AddInput addInput) {
             final int positionCount = page.getPositionCount();
             int positionOffset = 0;
-            final BytesRef key = new BytesRef();
             final int[] cursors = new int[BATCH_SIZE];
             int dummy = 0;
             for (int g = 0; g < specs.size(); g++) {
@@ -939,28 +942,24 @@ final class PackedValuesBlockHash extends BlockHash {
                 while (batchOffset < emitSize) {
                     final int requested = Math.min(BATCH_SIZE, emitSize - batchOffset);
                     final int chunkSize = collectRowSizes(positionOffset + batchOffset, requested);
-                    ensureKeyBuf(rowOffsets[chunkSize]);
+                    ensureKeyBuf(rowKeys[chunkSize - 1].offset + rowKeys[chunkSize - 1].length);
+                    for (int i = 0; i < chunkSize; i++) {
+                        rowKeys[i].bytes = keyBuf;
+                    }
                     serializeColumns(positionOffset + batchOffset, chunkSize, cursors);
 
-                    key.bytes = keyBuf;
                     if (swiss.shouldPrefetch()) {
                         for (int i = 0; i < chunkSize; i++) {
-                            final int off = rowOffsets[i];
-                            final int len = rowOffsets[i + 1] - off;
-                            hashes[i] = BytesRefSwissHash.hash64(keyBuf, off, len);
+                            hashes[i] = BytesRefSwissHash.hash64(rowKeys[i]);
                             dummy ^= swiss.prefetch(hashes[i]);
                         }
                         for (int i = 0; i < chunkSize; i++) {
-                            key.offset = rowOffsets[i];
-                            key.length = rowOffsets[i + 1] - rowOffsets[i];
-                            long id = swiss.addWithHash(key, hashes[i]);
+                            long id = swiss.addWithHash(rowKeys[i], hashes[i]);
                             groupIds[batchOffset + i] = Math.toIntExact(hashOrdToGroup(id));
                         }
                     } else {
                         for (int i = 0; i < chunkSize; i++) {
-                            key.offset = rowOffsets[i];
-                            key.length = rowOffsets[i + 1] - rowOffsets[i];
-                            long id = swiss.add(key);
+                            long id = swiss.add(rowKeys[i]);
                             groupIds[batchOffset + i] = Math.toIntExact(hashOrdToGroup(id));
                         }
                     }
@@ -973,10 +972,10 @@ final class PackedValuesBlockHash extends BlockHash {
         }
 
         /**
-         * Size each row and write its starting byte offset into {@link #rowOffsets}, terminating with the
-         * total size at {@code rowOffsets[rows]}. Honors the {@link #CHUNK_SOFT_CAP} soft cap and always
-         * returns at least 1 row; an oversized single row gets a chunk of its own and forces
-         * {@link #keyBuf} to grow when serialized.
+         * Size each row and write its starting byte offset and length into {@link #rowKeys},
+         * ready for {@link #serializeColumns} and hashing. Honors the {@link #CHUNK_SOFT_CAP}
+         * soft cap and always returns at least 1 row; an oversized single row gets a chunk of
+         * its own and forces {@link #keyBuf} to grow when serialized.
          *
          * <p>Per-page page→block→vector lookups are hoisted out of the row loop into
          * {@link #vectors}; the sizing loop iterates only the {@code BYTES_REF} columns
@@ -998,11 +997,11 @@ final class PackedValuesBlockHash extends BlockHash {
                 if (rows > 0 && offset + sz > CHUNK_SOFT_CAP) {
                     break;
                 }
-                rowOffsets[i] = offset;
+                rowKeys[i].offset = offset;
+                rowKeys[i].length = sz;
                 offset += sz;
                 rows++;
             }
-            rowOffsets[rows] = offset;
             return rows;
         }
 
@@ -1020,7 +1019,7 @@ final class PackedValuesBlockHash extends BlockHash {
         private void serializeColumns(int positionOffset, int rows, int[] cursors) {
             // Vectors carry no nulls, so we only need to clear the per-row null tracking prefix; column bytes are fully overwritten below.
             for (int i = 0; i < rows; i++) {
-                final int o = rowOffsets[i];
+                final int o = rowKeys[i].offset;
                 for (int b = 0; b < nullTrackingBytes; b++) {
                     keyBuf[o + b] = 0;
                 }
@@ -1028,38 +1027,36 @@ final class PackedValuesBlockHash extends BlockHash {
             }
             for (int g = 0; g < specs.size(); g++) {
                 final Vector vector = vectors[g];
-                final int cs = colSize[g];
                 switch (specs.get(g).elementType()) {
                     case LONG -> {
                         LongVector lv = (LongVector) vector;
                         for (int i = 0; i < rows; i++) {
                             LONG_HANDLE.set(keyBuf, cursors[i], lv.getLong(positionOffset + i));
-                            cursors[i] += cs;
+                            cursors[i] += Long.BYTES;
                         }
                     }
                     case INT -> {
                         IntVector iv = (IntVector) vector;
                         for (int i = 0; i < rows; i++) {
                             INT_HANDLE.set(keyBuf, cursors[i], iv.getInt(positionOffset + i));
-                            cursors[i] += cs;
+                            cursors[i] += Integer.BYTES;
                         }
                     }
                     case DOUBLE -> {
                         DoubleVector dv = (DoubleVector) vector;
                         for (int i = 0; i < rows; i++) {
                             DOUBLE_HANDLE.set(keyBuf, cursors[i], dv.getDouble(positionOffset + i));
-                            cursors[i] += cs;
+                            cursors[i] += Double.BYTES;
                         }
                     }
                     case BOOLEAN -> {
                         BooleanVector bv = (BooleanVector) vector;
                         for (int i = 0; i < rows; i++) {
                             keyBuf[cursors[i]] = bv.getBoolean(positionOffset + i) ? (byte) 1 : (byte) 0;
-                            cursors[i] += cs;
+                            cursors[i] += Byte.BYTES;
                         }
                     }
                     case BYTES_REF -> {
-                        assert cs < 0 : "BYTES_REF colSize must be the variable-width sentinel";
                         final BytesRef[] cacheRow = bytesRefCache[gToBytesRefIdx[g]];
                         for (int i = 0; i < rows; i++) {
                             final BytesRef br = cacheRow[i];
@@ -1097,14 +1094,13 @@ final class PackedValuesBlockHash extends BlockHash {
                         decodeKeys[r].offset += nullTrackingBytes;
                     }
                     for (int g = 0; g < specs.size(); g++) {
-                        final int cs = colSize[g];
                         switch (specs.get(g).elementType()) {
                             case LONG -> {
                                 var b = (LongBlock.Builder) builders[g];
                                 for (int r = 0; r < batchSize; r++) {
                                     final BytesRef k = decodeKeys[r];
                                     b.appendLong((long) LONG_HANDLE.get(k.bytes, k.offset));
-                                    k.offset += cs;
+                                    k.offset += Long.BYTES;
                                 }
                             }
                             case INT -> {
@@ -1112,7 +1108,7 @@ final class PackedValuesBlockHash extends BlockHash {
                                 for (int r = 0; r < batchSize; r++) {
                                     final BytesRef k = decodeKeys[r];
                                     b.appendInt((int) INT_HANDLE.get(k.bytes, k.offset));
-                                    k.offset += cs;
+                                    k.offset += Integer.BYTES;
                                 }
                             }
                             case DOUBLE -> {
@@ -1120,7 +1116,7 @@ final class PackedValuesBlockHash extends BlockHash {
                                 for (int r = 0; r < batchSize; r++) {
                                     final BytesRef k = decodeKeys[r];
                                     b.appendDouble((double) DOUBLE_HANDLE.get(k.bytes, k.offset));
-                                    k.offset += cs;
+                                    k.offset += Double.BYTES;
                                 }
                             }
                             case BOOLEAN -> {
@@ -1128,7 +1124,7 @@ final class PackedValuesBlockHash extends BlockHash {
                                 for (int r = 0; r < batchSize; r++) {
                                     final BytesRef k = decodeKeys[r];
                                     b.appendBoolean(k.bytes[k.offset] != 0);
-                                    k.offset += cs;
+                                    k.offset += Byte.BYTES;
                                 }
                             }
                             case BYTES_REF -> {

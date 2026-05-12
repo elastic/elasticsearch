@@ -78,6 +78,11 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
     private static Long[] boundaries;
 
     @Override
+    protected boolean randomlyUseColumnarId() {
+        return false;
+    }
+
+    @Override
     public void setupSuiteScopeCluster() throws Exception {
         int numberOfIndices = randomIntBetween(1, 1);
         numberOfDimensions = randomIntBetween(1, 5);

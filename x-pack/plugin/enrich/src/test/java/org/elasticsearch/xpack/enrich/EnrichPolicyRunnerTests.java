@@ -801,17 +801,27 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, createdEnrichIndex);
 
         logger.info("Starting policy run");
+        String exceptionMessage;
+        if (useColumnarId) {
+            exceptionMessage = "Enrich policy execution for ["
+                + policyName
+                + "] failed. Could not read mapping for source ["
+                + sourceIndex
+                + "] included by pattern [["
+                + sourceIndex
+                + "]]";
+        } else {
+            exceptionMessage = "Enrich policy execution for ["
+                + policyName
+                + "] failed. No mapping available on source ["
+                + sourceIndex
+                + "] included in [["
+                + sourceIndex
+                + "]]";
+        }
         assertThat(
             asInstanceOf(ElasticsearchException.class, safeExecuteExpectFailure(enrichPolicyRunner)).getMessage(),
-            containsString(
-                "Enrich policy execution for ["
-                    + policyName
-                    + "] failed. No mapping available on source ["
-                    + sourceIndex
-                    + "] included in [["
-                    + sourceIndex
-                    + "]]"
-            )
+            containsString(exceptionMessage)
         );
     }
 

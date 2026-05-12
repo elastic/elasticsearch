@@ -54,6 +54,11 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         return List.copyOf(plugins);
     }
 
+    @Override
+    protected boolean randomlyUseColumnarId() {
+        return false;
+    }
+
     public void testCancellationDuringTimeSeriesAggregation() throws Exception {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         int numberOfShards = between(2, 5);

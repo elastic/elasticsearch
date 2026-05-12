@@ -16,24 +16,15 @@ import org.gradle.api.logging.Logging;
 import org.gradle.initialization.BuildCancellationToken;
 
 /**
- * Wires {@link GcpPreemptionWatchdog} into the Gradle task graph so a preemption signal
- * actually stops work.
+ * Reacts to a {@link GcpPreemptionWatchdog} signal by stopping the Gradle build.
  *
- * <p>Two layers, because Gradle has no single mechanism that covers both pending and
- * running tasks:
  * <ul>
- *   <li><b>Pending tasks</b>: an {@code onlyIf} predicate is attached to every task at
- *       graph-ready time. When preemption fires, the predicate flips and any task that has
- *       not yet started is reported as SKIPPED rather than executed.</li>
- *   <li><b>Running tasks</b>: Gradle's internal {@link BuildCancellationToken} is signalled,
- *       which is the same mechanism Ctrl+C and the Tooling API use. Tasks that cooperate
- *       with cancellation (notably {@code Test}) bail at their next checkpoint; the graph
- *       executor stops dispatching new work.</li>
+ *   <li>{@code onlyIf} on every task: anything that hasn't started yet is reported as SKIPPED.</li>
+ *   <li>{@link BuildCancellationToken}: same path as Ctrl+C — stops dispatching new test cases
+ *       to forks and lets currently-running tests finish cooperatively. Tests that complete
+ *       before the token fires keep their real result; tests in-flight when workers are stopped
+ *       appear however Gradle naturally reports them.</li>
  * </ul>
- *
- * <p>The {@code BuildCancellationToken} access goes through {@link GradleInternal}, which
- * is technically internal API. We catch failures and degrade to the {@code onlyIf} layer
- * if the cast or service lookup ever breaks across a Gradle upgrade.
  */
 public final class PreemptionBuildCanceller {
 
@@ -49,19 +40,17 @@ public final class PreemptionBuildCanceller {
         });
 
         GcpPreemptionWatchdog.onPreempted(() -> {
-            BuildCancellationToken token;
             try {
-                token = ((GradleInternal) gradle).getServices().get(BuildCancellationToken.class);
+                BuildCancellationToken token = ((GradleInternal) gradle).getServices().get(BuildCancellationToken.class);
+                LOGGER.lifecycle("[gcp-preemption-watchdog] cancelling Gradle build via BuildCancellationToken");
+                token.cancel();
             } catch (Throwable t) {
                 LOGGER.warn(
                     "[gcp-preemption-watchdog] could not resolve BuildCancellationToken; "
                         + "pending tasks will still be skipped via onlyIf, but running tasks will not be interrupted",
                     t
                 );
-                return;
             }
-            LOGGER.lifecycle("[gcp-preemption-watchdog] cancelling Gradle build via BuildCancellationToken");
-            token.cancel();
         });
     }
 }

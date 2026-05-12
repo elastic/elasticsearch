@@ -158,31 +158,45 @@ develocity {
 
         buildFinished { result ->
 
+          if (GcpPreemptionWatchdog.isPreempted()) {
+            tag 'PREEMPTED'
+          }
+
           buildScanPublished { scan ->
-            // Attach build scan link as build metadata
-            // See: https://buildkite.com/docs/pipelines/build-meta-data
-            runBuildkiteAgent(
-              ['meta-data', 'set', "build-scan-${System.getenv('BUILDKITE_JOB_ID')}".toString(), "${scan.buildScanUri}".toString()],
-              "storing build scan link in Buildkite metadata"
-            )
 
-            // Attach build scan ID as build metadata
-            runBuildkiteAgent(
-              ['meta-data', 'set', "build-scan-id-${System.getenv('BUILDKITE_JOB_ID')}".toString(), "${scan.buildScanId}".toString()],
-              "storing build scan ID in Buildkite metadata"
-            )
+            try {
+              // Attach build scan link as build metadata
+              // See: https://buildkite.com/docs/pipelines/build-meta-data
+              runBuildkiteAgent(
+                ['meta-data', 'set', "build-scan-${System.getenv('BUILDKITE_JOB_ID')}".toString(), "${scan.buildScanUri}".toString()],
+                "storing build scan link in Buildkite metadata"
+              )
 
-            // Add a build annotation
-            // See: https://buildkite.com/docs/agent/v3/cli-annotate
-            def jobRetryLabel = Integer.parseInt(System.getenv('BUILDKITE_RETRY_COUNT') ?: "0") >
-              0 ? " (retry #${System.getenv('BUILDKITE_RETRY_COUNT')})" : ""
-            def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}${jobRetryLabel}</span> :gradle: ${result.failures ? 'failed' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${taskNames}</code></a></div>"""
-            // passing the body in as an argument has issues on Windows, so let's use stdin of the process instead
-            runBuildkiteAgent(
-              ['annotate', '--context', result.failures ? 'gradle-build-scans-failed' : 'gradle-build-scans', '--append', '--style', result.failures ? 'error' : 'info'],
-              "adding build annotation",
-              { it.write(body) }
-            )
+              // Attach build scan ID as build metadata
+              runBuildkiteAgent(
+                ['meta-data', 'set', "build-scan-id-${System.getenv('BUILDKITE_JOB_ID')}".toString(), "${scan.buildScanId}".toString()],
+                "storing build scan ID in Buildkite metadata"
+              )
+
+              // Add a build annotation
+              // See: https://buildkite.com/docs/agent/v3/cli-annotate
+              def jobRetryLabel = Integer.parseInt(System.getenv('BUILDKITE_RETRY_COUNT') ?: "0") >
+                0 ? " (retry #${System.getenv('BUILDKITE_RETRY_COUNT')})" : ""
+              def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}${jobRetryLabel}</span> :gradle: ${result.failures ? 'failed' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${taskNames}</code></a></div>"""
+              // passing the body in as an argument has issues on Windows, so let's use stdin of the process instead
+              runBuildkiteAgent(
+                ['annotate', '--context', result.failures ? 'gradle-build-scans-failed' : 'gradle-build-scans', '--append', '--style', result.failures ? 'error' : 'info'],
+                "adding build annotation",
+                { it.write(body) }
+              )
+            } finally {
+              if (GcpPreemptionWatchdog.isPreempted()) {
+                def exitCode = System.getenv('GCP_PREEMPTION_EXIT_CODE')?.toInteger() ?: 42
+                logger.lifecycle("[gcp-preemption-watchdog] scan published; halting with exit code ${exitCode}")
+                // halt() rather than exit() so we don't re-enter Gradle shutdown hooks
+                Runtime.runtime.halt(exitCode)
+              }
+            }
           }
         }
       } else {

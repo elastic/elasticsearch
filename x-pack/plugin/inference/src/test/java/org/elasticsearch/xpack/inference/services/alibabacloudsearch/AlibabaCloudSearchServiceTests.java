@@ -604,7 +604,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
             );
 
             var listener = new TestPlainActionFuture<InferenceServiceResults>();
-            service.doRerankInfer(model, request, null, listener);
+            service.rerankInfer(model, request, null, listener);
             var result = listener.actionGet(TIMEOUT);
 
             var expectedResults = List.of(

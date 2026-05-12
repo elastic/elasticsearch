@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -19,22 +20,25 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -73,9 +77,9 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.inference.InferenceStringTests.createRandomUsingDataTypes;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
@@ -102,7 +106,6 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
-    private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private static final String INFERENCE_ID_VALUE = "id";
     private static final String URL_VALUE = "http://target.local";
     private static final String API_KEY_VALUE = "secret";
@@ -1193,7 +1196,7 @@ public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(mockModel, null, null, null, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
 
-            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(
                 thrownException.getMessage(),
                 is("The internal model was invalid, please delete the service [service_name] with id [model_id] and add it again.")
@@ -1220,7 +1223,7 @@ public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
 
             service.infer(mockModel, null, null, null, List.of(""), false, new HashMap<>(), InputType.CLASSIFICATION, null, listener);
 
-            var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
+            var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(
                 thrownException.getMessage(),
                 is("Validation Failed: 1: Input type [classification] is not supported for [Azure AI Studio];")
@@ -1285,7 +1288,7 @@ public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
             List<ChunkInferenceInput> input = List.of();
             service.chunkedInfer(model, null, input, new HashMap<>(), InputType.INGEST, null, listener);
 
-            var results = listener.actionGet(TIMEOUT);
+            var results = listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(results, empty());
             assertThat(webServer.requests(), empty());
         }
@@ -1337,7 +1340,7 @@ public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
                 listener
             );
 
-            var results = listener.actionGet(TIMEOUT);
+            var results = listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(results, hasSize(2));
             {
                 assertThat(results.get(0), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
@@ -1394,7 +1397,7 @@ public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
 
-            var result = listener.actionGet(TIMEOUT);
+            var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(result, CoreMatchers.instanceOf(ChatCompletionResults.class));
 
             var completionResults = (ChatCompletionResults) result;
@@ -1403,7 +1406,7 @@ public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testInfer_WithRerankModel() throws IOException {
+    public void testRerankInfer() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
@@ -1418,9 +1421,21 @@ public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
             );
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, "query", false, 2, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
+            var inputOne = "abc";
+            var inputTwo = "def";
+            var query = "some query";
+            var topN = randomNonNegativeIntOrNull();
+            var returnDocuments = randomOptionalBoolean();
+            var request = new RerankRequest(
+                List.of(new InferenceString(DataType.TEXT, inputOne), new InferenceString(DataType.TEXT, inputTwo)),
+                new InferenceString(DataType.TEXT, query),
+                topN,
+                returnDocuments,
+                new HashMap<>()
+            );
+            service.rerankInfer(model, request, null, listener);
 
-            var result = listener.actionGet(TIMEOUT);
+            var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(result, CoreMatchers.instanceOf(RankedDocsResults.class));
 
             var rankedDocsResults = (RankedDocsResults) result;
@@ -1430,6 +1445,60 @@ public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
             assertThat(rankedDocs.get(0).index(), is(0));
             assertThat(rankedDocs.get(1).relevanceScore(), is(0.2222222F));
             assertThat(rankedDocs.get(1).index(), is(1));
+
+            assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is(API_KEY_VALUE));
+
+            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            Map<String, Object> expectedRequestMap = new HashMap<>(Map.of("query", query, "documents", List.of(inputOne, inputTwo)));
+            if (topN != null) {
+                expectedRequestMap.put("top_n", topN);
+            }
+            if (returnDocuments != null) {
+                expectedRequestMap.put("return_documents", returnDocuments);
+            }
+            assertThat(requestMap, is(expectedRequestMap));
+        }
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextQuery() throws IOException {
+        var textInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.of(DataType.TEXT)));
+        var nonTextQuery = createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT)));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(textInputs, nonTextQuery);
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextInputs() throws IOException {
+        var nonTextInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT))));
+        var textQuery = createRandomUsingDataTypes(EnumSet.of(DataType.TEXT));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(nonTextInputs, textQuery);
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextInputsAndQuery() throws IOException {
+        var nonTextInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT))));
+        var nonTextQuery = createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT)));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(nonTextInputs, nonTextQuery);
+    }
+
+    private void testRerankInfer_ThrowsError_WithNonTextInputOrQuery(List<InferenceString> inputs, InferenceString query)
+        throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        var model = mock(AzureAiStudioRerankModel.class);
+        when(model.getTaskType()).thenReturn(TaskType.RERANK);
+
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+
+            service.rerankInfer(model, new RerankRequest(inputs, query, null, null, new HashMap<>()), null, listener);
+
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
+            assertThat(
+                thrownException.getMessage(),
+                is("The azureaistudio service does not support rerank with non-text inputs or queries")
+            );
         }
     }
 
@@ -1466,7 +1535,7 @@ public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
 
-            var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
+            var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(error.getMessage(), containsString("Received an authentication error status code for request"));
             assertThat(error.getMessage(), containsString("Error message: [Incorrect API key provided:]"));
             assertThat(webServer.requests(), hasSize(1));
@@ -1513,7 +1582,7 @@ public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
             var listener = new PlainActionFuture<InferenceServiceResults>();
             service.infer(model, null, null, null, List.of("abc"), true, new HashMap<>(), InputType.INGEST, null, listener);
 
-            return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
+            return InferenceEventsAssertion.assertThat(listener.actionGet(TEST_REQUEST_TIMEOUT)).hasFinishedStream();
         }
     }
 

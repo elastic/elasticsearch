@@ -72,4 +72,37 @@ public class ExternalRelationSerializationTests extends AbstractLogicalPlanSeria
     protected boolean alwaysEmptySource() {
         return true;
     }
+
+    /**
+     * Exercises the wire-encoding branch where the projected {@code output} is narrower than the
+     * source's full positional column layout — the case that triggers post-optimizer-narrowing
+     * (e.g. a STATS aggregation projects external columns down to a single aggregated column).
+     * The serialized form must carry the full {@code metadata.schema()} so that the data-node
+     * rebuild does not mistake the projection for the source schema and break the
+     * {@link org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec#readSchema()} contract.
+     */
+    public void testSchemaWiderThanOutputRoundTrips() throws IOException {
+        List<Attribute> fullSchema = randomFieldAttributes(3, 6, false);
+        // Pick a strict subset for the narrowed output.
+        List<Attribute> narrowedOutput = List.of(fullSchema.get(0));
+        SimpleSourceMetadata metadata = new SimpleSourceMetadata(
+            fullSchema,
+            "csv",
+            "s3://bucket/" + randomAlphaOfLength(8) + ".csv",
+            null,
+            null,
+            Map.of(),
+            Map.of()
+        );
+        ExternalRelation original = new ExternalRelation(randomSource(), metadata.location(), metadata, narrowedOutput);
+
+        ExternalRelation roundTripped = copyInstance(original);
+
+        assertEquals(narrowedOutput, roundTripped.output());
+        assertEquals(
+            "metadata.schema() must preserve the source's full column layout across the wire, " + "not the (potentially narrower) output",
+            fullSchema,
+            roundTripped.metadata().schema()
+        );
+    }
 }

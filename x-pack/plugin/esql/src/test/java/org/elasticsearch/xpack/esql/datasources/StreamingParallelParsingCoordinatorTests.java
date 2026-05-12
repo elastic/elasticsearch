@@ -37,9 +37,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
@@ -307,6 +310,149 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             assertTrue("close() must return within 5s of segmentator being parked", System.nanoTime() <= deadlineNanos);
         } finally {
             executor.shutdownNow();
+        }
+    }
+
+    /**
+     * Regression for the streaming-parser hang under a saturated executor: when most parser
+     * runnables are accepted by the executor but never actually scheduled (mimicking a
+     * scaling pool with a deep work queue and all worker threads pinned), the iterator must
+     * still terminate cleanly once the segmentator has finished and the parsers that DID
+     * run have processed every dispatched chunk.
+     * <p>
+     * Pre-fix, the iterator waited on a {@code CountDownLatch} that required every
+     * <em>submitted</em> parser to count down, regardless of whether it had actually started.
+     * Under the simulated saturation that latch never fires and {@code hasNext()} parks
+     * indefinitely. Post-fix the consumer terminates on {@code segmentatorDone} alone, which
+     * the {@link DroppingExecutor} below cannot starve because the segmentator submission
+     * is the first one through.
+     */
+    public void testIteratorTerminatesWhenSomeParserSubmissionsNeverRun() throws Exception {
+        int lineCount = 200;
+        String content = buildContent(lineCount);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+
+        int parallelism = 8;
+        // Allow segmentator (1) + a single parser (1) to actually run; drop the remaining
+        // parallelism - 1 parser submissions. The lone parser must drain every dispatched
+        // chunk and every POISON for the test to pass.
+        int allowedSubmissions = 1 + 1;
+        ExecutorService backing = Executors.newFixedThreadPool(parallelism + 1);
+        DroppingExecutor executor = new DroppingExecutor(backing, allowedSubmissions);
+        // Run the consumer on a dedicated thread so that a regression of the deadlock manifests
+        // as a Future timeout (asserted below) rather than as a wall-clock test-suite timeout
+        // minutes later with no useful diagnostic.
+        ExecutorService collector = Executors.newSingleThreadExecutor();
+        try {
+            LineFormatReader reader = new LineFormatReader(1024);
+            CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                stream,
+                List.of("line"),
+                50,
+                parallelism,
+                executor,
+                ErrorPolicy.STRICT
+            );
+            Future<List<String>> future = collector.submit(() -> collectLines(iterator));
+            List<String> allLines;
+            try {
+                allLines = future.get(10, TimeUnit.SECONDS);
+            } catch (TimeoutException e) {
+                future.cancel(true);
+                iterator.close();
+                throw new AssertionError(
+                    "iterator did not terminate within 10s when most parser submissions were dropped — "
+                        + "likely a regression of the streaming parallel parser deadlock",
+                    e
+                );
+            }
+            assertEquals(lineCount, allLines.size());
+            for (int i = 0; i < lineCount; i++) {
+                assertEquals("line-" + String.format(java.util.Locale.ROOT, "%04d", i), allLines.get(i));
+            }
+            assertEquals(
+                "expected exactly the allowed submissions to have reached the backing executor",
+                allowedSubmissions,
+                executor.deliveredCount()
+            );
+        } finally {
+            collector.shutdownNow();
+            backing.shutdownNow();
+        }
+    }
+
+    /**
+     * Closing the iterator must not wait for parser runnables that were submitted but never
+     * actually started. Pre-fix, {@code close()} did {@code allDone.await(CLOSE_TIMEOUT)}
+     * which timed out after the full 60s because every dropped submission left the latch
+     * one step above zero, so the latch never fired. Post-fix {@code close()} polls
+     * {@code finishedWorkers < startedWorkers}, which is already satisfied by the workers
+     * that did run.
+     */
+    public void testCloseReturnsPromptlyWhenSomeParserSubmissionsNeverRun() throws Exception {
+        int lineCount = 200;
+        String content = buildContent(lineCount);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+
+        int parallelism = 8;
+        int allowedSubmissions = 1 + 1;
+        ExecutorService backing = Executors.newFixedThreadPool(parallelism + 1);
+        DroppingExecutor executor = new DroppingExecutor(backing, allowedSubmissions);
+        try {
+            LineFormatReader reader = new LineFormatReader(1024);
+            CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                stream,
+                List.of("line"),
+                50,
+                parallelism,
+                executor,
+                ErrorPolicy.STRICT
+            );
+            // Pull at least one page so workers have actually started, then close mid-stream.
+            assertTrue(iterator.hasNext());
+            iterator.next().releaseBlocks();
+            long startNanos = System.nanoTime();
+            iterator.close();
+            long elapsedMillis = (System.nanoTime() - startNanos) / 1_000_000L;
+            assertTrue(
+                "close() returned in " + elapsedMillis + "ms; must be well under the 60s worker-wait timeout",
+                elapsedMillis < 5_000L
+            );
+        } finally {
+            backing.shutdownNow();
+        }
+    }
+
+    /**
+     * Executor that forwards the first {@code allowedSubmissions} runnables to a backing
+     * executor and silently drops the rest (without throwing). Models a saturated
+     * scaling-pool whose work queue accepts a submission but never schedules it because
+     * every worker thread is pinned elsewhere.
+     */
+    private static final class DroppingExecutor implements Executor {
+        private final Executor delegate;
+        private final AtomicInteger remaining;
+        private final AtomicInteger delivered = new AtomicInteger();
+
+        DroppingExecutor(Executor delegate, int allowedSubmissions) {
+            this.delegate = delegate;
+            this.remaining = new AtomicInteger(allowedSubmissions);
+        }
+
+        @Override
+        public void execute(Runnable r) {
+            if (remaining.getAndDecrement() > 0) {
+                delivered.incrementAndGet();
+                delegate.execute(r);
+            }
+            // else: silently drop — no RejectedExecutionException; the runnable is "queued
+            // forever" from the caller's perspective.
+        }
+
+        int deliveredCount() {
+            return delivered.get();
         }
     }
 

@@ -28,7 +28,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
@@ -143,7 +142,26 @@ public final class StreamingParallelParsingCoordinator {
         private final ArrayBlockingQueue<Page>[] pageQueues;
 
         private final AtomicReference<Throwable> firstError = new AtomicReference<>();
-        private final CountDownLatch allDone;
+        /**
+         * Worker-completion bookkeeping. {@link #startedWorkers} is incremented by each worker
+         * (segmentator and every parser) as its very first action; {@link #finishedWorkers} is
+         * incremented from each worker's {@code finally}. Consumers and {@link #close} reason about
+         * progress as {@code finishedWorkers == startedWorkers}, not against a fixed count of
+         * <em>submitted</em> tasks, because the executor may queue submissions indefinitely under
+         * saturation. A naive {@code CountDownLatch(1 + parallelism)} would never fire if some
+         * parser runnables sit in the executor queue forever — see issue tracking the streaming
+         * parser deadlock under {@code generic}-pool saturation.
+         */
+        private final AtomicInteger startedWorkers = new AtomicInteger(0);
+        private final AtomicInteger finishedWorkers = new AtomicInteger(0);
+        /**
+         * Flips to {@code true} after the segmentator's main loop has exited AND it has flushed its
+         * POISON sentinels to {@link #chunkQueue}. Consumers use this — not a worker-count latch —
+         * as the EOF signal: once {@code segmentatorDone} is observed and the consumer has drained
+         * every dispatched chunk's POISON, no more pages will ever be produced and the iterator is
+         * at EOF, regardless of whether queued parser tasks ever actually run.
+         */
+        private volatile boolean segmentatorDone = false;
         private final AtomicInteger chunksDispatched = new AtomicInteger();
         /**
          * Bounds how far ahead of the consumer the segmentator may dispatch. {@link #pageQueues} is
@@ -193,14 +211,16 @@ public final class StreamingParallelParsingCoordinator {
                 pageQueues[i] = new ArrayBlockingQueue<>(16);
             }
 
-            // 1 segmentator + N parsers
-            this.allDone = new CountDownLatch(1 + parallelism);
-
+            // 1 segmentator + N parsers. We do NOT track an upfront expected count here: if the
+            // executor rejects a submission, the corresponding runnable simply never increments
+            // startedWorkers, so finishedWorkers == startedWorkers stays correct. If the segmentator
+            // submission specifically is rejected, we still need to surface that as an error and
+            // mark "segmentation done" so the consumer doesn't wait for chunks that will never come.
             try {
                 executor.execute(() -> runSegmentator(decompressedStream, this.chunkSize));
             } catch (RejectedExecutionException e) {
                 firstError.compareAndSet(null, e);
-                allDone.countDown();
+                segmentatorDone = true;
             }
 
             for (int i = 0; i < parallelism; i++) {
@@ -208,7 +228,6 @@ public final class StreamingParallelParsingCoordinator {
                     executor.execute(this::runParser);
                 } catch (RejectedExecutionException e) {
                     firstError.compareAndSet(null, e);
-                    allDone.countDown();
                 }
             }
         }
@@ -219,6 +238,7 @@ public final class StreamingParallelParsingCoordinator {
             int chunkIndex = 0;
 
             try {
+                startedWorkers.incrementAndGet();
                 while (closed == false && firstError.get() == null) {
                     byte[] buf;
                     try {
@@ -331,7 +351,13 @@ public final class StreamingParallelParsingCoordinator {
                         Thread.currentThread().interrupt();
                     }
                 }
-                allDone.countDown();
+                // Order matters: segmentatorDone must be set AFTER chunksDispatched stops
+                // changing and AFTER POISONs are visible to parsers. Consumers observing
+                // segmentatorDone=true rely on (a) chunksDispatched.get() being final and
+                // (b) every dispatched chunk having a parser-produced (or close-drained)
+                // POISON in its page-queue slot.
+                segmentatorDone = true;
+                finishedWorkers.incrementAndGet();
             }
         }
 
@@ -399,6 +425,7 @@ public final class StreamingParallelParsingCoordinator {
 
         private void runParser() {
             try {
+                startedWorkers.incrementAndGet();
                 while (closed == false && firstError.get() == null) {
                     Chunk chunk;
                     try {
@@ -463,7 +490,7 @@ public final class StreamingParallelParsingCoordinator {
                     }
                 }
             } finally {
-                allDone.countDown();
+                finishedWorkers.incrementAndGet();
             }
         }
 
@@ -626,14 +653,16 @@ public final class StreamingParallelParsingCoordinator {
                 checkError();
 
                 if (currentChunk >= chunksDispatched.get()) {
-                    // Segmentator hasn't dispatched more chunks yet; briefly wait
-                    if (allDone.await(10, TimeUnit.MILLISECONDS)) {
-                        // All threads done; check if more chunks were dispatched
-                        if (currentChunk >= chunksDispatched.get()) {
-                            checkError();
-                            return null;
-                        }
+                    // EOF when segmentatorDone is observed AND currentChunk has caught up to a
+                    // re-read chunksDispatched. The re-read is required to defeat the race where
+                    // chunksDispatched was incremented just before segmentatorDone was set; the
+                    // volatile happens-before makes the re-read see the final value. See the
+                    // segmentatorDone javadoc for the full ordering argument.
+                    if (segmentatorDone && currentChunk >= chunksDispatched.get()) {
+                        checkError();
+                        return null;
                     }
+                    Thread.sleep(10);
                     continue;
                 }
 
@@ -674,21 +703,29 @@ public final class StreamingParallelParsingCoordinator {
 
         /**
          * Two-phase shutdown sequenced to drain pages a parser thread may publish after the first drain
-         * but before {@link #allDone} fires.
+         * but before workers fully finish.
          * <p>
          * Phase 1: set {@code closed=true} (causes parser threads to exit their inner loop and the
          * segmentator to bail on its next post-acquire check), wake any segmentator parked on
          * {@link #dispatchPermits}, and drain whatever is already queued.
          * <p>
-         * Phase 2: wait up to {@link #CLOSE_TIMEOUT_SECONDS} for {@link #allDone}, then drain again
-         * to catch pages a parser put into a queue between the first drain and the latch fire.
+         * Phase 2: wait up to {@link #CLOSE_TIMEOUT_SECONDS} for {@link #finishedWorkers} to catch up
+         * to {@link #startedWorkers}, then drain again to catch pages a parser put into a queue
+         * between the first drain and its own exit.
          * <p>
-         * <strong>Timeout contract:</strong> if {@code allDone.await} times out we log a warning and
-         * run the second drain anyway, but parser threads may still be alive at return time. Any pages
-         * they publish after that — and any blocks those pages reference — are leaked. We do not
-         * interrupt the parser executor: it is shared (typically {@code esql_worker}) and an interrupt
-         * could disrupt unrelated tasks. The timeout is intentionally generous (60s) to make the leak
-         * window an exceptional condition; production workloads should not hit it under normal pressure.
+         * <strong>Workers that never ran:</strong> we explicitly do not wait for parser tasks that
+         * were submitted to the executor but never started — under saturation those runnables can sit
+         * in the executor's queue indefinitely. They reference this iterator weakly via captured
+         * {@code this::runParser}; when they eventually run they observe {@code closed=true} at the
+         * top of their loop and return immediately without producing pages. Waiting for them here
+         * would reintroduce the deadlock this class was hit by.
+         * <p>
+         * <strong>Timeout contract:</strong> if started workers don't finish within
+         * {@link #CLOSE_TIMEOUT_SECONDS} we log a warning and run the second drain anyway; any pages
+         * a still-running parser publishes after that — and any blocks those pages reference — are
+         * leaked. We do not interrupt the executor: it is shared (typically {@code generic}) and an
+         * interrupt could disrupt unrelated tasks. The timeout is intentionally generous (60s) to
+         * make the leak window an exceptional condition.
          */
         @Override
         public void close() throws IOException {
@@ -700,12 +737,21 @@ public final class StreamingParallelParsingCoordinator {
             // re-checks {@code closed} and exits {@link #dispatchChunk} without enqueueing.
             dispatchPermits.release();
             drainAllQueues();
+            long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(CLOSE_TIMEOUT_SECONDS);
             try {
-                if (allDone.await(CLOSE_TIMEOUT_SECONDS, TimeUnit.SECONDS) == false) {
+                while (finishedWorkers.get() < startedWorkers.get() && System.nanoTime() < deadlineNanos) {
+                    Thread.sleep(20);
+                }
+                int started = startedWorkers.get();
+                int finished = finishedWorkers.get();
+                if (finished < started) {
                     logger.warn(
-                        "Timed out waiting for streaming parallel parsing threads to finish after [{}]s; "
-                            + "any pages published by still-running parsers after this point will leak their blocks",
-                        CLOSE_TIMEOUT_SECONDS
+                        "Timed out waiting for streaming parallel parsing threads to finish after [{}]s "
+                            + "([{}] started, [{}] finished); any pages published by still-running parsers "
+                            + "after this point will leak their blocks",
+                        CLOSE_TIMEOUT_SECONDS,
+                        started,
+                        finished
                     );
                 }
             } catch (InterruptedException e) {

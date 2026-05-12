@@ -1,5 +1,6 @@
 area: Infra/Core
-issues: []
+issues:
+ - 141442
 pr: 148928
 summary: Upgrade x-content Jackson to 2.21.3 with surrogate handling fixes
 type: upgrade

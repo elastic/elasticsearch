@@ -536,9 +536,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessBatchedBehavioursIT
   method: testGenerationalFileBlobReferenceIsRetainedCorrectly
   issue: https://github.com/elastic/elasticsearch/issues/148723
-- class: org.elasticsearch.xpack.spatial.index.query.GeoShapeWithDocValuesQueryTests
-  method: testQueryRandomGeoCollection
-  issue: https://github.com/elastic/elasticsearch/issues/148727
 - class: org.elasticsearch.index.mapper.ArrayObjectsLimitIT
   method: testDynamicSettingUpdateAffectsSubsequentDocuments
   issue: https://github.com/elastic/elasticsearch/issues/148745

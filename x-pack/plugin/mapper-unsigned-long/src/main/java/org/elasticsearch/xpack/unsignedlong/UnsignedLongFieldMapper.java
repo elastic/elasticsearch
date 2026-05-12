@@ -87,7 +87,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     public static final FieldMapper.DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new FieldMapper.DocValuesParameter.Values(
         true,
         FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-        FieldMapper.DocValuesParameter.Values.MultiValue.SORTED
+        true
     );
 
     private static UnsignedLongFieldMapper toType(FieldMapper in) {
@@ -96,7 +96,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
     public static final class Builder extends FieldMapper.DimensionBuilder {
         private final Parameter<Boolean> indexed;
-        private final FieldMapper.DocValuesParameter docValuesParameters = FieldMapper.DocValuesParameter.sorted(
+        private final FieldMapper.DocValuesParameter docValuesParameters = FieldMapper.DocValuesParameter.of(
             DEFAULT_DOC_VALUES_PARAMS,
             m -> toType(m).docValuesParameters()
         );
@@ -138,6 +138,10 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             ).acceptsNull();
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, () -> docValuesParameters.get().enabled());
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
+                if (indexSettings.isIndexDisabledByDefault()) {
+                    return false;
+                }
+
                 if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
                     return false;
                 }
@@ -741,7 +745,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
     @Override
     protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue().isSingleValued();
+        return docValuesParameters.multiValue() == false;
     }
 
     @Override
@@ -757,6 +761,19 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    public boolean supportsBatchIndexing() {
+        // Plain unsigned_long mappers can be driven through parseCreateField by the bulk batch
+        // path. ignore_malformed and null_value are allowed. Dimensions, time-series metrics,
+        // copy_to, multi-fields, and scripts pull in behavior that the v1 batch path does not
+        // support.
+        return hasScript() == false
+            && copyTo().copyToFields().isEmpty()
+            && multiFields().iterator().hasNext() == false
+            && dimension == false
+            && metricType == null;
     }
 
     @Override
@@ -803,9 +820,9 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (indexed && docValuesParameters.enabled()) {
                 context.doc()
                     .add(
-                        docValuesParameters.multiValue().isSingleValued()
-                            ? new SingleValuedLongField(fieldType().name(), numericValue)
-                            : new LongField(fieldType().name(), numericValue, Field.Store.NO)
+                        docValuesParameters.multiValue()
+                            ? new LongField(fieldType().name(), numericValue, Field.Store.NO)
+                            : new SingleValuedLongField(fieldType().name(), numericValue)
                     );
             } else if (docValuesParameters.enabled()) {
                 dvFactory.addNumericField(context.doc(), fieldType().name(), numericValue);

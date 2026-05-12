@@ -108,7 +108,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             // See https://bugs.openjdk.org/browse/JDK-8187591
             compilerArgs.add("-Xlint:none");
             int compilerMajor = Integer.parseInt(buildParams.getMinimumRuntimeVersion().getMajorVersion());
-            String xlintExclusions = "all,-path,-serial,-options,-deprecation,-try,-removal";
+            String xlintExclusions = "all,-path,-serial,-options,-deprecation,-try,-removal,-processing";
             if (compilerMajor >= 22) {
                 xlintExclusions += ",-incubating";
             }

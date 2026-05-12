@@ -77,6 +77,16 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    public void testDisableDefaultIndex() throws IOException {
+        throw new AssumptionViolatedException("LegacyGeoShapeFieldMapper does not support disabling the index");
+    }
+
+    @Override
+    public void testNotIndexed() throws IOException {
+        throw new AssumptionViolatedException("LegacyGeoShapeFieldMapper does not support disabling the index");
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
 
         checker.registerConflictCheck("strategy", fieldMapping(this::minimalMapping), fieldMapping(b -> {

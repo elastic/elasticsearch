@@ -147,6 +147,7 @@ public record ResumeInfo(
         public String getWriteableName() {
             return NAME;
         }
+
     }
 
     /**
@@ -190,6 +191,7 @@ public record ResumeInfo(
         public String getWriteableName() {
             return NAME;
         }
+
     }
 
     /*

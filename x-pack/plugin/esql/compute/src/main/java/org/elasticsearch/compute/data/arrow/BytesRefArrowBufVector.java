@@ -111,6 +111,18 @@ public final class BytesRefArrowBufVector extends AbstractArrowBufVector<BytesRe
     }
 
     @Override
+    public int valueMaxByteSize() {
+        int max = 0;
+        int prev = valueOffsetsBuffer.getInt(0);
+        for (int i = 1; i <= getPositionCount(); i++) {
+            int curr = valueOffsetsBuffer.getInt((long) i * Integer.BYTES);
+            max = Math.max(max, curr - prev);
+            prev = curr;
+        }
+        return max;
+    }
+
+    @Override
     public OrdinalBytesRefVector asOrdinals() {
         return null;
     }

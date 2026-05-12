@@ -48,6 +48,11 @@ final class ConstantIntVector extends AbstractVector implements IntVector {
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Integer.BYTES;
+    }
+
+    @Override
     public IntVector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstantIntVector(value, positions.length);
     }

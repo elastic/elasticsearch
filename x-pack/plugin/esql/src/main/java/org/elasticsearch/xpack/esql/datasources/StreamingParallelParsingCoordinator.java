@@ -229,6 +229,7 @@ public final class StreamingParallelParsingCoordinator {
             try {
                 executor.execute(() -> runSegmentator(decompressedStream, this.chunkSize));
             } catch (RejectedExecutionException e) {
+                logger.warn("Streaming parallel parser segmentator submission rejected by executor", e);
                 firstError.compareAndSet(null, e);
                 segmentatorDone = true;
                 dispatchSignal.release();
@@ -238,6 +239,7 @@ public final class StreamingParallelParsingCoordinator {
                 try {
                     executor.execute(this::runParser);
                 } catch (RejectedExecutionException e) {
+                    logger.warn("Streaming parallel parser parser submission rejected by executor", e);
                     firstError.compareAndSet(null, e);
                 }
             }

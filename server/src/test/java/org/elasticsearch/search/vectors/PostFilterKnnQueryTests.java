@@ -70,16 +70,18 @@ public class PostFilterKnnQueryTests extends ESTestCase {
             assertEquals(0.6f, result[3].score, 0.001f);
         }
         {
-            ScoreDoc[] existing = new ScoreDoc[] { new ScoreDoc(1, 0.9f), new ScoreDoc(2, 0.7f) };
+            ScoreDoc[] existing = new ScoreDoc[] { new ScoreDoc(1, 0.9f), new ScoreDoc(2, 0.7f), new ScoreDoc(4, 0.7f) };
             ScoreDoc[] incoming = new ScoreDoc[] { new ScoreDoc(2, 0.8f), new ScoreDoc(3, 0.6f) };
             ScoreDoc[] result = KnnQueryUtils.mergeResults(existing, incoming);
             // doc 2 appears in both; the higher-ranked one (0.8 from incoming) wins
             // Merge order: 1(0.9) from existing, 2(0.8) from incoming, 2(0.7) from existing (dup skipped), 3(0.6)
-            assertEquals(3, result.length);
+            assertEquals(4, result.length);
             assertEquals(1, result[0].doc);
             assertEquals(0.9f, result[0].score, 0.001f);
             assertEquals(2, result[1].doc);
-            assertEquals(0.8f, result[0].score, 0.001f);
+            assertEquals(0.8f, result[1].score, 0.001f);
+            assertEquals(4, result[2].doc);
+            assertEquals(0.7f, result[2].score, 0.001f);
         }
     }
 

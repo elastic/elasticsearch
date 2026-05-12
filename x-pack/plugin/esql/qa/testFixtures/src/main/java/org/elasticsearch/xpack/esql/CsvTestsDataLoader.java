@@ -120,6 +120,12 @@ public class CsvTestsDataLoader {
         new TestDataset("sample_data"),
         new TestDataset("sample_data").withIndex("cloned_sample_data"),
         new TestDataset("partial_mapping_sample_data"),
+        new TestDataset(
+            "partial_message_types_lookup",
+            "mapping-partial_message_types_lookup.json",
+            "partial_message_types_lookup.csv",
+            "lookup-settings.json"
+        ),
         new TestDataset("no_mapping_sample_data", "mapping-no_mapping_sample_data.json", "partial_mapping_sample_data.csv"),
         new TestDataset(
             "partial_mapping_no_source_sample_data",

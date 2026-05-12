@@ -12,6 +12,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -190,7 +191,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             """, "line 4:8: Unknown column [does_not_exist]");
     }
 
-    // unmapped_fields="load" disallows subqueries and LOOKUP JOIN (see #142033)
+    // unmapped_fields="load" disallows subqueries (see #142033); LOOKUP JOIN is allowed
     public void testSubquerysMixAndLookupJoinLoad() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
 
@@ -214,11 +215,11 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                     | MV_EXPAND languageCode
                     """),
                 allOf(
-                    containsString("Found 4 problems"),
+                    containsString("Found 3 problems"),
                     containsString("line 2:5: Subqueries and views are not supported with unmapped_fields=\"load\""),
                     containsString("line 5:5: Subqueries and views are not supported with unmapped_fields=\"load\""),
                     containsString("line 7:5: Subqueries and views are not supported with unmapped_fields=\"load\""),
-                    containsString("line 9:19: LOOKUP JOIN is not supported with unmapped_fields=\"load\""),
+                    not(containsString("LOOKUP JOIN is not supported")),
                     not(containsString("FORK is not supported"))
                 )
             );
@@ -422,12 +423,9 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         );
     }
 
-    public void testLoadModeDisallowsLookupJoin() {
-        assertUnmappedLoadError(
-            test().addLanguagesLookup(),
-            "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
-            containsString("LOOKUP JOIN is not supported with unmapped_fields=\"load\"")
-        );
+    public void testLoadLookupJoin_AllMappedFields_Works() {
+        test().addLanguagesLookup()
+            .statement(setUnmappedLoad("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code"));
     }
 
     public void testNullifyLookupJoinUnknownLeftField() {
@@ -467,17 +465,271 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         }
     }
 
-    public void testLoadModeDisallowsLookupJoinAfterFilter() {
-        assertUnmappedLoadError(test().addLanguagesLookup(), """
+    /**
+     * Regression test for #142026: when an unmapped field elsewhere in the query (outside the join) triggers a second
+     * analysis iteration in NULLIFY mode, {@code resolveLookupJoin()} must not panic on the already-resolved join.
+     * Before the fix this threw "Surprised to discover column already resolved when resolving JOIN keys".
+     */
+    public void testNullifyUnmappedFieldOutsideLookupJoinDoesNotPanic() {
+        // language_code (join key) is resolved in iteration 1; does_not_exist gets nullified, triggering iteration 2.
+        // In iteration 2, resolveLookupJoin() must recognise the keys are already resolved and skip re-resolution.
+        test().addLanguagesLookup()
+            .statement(
+                setUnmappedNullify(
+                    "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code | EVAL x = does_not_exist"
+                )
+            );
+    }
+
+    /**
+     * Regression test for #142026: two sequential LOOKUP JOINs where the first join's key is unknown
+     * (not in the primary index) force a second analysis iteration. The second join's keys are already
+     * resolved, so {@code resolveLookupJoin()} must return it unchanged rather than panicking.
+     * Before the fix this threw "Surprised to discover column already resolved when resolving JOIN keys".
+     */
+    public void testTwoLookupJoinsWhereFirstKeyUnknownDoesNotPanic() {
+        // JOIN-1: unknown_field not in test → stays unresolved, forces iteration 2
+        // JOIN-2: language_code created by EVAL → resolved in iteration 1, must pass through in iteration 2
+        test().addLanguagesLookup()
+            .statementError(
+                "FROM test | LOOKUP JOIN languages_lookup ON unknown_field | EVAL language_code = languages"
+                    + " | LOOKUP JOIN languages_lookup ON language_code",
+                containsString("Unknown column [unknown_field] in left side of join")
+            );
+    }
+
+    /**
+     * LOOKUP JOIN non-key field semantics: field mapped in both the primary index and the lookup index.
+     * The lookup's type and value win — it overwrites the primary's version for matching rows.
+     * <p>
+     * Here {@code salary} is INTEGER in the primary (employees) index and KEYWORD in the lookup.
+     * After the join, {@code salary} must resolve to KEYWORD (lookup authority).
+     */
+    public void testLookupJoinNonKeyField_MappedInBothPrimaryAndLookup() {
+        var plan = test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields())
+            .statement("FROM test | EVAL language_code = languages | LOOKUP JOIN custom_lookup ON language_code");
+        var salary = plan.output().stream().filter(a -> "salary".equals(a.name())).findFirst().orElseThrow();
+        assertThat("lookup type wins when field exists in both", salary.dataType(), is(DataType.KEYWORD));
+    }
+
+    /**
+     * LOOKUP JOIN non-key field semantics: field mapped only in the primary index (absent from lookup).
+     * The primary's field passes through the join unchanged.
+     * <p>
+     * Here {@code first_name} exists in the primary (KEYWORD) but not in the lookup.
+     * After the join, {@code first_name} must still be present with KEYWORD type.
+     */
+    public void testLookupJoinNonKeyField_MappedOnlyInPrimary() {
+        var plan = test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields())
+            .statement("FROM test | EVAL language_code = languages | LOOKUP JOIN custom_lookup ON language_code");
+        var firstName = plan.output().stream().filter(a -> "first_name".equals(a.name())).findFirst().orElseThrow();
+        assertThat("primary field preserved when absent from lookup", firstName.dataType(), is(DataType.KEYWORD));
+    }
+
+    /**
+     * LOOKUP JOIN non-key field semantics: field mapped only in the lookup index (absent from primary).
+     * The lookup's field is appended to the output.
+     * <p>
+     * Here {@code lookup_only} exists in the lookup (KEYWORD) but not in the primary.
+     * After the join, {@code lookup_only} must appear in the output with KEYWORD type.
+     */
+    public void testLookupJoinNonKeyField_MappedOnlyInLookup() {
+        var plan = test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields())
+            .statement("FROM test | EVAL language_code = languages | LOOKUP JOIN custom_lookup ON language_code");
+        var lookupOnly = plan.output().stream().filter(a -> "lookup_only".equals(a.name())).findFirst().orElseThrow();
+        assertThat("lookup field added to output when absent from primary", lookupOnly.dataType(), is(DataType.KEYWORD));
+    }
+
+    /**
+     * LOOKUP JOIN non-key field semantics: field absent from both the primary and the lookup.
+     * The field does not appear in the join output at all.
+     */
+    public void testLookupJoinNonKeyField_AbsentFromBoth() {
+        var plan = test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields())
+            .statement("FROM test | EVAL language_code = languages | LOOKUP JOIN custom_lookup ON language_code");
+        assertFalse(
+            "field absent from both indices must not appear in join output",
+            plan.output().stream().anyMatch(a -> "totally_absent".equals(a.name()))
+        );
+    }
+
+    /**
+     * Builds a minimal lookup index for the 4-case non-key field semantic tests:
+     * <ul>
+     *   <li>{@code language_code} (INTEGER) — join key</li>
+     *   <li>{@code salary} (KEYWORD) — same name as the primary's INTEGER salary; lookup wins</li>
+     *   <li>{@code lookup_only} (KEYWORD) — only in lookup, absent from primary</li>
+     * </ul>
+     */
+    private static IndexResolution lookupIndexWithOverlappingFields() {
+        Map<String, EsField> mapping = Map.of(
+            "language_code",
+            new EsField("language_code", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "salary",
+            keywordField("salary"),
+            "lookup_only",
+            keywordField("lookup_only")
+        );
+        return IndexResolution.valid(
+            new EsIndex("custom_lookup", mapping, Map.of("custom_lookup", IndexMode.LOOKUP), Map.of(), Map.of(), Map.of())
+        );
+    }
+
+    /**
+     * LOAD + LOOKUP JOIN: field absent from both primary and lookup mappings, referenced after the join.
+     * {@code load()} adds it to the primary EsRelation as a {@code PotentiallyUnmappedKeywordEsField};
+     * it flows through the join output and is resolved by {@code ResolveRefs} in the next iteration.
+     * The value is read from primary {@code _source} at execution time.
+     */
+    public void testLoadLookupJoin_UnmappedFieldAfterJoin_LoadedFromPrimary() {
+        var plan = test().addLanguagesLookup()
+            .statement(
+                setUnmappedLoad(
+                    "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code | EVAL x = does_not_exist"
+                )
+            );
+        var x = plan.output().stream().filter(a -> "x".equals(a.name())).findFirst().orElseThrow();
+        assertThat("field absent from all mappings is loaded as keyword from primary _source", x.dataType(), is(DataType.KEYWORD));
+    }
+
+    /**
+     * LOAD + LOOKUP JOIN: join key absent from both primary and lookup mappings.
+     * {@code load()} adds the key to the primary EsRelation (left side resolves), but skips the
+     * LOOKUP EsRelation, so the right-side join key remains unresolved.
+     */
+    public void testLoadLookupJoin_UnmappedJoinKeyInBothIndices_RightSideErrors() {
+        test().addLanguagesLookup()
+            .statementError(
+                setUnmappedLoad("FROM test | LOOKUP JOIN languages_lookup ON does_not_exist"),
+                containsString("Unknown column [does_not_exist] in right side of join")
+            );
+    }
+
+    /**
+     * LOAD + LOOKUP JOIN: join key present in the lookup mapping but absent from the primary mapping.
+     * <p>
+     * LOAD mode cannot rescue this case, nor should it: the lookup has {@code language_code} as a
+     * typed field (e.g. INTEGER), so loading it from primary {@code _source} as KEYWORD would produce
+     * a type mismatch on the join key. Join keys must be properly mapped on both sides.
+     * <p>
+     * Mechanically: {@code collectUnresolved()} sees {@code language_code} in {@code childOutputNames}
+     * (from the lookup's output) and does not collect it, so {@code load()} never fires for the primary.
+     */
+    public void testLoadLookupJoin_JoinKeyOnlyInLookup_LeftSideErrors() {
+        // language_code is in languages_lookup but not in the primary test (employees) index
+        test().addLanguagesLookup()
+            .statementError(
+                setUnmappedLoad("FROM test | LOOKUP JOIN languages_lookup ON language_code"),
+                containsString("Unknown column [language_code] in left side of join")
+            );
+    }
+
+    /**
+     * LOAD + LOOKUP JOIN: join key present only in the primary mapping (absent from lookup).
+     * The left side resolves normally; the right side cannot be resolved because {@code load()}
+     * skips LOOKUP EsRelations — same outcome as DEFAULT mode.
+     */
+    public void testLoadLookupJoin_JoinKeyOnlyInPrimary_RightSideErrors() {
+        // emp_no is in the primary test (employees) index but not in languages_lookup
+        test().addLanguagesLookup()
+            .statementError(
+                setUnmappedLoad("FROM test | LOOKUP JOIN languages_lookup ON emp_no"),
+                containsString("Unknown column [emp_no] in right side of join")
+            );
+    }
+
+    /**
+     * LOAD + LOOKUP JOIN ON boolean expression: unmapped field loaded as keyword from primary _source,
+     * compared cross-side against a keyword field from the lookup. Compatible types → plan resolves.
+     */
+    public void testLoadLookupJoin_BooleanOn_CrossSide_CompatibleTypes_Works() {
+        assumeTrue("requires LOOKUP JOIN ON boolean expression", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled());
+        // lookup_only is KEYWORD in lookup; does_not_exist loads as KEYWORD from primary _source
+        test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields())
+            .statement(setUnmappedLoad("FROM test | LOOKUP JOIN custom_lookup ON lookup_only > does_not_exist"));
+    }
+
+    /**
+     * LOAD + LOOKUP JOIN ON boolean expression: unmapped field loads as KEYWORD from primary _source,
+     * but the lookup field is INTEGER → type mismatch on the cross-side comparison.
+     */
+    public void testLoadLookupJoin_BooleanOn_CrossSide_IncompatibleTypes_Errors() {
+        assumeTrue("requires LOOKUP JOIN ON boolean expression", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled());
+        // language_code is INTEGER in lookup; does_not_exist loads as KEYWORD from primary → mismatch
+        test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields())
+            .statementError(
+                setUnmappedLoad("FROM test | LOOKUP JOIN custom_lookup ON language_code > does_not_exist"),
+                containsString("does_not_exist")
+            );
+    }
+
+    /**
+     * LOAD + LOOKUP JOIN ON boolean expression: an AND condition where one part is a valid cross-side
+     * comparison and the other part is a same-side filter (unmapped field compared to a literal).
+     * The same-side part is not a cross-side join condition and cannot be pushed to the lookup index,
+     * so it produces "Unsupported join filter expression" — regardless of LOAD mode.
+     */
+    public void testLoadLookupJoin_BooleanOn_SameSide_Literal_Errors() {
+        assumeTrue("requires LOOKUP JOIN ON boolean expression", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled());
+        // lookup_only > does_not_exist satisfies the parser's cross-side requirement;
+        // does_not_exist2 > 10 is a same-side filter → "Unsupported join filter expression"
+        test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields())
+            .statementError(
+                setUnmappedLoad("FROM test | LOOKUP JOIN custom_lookup ON lookup_only > does_not_exist AND does_not_exist2 > 10"),
+                containsString("Unsupported join filter expression")
+            );
+    }
+
+    public void testLoadLookupJoinAfterFilter_Works() {
+        test().addLanguagesLookup().statement(setUnmappedLoad("""
             FROM test
             | WHERE emp_no > 1
             | EVAL language_code = languages
             | LOOKUP JOIN languages_lookup ON language_code
             | KEEP emp_no, language_name
-            """, containsString("LOOKUP JOIN is not supported with unmapped_fields=\"load\""));
+            """));
     }
 
-    public void testLoadModeDisallowsForkAndLookupJoin() {
+    // ENRICH + LOAD mode
+
+    /**
+     * Baseline: all fields mapped, ENRICH works normally with {@code unmapped_fields="load"}.
+     */
+    public void testLoadEnrich_AllMappedFields_Works() {
+        test().addEnrichPolicy(EnrichPolicy.MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json")
+            .statement(
+                setUnmappedLoad(
+                    "FROM test | EVAL language_code = languages | ENRICH languages ON language_code | KEEP emp_no, language_name"
+                )
+            );
+    }
+
+    /**
+     * A field absent from all mappings and referenced downstream of ENRICH is loaded from the primary {@code _source} as keyword.
+     * This mirrors the equivalent LOOKUP JOIN case: LOAD is orthogonal to ENRICH itself.
+     */
+    public void testLoadEnrich_UnmappedFieldAfterEnrich_LoadedFromPrimary() {
+        var plan = test().addEnrichPolicy(EnrichPolicy.MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json")
+            .statement(
+                setUnmappedLoad("FROM test | EVAL language_code = languages | ENRICH languages ON language_code | EVAL x = does_not_exist")
+            );
+        var x = plan.output().stream().filter(a -> "x".equals(a.name())).findFirst().orElseThrow();
+        assertThat("field absent from all mappings is loaded as keyword from primary _source", x.dataType(), is(DataType.KEYWORD));
+    }
+
+    /**
+     * When the ENRICH match field is unmapped in the primary index, LOAD reads it from {@code _source} as keyword.
+     * MATCH-type enrich policies allow keyword match fields, so analysis succeeds.
+     */
+    public void testLoadEnrich_UnmappedMatchField_LoadedAsKeywordAndAnalysisSucceeds() {
+        // language_code is not in the employees mapping; LOAD promotes it to keyword from _source.
+        var plan = test().addEnrichPolicy(EnrichPolicy.MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json")
+            .statement(setUnmappedLoad("FROM test | ENRICH languages ON language_code | KEEP emp_no, language_name"));
+        var languageName = plan.output().stream().filter(a -> "language_name".equals(a.name())).findFirst().orElseThrow();
+        assertThat(languageName.dataType(), is(DataType.KEYWORD));
+    }
+
+    public void testLoadForkWithLookupJoin_ForkErrors() {
         test().addLanguagesLookup()
             .statementError(
                 setUnmappedLoad("""
@@ -487,10 +739,9 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                     | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
                     """),
                 allOf(
-                    containsString("Found 3 problems"),
-                    containsString("line 4:3: FORK is not supported with unmapped_fields=\"load\""),
-                    containsString("line 3:15: LOOKUP JOIN is not supported with unmapped_fields=\"load\""),
-                    containsString("line 3:15: LOOKUP JOIN is not supported with unmapped_fields=\"load\"")
+                    containsString("Found 1 problem"),
+                    containsString("FORK is not supported with unmapped_fields=\"load\""),
+                    not(containsString("LOOKUP JOIN is not supported"))
                 )
             );
     }
@@ -579,9 +830,9 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                     | LOOKUP JOIN languages_lookup ON language_code)
                 """,
             allOf(
-                containsString("Found 2 problems"),
+                containsString("Found 1 problem"),
                 containsString("line 2:5: Subqueries and views are not supported with unmapped_fields=\"load\""),
-                containsString("line 4:19: LOOKUP JOIN is not supported with unmapped_fields=\"load\"")
+                not(containsString("LOOKUP JOIN is not supported"))
             )
         );
     }
@@ -1107,8 +1358,8 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 | EVAL x = field.languages
                 """,
             allOf(
-                containsString("Found 2 problems"),
-                containsString("line 3:15: LOOKUP JOIN is not supported with unmapped_fields=\"load\""),
+                containsString("Found 1 problem"),
+                not(containsString("LOOKUP JOIN is not supported")),
                 containsString(
                     "line 4:12: Loading subfield [field.languages] when parent [field] is of flattened field type is not supported with "
                         + "unmapped_fields=\"load\""

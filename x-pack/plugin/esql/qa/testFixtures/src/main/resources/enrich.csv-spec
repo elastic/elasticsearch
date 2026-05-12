@@ -906,3 +906,29 @@ ROW x = 1, y = null
 x:integer | y:null | language_name:keyword
 1         | null   | null
 ;
+
+
+// Tests for ENRICH with unmapped_fields="load".
+// See https://github.com/elastic/elasticsearch/issues/142026
+
+// An unmapped field in _source is loaded from the primary index downstream of ENRICH.
+// Rows from sample_data have no unmapped_message in _source (null);
+// the row from partial_mapping_sample_data has it (real value).
+loadUnmappedFieldAfterEnrich
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM sample_data, partial_mapping_sample_data
+| EVAL client_ip_str = TO_STRING(client_ip)
+| ENRICH clientip_policy ON client_ip_str WITH env
+| EVAL absent = unmapped_message
+| WHERE TO_STRING(client_ip) IN ("172.21.2.162", "172.21.2.113", "173.21.2.162")
+| KEEP @timestamp, env, absent
+| SORT @timestamp ASC
+;
+
+@timestamp:date          | env:keyword | absent:keyword
+2023-10-23T12:15:03.360Z | QA          | null
+2023-10-23T12:27:28.948Z | QA          | null
+2024-10-23T12:15:03.360Z | null        | Disconnected from 10.1.0.3
+;

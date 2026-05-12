@@ -1074,6 +1074,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         context
                     );
                 } else {
+                    // join keys already resolved in a previous iteration — nothing to re-resolve
+                    if (Resolvables.resolved(config.leftFields()) && Resolvables.resolved(config.rightFields())) {
+                        return join;
+                    }
                     // resolve the using columns against the left and the right side then assemble the new join config
                     leftKeys = resolveUsingColumns(join.config().leftFields(), join.left().output(), "left");
                     rightKeys = resolveUsingColumns(join.config().rightFields(), join.right().output(), "right");
@@ -1234,19 +1238,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private List<Attribute> resolveUsingColumns(List<Attribute> cols, List<Attribute> output, String side) {
             List<Attribute> resolved = new ArrayList<>(cols.size());
             for (Attribute col : cols) {
-                if (col instanceof UnresolvedAttribute ua) {
-                    Attribute resolvedField = maybeResolveAttribute(ua, output);
-                    if (resolvedField instanceof UnresolvedAttribute ucol) {
-                        String message = ua.unresolvedMessage();
-                        String match = "column [" + ucol.name() + "]";
-                        resolvedField = ucol.withUnresolvedMessage(message.replace(match, match + " in " + side + " side of join"));
-                    }
-                    resolved.add(resolvedField);
-                } else {
-                    throw new IllegalStateException(
-                        "Surprised to discover column [ " + col.name() + "] already resolved when resolving JOIN keys"
-                    );
+                var ua = (UnresolvedAttribute) col;
+                Attribute resolvedField = maybeResolveAttribute(ua, output);
+                if (resolvedField instanceof UnresolvedAttribute ucol) {
+                    String message = ua.unresolvedMessage();
+                    String match = "column [" + ucol.name() + "]";
+                    resolvedField = ucol.withUnresolvedMessage(message.replace(match, match + " in " + side + " side of join"));
                 }
+                resolved.add(resolvedField);
             }
             return resolved;
         }

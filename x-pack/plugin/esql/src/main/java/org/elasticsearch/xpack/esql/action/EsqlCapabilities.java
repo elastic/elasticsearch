@@ -2733,6 +2733,13 @@ public class EsqlCapabilities {
          */
         FIX_COMPOUND_OUTPUT_EVAL_SORT_AGNOSTIC,
 
+        /**
+         * Support for {@code unmapped_fields="load"} mode with {@code LOOKUP JOIN}.
+         * Previously the combination was rejected at query validation time.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/142026">Issue #142026</a>
+         */
+        OPTIONAL_FIELDS_LOAD_WITH_LOOKUP_JOIN,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

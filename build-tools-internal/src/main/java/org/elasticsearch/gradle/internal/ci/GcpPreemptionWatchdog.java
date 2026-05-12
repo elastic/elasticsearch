@@ -21,17 +21,20 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Polls the GCP instance metadata server for a Spot VM preemption notice and raises a
- * process-global flag when the VM is scheduled for termination. The flag is the input signal
- * for the rest of the preemption-handling pipeline (task graph cancellation, test-result
- * rewriting, build scan publish, custom exit code).
+ * Watches for GCP Spot VM preemption and raises a process-global flag when the VM is
+ * scheduled for termination.
  *
- * <p>GCP gives Spot VMs roughly 30 seconds between the {@code preempted} metadata flag
- * flipping to {@code TRUE} and the underlying VM being killed, so polling cadence must be
- * fast (sub-second budget per poll) and listeners must not block the poll loop.
+ * <p>Two detection modes, selected at startup:
+ * <ul>
+ *   <li><b>Simulation</b> ({@code GCP_PREEMPTION_SIMULATE_AFTER_SECONDS=N}): fires after N
+ *       seconds. Use this for local testing — no GCP required.</li>
+ *   <li><b>Real</b>: long-polls the GCP instance metadata server using the
+ *       {@code wait_for_change} parameter so the server holds the connection open until the
+ *       {@code preempted} flag flips. Single blocking request per poll cycle; much lower
+ *       overhead than short-interval polling and responds within ~1s of the actual signal.</li>
+ * </ul>
  *
- * <p>Activated by setting the {@code GCP_PREEMPTION_WATCHDOG} env var to {@code true}.
- * No-op otherwise so local and non-GCP CI builds incur no overhead.
+ * <p>Activated by setting {@code GCP_PREEMPTION_WATCHDOG=true}. No-op otherwise.
  *
  * <p>State is intentionally static: build-script reapplication and Gradle daemon reuse mean
  * we want a single watchdog per JVM, idempotent {@link #start()}/{@link #stop()}, and a flag
@@ -39,16 +42,26 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class GcpPreemptionWatchdog {
 
-    private static final String METADATA_URL = "http://metadata.google.internal/computeMetadata/v1/instance/preempted";
-    private static final Duration POLL_INTERVAL = Duration.ofSeconds(1);
-    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(2);
-    private static final String ENV_FLAG = "GCP_PREEMPTION_WATCHDOG";
+    private static final String METADATA_BASE_URL =
+        "http://metadata.google.internal/computeMetadata/v1/instance/preempted";
+
+    // Long-poll: ask the metadata server to hold the connection until the value changes or
+    // the timeout elapses. This gives sub-second detection latency with a single open socket
+    // rather than a 1-second polling loop.
+    private static final int LONG_POLL_TIMEOUT_SECONDS = 60;
+    private static final String METADATA_LONG_POLL_URL =
+        METADATA_BASE_URL + "?wait_for_change=true&timeout_sec=" + LONG_POLL_TIMEOUT_SECONDS;
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(LONG_POLL_TIMEOUT_SECONDS + 15);
+
+    private static final String ENV_WATCHDOG = "GCP_PREEMPTION_WATCHDOG";
+    private static final String ENV_SIMULATE = "GCP_PREEMPTION_SIMULATE_AFTER_SECONDS";
 
     private static final Logger LOGGER = Logging.getLogger(GcpPreemptionWatchdog.class);
 
     private static final AtomicBoolean PREEMPTED = new AtomicBoolean(false);
     private static final List<Runnable> LISTENERS = new CopyOnWriteArrayList<>();
-    private static volatile Thread pollThread;
+    private static volatile Thread watchThread;
 
     private GcpPreemptionWatchdog() {}
 
@@ -60,7 +73,7 @@ public final class GcpPreemptionWatchdog {
      * Register a callback to fire when preemption is first detected. Runs on the watchdog
      * thread, so listeners must be non-blocking and self-contained (no Gradle DSL calls).
      * If preemption has already been signalled, the listener fires immediately on the
-     * caller's thread.
+     * caller's thread instead.
      */
     public static void onPreempted(Runnable listener) {
         LISTENERS.add(listener);
@@ -70,25 +83,44 @@ public final class GcpPreemptionWatchdog {
     }
 
     public static synchronized void start() {
-        if (pollThread != null && pollThread.isAlive()) {
+        if (watchThread != null && watchThread.isAlive()) {
             return;
         }
-        if (Boolean.parseBoolean(System.getenv(ENV_FLAG)) == false) {
+        if (Boolean.parseBoolean(System.getenv(ENV_WATCHDOG)) == false) {
             return;
         }
-        Thread t = new Thread(GcpPreemptionWatchdog::pollLoop, "gcp-preemption-watchdog");
-        t.setDaemon(true);
-        t.start();
-        pollThread = t;
-        LOGGER.lifecycle("[gcp-preemption-watchdog] started; polling {} every {}s", METADATA_URL, POLL_INTERVAL.toSeconds());
+
+        String simulateAfter = System.getenv(ENV_SIMULATE);
+        if (simulateAfter != null && simulateAfter.isEmpty() == false) {
+            long seconds;
+            try {
+                seconds = Long.parseLong(simulateAfter);
+            } catch (NumberFormatException e) {
+                LOGGER.warn("[gcp-preemption-watchdog] invalid {}={}; ignoring simulation", ENV_SIMULATE, simulateAfter);
+                seconds = -1;
+            }
+            if (seconds > 0) {
+                long finalSeconds = seconds;
+                watchThread = new Thread(() -> simulationLoop(finalSeconds), "gcp-preemption-watchdog");
+                watchThread.setDaemon(true);
+                watchThread.start();
+                LOGGER.lifecycle("[gcp-preemption-watchdog] simulation mode: will fire in {}s", seconds);
+                return;
+            }
+        }
+
+        watchThread = new Thread(GcpPreemptionWatchdog::metadataLoop, "gcp-preemption-watchdog");
+        watchThread.setDaemon(true);
+        watchThread.start();
+        LOGGER.lifecycle("[gcp-preemption-watchdog] started; long-polling {}", METADATA_LONG_POLL_URL);
     }
 
     public static synchronized void stop() {
-        Thread t = pollThread;
+        Thread t = watchThread;
         if (t == null) {
             return;
         }
-        pollThread = null;
+        watchThread = null;
         t.interrupt();
         try {
             t.join(Duration.ofSeconds(2).toMillis());
@@ -97,9 +129,19 @@ public final class GcpPreemptionWatchdog {
         }
     }
 
-    private static void pollLoop() {
-        HttpClient client = HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build();
-        HttpRequest request = HttpRequest.newBuilder(URI.create(METADATA_URL))
+    private static void simulationLoop(long delaySeconds) {
+        try {
+            Thread.sleep(Duration.ofSeconds(delaySeconds).toMillis());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return;
+        }
+        signal("simulated after " + delaySeconds + "s (set via " + ENV_SIMULATE + ")");
+    }
+
+    private static void metadataLoop() {
+        HttpClient client = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
+        HttpRequest request = HttpRequest.newBuilder(URI.create(METADATA_LONG_POLL_URL))
             .header("Metadata-Flavor", "Google")
             .timeout(REQUEST_TIMEOUT)
             .GET()
@@ -111,33 +153,37 @@ public final class GcpPreemptionWatchdog {
                 HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
                 loggedFailure = false;
                 if (response.statusCode() == 200 && "TRUE".equalsIgnoreCase(response.body().trim())) {
-                    if (PREEMPTED.compareAndSet(false, true)) {
-                        LOGGER.lifecycle("[gcp-preemption-watchdog] preemption signal received from GCP metadata server");
-                        for (Runnable listener : LISTENERS) {
-                            safelyRun(listener);
-                        }
-                    }
+                    signal("GCP metadata server reported preempted=TRUE");
                     return;
                 }
+                // Server returned FALSE after its hold period (timeout_sec elapsed without
+                // the value changing). Loop and reconnect — still not preempted.
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
             } catch (Exception e) {
-                // Log the first failure at info (likely a misconfiguration if the env var is set on a non-GCP host);
-                // subsequent failures at debug to avoid spamming.
                 if (loggedFailure == false) {
-                    LOGGER.info("[gcp-preemption-watchdog] metadata poll failed (will keep retrying silently): {}", e.toString());
+                    LOGGER.info("[gcp-preemption-watchdog] metadata poll failed (will retry silently): {}", e.toString());
                     loggedFailure = true;
                 } else {
                     LOGGER.debug("[gcp-preemption-watchdog] metadata poll failed: {}", e.toString());
                 }
+                // Back off briefly before retrying so we don't spin on a non-GCP host.
+                try {
+                    Thread.sleep(Duration.ofSeconds(10).toMillis());
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
             }
+        }
+    }
 
-            try {
-                Thread.sleep(POLL_INTERVAL.toMillis());
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return;
+    private static void signal(String reason) {
+        if (PREEMPTED.compareAndSet(false, true)) {
+            LOGGER.lifecycle("[gcp-preemption-watchdog] preemption detected: {}", reason);
+            for (Runnable listener : LISTENERS) {
+                safelyRun(listener);
             }
         }
     }

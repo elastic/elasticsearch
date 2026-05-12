@@ -433,7 +433,9 @@ public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyP
 
         @Override
         public String describeTasks(List<KeyRotationTask> tasks) {
-            return "primary encryption key tasks [" + tasks.size() + " pending]";
+            Map<String, Long> byType = tasks.stream().collect(Collectors.groupingBy(KeyRotationTask::description, Collectors.counting()));
+            return "primary encryption key tasks " + byType + " [" + tasks.size() + " pending]";
+}
         }
     }
 }

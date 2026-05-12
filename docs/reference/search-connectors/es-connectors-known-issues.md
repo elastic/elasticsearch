@@ -121,6 +121,17 @@ The connector service has the following known issues:
     As a result, true document volume will be under-reported by a factor of 1024.
 
 
+* **DLS queries fail to match documents for content indices created on 9.0+**
+
+    The DLS query template stored in access control documents (`.search-acl-filter-*` indices) references the sub-field `_allow_access_control.enum`. This sub-field was created by a custom dynamic mapping template that was [removed in connectors v9.0.0](https://github.com/elastic/connectors/pull/3013). Under Elasticsearch's default dynamic mapping, the correct sub-field is `_allow_access_control.keyword`. As a result, DLS-protected documents are silently filtered out — users see no results for documents that have access control set.
+
+    **Affected versions**: 9.0.0+, for any content index created after upgrading. Indices created before 9.0 are not affected because the old mapping is preserved.
+
+    **Workaround**: After fetching the DLS query from the access control document, replace `_allow_access_control.enum` with `_allow_access_control.keyword` before using it in an API key role descriptor.
+
+    **Fix**: Tracked in [elastic/connectors#4005](https://github.com/elastic/connectors/issues/4005). After the fix is deployed, re-run an **access control sync** so the corrected query template is written to the `.search-acl-filter-*` documents.
+
+
 ## Individual connector known issues [es-connectors-known-issues-specific]
 
 Individual connectors may have additional known issues. Refer to [each connector’s reference documentation](/reference/search-connectors/index.md) for connector-specific known issues.

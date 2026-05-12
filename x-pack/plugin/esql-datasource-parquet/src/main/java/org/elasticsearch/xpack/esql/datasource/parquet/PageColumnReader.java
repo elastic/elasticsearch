@@ -21,8 +21,14 @@ import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.column.values.ValuesReader;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 
 import java.io.IOException;
@@ -31,7 +37,9 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.time.Duration;
-import java.util.BitSet;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Page-level batch column reader that bypasses {@code ColumnReadStoreImpl} and works directly
@@ -39,22 +47,47 @@ import java.util.BitSet;
  * <ol>
  *   <li>Reads data pages from the {@link PageReader}</li>
  *   <li>Splits V1/V2 pages into def-level and value streams</li>
- *   <li>Bulk-decodes def levels via {@link DefinitionLevelDecoder} → null {@link BitSet}</li>
+ *   <li>Bulk-decodes def levels via {@link DefinitionLevelDecoder} → null {@link WordMask}</li>
  *   <li>Bulk-decodes values via {@link PlainValueDecoder} or {@link DictionaryValueDecoder}</li>
  *   <li>Assembles into ESQL {@link Block}s</li>
  * </ol>
  *
  * <p>Only handles flat columns (maxRepLevel == 0). List columns must use the row-at-a-time path.
- * When a Parquet record filter is active, this reader is bypassed entirely (see
- * {@code ParquetFormatReader.ParquetColumnIterator#advanceRowGroup}) because page-index filtering
- * changes the semantics of pages returned by {@link PageReader}.
  *
- * <p>TODO: selective reading (RowSelection + PredicateEvaluator) is blocked on Stage 7 of the
- * performance backport plan. When added, readBatch should gain a predicate parameter that applies
- * per-page filtering via RowRanges, enabling page skipping for filtered queries without falling
- * back to the ColumnReader path.
+ * <p>When {@link RowRanges} are provided, pages whose row span does not overlap the selected
+ * ranges are skipped entirely in {@link #loadNextPage()}. This is a safety net for the
+ * sequential builder path (when prefetch is unavailable and the builder cannot pre-filter
+ * pages) and a no-op for the filtered builder path.
+ *
+ * <p>For dictionary-encoded BINARY/UTF8 columns, {@code readBytesBatch} takes an ordinal
+ * fast path that emits an {@link OrdinalBytesRefBlock} so downstream {@code BlockHash} can
+ * hash only the {@code k} dictionary entries instead of the {@code N} row values. The
+ * dictionary bytes are deep-copied into a {@link BytesRefArray} once per chunk and that
+ * array is shared across every batch in the chunk via its atomic ref-count
+ * ({@link BytesRefArray} extends {@code AbstractRefCounted}). Each emitted batch creates a
+ * fresh {@code BytesRefArrayVector} wrapper that holds one ref to the shared array; the
+ * wrapper itself is single-driver-owned (its non-thread-safe ref counter is never shared)
+ * and decRefs the shared array when the block is closed. This decoupling lets pages be
+ * buffered and consumed asynchronously by a different driver thread (see
+ * {@code AsyncExternalSourceOperatorFactory} which calls
+ * {@code page.allowPassingToDifferentDriver()}) without racing the producer's per-batch
+ * ref-count updates against the consumer's close. UUID-typed columns skip the ordinal path
+ * because their values need per-row byte formatting that would have to be applied to
+ * dictionary entries instead.
+ *
+ * <p>The cached {@link BytesRefArray} is released when this reader's chunk changes
+ * (currently never — chunk is fixed for the reader's lifetime, so this is defensive) or
+ * when the reader is {@link #close() closed}. Closing is driven by
+ * {@code OptimizedParquetColumnIterator}, which closes any previous readers when it
+ * advances row groups (in {@code initColumnReaders}) and when the iterator itself is
+ * closed.
+ *
+ * <p>If a non-dictionary page is encountered mid-batch (rare in practice — Parquet writers
+ * keep encoding consistent across all data pages of a column chunk), the partial ordinal
+ * batch is resolved through the dictionary and the remainder is read via the materialized
+ * binary path.
  */
-final class PageColumnReader {
+final class PageColumnReader implements Releasable {
 
     private static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.allocate(0).asReadOnlyBuffer();
     private static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
@@ -69,6 +102,16 @@ final class PageColumnReader {
 
     private Dictionary dictionary;
     private boolean dictionaryLoaded;
+
+    /**
+     * Cached deep-copy of the current dictionary's entries as a ref-counted {@link BytesRefArray}.
+     * Built lazily on the first ordinal batch of the chunk and reused (via {@code incRef}) for every
+     * subsequent batch. A defensive {@link #cachedDictArraySource} reference guards against the
+     * (currently impossible) case of the underlying {@link Dictionary} changing within a single
+     * reader's lifetime — if it does, the old cache is released and rebuilt.
+     */
+    private BytesRefArray cachedDictArray;
+    private Dictionary cachedDictArraySource;
 
     private final DefinitionLevelDecoder defDecoder = new DefinitionLevelDecoder();
     private final PlainValueDecoder plainDecoder = new PlainValueDecoder();
@@ -121,6 +164,181 @@ final class PageColumnReader {
                 yield blockFactory.newConstantNullBlock(maxRows);
             }
         };
+    }
+
+    /**
+     * Filters a block to retain only the positions specified by {@code positions}.
+     * Takes ownership of {@code source}: the source block is closed after filtering
+     * and the caller owns the returned block.
+     *
+     * @param source        the block to filter; ownership is transferred to this method
+     * @param positions     the positions to retain (ascending, no duplicates)
+     * @param survivorCount the number of valid entries in {@code positions}
+     * @param blockFactory  the factory used to create replacement blocks
+     * @return a new block containing only the selected positions
+     */
+    static Block filterBlock(Block source, int[] positions, int survivorCount, BlockFactory blockFactory) {
+        if (survivorCount == source.getPositionCount()) {
+            return source;
+        }
+        if (survivorCount == 0) {
+            source.close();
+            return blockFactory.newConstantNullBlock(0);
+        }
+        Block filtered = source.filter(false, Arrays.copyOf(positions, survivorCount));
+        source.close();
+        return filtered;
+    }
+
+    /**
+     * Reads a batch and filters it to retain only the surviving positions.
+     * When all rows survive, delegates directly to {@link #readBatch}. When none
+     * survive, skips the rows and returns an empty constant null block.
+     *
+     * @param maxRows           the total number of rows in the batch
+     * @param blockFactory      the factory used to create blocks
+     * @param survivorPositions the positions that survived filtering (ascending, no duplicates)
+     * @param survivorCount     the number of valid entries in {@code survivorPositions}
+     * @return a block containing only the surviving rows
+     */
+    Block readBatchFiltered(int maxRows, BlockFactory blockFactory, int[] survivorPositions, int survivorCount) {
+        if (survivorCount == maxRows) {
+            return readBatch(maxRows, blockFactory);
+        }
+        if (survivorCount == 0) {
+            skipRows(maxRows);
+            return blockFactory.newConstantNullBlock(0);
+        }
+        Block full = readBatch(maxRows, blockFactory);
+        try {
+            // filterBlock closes `full` on success; on the `source.filter(...)` allocation
+            // failure it does NOT, so we explicitly release the source here to avoid leaking
+            // the full-batch block (and its breaker reservation) back up to the caller, which
+            // never saw the reference.
+            return filterBlock(full, survivorPositions, survivorCount, blockFactory);
+        } catch (RuntimeException e) {
+            Releasables.closeExpectNoException(full);
+            throw e;
+        }
+    }
+
+    /**
+     * Reads only the rows at the given positions within a batch of {@code sourceRows} total
+     * rows, interleaving {@link #skipRows} and {@link #readBatch} calls. Produces exactly
+     * {@code survivorCount} output rows. Unlike {@link #readBatchFiltered}, this method is
+     * safe when the reader has {@link RowRanges} that cause page skipping in
+     * {@link #loadNextPage()}, because every skip/read call advances the reader's cursor
+     * in the same sequential order as a plain read — no post-read coordinate translation
+     * is needed.
+     *
+     * @param sourceRows        total rows in the source batch (defines the coordinate space)
+     * @param blockFactory      factory for block construction
+     * @param survivorPositions ascending positions of rows to read (in {@code [0, sourceRows)})
+     * @param survivorCount     number of valid entries in {@code survivorPositions}
+     * @return a block with exactly {@code survivorCount} positions
+     */
+    Block readBatchSparse(int sourceRows, BlockFactory blockFactory, int[] survivorPositions, int survivorCount) {
+        assert survivorCount <= sourceRows : "survivorCount [" + survivorCount + "] > sourceRows [" + sourceRows + "]";
+        assert survivorCount <= survivorPositions.length
+            : "survivorCount [" + survivorCount + "] > array length [" + survivorPositions.length + "]";
+        assert survivorCount == 0 || survivorPositions[survivorCount - 1] < sourceRows
+            : "survivor position ["
+                + (survivorCount > 0 ? survivorPositions[survivorCount - 1] : -1)
+                + "] >= sourceRows ["
+                + sourceRows
+                + "]";
+
+        if (survivorCount == 0) {
+            skipRows(sourceRows);
+            return blockFactory.newConstantNullBlock(0);
+        }
+        if (survivorCount == sourceRows) {
+            return readBatch(sourceRows, blockFactory);
+        }
+
+        // Fast path: all survivors are contiguous — single skip/read/skip, no chunk list.
+        if (survivorPositions[survivorCount - 1] - survivorPositions[0] == survivorCount - 1) {
+            int leadingGap = survivorPositions[0];
+            if (leadingGap > 0) {
+                skipRows(leadingGap);
+            }
+            Block result = readBatch(survivorCount, blockFactory);
+            int trailing = sourceRows - survivorPositions[survivorCount - 1] - 1;
+            if (trailing > 0) {
+                skipRows(trailing);
+            }
+            return result;
+        }
+
+        // General path: decompose survivorPositions into (skip, read) runs of contiguous
+        // positions. Each run produces a small Block via readBatch; chunks are combined
+        // at the end.
+        List<Block> chunks = new ArrayList<>();
+        int cursor = 0;
+        int runStart = 0;
+
+        try {
+            while (runStart < survivorCount) {
+                int pos = survivorPositions[runStart];
+                int gap = pos - cursor;
+                if (gap > 0) {
+                    skipRows(gap);
+                    cursor += gap;
+                }
+
+                // Find the end of the contiguous run
+                int runEnd = runStart + 1;
+                while (runEnd < survivorCount && survivorPositions[runEnd] == survivorPositions[runEnd - 1] + 1) {
+                    runEnd++;
+                }
+                int runLength = runEnd - runStart;
+
+                chunks.add(readBatch(runLength, blockFactory));
+                cursor += runLength;
+                runStart = runEnd;
+            }
+
+            // Skip any trailing rows after the last survivor
+            int trailing = sourceRows - cursor;
+            if (trailing > 0) {
+                skipRows(trailing);
+            }
+
+            if (chunks.size() == 1) {
+                return chunks.get(0);
+            }
+            return combineBlocks(chunks, survivorCount, blockFactory);
+        } catch (RuntimeException e) {
+            for (Block chunk : chunks) {
+                Releasables.closeExpectNoException(chunk);
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Concatenates multiple blocks produced by the sparse-read loop into a single block
+     * by copying values from each chunk sequentially via a {@link Block.Builder}.
+     * Closes the source chunks after copying.
+     */
+    private static Block combineBlocks(List<Block> chunks, int totalPositions, BlockFactory blockFactory) {
+        int actualTotal = 0;
+        for (Block b : chunks) {
+            actualTotal += b.getPositionCount();
+        }
+        assert actualTotal == totalPositions : "chunk total " + actualTotal + " != expected " + totalPositions;
+
+        Block first = chunks.get(0);
+        try (Block.Builder builder = first.elementType().newBlockBuilder(totalPositions, blockFactory)) {
+            for (Block chunk : chunks) {
+                builder.copyFrom(chunk, 0, chunk.getPositionCount());
+            }
+            Block result = builder.build();
+            for (Block chunk : chunks) {
+                Releasables.closeExpectNoException(chunk);
+            }
+            return result;
+        }
     }
 
     private void loadDictionaryIfNeeded() {
@@ -233,9 +451,9 @@ final class PageColumnReader {
 
     private void initDecoders() {
         if (maxDefLevel > 0 && currentDefLevelBytes != null) {
-            defDecoder.init(currentDefLevelBytes, currentPageValueCount, maxDefLevel, currentPageIsV1);
+            defDecoder.init(currentDefLevelBytes, maxDefLevel, currentPageIsV1);
         } else {
-            defDecoder.init(EMPTY_BYTE_BUFFER.duplicate(), currentPageValueCount, 0, false);
+            defDecoder.init(EMPTY_BYTE_BUFFER.duplicate(), 0, false);
         }
 
         if (currentEncoding.usesDictionary()) {
@@ -389,11 +607,12 @@ final class PageColumnReader {
     // --- Boolean ---
 
     private Block readBooleanBatch(int maxRows, BlockFactory blockFactory) {
-        boolean[] values = buffers.booleans(maxRows);
+        boolean[] values = new boolean[maxRows];
         if (maxDefLevel == 0) {
             int produced = readNonNullBooleans(values, 0, maxRows);
             Block constant = ConstantBlockDetection.tryConstantBoolean(values, produced, blockFactory);
             if (constant != null) return constant;
+            if (produced < maxRows) values = Arrays.copyOf(values, produced);
             return blockFactory.newBooleanArrayVector(values, produced).asBlock();
         }
         WordMask nulls = buffers.nullsMask(maxRows);
@@ -410,12 +629,14 @@ final class PageColumnReader {
         if (nulls.isEmpty()) {
             Block constant = ConstantBlockDetection.tryConstantBoolean(values, produced, blockFactory);
             if (constant != null) return constant;
+            if (produced < maxRows) values = Arrays.copyOf(values, produced);
             return blockFactory.newBooleanArrayVector(values, produced).asBlock();
         }
         Block allNull = ConstantBlockDetection.tryAllNull(nulls.toBitSet(), produced, blockFactory);
         if (allNull != null) {
             return allNull;
         }
+        if (produced < maxRows) values = Arrays.copyOf(values, produced);
         return blockFactory.newBooleanArrayBlock(values, produced, null, nulls.toBitSet(), Block.MvOrdering.UNORDERED);
     }
 
@@ -448,11 +669,12 @@ final class PageColumnReader {
     // --- Int ---
 
     private Block readIntBatch(int maxRows, BlockFactory blockFactory) {
-        int[] values = buffers.ints(maxRows);
+        int[] values = new int[maxRows];
         if (maxDefLevel == 0) {
             int produced = readNonNullInts(values, 0, maxRows);
             Block constant = ConstantBlockDetection.tryConstantInt(values, produced, blockFactory);
             if (constant != null) return constant;
+            if (produced < maxRows) values = Arrays.copyOf(values, produced);
             return blockFactory.newIntArrayVector(values, produced).asBlock();
         }
         WordMask nulls = buffers.nullsMask(maxRows);
@@ -469,12 +691,14 @@ final class PageColumnReader {
         if (nulls.isEmpty()) {
             Block constant = ConstantBlockDetection.tryConstantInt(values, produced, blockFactory);
             if (constant != null) return constant;
+            if (produced < maxRows) values = Arrays.copyOf(values, produced);
             return blockFactory.newIntArrayVector(values, produced).asBlock();
         }
         Block allNull = ConstantBlockDetection.tryAllNull(nulls.toBitSet(), produced, blockFactory);
         if (allNull != null) {
             return allNull;
         }
+        if (produced < maxRows) values = Arrays.copyOf(values, produced);
         return blockFactory.newIntArrayBlock(values, produced, null, nulls.toBitSet(), Block.MvOrdering.UNORDERED);
     }
 
@@ -507,12 +731,13 @@ final class PageColumnReader {
     // --- Long ---
 
     private Block readLongBatch(int maxRows, BlockFactory blockFactory) {
-        long[] values = buffers.longs(maxRows);
+        long[] values = new long[maxRows];
         if (maxDefLevel == 0) {
             int produced = readNonNullLongs(values, 0, maxRows);
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
             if (constant != null) return constant;
-            return takeLongBlock(blockFactory, produced, true, null);
+            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            return blockFactory.newLongArrayVector(values, produced).asBlock();
         }
         WordMask nulls = buffers.nullsMask(maxRows);
         int produced = 0;
@@ -528,13 +753,15 @@ final class PageColumnReader {
         if (nulls.isEmpty()) {
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
             if (constant != null) return constant;
-            return takeLongBlock(blockFactory, produced, true, null);
+            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            return blockFactory.newLongArrayVector(values, produced).asBlock();
         }
         Block allNull = ConstantBlockDetection.tryAllNull(nulls.toBitSet(), produced, blockFactory);
         if (allNull != null) {
             return allNull;
         }
-        return takeLongBlock(blockFactory, produced, false, nulls.toBitSet());
+        if (produced < maxRows) values = Arrays.copyOf(values, produced);
+        return blockFactory.newLongArrayBlock(values, produced, null, nulls.toBitSet(), Block.MvOrdering.UNORDERED);
     }
 
     private int readNonNullLongs(long[] values, int offset, int maxRows) {
@@ -574,12 +801,13 @@ final class PageColumnReader {
     // --- Int32 widened to Long ---
 
     private Block readInt32AsLongBatch(int maxRows, BlockFactory blockFactory) {
-        long[] values = buffers.longs(maxRows);
+        long[] values = new long[maxRows];
         if (maxDefLevel == 0) {
             int produced = readNonNullInt32AsLong(values, 0, maxRows);
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
             if (constant != null) return constant;
-            return takeLongBlock(blockFactory, produced, true, null);
+            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            return blockFactory.newLongArrayVector(values, produced).asBlock();
         }
         WordMask nulls = buffers.nullsMask(maxRows);
         int produced = 0;
@@ -595,13 +823,15 @@ final class PageColumnReader {
         if (nulls.isEmpty()) {
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
             if (constant != null) return constant;
-            return takeLongBlock(blockFactory, produced, true, null);
+            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            return blockFactory.newLongArrayVector(values, produced).asBlock();
         }
         Block allNull = ConstantBlockDetection.tryAllNull(nulls.toBitSet(), produced, blockFactory);
         if (allNull != null) {
             return allNull;
         }
-        return takeLongBlock(blockFactory, produced, false, nulls.toBitSet());
+        if (produced < maxRows) values = Arrays.copyOf(values, produced);
+        return blockFactory.newLongArrayBlock(values, produced, null, nulls.toBitSet(), Block.MvOrdering.UNORDERED);
     }
 
     private int readNonNullInt32AsLong(long[] values, int offset, int maxRows) {
@@ -652,12 +882,13 @@ final class PageColumnReader {
             return readFloat16Batch(maxRows, blockFactory);
         }
         boolean isFloat = info.parquetType() == PrimitiveType.PrimitiveTypeName.FLOAT;
-        double[] values = buffers.doubles(maxRows);
+        double[] values = new double[maxRows];
         if (maxDefLevel == 0) {
             int produced = readNonNullDoubles(values, 0, maxRows, isFloat);
             Block constant = ConstantBlockDetection.tryConstantDouble(values, produced, blockFactory);
             if (constant != null) return constant;
-            return takeDoubleBlock(blockFactory, produced, true, null);
+            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            return blockFactory.newDoubleArrayVector(values, produced).asBlock();
         }
         WordMask nulls = buffers.nullsMask(maxRows);
         int produced = 0;
@@ -673,13 +904,15 @@ final class PageColumnReader {
         if (nulls.isEmpty()) {
             Block constant = ConstantBlockDetection.tryConstantDouble(values, produced, blockFactory);
             if (constant != null) return constant;
-            return takeDoubleBlock(blockFactory, produced, true, null);
+            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            return blockFactory.newDoubleArrayVector(values, produced).asBlock();
         }
         Block allNull = ConstantBlockDetection.tryAllNull(nulls.toBitSet(), produced, blockFactory);
         if (allNull != null) {
             return allNull;
         }
-        return takeDoubleBlock(blockFactory, produced, false, nulls.toBitSet());
+        if (produced < maxRows) values = Arrays.copyOf(values, produced);
+        return blockFactory.newDoubleArrayBlock(values, produced, null, nulls.toBitSet(), Block.MvOrdering.UNORDERED);
     }
 
     private int readNonNullDoubles(double[] values, int offset, int maxRows, boolean isFloat) {
@@ -721,7 +954,7 @@ final class PageColumnReader {
     }
 
     private Block readDecimalAsDoubleBatch(int maxRows, int scale, BlockFactory blockFactory) {
-        double[] values = buffers.doubles(maxRows);
+        double[] values = new double[maxRows];
         if (maxDefLevel == 0) {
             int produced = 0;
             int remaining = maxRows;
@@ -734,7 +967,8 @@ final class PageColumnReader {
             }
             Block constant = ConstantBlockDetection.tryConstantDouble(values, produced, blockFactory);
             if (constant != null) return constant;
-            return takeDoubleBlock(blockFactory, produced, true, null);
+            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            return blockFactory.newDoubleArrayVector(values, produced).asBlock();
         }
         WordMask nulls = buffers.nullsMask(maxRows);
         int produced = 0;
@@ -758,13 +992,15 @@ final class PageColumnReader {
         if (nulls.isEmpty()) {
             Block constant = ConstantBlockDetection.tryConstantDouble(values, produced, blockFactory);
             if (constant != null) return constant;
-            return takeDoubleBlock(blockFactory, produced, true, null);
+            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            return blockFactory.newDoubleArrayVector(values, produced).asBlock();
         }
         Block allNull = ConstantBlockDetection.tryAllNull(nulls.toBitSet(), produced, blockFactory);
         if (allNull != null) {
             return allNull;
         }
-        return takeDoubleBlock(blockFactory, produced, false, nulls.toBitSet());
+        if (produced < maxRows) values = Arrays.copyOf(values, produced);
+        return blockFactory.newDoubleArrayBlock(values, produced, null, nulls.toBitSet(), Block.MvOrdering.UNORDERED);
     }
 
     private void readDecimalValues(double[] values, int offset, int count, int scale) {
@@ -792,7 +1028,7 @@ final class PageColumnReader {
     }
 
     private Block readFloat16Batch(int maxRows, BlockFactory blockFactory) {
-        double[] values = buffers.doubles(maxRows);
+        double[] values = new double[maxRows];
         if (maxDefLevel == 0) {
             int produced = 0;
             int remaining = maxRows;
@@ -805,7 +1041,8 @@ final class PageColumnReader {
             }
             Block constant = ConstantBlockDetection.tryConstantDouble(values, produced, blockFactory);
             if (constant != null) return constant;
-            return takeDoubleBlock(blockFactory, produced, true, null);
+            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            return blockFactory.newDoubleArrayVector(values, produced).asBlock();
         }
         WordMask nulls = buffers.nullsMask(maxRows);
         int produced = 0;
@@ -829,13 +1066,15 @@ final class PageColumnReader {
         if (nulls.isEmpty()) {
             Block constant = ConstantBlockDetection.tryConstantDouble(values, produced, blockFactory);
             if (constant != null) return constant;
-            return takeDoubleBlock(blockFactory, produced, true, null);
+            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            return blockFactory.newDoubleArrayVector(values, produced).asBlock();
         }
         Block allNull = ConstantBlockDetection.tryAllNull(nulls.toBitSet(), produced, blockFactory);
         if (allNull != null) {
             return allNull;
         }
-        return takeDoubleBlock(blockFactory, produced, false, nulls.toBitSet());
+        if (produced < maxRows) values = Arrays.copyOf(values, produced);
+        return blockFactory.newDoubleArrayBlock(values, produced, null, nulls.toBitSet(), Block.MvOrdering.UNORDERED);
     }
 
     private void readFloat16Values(double[] values, int offset, int count) {
@@ -853,6 +1092,12 @@ final class PageColumnReader {
 
     private Block readBytesBatch(int maxRows, BlockFactory blockFactory) {
         boolean isUuid = info.logicalType() instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation;
+        // Dictionary-encoded chunk: emit an OrdinalBytesRefBlock so downstream BlockHash can
+        // hash only k dictionary entries instead of N row values. Skip for UUID, where each
+        // value needs per-row byte formatting that the ordinal path does not perform.
+        if (dictionary != null && isUuid == false) {
+            return readBytesBatchAsOrdinals(maxRows, blockFactory);
+        }
         if (maxDefLevel == 0) {
             BytesRef[] allValues = new BytesRef[maxRows];
             int produced = 0;
@@ -861,7 +1106,9 @@ final class PageColumnReader {
                 int fromPage = Math.min(remaining, availableInPage());
                 BytesRef[] vals = readBinaryValues(fromPage);
                 for (int i = 0; i < fromPage; i++) {
-                    allValues[produced + i] = isUuid ? new BytesRef(ParquetFormatReader.formatUuid(vals[i].bytes)) : vals[i];
+                    allValues[produced + i] = isUuid
+                        ? new BytesRef(ParquetColumnDecoding.formatUuid(vals[i].bytes, vals[i].offset, vals[i].length))
+                        : vals[i];
                 }
                 advancePosition(fromPage);
                 produced += fromPage;
@@ -892,7 +1139,8 @@ final class PageColumnReader {
                 if (pageNulls.get(i)) {
                     allNulls.set(produced + i);
                 } else if (isUuid) {
-                    allValues[produced + i] = new BytesRef(ParquetFormatReader.formatUuid(vals[valIdx++].bytes));
+                    BytesRef uuidRef = vals[valIdx++];
+                    allValues[produced + i] = new BytesRef(ParquetColumnDecoding.formatUuid(uuidRef.bytes, uuidRef.offset, uuidRef.length));
                 } else {
                     allValues[produced + i] = vals[valIdx++];
                 }
@@ -925,6 +1173,209 @@ final class PageColumnReader {
         return values;
     }
 
+    private Block readBytesBatchAsOrdinals(int maxRows, BlockFactory blockFactory) {
+        int[] ordinals = new int[maxRows];
+        WordMask nulls = maxDefLevel > 0 ? buffers.nullsMask(maxRows) : null;
+        int produced = 0;
+        int remaining = maxRows;
+        boolean fallback = false;
+        while (remaining > 0 && ensurePage()) {
+            if (currentEncoding.usesDictionary() == false) {
+                fallback = true;
+                break;
+            }
+            int fromPage = Math.min(remaining, availableInPage());
+            if (nulls == null) {
+                dictDecoder.readIndices(ordinals, produced, fromPage);
+            } else {
+                int nonNull = defDecoder.readBatch(fromPage, nulls, produced);
+                if (nonNull == fromPage) {
+                    dictDecoder.readIndices(ordinals, produced, fromPage);
+                } else if (nonNull > 0) {
+                    int[] packed = new int[nonNull];
+                    dictDecoder.readIndices(packed, 0, nonNull);
+                    int pi = 0;
+                    for (int i = 0; i < fromPage; i++) {
+                        if (nulls.get(produced + i) == false) {
+                            ordinals[produced + i] = packed[pi++];
+                        }
+                    }
+                }
+            }
+            advancePosition(fromPage);
+            produced += fromPage;
+            remaining -= fromPage;
+        }
+        if (fallback) {
+            return finishMaterializedFallback(ordinals, nulls, produced, remaining, blockFactory);
+        }
+        return buildOrdinalResult(ordinals, nulls, produced, blockFactory);
+    }
+
+    private Block buildOrdinalResult(int[] ordinals, WordMask nulls, int produced, BlockFactory blockFactory) {
+        BytesRef[] dict = dictDecoder.getDictionaryBytesRefs(dictionary);
+        if (produced == 0) {
+            return blockFactory.newConstantNullBlock(0);
+        }
+        if (nulls != null && nulls.popCount() == produced) {
+            return blockFactory.newConstantNullBlock(produced);
+        }
+        // Non-null, all-equal indices: emit a constant block to skip the ordinal indirection.
+        if (nulls == null || nulls.isEmpty()) {
+            int constantOrdinal = detectConstantOrdinal(ordinals, produced);
+            if (constantOrdinal >= 0) {
+                return blockFactory.newConstantBytesRefBlockWith(dict[constantOrdinal], produced);
+            }
+        }
+        IntBlock ordinalsBlock = null;
+        BytesRefVector dictVector = null;
+        boolean success = false;
+        try {
+            ordinalsBlock = buildOrdinalsBlock(ordinals, nulls, produced, blockFactory);
+            dictVector = buildDictionaryVector(dict, blockFactory);
+            OrdinalBytesRefBlock result = new OrdinalBytesRefBlock(ordinalsBlock, dictVector);
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(ordinalsBlock, dictVector);
+            }
+        }
+    }
+
+    private static int detectConstantOrdinal(int[] ordinals, int produced) {
+        if (produced == 0) {
+            return -1;
+        }
+        int first = ordinals[0];
+        for (int i = 1; i < produced; i++) {
+            if (ordinals[i] != first) {
+                return -1;
+            }
+        }
+        return first;
+    }
+
+    private IntBlock buildOrdinalsBlock(int[] ordinals, WordMask nulls, int produced, BlockFactory blockFactory) {
+        int[] sized = produced < ordinals.length ? Arrays.copyOf(ordinals, produced) : ordinals;
+        if (nulls == null || nulls.isEmpty()) {
+            return blockFactory.newIntArrayVector(sized, produced).asBlock();
+        }
+        return blockFactory.newIntArrayBlock(sized, produced, null, nulls.toBitSet(), Block.MvOrdering.UNORDERED);
+    }
+
+    private BytesRefVector buildDictionaryVector(BytesRef[] entries, BlockFactory blockFactory) {
+        BytesRefArray array = ensureCachedDictArray(entries, blockFactory);
+        // newBytesRefArrayVector takes ownership of one ref of the array: its closeInternal calls
+        // values.close() -> decRef(). The class Javadoc on BytesRefArrayVector that says it "does
+        // not take ownership" is misleading on the refcount side and applies only to the
+        // breaker accounting (which the factory adjusts here). To keep our cached ref alive
+        // across batches, incRef before handing the array to the wrapper.
+        array.incRef();
+        boolean success = false;
+        try {
+            BytesRefVector vector = blockFactory.newBytesRefArrayVector(array, entries.length);
+            success = true;
+            return vector;
+        } finally {
+            if (success == false) {
+                array.decRef();
+            }
+        }
+    }
+
+    private BytesRefArray ensureCachedDictArray(BytesRef[] entries, BlockFactory blockFactory) {
+        if (cachedDictArray != null && cachedDictArraySource == dictionary) {
+            return cachedDictArray;
+        }
+        // First call for this reader, or — and this should never happen given parquet-mr keeps
+        // one Dictionary per chunk and a PageColumnReader reads exactly one chunk — the
+        // Dictionary identity changed mid-reader. Assert in dev/test builds so a violated
+        // invariant fails loudly; rebuild rather than reuse a stale cache in production.
+        assert cachedDictArray == null : "PageColumnReader saw a Dictionary identity change mid-chunk; reader should have been replaced";
+        releaseCachedDictArray();
+        BytesRefArray array = new BytesRefArray(entries.length, blockFactory.bigArrays());
+        boolean success = false;
+        try {
+            for (BytesRef entry : entries) {
+                array.append(entry);
+            }
+            cachedDictArray = array;
+            cachedDictArraySource = dictionary;
+            success = true;
+            return array;
+        } finally {
+            if (success == false) {
+                array.close();
+            }
+        }
+    }
+
+    private void releaseCachedDictArray() {
+        if (cachedDictArray != null) {
+            cachedDictArray.decRef();
+            cachedDictArray = null;
+            cachedDictArraySource = null;
+        }
+    }
+
+    @Override
+    public void close() {
+        releaseCachedDictArray();
+    }
+
+    private Block finishMaterializedFallback(int[] ordinals, WordMask nulls, int produced, int remaining, BlockFactory blockFactory) {
+        BytesRef[] dict = dictDecoder.getDictionaryBytesRefs(dictionary);
+        int total = produced + remaining;
+        BytesRef[] all = new BytesRef[total];
+        WordMask combinedNulls = nulls;
+        for (int i = 0; i < produced; i++) {
+            if (combinedNulls != null && combinedNulls.get(i)) {
+                continue;
+            }
+            all[i] = dict[ordinals[i]];
+        }
+        int filled = produced;
+        while (remaining > 0 && ensurePage()) {
+            int fromPage = Math.min(remaining, availableInPage());
+            if (combinedNulls == null) {
+                BytesRef[] vals = readBinaryValues(fromPage);
+                System.arraycopy(vals, 0, all, filled, fromPage);
+            } else {
+                WordMask pageNulls = buffers.valueSelection(fromPage);
+                int nonNull = defDecoder.readBatch(fromPage, pageNulls, 0);
+                BytesRef[] vals = nonNull > 0 ? readBinaryValues(nonNull) : null;
+                int valIdx = 0;
+                for (int i = 0; i < fromPage; i++) {
+                    if (pageNulls.get(i)) {
+                        combinedNulls.set(filled + i);
+                    } else {
+                        all[filled + i] = vals[valIdx++];
+                    }
+                }
+            }
+            advancePosition(fromPage);
+            filled += fromPage;
+            remaining -= fromPage;
+        }
+        if (combinedNulls != null && combinedNulls.isEmpty() == false) {
+            Block allNull = ConstantBlockDetection.tryAllNull(combinedNulls.toBitSet(), filled, blockFactory);
+            if (allNull != null) {
+                return allNull;
+            }
+        }
+        try (var builder = blockFactory.newBytesRefBlockBuilder(filled)) {
+            for (int i = 0; i < filled; i++) {
+                if (combinedNulls != null && combinedNulls.get(i)) {
+                    builder.appendNull();
+                } else {
+                    builder.appendBytesRef(all[i]);
+                }
+            }
+            return builder.build();
+        }
+    }
+
     // --- Datetime ---
 
     private Block readDatetimeBatch(int maxRows, BlockFactory blockFactory) {
@@ -932,7 +1383,7 @@ final class PageColumnReader {
             return readInt96Batch(maxRows, blockFactory);
         }
         boolean isDate = info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32;
-        long[] values = buffers.longs(maxRows);
+        long[] values = new long[maxRows];
         if (maxDefLevel == 0) {
             int produced = 0;
             int remaining = maxRows;
@@ -945,7 +1396,8 @@ final class PageColumnReader {
             }
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
             if (constant != null) return constant;
-            return takeLongBlock(blockFactory, produced, true, null);
+            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            return blockFactory.newLongArrayVector(values, produced).asBlock();
         }
         WordMask nulls = buffers.nullsMask(maxRows);
         int produced = 0;
@@ -969,13 +1421,15 @@ final class PageColumnReader {
         if (nulls.isEmpty()) {
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
             if (constant != null) return constant;
-            return takeLongBlock(blockFactory, produced, true, null);
+            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            return blockFactory.newLongArrayVector(values, produced).asBlock();
         }
         Block allNull = ConstantBlockDetection.tryAllNull(nulls.toBitSet(), produced, blockFactory);
         if (allNull != null) {
             return allNull;
         }
-        return takeLongBlock(blockFactory, produced, false, nulls.toBitSet());
+        if (produced < maxRows) values = Arrays.copyOf(values, produced);
+        return blockFactory.newLongArrayBlock(values, produced, null, nulls.toBitSet(), Block.MvOrdering.UNORDERED);
     }
 
     private void readDatetimeValues(long[] values, int offset, int count, boolean isDate) {
@@ -1008,7 +1462,7 @@ final class PageColumnReader {
     }
 
     private Block readInt96Batch(int maxRows, BlockFactory blockFactory) {
-        long[] values = buffers.longs(maxRows);
+        long[] values = new long[maxRows];
         if (maxDefLevel == 0) {
             int produced = 0;
             int remaining = maxRows;
@@ -1021,7 +1475,8 @@ final class PageColumnReader {
             }
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
             if (constant != null) return constant;
-            return takeLongBlock(blockFactory, produced, true, null);
+            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            return blockFactory.newLongArrayVector(values, produced).asBlock();
         }
         WordMask nulls = buffers.nullsMask(maxRows);
         int produced = 0;
@@ -1045,13 +1500,15 @@ final class PageColumnReader {
         if (nulls.isEmpty()) {
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
             if (constant != null) return constant;
-            return takeLongBlock(blockFactory, produced, true, null);
+            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            return blockFactory.newLongArrayVector(values, produced).asBlock();
         }
         Block allNull = ConstantBlockDetection.tryAllNull(nulls.toBitSet(), produced, blockFactory);
         if (allNull != null) {
             return allNull;
         }
-        return takeLongBlock(blockFactory, produced, false, nulls.toBitSet());
+        if (produced < maxRows) values = Arrays.copyOf(values, produced);
+        return blockFactory.newLongArrayBlock(values, produced, null, nulls.toBitSet(), Block.MvOrdering.UNORDERED);
     }
 
     private void readInt96Values(long[] values, int offset, int count) {
@@ -1077,22 +1534,11 @@ final class PageColumnReader {
     }
 
     // --- Block construction helpers ---
-
-    private Block takeLongBlock(BlockFactory blockFactory, int rowCount, boolean noNulls, BitSet nullBitSet) {
-        long[] owned = buffers.takeLongs();
-        if (noNulls) {
-            return blockFactory.newLongArrayVector(owned, rowCount).asBlock();
-        }
-        return blockFactory.newLongArrayBlock(owned, rowCount, null, nullBitSet, Block.MvOrdering.UNORDERED);
-    }
-
-    private Block takeDoubleBlock(BlockFactory blockFactory, int rowCount, boolean noNulls, BitSet nullBitSet) {
-        double[] owned = buffers.takeDoubles();
-        if (noNulls) {
-            return blockFactory.newDoubleArrayVector(owned, rowCount).asBlock();
-        }
-        return blockFactory.newDoubleArrayBlock(owned, rowCount, null, nullBitSet, Block.MvOrdering.UNORDERED);
-    }
+    // Primitive batch methods decode directly into a fresh array that becomes the Block's
+    // backing store. For full batches (produced == maxRows) this is zero-copy; partial
+    // last batches are right-sized via Arrays.copyOf. DecodeBuffers scratch arrays are
+    // used only as intermediaries that are consumed within a single batch (e.g. int-to-long
+    // widening in readInt32AsLongBatch) and never handed to BlockFactory.
 
     // --- Scatter utilities ---
 

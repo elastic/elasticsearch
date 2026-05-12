@@ -118,6 +118,9 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
             checker.registerConflictCheck("doc_values", b -> b.field("doc_values", true));
         }
+        if (IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled()) {
+            checker.registerConflictCheck("index", b -> b.field("index", false));
+        }
     }
 
     @Override
@@ -693,6 +696,17 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         return false;
     }
 
+    @Override
+    protected boolean supportsMultiValueParameter() {
+        return true;
+    }
+
+    @Override
+    protected DocValuesType expectedSingleValuedDocValuesType() {
+        // match_only_text defaults to HIGH cardinality, which uses binary doc values
+        return DocValuesType.BINARY;
+    }
+
     public void testDocValuesDisabledByDefault() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "match_only_text")));
         MappedFieldType fieldType = mapperService.fieldType("field");
@@ -816,4 +830,5 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
             }
         }
     }
+
 }

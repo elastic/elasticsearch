@@ -14,10 +14,13 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -33,6 +36,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class TransportListReindexActionTests extends ESTestCase {
 
@@ -45,6 +49,9 @@ public class TransportListReindexActionTests extends ESTestCase {
     @Before
     public void setup() {
         client = mock();
+        var threadPool = mock(ThreadPool.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         action = new TransportListReindexAction(mock(), mock(), client);
         responseRef = new AtomicReference<>();
         failureRef = new AtomicReference<>();

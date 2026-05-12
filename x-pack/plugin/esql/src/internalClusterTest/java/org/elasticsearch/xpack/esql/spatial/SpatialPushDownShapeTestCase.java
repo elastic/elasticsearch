@@ -673,10 +673,6 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
         return shape.visit(visitor);
     }
 
-    private List<Double> getExtentBoundSorted(List<Rectangle> extents, Function<Rectangle, Double> extractor) {
-        return extents.stream().map(extractor).sorted().toList();
-    }
-
     private List<Double> getResponseSorted(TestQueryResponseCollection responses, int index, int column) {
         return responses.getResponses(index, column).stream().map(o -> (Double) o).sorted().toList();
     }
@@ -695,11 +691,15 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
         boolean isCartesian = fieldType().equals("shape");
         try (TestQueryResponseCollection responses = new TestQueryResponseCollection(queries)) {
             List<Geometry> quantizedShapes = getQuantizedResponsesAsType(responses, 0, 0, Geometry.class);
-            List<Rectangle> quantizedExtents = quantizedShapes.stream().map(s -> getExtent(s, isCartesian)).toList();
-            List<Double> xMinQuantized = getExtentBoundSorted(quantizedExtents, Rectangle::getMinX);
-            List<Double> xMaxQuantized = getExtentBoundSorted(quantizedExtents, Rectangle::getMaxX);
-            List<Double> yMinQuantized = getExtentBoundSorted(quantizedExtents, Rectangle::getMinY);
-            List<Double> yMaxQuantized = getExtentBoundSorted(quantizedExtents, Rectangle::getMaxY);
+            // ST_X/YMIN/MAX on shapes is evaluated server-side as "envelope of raw shape, then quantize the bound",
+            // so the expected values must be computed the same way - not by quantizing each point before taking
+            // the envelope, which can disagree with the server at the dateline wrap tiebreak.
+            List<Geometry> rawShapes = getResponsesAsType(responses, 0, 0, Geometry.class);
+            List<Rectangle> rawExtents = rawShapes.stream().map(s -> getExtent(s, isCartesian)).toList();
+            List<Double> xMinQuantized = getQuantizedExtentBoundSorted(rawExtents, Rectangle::getMinX, this::quantizeX);
+            List<Double> xMaxQuantized = getQuantizedExtentBoundSorted(rawExtents, Rectangle::getMaxX, this::quantizeX);
+            List<Double> yMinQuantized = getQuantizedExtentBoundSorted(rawExtents, Rectangle::getMinY, this::quantizeY);
+            List<Double> yMaxQuantized = getQuantizedExtentBoundSorted(rawExtents, Rectangle::getMaxY, this::quantizeY);
             for (int index = 0; index < ALL_INDEXES.length; index++) {
                 List<Geometry> resultShapes = getResponsesAsType(responses, index, 0, Geometry.class);
                 int countDifferent = 0;
@@ -740,6 +740,20 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
                 }
             }
         }
+    }
+
+    /**
+     * Extract a bound from each extent, quantize it the same way the server does in
+     * {@code St{X,Y}{Min,Max}#buildEnvelopeResults}, and return the sorted list. Quantizing after the envelope
+     * (rather than quantizing every point first) is what the WKB-backed server evaluator does - pre-quantizing
+     * points can flip the wrap/no-wrap tiebreak in {@code GeoPointVisitor} for shapes that span both datelines.
+     */
+    private List<Double> getQuantizedExtentBoundSorted(
+        List<Rectangle> extents,
+        Function<Rectangle, Double> extractor,
+        Function<Double, Double> quantizer
+    ) {
+        return extents.stream().map(r -> quantizer.apply(extractor.apply(r))).sorted().toList();
     }
 
     protected class TestQuantizedGeometryVisitor implements GeometryVisitor<Geometry, RuntimeException> {

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.MlAnomaliesIndexUpdate;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
+import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
 import org.junit.Before;
 
 import java.util.List;
@@ -26,7 +27,11 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 /**
  * Integration tests for the reindexed-v7 heal logic in {@link MlAnomaliesIndexUpdate}.
@@ -176,17 +181,21 @@ public class MlAnomaliesIndexUpdateIT extends MlSingleNodeTestCase {
 
     /**
      * Builds the heal updater against the real single-node cluster and runs it.
-     * Uses a mock auditor to avoid async writes to the notifications index.
+     * Uses mock auditors to avoid async writes to the notifications index.
      */
     private void runHeal() {
         AnomalyDetectionAuditor auditor = mock(AnomalyDetectionAuditor.class);
+        SystemAuditor systemAuditor = mock(SystemAuditor.class);
         MlAnomaliesIndexUpdate updater = new MlAnomaliesIndexUpdate(
             TestIndexNameExpressionResolver.newInstance(),
             client(),
             auditor,
+            systemAuditor,
             () -> true
         );
         updater.runUpdate(clusterService().state());
+        verify(systemAuditor).warning(anyString());
+        verify(auditor, atLeastOnce()).warning(any(), anyString());
     }
 
     /** Creates an index with the broken mapping and the canonical ML read+write aliases. */

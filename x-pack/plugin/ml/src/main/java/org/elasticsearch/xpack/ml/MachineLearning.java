@@ -1377,6 +1377,7 @@ public class MachineLearning extends Plugin
                     indexNameExpressionResolver,
                     client,
                     anomalyDetectionAuditor,
+                    systemAuditor,
                     () -> clusterService.getClusterSettings().get(MlAnomaliesIndexUpdate.HEAL_REINDEXED_V7_ENABLED)
                 )
             )

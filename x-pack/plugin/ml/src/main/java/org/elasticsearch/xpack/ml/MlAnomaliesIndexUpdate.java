@@ -43,11 +43,11 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
+import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -99,17 +99,20 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
     private final IndexNameExpressionResolver expressionResolver;
     private final OriginSettingClient client;
     private final AnomalyDetectionAuditor auditor;
+    private final SystemAuditor systemAuditor;
     private final BooleanSupplier healEnabled;
 
     public MlAnomaliesIndexUpdate(
         IndexNameExpressionResolver expressionResolver,
         Client client,
         AnomalyDetectionAuditor auditor,
+        SystemAuditor systemAuditor,
         BooleanSupplier healEnabled
     ) {
         this.expressionResolver = expressionResolver;
         this.client = new OriginSettingClient(client, ML_ORIGIN);
         this.auditor = auditor;
+        this.systemAuditor = systemAuditor;
         this.healEnabled = healEnabled;
     }
 
@@ -362,7 +365,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
 
         String targetIndex = targetByBase.computeIfAbsent(targetBase, base -> resolveOrCreateTargetIndex(base, state));
         moveAliasesToTarget(badIndex, targetIndex, jobIds);
-        emitAdvisoryNotifications(badIndex, targetIndex);
+        emitAdvisoryNotifications(badIndex, targetIndex, jobIds);
 
         logger.warn(
             "The ML anomalies index [{}] was missing required keyword mapping for [job_id]. "
@@ -511,14 +514,18 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
     }
 
     /**
-     * Emits one actionable warning notification per healed bad index.
+     * Emits one actionable warning notification per healed bad index (cluster-wide, via {@link SystemAuditor},
+     * so Kibana ML notifications can surface it under job type "system"), plus a per-job warning for each
+     * affected job (via {@link AnomalyDetectionAuditor}).
      */
-    private void emitAdvisoryNotifications(String badIndex, String targetIndex) {
+    private void emitAdvisoryNotifications(String badIndex, String targetIndex, Set<String> jobIds) {
+        String affectedJobs = String.join(", ", jobIds);
         String clusterMessage = Strings.format(
             "Anomaly detection historical results are stranded in index [%s] because an Elasticsearch upgrade "
                 + "on one of the affected versions (pre-8.18.8, pre-8.19.5, pre-9.0.8, pre-9.1.5, pre-9.2.0) "
                 + "produced a broken dynamic job_id mapping. "
                 + "New results are now written to [%s] with the correct mappings and will appear in the UI again. "
+                + "Affected jobs: [%s]. "
                 + "To recover the historical results, ensure your user has read and write on .ml-anomalies-* "
                 + "(or manage_ml / superuser) and run: "
                 + "POST _reindex?wait_for_completion=false "
@@ -526,17 +533,35 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
                 + "Using op_type:create avoids overwriting documents that were already renormalized in the destination. "
                 + "After verifying documents arrived, [%s] may be deleted. "
                 + "Details: https://github.com/elastic/elasticsearch/issues/147686",
-            badIndex,    // 1 stranded in index
-            targetIndex, // 2 new results written to
-            badIndex,    // 3 reindex source
-            targetIndex, // 4 reindex dest
-            badIndex     // 5 may be deleted
+            badIndex,
+            targetIndex,
+            affectedJobs,
+            badIndex,
+            targetIndex,
+            badIndex
+        );
+
+        String perJobMessage = Strings.format(
+            "Historical anomaly results for this job are stranded in index [%s] due to a broken job_id mapping from "
+                + "an earlier upgrade. New results are now being written to [%s]. "
+                + "See the cluster-wide ML notification (job type: System) for the recovery procedure. "
+                + "Details: https://github.com/elastic/elasticsearch/issues/147686",
+            badIndex,
+            targetIndex
         );
 
         try {
-            auditor.warning(AbstractAuditor.All_RESOURCES_ID, clusterMessage);
+            systemAuditor.warning(clusterMessage);
         } catch (Exception e) {
             logger.warn("Failed to emit cluster-wide audit notification for [{}]", badIndex, e);
+        }
+
+        for (String jobId : jobIds) {
+            try {
+                auditor.warning(jobId, perJobMessage);
+            } catch (Exception e) {
+                logger.warn("Failed to emit per-job audit notification for job [{}]", jobId, e);
+            }
         }
     }
 }

@@ -478,6 +478,8 @@ public class TranslogReplicatorTests extends ESTestCase {
         ArrayList<Translog.Serialized> serialized = new ArrayList<>();
         int bytes = 0;
         int seqNo = 0;
+        // Stop as soon as we're at, or have exceeded the threshold. We don't want to reintroduce
+        // the race from https://github.com/elastic/elasticsearch/issues/148545
         while (bytes < threshold) {
             Translog.Operation operation = generateOperation(seqNo++);
             operations.add(operation);

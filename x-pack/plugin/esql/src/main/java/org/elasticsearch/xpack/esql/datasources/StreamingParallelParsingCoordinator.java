@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
@@ -601,6 +602,16 @@ public final class StreamingParallelParsingCoordinator {
             signalReady();
         }
 
+        /**
+         * Blocks until a page is available or EOF, preserving the standard {@link java.util.Iterator} contract
+         * for synchronous consumers (test code, generic CloseableIterator users). Async consumers
+         * (the producer-loop in {@code AsyncExternalSourceOperatorFactory}) bypass this block by
+         * calling {@link #waitForReady()} first, then either drain via this method (now non-spinning
+         * because the page is already there) or yield their executor thread when the listener isn't
+         * yet done. Internally implemented via the same {@link #waitForReady()} signal so the wait
+         * is event-driven (no busy-poll on the thread), and {@link #takeNextPage()} is non-blocking
+         * (single peek, advance through one POISON if encountered, return).
+         */
         @Override
         public boolean hasNext() {
             if (closed) {
@@ -609,13 +620,38 @@ public final class StreamingParallelParsingCoordinator {
             if (buffered != null) {
                 return true;
             }
-            try {
+            while (true) {
                 buffered = takeNextPage();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new RuntimeException("Interrupted while waiting for streaming parallel parse results", e);
+                if (buffered != null) {
+                    return true;
+                }
+                // takeNextPage returned null — either EOF or "no page yet but more coming".
+                // Distinguish via waitForReady, but tolerate the race where a parser publishes a
+                // page between our takeNextPage call and the waitForReady check: retry takeNextPage
+                // before concluding EOF.
+                SubscribableListener<Void> ready = waitForReady();
+                if (ready.isDone()) {
+                    buffered = takeNextPage();
+                    if (buffered != null) {
+                        return true;
+                    }
+                    // Still null AND ready is done — truly terminal (allDone fired, no more chunks).
+                    return false;
+                }
+                CountDownLatch latch = new CountDownLatch(1);
+                ready.addListener(ActionListener.running(latch::countDown));
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Interrupted while waiting for streaming parallel parse results", e);
+                }
+                if (closed) {
+                    return false;
+                }
+                // Loop: re-poll takeNextPage. The signal that fired ready may have been for a page
+                // that's now in the current slot, or for a transition we still need to drain past.
             }
-            return buffered != null;
         }
 
         @Override
@@ -679,32 +715,47 @@ public final class StreamingParallelParsingCoordinator {
             }
         }
 
-        private Page takeNextPage() throws InterruptedException {
+        /**
+         * Single-shot non-blocking page retrieval. Never spins, never holds the calling thread
+         * waiting for upstream production — returns {@code null} as soon as no page is available
+         * in the current slot. Callers must use {@link #waitForReady()} to know when to retry;
+         * a {@code null} return value paired with an immediately-done {@link #waitForReady()}
+         * indicates terminal EOF (no further chunks will ever be dispatched), while {@code null}
+         * paired with a non-done {@link #waitForReady()} indicates the iterator is still
+         * producing but no page is in the current slot at this instant. This separation lets the
+         * producer-loop driver yield its executor slot back to the pool during the gap between
+         * draining one chunk's POISON and the segmenter+parser delivering the next chunk's pages —
+         * which is the deadlock-on-multi-file-gzip scenario {@code waitForReady} was built to fix.
+         * The previous spinning implementation held the consumer thread across that gap, blocking
+         * sub-tasks (segmenter, parsers) queued behind it on the same executor.
+         */
+        private Page takeNextPage() {
+            // Bounded loop — at most one POISON-advance plus one peek per call. Each POISON observed
+            // advances currentChunk and releases a dispatchPermit so the segmentator can resume;
+            // immediately after, we either find a page in the new slot (return it) or return null.
+            // Never blocks.
             while (true) {
                 checkError();
-
                 if (currentChunk >= chunksDispatched.get()) {
-                    // Segmentator hasn't dispatched more chunks yet; briefly wait
-                    if (allDone.await(10, TimeUnit.MILLISECONDS)) {
-                        // All threads done; check if more chunks were dispatched
-                        if (currentChunk >= chunksDispatched.get()) {
-                            checkError();
-                            return null;
-                        }
-                    }
-                    continue;
+                    // No new chunk yet — either EOF (allDone fired) or we're between dispatches.
+                    // {@link #waitForReady} will return immediately-done in the EOF case (covered by
+                    // its EOF branch) and a non-done listener otherwise. Either way the caller knows
+                    // what to do next without us holding the thread.
+                    return null;
                 }
-
                 int slot = currentChunk % pageQueueRingSize;
-                ArrayBlockingQueue<Page> queue = pageQueues[slot];
-                Page page = queue.poll(100, TimeUnit.MILLISECONDS);
-
+                Page page = pageQueues[slot].poll();
                 if (page == null) {
-                    continue;
+                    // Chunk has been dispatched but its parser hasn't published a page yet.
+                    // Bail without spinning; waitForReady will fire when the parser puts a page.
+                    return null;
                 }
                 if (page == POISON) {
                     currentChunk++;
                     dispatchPermits.release();
+                    // Retry once on the new slot. If the next chunk's parser has already published
+                    // a page, we return it now (avoids an unnecessary executor round-trip); if not,
+                    // the next iteration's poll returns null and we exit to let the caller yield.
                     continue;
                 }
                 return page;

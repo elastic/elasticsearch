@@ -433,12 +433,14 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * The core regression test for elastic/esql-planning#732 — verifies the deadlock no longer occurs
-     * when many file readers fan out against a tiny shared executor pool. Pre-fix, F file readers with
-     * {@code parsing_parallelism = N} would submit {@code F × (1 + N)} sub-tasks plus F producer-loop
-     * drivers — a pool of {@code F × (2 + N)} threads. With a smaller pool, producer-loops blocked
-     * inside {@code hasNext()} occupy slots that their sub-tasks need. Post-fix, producer-loops yield
-     * via {@link CloseableIterator#waitForReady()} so the deadlock can't form.
+     * Regression test for the producer-loop pool-exhaustion deadlock: verifies that many file
+     * readers can drain against a tiny shared executor pool without one iterator's producer-loop
+     * blocking the sub-tasks that another iterator (or its own) needs to make progress. Pre-fix,
+     * {@code F} file readers with {@code parsing_parallelism = N} submitted {@code F × (1 + N)}
+     * sub-tasks plus {@code F} producer-loop drivers — a pool of {@code F × (2 + N)} threads.
+     * With a smaller pool, producer-loops blocked inside {@code hasNext()} occupy slots that their
+     * sub-tasks need; post-fix, producer-loops yield via {@link CloseableIterator#waitForReady()}
+     * so the deadlock can't form.
      */
     public void testConcurrentFileReadersWithUndersizedPoolDoNotDeadlock() throws Exception {
         int fileCount = 8;

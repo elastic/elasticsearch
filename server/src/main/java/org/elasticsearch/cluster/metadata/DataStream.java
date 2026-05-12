@@ -860,24 +860,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return unsafeRollover(writeIndex, generation, indexModeFromTemplate, autoShardingEvent);
     }
 
-    /** Returns true for index modes in the standard-like group: {@code null}, {@link IndexMode#STANDARD}, {@link IndexMode#COLUMNAR}. */
-    private static boolean isStandardLike(IndexMode mode) {
-        return mode == null || mode == IndexMode.STANDARD || mode == IndexMode.COLUMNAR;
-    }
-
-    /** Returns true for index modes in the logsdb-like group: {@link IndexMode#LOGSDB}, {@link IndexMode#COLUMNAR_LOGSDB}. */
-    private static boolean isLogsdbLike(IndexMode mode) {
-        return mode == IndexMode.LOGSDB || mode == IndexMode.COLUMNAR_LOGSDB;
-    }
-
-    /**
-     * Normalises a standard-like template mode to the value stored on the data stream.
-     * {@link IndexMode#COLUMNAR} is preserved; {@code null} and {@link IndexMode#STANDARD} both map to {@code null}.
-     */
-    private static IndexMode toStandardLike(IndexMode mode) {
-        return mode == IndexMode.COLUMNAR ? IndexMode.COLUMNAR : null;
-    }
-
     /**
      * Like {@link #rollover(Index, long, IndexMode, DataStreamAutoShardingEvent)}, but does no validation, use with care only.
      */
@@ -888,42 +870,18 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         DataStreamAutoShardingEvent autoShardingEvent
     ) {
         IndexMode dsIndexMode = this.indexMode;
-        if (isStandardLike(dsIndexMode) && isStandardLike(indexModeFromTemplate)) {
-            if (dsIndexMode == IndexMode.COLUMNAR) {
-                // COLUMNAR keeps its mode only if the template still says COLUMNAR; any other standard-like template reverts to null.
-                if (indexModeFromTemplate != IndexMode.COLUMNAR) {
-                    dsIndexMode = null;
-                }
-            } else if (indexModeFromTemplate == IndexMode.COLUMNAR) {
-                // null / STANDARD promoted to COLUMNAR by the template.
-                dsIndexMode = IndexMode.COLUMNAR;
-            }
-            // null / STANDARD ↔ null / STANDARD: preserve dsIndexMode unchanged.
-        } else if (isLogsdbLike(dsIndexMode) && isLogsdbLike(indexModeFromTemplate)) {
-            // Within logsdb-like group (LOGSDB / COLUMNAR_LOGSDB): adopt the exact variant from the template.
-            dsIndexMode = indexModeFromTemplate;
-        } else if (isStandardLike(dsIndexMode)) {
-            if (indexModeFromTemplate == IndexMode.TIME_SERIES) {
-                dsIndexMode = IndexMode.TIME_SERIES;
-            } else if (isLogsdbLike(indexModeFromTemplate)) {
-                dsIndexMode = indexModeFromTemplate;
-            }
-        } else if (isLogsdbLike(dsIndexMode)) {
-            if (indexModeFromTemplate == IndexMode.TIME_SERIES) {
-                dsIndexMode = IndexMode.TIME_SERIES;
-                LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
-            } else if (isStandardLike(indexModeFromTemplate)) {
-                dsIndexMode = toStandardLike(indexModeFromTemplate);
-            }
-        } else if (dsIndexMode == IndexMode.TIME_SERIES) {
-            if (isStandardLike(indexModeFromTemplate)) {
-                dsIndexMode = toStandardLike(indexModeFromTemplate);
-            } else if (isLogsdbLike(indexModeFromTemplate)) {
-                dsIndexMode = indexModeFromTemplate;
+        if (dsIndexMode != indexModeFromTemplate) {
+            if (indexModeFromTemplate == IndexMode.TIME_SERIES
+                && (dsIndexMode == IndexMode.LOGSDB || dsIndexMode == IndexMode.COLUMNAR_LOGSDB)) {
                 LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
             }
+            if (dsIndexMode == IndexMode.LOOKUP && indexModeFromTemplate != IndexMode.STANDARD) {
+                throw new IllegalArgumentException(
+                    "Changing [" + name + "] index mode from [" + indexModeFromTemplate + "] to [" + dsIndexMode + "] is not allowed"
+                );
+            }
+            dsIndexMode = (indexModeFromTemplate == IndexMode.STANDARD) ? null : indexModeFromTemplate;
         }
-
         List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices);
         backingIndices.add(writeIndex);
         return copy().setBackingIndices(

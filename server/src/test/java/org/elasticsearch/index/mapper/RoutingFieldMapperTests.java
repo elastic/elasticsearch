@@ -153,56 +153,43 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testBuilderReturnsExpectedSingleton() {
-        // docValues = false (routing stored as a stored field)
-        {
-            RoutingFieldMapper.Builder builder = new RoutingFieldMapper.Builder(false, false);
-            assertSame(RoutingFieldMapper.NOT_REQUIRED_STORED, builder.build());
-        }
-        {
-            RoutingFieldMapper.Builder builder = new RoutingFieldMapper.Builder(true, false);
-            builder.required.setValue(false);
-            assertSame(RoutingFieldMapper.REQUIRED_DEFAULT_STORED, builder.build());
-        }
-        {
-            RoutingFieldMapper.Builder builder = new RoutingFieldMapper.Builder(false, false);
-            builder.required.setValue(true);
-            assertSame(RoutingFieldMapper.REQUIRED_STORED, builder.build());
-        }
+        for (boolean requiredByDefault : new boolean[] { false, true }) {
+            for (boolean docValuesEnabledByDefault : new boolean[] { false, true }) {
+                for (boolean required : new boolean[] { false, true }) {
+                    for (boolean docValues : new boolean[] { false, true }) {
+                        String desc = "requiredByDefault="
+                            + requiredByDefault
+                            + " docValuesEnabledByDefault="
+                            + docValuesEnabledByDefault
+                            + " required="
+                            + required
+                            + " docValues="
+                            + docValues;
 
-        // docValues = true, docValuesEnabledByDefault = false
-        {
-            RoutingFieldMapper.Builder builder = new RoutingFieldMapper.Builder(false, false);
-            builder.docValues.setValue(true);
-            assertSame(RoutingFieldMapper.NOT_REQUIRED_DOC_VALUES, builder.build());
+                        RoutingFieldMapper first = buildRoutingMapper(requiredByDefault, docValuesEnabledByDefault, required, docValues);
+                        RoutingFieldMapper second = buildRoutingMapper(requiredByDefault, docValuesEnabledByDefault, required, docValues);
+                        assertSame(desc + " (two builds should return the same singleton)", first, second);
+                        assertSame(
+                            desc + " (build must match InstancesLookup)",
+                            RoutingFieldMapper.InstancesLookup.lookup(requiredByDefault, required, docValuesEnabledByDefault, docValues),
+                            first
+                        );
+                    }
+                }
+            }
         }
-        {
-            RoutingFieldMapper.Builder builder = new RoutingFieldMapper.Builder(true, false);
-            builder.required.setValue(false);
-            builder.docValues.setValue(true);
-            assertSame(RoutingFieldMapper.REQUIRED_DEFAULT_DOC_VALUES, builder.build());
-        }
-        {
-            RoutingFieldMapper.Builder builder = new RoutingFieldMapper.Builder(false, false);
-            builder.required.setValue(true);
-            builder.docValues.setValue(true);
-            assertSame(RoutingFieldMapper.REQUIRED_DOC_VALUES, builder.build());
-        }
+    }
 
-        // docValues = true, docValuesEnabledByDefault = true
-        {
-            RoutingFieldMapper.Builder builder = new RoutingFieldMapper.Builder(false, true);
-            assertSame(RoutingFieldMapper.NOT_REQUIRED_DOC_VALUES_DEFAULT, builder.build());
-        }
-        {
-            RoutingFieldMapper.Builder builder = new RoutingFieldMapper.Builder(true, true);
-            builder.required.setValue(false);
-            assertSame(RoutingFieldMapper.REQUIRED__DEFAULT_DOC_VALUES_DEFAULT, builder.build());
-        }
-        {
-            RoutingFieldMapper.Builder builder = new RoutingFieldMapper.Builder(false, true);
-            builder.required.setValue(true);
-            assertSame(RoutingFieldMapper.REQUIRED_DOC_VALUES_DEFAULT, builder.build());
-        }
+    private static RoutingFieldMapper buildRoutingMapper(
+        boolean requiredByDefault,
+        boolean docValuesEnabledByDefault,
+        boolean required,
+        boolean docValues
+    ) {
+        RoutingFieldMapper.Builder builder = new RoutingFieldMapper.Builder(requiredByDefault, docValuesEnabledByDefault);
+        builder.required.setValue(required);
+        builder.docValues.setValue(docValues);
+        return builder.build();
     }
 
     public void testFetchDocValuesRoutingFieldValue() throws IOException {

@@ -645,22 +645,6 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         assertTrue(timestampMapper.fieldType().hasDocValuesSkipper());
     }
 
-    public void testFieldTypeWithDocValuesSkipper_ColumnarModeNoTimestampMapping() throws IOException {
-        assumeTrue("columnar index mode feature flag is not enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        final Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
-            .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
-            .build();
-        final MapperService mapperService = createMapperService(settings, timestampMapping(true, b -> {}));
-
-        final DateFieldMapper timestampMapper = (DateFieldMapper) mapperService.documentMapper()
-            .mappers()
-            .getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-        assertTrue(timestampMapper.fieldType().hasDocValues());
-        assertTrue(timestampMapper.fieldType().hasDocValuesSkipper());
-    }
-
     public void testFieldTypeWithDocValuesSkipper_ColumnarModeTimestampDateNanos() throws IOException {
         assumeTrue("columnar index mode feature flag is not enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         final Settings settings = Settings.builder()

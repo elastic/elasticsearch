@@ -279,9 +279,6 @@ tests:
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=cluster.info/20_info_http/Cluster HTTP Info}
   issue: https://github.com/elastic/elasticsearch/issues/147753
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/50_index_patterns/_index LIKE with overly complex pattern}
-  issue: https://github.com/elastic/elasticsearch/issues/148134
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148339

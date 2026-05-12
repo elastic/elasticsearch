@@ -103,7 +103,7 @@ WORKDIR /usr/share/elasticsearch/config
 # Add entrypoint
 ################################################################################
 
-FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:c2d36752ca30a646f31c4514e47b96198fb4e9361d714ca87875b937d6f0f9cd
+FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:c74ba170cfa1f52269007a81a4d18170a1a60b154c81127f0b6979929a66ec4d
 
 RUN <%= retry.loop(package_manager,
           "export DEBIAN_FRONTEND=noninteractive && \n" +

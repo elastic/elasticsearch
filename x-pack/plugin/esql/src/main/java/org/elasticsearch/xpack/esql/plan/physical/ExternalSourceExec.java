@@ -173,7 +173,10 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         );
     }
 
-    /** Longest public ctor; used by {@link #info()}, {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec()}, and tree tests. */
+    /**
+     * Longest public ctor; used by {@link #info()}, by
+     * {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec()}, and by tree tests.
+     */
     public ExternalSourceExec(
         Source source,
         String sourcePath,

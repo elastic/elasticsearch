@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data.arrow;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -89,6 +90,17 @@ public final class BytesRefArrowBufVector extends AbstractArrowBufVector<BytesRe
     }
 
     @Override
+    public PagedBytesCursor get(int position, PagedBytesCursor scratch) {
+        int start = valueOffsetsBuffer.getInt((long) position * Integer.BYTES);
+        int end = valueOffsetsBuffer.getInt((long) (position + 1) * Integer.BYTES);
+        int length = end - start;
+        byte[] buf = new byte[length];
+        valueBuffer.getBytes(start, buf, 0, length);
+        scratch.init(buf, 0, length);
+        return scratch;
+    }
+
+    @Override
     protected int byteSize() {
         throw new UnsupportedOperationException("BytesRef values are variable-length");
     }
@@ -96,6 +108,18 @@ public final class BytesRefArrowBufVector extends AbstractArrowBufVector<BytesRe
     @Override
     public ElementType elementType() {
         return ElementType.BYTES_REF;
+    }
+
+    @Override
+    public int valueMaxByteSize() {
+        int max = 0;
+        int prev = valueOffsetsBuffer.getInt(0);
+        for (int i = 1; i <= getPositionCount(); i++) {
+            int curr = valueOffsetsBuffer.getInt((long) i * Integer.BYTES);
+            max = Math.max(max, curr - prev);
+            prev = curr;
+        }
+        return max;
     }
 
     @Override

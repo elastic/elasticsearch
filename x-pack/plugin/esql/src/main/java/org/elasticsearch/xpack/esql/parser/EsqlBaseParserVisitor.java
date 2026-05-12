@@ -399,12 +399,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#changePointConfiguration}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitChangePointConfiguration(EsqlBaseParser.ChangePointConfigurationContext ctx);
-  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#forkCommand}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -515,6 +509,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitRegisteredDomainCommand(EsqlBaseParser.RegisteredDomainCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#userAgentCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitUserAgentCommand(EsqlBaseParser.UserAgentCommandContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#setCommand}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -574,6 +574,13 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitIsNull(EsqlBaseParser.IsNullContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code logicalInSubquery}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitLogicalInSubquery(EsqlBaseParser.LogicalInSubqueryContext ctx);
   /**
    * Visit a parse tree produced by the {@code regexExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.

@@ -14,7 +14,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRerankRequest;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankTaskSettings;
 
@@ -24,7 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
-public class IbmWatsonxRerankRequest implements IbmWatsonxRequest {
+public class IbmWatsonxRerankRequest implements OutboundRerankRequest {
 
     private final String query;
     private final List<String> input;
@@ -73,7 +74,7 @@ public class IbmWatsonxRerankRequest implements IbmWatsonxRequest {
     }
 
     public void decorateWithAuth(HttpPost httpPost) {
-        IbmWatsonxRequest.decorateWithBearerToken(httpPost, model.getSecretSettings(), model.getInferenceEntityId());
+        IbmWatsonxRequestUtils.decorateWithBearerToken(httpPost, model.getSecretSettings(), model.getInferenceEntityId());
     }
 
     @Override
@@ -87,7 +88,7 @@ public class IbmWatsonxRerankRequest implements IbmWatsonxRequest {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         return this;
     }
 

@@ -9,6 +9,12 @@ package org.elasticsearch.xpack.esql.generator.function;
 
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.ChangePointGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.InlineStatsGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.LimitByGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.LimitGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.MvExpandGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.StatsGenerator;
 
 import java.util.HashSet;
 import java.util.List;
@@ -29,6 +35,18 @@ public final class FullTextFunctionGenerator {
 
     private static final Set<String> QSTR_KQL_SAFE_COMMANDS = Set.of("from", "where", "sort");
 
+    /**
+     * Commands after which full-text expressions (match, qstr, kql, etc.) are not allowed.
+     */
+    private static final Set<String> FULL_TEXT_FORBIDDEN_AFTER_COMMANDS = Set.of(
+        LimitGenerator.LIMIT,
+        LimitByGenerator.LIMIT_BY,
+        StatsGenerator.STATS,
+        InlineStatsGenerator.INLINE_STATS,
+        ChangePointGenerator.CHANGE_POINT,
+        MvExpandGenerator.MV_EXPAND
+    );
+
     private static boolean isFullTextAllowed(List<CommandGenerator.CommandDescription> previousCommands) {
         if (previousCommands == null || previousCommands.isEmpty()) {
             return false;
@@ -37,11 +55,7 @@ public final class FullTextFunctionGenerator {
             return false;
         }
         for (CommandGenerator.CommandDescription cmd : previousCommands) {
-            if ("limit".equals(cmd.commandName())
-                || "stats".equals(cmd.commandName())
-                || "inline stats".equals(cmd.commandName())
-                || "change_point".equals(cmd.commandName())
-                || "mv_expand".equals(cmd.commandName())) {
+            if (FULL_TEXT_FORBIDDEN_AFTER_COMMANDS.contains(cmd.commandName())) {
                 return false;
             }
         }

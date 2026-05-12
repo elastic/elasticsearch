@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.orc;
 import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
 import org.apache.lucene.util.BytesRef;
+import org.apache.orc.TypeDescription;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -38,6 +40,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.type.EsField.TimeSeriesFieldType;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class OrcPushdownFiltersTests extends ESTestCase {
 
@@ -107,7 +110,6 @@ public class OrcPushdownFiltersTests extends ESTestCase {
     // --- AND partial pushdown ---
 
     public void testAndPartialPushdown() {
-        // One convertible, one not → AND is still convertible (partial pushdown safe)
         Expression convertible = eq("age", DataType.INTEGER, 30);
         Expression unconvertible = eq("data", DataType.UNSUPPORTED, "x");
         And and = new And(SOURCE, convertible, unconvertible);
@@ -154,23 +156,22 @@ public class OrcPushdownFiltersTests extends ESTestCase {
     // --- IN with nulls ---
 
     public void testInWithSomeNulls() {
-        // IN with mix of non-null and null values → still convertible
         FieldAttribute f = field("x", DataType.INTEGER);
         In inExpr = new In(SOURCE, f, List.of(literal(1, DataType.INTEGER), new Literal(SOURCE, null, DataType.INTEGER)));
         assertTrue(OrcPushdownFilters.canConvert(inExpr));
     }
 
     public void testInWithAllNulls() {
-        // IN with only null values → not convertible
         FieldAttribute f = field("x", DataType.INTEGER);
         In inExpr = new In(SOURCE, f, List.of(new Literal(SOURCE, null, DataType.INTEGER), new Literal(SOURCE, null, DataType.INTEGER)));
         assertFalse(OrcPushdownFilters.canConvert(inExpr));
     }
 
-    // --- buildSearchArgument tests ---
+    // --- toSearchArgument tests (via OrcPushedExpressions with schema) ---
 
     public void testBuildSingleEquals() {
-        SearchArgument sarg = OrcPushdownFilters.buildSearchArgument(List.of(eq("age", DataType.LONG, 30L)));
+        TypeDescription schema = TypeDescription.createStruct().addField("age", TypeDescription.createLong());
+        SearchArgument sarg = toSearchArgument(schema, eq("age", DataType.LONG, 30L));
         assertNotNull(sarg);
         assertEquals(1, sarg.getLeaves().size());
         PredicateLeaf leaf = sarg.getLeaves().get(0);
@@ -181,8 +182,8 @@ public class OrcPushdownFiltersTests extends ESTestCase {
     }
 
     public void testBuildGreaterThan() {
-        // GT is expressed as NOT(LTE)
-        SearchArgument sarg = OrcPushdownFilters.buildSearchArgument(List.of(gt("score", DataType.DOUBLE, 9.5)));
+        TypeDescription schema = TypeDescription.createStruct().addField("score", TypeDescription.createDouble());
+        SearchArgument sarg = toSearchArgument(schema, gt("score", DataType.DOUBLE, 9.5));
         assertNotNull(sarg);
         assertEquals(1, sarg.getLeaves().size());
         PredicateLeaf leaf = sarg.getLeaves().get(0);
@@ -193,31 +194,36 @@ public class OrcPushdownFiltersTests extends ESTestCase {
     }
 
     public void testBuildMultipleFiltersAndCombined() {
-        SearchArgument sarg = OrcPushdownFilters.buildSearchArgument(List.of(eq("a", DataType.LONG, 1L), eq("b", DataType.LONG, 2L)));
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("a", TypeDescription.createLong())
+            .addField("b", TypeDescription.createLong());
+        SearchArgument sarg = new OrcPushedExpressions(List.of(eq("a", DataType.LONG, 1L), eq("b", DataType.LONG, 2L))).toSearchArgument(
+            schema
+        );
         assertNotNull(sarg);
         assertEquals(2, sarg.getLeaves().size());
     }
 
     public void testBuildInFiltersNullValues() {
-        // IN with mix of non-null and null — nulls should be filtered out
+        TypeDescription schema = TypeDescription.createStruct().addField("x", TypeDescription.createInt());
         FieldAttribute f = field("x", DataType.INTEGER);
         In inExpr = new In(
             SOURCE,
             f,
             List.of(literal(1, DataType.INTEGER), new Literal(SOURCE, null, DataType.INTEGER), literal(3, DataType.INTEGER))
         );
-        SearchArgument sarg = OrcPushdownFilters.buildSearchArgument(List.of(inExpr));
+        SearchArgument sarg = toSearchArgument(schema, inExpr);
         assertNotNull(sarg);
         assertEquals(1, sarg.getLeaves().size());
         PredicateLeaf leaf = sarg.getLeaves().get(0);
         assertEquals(PredicateLeaf.Operator.IN, leaf.getOperator());
-        // Should have 2 values (1 and 3), null filtered out
         assertEquals(2, leaf.getLiteralList().size());
     }
 
     public void testBuildDatetimeEquals() {
+        TypeDescription schema = TypeDescription.createStruct().addField("ts", TypeDescription.createTimestamp());
         long millis = 1704877200000L; // 2024-01-10T10:00:00Z
-        SearchArgument sarg = OrcPushdownFilters.buildSearchArgument(List.of(eq("ts", DataType.DATETIME, millis)));
+        SearchArgument sarg = toSearchArgument(schema, eq("ts", DataType.DATETIME, millis));
         assertNotNull(sarg);
         assertEquals(1, sarg.getLeaves().size());
         PredicateLeaf leaf = sarg.getLeaves().get(0);
@@ -228,18 +234,89 @@ public class OrcPushdownFiltersTests extends ESTestCase {
     }
 
     public void testBuildEmptyList() {
-        assertNull(OrcPushdownFilters.buildSearchArgument(List.of()));
+        TypeDescription schema = TypeDescription.createStruct().addField("x", TypeDescription.createLong());
+        assertNull(new OrcPushedExpressions(List.of()).toSearchArgument(schema));
     }
 
     public void testBuildAndPartialPushdown() {
-        // AND with one convertible side → only convertible side in SARG
+        TypeDescription schema = TypeDescription.createStruct().addField("age", TypeDescription.createInt());
         Expression convertible = eq("age", DataType.INTEGER, 30);
         Expression unconvertible = eq("data", DataType.UNSUPPORTED, "x");
         And and = new And(SOURCE, convertible, unconvertible);
-        SearchArgument sarg = OrcPushdownFilters.buildSearchArgument(List.of(and));
+        SearchArgument sarg = toSearchArgument(schema, and);
         assertNotNull(sarg);
         assertEquals(1, sarg.getLeaves().size());
         assertEquals("age", sarg.getLeaves().get(0).getColumnName());
+    }
+
+    // --- Schema-aware OrcPushedExpressions tests ---
+
+    public void testSchemaAwareDateColumn() {
+        TypeDescription schema = TypeDescription.createStruct().addField("d", TypeDescription.createDate());
+        long millis = 86400000L * 19723;
+        Expression expr = eq("d", DataType.DATETIME, millis);
+        OrcPushedExpressions pushed = new OrcPushedExpressions(List.of(expr));
+
+        SearchArgument sarg = pushed.toSearchArgument(schema);
+        assertNotNull(sarg);
+        assertEquals(1, sarg.getLeaves().size());
+        PredicateLeaf leaf = sarg.getLeaves().get(0);
+        assertEquals("d", leaf.getColumnName());
+        assertEquals(PredicateLeaf.Type.DATE, leaf.getType());
+        assertThat(leaf.getLiteral(), instanceOf(java.sql.Date.class));
+    }
+
+    public void testSchemaAwareDecimalColumn() {
+        TypeDescription schema = TypeDescription.createStruct().addField("price", TypeDescription.createDecimal().withScale(2));
+        Expression expr = eq("price", DataType.DOUBLE, 99.99);
+        OrcPushedExpressions pushed = new OrcPushedExpressions(List.of(expr));
+
+        SearchArgument sarg = pushed.toSearchArgument(schema);
+        assertNotNull(sarg);
+        assertEquals(1, sarg.getLeaves().size());
+        PredicateLeaf leaf = sarg.getLeaves().get(0);
+        assertEquals("price", leaf.getColumnName());
+        assertEquals(PredicateLeaf.Type.DECIMAL, leaf.getType());
+        assertThat(leaf.getLiteral(), instanceOf(org.apache.hadoop.hive.serde2.io.HiveDecimalWritable.class));
+    }
+
+    public void testSchemaAwareTimestampColumnUnchanged() {
+        TypeDescription schema = TypeDescription.createStruct().addField("ts", TypeDescription.createTimestamp());
+        long millis = 1700000000000L;
+        Expression expr = eq("ts", DataType.DATETIME, millis);
+        OrcPushedExpressions pushed = new OrcPushedExpressions(List.of(expr));
+
+        SearchArgument sarg = pushed.toSearchArgument(schema);
+        assertNotNull(sarg);
+        assertEquals(1, sarg.getLeaves().size());
+        PredicateLeaf leaf = sarg.getLeaves().get(0);
+        assertEquals(PredicateLeaf.Type.TIMESTAMP, leaf.getType());
+        assertEquals(new Timestamp(millis), leaf.getLiteral());
+    }
+
+    public void testSchemaAwareDoubleColumnUnchanged() {
+        TypeDescription schema = TypeDescription.createStruct().addField("val", TypeDescription.createDouble());
+        Expression expr = eq("val", DataType.DOUBLE, 3.14);
+        OrcPushedExpressions pushed = new OrcPushedExpressions(List.of(expr));
+
+        SearchArgument sarg = pushed.toSearchArgument(schema);
+        assertNotNull(sarg);
+        PredicateLeaf leaf = sarg.getLeaves().get(0);
+        assertEquals(PredicateLeaf.Type.FLOAT, leaf.getType());
+        assertEquals(3.14, leaf.getLiteral());
+    }
+
+    public void testSchemaAwareMixedDateAndInteger() {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("d", TypeDescription.createDate())
+            .addField("count", TypeDescription.createLong());
+        Expression dateExpr = eq("d", DataType.DATETIME, 86400000L * 100);
+        Expression countExpr = eq("count", DataType.LONG, 42L);
+        OrcPushedExpressions pushed = new OrcPushedExpressions(List.of(dateExpr, countExpr));
+
+        SearchArgument sarg = pushed.toSearchArgument(schema);
+        assertNotNull(sarg);
+        assertEquals(2, sarg.getLeaves().size());
     }
 
     // --- Type conversion tests ---
@@ -312,7 +389,64 @@ public class OrcPushdownFiltersTests extends ESTestCase {
         assertNull(OrcPushdownFilters.convertLiteral(null, DataType.INTEGER));
     }
 
+    // --- StartsWith tests ---
+
+    public void testCanConvertStartsWithKeyword() {
+        FieldAttribute f = field("name", DataType.KEYWORD);
+        Expression sw = new StartsWith(SOURCE, f, literal("alice", DataType.KEYWORD));
+        assertTrue(OrcPushdownFilters.canConvert(sw));
+    }
+
+    public void testCanConvertStartsWithText() {
+        FieldAttribute f = field("description", DataType.TEXT);
+        Expression sw = new StartsWith(SOURCE, f, literal("hello", DataType.TEXT));
+        assertTrue(OrcPushdownFilters.canConvert(sw));
+    }
+
+    public void testCanConvertStartsWithInteger() {
+        FieldAttribute f = field("age", DataType.INTEGER);
+        Expression sw = new StartsWith(SOURCE, f, literal(10, DataType.INTEGER));
+        assertFalse(OrcPushdownFilters.canConvert(sw));
+    }
+
+    public void testCanConvertStartsWithNonFoldable() {
+        FieldAttribute f = field("name", DataType.KEYWORD);
+        FieldAttribute prefix = field("prefix", DataType.KEYWORD);
+        Expression sw = new StartsWith(SOURCE, f, prefix);
+        assertFalse(OrcPushdownFilters.canConvert(sw));
+    }
+
+    public void testBuildSearchArgumentStartsWith() {
+        TypeDescription schema = TypeDescription.createStruct().addField("name", TypeDescription.createString());
+        FieldAttribute f = field("name", DataType.KEYWORD);
+        Expression sw = new StartsWith(SOURCE, f, literal("alice", DataType.KEYWORD));
+        SearchArgument sarg = toSearchArgument(schema, sw);
+        assertNotNull(sarg);
+        assertEquals(2, sarg.getLeaves().size());
+        PredicateLeaf lowerLeaf = sarg.getLeaves().get(0);
+        assertEquals("name", lowerLeaf.getColumnName());
+        assertEquals(PredicateLeaf.Type.STRING, lowerLeaf.getType());
+        assertEquals(PredicateLeaf.Operator.LESS_THAN, lowerLeaf.getOperator());
+        assertEquals("alice", lowerLeaf.getLiteral());
+    }
+
+    public void testStartsWithInAndExpression() {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("name", TypeDescription.createString())
+            .addField("age", TypeDescription.createInt());
+        Expression sw = new StartsWith(SOURCE, field("name", DataType.KEYWORD), literal("alice", DataType.KEYWORD));
+        Expression eqExpr = eq("age", DataType.INTEGER, 30);
+        And and = new And(SOURCE, sw, eqExpr);
+        SearchArgument sarg = toSearchArgument(schema, and);
+        assertNotNull(sarg);
+        assertTrue(sarg.getLeaves().size() >= 2);
+    }
+
     // --- Helpers ---
+
+    private static SearchArgument toSearchArgument(TypeDescription schema, Expression... exprs) {
+        return new OrcPushedExpressions(List.of(exprs)).toSearchArgument(schema);
+    }
 
     private static FieldAttribute field(String name, DataType dataType) {
         return new FieldAttribute(SOURCE, name, new EsField(name, dataType, Collections.emptyMap(), true, TimeSeriesFieldType.NONE));

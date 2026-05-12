@@ -275,7 +275,6 @@ def gcsThirdPartyTest = tasks.register("gcsThirdPartyUnitTest", Test) {
   setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
   setClasspath(internalTestSourceSet.getRuntimeClasspath())
   include '**/GoogleCloudStorageThirdPartyTests.class'
-  systemProperty 'tests.security.manager', false
   systemProperty 'test.google.bucket', gcsBucket
   systemProperty 'test.google.fixture', Boolean.toString(useFixture)
   nonInputProperties.systemProperty 'test.google.base', gcsBasePath + "_third_party_tests_" + buildParams.testSeed
@@ -288,6 +287,20 @@ tasks.register('gcsThirdPartyTest') {
   dependsOn 'yamlRestTest', gcsThirdPartyTest
 }
 
+// Run the ADC fallback test in its own JVM so the DefaultCredentialsProvider singleton
+// (cachedCredentials, checkedComputeEngine) starts with a clean state. Sharing a JVM with
+// other tests causes flaky failures when the singleton is primed before this test runs.
+tasks.named("test").configure {
+  exclude '**/GoogleCloudStorageAdcTests.class'
+}
+
+def gcsAdcTest = tasks.register("gcsAdcTest", Test) {
+  setTestClassesDirs(sourceSets.test.output.classesDirs)
+  setClasspath(sourceSets.test.runtimeClasspath)
+  include '**/GoogleCloudStorageAdcTests.class'
+  environment.remove('GOOGLE_APPLICATION_CREDENTIALS')
+}
+
 tasks.named('check') {
-  dependsOn gcsThirdPartyTest
+  dependsOn gcsThirdPartyTest, gcsAdcTest
 }

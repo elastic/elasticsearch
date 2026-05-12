@@ -103,7 +103,9 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
             sslConfig,
             request,
             listener(),
-            randomBoolean() ? null : Version.CURRENT
+            randomBoolean() ? null : Version.CURRENT,
+            randomPositiveTimeValue(),
+            null
         );
     }
 }

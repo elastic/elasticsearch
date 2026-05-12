@@ -21,14 +21,17 @@ import java.io.IOException;
  * This class is generated. Edit {@code X-Block.java.st} instead.
  */
 public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, DoubleVectorBlock, ConstantNullBlock, DoubleBigArrayBlock,
-    org.elasticsearch.compute.data.arrow.DoubleArrowBufBlock {
+    org.elasticsearch.compute.data.arrow.DoubleArrowBufBlock, org.elasticsearch.compute.data.arrow.Float16ArrowBufBlock {
 
     /**
      * Retrieves the double value stored at the given value index.
-     *
-     * <p> Values for a given position are between getFirstValueIndex(position) (inclusive) and
-     * getFirstValueIndex(position) + getValueCount(position) (exclusive).
-     *
+     * <p>
+     *    The {@code valueIndex} for a position is between.
+     * </p>
+     * {@snippet :
+     *    int start = getFirstValueIndex(position);  // @highlight
+     *    int end = start + getValueCount(position);  // @highlight
+     * }
      * @param valueIndex the value index
      * @return the data value (as a double)
      */
@@ -120,6 +123,12 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
 
     @Override
     DoubleBlock expand();
+
+    /**
+     * The maximum size in bytes of any single value stored in this block, or {@code 0} if there are no values.
+     * Always {@code Double.BYTES} since all double values encode to the same number of bytes.
+     */
+    int valueMaxByteSize();
 
     static DoubleBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();

@@ -33,6 +33,7 @@ dependencies {
   clusterModules project(':modules:repository-gcs')
   clusterPlugins project(':plugins:mapper-size')
   clusterPlugins project(':plugins:mapper-murmur3')
+  clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 
   // The datasource plugin under test
   clusterPlugins project(xpackModule('esql-datasource-ndjson'))
@@ -47,9 +48,43 @@ dependencies {
   clusterPlugins project(xpackModule('esql-datasource-azure'))
 }
 
-// The test fixtures are included directly in this module's javaRestTest/resources directory
+// Standalone NDJSON under iceberg-fixtures/standalone/ is generated from esql:qa:testFixtures CSV basenames.
+def testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
+def testFixturesDataDir = testFixturesProject.file('src/main/resources/data')
+def serverProject = project(xpackModule('esql:qa:server'))
+def ndjsonFixtureOutputRoot = file("${buildDir}/ndjson-iceberg-fixtures")
+def standaloneNdjsonFromCsv = ['employees', 'web_logs', 'books']
+
+def generateStandaloneNdjsonTasks = []
+standaloneNdjsonFromCsv.each { baseName ->
+  def taskName = "generateStandaloneNdjson_${baseName}"
+  def csvInput = new File(testFixturesDataDir, "${baseName}.csv")
+  def ndjsonOut = file("${ndjsonFixtureOutputRoot}/iceberg-fixtures/standalone/${baseName}.ndjson")
+  tasks.register(taskName, JavaExec) {
+    dependsOn serverProject.tasks.named('compileNdjsonFixtureGeneratorJava')
+    dependsOn testFixturesProject.tasks.named('processResources')
+    classpath = serverProject.configurations.ndjsonFixtureGenerator + serverProject.sourceSets.ndjsonFixtureGenerator.output
+    mainClass = 'org.elasticsearch.xpack.esql.datasources.NdJsonFixtureGenerator'
+    args = [csvInput.path, ndjsonOut.path]
+    inputs.file(csvInput)
+    outputs.file(ndjsonOut)
+    systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+  }
+  generateStandaloneNdjsonTasks.add(tasks.named(taskName))
+}
+
+tasks.register('generateStandaloneNdjsonFixtures') {
+  dependsOn generateStandaloneNdjsonTasks
+}
+
+sourceSets.javaRestTest.resources.srcDir ndjsonFixtureOutputRoot
+
+tasks.named('processJavaRestTestResources').configure {
+  dependsOn 'generateStandaloneNdjsonFixtures'
+}
 
 tasks.named('javaRestTest') {
+  dependsOn 'generateStandaloneNdjsonFixtures'
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
   enabled = buildParams.snapshotBuild

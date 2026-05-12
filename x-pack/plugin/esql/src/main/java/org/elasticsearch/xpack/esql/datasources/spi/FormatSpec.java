@@ -20,12 +20,12 @@ import java.util.Set;
  * all plugins.
  *
  * <p>Example:
- * <pre>{@code
+ * {@snippet lang="java" :
  * Set.of(
  *     new FormatSpec("csv",  Set.of(".csv")),
  *     new FormatSpec("tsv",  Set.of(".tsv"))
  * )
- * }</pre>
+ * }
  *
  * @param format     logical format name (e.g. "csv", "tsv", "parquet")
  * @param extensions file extensions with leading dot (e.g. ".csv", ".parquet")

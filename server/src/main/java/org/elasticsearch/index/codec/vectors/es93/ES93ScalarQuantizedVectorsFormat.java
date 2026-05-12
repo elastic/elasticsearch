@@ -30,6 +30,7 @@ import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.QuantizedVectorsReader;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.Lucene99ScalarQuantizedVectorsWriter;
+import org.elasticsearch.index.codec.vectors.QuantizedAndRawFloatVectorValues;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
@@ -46,7 +47,7 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     private static final int ALLOWED_BITS = (1 << 7) | (1 << 4);
 
     static final FlatVectorsScorer flatVectorScorer = new ESQuantizedFlatVectorsScorer(
-        new ScalarQuantizedVectorScorer(ES93FlatVectorScorer.INSTANCE)
+        new ScalarQuantizedVectorScorer(ES93GenericFlatVectorScorer.INSTANCE)
     );
 
     /** The minimum confidence interval */
@@ -119,9 +120,8 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES93FlatVectorReader(
-            new Lucene99ScalarQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), flatVectorScorer)
-        );
+        FlatVectorsReader delegate = rawVectorFormat.fieldsReader(state);
+        return new ES93FlatVectorReader(delegate, new Lucene99ScalarQuantizedVectorsReader(state, delegate, flatVectorScorer));
     }
 
     @Override
@@ -145,10 +145,12 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     private static class ES93FlatVectorReader extends FlatVectorsReader implements QuantizedVectorsReader {
 
         private final Lucene99ScalarQuantizedVectorsReader reader;
+        private final FlatVectorsReader delegate;
 
-        private ES93FlatVectorReader(Lucene99ScalarQuantizedVectorsReader reader) {
+        private ES93FlatVectorReader(FlatVectorsReader delegate, Lucene99ScalarQuantizedVectorsReader reader) {
             super(reader.getFlatVectorScorer());
             this.reader = reader;
+            this.delegate = delegate;
         }
 
         @Override
@@ -158,7 +160,13 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
         @Override
         public FloatVectorValues getFloatVectorValues(String field) throws IOException {
-            return reader.getFloatVectorValues(field);
+            FloatVectorValues floatVectorValues = reader.getFloatVectorValues(field);
+            if (floatVectorValues == null) {
+                return null;
+            }
+            // Its critical that we use this for later rescoring to ensure that the HasSlice, and byte size information relates to the
+            // raw vectors
+            return new QuantizedAndRawFloatVectorValues(floatVectorValues, delegate.getFloatVectorValues(field));
         }
 
         @Override
@@ -173,12 +181,12 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
         @Override
         public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
-            scoreAndCollectAll(knnCollector, acceptDocs, reader.getRandomVectorScorer(field, target));
+            scoreAndCollectAll(knnCollector, acceptDocs, reader.getFloatVectorValues(field).scorer(target));
         }
 
         @Override
         public void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
-            scoreAndCollectAll(knnCollector, acceptDocs, reader.getRandomVectorScorer(field, target));
+            scoreAndCollectAll(knnCollector, acceptDocs, reader.getByteVectorValues(field).scorer(target));
         }
 
         @Override

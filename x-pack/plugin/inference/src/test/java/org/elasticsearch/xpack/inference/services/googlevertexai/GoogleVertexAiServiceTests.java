@@ -34,7 +34,6 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
@@ -1140,7 +1139,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                 List.of(),
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1266,16 +1265,11 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                 thrownException.getMessage(),
                 CoreMatchers.is(
                     Strings.format(
-                        """
-                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
-                            Please delete and add the service again""",
-                        INFERENCE_ENTITY_ID_VALUE,
-                        GoogleVertexAiService.NAME,
+                        "The [%s] service does not support task type [%s]",
                         GoogleVertexAiService.NAME,
                         TaskType.SPARSE_EMBEDDING
                     )
                 )
-
             );
         }
     }

@@ -41,9 +41,9 @@ public final class S3StorageObject implements StorageObject {
     private final String key;
     private final StoragePath path;
 
-    private Long cachedLength;
-    private Instant cachedLastModified;
-    private Boolean cachedExists;
+    private volatile Long cachedLength;
+    private volatile Instant cachedLastModified;
+    private volatile Boolean cachedExists;
 
     public S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path) {
         this(s3Client, null, bucket, key, path);
@@ -124,8 +124,8 @@ public final class S3StorageObject implements StorageObject {
         if (position < 0) {
             throw new IllegalArgumentException("position must be non-negative, got: " + position);
         }
-        if (length < 0) {
-            throw new IllegalArgumentException("length must be non-negative, got: " + length);
+        if (length <= 0) {
+            throw new IllegalArgumentException("length must be positive, got: " + length);
         }
 
         long endPosition = position + length - 1;
@@ -187,6 +187,44 @@ public final class S3StorageObject implements StorageObject {
     }
 
     private void fetchMetadata() throws IOException {
+        try {
+            // Suffix range: bytes=-1 returns the last byte + Content-Range with total size.
+            // Avoids a separate HEAD request for file size discovery.
+            GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range("bytes=-1").build();
+            try (var response = s3Client.getObject(request)) {
+                // Drain the 1-byte body so the HTTP connection returns to the pool
+                // instead of being aborted on close.
+                response.readAllBytes();
+                GetObjectResponse metadata = response.response();
+                cachedExists = true;
+                cachedLastModified = metadata.lastModified();
+                Long total = ContentRangeParser.parseTotalLength(metadata.contentRange());
+                if (total != null) {
+                    cachedLength = total;
+                    return;
+                }
+            }
+            // Content-Range missing (unexpected for S3) — fall back to HEAD for length
+            fetchMetadataViaHead();
+        } catch (NoSuchKeyException e) {
+            setNotFound();
+        } catch (S3Exception e) {
+            if (e.statusCode() == 416) {
+                // 416 Range Not Satisfiable: object exists but is empty (0 bytes)
+                cachedExists = true;
+                cachedLength = 0L;
+            } else if (e.statusCode() == 403) {
+                // GET denied — try the existing bytes=0-0 fallback which extracts
+                // size from Content-Range; HEAD uses the same s3:GetObject permission
+                // so would also be denied.
+                fetchMetadataViaRangeGet();
+            } else {
+                fetchMetadataViaHead();
+            }
+        }
+    }
+
+    private void fetchMetadataViaHead() throws IOException {
         try {
             HeadObjectRequest request = HeadObjectRequest.builder().bucket(bucket).key(key).build();
             HeadObjectResponse response = s3Client.headObject(request);
@@ -256,8 +294,8 @@ public final class S3StorageObject implements StorageObject {
             listener.onFailure(new IllegalArgumentException("position must be non-negative, got: " + position));
             return;
         }
-        if (length < 0) {
-            listener.onFailure(new IllegalArgumentException("length must be non-negative, got: " + length));
+        if (length <= 0) {
+            listener.onFailure(new IllegalArgumentException("length must be positive, got: " + length));
             return;
         }
 

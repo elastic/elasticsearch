@@ -21,6 +21,12 @@ public class MistralEmbeddingModelTests extends ESTestCase {
         return createModel(inferenceId, model, apiKey, null, null, null, null);
     }
 
+    public static MistralEmbeddingsModel createModel(String url, String inferenceId, String model, String apiKey) {
+        var embeddingsModel = createModel(inferenceId, model, apiKey);
+        embeddingsModel.setURI(url);
+        return embeddingsModel;
+    }
+
     public static MistralEmbeddingsModel createModel(
         String inferenceId,
         String model,

@@ -15,6 +15,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.TaskType;
@@ -488,7 +489,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         assertThat(singleModel.get("task_type"), is(EMBEDDING.toString()));
         try {
             var input = List.of(
-                new InferenceString(DataType.IMAGE, randomAlphaOfLength(5)),
+                new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64," + randomAlphaOfLength(4)),
                 new InferenceString(DataType.TEXT, randomAlphaOfLength(15))
             );
             var resultMap = embedding(modelId, input);

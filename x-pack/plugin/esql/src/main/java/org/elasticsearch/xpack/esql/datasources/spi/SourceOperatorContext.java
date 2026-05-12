@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
-import org.elasticsearch.xpack.esql.datasources.FileSet;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -47,14 +47,17 @@ public record SourceOperatorContext(
     int maxBufferSize,
     int rowLimit,
     Executor executor,
+    @Nullable Executor fileReadExecutor,
     Map<String, Object> config,
     Map<String, Object> sourceMetadata,
     Object pushedFilter,
-    FileSet fileSet,
+    List<Expression> pushedExpressions,
+    FileList fileList,
     @Nullable ExternalSplit split,
     Set<String> partitionColumnNames,
     @Nullable ExternalSliceQueue sliceQueue,
-    int parsingParallelism
+    int parsingParallelism,
+    int parallelism
 ) {
     public SourceOperatorContext {
         Check.notNull(path, "path cannot be null");
@@ -63,6 +66,7 @@ public record SourceOperatorContext(
         attributes = attributes != null ? List.copyOf(attributes) : List.of();
         config = config != null ? Map.copyOf(config) : Map.of();
         sourceMetadata = sourceMetadata != null ? Map.copyOf(sourceMetadata) : Map.of();
+        pushedExpressions = pushedExpressions != null ? List.copyOf(pushedExpressions) : List.of();
         partitionColumnNames = partitionColumnNames != null && partitionColumnNames.isEmpty() == false
             ? Collections.unmodifiableSet(new LinkedHashSet<>(partitionColumnNames))
             : Set.of();
@@ -75,6 +79,9 @@ public record SourceOperatorContext(
         }
         if (parsingParallelism < 1) {
             throw new IllegalArgumentException("parsingParallelism must be >= 1, got: " + parsingParallelism);
+        }
+        if (parallelism < 1) {
+            throw new IllegalArgumentException("parallelism must be >= 1, got: " + parallelism);
         }
     }
 
@@ -89,7 +96,7 @@ public record SourceOperatorContext(
         Map<String, Object> config,
         Map<String, Object> sourceMetadata,
         Object pushedFilter,
-        FileSet fileSet,
+        FileList fileList,
         @Nullable ExternalSplit split
     ) {
         this(
@@ -101,13 +108,16 @@ public record SourceOperatorContext(
             maxBufferSize,
             FormatReader.NO_LIMIT,
             executor,
+            null,
             config,
             sourceMetadata,
             pushedFilter,
-            fileSet,
+            null,
+            fileList,
             split,
             null,
             null,
+            1,
             1
         );
     }
@@ -123,7 +133,7 @@ public record SourceOperatorContext(
         Map<String, Object> config,
         Map<String, Object> sourceMetadata,
         Object pushedFilter,
-        FileSet fileSet
+        FileList fileList
     ) {
         this(
             sourceType,
@@ -134,13 +144,16 @@ public record SourceOperatorContext(
             maxBufferSize,
             FormatReader.NO_LIMIT,
             executor,
+            null,
             config,
             sourceMetadata,
             pushedFilter,
-            fileSet,
+            null,
+            fileList,
             null,
             null,
             null,
+            1,
             1
         );
     }
@@ -166,6 +179,7 @@ public record SourceOperatorContext(
             maxBufferSize,
             FormatReader.NO_LIMIT,
             executor,
+            null,
             config,
             sourceMetadata,
             pushedFilter,
@@ -173,6 +187,8 @@ public record SourceOperatorContext(
             null,
             null,
             null,
+            null,
+            1,
             1
         );
     }
@@ -196,6 +212,7 @@ public record SourceOperatorContext(
             maxBufferSize,
             FormatReader.NO_LIMIT,
             executor,
+            null,
             config,
             Map.of(),
             null,
@@ -203,6 +220,8 @@ public record SourceOperatorContext(
             null,
             null,
             null,
+            null,
+            1,
             1
         );
     }
@@ -220,14 +239,18 @@ public record SourceOperatorContext(
         private int maxBufferSize = 10;
         private int rowLimit = FormatReader.NO_LIMIT;
         private Executor executor;
+        @Nullable
+        private Executor fileReadExecutor;
         private Map<String, Object> config;
         private Map<String, Object> sourceMetadata;
         private Object pushedFilter;
-        private FileSet fileSet;
+        private List<Expression> pushedExpressions;
+        private FileList fileList;
         private ExternalSplit split;
         private Set<String> partitionColumnNames;
         private ExternalSliceQueue sliceQueue;
         private int parsingParallelism = 1;
+        private int parallelism = 1;
 
         public Builder sourceType(String sourceType) {
             this.sourceType = sourceType;
@@ -269,6 +292,16 @@ public record SourceOperatorContext(
             return this;
         }
 
+        /**
+         * Optional executor for file (and similar) background reads. When set (e.g. to {@code generic}),
+         * async reads and slice-queue drain run here instead of on {@link #executor}, so producers blocked
+         * in buffer backpressure do not starve the {@code esql_worker} drivers that consume the buffer.
+         */
+        public Builder fileReadExecutor(Executor fileReadExecutor) {
+            this.fileReadExecutor = fileReadExecutor;
+            return this;
+        }
+
         public Builder config(Map<String, Object> config) {
             this.config = config;
             return this;
@@ -284,8 +317,13 @@ public record SourceOperatorContext(
             return this;
         }
 
-        public Builder fileSet(FileSet fileSet) {
-            this.fileSet = fileSet;
+        public Builder pushedExpressions(List<Expression> pushedExpressions) {
+            this.pushedExpressions = pushedExpressions;
+            return this;
+        }
+
+        public Builder fileList(FileList fileList) {
+            this.fileList = fileList;
             return this;
         }
 
@@ -309,6 +347,11 @@ public record SourceOperatorContext(
             return this;
         }
 
+        public Builder parallelism(int parallelism) {
+            this.parallelism = parallelism;
+            return this;
+        }
+
         public SourceOperatorContext build() {
             return new SourceOperatorContext(
                 sourceType,
@@ -319,14 +362,17 @@ public record SourceOperatorContext(
                 maxBufferSize,
                 rowLimit,
                 executor,
+                fileReadExecutor,
                 config,
                 sourceMetadata,
                 pushedFilter,
-                fileSet,
+                pushedExpressions,
+                fileList,
                 split,
                 partitionColumnNames,
                 sliceQueue,
-                parsingParallelism
+                parsingParallelism,
+                parallelism
             );
         }
     }

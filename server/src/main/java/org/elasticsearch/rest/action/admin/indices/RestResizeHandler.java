@@ -16,6 +16,8 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -49,7 +51,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
         return channel -> client.execute(TransportResizeAction.TYPE, resizeRequest, new RestToXContentListener<>(channel));
     }
 
-    // no @ServerlessScope on purpose, not available
+    @ServerlessScope(Scope.INTERNAL)
     public static class RestShrinkIndexAction extends RestResizeHandler {
 
         @Override
@@ -69,7 +71,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
     }
 
-    // no @ServerlessScope on purpose, not available
+    @ServerlessScope(Scope.INTERNAL)
     public static class RestSplitIndexAction extends RestResizeHandler {
 
         @Override
@@ -89,7 +91,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
     }
 
-    // no @ServerlessScope on purpose, not available
+    @ServerlessScope(Scope.INTERNAL)
     public static class RestCloneIndexAction extends RestResizeHandler {
 
         @Override

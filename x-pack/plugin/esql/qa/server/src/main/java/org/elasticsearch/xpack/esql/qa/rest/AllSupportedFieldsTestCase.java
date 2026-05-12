@@ -119,6 +119,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             MappedFieldType.FieldExtractPreference.STORED
         )) {
             for (IndexMode indexMode : IndexMode.values()) {
+                // TODO: Support COLUMNAR and COLUMNAR_LOGSDB modes in BWC tests
+                // These modes are currently skipped to avoid "No enum constant" errors in mixed-version clusters
+                // where older nodes don't have these enum values yet.
+                if (indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.COLUMNAR_LOGSDB) {
+                    continue;
+                }
                 args.add(new Object[] { extractPreference, indexMode });
             }
         }
@@ -732,7 +738,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         request.setJsonEntity(Strings.toString(body));
 
         Response response = client().performRequest(request);
-        Map<String, Object> responseMap = responseAsMap(response);
+        Map<String, Object> responseMap = responseAsOrderedMap(response);
         HttpHost coordinatorHost = response.getHost();
         NodeInfo coordinator = allNodeToInfo().values().stream().filter(n -> n.boundAddress().contains(coordinatorHost)).findFirst().get();
         TransportVersion coordinatorVersion = coordinator.version();
@@ -911,6 +917,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 case DENSE_VECTOR -> doc.value(List.of(0.5, 10, 6));
                 case HISTOGRAM -> createHistogramValue(doc);
                 case TDIGEST -> createTDigestValue(doc);
+                case FLATTENED -> {
+                    doc.startObject();
+                    doc.field("a", "foo");
+                    doc.endObject();
+                }
                 default -> throw new AssertionError("unsupported field type [" + type + "]");
             }
         }
@@ -1058,7 +1069,24 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             }
             case DATE_RANGE -> {
                 if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())) {
-                    yield equalTo("1989-01-01T00:00:00.000Z..2024-12-31T23:59:59.999Z");
+                    // Older nodes in snapshot-to-snapshot BWC
+                    // had a bug: they leaked the doc-value upper bound (last millisecond before
+                    // `to` in `from..to`)
+                    // into the output instead of `to` itself. Accept the buggy form too while the
+                    // feature is still under construction.
+                    if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, false) == false) {
+                        yield anyOf(
+                            equalTo("1989-01-01T00:00:00.000Z..2025-01-01T00:00:00.000Z"),
+                            equalTo("1989-01-01T00:00:00.000Z..2024-12-31T23:59:59.999Z")
+                        );
+                    }
+                    yield equalTo("1989-01-01T00:00:00.000Z..2025-01-01T00:00:00.000Z");
+                }
+                yield nullValue();
+            }
+            case FLATTENED -> {
+                if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                    yield anyOf(nullValue(), equalTo(Map.of("a", "foo")));
                 }
                 yield nullValue();
             }
@@ -1089,7 +1117,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             // TODO: current versions already support _tsid; update this once we can tell whether all nodes support it.
             case OBJECT, SOURCE, DOC_DATA_TYPE, TSID_DATA_TYPE,
                 // Internal only
-                UNSUPPORTED,
+                UNSUPPORTED, PARTIAL_AGG,
                 // You can't index these - they are just constants.
                 DATE_PERIOD, TIME_DURATION, GEOTILE, GEOHASH, GEOHEX,
                 // TODO fix geo
@@ -1099,6 +1127,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case EXPONENTIAL_HISTOGRAM -> DataType.EXPONENTIAL_HISTOGRAM.supportedVersion()
                 .supportedOn(version, Build.current().isSnapshot());
             case TDIGEST -> DataType.TDIGEST.supportedVersion().supportedOn(version, Build.current().isSnapshot());
+            case FLATTENED -> DataType.FLATTENED.supportedVersion().supportedOn(version, Build.current().isSnapshot());
             default -> true;
         };
     }
@@ -1219,6 +1248,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 }
                 yield equalTo("histogram");
             }
+            case FLATTENED -> {
+                if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                    yield anyOf(equalTo("flattened"), equalTo("unsupported"));
+                }
+                yield equalTo("unsupported");
+            }
             default -> equalTo(type.esType());
         };
     }
@@ -1230,7 +1265,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     private boolean syntheticSourceByDefault() {
         return switch (indexMode) {
-            case TIME_SERIES, LOGSDB -> true;
+            case TIME_SERIES, LOGSDB, COLUMNAR, COLUMNAR_LOGSDB -> true;
             case STANDARD, LOOKUP -> false;
         };
     }
@@ -1361,6 +1396,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Doubles")
                 : matchesList().item("column_at_a_time:DoublesFromDocValues.Singleton");
             case EXPONENTIAL_HISTOGRAM -> matchesList().item("column_at_a_time:BlockDocValuesReader.ExponentialHistogram");
+            case FLATTENED -> matchesList().item("column_at_a_time:");
             case DENSE_VECTOR -> matchesList().item("column_at_a_time:FloatDenseVectorFromDocValues.Normalized.Load");
             case GEO_POINT -> extractPreference == MappedFieldType.FieldExtractPreference.STORED || syntheticSourceByDefault() == false
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Geometries")
@@ -1396,7 +1432,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     : matchesList().item("column_at_a_time:constant_nulls");
             case TDIGEST -> matchesList().item("column_at_a_time:BlockDocValuesReader.TDigest");
             case TEXT -> syntheticSourceByDefault()
-                ? matchesList().item("column_at_a_time:BlockDocValuesReader.BytesCustom")
+                ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
                 : matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes");
             case VERSION -> matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
             default -> matchesList();

@@ -108,6 +108,31 @@ public class AccountableQueryCircuitBreakerIT extends ESIntegTestCase {
         assertQueryMemoryReleasedAfterSearch(new RangeQueryBuilder(KEYWORD_FIELD).gte("key0").lte("key999"));
     }
 
+    public void testCaseInsensitiveWildcardQueryMemoryReleased() throws Exception {
+        WildcardQueryBuilder wildcardQuery = new WildcardQueryBuilder(TEXT_FIELD, "*test*pattern*");
+        wildcardQuery.caseInsensitive(true);
+        assertQueryMemoryReleasedAfterSearch(wildcardQuery);
+    }
+
+    public void testSingleHugeWildcardTripsCircuitBreaker() {
+        createAndPopulateIndex();
+        assertQueryTripsBreaker(new WildcardQueryBuilder(TEXT_FIELD, "*a*b*c*d*e*f*g*h*i*j*k*l*m*n*"));
+    }
+
+    public void testSingleHugeRegexpTripsCircuitBreaker() {
+        createAndPopulateIndex();
+        RegexpQueryBuilder regexpQuery = new RegexpQueryBuilder(TEXT_FIELD, ".*a.*b.*c.*d.*e.*f.*g.*h.*i.*j.*k.*l.*m.*n.*");
+        regexpQuery.maxDeterminizedStates(Integer.MAX_VALUE);
+        assertQueryTripsBreaker(regexpQuery);
+    }
+
+    public void testSingleHugeCaseInsensitiveWildcardTripsCircuitBreaker() {
+        createAndPopulateIndex();
+        WildcardQueryBuilder wildcardQuery = new WildcardQueryBuilder(TEXT_FIELD, "*a*b*c*d*e*f*g*h*i*j*k*l*m*n*");
+        wildcardQuery.caseInsensitive(true);
+        assertQueryTripsBreaker(wildcardQuery);
+    }
+
     private void assertBoolQueryTripsBreaker(int count, IntFunction<QueryBuilder> queryFactory) {
         createAndPopulateIndex();
 
@@ -184,14 +209,16 @@ public class AccountableQueryCircuitBreakerIT extends ESIntegTestCase {
         );
 
         SearchRequestBuilder searchRequest = client().prepareSearch(INDEX_NAME).setQuery(query);
-        assertFailures(searchRequest, RestStatus.BAD_REQUEST, containsString("Data too large"));
+        assertFailures(searchRequest, RestStatus.TOO_MANY_REQUESTS, containsString("Data too large"));
         assertThat("Request circuit breaker should have tripped", getRequestBreakerTrippedCount(), greaterThanOrEqualTo(1L));
     }
 
     private void assertQueryMemoryReleased(QueryBuilder query) throws Exception {
         long baseline = getRequestBreakerEstimated();
         client().prepareSearch(INDEX_NAME).setQuery(query).get().decRef();
-        long estimated = getRequestBreakerEstimated();
-        assertEquals("Request breaker memory should be released after search completes", baseline, estimated);
+        assertBusy(() -> {
+            long estimated = getRequestBreakerEstimated();
+            assertEquals("Request breaker memory should be released after search completes", baseline, estimated);
+        });
     }
 }

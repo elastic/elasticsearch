@@ -266,7 +266,7 @@ public final class BlockUtils {
             case FLOAT -> blockFactory.newConstantFloatBlockWith((float) val, size);
             case EXPONENTIAL_HISTOGRAM -> blockFactory.newConstantExponentialHistogramBlock((ExponentialHistogram) val, size);
             case TDIGEST -> blockFactory.newConstantTDigestBlock((TDigestHolder) val, size);
-            case LONG_RANGE -> blockFactory.newConstantLongRangeBlock((LongRangeBlockBuilder.LongRange) val, size);
+            case LONG_RANGE -> blockFactory.newConstantLongRangeBlockWith((LongRangeBlockBuilder.LongRange) val, size);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         };
     }
@@ -345,6 +345,9 @@ public final class BlockUtils {
                 LongRangeBlock b = (LongRangeBlock) block;
                 LongBlock fromBlock = b.getFromBlock();
                 LongBlock toBlock = b.getToBlock();
+                if (fromBlock.isNull(offset) || toBlock.isNull(offset)) {
+                    yield null;
+                }
                 yield new LongRangeBlockBuilder.LongRange(fromBlock.getLong(offset), toBlock.getLong(offset));
             }
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");

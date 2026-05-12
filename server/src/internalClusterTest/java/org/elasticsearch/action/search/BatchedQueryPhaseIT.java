@@ -17,13 +17,13 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.ResponseCollectorService;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -35,10 +35,6 @@ import static org.hamcrest.Matchers.notNullValue;
 public class BatchedQueryPhaseIT extends ESIntegTestCase {
 
     public void testNumReducePhases() {
-        assumeTrue(
-            "test skipped because batched query execution disabled by feature flag",
-            SearchService.BATCHED_QUERY_PHASE_FEATURE_FLAG.isEnabled()
-        );
         String indexName = "test-idx";
         assertAcked(
             prepareCreate(indexName).setMapping("title", "type=keyword")
@@ -77,10 +73,14 @@ public class BatchedQueryPhaseIT extends ESIntegTestCase {
     }
 
     public void testAdaptiveReplicaSelectionStatsWithBatchedQueryPhase() {
-        assumeTrue(
-            "test skipped because batched query execution disabled by feature flag",
-            SearchService.BATCHED_QUERY_PHASE_FEATURE_FLAG.isEnabled()
-        );
+        assertAdaptiveReplicaSelectionStats(QUERY_THEN_FETCH);
+    }
+
+    public void testAdaptiveReplicaSelectionStatsWithDFS() {
+        assertAdaptiveReplicaSelectionStats(DFS_QUERY_THEN_FETCH);
+    }
+
+    private void assertAdaptiveReplicaSelectionStats(SearchType searchType) {
         internalCluster().ensureAtLeastNumDataNodes(3);
 
         String indexName = "test-ars-stats";
@@ -104,7 +104,7 @@ public class BatchedQueryPhaseIT extends ESIntegTestCase {
         String coordinatorNodeId = getNodeId(coordinatorNode);
 
         for (int i = 0; i < 20; i++) {
-            assertNoFailuresAndResponse(client(coordinatorNode).prepareSearch(indexName).setSearchType(QUERY_THEN_FETCH), response -> {});
+            assertNoFailuresAndResponse(client(coordinatorNode).prepareSearch(indexName).setSearchType(searchType), response -> {});
         }
 
         ResponseCollectorService responseCollectorService = internalCluster().getInstance(ResponseCollectorService.class, coordinatorNode);

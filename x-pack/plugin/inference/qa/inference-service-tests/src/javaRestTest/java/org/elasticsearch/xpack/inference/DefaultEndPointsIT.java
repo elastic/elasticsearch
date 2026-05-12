@@ -9,9 +9,12 @@ package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
@@ -25,8 +28,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
@@ -36,7 +41,7 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
     private TestThreadPool threadPool;
 
     @Before
-    public void setupTest() throws IOException {
+    public void setupTest() throws Exception {
         threadPool = new TestThreadPool(DefaultEndPointsIT.class.getSimpleName());
 
         Request loggingSettings = new Request("PUT", "_cluster/settings");
@@ -45,6 +50,8 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
                     "logger.org.elasticsearch.xpack.ml.packageloader" : "DEBUG"
                 }}""");
         client().performRequest(loggingSettings);
+        initInferenceIndices();
+        ensureNoInitializingShards();
     }
 
     @After
@@ -206,10 +213,12 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
         int numParallelRequests = 4;
         var latch = new CountDownLatch(numParallelRequests);
         var errors = new ArrayList<Exception>();
+        var successCount = new AtomicInteger(0);
 
         var listener = new ResponseListener() {
             @Override
             public void onSuccess(Response response) {
+                successCount.incrementAndGet();
                 latch.countDown();
             }
 
@@ -233,6 +242,64 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
         }
 
         latch.await();
-        assertThat(errors.toString(), errors, empty());
+        // Filter out transient shard unavailability errors on .ml-inference-* indices. These can occur when
+        // multiple concurrent requests race to initialize the ML model storage index during the first deployment.
+        var significantErrors = errors.stream().filter(e -> isTransientMlInferenceIndexError(e) == false).toList();
+        assertThat("Received non-transient errors", significantErrors, empty());
+        assertThat("Expected at least one inference request to succeed", successCount.get(), greaterThan(0));
+        assertElserDeploymentStarted();
+    }
+
+    /**
+     * Asserts that the ELSER deployment is in a started or fully-allocated state by querying
+     * {@code _ml/trained_models/<model_id>/_stats}. Called after inference requests complete to
+     * confirm the deployment is healthy and ready to serve requests.
+     *
+     * The response json of getTrainedModelStats is:
+     * {
+     *   "count": 2,
+     *   "trained_model_stats": [
+     *     {
+     *       "model_id": ".elser_model_2_linux-x86_64",
+     *       "... other fields ...",
+     *       "deployment_stats": {
+     *         "... other fields ...",
+     *         "state": "started",
+     *         "allocation_status": {
+     *           "allocation_count": 1,
+     *           "target_allocation_count": 1,
+     *           "state": "fully_allocated"
+     *         },
+     *         "... other fields ...",
+     *       }
+     *     },
+     *     "... other trained model stats ...",
+     *   ]
+     * }
+     */
+    @SuppressWarnings("unchecked")
+    private void assertElserDeploymentStarted() throws IOException {
+        var elserConfig = getModel(ElasticsearchInternalService.DEFAULT_ELSER_ID);
+        var serviceSettings = (Map<String, Object>) elserConfig.get("service_settings");
+        var mlModelId = (String) serviceSettings.get("model_id");
+
+        var statsResponse = getTrainedModelStats(mlModelId);
+        var trainedModelStats = (List<Map<String, Object>>) statsResponse.get("trained_model_stats");
+        assertFalse(statsResponse.toString(), trainedModelStats.isEmpty());
+
+        var state = (String) XContentMapValues.extractValue("deployment_stats.allocation_status.state", trainedModelStats.get(0));
+        assertThat(statsResponse.toString(), state, is(oneOf("started", "fully_allocated")));
+    }
+
+    /**
+     * Returns true if the exception is a transient 503 caused by a not-yet-initialized shard on a .ml-inference-*
+     * index. This happens when concurrent requests simultaneously trigger a built-in model deployment and one of
+     * them searches the ML inference index while another is in the process of creating it.
+     */
+    private static boolean isTransientMlInferenceIndexError(Exception e) {
+        return e instanceof ResponseException re
+            && re.getResponse().getStatusLine().getStatusCode() == RestStatus.SERVICE_UNAVAILABLE.getStatus()
+            && e.getMessage().contains("no_shard_available_action_exception")
+            && e.getMessage().contains(".ml-inference-");
     }
 }

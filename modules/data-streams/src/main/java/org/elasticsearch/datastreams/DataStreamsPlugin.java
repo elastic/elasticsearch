@@ -44,7 +44,6 @@ import org.elasticsearch.datastreams.action.TransportModifyDataStreamsAction;
 import org.elasticsearch.datastreams.action.TransportPromoteDataStreamAction;
 import org.elasticsearch.datastreams.action.TransportUpdateDataStreamMappingsAction;
 import org.elasticsearch.datastreams.action.TransportUpdateDataStreamSettingsAction;
-import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.GetDataStreamLifecycleStatsAction;
@@ -103,9 +102,10 @@ import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM
 
 public class DataStreamsPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, HealthPlugin {
 
+    public static final int TIME_SERIES_POLL_INTERVAL_DEFAULT = 3;
     public static final Setting<TimeValue> TIME_SERIES_POLL_INTERVAL = Setting.timeSetting(
         "time_series.poll_interval",
-        TimeValue.timeValueMinutes(5),
+        TimeValue.timeValueMinutes(TIME_SERIES_POLL_INTERVAL_DEFAULT),
         TimeValue.timeValueMinutes(1),
         TimeValue.timeValueMinutes(10),
         Setting.Property.NodeScope,
@@ -113,9 +113,10 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
     );
 
     private static final TimeValue MAX_LOOK_AHEAD_TIME = TimeValue.timeValueHours(2);
+    public static final int LOOK_AHEAD_TIME_DEFAULT = 9;
     public static final Setting<TimeValue> LOOK_AHEAD_TIME = Setting.timeSetting(
         "index.look_ahead_time",
-        TimeValue.timeValueMinutes(30),
+        TimeValue.timeValueMinutes(LOOK_AHEAD_TIME_DEFAULT),
         TimeValue.timeValueMinutes(1),
         TimeValue.timeValueDays(7), // is effectively 2h now.
         Setting.Property.IndexScope,
@@ -144,7 +145,6 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         Setting.Property.Dynamic,
         Setting.Property.ServerlessPublic
     );
-    private final SetOnce<DataStreamLifecycleErrorStore> errorStoreInitialisationService = new SetOnce<>();
 
     private final SetOnce<DataStreamLifecycleService> dataLifecycleInitialisationService = new SetOnce<>();
     private final SetOnce<DataStreamLifecycleHealthInfoPublisher> dataStreamLifecycleErrorsPublisher = new SetOnce<>();
@@ -180,10 +180,11 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         pluginSettings.add(TIME_SERIES_POLL_INTERVAL);
         pluginSettings.add(LOOK_AHEAD_TIME);
         pluginSettings.add(LOOK_BACK_TIME);
+        pluginSettings.add(DataStreamIndexSettingsProvider.SUPPORT_SEQ_NO_DISABLED);
+        pluginSettings.add(DataStreamIndexSettingsProvider.SUPPORT_SYNTHETIC_ID);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);
-        pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING);
         return pluginSettings;
     }
 
@@ -202,14 +203,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
             additionalLookAheadTimeValidation(value, timeSeriesPollInterval);
         });
         components.add(updateTimeSeriesRangeService);
-        errorStoreInitialisationService.set(new DataStreamLifecycleErrorStore(services.threadPool()::absoluteTimeInMillis));
         dataStreamLifecycleErrorsPublisher.set(
-            new DataStreamLifecycleHealthInfoPublisher(
-                settings,
-                services.client(),
-                services.clusterService(),
-                errorStoreInitialisationService.get()
-            )
+            new DataStreamLifecycleHealthInfoPublisher(settings, services.client(), services.clusterService(), services.dlmErrorStore())
         );
 
         dataLifecycleInitialisationService.set(
@@ -220,7 +215,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
                 getClock(),
                 services.threadPool(),
                 services.threadPool()::absoluteTimeInMillis,
-                errorStoreInitialisationService.get(),
+                services.dlmErrorStore(),
                 services.allocationService(),
                 dataStreamLifecycleErrorsPublisher.get(),
                 services.dataStreamGlobalRetentionSettings()
@@ -229,7 +224,6 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         dataLifecycleInitialisationService.get().init();
         dataStreamLifecycleHealthIndicatorService.set(new DataStreamLifecycleHealthIndicatorService(services.projectResolver()));
 
-        components.add(errorStoreInitialisationService.get());
         components.add(dataLifecycleInitialisationService.get());
         components.add(dataStreamLifecycleErrorsPublisher.get());
         return components;
@@ -294,7 +288,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
 
     @Override
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
-        return List.of(new DataStreamIndexSettingsProvider(parameters.mapperServiceFactory()));
+        return List.of(new DataStreamIndexSettingsProvider(parameters.mapperServiceFactory(), settings));
     }
 
     @Override

@@ -1,6 +1,8 @@
 ```yaml {applies_to}
-serverless: preview
-stack: preview 9.2.0
+
+
+serverless: ga
+stack: preview 9.2, ga 9.4
 ```
 
 The `TS` source command is similar to the [`FROM`](/reference/query-languages/esql/commands/from.md)
@@ -52,6 +54,41 @@ You can also combine time series aggregation functions with regular [aggregation
 
 However, using a time series aggregation function in combination with an inner time series function causes an error. For an example, refer to [Invalid query: nested time series functions](#invalid-query-nested-time-series-functions).
 
+If there is no `STATS` command in the query, the output of the `TS` command gets sorted by `@timestamp` in descending order by default. This helps listing recent values across many time series, as opposed to listing the results based on index sort configuration that may just return data points for a single time series.
+
+## Grouping time series [grouping-time-series]
+
+When the first `STATS` after `TS` uses a bare
+[time series aggregation function](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md)
+(that is, a time series function not wrapped in an outer aggregation such as `AVG()` or `SUM()`),
+the rows are implicitly grouped by **all** [dimensions](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-dimension)
+of each time series. The result set includes a `_timeseries` `keyword`
+column that contains a JSON-encoded object with the dimension key/value pairs
+identifying each group. Only the dimensions that are actually present for a given time
+series are included — not every dimension declared in the index mappings — so different
+rows in the result may carry different dimension keys. For an example, refer to
+[Group by all dimensions implicitly](#group-by-all-dimensions-implicitly).
+
+You can make this grouping explicit, or narrow it to a subset of dimensions, using the
+[`WITHOUT`](/reference/query-languages/esql/functions-operators/grouping-functions/without.md)
+grouping function in the `BY` clause ({applies_to}`stack: ga 9.4`):
+
+- `BY WITHOUT(dim1, dim2, ...)` groups by **all** dimensions **except** those listed.
+  See [Exclude dimensions with WITHOUT](#exclude-dimensions-with-without).
+- `BY WITHOUT()` (no arguments) explicitly groups by every dimension; it is equivalent
+  to the implicit "group by all" behavior.
+
+When combining a bare time series function with other groupings, only grouping functions
+(such as [`TBUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions/tbucket.md)
+or [`WITHOUT`](/reference/query-languages/esql/functions-operators/grouping-functions/without.md)) are allowed in the `BY` clause — bare dimension columns are not.
+For example, `TS k8s | STATS rate(network.total_bytes_in) BY host` is rejected; use
+`BY TBUCKET(1 hour)` or wrap the time series function with an outer aggregation instead.
+
+::::{note}
+`WITHOUT` can only be used inside the first `STATS` command under `TS` source. Using it in a `FROM | STATS ... BY WITHOUT(...)`
+query leads to an error.
+::::
+
 ## Best practices
 
 - Avoid aggregating multiple metrics in the same query when those metrics have different dimensional cardinalities.
@@ -66,7 +103,7 @@ However, using a time series aggregation function in combination with an inner t
   [`FORK`](/reference/query-languages/esql/commands/fork.md)) before the `STATS` command is applied. Once `STATS` is
   applied, you can process the tabular output with any applicable ES|QL operations.
 - Add a time range filter on `@timestamp` to limit the data volume scanned and improve query performance.
-- Time series aggregations large result sets, especially if they involve many dimensions and small time buckets.
+- Time series aggregations produce large result sets, especially if they involve many dimensions and small time buckets.
   The limits are updated accordingly, with the default result truncation size increased to 10,000 rows. For more
   information on the limits and how to adjust them, refer to
   [Result set size limitation](/reference/query-languages/esql/_snippets/common/result-set-size-limitation.md).
@@ -132,6 +169,39 @@ TS metrics
 | WHERE @timestamp >= now() - 1 day
 | STATS SUM(AVG_OVER_TIME(memory_usage)) BY host, TBUCKET(1 hour)
 ```
+
+### Group by all dimensions implicitly
+
+When a bare time series aggregation function is used without a `BY` clause, results are
+implicitly grouped by all dimensions of each time series and include a `_timeseries`
+column with the dimension key/value pairs. Note how the `qa` cluster rows only carry
+`cluster` and `pod` keys, while the `prod` and `staging` rows also include `region` —
+only the dimensions that actually exist for a given time series appear in `_timeseries`:
+
+::::{include} ../examples/k8s-timeseries.csv-spec/docsGroupByAllImplicitly.md
+::::
+
+### Exclude dimensions with WITHOUT
+
+Use [`WITHOUT`](/reference/query-languages/esql/functions-operators/grouping-functions/without.md)
+({applies_to}`stack: ga 9.4`) in the `BY` clause to exclude specific dimensions from
+the time series grouping. For example, group by every dimension except `pod`:
+
+::::{include} ../examples/k8s-timeseries-without.csv-spec/docsWithoutSingleDimension.md
+::::
+
+`WITHOUT` can be combined with
+[`TBUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions/tbucket.md)
+to add a time bucket to the grouping — useful for producing per-interval aggregates
+across the surviving dimensions:
+
+::::{include} ../examples/k8s-timeseries-without.csv-spec/docsWithoutWithTbucket.md
+::::
+
+Passing no arguments (`WITHOUT()`) is equivalent to grouping by all dimensions — the same
+as omitting the `BY` clause entirely. Refer to the
+[`WITHOUT`](/reference/query-languages/esql/functions-operators/grouping-functions/without.md)
+function reference for more examples.
 
 ### Invalid query: nested time series functions
 

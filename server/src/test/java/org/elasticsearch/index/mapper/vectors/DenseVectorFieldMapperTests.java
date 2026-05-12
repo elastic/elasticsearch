@@ -16,6 +16,7 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -52,6 +53,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVector
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.vectors.VectorData;
@@ -118,6 +120,41 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         indexMapping(b, indexVersion);
     }
 
+    @Override
+    public void testNotIndexed() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "dense_vector").field("dims", dims).field("index", false);
+            if (elementType != ElementType.FLOAT) {
+                b.field("element_type", elementType.toString());
+            }
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", getSampleValueForDocument())));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertThat(fields.size(), equalTo(1));
+        assertThat(fields.get(0).fieldType().vectorDimension(), equalTo(0));
+        assertThat(fields.get(0).fieldType().docValuesType(), equalTo(DocValuesType.BINARY));
+    }
+
+    @Override
+    public void testDisableDefaultIndex() throws IOException {
+        assumeTrue("feature under test must be enabled", IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled());
+
+        var settings = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), true).build();
+        var mapperService = createMapperService(settings, fieldMapping(b -> {
+            b.field("type", "dense_vector").field("dims", dims);
+            if (elementType != ElementType.FLOAT) {
+                b.field("element_type", elementType.toString());
+            }
+        }));
+        var documentMapper = mapperService.documentMapper();
+
+        ParsedDocument doc = documentMapper.parse(source(b -> b.field("field", this.getSampleValueForDocument())));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertThat(fields.size(), equalTo(1));
+        assertThat(fields.get(0).fieldType().vectorDimension(), equalTo(0));
+        assertThat(fields.get(0).fieldType().docValuesType(), equalTo(DocValuesType.BINARY));
+    }
+
     private void indexMapping(XContentBuilder b, IndexVersion indexVersion) throws IOException {
         b.field("type", "dense_vector").field("dims", dims);
         if (elementType != ElementType.FLOAT) {
@@ -130,7 +167,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         if ((indexVersion.onOrAfter(DenseVectorFieldMapper.DEFAULT_TO_INT8)
             || indexVersion.onOrAfter(DenseVectorFieldMapper.DEFAULT_TO_BBQ))
             && indexed
-            && elementType.equals(ElementType.FLOAT)
+            && DenseVectorFieldMapperTestUtils.elementTypesWithDefaultIndexOptions(indexVersion).contains(elementType)
             && indexOptionsSet == false) {
             if (indexVersion.onOrAfter(DenseVectorFieldMapper.DEFAULT_TO_BBQ)
                 && dims >= DenseVectorFieldMapper.BBQ_DIMS_DEFAULT_THRESHOLD) {
@@ -603,6 +640,22 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 b -> b.startObject("index_options").field("type", newType).endObject()
             );
         }
+
+        // update for bbq_disk
+        registerIndexOptionsUpdate(
+            checker,
+            b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
+            b -> b.field("type", "bbq_disk").field("cluster_size", 1000),
+            b -> b.field("type", "bbq_disk").field("cluster_size", 500),
+            hasToString(containsString("\"cluster_size\":500"))
+        );
+        registerConflict(
+            checker,
+            "index_options",
+            b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
+            b -> b.startObject("index_options").field("type", "bbq_disk").field("precondition", true).endObject(),
+            b -> b.startObject("index_options").field("type", "bbq_disk").field("precondition", false).endObject()
+        );
     }
 
     @Override
@@ -1393,12 +1446,72 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         assertEquals(VectorSimilarity.COSINE, denseVectorFieldType.getSimilarity());
     }
 
+    public void testDefaultIndexOptions() throws IOException {
+        for (int i = 0; i < 100; i++) {
+            // Pick a random index version from one of three eras that each produce different default index options
+            int era = randomIntBetween(0, 3);
+            IndexVersion indexVersion = switch (era) {
+                case 0 -> IndexVersionUtils.randomVersionBetween(
+                    IndexVersionUtils.getLowestReadCompatibleVersion(),
+                    IndexVersionUtils.getPreviousVersion(DenseVectorFieldMapper.DEFAULT_TO_INT8)
+                );
+                case 1 -> IndexVersionUtils.randomVersionBetween(
+                    DenseVectorFieldMapper.DEFAULT_TO_INT8,
+                    IndexVersionUtils.getPreviousVersion(DenseVectorFieldMapper.DEFAULT_TO_BBQ)
+                );
+                case 2 -> IndexVersionUtils.randomVersionBetween(
+                    DenseVectorFieldMapper.DEFAULT_TO_BBQ,
+                    IndexVersionUtils.getPreviousVersion(IndexVersions.DENSE_VECTOR_BFLOAT16_DEFAULT_INDEX_OPTIONS)
+                );
+                case 3 -> IndexVersionUtils.randomVersionBetween(
+                    IndexVersions.DENSE_VECTOR_BFLOAT16_DEFAULT_INDEX_OPTIONS,
+                    IndexVersion.current()
+                );
+                default -> throw new AssertionError("Unexpected value: " + era);
+            };
+
+            boolean defaultInt8Hnsw = indexVersion.onOrAfter(DenseVectorFieldMapper.DEFAULT_TO_INT8);
+            boolean defaultBBQHnsw = indexVersion.onOrAfter(DenseVectorFieldMapper.DEFAULT_TO_BBQ);
+
+            final ElementType elementType = randomFrom(ElementType.values());
+            final int dims = DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, 512);
+            final VectorSimilarity similarity = randomFrom(
+                DenseVectorFieldMapperTestUtils.getSupportedSimilarities(elementType)
+                    .stream()
+                    .map(SimilarityMeasure::vectorSimilarity)
+                    .toList()
+            );
+
+            MapperService mapperService = createMapperService(indexVersion, fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("index", true);
+                b.field("element_type", elementType.toString());
+                b.field("dims", dims);
+                b.field("similarity", similarity.toString());
+            }));
+
+            DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
+            DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions = mapper.fieldType().getIndexOptions();
+
+            if (DenseVectorFieldMapperTestUtils.elementTypesWithDefaultIndexOptions(indexVersion).contains(elementType) == false) {
+                assertNull(indexOptions);
+            } else if (defaultBBQHnsw && dims >= DenseVectorFieldMapper.BBQ_DIMS_DEFAULT_THRESHOLD) {
+                assertThat(indexOptions, instanceOf(DenseVectorFieldMapper.BBQHnswIndexOptions.class));
+            } else if (defaultInt8Hnsw) {
+                // INT8 era, or BBQ era with dims below the BBQ threshold
+                assertThat(indexOptions, instanceOf(DenseVectorFieldMapper.Int8HnswIndexOptions.class));
+            } else {
+                assertNull(indexOptions);
+            }
+        }
+    }
+
     public void testValidateOnBuild() {
         final MapperBuilderContext context = MapperBuilderContext.root(false, false);
 
         int dimensions = randomIntBetween(64, 1024);
         // Build a dense vector field mapper with float element type, which will trigger int8 HNSW index options
-        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder("test", IndexVersion.current(), false, false, List.of())
+        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder("test", IndexVersion.current(), false, false, List.of(), false)
             .elementType(ElementType.FLOAT)
             .dimensions(dimensions)
             .build(context);
@@ -1986,7 +2099,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             + ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD
             + ", flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
             + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-            + "ES93FlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer()))))";
+            + "ES93GenericFlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer()))))";
         assertEquals(expectedString, knnVectorsFormat.toString());
     }
 
@@ -2060,7 +2173,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                         containsString(
                             "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                 + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-                                + "ES93FlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())))"
+                                + "ES93GenericFlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())))"
                         )
                     )
                 )
@@ -2111,7 +2224,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                     containsString(
                         "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                             + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-                            + "ES93FlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())))"
+                            + "ES93GenericFlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())))"
                     )
                 )
             )
@@ -2212,7 +2325,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                     containsString(
                         "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                             + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-                            + "ES93FlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())))"
+                            + "ES93GenericFlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())))"
                     )
                 )
             )
@@ -2239,7 +2352,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         TestDenseVectorIndexOptions testIndexOptions = new TestDenseVectorIndexOptions(
             new DenseVectorFieldMapper.HnswIndexOptions(16, 200, -1)
         );
-        var mapper = new DenseVectorFieldMapper.Builder("field", IndexVersion.current(), true, false, List.of()).indexOptions(
+        var mapper = new DenseVectorFieldMapper.Builder("field", IndexVersion.current(), true, false, List.of(), false).indexOptions(
             testIndexOptions
         ).dimensions(128).elementType(ElementType.FLOAT).build(MapperBuilderContext.root(false, false));
         final IndexSettings enabled = IndexSettingsModule.newIndexSettings(
@@ -2378,8 +2491,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return inner.toXContent(builder, params);
+        public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
+            inner.toXContentFragment(builder, params);
         }
     }
 }

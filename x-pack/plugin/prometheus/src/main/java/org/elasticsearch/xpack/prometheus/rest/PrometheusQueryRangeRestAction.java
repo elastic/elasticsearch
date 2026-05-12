@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEFAULT_PROMQL_INDEX_PATTERN;
 
 /**
  * REST handler for the Prometheus {@code GET /api/v1/query_range} endpoint.
@@ -37,6 +38,8 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
     private static final String QUERY_PARAM = "query";
     private static final String START_PARAM = "start";
     private static final String END_PARAM = "end";
+    private static final String LIMIT_PARAM = "limit";
+    private static final int DEFAULT_LIMIT = 0; // 0 = no limit, matching Prometheus semantics
 
     @Override
     public String getName() {
@@ -53,13 +56,22 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
         String query = getRequiredParam(request, QUERY_PARAM);
         String start = getRequiredParam(request, START_PARAM);
         String end = getRequiredParam(request, END_PARAM);
-        String step = getRequiredParam(request, PrometheusQueryRangeResponseListener.STEP_PARAM);
-        String index = request.param(INDEX_PARAM, "*");
+        String step = getRequiredParam(request, PrometheusQueryResponseListener.STEP_PARAM);
+        String index = request.param(INDEX_PARAM, DEFAULT_PROMQL_INDEX_PATTERN);
+        int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);
 
         EsqlStatement statement = PromqlQueryPlanBuilder.buildStatement(query, index, start, end, step);
         var esqlRequest = PreparedEsqlQueryRequest.sync(statement, query);
 
-        return channel -> client.execute(EsqlQueryAction.INSTANCE, esqlRequest, new PrometheusQueryRangeResponseListener(channel));
+        return channel -> client.execute(
+            EsqlQueryAction.INSTANCE,
+            esqlRequest,
+            new PrometheusQueryResponseListener(
+                channel,
+                PrometheusQueryResponseListener.QueryMode.RANGE,
+                limit == 0 ? Integer.MAX_VALUE : limit
+            )
+        );
     }
 
     private static String getRequiredParam(RestRequest request, String name) {

@@ -537,7 +537,7 @@ public class DesiredBalanceReconciler {
                             shardRouting,
                             moveTarget.getId(),
                             allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                            "move",
+                            getReason(canRemainDecision),
                             allocation.changes()
                         );
                         iterator.dePrioritizeNode(shardRouting.currentNodeId());
@@ -560,6 +560,17 @@ public class DesiredBalanceReconciler {
                     }
                 }
             }
+        }
+
+        private static String getReason(Decision canRemainDecision) {
+            return switch (canRemainDecision.type()) {
+                case NO -> BalancedShardsAllocator.MOVE_CANNOT_REMAIN_REASON;
+                case NOT_PREFERRED -> BalancedShardsAllocator.MOVE_NOT_PREFERRED_REASON;
+                default -> {
+                    assert false : "All moves should have canRemain NO or NOT_PREFERRED";
+                    yield "move";
+                }
+            };
         }
 
         private DesiredBalanceMetrics.AllocationStats balance() {
@@ -632,7 +643,7 @@ public class DesiredBalanceReconciler {
                             shardRouting,
                             rebalanceTarget.getId(),
                             allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                            "rebalance",
+                            BalancedShardsAllocator.REBALANCE_REASON,
                             allocation.changes()
                         );
                         iterator.dePrioritizeNode(shardRouting.currentNodeId());

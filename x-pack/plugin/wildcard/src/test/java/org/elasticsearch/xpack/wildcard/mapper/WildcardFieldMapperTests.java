@@ -64,6 +64,7 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -1115,14 +1116,16 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fdc);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
-        MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY, randomFrom(IndexMode.values()));
+        MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY, randomFrom(IndexMode.availableModes()));
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIdFieldDataEnabled()).thenReturn(() -> false);
         return new SearchExecutionContext(
             0,
             0,
             idxSettings,
             bitsetFilterCache,
             indexFieldDataLookup,
-            null,
+            mapperService,
             lookup,
             null,
             null,
@@ -1168,6 +1171,13 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         IndexableField field = parseDoc.getByKey(wildcardFieldType.fullPath());
         if (field != null) {
             doc.add(field);
+        }
+        // SeparateCount format stores the value count in a companion numeric doc values field (".counts").
+        // It must be copied alongside the main binary field for MultiValuedSortedBinaryDocValues to decode values.
+        String countsKey = wildcardFieldType.fullPath() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+        IndexableField countsField = parseDoc.getByKey(countsKey);
+        if (countsField != null) {
+            doc.add(countsField);
         }
         iw.addDocument(doc);
     }
@@ -1363,6 +1373,33 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         // then
         assertTrue(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField));
         assertFalse(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof MultiValuedBinaryDocValuesField));
+    }
+
+    public void testDocValuesUsesSeparateCountFormat() throws IOException {
+        // given: a mapper created with the current index version
+        DocumentMapper mapper = createMapperService(fieldMapping(b -> b.field("type", "wildcard"))).documentMapper();
+
+        // when: indexing a document
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "testvalue")));
+
+        // then: the doc values field should be SeparateCount format
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        var binaryDocValuesField = fields.stream().filter(f -> f instanceof MultiValuedBinaryDocValuesField.SeparateCount).findFirst();
+        assertTrue("Should use SeparateCount format", binaryDocValuesField.isPresent());
+    }
+
+    public void testDocValuesUsesIntegratedCountFormatWithPreviousIndexVersion() throws IOException {
+        // given: a mapper created with a pre-deprecation index version
+        IndexVersion previousVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
+        DocumentMapper mapper = createMapperService(previousVersion, fieldMapping(b -> b.field("type", "wildcard"))).documentMapper();
+
+        // when: indexing a document
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "testvalue")));
+
+        // then: the doc values field should be IntegratedCount format
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        var binaryDocValuesField = fields.stream().filter(f -> f instanceof MultiValuedBinaryDocValuesField.IntegratedCount).findFirst();
+        assertTrue("Should use IntegratedCount format", binaryDocValuesField.isPresent());
     }
 
     public void testIgnoredFieldStoredInStoredFieldsInPreviousIndexVersion() throws IOException {

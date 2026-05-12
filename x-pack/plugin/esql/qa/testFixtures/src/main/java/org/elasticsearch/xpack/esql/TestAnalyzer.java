@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtract
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
-import org.elasticsearch.xpack.esql.datasources.FileSet;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -75,6 +75,7 @@ public class TestAnalyzer {
     private EsqlFunctionRegistry functionRegistry = EsqlTestUtils.TEST_FUNCTION_REGISTRY;
     private final Map<IndexPattern, IndexResolution> indexResolutions = new HashMap<>();
     private final Map<String, IndexResolution> lookupResolution = new HashMap<>();
+    private final Map<IndexPattern, IndexResolution> lenientResolution = new HashMap<>();
     private final EnrichResolution enrichResolution = new EnrichResolution();
     private final InferenceResolution.Builder inferenceResolution = InferenceResolution.builder();
     private UnmappedResolution unmappedResolution = UNMAPPED_FIELDS.defaultValue();
@@ -129,6 +130,26 @@ public class TestAnalyzer {
     }
 
     /**
+     * Add a lenient (CPS shadow) resolution entry. The {@code ResolveViewShadow} analyzer rule
+     * looks up entries in {@link AnalyzerContext#optionalLinkedResolution()} by the shadow's full
+     * {@code IndexPattern} (view name + applicable exclusions), so the same view referenced
+     * with different exclusion lists can be wired to different results.
+     */
+    public TestAnalyzer addLenientShadow(IndexPattern indexPattern, IndexResolution resolution) {
+        this.lenientResolution.put(indexPattern, resolution);
+        return this;
+    }
+
+    /**
+     * Convenience overload of {@link #addLenientShadow(IndexPattern, IndexResolution)} for the
+     * common no-exclusion case: keys the entry by an {@link IndexPattern} built from
+     * {@code esIndex.name()} (which the test should match the local view name).
+     */
+    public TestAnalyzer addLenientShadow(EsIndex esIndex) {
+        return addLenientShadow(new IndexPattern(Source.EMPTY, esIndex.name()), IndexResolution.valid(esIndex));
+    }
+
+    /**
      * Adds an index with empty resolution (used for pruned subqueries).
      */
     public TestAnalyzer addRemoteMissingIndex() {
@@ -154,8 +175,7 @@ public class TestAnalyzer {
             Map.of(),
             Map.of(noFieldsIndexName, IndexMode.STANDARD),
             Map.of("", List.of(noFieldsIndexName)),
-            Map.of("", List.of(noFieldsIndexName)),
-            Map.of()
+            Map.of("", List.of(noFieldsIndexName))
         );
         addIndex(noFieldsIndexName, IndexResolution.valid(noFieldsIndex));
         return this;
@@ -379,7 +399,7 @@ public class TestAnalyzer {
     /**
      * Set external source resolution.
      */
-    public TestAnalyzer externalSourceResolution(String path, List<Attribute> schema, FileSet fileSet) {
+    public TestAnalyzer externalSourceResolution(String path, List<Attribute> schema, FileList fileSet) {
         var metadata = new ExternalSourceMetadata() {
             @Override
             public String location() {
@@ -404,7 +424,7 @@ public class TestAnalyzer {
      * Sets an "unresolved" external source.
      */
     public TestAnalyzer externalSourceUnresolved(String path, List<Attribute> schema) {
-        return externalSourceResolution(path, schema, FileSet.UNRESOLVED);
+        return externalSourceResolution(path, schema, FileList.UNRESOLVED);
     }
 
     /**
@@ -414,6 +434,7 @@ public class TestAnalyzer {
         addInferenceResolution("reranking-inference-id", TaskType.RERANK);
         addInferenceResolution("completion-inference-id", TaskType.COMPLETION);
         addInferenceResolution("text-embedding-inference-id", TaskType.TEXT_EMBEDDING);
+        addInferenceResolution("embedding-inference-id", TaskType.EMBEDDING);
         addInferenceResolution("chat-completion-inference-id", TaskType.CHAT_COMPLETION);
         addInferenceResolution("sparse-embedding-inference-id", TaskType.SPARSE_EMBEDDING);
         return addInferenceResolutionError("error-inference-id", "error with inference resolution");
@@ -766,6 +787,7 @@ public class TestAnalyzer {
             null,
             indexResolutions,
             lookupResolution,
+            lenientResolution,
             enrichResolution,
             inferenceResolution.build(),
             externalSourceResolution,
@@ -780,7 +802,7 @@ public class TestAnalyzer {
      */
     public static IndexResolution loadMapping(String resource, String indexName, IndexMode indexMode) {
         return IndexResolution.valid(
-            new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), Map.of(), Map.of(), Map.of())
+            new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), Map.of(), Map.of())
         );
     }
 

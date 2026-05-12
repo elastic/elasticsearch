@@ -33,7 +33,6 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 public class CountTests extends AbstractAggregationTestCase {
     public CountTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -67,6 +66,7 @@ public class CountTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.geohexCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
+            MultiRowTestCaseSupplier.flattenedCases(1, 1000),
             MultiRowTestCaseSupplier.tdigestCases(1, 1000)
                 .stream()
                 .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
@@ -91,6 +91,7 @@ public class CountTests extends AbstractAggregationTestCase {
             DataType.IP,
             DataType.VERSION,
             DataType.KEYWORD,
+            DataType.FLATTENED,
             DataType.TDIGEST,
             DataType.TEXT,
             DataType.GEO_POINT,
@@ -111,9 +112,7 @@ public class CountTests extends AbstractAggregationTestCase {
                         List.of(field),
                         dataType == DataType.DENSE_VECTOR ? "DenseVectorCount" : "Count",
                         DataType.LONG,
-                        // AGGREGATE_METRIC_DOUBLE currently returns null instead of 0
-                        // Remove this check after https://github.com/elastic/elasticsearch/issues/141852
-                        dataType == DataType.AGGREGATE_METRIC_DOUBLE ? nullValue() : equalTo(0L)
+                        equalTo(0L)
                     )
                 )
             );

@@ -9,12 +9,13 @@
 
 package org.elasticsearch.cli;
 
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 
 import java.io.StringReader;
 
-import static org.elasticsearch.cli.Terminal.readLineToCharArray;
+import static org.elasticsearch.cli.terminal.Terminal.readLineToCharArray;
 import static org.hamcrest.Matchers.equalTo;
 
 @WithoutEntitlements // test & cli only - never running with entitlements enabled

@@ -136,7 +136,7 @@ public class ReindexRequestWireSerializingTests extends AbstractWireSerializingT
             );
             default -> throw new AssertionError();
         }
-        if (mutatedRequest.getMaxDocs() != AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES
+        if (mutatedRequest.getMaxDocs() != AbstractBulkByPaginatedSearchRequest.MAX_DOCS_ALL_MATCHES
             && mutatedRequest.getMaxDocs() < mutatedRequest.getSlices()) {
             mutatedRequest.setMaxDocs(mutatedRequest.getSlices());
         }

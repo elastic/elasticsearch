@@ -1615,19 +1615,18 @@ public class InternalEngine extends Engine {
             assert incrementVersionLookup();
             notifyLastDocIdAndVersionLookup();
             VersionValue v = getVersionFromMap(op.uid());
-            if (v != null
-                && v.isDelete()
-                && engineConfig.isEnableGcDeletes()
-                && (engineConfig.getThreadPool().relativeTimeInMillis() - ((DeleteVersionValue) v).time) > getGcDeletesInMillis()) {
-                v = null;
-            }
-            if (v != null) {
-                resolvedVersions[i] = v;
-            } else {
+            if (v == null) {
+                // genuine versionMap miss: must go to Lucene
                 assert incrementIndexVersionLookup();
                 needsLucene[i] = true;
                 anyNeedsLucene = true;
-            }
+            } else if (v.isDelete()
+                && engineConfig.isEnableGcDeletes()
+                && (engineConfig.getThreadPool().relativeTimeInMillis() - ((DeleteVersionValue) v).time) > getGcDeletesInMillis()) {
+                    // GC-expired tombstone: treat as not found without a Lucene lookup, matching resolveDocVersion
+                } else {
+                    resolvedVersions[i] = v;
+                }
         }
 
         if (anyNeedsVersionLookup) {

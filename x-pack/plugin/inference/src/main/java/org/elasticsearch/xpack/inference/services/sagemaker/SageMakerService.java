@@ -296,6 +296,14 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
         if (input.isEmpty()) {
             listener.onResponse(List.of());
         }
+
+        try {
+            InferenceService.validateChunkedInferInputs(this, input);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+
         var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, inputType, clusterService, model.getTaskType());
         try {
             var sageMakerModel = ((SageMakerModel) model).override(taskSettings);

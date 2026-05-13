@@ -204,6 +204,85 @@ public class MlAnomaliesIndexUpdateIT extends MlSingleNodeTestCase {
         assertJobIdIsKeyword(targetIndex, state);
     }
 
+    /**
+     * Regression for the rollover conflict observed on ECH deployment
+     * {@code 922f01fd42834c778dc547a221c83622}:
+     *
+     * <ul>
+     *   <li>{@code .reindexed-v7-ml-anomalies-shared-000001} has the broken {@code job_id:text}
+     *       mapping and is the write claimant for the {@code .ml-anomalies-.write-shared} alias.</li>
+     *   <li>{@code .reindexed-v8-ml-anomalies-shared} has a healthy keyword mapping (UA's
+     *       8&rarr;9 reindex applied the template correctly) but also holds the same job's
+     *       read + write aliases as non-write claims (UA copies aliases during reindex).</li>
+     * </ul>
+     *
+     * Before this fix, heal moved v7's aliases to a fresh target while leaving v8's claims
+     * intact. The rollover loop then discovered v8 (matches {@code .ml-anomalies-*} via its
+     * alias), created {@code .reindexed-v8-ml-anomalies-shared-000001}, and the atomic
+     * alias-update tripped {@code "alias [.ml-anomalies-.write-shared] has more than one
+     * write index"} because both the heal target and the new rollover destination claimed
+     * the write alias.
+     *
+     * Post-fix, heal strips the aliases from every {@code .reindexed-*-ml-anomalies-*} index
+     * (cluster-wide, scoped), so v8 is alias-free by the time the rollover loop runs and is
+     * no longer a rollover candidate.
+     */
+    public void testHeals_GivenV7BrokenAndV8HealthyShareJobAliases_RolloverDoesNotConflict() {
+        String v7 = ".reindexed-v7-ml-anomalies-shared-000001";
+        String v8 = ".reindexed-v8-ml-anomalies-shared";
+        String targetIndex = ".ml-anomalies-shared-000001";
+        String jobId = "shared";
+
+        // v7-000001 broken; helper sets writeIndex=true on .write-shared.
+        createBadIndex(v7, BROKEN_MAPPING, List.of(jobId));
+
+        // v8 has the template-applied (healthy keyword) mapping — no explicit mapping arg.
+        client().admin().indices().create(new CreateIndexRequest(v8)).actionGet();
+
+        // Add the same job's aliases to v8 as non-write so ES accepts the dual setup alongside
+        // v7's writeIndex=true claim.
+        var addV8Aliases = client().admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
+        addV8Aliases.addAliasAction(
+            IndicesAliasesRequest.AliasActions.add()
+                .index(v8)
+                .alias(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
+                .isHidden(true)
+        );
+        addV8Aliases.addAliasAction(
+            IndicesAliasesRequest.AliasActions.add()
+                .index(v8)
+                .alias(AnomalyDetectorsIndex.resultsWriteAlias(jobId))
+                .writeIndex(false)
+                .isHidden(true)
+        );
+        addV8Aliases.get();
+
+        AnomalyDetectionAuditor auditor = mock(AnomalyDetectionAuditor.class);
+        SystemAuditor systemAuditor = mock(SystemAuditor.class);
+        // runUpdate must complete without throwing — the rollover loop must not see v8 as a
+        // candidate because heal evacuated its aliases cluster-wide.
+        new MlAnomaliesIndexUpdate(
+            clusterService(),
+            TestIndexNameExpressionResolver.newInstance(),
+            client(),
+            auditor,
+            systemAuditor,
+            () -> true
+        ).runUpdate(clusterService().state());
+
+        ClusterState state = clusterService().state();
+        assertBadIndexHasNoMlAliases(v7, state);
+        assertBadIndexHasNoMlAliases(v8, state);
+        assertAliasesOnIndex(targetIndex, List.of(jobId), state);
+        assertJobIdIsKeyword(targetIndex, state);
+
+        // Specifically: the rollover loop must NOT have created .reindexed-v8-ml-anomalies-shared-000001.
+        assertNull(
+            "rollover must not fire on v8 once heal has cleared its aliases",
+            state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).index(".reindexed-v8-ml-anomalies-shared-000001")
+        );
+    }
+
     public void testHeals_RunsHealBeforeRolloverLegacyIndex_NoException() {
         // Legacy-shaped name (no 6-digit suffix) on the current index version still triggers the
         // rollover path, while a broken reindexed-v7 index triggers heal — runUpdate must complete

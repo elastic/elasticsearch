@@ -40,6 +40,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -494,22 +495,54 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
     }
 
     /**
-     * Builds a single atomic {@link IndicesAliasesRequest} that removes all of the job's
-     * read and write aliases from {@code badIndex} (with {@code mustExist=false} for
-     * idempotency) and adds them to {@code targetIndex}.
+     * Builds a single atomic {@link IndicesAliasesRequest} that strips the job's read+write
+     * aliases from every {@code .reindexed-*-ml-anomalies-*} index that currently claims them
+     * (not just {@code badIndex}) and adds them to {@code targetIndex}.
+     * <p>
+     * Cluster-wide strip is required because UA's 8&rarr;9 reindex copies a v7 source's aliases
+     * onto the v8 destination (e.g. {@code .reindexed-v8-ml-anomalies-*}). If we only stripped
+     * {@code badIndex}, the surviving sibling reindexed lineage would still hold the read+write
+     * alias and the next rollover pass would fail validation with
+     * {@code "alias [...] has more than one write index"} as soon as it tries to move the write
+     * alias onto a newly created rollover index — the heal target already claims it.
+     * <p>
+     * Scoping the cluster-wide strip to {@code .reindexed-*-ml-anomalies-*} (i.e.
+     * {@link #REINDEXED_ANOMALIES_STRIP}) is deliberate: canonical {@code .ml-anomalies-*-NNNNNN}
+     * family members keep their read aliases so historical results in older generations remain
+     * queryable. Only the post-migration stale reindexed lineages are evacuated.
+     * <p>
+     * {@code mustExist(false)} keeps every remove idempotent under racing cluster-state updates.
      */
     private void moveAliasesToTarget(String badIndex, String targetIndex, Set<String> jobIds) {
         IndicesAliasesRequestBuilder req = MlIndexAndAlias.createIndicesAliasesRequestBuilder(client);
+
+        // Freshest available state — heal may have already created the target index after the
+        // start-of-runUpdate snapshot, and a prior heal iteration may have moved aliases for
+        // other jobs onto the same target.
+        var project = clusterService.state().metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
 
         for (String jobId : jobIds) {
             String writeAlias = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
             String readAlias = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
 
-            // Remove from bad index — mustExist(false) tolerates already-moved aliases
-            req.addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(badIndex).alias(writeAlias).mustExist(false));
-            req.addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(badIndex).alias(readAlias).mustExist(false));
+            for (String aliasName : List.of(writeAlias, readAlias)) {
+                for (Index claimant : project.aliasedIndices(aliasName)) {
+                    String claimantName = claimant.getName();
+                    if (claimantName.equals(targetIndex)) {
+                        // Never strip from the target; we are about to (re-)add the alias here.
+                        continue;
+                    }
+                    if (REINDEXED_ANOMALIES_STRIP.matcher(claimantName).matches() == false) {
+                        // Leave canonical family members alone — older .ml-anomalies-*-NNNNNN
+                        // generations legitimately hold the read alias for historical results.
+                        continue;
+                    }
+                    req.addAliasAction(
+                        IndicesAliasesRequest.AliasActions.remove().index(claimantName).alias(aliasName).mustExist(false)
+                    );
+                }
+            }
 
-            // Add to target index
             req.addAliasAction(
                 IndicesAliasesRequest.AliasActions.add().index(targetIndex).alias(writeAlias).isHidden(true).writeIndex(true)
             );

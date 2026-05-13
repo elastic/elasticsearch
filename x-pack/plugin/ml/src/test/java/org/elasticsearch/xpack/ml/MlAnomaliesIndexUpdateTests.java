@@ -44,10 +44,13 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 
+import org.mockito.ArgumentCaptor;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -294,6 +297,108 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
         verify(client, never()).execute(same(TransportIndicesAliasesAction.TYPE), any(), any());
         verify(auditor, never()).warning(any(), any());
         verify(systemAuditor, never()).warning(anyString());
+    }
+
+    /**
+     * Scoping guard for the cluster-wide alias strip in
+     * {@code MlAnomaliesIndexUpdate.moveAliasesToTarget}.
+     * <p>
+     * The cluster-wide strip evacuates ML aliases from every {@code .reindexed-*-ml-anomalies-*}
+     * claimant so a subsequent rollover does not collide with the heal target. It must NOT strip
+     * the read alias from canonical {@code .ml-anomalies-*-NNNNNN} family members — older
+     * generations legitimately keep that alias for historical results.
+     * <p>
+     * Setup: a v9-version {@code .reindexed-v7-ml-anomalies-custom-foo-000001} with broken
+     * {@code job_id:text} mapping plus a non-write claim on the write alias, the heal-reuse
+     * target {@code .ml-anomalies-custom-foo-000002} (v9-version, keyword, current write index),
+     * and an older canonical {@code .ml-anomalies-custom-foo-000001} holding the read alias only.
+     * <p>
+     * Expectation: the captured alias-update request removes the read alias from the
+     * {@code .reindexed-v7-*} claimant but NOT from {@code .ml-anomalies-custom-foo-000001}.
+     */
+    public void testHealReindexedV7_DoesNotStripReadAliasFromOlderCanonicalGeneration() {
+        String reindexedBad = ".reindexed-v7-ml-anomalies-custom-foo-000001";
+        String oldCanonical = ".ml-anomalies-custom-foo-000001";
+        String newCanonical = ".ml-anomalies-custom-foo-000002";
+        String jobId = "fooJob";
+        String readAlias = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
+        String writeAlias = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
+
+        IndexMetadata.Builder oldMeta = IndexMetadata.builder(oldCanonical)
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid_old")
+            )
+            .putMapping(keywordJobIdMapping())
+            .putAlias(AliasMetadata.builder(readAlias).isHidden(true).build());
+
+        IndexMetadata.Builder newMeta = IndexMetadata.builder(newCanonical)
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid_new")
+            )
+            .putMapping(keywordJobIdMapping())
+            .putAlias(AliasMetadata.builder(readAlias).isHidden(true).build())
+            .putAlias(AliasMetadata.builder(writeAlias).writeIndex(true).isHidden(true).build());
+
+        IndexMetadata.Builder badMeta = IndexMetadata.builder(reindexedBad)
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid_bad")
+            )
+            .putMapping(textJobIdMapping())
+            .putAlias(AliasMetadata.builder(readAlias).isHidden(true).build())
+            .putAlias(AliasMetadata.builder(writeAlias).writeIndex(false).isHidden(true).build());
+
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder().put(oldMeta).put(newMeta).put(badMeta))
+            .build();
+
+        AnomalyDetectionAuditor auditor = mock(AnomalyDetectionAuditor.class);
+        SystemAuditor systemAuditor = mock(SystemAuditor.class);
+        var client = mockClientForHeal(newCanonical);
+
+        updater(client, cs, auditor, systemAuditor, HEAL_ENABLED).runUpdate(cs);
+
+        // Heal must have fired.
+        verify(systemAuditor).warning(anyString());
+
+        // Inspect every alias-update request issued by heal.
+        ArgumentCaptor<IndicesAliasesRequest> captor = ArgumentCaptor.forClass(IndicesAliasesRequest.class);
+        verify(client, atLeastOnce()).execute(same(TransportIndicesAliasesAction.TYPE), captor.capture(), any());
+
+        boolean strippedFromOldCanonical = captor.getAllValues()
+            .stream()
+            .flatMap(r -> r.getAliasActions().stream())
+            .anyMatch(
+                a -> a.actionType() == IndicesAliasesRequest.AliasActions.Type.REMOVE
+                    && a.indices().length > 0
+                    && a.indices()[0].equals(oldCanonical)
+                    && a.aliases().length > 0
+                    && a.aliases()[0].equals(readAlias)
+            );
+        assertFalse("read alias must NOT be removed from older canonical generation", strippedFromOldCanonical);
+
+        boolean strippedFromReindexed = captor.getAllValues()
+            .stream()
+            .flatMap(r -> r.getAliasActions().stream())
+            .anyMatch(
+                a -> a.actionType() == IndicesAliasesRequest.AliasActions.Type.REMOVE
+                    && a.indices().length > 0
+                    && a.indices()[0].equals(reindexedBad)
+                    && a.aliases().length > 0
+                    && a.aliases()[0].equals(readAlias)
+            );
+        assertTrue("read alias must be removed from .reindexed-v7-* claimant", strippedFromReindexed);
     }
 
     private record AliasActionMatcher(String aliasName, String index, IndicesAliasesRequest.AliasActions.Type actionType) {

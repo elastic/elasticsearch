@@ -190,6 +190,50 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(3L, resolved.metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_FILE_COUNT));
     }
 
+    /**
+     * FFW resolution must populate schemaMap with one identity-mapped FileSchemaInfo entry per
+     * discovered file, each carrying the anchor schema verbatim. Closest-layer assertion that the
+     * planner's per-file pinning is wired correctly: this is what {@code FileSplitProvider} reads
+     * to bake {@code FileSplit.readSchema} for every split, which in turn pins the reader.
+     */
+    public void testFirstFileWinsPopulatesSchemaMapForEveryFile() throws Exception {
+        List<Attribute> anchorSchema = List.of(attr("col0", DataType.KEYWORD), attr("col1", DataType.INTEGER));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/a.parquet", anchorSchema);
+        schemasByPath.put("s3://bucket/data/b.parquet", List.of(attr("col0", DataType.INTEGER), attr("col1", DataType.INTEGER)));
+        schemasByPath.put("s3://bucket/data/c.parquet", List.of(attr("col0", DataType.INTEGER), attr("col1", DataType.KEYWORD)));
+
+        ExternalSourceResolution resolution = resolveMultiFile(
+            "s3://bucket/data/*.parquet",
+            schemasByPath,
+            List.of(
+                entry("s3://bucket/data/a.parquet", 100),
+                entry("s3://bucket/data/b.parquet", 200),
+                entry("s3://bucket/data/c.parquet", 300)
+            )
+        );
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+        assertNotNull(resolved);
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = resolved.schemaMap();
+        assertEquals("schemaMap must have one entry per matched file", 3, schemaMap.size());
+        for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : schemaMap.entrySet()) {
+            assertEquals(
+                "every FFW per-file entry carries the anchor schema verbatim, regardless of the file's own inference",
+                anchorSchema,
+                e.getValue().fileSchema()
+            );
+            SchemaReconciliation.ColumnMapping mapping = e.getValue().mapping();
+            assertNotNull("FFW entries carry an identity ColumnMapping", mapping);
+            assertEquals("identity mapping length matches anchor schema width", anchorSchema.size(), mapping.columnCount());
+            for (int i = 0; i < mapping.columnCount(); i++) {
+                assertEquals("identity mapping localIndex(" + i + ") = " + i, i, mapping.localIndex(i));
+                assertNull("identity mapping has no casts at position " + i, mapping.cast(i));
+            }
+        }
+    }
+
     public void testSingleFileFirstFileWinsDoesNotSetStatsPartial() throws Exception {
         List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
 

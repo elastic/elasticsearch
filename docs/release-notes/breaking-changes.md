@@ -22,21 +22,20 @@ There are no breaking changes associated with this release.
 ## 9.4.0 [elasticsearch-9.4.0-breaking-changes]
 
 ILM:
-* 
-In earlier versions of Elasticsearch the downsampling API was force merging the downsampled index. In Elasticsearch `9.3.0` and later we moved this behaviour from the downsampling API to the ILM downsampling action and we enabled by default. This allowed users to disabled it if they wished.
+
+* In earlier versions of Elasticsearch the downsampling API was force merging the downsampled index. In Elasticsearch `9.3.0` and later we moved this behaviour from the downsampling API to the ILM downsampling action and we enabled by default. This allowed users to disabled it if they wished.
 Seeing that the force merge is not inherently needed by the downsampling operation, in Elasticsearch `9.4.0`, we choose to disable it by default. This change only affects the downsampling ILM actions; other actions that force merge an index by default, such as the searchable snapshot action, will remain unchanged.
 If a user was relying on this behaviour they will need to update their ILM policy, either by adding a force merge action in the same or a subsequent phase of the policy or by setting the `force_merge_index` parameter of the downsample action to `true`. [#145400](https://github.com/elastic/elasticsearch/pull/145400) (issue: [#140811](https://github.com/elastic/elasticsearch/issues/140811))
 
 Mapping:
+
 * OTLP endpoint: use exponential_histograms by default [#145065](https://github.com/elastic/elasticsearch/pull/145065)
 
 TSDB:
-* 
-Sequence numbers have significant storage footprint in metrics applications (up to 30% for OTLP). To alleviate this, we are disabling sequence numbers for indices in time-series mode, meaning that they get trimmed once they are no longer needed for replication. This helps with storage efficiency, as well as reducing the overhead for segment merging.
+
+* Sequence numbers have significant storage footprint in metrics applications (up to 30% for OTLP). To alleviate this, we are disabling sequence numbers for indices in time-series mode, meaning that they get trimmed once they are no longer needed for replication. This helps with storage efficiency, as well as reducing the overhead for segment merging.
 The downside is that [Optimistic Concurrency Control](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/optimistic-concurrency-control) is no longer applicable to these indices. Index, update and delete operations using `if_seq_no` error out, and search calls with `seq_no_primary_term` set return sentinel values for sequence numbers. Moreover, `update_by_query` and `delete_by_query` operations proceed without conflict detection, so concurrent modifications may silently overwrite the affected docs without triggering version conflict errors.
 This is largely a favorable tradeoff as concurrent modifications are rather rare in metrics applications and the storage savings are substantial. Still, users requiring OCC support can restore the old behavior by setting `index.disable_sequence_numbers` to `false` in their time-series index templates. [#145737](https://github.com/elastic/elasticsearch/pull/145737) (issue: [#136305](https://github.com/elastic/elasticsearch/issues/136305))
-
-
 
 ## 9.3.4 [elasticsearch-9.3.4-breaking-changes]
 

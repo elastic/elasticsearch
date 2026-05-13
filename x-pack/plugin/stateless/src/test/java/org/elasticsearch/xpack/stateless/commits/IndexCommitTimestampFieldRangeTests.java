@@ -91,8 +91,28 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
         testFieldValueRange(false, IndexMode.LOOKUP);
     }
 
+    public void testFieldValueRangeForColumnarModeWithCFS() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        testFieldValueRange(true, IndexMode.COLUMNAR);
+    }
+
+    public void testFieldValueRangeForColumnarModeNoCFS() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        testFieldValueRange(false, IndexMode.COLUMNAR);
+    }
+
+    public void testFieldValueRangeForColumnarLogsdbModeWithCFS() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        testFieldValueRange(true, IndexMode.COLUMNAR_LOGSDB);
+    }
+
+    public void testFieldValueRangeForColumnarLogsdbModeNoCFS() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        testFieldValueRange(false, IndexMode.COLUMNAR_LOGSDB);
+    }
+
     public void testSoftDeletesAreAlmostAlwaysDisregardedForTimestampRange() throws Exception {
-        IndexMode indexMode = randomFrom(IndexMode.values());
+        IndexMode indexMode = randomFrom(IndexMode.availableModes());
         DocumentMapper mapper = getDocumentMapper(indexMode);
         boolean useCFS = randomBoolean();
         IndexWriterConfig indexWriterConfig = getIndexWriterConfig(useCFS, randomBoolean());
@@ -154,7 +174,7 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
     }
 
     public void testFieldValueRangeForBatchedCompoundCommit() throws Exception {
-        IndexMode indexMode = randomFrom(IndexMode.values());
+        IndexMode indexMode = randomFrom(IndexMode.availableModes());
         DocumentMapper mapper = getDocumentMapper(indexMode);
         boolean useCFS = randomBoolean();
         Map<String, BlobLocation> uploadedBlobLocations = new HashMap<>();
@@ -329,7 +349,7 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
 
     private void deleteDoc(String docIdToDelete, IndexWriter indexWriter, IndexMode indexMode) throws IOException {
         var deletedDoc = ParsedDocument.deleteTombstone(
-            indexMode == IndexMode.TIME_SERIES || indexMode == IndexMode.LOGSDB
+            indexMode.isColumnar()
                 ? SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY
                 : SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES,
             docIdToDelete
@@ -346,7 +366,10 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
     }
 
     private DocumentMapper getDocumentMapper(IndexMode indexMode) throws IOException {
-        if (indexMode == IndexMode.STANDARD || indexMode == IndexMode.LOOKUP) {
+        if (indexMode == IndexMode.STANDARD
+            || indexMode == IndexMode.LOOKUP
+            || indexMode == IndexMode.COLUMNAR
+            || indexMode == IndexMode.VECTORDB_DOCUMENT) {
             boolean nanosTimestampResolution = randomBoolean();
             if (nanosTimestampResolution) {
                 return createDocumentMapper(mapping(b -> {
@@ -378,7 +401,7 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
                 .build();
             return createMapperService(settings, mapping(b -> {})).documentMapper();
         } else {
-            // LOGSDB indexing modes use a fixed mapping for the @timestamp field
+            // LOGSDB and COLUMNAR_LOGSDB indexing modes use a fixed mapping for the @timestamp field
             return createDocumentMapper(mapping(b -> {}), indexMode);
         }
     }

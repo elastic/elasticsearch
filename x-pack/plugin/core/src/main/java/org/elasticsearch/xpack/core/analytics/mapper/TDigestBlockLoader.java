@@ -97,7 +97,6 @@ public class TDigestBlockLoader extends BlockDocValuesReader.DocValuesBlockLoade
         }
 
         @Override
-        // Column oriented reader
         public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
             Block minima = null;
             Block maxima = null;
@@ -107,9 +106,10 @@ public class TDigestBlockLoader extends BlockDocValuesReader.DocValuesBlockLoade
             Block result;
             boolean success = false;
             try {
-                minima = minimaReader.read(factory, docs, offset, nullsFiltered);
-                maxima = maximaReader.read(factory, docs, offset, nullsFiltered);
-                sums = sumsReader.read(factory, docs, offset, nullsFiltered);
+                // min, max and sum may be absent for empty histograms even if the field itself is present
+                minima = minimaReader.read(factory, docs, offset, false);
+                maxima = maximaReader.read(factory, docs, offset, false);
+                sums = sumsReader.read(factory, docs, offset, false);
                 valueCounts = valueCountsReader.read(factory, docs, offset, nullsFiltered);
                 encodedBytes = encodedDigestReader.read(factory, docs, offset, nullsFiltered);
                 result = factory.buildTDigestBlockDirect(encodedBytes, minima, maxima, sums, valueCounts);

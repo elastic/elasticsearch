@@ -63,7 +63,7 @@ public class TaskResultsService {
         .setPrimaryIndex(TASK_INDEX)
         .setDescription("Task Result Index")
         .setSettings(getTaskResultIndexSettings())
-        .setMappings(getTaskResultIndexMappings(TASK_RESULTS_INDEX_MAPPINGS_VERSION))
+        .setMappings(getTaskResultIndexMappings())
         .setOrigin(TASKS_ORIGIN)
         .setPriorSystemIndexDescriptors(
             List.of(
@@ -72,7 +72,7 @@ public class TaskResultsService {
                     .setPrimaryIndex(TASK_INDEX)
                     .setDescription("Task Result Index")
                     .setSettings(getTaskResultIndexSettings())
-                    .setMappings(getTaskResultIndexMappings(TASK_RESULTS_INDEX_MAPPINGS_VERSION - 1))
+                    .setMappings(getTaskResultIndexMappingsV0())
                     .setOrigin(TASKS_ORIGIN)
                     .build()
             )
@@ -156,7 +156,12 @@ public class TaskResultsService {
             .build();
     }
 
-    private static XContentBuilder getTaskResultIndexMappings(int version) {
+    /**
+     * Returns the latest task result index mappings. When new mappings are added, previous mappings
+     * should be moved to a new method (e.g. getTaskResultIndexMappingsV1()) to prevent accidentally modifying
+     * existing mappings.
+     */
+    private static XContentBuilder getTaskResultIndexMappings() {
         try {
             final XContentBuilder builder = jsonBuilder();
 
@@ -164,7 +169,7 @@ public class TaskResultsService {
             {
                 builder.startObject("_meta");
                 builder.field(TASK_RESULT_MAPPING_VERSION_META_FIELD, Version.CURRENT.toString());
-                builder.field(SystemIndexDescriptor.VERSION_META_KEY, version);
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, TASK_RESULTS_INDEX_MAPPINGS_VERSION);
                 builder.endObject();
 
                 builder.field("dynamic", "strict");
@@ -224,15 +229,105 @@ public class TaskResultsService {
                             builder.field("enabled", false);
                             builder.endObject();
 
-                            if (version >= 1) {
-                                builder.startObject("original_task_id");
-                                builder.field("type", "keyword");
-                                builder.endObject();
+                            builder.startObject("original_task_id");
+                            builder.field("type", "keyword");
+                            builder.endObject();
 
-                                builder.startObject("original_start_time_in_millis");
-                                builder.field("type", "long");
-                                builder.endObject();
-                            }
+                            builder.startObject("original_start_time_in_millis");
+                            builder.field("type", "long");
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+
+                    builder.startObject("response");
+                    builder.field("type", "object");
+                    builder.field("enabled", false);
+                    builder.endObject();
+
+                    builder.startObject("error");
+                    builder.field("type", "object");
+                    builder.field("enabled", false);
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+
+            builder.endObject();
+            return builder;
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to build " + TASK_INDEX + " index mappings", e);
+        }
+    }
+
+    private static XContentBuilder getTaskResultIndexMappingsV0() {
+        try {
+            final XContentBuilder builder = jsonBuilder();
+
+            builder.startObject();
+            {
+                builder.startObject("_meta");
+                builder.field(TASK_RESULT_MAPPING_VERSION_META_FIELD, Version.CURRENT.toString());
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, 0);
+                builder.endObject();
+
+                builder.field("dynamic", "strict");
+                builder.startObject("properties");
+                {
+                    builder.startObject("completed");
+                    builder.field("type", "boolean");
+                    builder.endObject();
+
+                    builder.startObject("task");
+                    {
+                        builder.startObject("properties");
+                        {
+                            builder.startObject("action");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("cancellable");
+                            builder.field("type", "boolean");
+                            builder.endObject();
+
+                            builder.startObject("id");
+                            builder.field("type", "long");
+                            builder.endObject();
+
+                            builder.startObject("parent_task_id");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("node");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("running_time_in_nanos");
+                            builder.field("type", "long");
+                            builder.endObject();
+
+                            builder.startObject("start_time_in_millis");
+                            builder.field("type", "long");
+                            builder.endObject();
+
+                            builder.startObject("type");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("status");
+                            builder.field("type", "object");
+                            builder.field("enabled", false);
+                            builder.endObject();
+
+                            builder.startObject("description");
+                            builder.field("type", "text");
+                            builder.endObject();
+
+                            builder.startObject("headers");
+                            builder.field("type", "object");
+                            builder.field("enabled", false);
+                            builder.endObject();
                         }
                         builder.endObject();
                     }

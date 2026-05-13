@@ -42,40 +42,27 @@ public class LuceneBulkLookup extends PhysicalOptimizerRules.OptimizerRule<LeafE
     }
 
     private static PhysicalPlan applyBulkLookup(ParameterizedQueryExec plan) {
-        if (plan.bulkLookupLeft() == null || plan.bulkLookupRight() == null) {
 
-            Expression expr = plan.joinOnConditions();
+        // optimization already applied?
+        if (plan.bulkLookupLeft() != null && plan.bulkLookupRight() != null) {
+            return plan;
+        }
 
-            /*
-            List<MatchConfig> matchFields = plan.matchFields();
-            if (expr == null && matchFields != null && matchFields.size() == 1) {
-                MatchConfig matchField = plan.matchFields().get(0);
-                if (matchField.type() == DataType.KEYWORD) {
-                    logger.debug("Bulk lookup on KEYWORD field {}", matchField.fieldName());
-                    return new BulkLookupMvFilterExec(
-                        plan.source(),
-                        new ParameterizedQueryExec(
-                            plan.source(),
-                            plan.output(),
-                            plan.matchFields(),
-                            plan.joinOnConditions(),
-                            plan.query(),
-                            plan.emptyResult(),
-                            matchField.fieldName()
-                        ),
-                        matchField.fieldName()
-                    );
-                }
-            }
-            */
+        // only use optimization for LOOKUP JOIN on single keyword
+        if (plan.query() != null) {
+            return plan;
+        }
 
-            if (expr instanceof EsqlBinaryComparison binaryComparison
-                && binaryComparison.left() instanceof Attribute leftAttribute
-                && binaryComparison.right() instanceof Attribute rightAttribute
-                && leftAttribute.dataType() == DataType.KEYWORD
-                && rightAttribute.dataType() == DataType.KEYWORD) {
-                logger.debug("Bulk lookup on KEYWORD expression {} == {}", leftAttribute.name(), rightAttribute.name());
+        Expression expr = plan.joinOnConditions();
 
+        /*
+        // LOOKUP JOIN ON field
+
+        List<MatchConfig> matchFields = plan.matchFields();
+        if (expr == null && matchFields != null && matchFields.size() == 1) {
+            MatchConfig matchField = plan.matchFields().get(0);
+            if (matchField.type() == DataType.KEYWORD) {
+                logger.debug("Bulk lookup on KEYWORD field {}", matchField.fieldName());
                 return new BulkLookupMvFilterExec(
                     plan.source(),
                     new ParameterizedQueryExec(
@@ -85,12 +72,37 @@ public class LuceneBulkLookup extends PhysicalOptimizerRules.OptimizerRule<LeafE
                         plan.joinOnConditions(),
                         plan.query(),
                         plan.emptyResult(),
-                        leftAttribute,
-                        rightAttribute
+                        matchField.fieldName()
                     ),
-                    rightAttribute
+                    matchField.fieldName()
                 );
             }
+        }
+        */
+
+        // LOOKUP JOIN ON leftKeyword == rightKeyword
+
+        if (expr instanceof EsqlBinaryComparison binaryComparison
+            && binaryComparison.left() instanceof Attribute leftAttribute
+            && binaryComparison.right() instanceof Attribute rightAttribute
+            && leftAttribute.dataType() == DataType.KEYWORD
+            && rightAttribute.dataType() == DataType.KEYWORD) {
+            logger.debug("Bulk lookup on KEYWORD expression {} == {}", leftAttribute.name(), rightAttribute.name());
+
+            return new BulkLookupMvFilterExec(
+                plan.source(),
+                new ParameterizedQueryExec(
+                    plan.source(),
+                    plan.output(),
+                    plan.matchFields(),
+                    plan.joinOnConditions(),
+                    plan.query(),
+                    plan.emptyResult(),
+                    leftAttribute,
+                    rightAttribute
+                ),
+                rightAttribute
+            );
         }
 
         return plan;

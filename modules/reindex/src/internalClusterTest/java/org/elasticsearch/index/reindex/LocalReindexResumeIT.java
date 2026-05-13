@@ -42,6 +42,7 @@ import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.junit.Ignore;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -431,6 +432,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         assertSlicedResponse(getTaskResponse.getTask(), sliceStatus, sliceFirstBatchDocs, totalDocs, batchSize);
     }
 
+    @Ignore("manual slicing is incompatible with auto")
     public void testResumeReindexFromPit_slicedN_partialCompleted() {
         assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
         String sourceIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);

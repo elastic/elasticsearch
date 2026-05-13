@@ -153,7 +153,7 @@ if [[ "${BUILDKITE_AGENT_META_DATA_PROVIDER:-}" != *"k8s"* ]]; then
   nohup .buildkite/scripts/setup-monitoring.sh </dev/null >/dev/null 2>&1 &
 
   export GCP_PREEMPTION_WATCHDOG=true
-  # export GCP_PREEMPTION_SIMULATE_AFTER_SECONDS=180
+  export GCP_PREEMPTION_SIMULATE_AFTER_SECONDS=600
   export GCP_PREEMPTION_EXIT_CODE=42
 fi
 

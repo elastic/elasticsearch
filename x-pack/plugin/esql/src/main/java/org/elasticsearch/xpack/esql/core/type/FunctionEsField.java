@@ -26,7 +26,7 @@ public class FunctionEsField extends EsField {
 
     public FunctionEsField(EsField esField, DataType dataType, BlockLoaderFunctionConfig functionConfig) {
         this(
-            esField.name(),
+            esField.getName(),
             dataType,
             esField.getProperties(),
             esField.isAggregatable(),

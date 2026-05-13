@@ -61,7 +61,7 @@ public final class CompactMultiTypeEsField extends UnionTypeEsField {
 
     @Override
     public void writeContent(StreamOutput out) throws IOException {
-        ((PlanStreamOutput) out).writeCachedString(name());
+        ((PlanStreamOutput) out).writeCachedString(getName());
         getDataType().writeTo(out);
         out.writeBoolean(isAggregatable());
         out.writeMap(typeToConversionExpressions, (o, k) -> k.writeTo(o), StreamOutput::writeNamedWriteable);
@@ -91,7 +91,7 @@ public final class CompactMultiTypeEsField extends UnionTypeEsField {
     @Override
     public EsField rewrapWithCast(Expression convertExpression) {
         return new CompactMultiTypeEsField(
-            name(),
+            getName(),
             convertExpression.dataType(),
             isAggregatable(),
             UnionTypeEsField.replaceChildrenWithExpressionField(typeToConversionExpressions, convertExpression),
@@ -123,7 +123,7 @@ public final class CompactMultiTypeEsField extends UnionTypeEsField {
             ? unmappedConversionExpression.dataType()
             : resolution.resolvedDataType();
         return new CompactMultiTypeEsField(
-            tcf.name(),
+            tcf.getName(),
             resolvedDataType,
             false,
             resolution.typeToExpr(),

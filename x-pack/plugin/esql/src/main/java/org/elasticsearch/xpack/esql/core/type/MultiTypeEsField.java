@@ -74,7 +74,7 @@ public final class MultiTypeEsField extends UnionTypeEsField {
 
     @Override
     public void writeContent(StreamOutput out) throws IOException {
-        ((PlanStreamOutput) out).writeCachedString(name());
+        ((PlanStreamOutput) out).writeCachedString(getName());
         getDataType().writeTo(out);
         out.writeBoolean(isAggregatable());
         out.writeMap(getIndexToConversionExpressions(), (o, v) -> out.writeNamedWriteable(v));
@@ -114,7 +114,7 @@ public final class MultiTypeEsField extends UnionTypeEsField {
     @Override
     public EsField rewrapWithCast(Expression convertExpression) {
         return new MultiTypeEsField(
-            name(),
+            getName(),
             convertExpression.dataType(),
             isAggregatable(),
             UnionTypeEsField.replaceChildrenWithExpressionField(indexToConversionExpressions, convertExpression),
@@ -129,7 +129,7 @@ public final class MultiTypeEsField extends UnionTypeEsField {
 
     public MultiTypeEsField withPotentiallyUnmappedExpression(@Nullable Expression potentiallyUnmappedExpression) {
         return new MultiTypeEsField(
-            name(),
+            getName(),
             getDataType(),
             isAggregatable(),
             indexToConversionExpressions,
@@ -151,7 +151,7 @@ public final class MultiTypeEsField extends UnionTypeEsField {
             }
         });
         return new MultiTypeEsField(
-            typeConflictedField.name(),
+            typeConflictedField.getName(),
             resolution.resolvedDataType(),
             false,
             indexToConversionExpressions,

@@ -47,7 +47,7 @@ public record ResolvedEnrichPolicy(
              */
             (o, v) -> {
                 var field = new EsField(
-                    v.name(),
+                    v.getName(),
                     v.getDataType(),
                     v.getProperties(),
                     v.isAggregatable(),

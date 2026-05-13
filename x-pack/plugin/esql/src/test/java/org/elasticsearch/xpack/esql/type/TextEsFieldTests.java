@@ -29,7 +29,7 @@ public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
 
     @Override
     protected TextEsField mutateInstance(TextEsField instance) {
-        String name = instance.name();
+        String name = instance.getName();
         Map<String, EsField> properties = instance.getProperties();
         boolean hasDocValues = instance.isAggregatable();
         boolean isAlias = instance.isAlias();

@@ -11256,7 +11256,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(firstGroupKey.synthetic(), equalTo(true));
         var secondGroupKey = as(topNBy.groupings().get(1), FieldAttribute.class);
         assertThat(secondGroupKey.synthetic(), equalTo(false));
-        assertThat(secondGroupKey.field().name(), equalTo("job"));
+        assertThat(secondGroupKey.field().getName(), equalTo("job"));
 
         var eval = as(topNBy.child(), Eval.class);
         assertThat(eval.fields().size(), equalTo(1));

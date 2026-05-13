@@ -85,12 +85,12 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
 
     @Override
     public EsField getExactField() {
-        throw new QlIllegalArgumentException("Field [" + name() + "] is invalid, cannot access it");
+        throw new QlIllegalArgumentException("Field [" + getName() + "] is invalid, cannot access it");
     }
 
     @Override
     public Exact getExactInfo() {
-        return new Exact(false, "Field [" + name() + "] is invalid, cannot access it");
+        return new Exact(false, "Field [" + getName() + "] is invalid, cannot access it");
     }
 
     @Override

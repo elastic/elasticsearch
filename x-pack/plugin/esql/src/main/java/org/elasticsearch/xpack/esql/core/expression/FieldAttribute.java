@@ -236,7 +236,7 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
             if ((synthetic() || name().startsWith(SYNTHETIC_ATTRIBUTE_NAME_PREFIX)) == false) {
                 lazyFieldName = new FieldName(name());
             } else {
-                lazyFieldName = new FieldName(Strings.hasText(parentName) ? parentName + "." + field.name() : field.name());
+                lazyFieldName = new FieldName(Strings.hasText(parentName) ? parentName + "." + field.getName() : field.getName());
             }
         }
         return lazyFieldName;
@@ -257,7 +257,7 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
             String unresolvedMessage = "Cannot use field [" + name() + "] due to ambiguities being " + tcf.errorMessage();
             List<String> types = tcf.getTypesToIndices().keySet().stream().toList();
             // Preserve the original NameId so downstream attribute-resolution stays consistent.
-            return new UnsupportedAttribute(source(), name(), new UnsupportedEsField(tcf.name(), types), unresolvedMessage, id());
+            return new UnsupportedAttribute(source(), name(), new UnsupportedEsField(tcf.getName(), types), unresolvedMessage, id());
         }
         return this;
     }
@@ -288,7 +288,7 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
             source(),
             fieldName().string,
             qualifier(),
-            name() + "." + type.name(),
+            name() + "." + type.getName(),
             type,
             nullable(),
             id(),

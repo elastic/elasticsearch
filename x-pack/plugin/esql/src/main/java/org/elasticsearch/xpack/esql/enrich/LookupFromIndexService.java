@@ -817,7 +817,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         @Nullable PhysicalPlan rightPreJoinPlan,
         List<NamedExpression> extractFields
     ) {
-        FieldAttribute docAttribute = new FieldAttribute(source, null, null, EsQueryExec.DOC_ID_FIELD.name(), EsQueryExec.DOC_ID_FIELD);
+        FieldAttribute docAttribute = new FieldAttribute(source, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
 
         List<Expression> leftRightParts = new ArrayList<>();
         List<Expression> rightOnlyFromConditions = new ArrayList<>();
@@ -937,7 +937,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             request.source,
             null,
             null,
-            EsQueryExec.DOC_ID_FIELD.name(),
+            EsQueryExec.DOC_ID_FIELD.getName(),
             EsQueryExec.DOC_ID_FIELD
         );
         List<Attribute> sourceOutput = List.of(docAttribute, AbstractLookupService.LOOKUP_POSITIONS_FIELD);

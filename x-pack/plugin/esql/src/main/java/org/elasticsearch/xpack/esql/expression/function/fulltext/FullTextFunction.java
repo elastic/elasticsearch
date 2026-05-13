@@ -575,9 +575,9 @@ public abstract class FullTextFunction extends Function
     // wrong if `fieldAttribute` is a subfield, e.g. `parent.child` - EsField#getName will just return `child`.
     protected String getNameFromFieldAttribute(FieldAttribute fieldAttribute) {
         String fieldName = fieldAttribute.name();
-        if (fieldAttribute.field() instanceof UnionTypeEsField) {
+        if (fieldAttribute.field() instanceof UnionTypeEsField unionTypeEsField) {
             // If we have multiple field types, we allow the query to be done, but get the underlying field name
-            fieldName = fieldAttribute.field().name();
+            fieldName = unionTypeEsField.getName();
         }
         return fieldName;
     }

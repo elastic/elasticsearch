@@ -67,7 +67,7 @@ public class CompactMultiTypeEsFieldTests extends AbstractEsFieldTypeTests<Compa
 
     @Override
     protected CompactMultiTypeEsField mutateInstance(CompactMultiTypeEsField instance) throws IOException {
-        String name = instance.name();
+        String name = instance.getName();
         DataType dataType = instance.getDataType();
         Map<DataType, Expression> typeToConvertExpressions = instance.getTypeToConversionExpressions();
         EsField.TimeSeriesFieldType tsType = instance.getTimeSeriesFieldType();

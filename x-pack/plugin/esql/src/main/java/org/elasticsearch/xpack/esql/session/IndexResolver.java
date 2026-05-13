@@ -376,7 +376,7 @@ public class IndexResolver {
                 : new UnsupportedEsField(
                     fullName,
                     firstUnsupportedParent.getOriginalTypes(),
-                    firstUnsupportedParent.name(),
+                    firstUnsupportedParent.getName(),
                     new HashMap<>()
                 );
             if (trackUnmappedFieldIndices) {

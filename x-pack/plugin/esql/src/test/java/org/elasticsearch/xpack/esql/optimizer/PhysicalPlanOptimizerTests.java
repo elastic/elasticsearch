@@ -3693,7 +3693,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             new EsField("some_field1", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
             new EsField("some_field2", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
-        var index = EsIndexGenerator.esIndex("test", esField.stream().collect(Collectors.toMap(EsField::name, Function.identity())));
+        var index = EsIndexGenerator.esIndex("test", esField.stream().collect(Collectors.toMap(EsField::getName, Function.identity())));
         var relation = new EsRelation(
             Source.EMPTY,
             index.name(),
@@ -3701,7 +3701,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             Map.of(),
             Map.of(),
             index.indexNameWithModes(),
-            esField.stream().map(field -> (Attribute) new FieldAttribute(Source.EMPTY, null, null, field.name(), field)).toList()
+            esField.stream().map(field -> (Attribute) new FieldAttribute(Source.EMPTY, null, null, field.getName(), field)).toList()
         );
         Attribute some_field1 = relation.output().get(0);
         Attribute some_field2 = relation.output().get(1);
@@ -9682,7 +9682,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         Match match = as(filter.condition(), Match.class);
         assertTrue(match.field() instanceof FieldAttribute);
-        assertEquals("first_name", ((FieldAttribute) match.field()).field().name());
+        assertEquals("first_name", ((FieldAttribute) match.field()).field().getName());
 
         EsRelation esRelation = as(filter.child(), EsRelation.class);
         assertTrue(esRelation.optimized());
@@ -9714,7 +9714,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         Match match = as(filter.condition(), Match.class);
         assertTrue(match.field() instanceof FieldAttribute);
-        assertEquals("first_name", ((FieldAttribute) match.field()).field().name());
+        assertEquals("first_name", ((FieldAttribute) match.field()).field().getName());
 
         EsRelation esRelation = as(filter.child(), EsRelation.class);
         assertTrue(esRelation.optimized());
@@ -10391,7 +10391,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var topN = as(fragmentExec.fragment(), TopN.class);
         var sorts = topN.order();
         assertThat(sorts.size(), equalTo(1));
-        assertThat(as(sorts.getFirst().child(), FieldAttribute.class).field().name(), equalTo("last_name"));
+        assertThat(as(sorts.getFirst().child(), FieldAttribute.class).field().getName(), equalTo("last_name"));
         var esRelation = as(topN.child(), EsRelation.class);
     }
 

@@ -178,9 +178,9 @@ public class LoadMapping {
                 UnsupportedEsField u;
                 if (field instanceof UnsupportedEsField) {
                     u = (UnsupportedEsField) field;
-                    u = new UnsupportedEsField(u.name(), List.of(originalType), inherited, u.getProperties());
+                    u = new UnsupportedEsField(u.getName(), List.of(originalType), inherited, u.getProperties());
                 } else {
-                    u = new UnsupportedEsField(field.name(), List.of(originalType), inherited, field.getProperties());
+                    u = new UnsupportedEsField(field.getName(), List.of(originalType), inherited, field.getProperties());
                 }
                 entry.setValue(u);
                 propagateUnsupportedType(inherited, originalType, u.getProperties());

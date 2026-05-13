@@ -113,7 +113,7 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             new EsField("language_name", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
         List<MatchConfig> matchFields = List.of(new MatchConfig("language_code", 0, DataType.KEYWORD));
-        FieldAttribute docAttr = new FieldAttribute(src, null, null, EsQueryExec.DOC_ID_FIELD.name(), EsQueryExec.DOC_ID_FIELD);
+        FieldAttribute docAttr = new FieldAttribute(src, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
         List<Attribute> pqOutput = List.of(docAttr, AbstractLookupService.LOOKUP_POSITIONS_FIELD, langName);
 
         ParameterizedQuery pq = new ParameterizedQuery(src, pqOutput, matchFields, null);

@@ -518,7 +518,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
      * build the full LuceneSourceOperator pipeline for MetricsInfoExec.
      */
     public void testPlanMetricsInfoBuildsLuceneSourceWhenDocAttributePresent() throws IOException {
-        FieldAttribute docAttr = new FieldAttribute(Source.EMPTY, EsQueryExec.DOC_ID_FIELD.name(), EsQueryExec.DOC_ID_FIELD);
+        FieldAttribute docAttr = new FieldAttribute(Source.EMPTY, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
         EsQueryExec queryExec = new EsQueryExec(
             Source.EMPTY,
             EsIndexGenerator.esIndex("test").name(),
@@ -609,7 +609,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             Source.EMPTY,
             EsIndexGenerator.esIndex("test").name(),
             IndexMode.STANDARD,
-            List.of(new FieldAttribute(Source.EMPTY, EsQueryExec.DOC_ID_FIELD.name(), EsQueryExec.DOC_ID_FIELD)),
+            List.of(new FieldAttribute(Source.EMPTY, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD)),
             null,
             null,
             between(1, 1000),

@@ -441,7 +441,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // due to a bug also copy the field since the Attribute hierarchy extracts the data type
                 // directly even if the data type is passed explicitly
                 if (type != t.getDataType()) {
-                    t = new EsField(t.name(), type, t.getProperties(), t.isAggregatable(), t.isAlias(), t.getTimeSeriesFieldType());
+                    t = new EsField(t.getName(), type, t.getProperties(), t.isAggregatable(), t.isAlias(), t.getTimeSeriesFieldType());
                 }
 
                 FieldAttribute attribute = t instanceof UnsupportedEsField uef
@@ -2538,7 +2538,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static Expression typeSpecificConvert(ConvertFunction convert, Source source, DataType type, TypeConflictedField tcf) {
-            EsField field = new EsField(tcf.name(), type, tcf.getProperties(), tcf.isAggregatable(), tcf.getTimeSeriesFieldType());
+            EsField field = new EsField(tcf.getName(), type, tcf.getProperties(), tcf.isAggregatable(), tcf.getTimeSeriesFieldType());
             FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
             FieldAttribute resolvedAttr = new FieldAttribute(
                 source,
@@ -2599,7 +2599,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             EsField field = fa.field();
             if (field instanceof TypeConflictedField tcf && tcf.isPotentiallyUnmapped() && tcf.types().size() == 1) {
                 DataType type = tcf.types().iterator().next();
-                var restoredField = new EsField(tcf.name(), type, tcf.getProperties(), false, tcf.getTimeSeriesFieldType());
+                var restoredField = new EsField(tcf.getName(), type, tcf.getProperties(), false, tcf.getTimeSeriesFieldType());
                 // TODO: add test where not passing on the parent name fails the test
                 // TODO: add TS tests and tests with different time series field types
                 return new FieldAttribute(
@@ -2650,7 +2650,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         // The allDates check filters out fields that are not mapped in all indices, which includes
                         // potentiallyUnmapped fields. This assertion guards against future changes breaking that invariant.
                         assert tcf.isPotentiallyUnmapped() == false
-                            : "Unexpected potentially unmapped field [" + tcf.name() + "] in DateMillisToNanosInEsRelation";
+                            : "Unexpected potentially unmapped field [" + tcf.getName() + "] in DateMillisToNanosInEsRelation";
                         var resolvedField = ResolveUnionTypes.resolvedUnionTypeFields(f, tcf, typeResolutions, null, context);
                         return new FieldAttribute(
                             f.source(),
@@ -2860,7 +2860,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private Expression countConvert(UnaryScalarFunction convert, Source source, DataType type, TypeConflictedField tcf) {
-            EsField field = new EsField(tcf.name(), type, tcf.getProperties(), tcf.isAggregatable(), tcf.getTimeSeriesFieldType());
+            EsField field = new EsField(tcf.getName(), type, tcf.getProperties(), tcf.isAggregatable(), tcf.getTimeSeriesFieldType());
             FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
             FieldAttribute resolvedAttr = new FieldAttribute(
                 source,

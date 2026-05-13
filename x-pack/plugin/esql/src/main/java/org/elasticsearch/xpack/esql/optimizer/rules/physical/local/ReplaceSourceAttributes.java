@@ -55,7 +55,7 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
 
         if (plan.indexMode() == IndexMode.TIME_SERIES) {
             for (EsField field : EsQueryExec.TIME_SERIES_SOURCE_FIELDS) {
-                attributes.add(new FieldAttribute(plan.source(), null, null, field.name(), field));
+                attributes.add(new FieldAttribute(plan.source(), null, null, field.getName(), field));
             }
         } else {
             for (Attribute attr : plan.output()) {
@@ -103,7 +103,7 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
             throw new IllegalStateException("Expected at most one source attribute, found: " + sourceAttributes);
         }
         if (sourceAttributes.isEmpty()) {
-            return new FieldAttribute(plan.source(), null, null, EsQueryExec.DOC_ID_FIELD.name(), EsQueryExec.DOC_ID_FIELD);
+            return new FieldAttribute(plan.source(), null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
         }
         return sourceAttributes.getFirst();
     }

@@ -1830,7 +1830,6 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         assertThat(iae.getMessage(), equalTo("Requested new shard count [4] does not match required new shard count [2]"));
     }
 
-    @TestLogging(value = "org.elasticsearch.xpack.stateless.commits:debug", reason = "Issue #6241")
     public void testReshardFailsDuringResize() throws Exception {
         String indexNode = startMasterAndIndexNode();
         startSearchNode();
@@ -3551,7 +3550,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         waitForReshardCompletion(indexName);
 
         var telemetryPlugin = getTelemetryPlugin(indexNode);
-        assertThat(getTotalLongCounterValue(ReshardMetrics.RESHARD_COUNT, getTelemetryPlugin(indexNode)), equalTo(1L));
+        assertThat(getTotalLongCounterValue(ReshardMetrics.RESHARD_COUNT, telemetryPlugin), equalTo(1L));
 
         var reshardTargetShardCountHistogram = telemetryPlugin.getLongHistogramMeasurement(ReshardMetrics.RESHARD_TARGET_SHARD_COUNT);
         assertEquals(List.of((long) numShardsAfter), reshardTargetShardCountHistogram.stream().map(Measurement::getLong).toList());

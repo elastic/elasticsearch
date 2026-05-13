@@ -1331,9 +1331,7 @@ public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
     }
 
     public void testRerankInfer() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (var service = createInferenceService()) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testRerankTokenResponseJson));
 
             var model = AzureAiStudioRerankModelTests.createModel(
@@ -1407,12 +1405,11 @@ public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
 
     private void testRerankInfer_ThrowsError_WithNonTextInputOrQuery(List<InferenceString> inputs, InferenceString query)
         throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         var model = mock(AzureAiStudioRerankModel.class);
         when(model.getTaskType()).thenReturn(TaskType.RERANK);
 
-        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (var service = createInferenceService()) {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
 
             service.rerankInfer(model, new RerankRequest(inputs, query, null, null, new HashMap<>()), null, listener);

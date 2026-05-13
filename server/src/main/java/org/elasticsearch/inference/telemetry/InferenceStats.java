@@ -51,8 +51,8 @@ public class InferenceStats {
     static final String SIEM_MIGRATIONS = "siem_migrations";
 
     /**
-     * Sentinel value recorded for {@link #INFERENCE_SOURCE_ATTRIBUTE} and {@link MetricAttributes#ES_PRODUCT_ORIGIN} when the supplied value is
-     * not in the corresponding allowlist. Bounds APM attribute cardinality.
+     * Sentinel value recorded for {@link #INFERENCE_SOURCE_ATTRIBUTE} and {@link MetricAttributes#ES_PRODUCT_ORIGIN}
+     * when the supplied value is not in the corresponding allowlist. Bounds APM attribute cardinality.
      */
     static final String OTHER_VALUE = "other";
 
@@ -211,8 +211,9 @@ public class InferenceStats {
 
         /**
          * Adds product attribution attributes from the given context. Values are normalized against
-         * {@link #KNOWN_PRODUCT_USE_CASES} and {@link MetricAttributes#KNOWN_PRODUCT_ORIGINS}; anything not in the allowlist is recorded as
-         * {@link #OTHER_VALUE} to bound APM attribute cardinality. Either field may be absent; they are recorded independently.
+         * {@link #KNOWN_PRODUCT_USE_CASES} and {@link MetricAttributes#KNOWN_PRODUCT_ORIGINS};
+         * anything not in the allowlist is recorded as {@link #OTHER_VALUE} to bound APM attribute cardinality.
+         * Either field may be absent; they are recorded independently.
          */
         public B withProductContext(@Nullable InferenceProductContext ctx) {
             if (ctx == null) {

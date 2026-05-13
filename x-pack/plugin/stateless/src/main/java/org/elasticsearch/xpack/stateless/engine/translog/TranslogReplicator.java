@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.stateless.engine.translog;
 
+import com.carrotsearch.hppc.ObjectLongHashMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -489,7 +491,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     public record CompoundTranslogMetadata(
         String name,
         long generation,
-        Map<ShardId, TranslogMetadata.Operations> operations,
+        ObjectLongHashMap<ShardId> totalOps,
         Map<ShardId, ShardSyncState.SyncMarker> syncedLocations
     ) {}
 
@@ -606,21 +608,18 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         private final long generation;
         private final String blobName;
-        private final Map<ShardId, TranslogMetadata.Operations> operations;
+        // ObjectLongHashMap allows us to avoid using Long wrappers and HashMap$Node which can account for a significant amount of memory,
+        // when the number of shards and BlobTranslogFiles are high.
+        private final ObjectLongHashMap<ShardId> totalOps;
         private final Set<ShardId> includedShards;
 
         private volatile boolean safeForDelete = true;
         private ArrayList<ShardId> unsafeForDeleteShards = null;
 
-        BlobTranslogFile(
-            long generation,
-            String blobName,
-            Map<ShardId, TranslogMetadata.Operations> operations,
-            Set<ShardId> includedShards
-        ) {
+        BlobTranslogFile(long generation, String blobName, ObjectLongHashMap<ShardId> totalOps, Set<ShardId> includedShards) {
             this.generation = generation;
             this.blobName = blobName;
-            this.operations = operations;
+            this.totalOps = totalOps;
             this.includedShards = includedShards;
         }
 
@@ -632,8 +631,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             return blobName;
         }
 
-        public Map<ShardId, TranslogMetadata.Operations> operations() {
-            return operations;
+        public long getTotalOps(ShardId shardId) {
+            return this.totalOps.get(shardId);
         }
 
         @Override
@@ -673,8 +672,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 + generation
                 + ", blobName='"
                 + blobName
-                + "', operations="
-                + operations
+                + "', totalOps="
+                + totalOps
                 + ", includedShards="
                 + includedShards
                 + '}';
@@ -686,7 +685,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         private final TranslogReplicator.CompoundTranslogMetadata metadata;
 
         private BlobTranslogFileImpl(CompoundTranslogMetadata metadata) {
-            super(metadata.generation(), metadata.name(), metadata.operations(), metadata.syncedLocations().keySet());
+            super(metadata.generation(), metadata.name(), metadata.totalOps(), metadata.syncedLocations().keySet());
             this.metadata = metadata;
         }
 
@@ -715,7 +714,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 BlobTranslogFileImpl translogFile = uploadTranslogTask.translogFile;
                 CompoundTranslogMetadata metadata = uploadTranslogTask.translog.metadata();
                 for (Map.Entry<ShardId, ShardSyncState.SyncMarker> entry : metadata.syncedLocations().entrySet()) {
-                    assert translogFile.operations().get(entry.getKey()).totalOps() > 0;
+                    assert translogFile.getTotalOps(entry.getKey()) > 0;
                     ShardSyncState shardSyncState = shardSyncStates.get(entry.getKey());
                     // If the shard sync state has been deregistered we can just ignore
                     if (shardSyncState != null) {

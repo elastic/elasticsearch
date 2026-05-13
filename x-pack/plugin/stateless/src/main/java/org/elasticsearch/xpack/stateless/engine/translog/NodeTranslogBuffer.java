@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.stateless.engine.translog;
 
+import com.carrotsearch.hppc.ObjectLongHashMap;
+
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
@@ -27,7 +29,6 @@ import java.util.Map;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 public class NodeTranslogBuffer implements Releasable {
 
@@ -154,13 +155,14 @@ public class NodeTranslogBuffer implements Releasable {
                 CompositeBytesReference.of(headerStream.bytes(), compoundTranslogStream.bytes()),
                 () -> Releasables.close(headerStream, compoundTranslogStream)
             );
-            Map<ShardId, TranslogMetadata.Operations> operations = metadata.entrySet()
-                .stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().operations()));
+
+            ObjectLongHashMap<ShardId> totalOps = new ObjectLongHashMap<>(metadata.size());
+            metadata.forEach((key, value) -> totalOps.put(key, value.operations().totalOps()));
+
             TranslogReplicator.CompoundTranslogMetadata compoundMetadata = new TranslogReplicator.CompoundTranslogMetadata(
                 Strings.format("%019d", generation),
                 generation,
-                operations,
+                totalOps,
                 syncedLocations
             );
 

@@ -341,10 +341,14 @@ TS metric_temporality
 ;
 warningRegex:evaluation of \[bytes_per_request::tdigest\] failed, treating result as null. Only first 20 failures recorded.
 warningRegex:java.lang.IllegalArgumentException: Cumulative temporality is not supported for the tdigest type. The affected time series are excluded from the aggregation.
+warningRegex:evaluation of \[avg_over_time\(bytes_per_request::tdigest\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:evaluation of \[min_over_time\(bytes_per_request::tdigest\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:evaluation of \[max_over_time\(bytes_per_request::tdigest\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:evaluation of \[sum_over_time\(bytes_per_request::tdigest\)\] failed, treating result as null. Only first 20 failures recorded.
 warningRegex:evaluation of \[percentile_over_time\(bytes_per_request::tdigest, 50\)\] failed, treating result as null. Only first 20 failures recorded.
 
 my_temporality:keyword | avg_ot:double | min_ot:double | max_ot:double | cnt_ot:long | sum_ot:double | p50_ot:double
-cumulative             | 516.11        | 11.0          | 998.0         | 10354       | 5343818.0     | null
+cumulative             | null          | null          | null          | 0           | null          | null
 delta                  | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 503.0..603.0
 null                   | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 503.0..603.0
 ;

@@ -69,7 +69,7 @@ public record FormatReadContext(
      * to override the policy should use {@link #builder()} or {@link #withErrorPolicy(ErrorPolicy)}.
      */
     public static FormatReadContext of(List<String> projectedColumns, int batchSize) {
-        return new FormatReadContext(projectedColumns, batchSize, FormatReader.NO_LIMIT, null, true, true, false, null);
+        return builder().projectedColumns(projectedColumns).batchSize(batchSize).build();
     }
 
     /**

@@ -48,7 +48,7 @@ f1:keyword
 multiFileHeaderlessReadSchemaPreventsTypeDrift
 required_capability: external_command
 required_capability: external_csv_header_row_option
-required_capability: external_csv_multifile_read_schema
+required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
 
 EXTERNAL "{{employees_multifile}}" WITH {"header_row": false}

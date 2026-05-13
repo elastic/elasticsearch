@@ -2404,10 +2404,11 @@ public class EsqlCapabilities {
         EXTERNAL_CSV_HEADER_ROW_OPTION(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
-         * Planner-resolved read schema is threaded down to runtime readers, preventing the
-         * cross-file type-drift crash on multi-file headerless CSV with SORT.
+         * Per-file planner-resolved read schema is threaded down to runtime readers via
+         * {@code FileSplit.readSchema()}. Pins each file's column layout to the planner's view,
+         * preventing reader self-inference that drifts across files in a multi-file glob.
          */
-        EXTERNAL_CSV_MULTIFILE_READ_SCHEMA(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_SOURCE_READ_SCHEMA(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * {@code FROM <dataset>} resolved through the same pipeline as {@code FROM <index>} (Phase 1: dataset-only patterns).

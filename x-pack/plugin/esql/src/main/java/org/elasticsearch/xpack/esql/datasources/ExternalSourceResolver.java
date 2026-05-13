@@ -198,7 +198,27 @@ public class ExternalSourceResolver {
             List.of(new StorageEntry(storagePath, object.length(), object.lastModified())),
             path
         );
-        return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList);
+        // Single-file resolution is the degenerate case of the general resolution flow: produce a
+        // one-entry schemaMap so downstream readers honor readSchema uniformly (no per-format
+        // self-inference fallback). The mapping is identity because there is no cross-file layout
+        // variance to translate.
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, extMetadata.schema());
+        return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap);
+    }
+
+    private static Map<StoragePath, SchemaReconciliation.FileSchemaInfo> singleEntrySchemaMap(
+        StoragePath path,
+        @Nullable List<Attribute> schema
+    ) {
+        if (schema == null || schema.isEmpty()) {
+            return Map.of();
+        }
+        int[] identity = new int[schema.size()];
+        for (int i = 0; i < identity.length; i++) {
+            identity[i] = i;
+        }
+        SchemaReconciliation.ColumnMapping identityMapping = new SchemaReconciliation.ColumnMapping(identity, null);
+        return Map.of(path, new SchemaReconciliation.FileSchemaInfo(schema, identityMapping, null));
     }
 
     private ExternalSourceResolution.ResolvedSource resolveMultiFileSource(
@@ -341,6 +361,7 @@ public class ExternalSourceResolver {
         // schema into a per-file FileSchemaInfo entry for every file so FileSplitProvider populates
         // each FileSplit.readSchema and the reader stays pinned to the planner's view, no re-inference.
         List<Attribute> anchorSchema = extMetadata.schema();
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
         if (anchorSchema != null && anchorSchema.isEmpty() == false) {
             Map<StoragePath, SchemaReconciliation.FileSchemaInfo> perFileInfo = new LinkedHashMap<>();
             int[] identity = new int[anchorSchema.size()];
@@ -351,10 +372,13 @@ public class ExternalSourceResolver {
             for (int i = 0; i < listing.fileCount(); i++) {
                 perFileInfo.put(listing.path(i), new SchemaReconciliation.FileSchemaInfo(anchorSchema, identityMapping, null));
             }
-            listing = GlobExpander.withSchemaInfo(listing, Map.copyOf(perFileInfo));
+            schemaMap = Map.copyOf(perFileInfo);
+            listing = GlobExpander.withSchemaInfo(listing, schemaMap);
+        } else {
+            schemaMap = Map.of();
         }
 
-        return new ExternalSourceResolution.ResolvedSource(extMetadata, listing);
+        return new ExternalSourceResolution.ResolvedSource(extMetadata, listing, schemaMap);
     }
 
     private FileList expandAndCompact(
@@ -470,8 +494,9 @@ public class ExternalSourceResolver {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
         }
 
-        FileList enriched = GlobExpander.withSchemaInfo(fileList, result.perFileInfo());
-        return new ExternalSourceResolution.ResolvedSource(extMetadata, enriched);
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = result.perFileInfo();
+        FileList enriched = GlobExpander.withSchemaInfo(fileList, schemaMap);
+        return new ExternalSourceResolution.ResolvedSource(extMetadata, enriched, schemaMap);
     }
 
     /**

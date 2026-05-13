@@ -55,7 +55,7 @@ public class VersionLookupTests extends ESTestCase {
         writer.addDocument(doc);
         writer.addDocument(new Document());
         DirectoryReader reader = DirectoryReader.open(writer);
-        LeafReaderContext segment = reader.leaves().get(0);
+        LeafReaderContext segment = reader.leaves().getFirst();
         PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), false);
         // found doc
         DocIdAndVersion result = lookup.lookupVersion(new BytesRef("6"), randomBoolean(), segment);
@@ -68,7 +68,7 @@ public class VersionLookupTests extends ESTestCase {
         writer.deleteDocuments(new Term(IdFieldMapper.NAME, "6"));
         reader.close();
         reader = DirectoryReader.open(writer);
-        segment = reader.leaves().get(0);
+        segment = reader.leaves().getFirst();
         lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), false);
         assertNull(lookup.lookupVersion(new BytesRef("6"), randomBoolean(), segment));
         reader.close();
@@ -91,7 +91,7 @@ public class VersionLookupTests extends ESTestCase {
         writer.addDocument(doc);
         writer.addDocument(new Document());
         DirectoryReader reader = DirectoryReader.open(writer);
-        LeafReaderContext segment = reader.leaves().get(0);
+        LeafReaderContext segment = reader.leaves().getFirst();
         PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), false);
         // return the last doc when there are duplicates
         DocIdAndVersion result = lookup.lookupVersion(new BytesRef("6"), randomBoolean(), segment);
@@ -102,7 +102,7 @@ public class VersionLookupTests extends ESTestCase {
         assertTrue(writer.tryDeleteDocument(reader, 0) >= 0);
         reader.close();
         reader = DirectoryReader.open(writer);
-        segment = reader.leaves().get(0);
+        segment = reader.leaves().getFirst();
         lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), false);
         result = lookup.lookupVersion(new BytesRef("6"), randomBoolean(), segment);
         assertNotNull(result);
@@ -112,7 +112,7 @@ public class VersionLookupTests extends ESTestCase {
         assertTrue(writer.tryDeleteDocument(reader, 1) >= 0);
         reader.close();
         reader = DirectoryReader.open(writer);
-        segment = reader.leaves().get(0);
+        segment = reader.leaves().getFirst();
         lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), false);
         assertNull(lookup.lookupVersion(new BytesRef("6"), randomBoolean(), segment));
         reader.close();
@@ -139,7 +139,7 @@ public class VersionLookupTests extends ESTestCase {
         writer.addDocument(doc);
         DirectoryReader reader = DirectoryReader.open(writer);
 
-        LeafReaderContext segment = reader.leaves().get(0);
+        LeafReaderContext segment = reader.leaves().getFirst();
         PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), true);
         assertTrue(lookup.loadedTimestampRange);
         assertEquals(lookup.minTimestamp, 1_000L);
@@ -159,9 +159,9 @@ public class VersionLookupTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setMergePolicy(NoMergePolicy.INSTANCE));
         var randomSeqNoIndexOptions = randomFrom(SeqNoFieldMapper.SeqNoIndexOptions.values());
-        writer.addDocument(ParsedDocument.deleteTombstone(randomSeqNoIndexOptions, "_id").docs().get(0));
+        writer.addDocument(ParsedDocument.deleteTombstone(randomSeqNoIndexOptions, "_id").docs().getFirst());
         DirectoryReader reader = DirectoryReader.open(writer);
-        LeafReaderContext segment = reader.leaves().get(0);
+        LeafReaderContext segment = reader.leaves().getFirst();
         PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), true);
         assertTrue(lookup.loadedTimestampRange);
         assertEquals(lookup.minTimestamp, 0L);

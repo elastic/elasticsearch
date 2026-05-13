@@ -340,7 +340,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         );
     }
 
-    public record Shard(ShardId shardId, SplitShardCountSummary reshardSplitShardCountSummary) implements Writeable {
+    public record Shard(ShardId shardId, SplitShardCountSummary splitShardCountSummary) implements Writeable {
         Shard(StreamInput in) throws IOException {
             this(new ShardId(in), new SplitShardCountSummary(in));
         }
@@ -348,7 +348,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             shardId.writeTo(out);
-            reshardSplitShardCountSummary.writeTo(out);
+            splitShardCountSummary.writeTo(out);
         }
     }
 }

@@ -387,6 +387,128 @@ public class RestIndexActionIT extends ESIntegTestCase {
         assertThat(response, containsString("use [_slice] instead"));
     }
 
+    public void testCountUrlSliceRequiredWhenSliceEnabled() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Request create = new Request("PUT", "/slice-count-url-required-it");
+        create.setJsonEntity("""
+            {
+              "settings": {
+                "index.slice.enabled": true,
+                "number_of_shards": 1
+              }
+            }""");
+        getRestClient().performRequest(create);
+
+        Request indexDoc = new Request("POST", "/slice-count-url-required-it/_doc/1");
+        indexDoc.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        indexDoc.setJsonEntity("""
+            {
+              "field": "value"
+            }""");
+        getRestClient().performRequest(indexDoc);
+        getRestClient().performRequest(new Request("POST", "/slice-count-url-required-it/_refresh"));
+
+        Request countMissingSlice = new Request("GET", "/slice-count-url-required-it/_count");
+        countMissingSlice.setJsonEntity("""
+            {
+              "query": {
+                "match_all": {}
+              }
+            }""");
+        ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(countMissingSlice));
+        String countError = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
+        assertThat(countError, containsString("[_slice] is required when [index.slice.enabled] is true"));
+    }
+
+    public void testCountUrlRoutingRejectedWhenSliceEnabled() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Request create = new Request("PUT", "/slice-count-url-routing-rejected-it");
+        create.setJsonEntity("""
+            {
+              "settings": {
+                "index.slice.enabled": true,
+                "number_of_shards": 1
+              }
+            }""");
+        getRestClient().performRequest(create);
+
+        Request indexDoc = new Request("POST", "/slice-count-url-routing-rejected-it/_doc/1");
+        indexDoc.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        indexDoc.setJsonEntity("""
+            {
+              "field": "value"
+            }""");
+        getRestClient().performRequest(indexDoc);
+        getRestClient().performRequest(new Request("POST", "/slice-count-url-routing-rejected-it/_refresh"));
+
+        Request countWithRouting = new Request("GET", "/slice-count-url-routing-rejected-it/_count");
+        countWithRouting.addParameter("routing", "r1");
+        countWithRouting.setJsonEntity("""
+            {
+              "query": {
+                "match_all": {}
+              }
+            }""");
+        ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(countWithRouting));
+        String countError = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
+        assertThat(countError, containsString("[routing] is not allowed when [index.slice.enabled] is true"));
+        assertThat(countError, containsString("use [_slice] instead"));
+    }
+
+    public void testCountUrlSliceFilterIsAdditiveToQueryFilter() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Request create = new Request("PUT", "/slice-count-url-additive-filter-it");
+        create.setJsonEntity("""
+            {
+              "settings": {
+                "index.slice.enabled": true,
+                "number_of_shards": 1
+              }
+            }""");
+        getRestClient().performRequest(create);
+
+        Request indexS1MatchingQuery = new Request("POST", "/slice-count-url-additive-filter-it/_doc/1");
+        indexS1MatchingQuery.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        indexS1MatchingQuery.setJsonEntity("""
+            {
+              "category": 1
+            }""");
+        getRestClient().performRequest(indexS1MatchingQuery);
+
+        Request indexS1NonMatchingQuery = new Request("POST", "/slice-count-url-additive-filter-it/_doc/2");
+        indexS1NonMatchingQuery.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        indexS1NonMatchingQuery.setJsonEntity("""
+            {
+              "category": 2
+            }""");
+        getRestClient().performRequest(indexS1NonMatchingQuery);
+
+        Request indexS2MatchingQuery = new Request("POST", "/slice-count-url-additive-filter-it/_doc/3");
+        indexS2MatchingQuery.addParameter(SliceIndexing.PARAM_NAME, "s2");
+        indexS2MatchingQuery.setJsonEntity("""
+            {
+              "category": 1
+            }""");
+        getRestClient().performRequest(indexS2MatchingQuery);
+        getRestClient().performRequest(new Request("POST", "/slice-count-url-additive-filter-it/_refresh"));
+
+        Request countWithSliceAndQuery = new Request("GET", "/slice-count-url-additive-filter-it/_count");
+        countWithSliceAndQuery.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        countWithSliceAndQuery.setJsonEntity("""
+            {
+              "query": {
+                "term": {
+                  "category": {
+                    "value": 1
+                  }
+                }
+              }
+            }""");
+        Response countResponse = getRestClient().performRequest(countWithSliceAndQuery);
+        ObjectPath objectPath = ObjectPath.createFromResponse(countResponse);
+        assertThat(objectPath.evaluate("count"), equalTo(1));
+    }
+
     public void testSearchPitRejectedWhenSliceEnabled() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/slice-search-pit-rejected-it");

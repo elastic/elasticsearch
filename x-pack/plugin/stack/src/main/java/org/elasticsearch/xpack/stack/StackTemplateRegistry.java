@@ -33,11 +33,11 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
 
     // The stack template registry version. This number must be incremented when we make changes
     // to built-in templates.
-    public static final int REGISTRY_VERSION = 19;
+    public static final int REGISTRY_VERSION = 20;
 
     // The computed checksum of all templates and components that are registered in this registry.
     // This is used by a test to ensure that REGISTRY_VERSION is updated when any of the components change.
-    static final String COMPUTED_CHECKSUM = "228d8ef7";
+    static final String COMPUTED_CHECKSUM = "c42ed95a";
 
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.stack.template.version";
     public static final Setting<Boolean> STACK_TEMPLATES_ENABLED = Setting.boolSetting(

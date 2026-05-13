@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -16,6 +18,11 @@ import org.elasticsearch.search.SearchService;
 
 public final class PitReaderContext extends ReaderContext {
     private static final long CONTEXT_RELOCATION_GRACE_TIME_MS = 1000;
+
+    // Additional metadata that is needed to handle relocation of PIT contexts
+    // opened during resharding.
+    private final IndexReshardingMetadata reshardingMetadata;
+    private final SplitShardCountSummary shardCountSummary;
 
     // Volatile since it is written by generic thread pool thread (in `afterIndexShardClosed`)
     // and read from search threads.
@@ -26,9 +33,13 @@ public final class PitReaderContext extends ReaderContext {
         IndexService indexService,
         IndexShard indexShard,
         Engine.SearcherSupplier searcherSupplier,
-        long keepAliveInMillis
+        long keepAliveInMillis,
+        IndexReshardingMetadata reshardingMetadata,
+        SplitShardCountSummary shardCountSummary
     ) {
         super(id, indexService, indexShard, searcherSupplier, keepAliveInMillis, false);
+        this.reshardingMetadata = reshardingMetadata;
+        this.shardCountSummary = shardCountSummary;
     }
 
     @Override
@@ -62,5 +73,13 @@ public final class PitReaderContext extends ReaderContext {
      */
     public void relocate() {
         relocatedTimestampMs = nowInMillis();
+    }
+
+    public IndexReshardingMetadata reshardingMetadata() {
+        return reshardingMetadata;
+    }
+
+    public SplitShardCountSummary shardCountSummary() {
+        return shardCountSummary;
     }
 }

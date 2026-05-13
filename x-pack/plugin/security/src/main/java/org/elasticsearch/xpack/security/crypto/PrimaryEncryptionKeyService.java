@@ -168,8 +168,8 @@ public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyP
             }
 
             if (metadata != null) {
-                Map<String, SecretKey> keysByKeyId = HashMap.newHashMap(metadata.getEntries().size());
-                for (String keyId : metadata.getEntries().keySet()) {
+                Map<String, SecretKey> keysByKeyId = HashMap.newHashMap(metadata.getKeys().size());
+                for (String keyId : metadata.getKeys().keySet()) {
                     SecretKey secretKey = metadata.toSecretKey(keyId);
                     assert secretKey != null : "key [" + keyId + "] present in metadata but toSecretKey returned null";
                     keysByKeyId.put(keyId, secretKey);
@@ -377,7 +377,7 @@ public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyP
             }
             byte[] keyBytes = randomKey();
             String newKeyId = PrimaryEncryptionKeyMetadata.generateKeyId();
-            Map<String, PrimaryEncryptionKeyMetadata.KeyEntry> newEntries = new HashMap<>(existing.getEntries());
+            Map<String, PrimaryEncryptionKeyMetadata.KeyEntry> newEntries = new HashMap<>(existing.getKeys());
             newEntries.put(newKeyId, new PrimaryEncryptionKeyMetadata.KeyEntry(keyBytes, threadPool.absoluteTimeInMillis()));
             PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(newEntries, newKeyId);
             logger.info("beginning primary encryption key rotation: new active key [{}]", newKeyId);
@@ -398,7 +398,7 @@ public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyP
                 return Tuple.tuple(clusterState, null);
             }
             String activeKeyId = existing.getActiveKeyId();
-            Map<String, PrimaryEncryptionKeyMetadata.KeyEntry> retained = new HashMap<>(existing.getEntries());
+            Map<String, PrimaryEncryptionKeyMetadata.KeyEntry> retained = new HashMap<>(existing.getKeys());
             retained.keySet().removeAll(retiredIds);
             PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(retained, activeKeyId);
             logger.info("primary encryption key retire: retained active key [{}], retired keys {}", activeKeyId, new TreeSet<>(retiredIds));

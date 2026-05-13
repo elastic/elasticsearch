@@ -59,7 +59,7 @@ public class PrimaryEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
     @Override
     protected Metadata.ProjectCustom mutateInstance(Metadata.ProjectCustom instance) {
         PrimaryEncryptionKeyMetadata pek = (PrimaryEncryptionKeyMetadata) instance;
-        Map<String, KeyEntry> entries = new HashMap<>(pek.getEntries());
+        Map<String, KeyEntry> entries = new HashMap<>(pek.getKeys());
         String activeId = pek.getActiveKeyId();
         long activeTs = entries.get(activeId).generatedAt();
         // Pick mutation 0 (add new active) when no non-active entry exists to mutate.
@@ -176,12 +176,12 @@ public class PrimaryEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
     }
 
     public void testFromXContentMissingActiveKeyId() throws IOException {
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"entries\": {\"abc\": {\"bytes\": \"AAAA\"}}}")) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"keys\": {\"abc\": {\"bytes\": \"AAAA\"}}}")) {
             expectThrows(IllegalArgumentException.class, () -> PrimaryEncryptionKeyMetadata.fromXContent(parser));
         }
     }
 
-    public void testFromXContentMissingEntries() throws IOException {
+    public void testFromXContentMissingKeys() throws IOException {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"active_key_id\": \"abc\"}")) {
             expectThrows(IllegalArgumentException.class, () -> PrimaryEncryptionKeyMetadata.fromXContent(parser));
         }

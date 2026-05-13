@@ -62,7 +62,7 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
 
     private static final int KEY_LENGTH_BYTES = 32;
     private static final String KEY_ALGORITHM = "AES";
-    private static final ParseField ENTRIES_FIELD = new ParseField("entries");
+    private static final ParseField KEYS_FIELD = new ParseField("keys");
     private static final ParseField ACTIVE_KEY_ID_FIELD = new ParseField("active_key_id");
     private static final ParseField BYTES_FIELD = new ParseField("bytes");
     private static final ParseField GENERATED_AT_FIELD = new ParseField("generated_at");
@@ -104,19 +104,19 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
         }
     }
 
-    private final Map<String, KeyEntry> entries;
+    private final Map<String, KeyEntry> keys;
     private final String activeKeyId;
 
-    public PrimaryEncryptionKeyMetadata(Map<String, KeyEntry> entries, String activeKeyId) {
-        if (entries.isEmpty()) {
-            throw new IllegalArgumentException("Entries map must not be empty");
+    public PrimaryEncryptionKeyMetadata(Map<String, KeyEntry> keys, String activeKeyId) {
+        if (keys.isEmpty()) {
+            throw new IllegalArgumentException("Keys map must not be empty");
         }
-        if (entries.containsKey(activeKeyId) == false) {
-            throw new IllegalArgumentException("Active key ID [" + activeKeyId + "] not found in entries");
+        if (keys.containsKey(activeKeyId) == false) {
+            throw new IllegalArgumentException("Active key ID [" + activeKeyId + "] not found in keys");
         }
-        assert entries.values().stream().mapToLong(KeyEntry::generatedAt).max().orElse(Long.MIN_VALUE) == entries.get(activeKeyId)
-            .generatedAt() : "active key [" + activeKeyId + "] must be the newest entry by generatedAt in " + entries;
-        this.entries = Map.copyOf(entries);
+        assert keys.values().stream().mapToLong(KeyEntry::generatedAt).max().orElse(Long.MIN_VALUE) == keys.get(activeKeyId).generatedAt()
+            : "active key [" + activeKeyId + "] must be the newest entry by generatedAt in " + keys;
+        this.keys = Map.copyOf(keys);
         this.activeKeyId = activeKeyId;
     }
 
@@ -149,7 +149,7 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
      * Returns a defensive copy of the raw key bytes for the specified key ID, or {@code null} if the key ID is not present.
      */
     public byte[] getKeyBytes(String keyId) {
-        KeyEntry entry = entries.get(keyId);
+        KeyEntry entry = keys.get(keyId);
         return entry != null ? entry.bytes().clone() : null;
     }
 
@@ -157,29 +157,29 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
      * Returns the active key as a {@link SecretKey} suitable for use with AES cryptographic operations.
      */
     public SecretKey toSecretKey() {
-        return new SecretKeySpec(entries.get(activeKeyId).bytes(), KEY_ALGORITHM);
+        return new SecretKeySpec(keys.get(activeKeyId).bytes(), KEY_ALGORITHM);
     }
 
     /**
      * Returns the key for the specified key ID as a {@link SecretKey}, or {@code null} if the key ID is not present.
      */
     public SecretKey toSecretKey(String keyId) {
-        KeyEntry entry = entries.get(keyId);
+        KeyEntry entry = keys.get(keyId);
         return entry != null ? new SecretKeySpec(entry.bytes(), KEY_ALGORITHM) : null;
     }
 
     /**
-     * Returns an unmodifiable view of the entries (key bytes + generation timestamps) keyed by key ID.
+     * Returns an unmodifiable view of the keys (key bytes + generation timestamps) keyed by key ID.
      */
-    public Map<String, KeyEntry> getEntries() {
-        return entries;
+    public Map<String, KeyEntry> getKeys() {
+        return keys;
     }
 
     /**
      * Returns the time at which the specified key was generated, or {@code 0L} if the key ID is not present.
      */
     public long getGeneratedAt(String keyId) {
-        KeyEntry entry = entries.get(keyId);
+        KeyEntry entry = keys.get(keyId);
         return entry != null ? entry.generatedAt() : 0L;
     }
 
@@ -194,7 +194,7 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
     public Set<String> findRetireableKeyIds(long cutoffDeactivationMillis) {
         // Sort by generatedAt ascending so each entry's deactivation time is the next entry's generatedAt.
         // The active key is always the newest entry, so it lands last and never has its successor inspected.
-        List<Map.Entry<String, KeyEntry>> sorted = entries.entrySet()
+        List<Map.Entry<String, KeyEntry>> sorted = keys.entrySet()
             .stream()
             .sorted(Comparator.comparingLong(e -> e.getValue().generatedAt()))
             .toList();
@@ -230,9 +230,9 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().supports(PRIMARY_ENCRYPTION_KEY_ROTATION)) {
-            out.writeMap(entries, StreamOutput::writeString, (o, e) -> e.writeTo(o));
+            out.writeMap(keys, StreamOutput::writeString, (o, e) -> e.writeTo(o));
         } else {
-            out.writeMap(entries, StreamOutput::writeString, (o, e) -> o.writeByteArray(e.bytes()));
+            out.writeMap(keys, StreamOutput::writeString, (o, e) -> o.writeByteArray(e.bytes()));
         }
         out.writeString(activeKeyId);
     }
@@ -245,8 +245,8 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
         return chunk((builder, params) -> {
             builder.field(ACTIVE_KEY_ID_FIELD.getPreferredName(), activeKeyId);
-            builder.startObject(ENTRIES_FIELD.getPreferredName());
-            for (Map.Entry<String, KeyEntry> entry : entries.entrySet()) {
+            builder.startObject(KEYS_FIELD.getPreferredName());
+            for (Map.Entry<String, KeyEntry> entry : keys.entrySet()) {
                 builder.startObject(entry.getKey());
                 builder.field(BYTES_FIELD.getPreferredName(), entry.getValue().bytes());
                 builder.field(GENERATED_AT_FIELD.getPreferredName(), entry.getValue().generatedAt());
@@ -274,13 +274,19 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
         args -> {
             String activeKeyId = (String) args[0];
             List<Tuple<String, KeyEntry>> list = (List<Tuple<String, KeyEntry>>) args[1];
-            Map<String, KeyEntry> entries = list.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2));
-            return new PrimaryEncryptionKeyMetadata(entries, activeKeyId);
+            Map<String, KeyEntry> keys = list.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2));
+            return new PrimaryEncryptionKeyMetadata(keys, activeKeyId);
         }
     );
     static {
         PARSER.declareString(constructorArg(), ACTIVE_KEY_ID_FIELD);
-        PARSER.declareNamedObjects(constructorArg(), (p, c, name) -> Tuple.tuple(name, KEY_ENTRY_PARSER.apply(p, name)), ENTRIES_FIELD);
+        PARSER.declareNamedObjects(constructorArg(), (p, c, name) -> {
+            XContentParser.Token valueToken = p.nextToken();
+            if (valueToken == XContentParser.Token.START_OBJECT) {
+                return Tuple.tuple(name, KEY_ENTRY_PARSER.apply(p, name));
+            }
+            return Tuple.tuple(name, new KeyEntry(p.binaryValue(), 0L)); // old format
+        }, KEYS_FIELD);
     }
 
     public static Metadata.ProjectCustom fromXContent(XContentParser parser) throws IOException {
@@ -290,16 +296,16 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
     @Override
     public String toString() {
         StringBuilder ts = new StringBuilder();
-        for (String id : new TreeSet<>(entries.keySet())) {
+        for (String id : new TreeSet<>(keys.keySet())) {
             if (!ts.isEmpty()) {
                 ts.append(", ");
             }
-            ts.append(id).append('=').append(entries.get(id).generatedAt());
+            ts.append(id).append('=').append(keys.get(id).generatedAt());
         }
         return "PrimaryEncryptionKeyMetadata{activeKeyId="
             + activeKeyId
             + ", keyCount="
-            + entries.size()
+            + keys.size()
             + ", generatedAt="
             + ts
             + ", [keys secret]}";
@@ -310,11 +316,11 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PrimaryEncryptionKeyMetadata that = (PrimaryEncryptionKeyMetadata) o;
-        return Objects.equals(activeKeyId, that.activeKeyId) && Objects.equals(entries, that.entries);
+        return Objects.equals(activeKeyId, that.activeKeyId) && Objects.equals(keys, that.keys);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(activeKeyId, entries);
+        return Objects.hash(activeKeyId, keys);
     }
 }

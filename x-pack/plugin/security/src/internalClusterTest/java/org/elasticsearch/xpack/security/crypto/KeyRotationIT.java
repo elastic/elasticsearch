@@ -101,7 +101,7 @@ public class KeyRotationIT extends SecurityIntegTestCase {
         }, 30, TimeUnit.SECONDS);
         assertBusy(() -> {
             PrimaryEncryptionKeyMetadata m = metadataOnMaster();
-            assertThat("the original install key should eventually be retired", m.getEntries().keySet(), not(hasItem(originalKeyId)));
+            assertThat("the original install key should eventually be retired", m.getKeys().keySet(), not(hasItem(originalKeyId)));
         }, 60, TimeUnit.SECONDS);
     }
 
@@ -120,8 +120,8 @@ public class KeyRotationIT extends SecurityIntegTestCase {
             assertThat("beta handler invoked", beta.callCount.get(), greaterThanOrEqualTo(1));
             assertThat("alpha blob re-encrypted off initial", alpha.blob.get().keyId(), not(equalTo(initialKeyId)));
             assertThat("beta blob re-encrypted off initial", beta.blob.get().keyId(), not(equalTo(initialKeyId)));
-            assertThat("alpha blob key still present", m.getEntries().keySet(), hasItem(alpha.blob.get().keyId()));
-            assertThat("beta blob key still present", m.getEntries().keySet(), hasItem(beta.blob.get().keyId()));
+            assertThat("alpha blob key still present", m.getKeys().keySet(), hasItem(alpha.blob.get().keyId()));
+            assertThat("beta blob key still present", m.getKeys().keySet(), hasItem(beta.blob.get().keyId()));
         }, 30, TimeUnit.SECONDS);
 
         // End-to-end round-trip: re-encrypted blobs still decrypt back to the original plaintext.
@@ -161,7 +161,7 @@ public class KeyRotationIT extends SecurityIntegTestCase {
 
         // Wait for rotation to begin and the original master's handler to be invoked at least once (it is now blocked on the latch).
         assertBusy(() -> {
-            assertThat("multiple keys should be present mid-rotation", metadataOnMaster().getEntries().size(), greaterThanOrEqualTo(2));
+            assertThat("multiple keys should be present mid-rotation", metadataOnMaster().getKeys().size(), greaterThanOrEqualTo(2));
             assertThat(state.callCount.get(), greaterThanOrEqualTo(1));
         }, 30, TimeUnit.SECONDS);
 
@@ -178,7 +178,7 @@ public class KeyRotationIT extends SecurityIntegTestCase {
         state.releaseLatch.countDown();
         assertBusy(() -> {
             assertThat("blob re-encrypted off pre-rotation key", state.blob.get().keyId(), not(equalTo(preRotationKeyId)));
-            assertThat("blob's key still present in metadata", metadataOnMaster().getEntries().keySet(), hasItem(state.blob.get().keyId()));
+            assertThat("blob's key still present in metadata", metadataOnMaster().getKeys().keySet(), hasItem(state.blob.get().keyId()));
         }, 30, TimeUnit.SECONDS);
     }
 

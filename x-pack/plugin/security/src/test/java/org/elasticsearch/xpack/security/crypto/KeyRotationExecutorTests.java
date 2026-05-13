@@ -67,7 +67,7 @@ public class KeyRotationExecutorTests extends ESTestCase {
 
         PrimaryEncryptionKeyMetadata metadata = metadataOf(result.v1());
         assertNotNull(metadata);
-        assertEquals(1, metadata.getEntries().size());
+        assertEquals(1, metadata.getKeys().size());
         String activeKeyId = metadata.getActiveKeyId();
         assertNotNull(activeKeyId);
         assertTrue("generatedAt should be set on initial install", metadata.getGeneratedAt(activeKeyId) > 0);
@@ -87,9 +87,9 @@ public class KeyRotationExecutorTests extends ESTestCase {
         Tuple<ClusterState, Void> result = executor.executeTask(new PrimaryEncryptionKeyService.BeginRotationTask(), state);
 
         PrimaryEncryptionKeyMetadata metadata = metadataOf(result.v1());
-        assertEquals(2, metadata.getEntries().size());
+        assertEquals(2, metadata.getKeys().size());
         assertNotEquals("k1", metadata.getActiveKeyId());
-        assertTrue("k1 should remain in the map", metadata.getEntries().containsKey("k1"));
+        assertTrue("k1 should remain in the map", metadata.getKeys().containsKey("k1"));
         assertEquals(activeBornAt, metadata.getGeneratedAt("k1"));
         assertTrue("new active key has fresh generatedAt", metadata.getGeneratedAt(metadata.getActiveKeyId()) > activeBornAt);
     }
@@ -112,7 +112,7 @@ public class KeyRotationExecutorTests extends ESTestCase {
         Tuple<ClusterState, Void> result = executor.executeTask(new PrimaryEncryptionKeyService.RetireKeysTask(450L), state);
 
         PrimaryEncryptionKeyMetadata metadata = metadataOf(result.v1());
-        assertEquals("only 'old' should have been retired", Set.of("active", "recent"), metadata.getEntries().keySet());
+        assertEquals("only 'old' should have been retired", Set.of("active", "recent"), metadata.getKeys().keySet());
         assertEquals("active", metadata.getActiveKeyId());
     }
 
@@ -128,7 +128,7 @@ public class KeyRotationExecutorTests extends ESTestCase {
         Tuple<ClusterState, Void> result = executor.executeTask(new PrimaryEncryptionKeyService.RetireKeysTask(cutoff), state);
 
         PrimaryEncryptionKeyMetadata metadata = metadataOf(result.v1());
-        assertEquals(Set.of("active"), metadata.getEntries().keySet());
+        assertEquals(Set.of("active"), metadata.getKeys().keySet());
         assertEquals("active", metadata.getActiveKeyId());
     }
 

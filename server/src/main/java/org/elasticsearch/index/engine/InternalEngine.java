@@ -139,6 +139,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class InternalEngine extends Engine {
 
@@ -739,11 +741,11 @@ public class InternalEngine extends Engine {
             protected void write(List<Tuple<Tuple<Long, Translog.Location>, Consumer<Exception>>> candidates) throws IOException {
                 try {
                     Translog.Location location = Translog.Location.EMPTY;
-                    long processGlobalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
+                    long processGlobalCheckpoint = UNASSIGNED_SEQ_NO;
                     for (Tuple<Tuple<Long, Translog.Location>, Consumer<Exception>> syncMarkers : candidates) {
                         Tuple<Long, Translog.Location> marker = syncMarkers.v1();
                         long globalCheckpointToSync = marker.v1();
-                        if (globalCheckpointToSync != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                        if (globalCheckpointToSync != UNASSIGNED_SEQ_NO) {
                             processGlobalCheckpoint = SequenceNumbers.max(processGlobalCheckpoint, globalCheckpointToSync);
                         }
                         location = location.compareTo(marker.v2()) >= 0 ? location : marker.v2();
@@ -974,7 +976,7 @@ public class InternalEngine extends Engine {
                         get.versionType().explainConflictForReads(versionValue.version, get.version())
                     );
                 }
-                if (get.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
+                if (get.getIfSeqNo() != UNASSIGNED_SEQ_NO
                     && (get.getIfSeqNo() != versionValue.seqNo || get.getIfPrimaryTerm() != versionValue.term)) {
                     throw new VersionConflictEngineException(
                         shardId,
@@ -1047,7 +1049,7 @@ public class InternalEngine extends Engine {
     }
 
     private OpVsLuceneDocStatus compareOpToLuceneDocBasedOnSeqNo(final Operation op) throws IOException {
-        assert op.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "resolving ops based on seq# but no seqNo is found";
+        assert op.seqNo() != UNASSIGNED_SEQ_NO : "resolving ops based on seq# but no seqNo is found";
         final OpVsLuceneDocStatus status;
         VersionValue versionValue = getVersionFromMap(op.uid());
         assert incrementVersionLookup();
@@ -1186,15 +1188,13 @@ public class InternalEngine extends Engine {
 
     protected boolean assertPrimaryIncomingSequenceNumber(final Operation.Origin origin, final long seqNo) {
         // sequence number should not be set when operation origin is primary
-        assert seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO
-            : "primary operations must never have an assigned sequence number but was [" + seqNo + "]";
+        assert seqNo == UNASSIGNED_SEQ_NO : "primary operations must never have an assigned sequence number but was [" + seqNo + "]";
         return true;
     }
 
     protected long generateSeqNoForOperationOnPrimary(final Operation operation) {
         assert operation.origin() == Operation.Origin.PRIMARY;
-        assert operation.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO
-            : "ops should not have an assigned seq no. but was: " + operation.seqNo();
+        assert operation.seqNo() == UNASSIGNED_SEQ_NO : "ops should not have an assigned seq no. but was: " + operation.seqNo();
         return doGenerateSeqNoForOperation(operation);
     }
 
@@ -1305,7 +1305,7 @@ public class InternalEngine extends Engine {
                     final Translog.Location location;
                     if (indexResult.getResultType() == Result.Type.SUCCESS) {
                         location = translog.add(new Translog.Index(index, indexResult));
-                    } else if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                    } else if (indexResult.getSeqNo() != UNASSIGNED_SEQ_NO) {
                         // if we have document failure, record it as a no-op in the translog and Lucene with the generated seq_no
                         final NoOp noOp = new NoOp(
                             indexResult.getSeqNo(),
@@ -1330,7 +1330,7 @@ public class InternalEngine extends Engine {
                 localCheckpointTracker.markSeqNoAsProcessed(indexResult.getSeqNo());
                 if (indexResult.getTranslogLocation() == null) {
                     // the op is coming from the translog (and is hence persisted already) or it does not have a sequence number
-                    assert index.origin().isFromTranslog() || indexResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
+                    assert index.origin().isFromTranslog() || indexResult.getSeqNo() == UNASSIGNED_SEQ_NO;
                     localCheckpointTracker.markSeqNoAsPersisted(indexResult.getSeqNo());
                 }
                 indexResult.setTook(relativeTimeInNanosSupplier.getAsLong() - index.startTime());
@@ -1532,7 +1532,7 @@ public class InternalEngine extends Engine {
                     if (result.getResultType() == Result.Type.SUCCESS) {
                         // TODO: Add new batch operation to Translog and add all in one go.
                         location = translog.add(new Translog.Index(index, result));
-                    } else if (result.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                    } else if (result.getSeqNo() != UNASSIGNED_SEQ_NO) {
                         final NoOp noOp = new NoOp(
                             result.getSeqNo(),
                             index.primaryTerm(),
@@ -1635,30 +1635,30 @@ public class InternalEngine extends Engine {
         }
 
         if (sequenceNumbersAreDisabled()
-            && index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
-            && index.getIfPrimaryTerm() != SequenceNumbers.UNASSIGNED_PRIMARY_TERM) {
+            && index.getIfSeqNo() != UNASSIGNED_SEQ_NO
+            && index.getIfPrimaryTerm() != UNASSIGNED_PRIMARY_TERM) {
             return IndexingStrategy.optimisticConcurrencyControlNotSupported(index.id(), shardId);
         }
 
         versionMap.enforceSafeAccess();
         // resolves incoming version
-        final VersionValue versionValue = resolveDocVersion(index, index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO);
+        final VersionValue versionValue = resolveDocVersion(index, index.getIfSeqNo() != UNASSIGNED_SEQ_NO);
         final long currentVersion = versionValue == null ? Versions.NOT_FOUND : versionValue.version;
         final boolean currentNotFoundOrDeleted = versionValue == null || versionValue.isDelete();
 
-        if (index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && currentNotFoundOrDeleted) {
+        if (index.getIfSeqNo() != UNASSIGNED_SEQ_NO && currentNotFoundOrDeleted) {
             final VersionConflictEngineException e = new VersionConflictEngineException(
                 shardId,
                 index.id(),
                 index.getIfSeqNo(),
                 index.getIfPrimaryTerm(),
-                SequenceNumbers.UNASSIGNED_SEQ_NO,
-                SequenceNumbers.UNASSIGNED_PRIMARY_TERM
+                UNASSIGNED_SEQ_NO,
+                UNASSIGNED_PRIMARY_TERM
             );
             return IndexingStrategy.skipDueToVersionConflict(e, true, currentVersion, index.id());
         }
 
-        if (index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
+        if (index.getIfSeqNo() != UNASSIGNED_SEQ_NO
             && (versionValue.seqNo != index.getIfSeqNo() || versionValue.term != index.getIfPrimaryTerm())) {
             final VersionConflictEngineException e = new VersionConflictEngineException(
                 shardId,
@@ -1986,7 +1986,7 @@ public class InternalEngine extends Engine {
             localCheckpointTracker.markSeqNoAsProcessed(deleteResult.getSeqNo());
             if (deleteResult.getTranslogLocation() == null) {
                 // the op is coming from the translog (and is hence persisted already) or does not have a sequence number (version conflict)
-                assert delete.origin().isFromTranslog() || deleteResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
+                assert delete.origin().isFromTranslog() || deleteResult.getSeqNo() == UNASSIGNED_SEQ_NO;
                 localCheckpointTracker.markSeqNoAsPersisted(deleteResult.getSeqNo());
             }
             deleteResult.setTook(System.nanoTime() - delete.startTime());
@@ -2007,7 +2007,7 @@ public class InternalEngine extends Engine {
 
     private Exception tryAcquireInFlightDocs(Operation operation, int addingDocs) {
         assert operation.origin() == Operation.Origin.PRIMARY : operation;
-        assert operation.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO : operation;
+        assert operation.seqNo() == UNASSIGNED_SEQ_NO : operation;
         assert addingDocs > 0 : addingDocs;
         final long totalDocs = indexWriter.getPendingNumDocs() + inFlightDocCount.addAndGet(addingDocs);
         if (totalDocs > maxDocs) {
@@ -2074,29 +2074,29 @@ public class InternalEngine extends Engine {
     private DeletionStrategy planDeletionAsPrimary(Delete delete) throws IOException {
         assert delete.origin() == Operation.Origin.PRIMARY : "planing as primary but got " + delete.origin();
         if (sequenceNumbersAreDisabled()
-            && delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
-            && delete.getIfPrimaryTerm() != SequenceNumbers.UNASSIGNED_PRIMARY_TERM) {
+            && delete.getIfSeqNo() != UNASSIGNED_SEQ_NO
+            && delete.getIfPrimaryTerm() != UNASSIGNED_PRIMARY_TERM) {
             return DeletionStrategy.optimisticConcurrencyControlNotSupported(delete.id(), shardId);
         }
 
         // resolve operation from external to internal
-        final VersionValue versionValue = resolveDocVersion(delete, delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO);
+        final VersionValue versionValue = resolveDocVersion(delete, delete.getIfSeqNo() != UNASSIGNED_SEQ_NO);
         assert incrementVersionLookup();
         final long currentVersion = versionValue == null ? Versions.NOT_FOUND : versionValue.version;
         final boolean currentlyDeleted = versionValue == null || versionValue.isDelete();
 
         final DeletionStrategy plan;
-        if (delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && currentlyDeleted) {
+        if (delete.getIfSeqNo() != UNASSIGNED_SEQ_NO && currentlyDeleted) {
             final VersionConflictEngineException e = new VersionConflictEngineException(
                 shardId,
                 delete.id(),
                 delete.getIfSeqNo(),
                 delete.getIfPrimaryTerm(),
-                SequenceNumbers.UNASSIGNED_SEQ_NO,
-                SequenceNumbers.UNASSIGNED_PRIMARY_TERM
+                UNASSIGNED_SEQ_NO,
+                UNASSIGNED_PRIMARY_TERM
             );
             plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, true, delete.id());
-        } else if (delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
+        } else if (delete.getIfSeqNo() != UNASSIGNED_SEQ_NO
             && (versionValue.seqNo != delete.getIfSeqNo() || versionValue.term != delete.getIfPrimaryTerm())) {
                 final VersionConflictEngineException e = new VersionConflictEngineException(
                     shardId,
@@ -2229,8 +2229,8 @@ public class InternalEngine extends Engine {
             final DeleteResult deleteResult = new DeleteResult(
                 e,
                 currentVersion,
-                SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
-                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                UNASSIGNED_PRIMARY_TERM,
+                UNASSIGNED_SEQ_NO,
                 currentlyDeleted == false,
                 id
             );
@@ -2254,8 +2254,8 @@ public class InternalEngine extends Engine {
             final DeleteResult deleteResult = new DeleteResult(
                 e,
                 Versions.NOT_FOUND,
-                SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
-                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                UNASSIGNED_PRIMARY_TERM,
+                UNASSIGNED_SEQ_NO,
                 false,
                 id
             );
@@ -2266,8 +2266,8 @@ public class InternalEngine extends Engine {
             final DeleteResult deleteResult = new DeleteResult(
                 new OCCNotSupportedException(shardId),
                 Versions.NOT_FOUND,
-                SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
-                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                UNASSIGNED_PRIMARY_TERM,
+                UNASSIGNED_SEQ_NO,
                 false,
                 id
             );
@@ -2309,11 +2309,7 @@ public class InternalEngine extends Engine {
             final NoOpResult noOpResult;
             final Optional<Exception> preFlightError = preFlightCheckForNoOp(noOp);
             if (preFlightError.isPresent()) {
-                noOpResult = new NoOpResult(
-                    SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
-                    SequenceNumbers.UNASSIGNED_SEQ_NO,
-                    preFlightError.get()
-                );
+                noOpResult = new NoOpResult(UNASSIGNED_PRIMARY_TERM, UNASSIGNED_SEQ_NO, preFlightError.get());
             } else {
                 markSeqNoAsSeen(noOp.seqNo());
                 if (hasBeenProcessedBefore(noOp) == false) {
@@ -2354,7 +2350,7 @@ public class InternalEngine extends Engine {
             localCheckpointTracker.markSeqNoAsProcessed(noOpResult.getSeqNo());
             if (noOpResult.getTranslogLocation() == null) {
                 // the op is coming from the translog (and is hence persisted already) or it does not have a sequence number
-                assert noOp.origin().isFromTranslog() || noOpResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
+                assert noOp.origin().isFromTranslog() || noOpResult.getSeqNo() == UNASSIGNED_SEQ_NO;
                 localCheckpointTracker.markSeqNoAsPersisted(noOpResult.getSeqNo());
             }
             noOpResult.setTook(System.nanoTime() - noOp.startTime());
@@ -3535,7 +3531,7 @@ public class InternalEngine extends Engine {
      */
     protected final boolean hasBeenProcessedBefore(Operation op) {
         if (Assertions.ENABLED) {
-            assert op.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "operation is not assigned seq_no";
+            assert op.seqNo() != UNASSIGNED_SEQ_NO : "operation is not assigned seq_no";
             if (op.operationType() == Operation.TYPE.NO_OP) {
                 assert noOpKeyedLock.isHeldByCurrentThread(op.seqNo());
             } else {
@@ -3834,7 +3830,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary) {
-        if (maxSeqNoOfUpdatesOnPrimary == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+        if (maxSeqNoOfUpdatesOnPrimary == UNASSIGNED_SEQ_NO) {
             assert false : "max_seq_no_of_updates on primary is unassigned";
             throw new IllegalArgumentException("max_seq_no_of_updates on primary is unassigned");
         }

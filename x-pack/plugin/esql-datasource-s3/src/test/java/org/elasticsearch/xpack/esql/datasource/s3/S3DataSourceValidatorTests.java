@@ -18,6 +18,9 @@ public class S3DataSourceValidatorTests extends ESTestCase {
 
     private final DataSourceValidator validator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"));
 
+    // Must stay in sync with CsvDataSourcePlugin.FORMAT_CONFIG_KEYS. Direct reference is not
+    // possible due to cross-plugin test dependency constraints; CsvFormatReaderRecognizedKeysTests
+    // enforces the canonical set against the reader's RECOGNIZED_KEYS.
     private static final Set<String> CSV_CONFIG_KEYS = Set.of(
         "delimiter",
         "quote",
@@ -37,7 +40,7 @@ public class S3DataSourceValidatorTests extends ESTestCase {
         "s3",
         S3Configuration::fromMap,
         Set.of("s3", "s3a", "s3n")
-    ).withFormatConfigKeyResolver(ext -> ".csv".equals(ext) ? CSV_CONFIG_KEYS : null);
+    ).withFormatConfigKeyResolver(ext -> ".csv".equals(ext) ? CSV_CONFIG_KEYS : null, Set.of(".gz"));
 
     public void testType() {
         assertEquals("s3", validator.type());

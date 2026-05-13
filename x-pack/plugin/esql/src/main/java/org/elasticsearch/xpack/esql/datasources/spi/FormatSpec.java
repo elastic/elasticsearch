@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
-import java.util.Objects;
+import org.elasticsearch.xpack.esql.core.util.Check;
+
 import java.util.Set;
 
 /**
@@ -41,8 +42,8 @@ import java.util.Set;
 public record FormatSpec(String format, Set<String> extensions, Set<String> configKeys) {
 
     public FormatSpec {
-        Objects.requireNonNull(format, "format");
-        Objects.requireNonNull(extensions, "extensions");
+        Check.notNull(format, "format must not be null");
+        Check.notNull(extensions, "extensions must not be null");
         configKeys = configKeys != null ? Set.copyOf(configKeys) : Set.of();
     }
 

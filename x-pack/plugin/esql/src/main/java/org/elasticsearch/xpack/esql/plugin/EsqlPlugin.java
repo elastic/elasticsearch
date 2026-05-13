@@ -108,6 +108,7 @@ import org.elasticsearch.xpack.esql.datasources.datasource.TransportGetDataSourc
 import org.elasticsearch.xpack.esql.datasources.datasource.TransportPutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
@@ -143,6 +144,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -298,6 +300,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // This lets FileDataSourceValidator accept format-specific dataset fields (e.g. CSV's
         // "delimiter") at CRUD time, so they persist in cluster state and reach the format
         // reader at query time.
+        //
+        // NOTE: FormatReaderRegistry.registerExtension uses a plain put (last writer wins)
+        // for extension→reader mapping at runtime. Here we use putIfAbsent and fail on
+        // conflicts. If a future plugin maps the same extension to a different format,
+        // this will surface the inconsistency early at startup; FormatReaderRegistry
+        // should be aligned to also reject duplicates.
         Map<String, Set<String>> extToConfigKeys = new HashMap<>();
         for (DataSourcePlugin p : allDataSourcePlugins) {
             for (FormatSpec spec : p.formatSpecs()) {
@@ -320,12 +328,28 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         }
         FileDataSourceValidator.FormatConfigKeyResolver formatKeyResolver = extToConfigKeys.isEmpty() ? null : extToConfigKeys::get;
 
+        // Collect known compression extensions so the CRUD validator only falls back to
+        // inner extensions for compound paths (e.g. data.csv.gz) when the outer extension
+        // is a registered compression codec — matching DecompressionCodecRegistry behavior.
+        Set<String> compressionExtensions = new HashSet<>();
+        for (DataSourcePlugin p : allDataSourcePlugins) {
+            for (DecompressionCodec codec : p.decompressionCodecs(settings)) {
+                for (String ext : codec.extensions()) {
+                    String normalized = ext.toLowerCase(Locale.ROOT);
+                    if (normalized.startsWith(".") == false) {
+                        normalized = "." + normalized;
+                    }
+                    compressionExtensions.add(normalized);
+                }
+            }
+        }
+
         Map<String, DataSourceValidator> crudValidators = new HashMap<>();
         for (DataSourcePlugin p : allDataSourcePlugins) {
             p.datasourceValidators(settings).forEach((type, v) -> {
                 DataSourceValidator effective = v;
                 if (formatKeyResolver != null && v instanceof FileDataSourceValidator fdv) {
-                    effective = fdv.withFormatConfigKeyResolver(formatKeyResolver);
+                    effective = fdv.withFormatConfigKeyResolver(formatKeyResolver, compressionExtensions);
                 }
                 if (crudValidators.putIfAbsent(type, effective) != null) {
                     throw new IllegalStateException("duplicate DataSourceValidator for type [" + type + "]");

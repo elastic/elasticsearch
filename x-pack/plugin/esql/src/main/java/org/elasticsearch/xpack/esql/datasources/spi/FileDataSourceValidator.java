@@ -18,7 +18,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils.rejectUnknownFields;
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils.validateEnum;
@@ -44,41 +43,48 @@ public class FileDataSourceValidator implements DataSourceValidator {
     private static final String SCHEMA_SAMPLE_SIZE = "schema_sample_size";
     private static final int SCHEMA_SAMPLE_SIZE_MAX = 1000;
     private static final String ERROR_MODE = "error_mode";
-    static final Set<String> DATASET_FIELDS = Set.of(PARTITION_DETECTION, SCHEMA_SAMPLE_SIZE, ERROR_MODE);
+    private static final Set<String> DATASET_FIELDS = Set.of(PARTITION_DETECTION, SCHEMA_SAMPLE_SIZE, ERROR_MODE);
 
     private final String type;
     private final Function<Map<String, Object>, DataSourceConfiguration> configFactory;
     private final Set<String> supportedSchemes;
     @Nullable
     private final FormatConfigKeyResolver formatConfigKeyResolver;
+    private final Set<String> compressionExtensions;
 
     public FileDataSourceValidator(
         String type,
         Function<Map<String, Object>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes
     ) {
-        this(type, configFactory, supportedSchemes, null);
+        this(type, configFactory, supportedSchemes, null, Set.of());
     }
 
     private FileDataSourceValidator(
         String type,
         Function<Map<String, Object>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes,
-        @Nullable FormatConfigKeyResolver formatConfigKeyResolver
+        @Nullable FormatConfigKeyResolver formatConfigKeyResolver,
+        Set<String> compressionExtensions
     ) {
         this.type = type;
         this.configFactory = configFactory;
         this.supportedSchemes = supportedSchemes;
         this.formatConfigKeyResolver = formatConfigKeyResolver;
+        this.compressionExtensions = compressionExtensions;
     }
 
     /**
      * Returns a new validator that also accepts format-specific dataset fields
      * resolved from the resource's file extension. The resolver maps an extension
      * (e.g. {@code ".csv"}) to the set of config keys the format reader recognises.
+     *
+     * <p>The {@code compressionExtensions} set restricts compound-extension fallback
+     * (e.g. {@code data.csv.gz}) to only known compression suffixes, mirroring the
+     * runtime resolution in {@code FormatReaderRegistry}/{@code DecompressionCodecRegistry}.
      */
-    public FileDataSourceValidator withFormatConfigKeyResolver(FormatConfigKeyResolver resolver) {
-        return new FileDataSourceValidator(type, configFactory, supportedSchemes, resolver);
+    public FileDataSourceValidator withFormatConfigKeyResolver(FormatConfigKeyResolver resolver, Set<String> compressionExtensions) {
+        return new FileDataSourceValidator(type, configFactory, supportedSchemes, resolver, compressionExtensions);
     }
 
     @Override
@@ -158,7 +164,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
     /**
      * Extracts the file extension from a resource URI and resolves format-specific
      * config keys. Handles compound extensions (e.g. {@code data.csv.gz}) by
-     * stripping the outermost extension and retrying with the inner one.
+     * stripping a known compression suffix and resolving the inner extension —
+     * mirroring the runtime resolution in {@code FormatReaderRegistry}.
      */
     private Set<String> resolveFormatKeys(String resource) {
         String objectName = extractObjectName(resource);
@@ -176,14 +183,18 @@ public class FileDataSourceValidator implements DataSourceValidator {
             return keys;
         }
 
-        // Try compound extension: strip the outermost extension and look at the inner one.
-        String inner = objectName.substring(0, lastDot);
-        int innerDot = inner.lastIndexOf('.');
-        if (innerDot >= 0 && innerDot < inner.length() - 1) {
-            String innerExt = inner.substring(innerDot).toLowerCase(Locale.ROOT);
-            keys = formatConfigKeyResolver.configKeysForExtension(innerExt);
-            if (keys != null) {
-                return keys;
+        // Compound extension: only fall back to the inner extension when the outermost
+        // is a known compression suffix (e.g. .gz, .zst). This mirrors the read-path
+        // behavior in DecompressionCodecRegistry/FormatReaderRegistry.
+        if (compressionExtensions.contains(ext)) {
+            String inner = objectName.substring(0, lastDot);
+            int innerDot = inner.lastIndexOf('.');
+            if (innerDot >= 0 && innerDot < inner.length() - 1) {
+                String innerExt = inner.substring(innerDot).toLowerCase(Locale.ROOT);
+                keys = formatConfigKeyResolver.configKeysForExtension(innerExt);
+                if (keys != null) {
+                    return keys;
+                }
             }
         }
         return Set.of();
@@ -231,10 +242,17 @@ public class FileDataSourceValidator implements DataSourceValidator {
             }
         }
         if (schemeMatch == false) {
-            String supportedPrefixes = supportedSchemes.stream().map(s -> s + "://").collect(Collectors.joining(", ", "[", "]"));
-            errors.addValidationError(
-                "[resource] must use one of the supported URI schemes " + supportedPrefixes + " but was [" + resource + "]"
-            );
+            StringBuilder sb = new StringBuilder("[");
+            boolean first = true;
+            for (String s : supportedSchemes) {
+                if (first == false) {
+                    sb.append(", ");
+                }
+                sb.append(s).append("://");
+                first = false;
+            }
+            sb.append(']');
+            errors.addValidationError("[resource] must use one of the supported URI schemes " + sb + " but was [" + resource + "]");
         }
     }
 

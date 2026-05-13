@@ -454,8 +454,8 @@ public class CreateIndexIT extends ESIntegTestCase {
             """).get());
         var response = admin().indices().prepareGetMappings(TimeValue.THIRTY_SECONDS, "my-index").get();
         Map<?, ?> properties = (Map<?, ?>) response.getMappings().get("my-index").getSourceAsMap().get("properties");
-        assertThat(properties.get("field1"),  equalTo(Map.of("type", "keyword")));
-        assertThat(properties.get("field2"),  equalTo(Map.of("type", "text")));
+        assertThat(properties.get("field1"), equalTo(Map.of("type", "keyword")));
+        assertThat(properties.get("field2"), equalTo(Map.of("type", "text")));
     }
 
 }

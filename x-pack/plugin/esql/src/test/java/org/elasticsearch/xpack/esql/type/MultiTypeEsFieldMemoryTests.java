@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
+import java.lang.ref.Reference;
 import java.lang.reflect.Field;
 import java.time.ZoneId;
 import java.util.Collection;
@@ -48,11 +49,23 @@ public class MultiTypeEsFieldMemoryTests extends ESTestCase {
      * {@link RamUsageTester} walks reflectively, which fails on JDK-internal classes (e.g. {@code sun.util.locale.BaseLocale}) that
      * aren't opened to unnamed modules. The plan transitively references a {@link Locale} and a {@link ZoneId} via the analyzer's
      * {@code Configuration}, so we treat those as opaque as they're irrelevant to the union-type memory we care about here.
+     *
+     * <p>{@link Reference} values are filtered out at queue time rather than on pop: {@code RamUsageTester#handleOther} builds a
+     * class cache before consulting the accumulator, and on JDK 25 that fails for {@link Reference} subclasses because
+     * {@code java.lang.ref} isn't opened to unnamed modules.
      */
     private static final RamUsageTester.Accumulator ACCUMULATOR = new RamUsageTester.Accumulator() {
         @Override
         public long accumulateObject(Object o, long shallowSize, Map<Field, Object> fieldValues, Collection<Object> queue) {
-            return o instanceof Locale || o instanceof ZoneId ? shallowSize : super.accumulateObject(o, shallowSize, fieldValues, queue);
+            if (o instanceof Locale || o instanceof ZoneId) {
+                return shallowSize;
+            }
+            for (Object value : fieldValues.values()) {
+                if (value instanceof Reference<?> == false) {
+                    queue.add(value);
+                }
+            }
+            return shallowSize;
         }
     };
 

@@ -31,9 +31,9 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         }
     }
 
-    static void floatToBFloat16(float[] floats, ShortBuffer bFloats, int startOffset) {
-        for (int i = startOffset; i < floats.length; i++) {
-            bFloats.put(BFloat16Support.floatToBFloat16(floats[i]));
+    static void floatToBFloat16Impl(float[] floats, int floatOffset, byte[] bFloats, int bfloatOffset, int count) {
+        for (int i = 0; i < count; i++) {
+            BitUtil.VH_LE_SHORT.set(bFloats, i * Short.BYTES + bfloatOffset, BFloat16Support.floatToBFloat16(floats[i + floatOffset]));
         }
     }
 
@@ -44,8 +44,8 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void floatToBFloat16(float[] floats, ShortBuffer bFloats) {
-        floatToBFloat16(floats, bFloats, 0);
+    public void floatToBFloat16(float[] floats, int floatOffset, byte[] bfBytes, int bfOffset, int floatCount) {
+        floatToBFloat16Impl(floats, 0, bfBytes, 0, floatCount);
     }
 
     @Override

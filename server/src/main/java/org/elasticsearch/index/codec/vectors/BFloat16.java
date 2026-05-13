@@ -32,8 +32,16 @@ public final class BFloat16 {
         return BFloat16Support.bFloat16ToFloat(bf);
     }
 
-    public static void floatToBFloat16(float[] floats, ShortBuffer bFloats) {
-        ESVectorUtil.floatToBFloat16(floats, bFloats);
+    public static void floatToBFloat16(float[] floats, byte[] bfBytes) {
+        ESVectorUtil.floatToBFloat16(floats, 0, bfBytes, 0, floats.length);
+    }
+
+    /**
+     * Converts {@code floatCount} floats from {@code floats}, starting at {@code floatOffset},
+     * and put the bfloats in little-endian order into {@code bfBytes} starting at {@code bfOffset}.
+     */
+    public static void floatToBFloat16(float[] floats, int floatOffset, byte[] bfBytes, int bfOffset, int floatCount) {
+        ESVectorUtil.floatToBFloat16(floats, floatOffset, bfBytes, bfOffset, floatCount);
     }
 
     public static void bFloat16ToFloat(byte[] bfBytes, float[] floats) {
@@ -43,6 +51,15 @@ public final class BFloat16 {
 
     public static void bFloat16ToFloat(ShortBuffer bFloats, float[] floats) {
         ESVectorUtil.bFloat16ToFloat(bFloats, floats);
+    }
+
+    public static void swapByteOrder(byte[] array) {
+        assert array.length % 2 == 0;
+        for (int i = 0; i < array.length; i += 2) {
+            byte b = array[i];
+            array[i] = array[i + 1];
+            array[i + 1] = b;
+        }
     }
 
     private BFloat16() {}

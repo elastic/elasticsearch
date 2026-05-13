@@ -80,8 +80,10 @@ public class ESVectorUtil {
         IMPL.bFloat16ToFloat(bfloats, floats);
     }
 
-    public static void floatToBFloat16(float[] floats, ShortBuffer bfloats) {
-        IMPL.floatToBFloat16(floats, bfloats);
+    public static void floatToBFloat16(float[] floats, int floatOffset, byte[] bfBytes, int bfOffset, int floatCount) {
+        assert floats.length - floatOffset >= floatCount;
+        assert (bfBytes.length - bfOffset) >= floatCount * Short.BYTES;
+        IMPL.floatToBFloat16(floats, floatOffset, bfBytes, bfOffset, floatCount);
     }
 
     public static float dotProduct(float[] a, float[] b) {

@@ -211,9 +211,10 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 }
                 case BFLOAT16 -> {
                     float[] array = randomNormalizedVector(this.dims);
-                    final ByteBuffer buffer = ByteBuffer.allocate(BFloat16.BYTES * array.length);
-                    BFloat16.floatToBFloat16(array, buffer.asShortBuffer());
-                    yield buffer.array();
+                    byte[] buffer = new byte[BFloat16.BYTES * array.length];
+                    BFloat16.floatToBFloat16(array, buffer);
+                    BFloat16.swapByteOrder(buffer);
+                    yield buffer;
                 }
                 case BYTE -> randomByteArrayOfLength(dims);
                 case BIT -> randomByteArrayOfLength(this.dims / Byte.SIZE);

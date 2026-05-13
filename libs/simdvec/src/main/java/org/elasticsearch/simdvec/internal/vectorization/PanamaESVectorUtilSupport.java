@@ -33,6 +33,7 @@ import org.elasticsearch.simdvec.MultiVectorsSource;
 import org.elasticsearch.simdvec.internal.Similarities;
 
 import java.lang.foreign.MemorySegment;
+import java.nio.ByteOrder;
 import java.nio.ShortBuffer;
 
 import static jdk.incubator.vector.VectorOperators.ADD;
@@ -88,26 +89,33 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void floatToBFloat16(float[] floats, ShortBuffer bFloats) {
+    public void floatToBFloat16(float[] floats, int floatOffset, byte[] bfloats, int bfloatOffset, int count) {
         if (!SUPPORTS_HEAP_SEGMENTS || BFLOAT_SPECIES == null) {
-            DefaultESVectorUtilSupport.floatToBFloat16(floats, bFloats, 0);
+            DefaultESVectorUtilSupport.floatToBFloat16Impl(floats, floatOffset, bfloats, bfloatOffset, count);
         } else {
-            MemorySegment buffer = MemorySegment.ofBuffer(bFloats);
-            int vectorEnd = FLOAT_SPECIES.loopBound(floats.length);
+            MemorySegment buffer = MemorySegment.ofArray(bfloats);
+            final int vectorEnd = FLOAT_SPECIES.loopBound(count);
 
             for (int i = 0; i < vectorEnd; i += FLOAT_SPECIES.length()) {
-                IntVector bits = FloatVector.fromArray(FLOAT_SPECIES, floats, i).reinterpretAsInts();
+                IntVector bits = FloatVector.fromArray(FLOAT_SPECIES, floats, i + floatOffset).reinterpretAsInts();
                 // roundingBias = 0x7fff + ((bits >> 16) & 1)
                 IntVector bias = bits.lanewise(LSHR, 16).lanewise(AND, 1).add(0x7fff);
                 bits = bits.add(bias);
                 bits.lanewise(LSHR, 16)
                     .convertShape(VectorOperators.I2S, BFLOAT_SPECIES, 0)
-                    .intoMemorySegment(buffer, (long) i * Short.BYTES, bFloats.order());
+                    .intoMemorySegment(buffer, (long) i * Short.BYTES + bfloatOffset, ByteOrder.LITTLE_ENDIAN);
             }
-            bFloats.position(bFloats.position() + vectorEnd);
 
-            // scalar tail
-            DefaultESVectorUtilSupport.floatToBFloat16(floats, bFloats, vectorEnd);
+            if (vectorEnd < count) {
+                // scalar tail
+                DefaultESVectorUtilSupport.floatToBFloat16Impl(
+                    floats,
+                    vectorEnd + floatOffset,
+                    bfloats,
+                    vectorEnd * Short.BYTES + bfloatOffset,
+                    count - vectorEnd
+                );
+            }
         }
     }
 

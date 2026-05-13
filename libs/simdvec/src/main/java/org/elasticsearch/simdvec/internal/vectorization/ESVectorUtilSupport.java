@@ -27,7 +27,7 @@ public interface ESVectorUtilSupport {
     void bFloat16ToFloat(ShortBuffer bFloats, float[] floats);
 
     /** Converts floats to bfloat16s */
-    void floatToBFloat16(float[] floats, ShortBuffer bFloats);
+    void floatToBFloat16(float[] floats, int floatOffset, byte[] bfBytes, int bfOffset, int floatCount);
 
     /** Calculates the dot product of the given float arrays. */
     float dotProduct(float[] a, float[] b);

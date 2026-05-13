@@ -282,9 +282,10 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
                             for (int k = 0; k < numDims; k++) {
                                 array[k] = vector.get(k).floatValue();
                             }
-                            final ByteBuffer buffer = ByteBuffer.allocate(BFloat16.BYTES * numDims);
-                            BFloat16.floatToBFloat16(array, buffer.asShortBuffer());
-                            yield Base64.getEncoder().encodeToString(buffer.array());
+                            byte[] buffer = new byte[BFloat16.BYTES * numDims];
+                            BFloat16.floatToBFloat16(array, buffer);
+                            BFloat16.swapByteOrder(buffer);
+                            yield Base64.getEncoder().encodeToString(buffer);
                         }
                         case BYTE, BIT -> {
                             byte[] array = new byte[numDims];

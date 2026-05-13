@@ -1304,7 +1304,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public void writeValues(ByteBuffer byteBuffer, float[] values) {
-            BFloat16.floatToBFloat16(values, byteBuffer.asShortBuffer());
+            assert byteBuffer.order() == ByteOrder.LITTLE_ENDIAN;
+
+            // ByteBuffer created by FloatElement.createByteBuffer, so will always wrap an array
+            BFloat16.floatToBFloat16(values, 0, byteBuffer.array(), byteBuffer.position(), values.length);
             byteBuffer.position(byteBuffer.position() + (values.length * BFloat16.BYTES));
         }
 

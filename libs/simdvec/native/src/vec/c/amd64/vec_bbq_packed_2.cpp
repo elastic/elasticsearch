@@ -131,8 +131,8 @@ static inline void dotd2q4_packed_bulk_impl_avx512(
         if (has_next) {
             apply_indexed<batches>([&](auto I) {
                 next_doc_ptrs[I] = mapper(docs, c + batches + I, offsets, pitch);
-                prefetch(next_doc_ptrs[I], lines_to_fetch);
             });
+            head_prefetch<batches, 1>(next_doc_ptrs);
         }
 
         __m512i acc_s0[batches];
@@ -146,8 +146,13 @@ static inline void dotd2q4_packed_bulk_impl_avx512(
             acc_s3[I] = _mm512_setzero_si512();
         });
 
+        // Inner step is 64 bytes (one cache line), so the spread fires every
+        // iter with lines_per_iter=1.
         int i = 0;
         for (; i < blk; i += stride) {
+            if (has_next) {
+                spread_prefetch<batches, 1>(next_doc_ptrs, i, lines_to_fetch);
+            }
             __m512i query_s0 = _mm512_loadu_si512((const __m512i*)(query + i));
             __m512i query_s1 = _mm512_loadu_si512((const __m512i*)(query + i + packed_len));
             __m512i query_s2 = _mm512_loadu_si512((const __m512i*)(query + i + 2 * packed_len));

@@ -617,8 +617,8 @@ static inline void cosi8_inner_bulk(
         if (has_next) {
             apply_indexed<batches>([&](auto I) {
                 next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
-                prefetch(next_vecs[I], lines_to_fetch);
             });
+            head_prefetch<batches, 1>(next_vecs);
         }
 
         __m512i sums[batches];
@@ -628,8 +628,13 @@ static inline void cosi8_inner_bulk(
             a_norms[I] = _mm512_setzero_si512();
         });
 
+        // Inner step is 32 bytes (half a cache line), so gate the spread on
+        // cache-line boundaries to avoid re-prefetching the same line.
         int i = 0;
         for (; i < blk; i += sizeof(__m256i)) {
+            if (has_next && (i & (CACHE_LINE_SIZE - 1)) == 0) {
+                spread_prefetch<batches, 1>(next_vecs, i, lines_to_fetch);
+            }
             const __m512i vb16 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((const __m256i*)(b + i)));
 
             apply_indexed<batches>([&](auto I) {

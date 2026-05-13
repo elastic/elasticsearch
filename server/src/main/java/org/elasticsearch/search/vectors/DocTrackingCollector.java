@@ -12,16 +12,14 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
-import org.apache.lucene.util.hnsw.NeighborQueue;
 
-public class DocTrackingCollector implements KnnCollector {
+public class DocTrackingCollector implements BulkKnnCollector {
 
     private final KnnCollector delegate;
-    private final NeighborQueue trackedDocs;
+    private int[] trackedDocs;
 
-    public DocTrackingCollector(KnnCollector delegate, int maxCapacity) {
+    public DocTrackingCollector(KnnCollector delegate) {
         this.delegate = delegate;
-        this.trackedDocs = new NeighborQueue(maxCapacity, false);
     }
 
     @Override
@@ -51,7 +49,6 @@ public class DocTrackingCollector implements KnnCollector {
 
     @Override
     public boolean collect(int docId, float similarity) {
-        trackedDocs.insertWithOverflow(docId, similarity);
         return delegate.collect(docId, similarity);
     }
 
@@ -62,7 +59,12 @@ public class DocTrackingCollector implements KnnCollector {
 
     @Override
     public TopDocs topDocs() {
-        return delegate.topDocs();
+        var topDocs = delegate.topDocs();
+        trackedDocs = new int[topDocs.scoreDocs.length];
+        for (int i = 0; i < topDocs.scoreDocs.length; i++) {
+            trackedDocs[i] = topDocs.scoreDocs[i].doc;
+        }
+        return topDocs;
     }
 
     @Override
@@ -70,15 +72,35 @@ public class DocTrackingCollector implements KnnCollector {
         return delegate.getSearchStrategy();
     }
 
-    public int trackedDocsSize() {
-        return trackedDocs.size();
+    public int[] getTrackedDocs() {
+        return trackedDocs;
     }
 
-    public float topTrackedScore() {
-        return trackedDocs.topScore();
+    @Override
+    public int bulkCollect(int[] docs, float[] scores, int count, float bestScore) {
+        if (delegate instanceof BulkKnnCollector bulkDelegate) {
+            return bulkDelegate.bulkCollect(docs, scores, count, bestScore);
+        }
+        int accepted = 0;
+        for (int i = 0; i < count; i++) {
+            if (delegate.collect(docs[i], scores[i])) {
+                accepted++;
+            }
+        }
+        return accepted;
     }
 
-    public int popTrackedDoc() {
-        return trackedDocs.pop();
+    @Override
+    public TopDocs unsortedTopK() {
+        TopDocs topDocs = (delegate instanceof BulkKnnCollector bulkDelegate) ? bulkDelegate.unsortedTopK() : delegate.topDocs();
+        if (topDocs == null) {
+            trackedDocs = new int[0];
+            return null;
+        }
+        trackedDocs = new int[topDocs.scoreDocs.length];
+        for (int i = 0; i < topDocs.scoreDocs.length; i++) {
+            trackedDocs[i] = topDocs.scoreDocs[i].doc;
+        }
+        return topDocs;
     }
 }

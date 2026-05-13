@@ -14,7 +14,6 @@ import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 
 import java.io.IOException;
 
@@ -22,22 +21,18 @@ class DocTrackingCollectorManager implements KnnCollectorManager {
 
     record DocTrackingMeta(DocTrackingCollector collector, int docBase) {}
 
-    public static final int MAX_DOCS_TRACKED = 1000;
-
     private final KnnCollectorManager delegate;
     private final AtomicArray<DocTrackingMeta> collectors;
-    private final int docsTracked;
 
-    DocTrackingCollectorManager(KnnCollectorManager delegate, int docsTracked, int numLeaves) {
+    DocTrackingCollectorManager(KnnCollectorManager delegate, int numLeaves) {
         this.delegate = delegate;
-        this.docsTracked = Math.min(docsTracked, MAX_DOCS_TRACKED);
         this.collectors = new AtomicArray<>(numLeaves);
     }
 
     @Override
     public KnnCollector newCollector(int visitLimit, KnnSearchStrategy searchStrategy, LeafReaderContext ctx) throws IOException {
         var baseCollector = delegate.newCollector(visitLimit, searchStrategy, ctx);
-        var docTrackingCollector = new DocTrackingCollector(baseCollector, docsTracked);
+        var docTrackingCollector = new DocTrackingCollector(baseCollector);
         collectors.set(ctx.ord, new DocTrackingMeta(docTrackingCollector, ctx.docBase));
         return docTrackingCollector;
     }
@@ -46,7 +41,7 @@ class DocTrackingCollectorManager implements KnnCollectorManager {
     public KnnCollector newOptimisticCollector(int visitLimit, KnnSearchStrategy searchStrategy, LeafReaderContext ctx, int k)
         throws IOException {
         var baseCollector = delegate.newOptimisticCollector(visitLimit, searchStrategy, ctx, k);
-        var docTrackingCollector = new DocTrackingCollector(baseCollector, docsTracked);
+        var docTrackingCollector = new DocTrackingCollector(baseCollector);
         collectors.set(ctx.ord, new DocTrackingMeta(docTrackingCollector, ctx.docBase));
         return docTrackingCollector;
     }
@@ -57,28 +52,33 @@ class DocTrackingCollectorManager implements KnnCollectorManager {
     }
 
     public int[] getTrackedDocs() {
-        NeighborQueue mergeQueue = new NeighborQueue(docsTracked, false);
-        for (DocTrackingMeta meta : collectors.asList()) {
-            DocTrackingCollector collector = meta.collector();
-            int docBase = meta.docBase();
-            while (collector.trackedDocsSize() > 0) {
-                float score = collector.topTrackedScore();
-                int docId = collector.popTrackedDoc() + docBase;
-                mergeQueue.insertWithOverflow(docId, score);
+        var metas = collectors.asList();
+        int total = 0;
+        for (DocTrackingMeta meta : metas) {
+            int[] leafTrackedDocs = meta.collector().getTrackedDocs();
+            if (leafTrackedDocs != null) {
+                total += leafTrackedDocs.length;
             }
         }
-        int size = mergeQueue.size();
-        if (size == 0) {
+        if (total == 0) {
             return new int[0];
         }
-        int[] result = new int[size];
-        for (int i = size - 1; i >= 0; i--) {
-            result[i] = mergeQueue.pop();
+        int[] result = new int[total];
+        int pos = 0;
+        for (DocTrackingMeta meta : metas) {
+            int[] leafTrackedDocs = meta.collector().getTrackedDocs();
+            if (leafTrackedDocs == null || leafTrackedDocs.length == 0) {
+                continue;
+            }
+            int docBase = meta.docBase();
+            for (int leafDoc : leafTrackedDocs) {
+                result[pos++] = leafDoc + docBase;
+            }
         }
         return result;
     }
 
-    public static DocTrackingCollectorManager wrap(KnnCollectorManager delegate, int docsTracked, int numLeaves) {
-        return new DocTrackingCollectorManager(delegate, docsTracked, numLeaves);
+    public static DocTrackingCollectorManager wrap(KnnCollectorManager delegate, int numLeaves) {
+        return new DocTrackingCollectorManager(delegate, numLeaves);
     }
 }

@@ -12,7 +12,6 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreScorer;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -20,11 +19,11 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.BitSetIterator;
+import org.apache.lucene.util.FixedBitSet;
 
 import java.util.Arrays;
 import java.util.Objects;
-
-import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
  * A {@link Query} that matches every document <em>except</em> a fixed set of excluded ones.
@@ -35,9 +34,9 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
  * <ol>
  *   <li>Binary-search the excluded array to find the slice that falls inside the leaf's
  *       {@code [docBase, docBase + maxDoc)} range.</li>
- *   <li>Expose a {@link DocIdSetIterator} that walks {@code [0, leafMaxDoc)} while a pointer
- *       steps through the excluded slice, skipping over excluded entries on the fly. No
- *       per-leaf bitset is allocated.</li>
+ *   <li>Materialize a leaf-local {@link FixedBitSet} with every doc set and the excluded
+ *       entries cleared, then expose it as a {@link BitSetIterator} so callers can use the
+ *       {@code intoBitSet} fast path.</li>
  * </ol>
  * The query is pinned to a specific {@link IndexReader} via its context ID and refuses to run
  * against any other reader, since global doc IDs are only meaningful within the reader they
@@ -85,47 +84,17 @@ class ExcludeDocsQuery extends Query {
                     to = -to - 1;
                 }
 
-                final int sliceFrom = from;
-                final int sliceTo = to;
-                final long cardinality = leafMaxDoc - (long) (sliceTo - sliceFrom);
+                final long cardinality = leafMaxDoc - (long) (to - from);
                 if (cardinality == 0) {
                     return null;
                 }
 
-                DocIdSetIterator iterator = new DocIdSetIterator() {
-                    int doc = -1;
-                    int excIdx = sliceFrom;
-
-                    @Override
-                    public int docID() {
-                        return doc;
-                    }
-
-                    @Override
-                    public int nextDoc() {
-                        return advance(doc + 1);
-                    }
-
-                    @Override
-                    public int advance(int target) {
-                        while (excIdx < sliceTo && excludedDocs[excIdx] - docBase < target) {
-                            excIdx++;
-                        }
-                        while (excIdx < sliceTo && excludedDocs[excIdx] - docBase == target) {
-                            target++;
-                            excIdx++;
-                        }
-                        if (target >= leafMaxDoc) {
-                            return doc = NO_MORE_DOCS;
-                        }
-                        return doc = target;
-                    }
-
-                    @Override
-                    public long cost() {
-                        return cardinality;
-                    }
-                };
+                FixedBitSet bits = new FixedBitSet(leafMaxDoc);
+                bits.set(0, leafMaxDoc);
+                for (int i = from; i < to; i++) {
+                    bits.clear(excludedDocs[i] - docBase);
+                }
+                BitSetIterator iterator = new BitSetIterator(bits, cardinality);
 
                 return new DefaultScorerSupplier(new ConstantScoreScorer(0f, ScoreMode.COMPLETE_NO_SCORES, iterator));
             }

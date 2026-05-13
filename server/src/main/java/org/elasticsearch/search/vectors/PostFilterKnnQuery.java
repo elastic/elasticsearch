@@ -50,7 +50,8 @@ import static org.elasticsearch.search.vectors.KnnQueryUtils.mergeResults;
  */
 public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
 
-    public static final float DEFAULT_POST_FILTERING_THRESHOLD = 0.7f;
+    // this is compared against filter coverage which is in [0,1], so this marks it essentially off by default
+    public static final float DEFAULT_POST_FILTERING_THRESHOLD = 100f;
     private static final Logger logger = LogManager.getLogger(PostFilterKnnQuery.class);
 
     private final PostFilterableKnnQuery innerQuery;
@@ -132,7 +133,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
 
             int[] seenDocs = trackedDocs(delegate, topDocs);
             int remaining = k - scoreDocs.length;
-            Query retry = postFilterQuery.createRetryQuery(searcher.getIndexReader(), seenDocs, sortedDocIds(scoreDocs), remaining);
+            Query retry = postFilterQuery.createRetryQuery(searcher.getIndexReader(), sortedDocIds(scoreDocs), seenDocs, remaining);
             TopDocs retryDocs = searcher.search(retry, remaining);
             if (retryDocs.scoreDocs.length > 0) {
                 vectorOps += ((PostFilterableKnnQuery) retry).totalVectorOps();

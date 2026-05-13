@@ -99,29 +99,7 @@ public final class CachingFieldInfosFormat extends FieldInfosFormat {
                 fi.isSoftDeletesField(),
                 fi.isParentField()
             );
-            deduplicated[i++] = cache.internFieldInfo(
-                key,
-                () -> new FieldInfo(
-                    name,
-                    fi.number,
-                    fi.hasTermVectors(),
-                    fi.omitsNorms(),
-                    fi.hasPayloads(),
-                    fi.getIndexOptions(),
-                    fi.getDocValuesType(),
-                    fi.docValuesSkipIndexType(),
-                    fi.getDocValuesGen(),
-                    attrs,
-                    fi.getPointDimensionCount(),
-                    fi.getPointIndexDimensionCount(),
-                    fi.getPointNumBytes(),
-                    fi.getVectorDimension(),
-                    fi.getVectorEncoding(),
-                    fi.getVectorSimilarityFunction(),
-                    fi.isSoftDeletesField(),
-                    fi.isParentField()
-                )
-            );
+            deduplicated[i++] = cache.internFieldInfo(key, key::toFieldInfo);
         }
         return new FieldInfosWithUsages(deduplicated);
     }
@@ -135,6 +113,10 @@ public final class CachingFieldInfosFormat extends FieldInfosFormat {
     /**
      * Cache key for FieldInfo deduplication. All fields included by value; {@code name} and {@code attributes} are expected
      * to already be canonical/interned so equality on them is cheap.
+     *
+     * <p>{@link #toFieldInfo()} is the single place that calls the {@link FieldInfo} constructor, so any future change to
+     * the {@link FieldInfo} constructor in Lucene will surface as a compile error here -- forcing the corresponding new
+     * component to be added to this record as well.
      */
     private record FieldInfoKey(
         String name,
@@ -155,5 +137,28 @@ public final class CachingFieldInfosFormat extends FieldInfosFormat {
         VectorSimilarityFunction vectorSimilarityFunction,
         boolean softDeletesField,
         boolean isParentField
-    ) {}
+    ) {
+        FieldInfo toFieldInfo() {
+            return new FieldInfo(
+                name,
+                number,
+                hasTermVectors,
+                omitsNorms,
+                hasPayloads,
+                indexOptions,
+                docValuesType,
+                docValuesSkipIndexType,
+                docValuesGen,
+                attributes,
+                pointDimensionCount,
+                pointIndexDimensionCount,
+                pointNumBytes,
+                vectorDimension,
+                vectorEncoding,
+                vectorSimilarityFunction,
+                softDeletesField,
+                isParentField
+            );
+        }
+    }
 }

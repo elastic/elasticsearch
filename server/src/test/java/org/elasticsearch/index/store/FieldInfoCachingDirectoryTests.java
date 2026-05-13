@@ -24,6 +24,8 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.greaterThan;
+
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class FieldInfoCachingDirectoryTests extends ESTestCase {
 
@@ -151,6 +153,22 @@ public class FieldInfoCachingDirectoryTests extends ESTestCase {
             }
             // At least one factory invocation. Multiple invocations may occur if threads race, but only one is retained as canonical.
             assertTrue("factory must have been invoked at least once", factoryInvocations.get() >= 1);
+        }
+    }
+
+    public void testRamBytesUsedGrowsWithEntries() throws Exception {
+        try (Directory raw = newDirectory()) {
+            FieldInfoCachingDirectory cache = new FieldInfoCachingDirectory(raw);
+            long empty = cache.ramBytesUsed();
+            assertThat("empty cache should still account for instance overhead", empty, greaterThan(0L));
+
+            cache.internFieldInfo("foo|0", () -> makeFieldInfo("foo", 0, 0L));
+            long afterOne = cache.ramBytesUsed();
+            assertThat("ramBytesUsed must grow after first intern", afterOne, greaterThan(empty));
+
+            cache.internFieldInfo("foo|1", () -> makeFieldInfo("foo", 0, 1L));
+            long afterTwo = cache.ramBytesUsed();
+            assertThat("ramBytesUsed must grow further for a second distinct entry", afterTwo, greaterThan(afterOne));
         }
     }
 

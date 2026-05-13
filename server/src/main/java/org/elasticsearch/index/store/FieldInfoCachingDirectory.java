@@ -12,6 +12,8 @@ package org.elasticsearch.index.store;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.FeatureFlag;
 
 import java.io.IOException;
@@ -40,9 +42,13 @@ import java.util.function.Supplier;
  * {@code CachingFieldInfosFormat} (delegating to global utilities) so that nodes hosting many shards from the same data
  * stream still share canonical attribute maps and name strings across shards.
  */
-public final class FieldInfoCachingDirectory extends ByteSizeDirectory {
+public final class FieldInfoCachingDirectory extends ByteSizeDirectory implements Accountable {
 
     public static final FeatureFlag FEATURE_FLAG = new FeatureFlag("field_info_caching_directory");
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FieldInfoCachingDirectory.class);
+    private static final long PER_ENTRY_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FieldInfo.class) + RamUsageEstimator
+        .shallowSizeOfInstance(FieldInfoRef.class) + RamUsageEstimator.HASHTABLE_RAM_BYTES_PER_ENTRY;
 
     private final ConcurrentHashMap<Object, FieldInfoRef> fieldInfoCache = new ConcurrentHashMap<>();
     private final ReferenceQueue<FieldInfo> deadFieldInfoRefs = new ReferenceQueue<>();
@@ -118,6 +124,17 @@ public final class FieldInfoCachingDirectory extends ByteSizeDirectory {
      */
     public int fieldInfoCacheSize() {
         return fieldInfoCache.size();
+    }
+
+    /**
+     * Naive RAM-usage estimate for the cache: a fixed instance overhead plus a per-entry cost covering the {@link FieldInfo}
+     * shell, the {@link FieldInfoRef} weak reference, and the {@link ConcurrentHashMap} entry. The cached field name
+     * {@code String} and attribute {@code Map} are interned node-wide so they are intentionally not attributed to this
+     * per-Directory cache. Counts entries whose weak reference may have been cleared but not yet drained.
+     */
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + (long) fieldInfoCache.size() * PER_ENTRY_RAM_BYTES_USED;
     }
 
     @Override

@@ -35,6 +35,7 @@ setup:
   - do:
       indices.refresh: {}
 
+# Test of concrete contents of each slice have moved to SliceIT
 ---
 "Sliced scroll":
   - do:
@@ -52,19 +53,12 @@ setup:
 
   - set: {_scroll_id: scroll_id}
   - match: { _shards.successful: 5 }
-  - match: {hits.total:      2    }
-  - length: {hits.hits:      2    }
-  - match: {hits.hits.0._id: "3" }
-  - match: {hits.hits.1._id: "4" }
 
   - do:
       scroll:
         rest_total_hits_as_int: true
         scroll_id: $scroll_id
         scroll: 1m
-
-  - match: {hits.total:      2    }
-  - length: {hits.hits:      0    }
 
   - do:
       clear_scroll:
@@ -84,19 +78,12 @@ setup:
             match_all: {}
 
   - set: {_scroll_id: scroll_id}
-  - match: {hits.total:      2    }
-  - length: {hits.hits:      2    }
-  - match: {hits.hits.0._id: "1" }
-  - match: {hits.hits.1._id: "2" }
 
   - do:
       scroll:
         rest_total_hits_as_int: true
         scroll_id: $scroll_id
         scroll: 1m
-
-  - match: {hits.total:      2    }
-  - length: {hits.hits:      0    }
 
   - do:
         clear_scroll:
@@ -162,8 +149,6 @@ setup:
 
   - set: {_scroll_id: scroll_id}
   - match: { _shards.successful: 5 }
-  - match: { hits.total.value: 2 }
-  - length: { hits.hits: 2 }
 
   - do:
       clear_scroll:

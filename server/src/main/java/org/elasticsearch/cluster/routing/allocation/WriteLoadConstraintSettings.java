@@ -179,7 +179,8 @@ public class WriteLoadConstraintSettings {
 
     private volatile WriteLoadDeciderStatus writeLoadDeciderStatus;
     private volatile TimeValue minimumRerouteInterval;
-    private volatile double allocationUtilizationThreshold;
+    // this is a float type because it's only used in comparisons with other floats (and comparing floats with doubles can trip some tests)
+    private volatile float allocationUtilizationThreshold;
     private volatile TimeValue queueLatencyThreshold;
     private volatile double hotspotUtilizationThreshold;
     private volatile String hotspotUtilizationThresholdString;
@@ -194,7 +195,7 @@ public class WriteLoadConstraintSettings {
         );
         clusterSettings.initializeAndWatch(
             WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING,
-            value -> allocationUtilizationThreshold = value.getAsRatio()
+            value -> allocationUtilizationThreshold = (float) value.getAsRatio()
         );
 
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING, value -> queueLatencyThreshold = value);
@@ -252,7 +253,7 @@ public class WriteLoadConstraintSettings {
      * @return The utilization threshold as a ratio - i.e. in [0, 1], for use in checking whether a node can accept
      * a shard in a canAllocation call during allocation balancing
      */
-    public double getAllocationUtilizationThreshold() {
+    public float getAllocationUtilizationThreshold() {
         return this.allocationUtilizationThreshold;
     }
 }

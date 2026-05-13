@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.cohere;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -16,7 +15,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -31,9 +29,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class CohereCommonServiceSettingsTests extends AbstractBWCWireSerializationTestCase<CohereCommonServiceSettings> {
-
-    private static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = TransportVersion.fromName("ml_inference_cohere_api_version");
+public class CohereCommonServiceSettingsTests extends AbstractWireSerializingTestCase<CohereCommonServiceSettings> {
 
     public static CohereCommonServiceSettings createRandom() {
         return new CohereCommonServiceSettings(
@@ -142,20 +138,6 @@ public class CohereCommonServiceSettingsTests extends AbstractBWCWireSerializati
             """, CohereCommonServiceSettings.CohereApiVersion.V2))));
     }
 
-    public void testBWCRoundTrip_OldFormat() throws IOException {
-        var original = new CohereCommonServiceSettings(
-            "my-model",
-            new RateLimitSettings(100),
-            CohereCommonServiceSettings.CohereApiVersion.V2
-        );
-
-        var copy = copyInstance(original, ML_INFERENCE_COHERE_API_VERSION);
-
-        assertThat(copy.modelId(), is(original.modelId()));
-        assertThat(copy.rateLimitSettings(), is(original.rateLimitSettings()));
-        assertThat(copy.apiVersion(), is(original.apiVersion()));
-    }
-
     @Override
     protected Writeable.Reader<CohereCommonServiceSettings> instanceReader() {
         return CohereCommonServiceSettings::new;
@@ -185,10 +167,5 @@ public class CohereCommonServiceSettingsTests extends AbstractBWCWireSerializati
         }
 
         return new CohereCommonServiceSettings(uri, modelId, rateLimitSettings, apiVersion);
-    }
-
-    @Override
-    protected CohereCommonServiceSettings mutateInstanceForVersion(CohereCommonServiceSettings instance, TransportVersion version) {
-        return null;
     }
 }

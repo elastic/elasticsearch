@@ -43,6 +43,9 @@ public class ChunkedDataExtractor implements DataExtractor {
     /** Let us set a minimum chunk span of 1 minute */
     private static final long MIN_CHUNK_SPAN = 60000L;
 
+    /** Target row count per chunk for ESQL datafeeds when chunk span is not specified. */
+    private static final long DEFAULT_ESQL_CHUNK_DOCS = 10_000L;
+
     private final DataExtractorFactory dataExtractorFactory;
     private final ChunkedDataExtractorContext context;
     private long currentStart;
@@ -99,6 +102,15 @@ public class ChunkedDataExtractor implements DataExtractor {
             } else if (context.hasAggregations()) {
                 // This heuristic is a direct copy of the manual chunking config auto-creation done in {@link DatafeedConfig}
                 chunkSpan = DatafeedConfig.DEFAULT_AGGREGATION_CHUNKING_BUCKETS * context.histogramInterval();
+            } else if (context.hasEsqlQuery()) {
+                long timeSpread = dataSummary.latestTime() - dataSummary.earliestTime();
+                if (timeSpread <= 0) {
+                    chunkSpan = context.end() - currentEnd;
+                } else {
+                    // Target roughly DEFAULT_ESQL_CHUNK_DOCS rows per chunk, sized off the data summary's
+                    // uniform-density estimate. ESQL has no scroll_size analogue, so we use a fixed default.
+                    chunkSpan = Math.max(MIN_CHUNK_SPAN, DEFAULT_ESQL_CHUNK_DOCS * timeSpread / dataSummary.totalHits());
+                }
             } else {
                 long timeSpread = dataSummary.latestTime() - dataSummary.earliestTime();
                 if (timeSpread <= 0) {

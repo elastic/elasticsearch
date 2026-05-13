@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationData
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.CompositeAggregationDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.RollupDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.chunked.ChunkedDataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorFactory;
 
 public interface DataExtractorFactory {
@@ -58,6 +59,7 @@ public interface DataExtractorFactory {
         ActionListener<DataExtractorFactory> listener
     ) {
         final boolean hasAggs = datafeed.hasAggregations();
+        final boolean hasEsqlQuery = datafeed.getEsqlQuery() != null;
         final boolean isComposite = hasAggs && datafeed.hasCompositeAgg(xContentRegistry);
         ActionListener<DataExtractorFactory> factoryHandler = listener.delegateFailureAndWrap(
             (l, factory) -> l.onResponse(
@@ -68,6 +70,11 @@ public interface DataExtractorFactory {
         );
 
         ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(response -> {
+            if (hasEsqlQuery) {
+                EsqlDataExtractorFactory.create(client, datafeed, job, timingStatsReporter, factoryHandler);
+                return;
+            }
+
             final boolean hasRollup = response.getJobs().isEmpty() == false;
             if (hasRollup && hasAggs == false) {
                 listener.onFailure(new IllegalArgumentException("Aggregations are required when using Rollup indices"));

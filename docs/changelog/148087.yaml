@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 148087
+summary: Add logging tracking to _xpack/usage
+type: enhancement

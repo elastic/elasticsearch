@@ -45,6 +45,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -901,6 +902,56 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                 );
                 indexModes.put("test_logs_" + i, IndexMode.LOGSDB);
                 indexModes.put("test_old_logs_" + i, IndexMode.STANDARD);
+            }
+        }
+        // columnar
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
+            final String columnarMapping = """
+                 {
+                     "properties": {
+                       "@timestamp": { "type": "date" },
+                       "hostname": { "type": "keyword"},
+                       "request_count" : { "type" : "long"},
+                       "cluster": {"type": "keyword"}
+                     }
+                 }
+                """;
+            // Explicitly set DOC_VALUES_ONLY to override the random index template, which may set POINTS_AND_DOC_VALUES
+            // — incompatible with the disable_sequence_numbers default that columnar mode enables.
+            Settings settings = Settings.builder()
+                .put("mode", "columnar")
+                .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+                .build();
+            int numIndices = between(1, 5);
+            for (int i = 0; i < numIndices; i++) {
+                assertAcked(indicesAdmin().prepareCreate("test_columnar_" + i).setSettings(settings).setMapping(columnarMapping));
+                indexModes.put("test_columnar_" + i, IndexMode.COLUMNAR);
+            }
+        }
+        // columnar_logsdb
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
+            final String columnarLogsdbMapping = """
+                 {
+                     "properties": {
+                       "@timestamp": { "type": "date" },
+                       "hostname": { "type": "keyword"},
+                       "request_count" : { "type" : "long"},
+                       "cluster": {"type": "keyword"}
+                     }
+                 }
+                """;
+            // Explicitly set DOC_VALUES_ONLY to override the random index template, which may set POINTS_AND_DOC_VALUES
+            // — incompatible with the disable_sequence_numbers default that columnar_logsdb mode enables.
+            Settings settings = Settings.builder()
+                .put("mode", "columnar_logsdb")
+                .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+                .build();
+            int numIndices = between(1, 5);
+            for (int i = 0; i < numIndices; i++) {
+                assertAcked(
+                    indicesAdmin().prepareCreate("test_columnar_logsdb_" + i).setSettings(settings).setMapping(columnarLogsdbMapping)
+                );
+                indexModes.put("test_columnar_logsdb_" + i, IndexMode.COLUMNAR_LOGSDB);
             }
         }
         FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();

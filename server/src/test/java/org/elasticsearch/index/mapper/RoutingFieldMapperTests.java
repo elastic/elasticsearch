@@ -15,6 +15,8 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
@@ -104,6 +106,15 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
         assertTrue("doc_values should be true when configured", mapper.docValues());
     }
 
+    public void testDocValuesEnabledIfIndexModeIsColumnar() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        var mapperService = createMapperService(Settings.builder().put("index.mode", "columnar").build(), topMapping(b -> {}));
+        DocumentMapper docMapper = mapperService.documentMapper();
+        RoutingFieldMapper mapper = (RoutingFieldMapper) docMapper.mappers().getMapper("_routing");
+        assertNotNull(mapper);
+        assertTrue("doc_values should be true when configured", mapper.docValues());
+    }
+
     public void testDocValuesRoutingStoresAsSortedDocValues() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(topMapping(b -> b.startObject("_routing").field("doc_values", true).endObject()));
 
@@ -139,6 +150,46 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
         );
 
         assertEquals("no routing fields when routing value is absent", 0, doc.rootDoc().getFields("_routing").size());
+    }
+
+    public void testBuilderReturnsExpectedSingleton() {
+        for (boolean requiredByDefault : new boolean[] { false, true }) {
+            for (boolean docValuesEnabledByDefault : new boolean[] { false, true }) {
+                for (boolean required : new boolean[] { false, true }) {
+                    for (boolean docValues : new boolean[] { false, true }) {
+                        String desc = "requiredByDefault="
+                            + requiredByDefault
+                            + " docValuesEnabledByDefault="
+                            + docValuesEnabledByDefault
+                            + " required="
+                            + required
+                            + " docValues="
+                            + docValues;
+
+                        RoutingFieldMapper first = buildRoutingMapper(requiredByDefault, docValuesEnabledByDefault, required, docValues);
+                        RoutingFieldMapper second = buildRoutingMapper(requiredByDefault, docValuesEnabledByDefault, required, docValues);
+                        assertSame(desc + " (two builds should return the same singleton)", first, second);
+                        assertSame(
+                            desc + " (build must match InstancesLookup)",
+                            RoutingFieldMapper.InstancesLookup.lookup(requiredByDefault, required, docValuesEnabledByDefault, docValues),
+                            first
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    private static RoutingFieldMapper buildRoutingMapper(
+        boolean requiredByDefault,
+        boolean docValuesEnabledByDefault,
+        boolean required,
+        boolean docValues
+    ) {
+        RoutingFieldMapper.Builder builder = new RoutingFieldMapper.Builder(requiredByDefault, docValuesEnabledByDefault);
+        builder.required.setValue(required);
+        builder.docValues.setValue(docValues);
+        return builder.build();
     }
 
     public void testFetchDocValuesRoutingFieldValue() throws IOException {

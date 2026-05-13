@@ -111,6 +111,7 @@ public class CountTests extends AbstractAggregationTestCase {
                 }
                 return new TestCaseSupplier.TestCase(
                     List.of(field),
+                    // Dense vector uses a different count implementation
                     dataType == DataType.DENSE_VECTOR ? "DenseVectorCount" : "Count",
                     DataType.LONG,
                     equalTo(0L)

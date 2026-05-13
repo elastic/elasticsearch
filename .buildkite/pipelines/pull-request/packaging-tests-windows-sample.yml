@@ -21,7 +21,7 @@ steps:
           machineType: n4-standard-16
           diskType: hyperdisk-balanced
           diskSizeGb: 350
-          preemptible: true
+          preemptible: false
           spotZones: us-east1-b,us-east1-c,us-east1-d,us-central1-a,us-central1-b,us-central1-c,us-central1-f,us-west1-a,us-west1-b
         env:
           PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"

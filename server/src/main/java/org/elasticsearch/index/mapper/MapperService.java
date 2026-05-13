@@ -162,13 +162,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public static final Setting<Boolean> INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING = Setting.boolSetting(
         "index.mapping.total_fields.ignore_dynamic_beyond_limit",
         settings -> {
-            boolean isLogsDBIndexMode = IndexSettings.MODE.get(settings) == IndexMode.LOGSDB;
+            IndexMode mode = IndexSettings.MODE.get(settings);
+            boolean isLogsDBLikeIndexMode = mode == IndexMode.LOGSDB || mode == IndexMode.COLUMNAR_LOGSDB;
             final IndexVersion indexVersionCreated = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
             boolean isNewIndexVersion = indexVersionCreated.between(
                 IndexVersions.LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT_BACKPORT,
                 IndexVersions.UPGRADE_TO_LUCENE_10_0_0
             ) || indexVersionCreated.onOrAfter(IndexVersions.LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT);
-            return String.valueOf(isLogsDBIndexMode && isNewIndexVersion);
+            return String.valueOf(isLogsDBLikeIndexMode && isNewIndexVersion);
         },
         Property.Dynamic,
         Property.IndexScope,

@@ -1629,6 +1629,27 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         unary(suppliers, expectedEvaluatorToString, flattenedCases(), expectedType, v -> expectedValue.apply((BytesRef) v), warnings);
     }
 
+    public static List<TypedDataSupplier> binaryCases() {
+        return List.of(
+            new TypedDataSupplier("<empty binary>", () -> new BytesRef(new byte[0]), DataType.BINARY),
+            new TypedDataSupplier("<short binary>", () -> new BytesRef(new byte[] { 0x01, 0x02, 0x03 }), DataType.BINARY),
+            new TypedDataSupplier("<random binary>", () -> new BytesRef(ESTestCase.randomByteArrayOfLength(ESTestCase.between(1, 64))), DataType.BINARY)
+        );
+    }
+
+    /**
+     * Generate positive test cases for a unary function operating on a {@link DataType#BINARY} field.
+     */
+    public static void forUnaryBinary(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<BytesRef, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(suppliers, expectedEvaluatorToString, binaryCases(), expectedType, v -> expectedValue.apply((BytesRef) v), warnings);
+    }
+
     /**
      * Supplier test case data for {@link Version} fields.
      * <p>

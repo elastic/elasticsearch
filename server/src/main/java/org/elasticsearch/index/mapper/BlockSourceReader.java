@@ -27,6 +27,7 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
 
@@ -241,6 +242,33 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         }
     }
 
+    /**
+     * Load raw binary {@link BytesRef}s from base64-encoded values in {@code _source}.
+     * Used by the {@code binary} field mapper when neither {@code doc_values} nor stored
+     * fields are available — JSON {@code _source} represents binary values as base64
+     * strings, so we decode them on the way into the block.
+     */
+    public static class Base64BytesRefsBlockLoader extends SourceBlockLoader {
+        public Base64BytesRefsBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
+            super(fetcher, lookup);
+        }
+
+        @Override
+        public final Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.bytesRefs(expectedCount);
+        }
+
+        @Override
+        protected RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context, DocIdSetIterator iter) {
+            return new Base64BytesRefs(breaker, fetcher, iter);
+        }
+
+        @Override
+        protected String name() {
+            return "Base64Bytes";
+        }
+    }
+
     private static class BytesRefs extends BlockSourceReader {
         private final BytesRef scratch = new BytesRef();
 
@@ -277,6 +305,38 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         @Override
         public String toString() {
             return "BlockSourceReader.Geometries";
+        }
+    }
+
+    private static class Base64BytesRefs extends BlockSourceReader {
+        private final BytesRef scratch = new BytesRef();
+
+        Base64BytesRefs(CircuitBreaker breaker, ValueFetcher fetcher, DocIdSetIterator iter) {
+            super(breaker, fetcher, iter);
+        }
+
+        @Override
+        protected void append(BlockLoader.Builder builder, Object v) {
+            // Binary _source values are JSON strings encoded with the standard (non-URL) base64 alphabet.
+            // The parser stages already validated the encoding at index time, so we just decode here.
+            byte[] decoded;
+            if (v instanceof byte[] bytes) {
+                decoded = bytes;
+            } else if (v instanceof BytesRef br) {
+                decoded = new byte[br.length];
+                System.arraycopy(br.bytes, br.offset, decoded, 0, br.length);
+            } else {
+                decoded = Base64.getDecoder().decode(Objects.toString(v));
+            }
+            scratch.bytes = decoded;
+            scratch.offset = 0;
+            scratch.length = decoded.length;
+            ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(scratch);
+        }
+
+        @Override
+        public String toString() {
+            return "BlockSourceReader.Base64Bytes";
         }
     }
 

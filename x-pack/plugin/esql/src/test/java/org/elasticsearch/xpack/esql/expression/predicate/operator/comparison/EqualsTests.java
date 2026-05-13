@@ -117,6 +117,19 @@ public class EqualsTests extends AbstractScalarFunctionTestCase {
                 false
             )
         );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "EqualsKeywordsEvaluator",
+                "lhs",
+                "rhs",
+                Object::equals,
+                DataType.BOOLEAN,
+                TestCaseSupplier.binaryCases(),
+                TestCaseSupplier.binaryCases(),
+                List.of(),
+                false
+            )
+        );
         // Datetime
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(

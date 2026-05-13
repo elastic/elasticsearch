@@ -1,0 +1,14 @@
+{
+  "properties": {
+    "id": {
+      "type": "integer"
+    },
+    "name": {
+      "type": "keyword"
+    },
+    "blob": {
+      "type": "binary",
+      "doc_values": true
+    }
+  }
+}

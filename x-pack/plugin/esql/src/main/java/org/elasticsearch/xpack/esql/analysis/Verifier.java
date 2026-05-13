@@ -724,6 +724,7 @@ public class Verifier {
         allowed.add(DataType.GEOHEX);
         if (bc instanceof Equals || bc instanceof NotEquals) {
             allowed.add(DataType.BOOLEAN);
+            allowed.add(DataType.BINARY);
         }
         Expression.TypeResolution r = TypeResolutions.isType(
             bc.left(),

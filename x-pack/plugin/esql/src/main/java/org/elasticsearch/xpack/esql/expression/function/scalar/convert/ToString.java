@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BINARY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
@@ -89,6 +90,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(INTEGER, ToStringFromIntEvaluator.Factory::new),
         Map.entry(TEXT, (source, fieldEval) -> fieldEval),
         Map.entry(FLATTENED, (source, fieldEval) -> fieldEval),
+        Map.entry(BINARY, ToStringFromBinaryEvaluator.Factory::new),
         Map.entry(VERSION, ToStringFromVersionEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToStringFromUnsignedLongEvaluator.Factory::new),
         Map.entry(GEO_POINT, ToStringFromGeoPointEvaluator.Factory::new),
@@ -147,7 +149,8 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
                 "version",
                 "date_range",
                 "exponential_histogram",
-                "flattened" },
+                "flattened",
+                "binary" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression v,
         Configuration configuration
@@ -261,6 +264,15 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     @ConvertEvaluator(extraName = "FromVersion")
     static BytesRef fromVersion(BytesRef version) {
         return new BytesRef(versionToString(version));
+    }
+
+    @ConvertEvaluator(extraName = "FromBinary")
+    static BytesRef fromBinary(BytesRef binary) {
+        // Binary fields surface as raw bytes inside ES|QL. TO_STRING base64-encodes them so the result
+        // matches what the JSON response layer emits and round-trips through `binary` field ingestion.
+        byte[] copy = new byte[binary.length];
+        System.arraycopy(binary.bytes, binary.offset, copy, 0, binary.length);
+        return new BytesRef(java.util.Base64.getEncoder().encodeToString(copy));
     }
 
     @ConvertEvaluator(extraName = "FromUnsignedLong")

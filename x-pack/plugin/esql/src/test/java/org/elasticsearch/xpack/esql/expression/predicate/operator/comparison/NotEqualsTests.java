@@ -116,6 +116,19 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
                 false
             )
         );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "NotEqualsKeywordsEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> false == l.equals(r),
+                DataType.BOOLEAN,
+                TestCaseSupplier.binaryCases(),
+                TestCaseSupplier.binaryCases(),
+                List.of(),
+                false
+            )
+        );
         // Datetime
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(

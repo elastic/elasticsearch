@@ -166,6 +166,17 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
         );
         TestCaseSupplier.forUnaryStrings(suppliers, read, DataType.KEYWORD, bytesRef -> bytesRef, List.of());
         TestCaseSupplier.forUnaryFlattened(suppliers, read, DataType.KEYWORD, bytesRef -> bytesRef, List.of());
+        TestCaseSupplier.forUnaryBinary(
+            suppliers,
+            "ToStringFromBinaryEvaluator[binary=" + read + "]",
+            DataType.KEYWORD,
+            bytesRef -> {
+                byte[] copy = new byte[bytesRef.length];
+                System.arraycopy(bytesRef.bytes, bytesRef.offset, copy, 0, bytesRef.length);
+                return new BytesRef(java.util.Base64.getEncoder().encodeToString(copy));
+            },
+            List.of()
+        );
         TestCaseSupplier.forUnaryVersion(
             suppliers,
             "ToStringFromVersionEvaluator[version=" + read + "]",

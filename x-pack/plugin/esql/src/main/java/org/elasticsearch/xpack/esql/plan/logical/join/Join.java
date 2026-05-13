@@ -52,6 +52,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BINARY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLATTENED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
@@ -94,6 +95,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         COUNTER_INTEGER,
         COUNTER_DOUBLE,
         FLATTENED,
+        BINARY,
         OBJECT,
         SOURCE,
         DATE_PERIOD,

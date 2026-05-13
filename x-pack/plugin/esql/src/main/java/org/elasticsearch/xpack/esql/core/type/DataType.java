@@ -481,6 +481,17 @@ public enum DataType implements Writeable {
      */
     FLATTENED(
         builder().esType("flattened").estimatedSize(1024).docValues().underConstruction(DataTypesTransportVersions.ESQL_FLATTENED_DATATYPE)
+    ),
+
+    /**
+     * Binary blobs. In Elasticsearch the {@code binary} field type accepts arbitrary byte content
+     * (encoded as base64 on the wire) and supports the {@code doc_values} and {@code store}
+     * parameters; the field is not stored by default and is not searchable. ES|QL surfaces these
+     * as {@link BytesRef} values inside a {@link org.elasticsearch.compute.data.BytesRefBlock}.
+     * On JSON responses the value is base64-encoded so it round-trips losslessly.
+     */
+    BINARY(
+        builder().esType("binary").estimatedSize(64).docValues().underConstruction(DataTypesTransportVersions.ESQL_BINARY_DATATYPE)
     );
 
     public static final Set<DataType> UNDER_CONSTRUCTION = Arrays.stream(DataType.values())
@@ -829,7 +840,12 @@ public enum DataType implements Writeable {
     }
 
     public static boolean isSortable(DataType t) {
-        return false == (t == SOURCE || isCounter(t) || isSpatialOrGrid(t) || t == AGGREGATE_METRIC_DOUBLE || t == FLATTENED);
+        return false == (t == SOURCE
+            || isCounter(t)
+            || isSpatialOrGrid(t)
+            || t == AGGREGATE_METRIC_DOUBLE
+            || t == FLATTENED
+            || t == BINARY);
     }
 
     public String nameUpper() {
@@ -1236,5 +1252,10 @@ public enum DataType implements Writeable {
          * Development version for flattened field type support.
          */
         public static final TransportVersion ESQL_FLATTENED_DATATYPE = TransportVersion.fromName("esql_flattened_datatype");
+
+        /**
+         * Development version for binary field type support.
+         */
+        public static final TransportVersion ESQL_BINARY_DATATYPE = TransportVersion.fromName("esql_binary_datatype");
     }
 }

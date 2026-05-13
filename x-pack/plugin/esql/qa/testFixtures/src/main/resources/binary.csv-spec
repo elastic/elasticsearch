@@ -1,0 +1,260 @@
+load
+required_capability: binary_type
+
+FROM binary_blobs
+| SORT id
+;
+
+id:integer | name:keyword | blob:binary
+1          | alpha        | AQID
+2          | beta         | BAUG
+3          | gamma        | Bwg=
+4          | delta        | CQ==
+5          | epsilon      | null
+;
+
+keep
+required_capability: binary_type
+
+FROM binary_blobs
+| KEEP id, blob
+| SORT id
+;
+
+id:integer | blob:binary
+1          | AQID
+2          | BAUG
+3          | Bwg=
+4          | CQ==
+5          | null
+;
+
+drop
+required_capability: binary_type
+
+FROM binary_blobs
+| DROP blob
+| SORT id
+;
+
+id:integer | name:keyword
+1          | alpha
+2          | beta
+3          | gamma
+4          | delta
+5          | epsilon
+;
+
+rename
+required_capability: binary_type
+
+FROM binary_blobs
+| RENAME blob AS payload
+| KEEP id, payload
+| SORT id
+;
+
+id:integer | payload:binary
+1          | AQID
+2          | BAUG
+3          | Bwg=
+4          | CQ==
+5          | null
+;
+
+toString
+required_capability: binary_type
+
+FROM binary_blobs
+| WHERE id == 1
+| EVAL encoded = TO_STRING(blob)
+| KEEP id, encoded
+;
+
+id:integer | encoded:keyword
+1          | AQID
+;
+
+toStringAll
+required_capability: binary_type
+
+FROM binary_blobs
+| EVAL encoded = TO_STRING(blob)
+| KEEP id, encoded
+| SORT id
+;
+
+id:integer | encoded:keyword
+1          | AQID
+2          | BAUG
+3          | Bwg=
+4          | CQ==
+5          | null
+;
+
+isNull
+required_capability: binary_type
+
+FROM binary_blobs
+| WHERE blob IS NULL
+| KEEP id, name
+| SORT id
+;
+
+id:integer | name:keyword
+5          | epsilon
+;
+
+isNotNull
+required_capability: binary_type
+
+FROM binary_blobs
+| WHERE blob IS NOT NULL
+| KEEP id, name
+| SORT id
+;
+
+id:integer | name:keyword
+1          | alpha
+2          | beta
+3          | gamma
+4          | delta
+;
+
+count
+required_capability: binary_type
+
+FROM binary_blobs
+| STATS c = COUNT(blob)
+;
+
+c:long
+4
+;
+
+countAll
+required_capability: binary_type
+
+FROM binary_blobs
+| STATS c = COUNT(*)
+;
+
+c:long
+5
+;
+
+case
+required_capability: binary_type
+
+FROM binary_blobs
+| EVAL label = CASE(blob IS NULL, "missing", "present")
+| KEEP id, label
+| SORT id
+;
+
+id:integer | label:keyword
+1          | present
+2          | present
+3          | present
+4          | present
+5          | missing
+;
+
+toBinary
+required_capability: binary_type
+
+ROW encoded = "AQID"
+| EVAL decoded = TO_BINARY(encoded)
+;
+
+encoded:keyword | decoded:binary
+AQID            | AQID
+;
+
+toBinaryRoundtrip
+required_capability: binary_type
+
+FROM binary_blobs
+| EVAL roundtrip = TO_BINARY(TO_STRING(blob))
+| EVAL same = roundtrip == blob
+| KEEP id, same
+| SORT id
+;
+
+id:integer | same:boolean
+1          | true
+2          | true
+3          | true
+4          | true
+5          | null
+;
+
+toBinaryInvalid
+required_capability: binary_type
+
+ROW s = "not valid base64!!!"
+| EVAL b = TO_BINARY(s)
+;
+warning:Line 2:12: evaluation of [TO_BINARY(s)] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 2:12: java.lang.IllegalArgumentException: .*
+
+s:keyword           | b:binary
+not valid base64!!! | null
+;
+
+equalsLiteral
+required_capability: binary_type
+
+FROM binary_blobs
+| WHERE blob == TO_BINARY("AQID")
+| KEEP id, name
+;
+
+id:integer | name:keyword
+1          | alpha
+;
+
+notEqualsLiteral
+required_capability: binary_type
+
+FROM binary_blobs
+| WHERE blob != TO_BINARY("AQID")
+| KEEP id, name
+| SORT id
+;
+
+id:integer | name:keyword
+2          | beta
+3          | gamma
+4          | delta
+;
+
+equalsSelf
+required_capability: binary_type
+
+FROM binary_blobs
+| EVAL same = blob == blob
+| KEEP id, same
+| SORT id
+;
+
+id:integer | same:boolean
+1          | true
+2          | true
+3          | true
+4          | true
+5          | null
+;
+
+equalsAcrossLiterals
+required_capability: binary_type
+
+ROW a = TO_BINARY("AQID"), b = TO_BINARY("AQID"), c = TO_BINARY("BAUG")
+| EVAL ab = a == b, ac = a == c
+| KEEP ab, ac
+;
+
+ab:boolean | ac:boolean
+true       | false
+;
+

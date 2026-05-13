@@ -92,6 +92,7 @@ public class CountTests extends AbstractAggregationTestCase {
             DataType.VERSION,
             DataType.KEYWORD,
             DataType.FLATTENED,
+            DataType.BINARY,
             DataType.TDIGEST,
             DataType.TEXT,
             DataType.GEO_POINT,

@@ -1,0 +1,280 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, contains, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ binary_type ]
+      reason: "Requires binary datatype support"
+  - do:
+      indices.create:
+        index: binary_doc_values
+        body:
+          mappings:
+            properties:
+              id: { type: integer }
+              blob: { type: binary, doc_values: true }
+  - do:
+      bulk:
+        index: binary_doc_values
+        refresh: true
+        body:
+          - { "index": {} }
+          - { "id": 1, "blob": "AQID" }
+          - { "index": {} }
+          - { "id": 2, "blob": "BAUG" }
+          - { "index": {} }
+          - { "id": 3 }
+  - do:
+      indices.create:
+        index: binary_no_doc_values
+        body:
+          mappings:
+            properties:
+              id: { type: integer }
+              blob: { type: binary }
+  - do:
+      bulk:
+        index: binary_no_doc_values
+        refresh: true
+        body:
+          - { "index": {} }
+          - { "id": 10, "blob": "AQID" }
+          - { "index": {} }
+          - { "id": 11 }
+  - do:
+      indices.create:
+        index: binary_stored
+        body:
+          mappings:
+            properties:
+              id: { type: integer }
+              blob: { type: binary, doc_values: false, store: true }
+  - do:
+      bulk:
+        index: binary_stored
+        refresh: true
+        body:
+          - { "index": {} }
+          - { "id": 20, "blob": "AQID" }
+          - { "index": {} }
+          - { "id": 21, "blob": "BAUG" }
+          - { "index": {} }
+          - { "id": 22 }
+
+---
+'load binary with doc_values':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM binary_doc_values | SORT id'
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "integer" }
+  - match: { columns.1.name: "blob" }
+  - match: { columns.1.type: "binary" }
+  - length: { values: 3 }
+  - match: { values.0.0: 1 }
+  - match: { values.0.1: "AQID" }
+  - match: { values.1.0: 2 }
+  - match: { values.1.1: "BAUG" }
+  - match: { values.2.0: 3 }
+  - match: { values.2.1: null }
+
+---
+'to_string returns base64':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM binary_doc_values | WHERE id == 1 | EVAL encoded = TO_STRING(blob) | KEEP id, encoded'
+  - match: { columns.1.name: "encoded" }
+  - match: { columns.1.type: "keyword" }
+  - match: { values.0.0: 1 }
+  - match: { values.0.1: "AQID" }
+
+---
+'is null and is not null':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM binary_doc_values | WHERE blob IS NULL | KEEP id'
+  - length: { values: 1 }
+  - match: { values.0.0: 3 }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM binary_doc_values | WHERE blob IS NOT NULL | SORT id | KEEP id'
+  - length: { values: 2 }
+  - match: { values.0.0: 1 }
+  - match: { values.1.0: 2 }
+
+---
+'sort by binary field is rejected':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM binary_doc_values | SORT blob | LIMIT 3'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'cannot sort on binary' }
+
+---
+'group by binary field is rejected':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM binary_doc_values | STATS COUNT(*) BY blob'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'cannot group by on [binary] type for grouping [blob]' }
+
+---
+'binary without doc_values loads from _source':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM binary_no_doc_values | SORT id'
+  - match: { columns.1.name: "blob" }
+  - match: { columns.1.type: "binary" }
+  - length: { values: 2 }
+  - match: { values.0.0: 10 }
+  - match: { values.0.1: "AQID" }
+  - match: { values.1.0: 11 }
+  - match: { values.1.1: null }
+
+---
+'binary with store loads from stored fields':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM binary_stored | SORT id'
+  - match: { columns.1.name: "blob" }
+  - match: { columns.1.type: "binary" }
+  - length: { values: 3 }
+  - match: { values.0.0: 20 }
+  - match: { values.0.1: "AQID" }
+  - match: { values.1.0: 21 }
+  - match: { values.1.1: "BAUG" }
+  - match: { values.2.0: 22 }
+  - match: { values.2.1: null }
+
+---
+'to_binary round-trips through to_string':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM binary_doc_values | WHERE id == 1 | EVAL roundtrip = TO_BINARY(TO_STRING(blob)) | KEEP id, blob, roundtrip'
+  - match: { columns.1.name: "blob" }
+  - match: { columns.1.type: "binary" }
+  - match: { columns.2.name: "roundtrip" }
+  - match: { columns.2.type: "binary" }
+  - match: { values.0.0: 1 }
+  - match: { values.0.1: "AQID" }
+  - match: { values.0.2: "AQID" }
+
+---
+'to_binary on invalid base64 surfaces a warning and null':
+  - do:
+      allowed_warnings_regex:
+        - "Line \\d+:\\d+: evaluation of \\[TO_BINARY\\(s\\)\\] failed, treating result as null. Only first 20 failures recorded."
+        - "Line \\d+:\\d+: java.lang.IllegalArgumentException: .*"
+      esql.query:
+        body:
+          query: 'ROW s = "not valid base64!" | EVAL b = TO_BINARY(s)'
+  - match: { columns.1.name: "b" }
+  - match: { columns.1.type: "binary" }
+  - match: { values.0.0: "not valid base64!" }
+  - match: { values.0.1: null }
+
+---
+'equals filters on binary literal':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM binary_doc_values | WHERE blob == TO_BINARY("AQID") | KEEP id | LIMIT 5'
+  - length: { values: 1 }
+  - match: { values.0.0: 1 }
+
+---
+'not equals filters on binary literal':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM binary_doc_values | WHERE blob != TO_BINARY("AQID") | SORT id | KEEP id | LIMIT 5'
+  - length: { values: 1 }
+  - match: { values.0.0: 2 }
+
+---
+'equals filters on binary literal against _source-fallback index':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM binary_no_doc_values | WHERE blob == TO_BINARY("AQID") | KEEP id | LIMIT 5'
+  - length: { values: 1 }
+  - match: { values.0.0: 10 }
+
+---
+'equals filters on binary literal against stored-fields index':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM binary_stored | WHERE blob == TO_BINARY("AQID") | KEEP id | LIMIT 5'
+  - length: { values: 1 }
+  - match: { values.0.0: 20 }
+
+---
+'not equals filters on binary literal against stored-fields index':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM binary_stored | WHERE blob != TO_BINARY("AQID") | SORT id | KEEP id | LIMIT 5'
+  - length: { values: 1 }
+  - match: { values.0.0: 21 }
+
+---
+'equals between two binary literals':
+  - do:
+      esql.query:
+        body:
+          query: 'ROW a = TO_BINARY("AQID"), b = TO_BINARY("AQID"), c = TO_BINARY("BAUG") | EVAL ab = a == b, ac = a == c | KEEP ab, ac'
+  - match: { values.0.0: true }
+  - match: { values.0.1: false }
+
+---
+'equals between binary and keyword literal is rejected':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM binary_doc_values | WHERE blob == "AQID"'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'is [binary] so second argument must also be [binary] but was [keyword]' }
+
+---
+'less than on binary is rejected':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM binary_doc_values | WHERE blob < TO_BINARY("AQID")'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'type [binary]' }

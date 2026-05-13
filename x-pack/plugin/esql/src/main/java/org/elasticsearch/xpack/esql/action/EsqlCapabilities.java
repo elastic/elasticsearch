@@ -420,6 +420,16 @@ public class EsqlCapabilities {
         FLATTENED_DATATYPE(Build.current().isSnapshot()),
 
         /**
+         * Support for the {@code binary} data type in ES|QL. Snapshot-only while under construction.
+         * <p>Phase 1: loading {@code BytesRef} values from a binary field with {@code doc_values: true}
+         * and rendering them as base64-encoded strings in the JSON response; {@code TO_STRING(binary)}.
+         * <p>Phase 2: source / stored-fields fallback in {@code BinaryFieldMapper#blockLoader} when
+         * {@code doc_values: false}, the {@code TO_BINARY(keyword)} conversion function, and equality
+         * ({@code ==} / {@code !=}) between binary values.
+         */
+        BINARY_TYPE(Build.current().isSnapshot()),
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,

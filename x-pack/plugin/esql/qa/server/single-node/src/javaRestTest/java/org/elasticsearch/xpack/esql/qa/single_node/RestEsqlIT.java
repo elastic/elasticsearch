@@ -875,6 +875,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         shouldBeSupported.remove(DataType.TDIGEST);
         shouldBeSupported.remove(DataType.HISTOGRAM);
         shouldBeSupported.remove(DataType.FLATTENED); // TO_STRING not yet supported for flattened
+        shouldBeSupported.remove(DataType.BINARY); // No generic cross-type cast / suggestedCast for binary yet (deferred to Phase 3)
         if (EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled() == false) {
             shouldBeSupported.remove(DataType.AGGREGATE_METRIC_DOUBLE);
         }

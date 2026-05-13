@@ -593,7 +593,7 @@ public final class CsvAssert {
                 x -> EsqlDataTypeConverter.dateRangeToString((LongRangeBlockBuilder.LongRange) x)
             );
             case INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, SCALED_FLOAT, KEYWORD, TEXT, SEMANTIC_TEXT, IP_RANGE, JSON, NULL, BOOLEAN,
-                DENSE_VECTOR, TDIGEST, UNSUPPORTED, FLATTENED -> expectedValue;
+                DENSE_VECTOR, TDIGEST, UNSUPPORTED, FLATTENED, BINARY -> expectedValue;
         };
     }
 
@@ -628,6 +628,14 @@ public final class CsvAssert {
                     }
                 }
                 // CsvIT: value is already a JSON string from the block loader — compare directly
+                yield actualValue;
+            }
+            case BINARY -> {
+                // REST path: binary fields are returned as base64-encoded strings on the wire; decode so the
+                // comparison happens against the same BytesRef value the csv-spec parser produced.
+                if (actualValue instanceof String s) {
+                    yield new BytesRef(java.util.Base64.getDecoder().decode(s));
+                }
                 yield actualValue;
             }
             default -> actualValue;

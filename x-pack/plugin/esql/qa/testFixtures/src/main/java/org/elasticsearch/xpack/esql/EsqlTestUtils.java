@@ -192,6 +192,7 @@ import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomArray;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomByte;
+import static org.elasticsearch.test.ESTestCase.randomByteArrayOfLength;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
 import static org.elasticsearch.test.ESTestCase.randomFloat;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
@@ -1189,6 +1190,7 @@ public final class EsqlTestUtils {
                 }
             }
             case FLATTENED -> randomFlattenedValue();
+            case BINARY -> new BytesRef(randomByteArrayOfLength(randomIntBetween(1, 32)));
             case TSID_DATA_TYPE -> randomTsId().toBytesRef();
             case HISTOGRAM -> randomHistogram();
             case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));

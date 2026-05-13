@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesi
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatePeriod;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBinary;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
@@ -628,7 +629,9 @@ public class EsqlFunctionRegistry {
                 RangeMin.DEFINITION,
                 RangeWithin.DEFINITION,
                 ToDateRange.DEFINITION,
-                ToText.DEFINITION } };
+                ToText.DEFINITION,
+                // binary functions (snapshot-only while the binary data type is under construction)
+                ToBinary.DEFINITION } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

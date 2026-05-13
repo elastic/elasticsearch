@@ -89,6 +89,11 @@ public interface LucenePushdownPredicates {
             && fa.field() instanceof PotentiallyUnmappedKeywordEsField == false
             && fa.getExactInfo().hasExact()
             && isIndexedAndHasDocValues(fa)) {
+            // Binary fields explicitly reject term queries (see BinaryFieldType#termQuery), so they must never be pushed to Lucene
+            // even when they are aggregatable. Equality on binary is evaluated entirely in the compute engine.
+            if (fa.dataType() == DataType.BINARY) {
+                return false;
+            }
             return fa.dataType() != DataType.TEXT || hasExactSubfield(fa);
         }
         return false;

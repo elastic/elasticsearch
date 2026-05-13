@@ -33,6 +33,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Base64;
 
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
@@ -256,6 +257,19 @@ public abstract class PositionToXContent {
                     throws IOException {
                     BytesRef bytesRef = ((BytesRefBlock) block).getBytesRef(valueIndex, scratch);
                     return builder.value(TimeSeriesIdFieldMapper.encodeTsid(bytesRef));
+                }
+            };
+            case BINARY -> new PositionToXContent(block) {
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    BytesRef val = ((BytesRefBlock) block).getBytesRef(valueIndex, scratch);
+                    // Binary values round-trip as base64 on the wire, matching the JSON representation
+                    // used by Elasticsearch's binary field type. We allocate a fresh byte array for the
+                    // exact slice to avoid encoding stale bytes when the backing array is reused.
+                    byte[] copy = new byte[val.length];
+                    System.arraycopy(val.bytes, val.offset, copy, 0, val.length);
+                    return builder.value(Base64.getEncoder().encodeToString(copy));
                 }
             };
             case DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, SHORT, BYTE, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT, PARTIAL_AGG ->

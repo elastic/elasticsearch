@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBinary;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
@@ -239,6 +240,7 @@ public class ExpressionWritables {
         entries.add(ToBase64.ENTRY);
         entries.add(ToBoolean.ENTRY);
         entries.add(ToCartesianPoint.ENTRY);
+        entries.add(ToBinary.ENTRY);
         entries.add(ToDatetime.ENTRY);
         entries.add(ToDateNanos.ENTRY);
         entries.add(ToDateRange.ENTRY);

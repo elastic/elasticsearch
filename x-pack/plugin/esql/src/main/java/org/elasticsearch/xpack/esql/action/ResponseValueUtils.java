@@ -203,6 +203,12 @@ public final class ResponseValueUtils {
             };
             case DENSE_VECTOR -> (block, offset, scratch) -> ((FloatBlock) block).getFloat(offset);
             case FLATTENED -> (block, offset, scratch) -> ((BytesRefBlock) block).getBytesRef(offset, scratch).utf8ToString();
+            case BINARY -> (block, offset, scratch) -> {
+                BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);
+                byte[] copy = new byte[val.length];
+                System.arraycopy(val.bytes, val.offset, copy, 0, val.length);
+                return java.util.Base64.getEncoder().encodeToString(copy);
+            };
             case NULL, UNSUPPORTED -> (block, offset, scratch) -> null;
             case SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, PARTIAL_AGG ->
                 throw EsqlIllegalArgumentException.illegalDataType(dataType);

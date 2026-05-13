@@ -729,6 +729,10 @@ public final class CsvTestUtils {
         TDIGEST(CsvTestUtils::parseTDigest, TDigestHolder.class),
         HISTOGRAM(CsvTestUtils::parseHistogram, BytesRef.class),
         FLATTENED(s -> s, String.class),
+        // Binary values are written into csv-spec / csv data files as base64-encoded strings. We decode
+        // them here so that the block we compare against the engine output holds raw BytesRef values,
+        // matching how a real binary field surfaces on the wire.
+        BINARY(s -> s == null ? null : new BytesRef(java.util.Base64.getDecoder().decode(s)), BytesRef.class),
         UNSUPPORTED(Type::convertUnsupported, Void.class);
 
         private static Void convertUnsupported(String s) {
@@ -841,6 +845,7 @@ public final class CsvTestUtils {
                 case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE -> actualType;
                 case HISTOGRAM -> HISTOGRAM;
                 case FLATTENED -> FLATTENED;
+                case BINARY -> BINARY;
                 default -> KEYWORD;
             };
         }

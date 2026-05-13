@@ -922,6 +922,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     doc.field("a", "foo");
                     doc.endObject();
                 }
+                case BINARY -> doc.value(java.util.Base64.getEncoder().encodeToString(new byte[] { 0x01, 0x02, 0x03 }));
                 default -> throw new AssertionError("unsupported field type [" + type + "]");
             }
         }
@@ -1090,6 +1091,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 }
                 yield nullValue();
             }
+            case BINARY -> {
+                if (DataType.BINARY.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                    yield equalTo(java.util.Base64.getEncoder().encodeToString(new byte[] { 0x01, 0x02, 0x03 }));
+                }
+                yield nullValue();
+            }
 
             default -> throw new AssertionError("unsupported field type [" + type + "]");
         };
@@ -1128,6 +1135,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 .supportedOn(version, Build.current().isSnapshot());
             case TDIGEST -> DataType.TDIGEST.supportedVersion().supportedOn(version, Build.current().isSnapshot());
             case FLATTENED -> DataType.FLATTENED.supportedVersion().supportedOn(version, Build.current().isSnapshot());
+            case BINARY -> DataType.BINARY.supportedVersion().supportedOn(version, Build.current().isSnapshot());
             default -> true;
         };
     }
@@ -1251,6 +1259,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case FLATTENED -> {
                 if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
                     yield anyOf(equalTo("flattened"), equalTo("unsupported"));
+                }
+                yield equalTo("unsupported");
+            }
+            case BINARY -> {
+                if (DataType.BINARY.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                    yield anyOf(equalTo("binary"), equalTo("unsupported"));
                 }
                 yield equalTo("unsupported");
             }
@@ -1397,6 +1411,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 : matchesList().item("column_at_a_time:DoublesFromDocValues.Singleton");
             case EXPONENTIAL_HISTOGRAM -> matchesList().item("column_at_a_time:BlockDocValuesReader.ExponentialHistogram");
             case FLATTENED -> matchesList().item("column_at_a_time:");
+            case BINARY -> matchesList().item("column_at_a_time:BlockDocValuesReader.BytesCustom");
             case DENSE_VECTOR -> matchesList().item("column_at_a_time:FloatDenseVectorFromDocValues.Normalized.Load");
             case GEO_POINT -> extractPreference == MappedFieldType.FieldExtractPreference.STORED || syntheticSourceByDefault() == false
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Geometries")

@@ -13,10 +13,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -284,7 +289,18 @@ public class FileSplit implements ExternalSplit {
             this.splitStats = null;
         }
         if (in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_READ_SCHEMA)) {
-            this.readSchema = in.readBoolean() ? in.readNamedWriteableCollectionAsList(Attribute.class) : null;
+            if (in.readBoolean()) {
+                int count = in.readVInt();
+                List<Attribute> attrs = new ArrayList<>(count);
+                for (int i = 0; i < count; i++) {
+                    String name = in.readString();
+                    DataType type = DataType.fromTypeName(in.readString());
+                    attrs.add(new ReferenceAttribute(Source.EMPTY, null, name, type, Nullability.TRUE, null, false));
+                }
+                this.readSchema = List.copyOf(attrs);
+            } else {
+                this.readSchema = null;
+            }
         } else {
             this.readSchema = null;
         }
@@ -334,7 +350,16 @@ public class FileSplit implements ExternalSplit {
         if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_READ_SCHEMA)) {
             if (readSchema != null) {
                 out.writeBoolean(true);
-                out.writeNamedWriteableCollection(readSchema);
+                // Primitive serialization (name + typeName) — FileSplit crosses the wire via
+                // DataNodeRequest, which uses RecyclerBytesStreamOutput (not PlanStreamOutput).
+                // Using writeNamedWriteableCollection(Attribute.class) would fail at ReferenceAttribute.writeTo
+                // because it casts the stream to PlanStreamOutput for the attribute-cache machinery.
+                // Readers only need (name, dataType); we don't carry Source/qualifier/etc. through FileSplit.
+                out.writeVInt(readSchema.size());
+                for (Attribute attr : readSchema) {
+                    out.writeString(attr.name());
+                    out.writeString(attr.dataType().typeName());
+                }
             } else {
                 out.writeBoolean(false);
             }

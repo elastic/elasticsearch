@@ -666,21 +666,17 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
     @Override
     protected CohereEmbeddingsServiceSettings mutateInstanceForVersion(CohereEmbeddingsServiceSettings instance, TransportVersion version) {
         var embeddingType = CohereEmbeddingType.translateToVersion(instance.embeddingType(), version);
+
+        var commonSettings = instance.getCommonSettings();
         if (version.supports(ML_INFERENCE_COHERE_API_VERSION) == false) {
-            return new CohereEmbeddingsServiceSettings(
-                new CohereCommonServiceSettings(
-                    instance.getCommonSettings().modelId(),
-                    instance.getCommonSettings().rateLimitSettings(),
-                    CohereCommonServiceSettings.CohereApiVersion.V1
-                ),
-                instance.similarity(),
-                instance.dimensions(),
-                instance.maxInputTokens(),
-                embeddingType
+            commonSettings = new CohereCommonServiceSettings(
+                instance.getCommonSettings().modelId(),
+                instance.getCommonSettings().rateLimitSettings(),
+                CohereCommonServiceSettings.CohereApiVersion.V1
             );
         }
         return new CohereEmbeddingsServiceSettings(
-            instance.getCommonSettings(),
+            commonSettings,
             instance.similarity(),
             instance.dimensions(),
             instance.maxInputTokens(),
@@ -727,9 +723,6 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
 
     public static Map<String, Object> getServiceSettingsMap(@Nullable String model, @Nullable Enum<?> embeddingType) {
         var map = new HashMap<String, Object>();
-
-        // Note: url is accepted for backwards compatibility with existing callers but is no longer stored in service settings.
-        // The URL override is now set via CohereModel.testUri and is not part of the serialized settings.
 
         if (model != null) {
             map.put(CohereCommonServiceSettings.OLD_MODEL_ID_FIELD, model);

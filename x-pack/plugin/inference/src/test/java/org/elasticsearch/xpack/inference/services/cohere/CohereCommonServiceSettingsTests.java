@@ -16,6 +16,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -23,23 +24,28 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class CohereCommonServiceSettingsTests extends AbstractWireSerializingTestCase<CohereCommonServiceSettings> {
+public class CohereCommonServiceSettingsTests extends AbstractBWCWireSerializationTestCase<CohereCommonServiceSettings> {
 
     private static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = TransportVersion.fromName("ml_inference_cohere_api_version");
 
     public static CohereCommonServiceSettings createRandom() {
         return new CohereCommonServiceSettings(
-            randomBoolean() ? null : ServiceUtils.createUri(randomAlphaOfLength(10)),
+            randomUriOrNull(),
             randomAlphaOfLengthOrNull(15),
             RateLimitSettingsTests.createRandom(),
             randomFrom(CohereCommonServiceSettings.CohereApiVersion.values())
         );
+    }
+
+    private static URI randomUriOrNull() {
+        return randomBoolean() ? null : ServiceUtils.createUri(randomAlphaOfLength(10));
     }
 
     public void testFromMap_Request_SetModelId() {
@@ -168,7 +174,7 @@ public class CohereCommonServiceSettingsTests extends AbstractWireSerializingTes
         var apiVersion = instance.apiVersion();
 
         switch (randomInt(3)) {
-            case 0 -> uri = randomValueOtherThan(uri, () -> ServiceUtils.createUri(randomAlphaOfLength(10)));
+            case 0 -> uri = randomValueOtherThan(uri, CohereCommonServiceSettingsTests::randomUriOrNull);
             case 1 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLengthOrNull(15));
             case 2 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
             case 3 -> apiVersion = randomValueOtherThan(
@@ -179,5 +185,10 @@ public class CohereCommonServiceSettingsTests extends AbstractWireSerializingTes
         }
 
         return new CohereCommonServiceSettings(uri, modelId, rateLimitSettings, apiVersion);
+    }
+
+    @Override
+    protected CohereCommonServiceSettings mutateInstanceForVersion(CohereCommonServiceSettings instance, TransportVersion version) {
+        return null;
     }
 }

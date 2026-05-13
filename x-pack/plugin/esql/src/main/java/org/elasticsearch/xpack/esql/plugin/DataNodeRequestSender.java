@@ -87,7 +87,7 @@ abstract class DataNodeRequestSender {
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
     private final TransportService transportService;
-    private final Executor esqlExecutor;
+    private final Executor searchExecutor;
     private final CancellableTask rootTask;
 
     private final String clusterAlias;
@@ -109,7 +109,7 @@ abstract class DataNodeRequestSender {
         ClusterService clusterService,
         ProjectResolver projectResolver,
         TransportService transportService,
-        Executor esqlExecutor,
+        Executor searchExecutor,
         CancellableTask rootTask,
         OriginalIndices originalIndices,
         QueryBuilder requestFilter,
@@ -121,7 +121,7 @@ abstract class DataNodeRequestSender {
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
         this.transportService = transportService;
-        this.esqlExecutor = esqlExecutor;
+        this.searchExecutor = searchExecutor;
         this.rootTask = rootTask;
         this.originalIndices = originalIndices;
         this.requestFilter = requestFilter;
@@ -135,7 +135,6 @@ abstract class DataNodeRequestSender {
 
     final void startComputeOnDataNodes(Set<String> concreteIndices, Runnable runOnTaskFailure, ActionListener<ComputeResponse> listener) {
         assert ThreadPool.assertCurrentThreadPool(
-            EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
             ThreadPool.Names.SYSTEM_READ,
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SEARCH_COORDINATION
@@ -195,8 +194,13 @@ abstract class DataNodeRequestSender {
         return Integer.MAX_VALUE;
     }
 
+    protected boolean assertSearchThreadpool() {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
+        return true;
+    }
+
     private void trySendingRequestsForPendingShards(TargetShards targetShards, ComputeListener computeListener) {
-        assert ThreadPool.assertCurrentThreadPool(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME, ThreadPool.Names.SEARCH);
+        assert assertSearchThreadpool();
         changed.set(true);
         final ActionListener<Void> listener = computeListener.acquireAvoid();
         try {
@@ -540,7 +544,7 @@ abstract class DataNodeRequestSender {
             searchShardsRequest,
             rootTask,
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(searchShardsListener, SearchShardsResponse::new, esqlExecutor)
+            new ActionListenerResponseHandler<>(searchShardsListener, SearchShardsResponse::new, searchExecutor)
         );
     }
 

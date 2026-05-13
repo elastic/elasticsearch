@@ -34,6 +34,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.NodeListener;
 import org.junit.After;
@@ -101,16 +102,9 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         int numThreads = randomBoolean() ? 1 : between(2, 16);
         threadPool = new TestThreadPool(
             "test",
-            new FixedExecutorBuilder(
-                Settings.EMPTY,
-                EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
-                numThreads,
-                1024,
-                "esql",
-                EsExecutors.TaskTrackingConfig.DEFAULT
-            )
+            new FixedExecutorBuilder(Settings.EMPTY, "test-esql", numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
         );
-        executor = threadPool.executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME);
+        executor = threadPool.executor("test-esql");
     }
 
     @After
@@ -727,6 +721,12 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
                 NodeListener listener
             ) {
                 sender.sendRequestToOneNode(node, shards, aliasFilters, listener);
+            }
+
+            @Override
+            protected boolean assertSearchThreadpool() {
+                assert ThreadPool.assertCurrentThreadPool("test-esql");
+                return true;
             }
         }.startComputeOnDataNodes(Set.of(randomAlphaOfLength(10)), () -> {}, future);
         return future;

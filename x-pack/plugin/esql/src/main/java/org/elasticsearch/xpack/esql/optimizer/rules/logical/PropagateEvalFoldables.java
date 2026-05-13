@@ -31,7 +31,7 @@ public final class PropagateEvalFoldables extends ParameterizedRule<LogicalPlan,
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LogicalOptimizerContext ctx) {
-        AttributeMap<Expression> collectRefs = RuleUtils.foldableReferences(plan, ctx);
+        AttributeMap<Expression> collectRefs = RuleUtils.foldableReferencesSkipMVGroupings(plan, ctx);
         if (collectRefs.isEmpty()) {
             return plan;
         }

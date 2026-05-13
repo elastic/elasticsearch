@@ -85,12 +85,19 @@ public final class RuleUtils {
      * the collected references — after GROUP BY, these attributes represent expanded single values, not the original
      * multi-valued literals. This prevents resolving post-Aggregate expressions against stale multi-valued literals,
      * which would produce spurious warnings and incorrect fold results.
+     * <p>
+     * Note: this MV-grouping removal is applied only at {@link Aggregate} boundaries, not at {@link
+     * org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin} boundaries (i.e. {@code INLINE STATS}). For
+     * {@code INLINE STATS}, the join key is always the grouping, and callers are responsible for excluding
+     * {@code InlineJoin} plans before calling this method — see
+     * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.local.PruneLeftJoinOnNullMatchingField} for an
+     * example of that explicit exclusion.
      *
      * @param plan The logical plan to analyze.
      * @param ctx The optimizer context providing fold context.
      * @return An {@link AttributeMap} containing foldable references and their literal values.
      */
-    public static AttributeMap<Expression> foldableReferences(LogicalPlan plan, LogicalOptimizerContext ctx) {
+    public static AttributeMap<Expression> foldableReferencesSkipMVGroupings(LogicalPlan plan, LogicalOptimizerContext ctx) {
         AttributeMap.Builder<Expression> collectRefsBuilder = AttributeMap.builder();
 
         // Traverse plan nodes bottom-up, collecting foldable aliases from each node.

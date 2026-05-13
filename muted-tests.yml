@@ -467,9 +467,6 @@ tests:
 - class: org.elasticsearch.index.mapper.DateRangeDocValuesLoaderTests
   method: testEmptyRangesAppendsNull
   issue: https://github.com/elastic/elasticsearch/issues/148378
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
-  method: testReshardMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/148463
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionIT
   method: testEndToEndFrozenTransition
   issue: https://github.com/elastic/elasticsearch/issues/148467
@@ -557,3 +554,9 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.IndexCommitTimestampFieldRangeTests
   method: testFieldValueRangeForBatchedCompoundCommit
   issue: https://github.com/elastic/elasticsearch/issues/148961
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
+  issue: https://github.com/elastic/elasticsearch/issues/147516
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Get old regression job stats}
+  issue: https://github.com/elastic/elasticsearch/issues/147517

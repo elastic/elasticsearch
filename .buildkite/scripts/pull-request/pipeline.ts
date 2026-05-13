@@ -13,6 +13,7 @@ import { getBwcVersions, getSnapshotBwcVersions } from "./bwc-versions";
 const AUTO_RETRY_CONFIG: BuildkiteRetry = {
   automatic: [
     { exit_status: "-1", limit: 2, signal_reason: "none" },
+    { exit_status: "42", limit: 3, signal_reason: "none" }, // This is the spot preemption exit code
     { signal_reason: "agent_stop", limit: 2 },
     { exit_status: "1", limit: 1 },
   ],
@@ -51,7 +52,7 @@ const labelCheckSkip = (pipeline: EsPipeline, labels: string[]): boolean => {
 const changedFilesExcludedCheck = (pipeline: EsPipeline, changedFiles: string[]): boolean => {
   if (pipeline.config?.["excluded-regions"]) {
     return !changedFiles.every((file) =>
-      getArray(pipeline.config?.["excluded-regions"]).some((region) => file.match(region))
+      getArray(pipeline.config?.["excluded-regions"]).some((region) => file.match(region)),
     );
   }
   return true;
@@ -61,7 +62,7 @@ const changedFilesExcludedCheck = (pipeline: EsPipeline, changedFiles: string[])
 const changedFilesIncludedCheck = (pipeline: EsPipeline, changedFiles: string[]): boolean => {
   if (pipeline.config?.["included-regions"]) {
     return changedFiles.every((file) =>
-      getArray(pipeline.config?.["included-regions"]).some((region) => file.match(region))
+      getArray(pipeline.config?.["included-regions"]).some((region) => file.match(region)),
     );
   }
   return true;
@@ -130,7 +131,7 @@ const injectAutoRetry = (pipeline: EsPipeline) => {
 
 export const generatePipelines = (
   directory: string = `${PROJECT_ROOT}/.buildkite/pipelines/pull-request`,
-  changedFiles: string[] = []
+  changedFiles: string[] = [],
 ) => {
   let defaults: EsPipelineConfig = { config: {} };
   defaults = parse(readFileSync(`${directory}/.defaults.yml`, "utf-8"));
@@ -166,7 +167,7 @@ export const generatePipelines = (
     console.log("Doing git fetch and getting merge-base");
     const mergeBase = execSync(
       `git fetch origin ${process.env["GITHUB_PR_TARGET_BRANCH"]}; git merge-base origin/${process.env["GITHUB_PR_TARGET_BRANCH"]} HEAD`,
-      { cwd: PROJECT_ROOT }
+      { cwd: PROJECT_ROOT },
     )
       .toString()
       .trim();
@@ -197,7 +198,7 @@ export const generatePipelines = (
   if (
     process.env["GITHUB_PR_TRIGGER_COMMENT"] &&
     !process.env["GITHUB_PR_TRIGGER_COMMENT"].match(
-      /^\s*((@elastic(search)?machine|buildkite)\s*)?test\s+this(\s+please)?/i
+      /^\s*((@elastic(search)?machine|buildkite)\s*)?test\s+this(\s+please)?/i,
     )
   ) {
     filters = [triggerCommentCheck];

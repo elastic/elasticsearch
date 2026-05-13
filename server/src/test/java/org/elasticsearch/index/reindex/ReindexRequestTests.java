@@ -298,10 +298,7 @@ public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTes
         reindex.setDestOpType("create");
         reindex.setDestVersionType(VersionType.EXTERNAL);
         ActionRequestValidationException e = reindex.validate();
-        assertEquals(
-            "Validation Failed: 1: create operations only support internal versioning. use index instead;",
-            e.getMessage()
-        );
+        assertEquals("Validation Failed: 1: create operations only support internal versioning. use index instead;", e.getMessage());
     }
 
     public void testCreateOpTypeWithExternalGteVersioningIsRejected() {
@@ -309,10 +306,7 @@ public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTes
         reindex.setDestOpType("create");
         reindex.setDestVersionType(VersionType.EXTERNAL_GTE);
         ActionRequestValidationException e = reindex.validate();
-        assertEquals(
-            "Validation Failed: 1: create operations only support internal versioning. use index instead;",
-            e.getMessage()
-        );
+        assertEquals("Validation Failed: 1: create operations only support internal versioning. use index instead;", e.getMessage());
     }
 
     public void testCreateOpTypeWithInternalVersioningIsAccepted() {

@@ -366,7 +366,10 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
     }
 
     private DocumentMapper getDocumentMapper(IndexMode indexMode) throws IOException {
-        if (indexMode == IndexMode.STANDARD || indexMode == IndexMode.LOOKUP || indexMode == IndexMode.COLUMNAR) {
+        if (indexMode == IndexMode.STANDARD
+            || indexMode == IndexMode.LOOKUP
+            || indexMode == IndexMode.COLUMNAR
+            || indexMode == IndexMode.VECTORDB_DOCUMENT) {
             boolean nanosTimestampResolution = randomBoolean();
             if (nanosTimestampResolution) {
                 return createDocumentMapper(mapping(b -> {

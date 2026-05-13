@@ -1588,8 +1588,7 @@ public class InternalEngine extends Engine {
         assert index.origin() == Operation.Origin.PRIMARY : "planing as primary but origin isn't. got " + index.origin();
         final int reservingDocs = index.parsedDoc().docs().size();
         // resolve an external operation into an internal one which is safe to replay
-        final boolean canOptimize = canOptimizeAddDocument(index);
-        if (canOptimize && mayHaveBeenIndexedBefore(index) == false) {
+        if (canOptimizeAddDocument(index) && mayHaveBeenIndexedBefore(index) == false) {
             final Exception reserveError = tryAcquireInFlightDocs(index, reservingDocs);
             if (reserveError != null) {
                 return IndexingStrategy.failAsTooManyDocs(reserveError, index.id());
@@ -1650,7 +1649,7 @@ public class InternalEngine extends Engine {
         } else {
             return IndexingStrategy.processNormally(
                 currentNotFoundOrDeleted,
-                canOptimize ? 1L : index.versionType().updateVersion(currentVersion, index.version()),
+                canOptimizeAddDocument(index) ? 1L : index.versionType().updateVersion(currentVersion, index.version()),
                 reservingDocs
             );
         }

@@ -37,7 +37,7 @@ public final class PitReaderContext extends ReaderContext {
         IndexReshardingMetadata reshardingMetadata,
         SplitShardCountSummary shardCountSummary
     ) {
-        super(id, indexService, indexShard, searcherSupplier, keepAliveInMillis, false);
+        super(id, indexService, indexShard, searcherSupplier, keepAliveInMillis, false, 0L);
         this.reshardingMetadata = reshardingMetadata;
         this.shardCountSummary = shardCountSummary;
     }

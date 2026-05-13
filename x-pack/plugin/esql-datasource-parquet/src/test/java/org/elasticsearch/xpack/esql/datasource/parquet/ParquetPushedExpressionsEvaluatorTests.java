@@ -728,6 +728,54 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         assertEquals("only first expression should have been evaluated", 1, pushed.lastExpressionsEvaluatedForTesting());
     }
 
+    public void testNestedAndShortCircuitsRightWhenLeftIsEmpty() {
+        // Inside an And expression, when the left arm eliminates every row in the batch the
+        // right arm cannot rescue a single survivor (AND is monotone over the survivor set),
+        // so evaluating right is pure waste. The top-level evaluateFilter loop only short-
+        // circuits between top-level conjuncts; this test pins the matching short-circuit
+        // inside evaluateExpression's And branch, which the planner produces routinely.
+        //
+        // The Filter holds a single And; semantic output (empty mask) is identical whether
+        // or not we short-circuit. Observed via lastEvaluateExpressionCallsForTesting():
+        // - And node: 1 call
+        // - And.left: 1 call
+        // - And.right: 0 calls (short-circuited)
+        // Total: 2. Without the short-circuit it would be 3.
+        long[] values = { 10L, 20L, 30L };
+        Block block = blockFactory.newLongArrayVector(values, values.length).asBlock();
+        Map<String, Block> blocks = Map.of("x", block);
+
+        Expression left = new Equals(Source.EMPTY, attr("x", DataType.LONG), lit(999L, DataType.LONG), null);
+        Expression right = new Equals(Source.EMPTY, attr("x", DataType.LONG), lit(20L, DataType.LONG), null);
+        Expression nestedAnd = new And(Source.EMPTY, left, right);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(nestedAnd));
+
+        WordMask result = pushed.evaluateFilter(blocks, values.length, new WordMask());
+        assertNotNull("expected an empty mask, not null", result);
+        assertTrue("expected empty mask: left eliminates all rows", result.isEmpty());
+        assertEquals("right arm should not be evaluated when left is already empty", 2, pushed.lastEvaluateExpressionCallsForTesting());
+    }
+
+    public void testNestedAndEvaluatesBothArmsWhenLeftIsNonEmpty() {
+        // Companion to the short-circuit test: when left admits survivors, right must be
+        // evaluated to compute their intersection. Pins that we only skip work when the
+        // left arm is fully empty, never when it is just sparse — same contract the outer
+        // evaluateFilter loop enforces between top-level conjuncts.
+        long[] values = { 10L, 20L, 30L };
+        Block block = blockFactory.newLongArrayVector(values, values.length).asBlock();
+        Map<String, Block> blocks = Map.of("x", block);
+
+        Expression left = new Equals(Source.EMPTY, attr("x", DataType.LONG), lit(20L, DataType.LONG), null);
+        Expression right = new Equals(Source.EMPTY, attr("x", DataType.LONG), lit(20L, DataType.LONG), null);
+        Expression nestedAnd = new And(Source.EMPTY, left, right);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(nestedAnd));
+
+        WordMask result = pushed.evaluateFilter(blocks, values.length, new WordMask());
+        assertNotNull(result);
+        assertArrayEquals(new int[] { 1 }, result.survivingPositions());
+        assertEquals("both arms should be evaluated when left has survivors", 3, pushed.lastEvaluateExpressionCallsForTesting());
+    }
+
     public void testEvaluateFilterEvaluatesAllExpressionsWhenSurvivorsRemain() {
         // Companion test to the early-exit case: when each predicate leaves at least one
         // survivor, the loop must evaluate every expression. Pins the contract that 6b only

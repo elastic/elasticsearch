@@ -570,8 +570,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         String resolvedMethod = Objects.requireNonNullElse(method, "<unknown>");
         String resolvedUri = Objects.requireNonNullElse(req.uri(), "<unknown>");
         attributes.put("http.method", resolvedMethod);
-        // SemConv: http.request.method MUST be "_OTHER" when the method is not known to the instrumentation.
-        // ES sets method to null when req.method() throws IllegalArgumentException (unparsable method).
+        // OTel HTTP server SemConv (https://opentelemetry.io/docs/specs/semconv/http/http-spans/):
+        // http.request.method MUST be "_OTHER" for methods unknown to the instrumentation.
         attributes.put("http.request.method", method != null ? method : "_OTHER");
         attributes.put("http.url", resolvedUri);
         attributes.put("url.full", resolvedUri);

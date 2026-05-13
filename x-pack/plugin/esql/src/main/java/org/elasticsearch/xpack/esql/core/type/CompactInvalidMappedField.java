@@ -32,11 +32,11 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
     private final boolean isPotentiallyUnmapped;
 
     public CompactInvalidMappedField(String name, Map<DataType, Set<String>> typesToIndices) {
-        this(name, makeErrorMessage(typesToIndices), truncate(typesToIndices), false);
+        this(name, buildErrorMessage(typesToIndices, false), truncate(typesToIndices), false);
     }
 
     public static CompactInvalidMappedField potentiallyUnmapped(String name, Map<DataType, Set<String>> typesToIndices) {
-        return new CompactInvalidMappedField(name, makeErrorMessage(typesToIndices), truncate(typesToIndices), true);
+        return new CompactInvalidMappedField(name, buildErrorMessage(typesToIndices, true), truncate(typesToIndices), true);
     }
 
     private CompactInvalidMappedField(
@@ -124,9 +124,9 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
         return Collections.unmodifiableSet(truncated);
     }
 
-    private static String makeErrorMessage(Map<DataType, Set<String>> typesToIndices) {
+    private static String buildErrorMessage(Map<DataType, Set<String>> typesToIndices, boolean includeInsistKeyword) {
         Map<String, Set<String>> stringKeyed = new TreeMap<>();
         typesToIndices.forEach((k, v) -> stringKeyed.put(k.typeName(), v));
-        return TypeConflictedField.makeErrorMessage(stringKeyed, false);
+        return TypeConflictedField.makeErrorMessage(stringKeyed, includeInsistKeyword);
     }
 }

@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -153,6 +154,7 @@ public class ApproximationSupportTests extends ESTestCase {
         // Timeseries indices are not supported yet.
         // They require chained Stats commands.
         TimeSeriesAggregate.class,
+        TimeSeriesCollapse.class,
 
         // These source commands makes no sense for approximation.
         Explain.class,

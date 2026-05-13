@@ -28,6 +28,7 @@ final class OtelSdkResource {
         ResourceBuilder builder = Resource.builder()
             .put("service.name", "elasticsearch")
             .put("service.version", Build.current().version())
+            .put("service.language.name", "java")
             .put("service.agent.name", "elasticsearch-otel-sdk")
             .put("service.agent.version", Build.current().version())
             .put("telemetry.distro.name", "elasticsearch-otel-sdk")

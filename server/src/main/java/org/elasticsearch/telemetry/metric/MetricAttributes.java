@@ -38,9 +38,8 @@ public interface MetricAttributes {
     String ES_PRODUCT_ORIGIN = "es_product_origin";
 
     /**
-     * Allowlist of values recorded for {@link #ES_PRODUCT_ORIGIN}. Any value not in this set (after lowercasing) is
-     * recorded as {@code "other"}. Entries reflect known producers of the {@code X-Elastic-Product-Origin} header across the
-     * elastic org (Kibana, Logstash, Fleet, Beats, Connectors, etc.).
+     * Known values recorded for {@link #ES_PRODUCT_ORIGIN}. Entries reflect known producers of the {@code X-Elastic-Product-Origin}
+     * header across the elastic org (Kibana, Logstash, Fleet, Beats, Connectors, etc.).
      * <p>
      * <b>Entries must be lowercase.</b>
      */

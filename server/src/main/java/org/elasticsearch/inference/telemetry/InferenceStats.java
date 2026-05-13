@@ -26,6 +26,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.telemetry.metric.MetricAttributesUtils.normalizeProductOrigin;
+
 /**
  * OpenTelemetry-backed inference metrics.
  */
@@ -223,7 +225,7 @@ public class InferenceStats {
                 attributes.put(INFERENCE_SOURCE_ATTRIBUTE, normalizeProductUseCase(ctx.productUseCase()));
             }
             if (Strings.isNullOrEmpty(ctx.productOrigin()) == false) {
-                attributes.put(MetricAttributes.ES_PRODUCT_ORIGIN, normalizeProductOrigin(ctx.productOrigin()));
+                attributes.put(MetricAttributes.ES_PRODUCT_ORIGIN, normalizeProductOrigin(ctx.productOrigin(), OTHER_VALUE));
             }
 
             return cast();
@@ -248,11 +250,6 @@ public class InferenceStats {
                 return SIEM_MIGRATIONS;
             }
             return KNOWN_PRODUCT_USE_CASES.contains(lowered) ? lowered : OTHER_VALUE;
-        }
-
-        private static String normalizeProductOrigin(String value) {
-            var lowered = value.toLowerCase(Locale.ROOT);
-            return MetricAttributes.KNOWN_PRODUCT_ORIGINS.contains(lowered) ? lowered : OTHER_VALUE;
         }
     }
 

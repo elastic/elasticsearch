@@ -49,11 +49,12 @@ public class DLMFrozenTransitionPlugin extends Plugin {
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        int coreCount = EsExecutors.allocatedProcessors(settings);
         final FixedScaleDownExecutorBuilder builder = new FixedScaleDownExecutorBuilder(
             settings,
             EXECUTOR_NAME,
-            10,
-            500,
+            Math.min(2 * coreCount, 100),
+            Math.min(20 * coreCount, 1000),
             new TimeValue(10, TimeUnit.MINUTES),
             "dlm.frozen.transition.thread_pool",
             EsExecutors.TaskTrackingConfig.DEFAULT,

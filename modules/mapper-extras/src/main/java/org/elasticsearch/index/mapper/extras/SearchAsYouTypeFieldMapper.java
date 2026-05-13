@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.CachingTokenFilter;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
@@ -39,6 +38,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.ElasticsearchAnalyzerWrapper;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -779,15 +779,14 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
      * ngrams token filter, it also adds a {@link TrailingShingleTokenFilter} to add extra position increments at the end of the stream
      * to induce the shingle token filter to create tokens at the end of the stream smaller than the shingle size
      */
-    static class SearchAsYouTypeAnalyzer extends AnalyzerWrapper {
+    static class SearchAsYouTypeAnalyzer extends ElasticsearchAnalyzerWrapper {
 
         private final Analyzer delegate;
         private final int shingleSize;
         private final boolean indexPrefixes;
 
         private SearchAsYouTypeAnalyzer(Analyzer delegate, int shingleSize, boolean indexPrefixes) {
-
-            super(delegate.getReuseStrategy());
+            super(delegate);
             this.delegate = Objects.requireNonNull(delegate);
             this.shingleSize = shingleSize;
             this.indexPrefixes = indexPrefixes;

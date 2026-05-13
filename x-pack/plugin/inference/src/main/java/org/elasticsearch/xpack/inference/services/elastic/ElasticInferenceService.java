@@ -268,7 +268,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     }
 
     @Override
-    protected boolean supportsNonTextEmbeddingContent() {
+    public boolean supportsNonTextEmbeddingContent() {
         return true;
     }
 

@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import org.apache.lucene.search.Query;
+import org.checkerframework.checker.nullness.qual.NonNull;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.ShardContext;
@@ -27,6 +30,8 @@ import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.BlockOptimization;
+import org.elasticsearch.compute.operator.lookup.BulkKeywordLookup;
+import org.elasticsearch.compute.operator.lookup.BulkLookupSingleValued;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.LookupQueryOperator;
 import org.elasticsearch.core.Nullable;
@@ -43,7 +48,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -275,7 +279,7 @@ public class LookupExecutionPlanner {
                 lookupSource
             );
         } else if (node instanceof BulkLookupMvFilterExec bulkFilterExec) {
-            return planBulkLookupMvFilterExec(bulkFilterExec, source, foldCtx);
+            return planBulkLookupMvFilterExec(bulkFilterExec, source, lookupSource);
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
             return planFieldExtractExec(plannerSettings, fieldExtractExec, source);
         } else if (node instanceof EvalExec evalExec) {
@@ -319,6 +323,38 @@ public class LookupExecutionPlanner {
 
         return PhysicalOperation.fromSource(sourceFactory, layout).with(enrichQueryFactory, layout);
     }
+
+    private PhysicalOperation planBulkLookupMvFilterExec(
+        BulkLookupMvFilterExec bulkFilterExec,
+        PhysicalOperation source,
+        Source lookupSource
+    ) {
+        Attribute rightAttribute = bulkFilterExec.field();
+        int       channelOffset  = source.layout().get(rightAttribute.id()).channel();
+
+        OperatorFactory mvBulkLookupMvFilterOperatorFactory = new OperatorFactory() {
+            @Override
+            public Operator get(DriverContext driverContext) {
+                Warnings warnings = Warnings.createWarnings(driverContext.warningsMode(), lookupSource);
+                return new FilterOperator(
+                    new BulkLookupSingleValued(driverContext, channelOffset, warnings)
+                );
+            }
+
+            @Override
+            public String describe() {
+                StringBuilder sb = new StringBuilder();
+                sb.append("BulkLookupMvFilterOperator[field = ");
+                sb.append(rightAttribute.name());
+                sb.append("]");
+                return sb.toString();
+            }
+        };
+
+        return source.with(mvBulkLookupMvFilterOperatorFactory, source.layout());
+    }
+
+
 
     private PhysicalOperation planFieldExtractExec(
         PlannerSettings plannerSettings,
@@ -431,14 +467,6 @@ public class LookupExecutionPlanner {
     private PhysicalOperation planFilterExec(FilterExec filterExec, PhysicalOperation source, FoldContext foldCtx) {
         return source.with(
             new FilterOperator.FilterOperatorFactory(EvalMapper.toEvaluator(foldCtx, filterExec.condition(), source.layout())),
-            source.layout()
-        );
-    }
-
-    private PhysicalOperation planBulkLookupMvFilterExec(BulkLookupMvFilterExec bulkfilterExec, PhysicalOperation source, FoldContext foldCtx) {
-        // XXX bulk lookup mv filter operator factory
-        return source.with(
-            new FilterOperator.FilterOperatorFactory(EvalMapper.toEvaluator(foldCtx, Literal.TRUE, source.layout())),
             source.layout()
         );
     }

@@ -13,7 +13,6 @@ import org.gradle.api.internal.GradleInternal;
 import org.gradle.api.invocation.Gradle;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
-import org.gradle.api.tasks.StopExecutionException;
 import org.gradle.initialization.BuildCancellationToken;
 
 import java.util.List;
@@ -39,13 +38,12 @@ import java.util.List;
  *       left untouched so the build scan can still publish.</li>
  * </ol>
  *
- * <p>In addition, a {@code doFirst} action is prepended to every task at {@code whenReady}
- * time. If preemption has fired by the time a task begins executing, the action throws
- * {@link StopExecutionException}, which Gradle treats as a clean completion (no failure in
- * the build-operation result). This prevents tasks that start after preemption from
- * appearing as red/failed in the Develocity build scan. Tasks that were already running
- * when preemption fired are stopped via force-kill and thread interruption; those will
- * still show as failed in the scan, though the PREEMPTED tag marks them as non-representative.
+ * <p>Pending tasks (not yet started when the token is cancelled) are silently dropped by
+ * Gradle's executor and do not appear in the build scan at all. The {@code onlyIf} predicate
+ * provides a redundant belt-and-suspenders check for the rare case where the token fires
+ * too late for a task that was being dispatched. In-flight tasks fail with
+ * {@code BuildCancelledException} ("Build was cancelled"), which Develocity renders
+ * distinctly from a real test or compile failure.
  */
 public final class PreemptionBuildCanceller {
 
@@ -57,16 +55,6 @@ public final class PreemptionBuildCanceller {
         gradle.getTaskGraph().whenReady(graph -> {
             for (Task task : graph.getAllTasks()) {
                 task.onlyIf("not preempted by GCP", t -> GcpPreemptionWatchdog.isPreempted() == false);
-                task.doFirst("stop cleanly if preempted", t -> {
-                    if (GcpPreemptionWatchdog.isPreempted()) {
-                        throw new StopExecutionException("preempted by GCP");
-                    }
-                });
-                task.doLast("stop cleanly if preempted", t -> {
-                    if (GcpPreemptionWatchdog.isPreempted()) {
-                        throw new StopExecutionException("preempted by GCP");
-                    }
-                });
             }
         });
 

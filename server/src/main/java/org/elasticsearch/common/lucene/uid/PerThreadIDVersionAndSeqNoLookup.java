@@ -182,6 +182,81 @@ final class PerThreadIDVersionAndSeqNoLookup {
         return docID;
     }
 
+    /**
+     * Resolves version info for multiple UIDs in a single forward pass through this segment's terms dictionary.
+     * <p>
+     * {@code sortedUids} must be provided in ascending order. For each uid at sorted position {@code i},
+     * the result is written into {@code results[i]} if found; a null entry means not found in this segment.
+     * UIDs already resolved (non-null in {@code results}) are skipped without seeking.
+     *
+     * @return the number of newly resolved UIDs
+     */
+    int batchLookupVersion(BytesRef[] sortedUids, boolean[] loadSeqNo, DocIdAndVersion[] results, LeafReaderContext context)
+        throws IOException {
+        if (termsEnum == null) {
+            return 0;
+        }
+        assert readerKey == null || context.reader().getCoreCacheHelper().getKey().equals(readerKey)
+            : "context's reader is not the same as the reader class was initialized on.";
+
+        final Bits liveDocs = context.reader().getLiveDocs();
+        int found = 0;
+        // currentTerm tracks where the TermsEnum is positioned after a NOT_FOUND seek, allowing
+        // subsequent UIDs that fall before it to be skipped without issuing another seek.
+        BytesRef currentTerm = null;
+
+        for (int i = 0; i < sortedUids.length; i++) {
+            if (results[i] != null) {
+                // Already resolved by a newer segment — skip without touching the TermsEnum.
+                continue;
+            }
+
+            final BytesRef uid = sortedUids[i];
+
+            if (currentTerm != null) {
+                final int cmp = uid.compareTo(currentTerm);
+                if (cmp < 0) {
+                    // uid falls before the term we already seeked past — not in this segment.
+                    continue;
+                } else if (cmp == 0) {
+                    // The previous NOT_FOUND seek landed exactly on this uid, so the TermsEnum
+                    // is already positioned at it. Fall through to scan postings.
+                } else {
+                    currentTerm = null; // uid is ahead of currentTerm — need a fresh seek.
+                }
+            }
+
+            if (currentTerm == null) {
+                final TermsEnum.SeekStatus status = termsEnum.seekCeil(uid);
+                if (status == TermsEnum.SeekStatus.END) {
+                    break; // exhausted this segment's terms
+                }
+                if (status == TermsEnum.SeekStatus.NOT_FOUND) {
+                    // TermsEnum is now positioned at the first term > uid.
+                    // Save it so subsequent UIDs between uid and this term can be skipped cheaply.
+                    currentTerm = BytesRef.deepCopyOf(termsEnum.term());
+                    continue;
+                }
+                // FOUND: TermsEnum is positioned at uid; clear currentTerm and scan postings below.
+                currentTerm = null;
+            }
+
+            final int docID = scanLiveDoc(liveDocs);
+            if (docID != DocIdSetIterator.NO_MORE_DOCS) {
+                final boolean ls = loadSeqNo[i];
+                final long seqNo = ls ? readNumericDocValues(context.reader(), SeqNoFieldMapper.NAME, docID) : UNASSIGNED_SEQ_NO;
+                final long term = ls
+                    ? readNumericDocValues(context.reader(), SeqNoFieldMapper.PRIMARY_TERM_NAME, docID)
+                    : UNASSIGNED_PRIMARY_TERM;
+                final long version = readNumericDocValues(context.reader(), VersionFieldMapper.NAME, docID);
+                results[i] = new DocIdAndVersion(docID, version, seqNo, term, context.reader(), context.docBase);
+                found++;
+            }
+        }
+
+        return found;
+    }
+
     private static long readNumericDocValues(LeafReader reader, String field, int docId) throws IOException {
         final NumericDocValues dv = reader.getNumericDocValues(field);
         if (dv == null || dv.advanceExact(docId) == false) {

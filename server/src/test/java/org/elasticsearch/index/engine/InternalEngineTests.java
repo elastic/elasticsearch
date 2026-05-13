@@ -8199,6 +8199,76 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testIndexBatchVersionLookupFromLucene() throws IOException {
+        // Pre-index documents, then double-refresh to evict from the version map so the
+        // batch planner must resolve versions via Lucene.
+        int count = randomIntBetween(2, 10);
+        List<ParsedDocument> docs = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            ParsedDocument doc = createParsedDoc(Integer.toString(i), null);
+            docs.add(doc);
+            indexDoc(engine, indexForDoc(doc));
+        }
+        engine.refresh("test");
+        engine.refresh("test");
+
+        List<Engine.Index> updates = new ArrayList<>();
+        for (ParsedDocument doc : docs) {
+            updates.add(indexForDoc(doc));
+        }
+        List<Engine.IndexResult> results = engine.indexBatch(updates);
+        assertThat(results, hasSize(count));
+        for (Engine.IndexResult result : results) {
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+        }
+    }
+
+    public void testIndexBatchVersionConflictFromLucene() throws IOException {
+        // Pre-index and evict from version map so the conflict check uses Lucene.
+        ParsedDocument doc = createParsedDoc("1", null);
+        Engine.IndexResult firstResult = indexDoc(engine, indexForDoc(doc));
+        assertThat(firstResult.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+        engine.refresh("test");
+        engine.refresh("test");
+
+        Engine.Index conflictingOp = new Engine.Index(
+            newUid(doc),
+            doc,
+            UNASSIGNED_SEQ_NO,
+            primaryTerm.get(),
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            System.nanoTime(),
+            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+            false,
+            firstResult.getSeqNo() + 100,
+            firstResult.getTerm()
+        );
+        List<Engine.IndexResult> results = engine.indexBatch(List.of(conflictingOp));
+        assertThat(results, hasSize(1));
+        assertThat(results.getFirst().getResultType(), equalTo(Engine.Result.Type.FAILURE));
+        assertThat(results.getFirst().getFailure(), instanceOf(VersionConflictEngineException.class));
+    }
+
+    public void testIndexBatchMixedLuceneAndVersionMap() throws IOException {
+        // "1" is evicted to Lucene; "2" stays in the version map.
+        ParsedDocument doc1 = createParsedDoc("1", null);
+        indexDoc(engine, indexForDoc(doc1));
+        engine.refresh("test");
+        engine.refresh("test");
+
+        ParsedDocument doc2 = createParsedDoc("2", null);
+        indexDoc(engine, indexForDoc(doc2));
+
+        List<Engine.Index> ops = List.of(indexForDoc(doc1), indexForDoc(doc2));
+        List<Engine.IndexResult> results = engine.indexBatch(ops);
+        assertThat(results, hasSize(2));
+        for (Engine.IndexResult result : results) {
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+        }
+    }
+
     private static void releaseCommitRef(Map<IndexCommit, Engine.IndexCommitRef> commits, long generation) {
         var releasable = commits.keySet().stream().filter(c -> c.getGeneration() == generation).findFirst();
         assertThat(releasable, isPresent());

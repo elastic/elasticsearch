@@ -20,6 +20,7 @@ import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
@@ -144,6 +145,53 @@ public final class VersionsAndSeqNoResolver {
             }
         }
         return null;
+    }
+
+    /**
+     * Resolves doc ID and version for a batch of UIDs in a single forward pass through each segment's
+     * terms dictionary, amortizing seek overhead across the batch.
+     * <p>
+     * Results are written into {@code results[i]} for each {@code uids[i]}; a null entry means the UID
+     * was not found. UIDs need not be pre-sorted; sorting is done internally.
+     * <p>
+     * This method uses {@code loadTimestampRange = false} and is intended for standard (non-time-series)
+     * indices. For time series indices use {@link #timeSeriesLoadDocIdAndVersion(IndexReader, BytesRef, String, boolean, boolean)}
+     * per UID instead.
+     */
+    public static void batchLoadDocIdAndVersion(IndexReader reader, BytesRef[] uids, boolean[] loadSeqNo, DocIdAndVersion[] results)
+        throws IOException {
+        final int n = uids.length;
+        assert results.length == n && loadSeqNo.length == n;
+
+        // Sort by UID so each segment can be scanned with a single forward pass.
+        final Integer[] order = new Integer[n];
+        for (int i = 0; i < n; i++) {
+            order[i] = i;
+        }
+        Arrays.sort(order, (a, b) -> uids[a].compareTo(uids[b]));
+
+        final BytesRef[] sortedUids = new BytesRef[n];
+        final boolean[] sortedLoadSeqNo = new boolean[n];
+        for (int i = 0; i < n; i++) {
+            sortedUids[i] = uids[order[i]];
+            sortedLoadSeqNo[i] = loadSeqNo[order[i]];
+        }
+
+        final DocIdAndVersion[] sortedResults = new DocIdAndVersion[n];
+        final PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, false);
+        final List<LeafReaderContext> leaves = reader.leaves();
+        int remaining = n;
+
+        // Iterate backwards: the most recently written segment is most likely to contain the current version.
+        for (int s = leaves.size() - 1; s >= 0 && remaining > 0; s--) {
+            final LeafReaderContext leaf = leaves.get(s);
+            remaining -= lookups[leaf.ord].batchLookupVersion(sortedUids, sortedLoadSeqNo, sortedResults, leaf);
+        }
+
+        // Map sorted results back to the caller's original index order.
+        for (int i = 0; i < n; i++) {
+            results[order[i]] = sortedResults[i];
+        }
     }
 
     /**

@@ -1448,11 +1448,22 @@ public class InternalEngine extends Engine {
             }
             assert assertIncomingSequenceNumber(op.origin(), op.seqNo());
             subBatchOps[i] = op;
-            // TODO: Optimize indexing strategy to be batch. There are gains to look-up version ids in batch from Lucene.
-            plans[i] = indexingStrategyForOperation(op);
-            reservedDocs += plans[i].reservedDocs;
         }
         lastWriteNanos = maxStartNanos;
+
+        if (subBatchOps[0].origin() == Operation.Origin.PRIMARY) {
+            // Primary: resolve all version IDs in a single Lucene reader acquisition, then plan.
+            final IndexingStrategy[] batchPlans = planPrimarySubBatch(subBatchOps, subBatchSize);
+            for (int i = 0; i < subBatchSize; i++) {
+                plans[i] = batchPlans[i];
+                reservedDocs += plans[i].reservedDocs;
+            }
+        } else {
+            for (int i = 0; i < subBatchSize; i++) {
+                plans[i] = planIndexingAsNonPrimary(subBatchOps[i]);
+                reservedDocs += plans[i].reservedDocs;
+            }
+        }
 
         try {
             // Create Indexing Operation
@@ -1575,6 +1586,120 @@ public class InternalEngine extends Engine {
         }
     }
 
+    /**
+     * Resolves version IDs for all primary operations in a sub-batch and produces an {@link IndexingStrategy} for each.
+     * <p>
+     * versionMap lookups are performed per operation, but any operations that miss the versionMap are resolved in a
+     * single {@link #performActionWithDirectoryReader} call, amortizing reader acquisition overhead across the batch.
+     */
+    private IndexingStrategy[] planPrimarySubBatch(Index[] ops, int count) throws IOException {
+        final VersionValue[] resolvedVersions = new VersionValue[count];
+        final boolean[] onFastPath = new boolean[count];
+        final boolean[] needsLucene = new boolean[count];
+        boolean anyNeedsVersionLookup = false;
+        boolean anyNeedsLucene = false;
+
+        // Phase 1: per-op fast-path check and versionMap lookups
+        for (int i = 0; i < count; i++) {
+            final Index op = ops[i];
+            final boolean canOptimize = canOptimizeAddDocument(op);
+            if (canOptimize && mayHaveBeenIndexedBefore(op) == false) {
+                onFastPath[i] = true;
+                continue;
+            }
+            if (sequenceNumbersAreDisabled() && op.getIfSeqNo() != UNASSIGNED_SEQ_NO && op.getIfPrimaryTerm() != UNASSIGNED_PRIMARY_TERM) {
+                // will be handled as an early return in planIndexingAsPrimaryWithVersion
+                continue;
+            }
+            anyNeedsVersionLookup = true;
+            assert incrementVersionLookup();
+            notifyLastDocIdAndVersionLookup();
+            VersionValue v = getVersionFromMap(op.uid());
+            if (v != null
+                && v.isDelete()
+                && engineConfig.isEnableGcDeletes()
+                && (engineConfig.getThreadPool().relativeTimeInMillis() - ((DeleteVersionValue) v).time) > getGcDeletesInMillis()) {
+                v = null;
+            }
+            if (v != null) {
+                resolvedVersions[i] = v;
+            } else {
+                assert incrementIndexVersionLookup();
+                needsLucene[i] = true;
+                anyNeedsLucene = true;
+            }
+        }
+
+        if (anyNeedsVersionLookup) {
+            versionMap.enforceSafeAccess();
+        }
+
+        // Phase 2: single Lucene reader acquisition for all versionMap misses.
+        // For standard indices: collect misses into flat arrays and do a single sorted scan per segment.
+        // For time series indices: keep the per-UID path (timestamp-based segment skipping complicates batching).
+        if (anyNeedsLucene) {
+            final boolean isTimeSeries = engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
+            if (isTimeSeries) {
+                performActionWithDirectoryReader(SearcherScope.INTERNAL, reader -> {
+                    for (int i = 0; i < count; i++) {
+                        if (needsLucene[i] == false) {
+                            continue;
+                        }
+                        final Index op = ops[i];
+                        final boolean loadSeqNo = op.getIfSeqNo() != UNASSIGNED_SEQ_NO;
+                        final VersionsAndSeqNoResolver.DocIdAndVersion d = VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(
+                            reader,
+                            op.uid(),
+                            op.id(),
+                            loadSeqNo,
+                            useTsdbSyntheticId
+                        );
+                        if (d != null) {
+                            resolvedVersions[i] = new IndexVersionValue(null, d.version, d.seqNo, d.primaryTerm);
+                        }
+                    }
+                    return null;
+                });
+            } else {
+                // Collect the Lucene-miss UIDs into flat arrays, then resolve them all in one sorted
+                // segment scan via batchLoadDocIdAndVersion.
+                int luceneCount = 0;
+                for (int i = 0; i < count; i++) {
+                    if (needsLucene[i]) luceneCount++;
+                }
+                final BytesRef[] luceneUids = new BytesRef[luceneCount];
+                final boolean[] luceneLoadSeqNo = new boolean[luceneCount];
+                final int[] luceneToSubBatch = new int[luceneCount];
+                for (int i = 0, k = 0; i < count; i++) {
+                    if (needsLucene[i]) {
+                        luceneUids[k] = ops[i].uid();
+                        luceneLoadSeqNo[k] = ops[i].getIfSeqNo() != UNASSIGNED_SEQ_NO;
+                        luceneToSubBatch[k] = i;
+                        k++;
+                    }
+                }
+                final VersionsAndSeqNoResolver.DocIdAndVersion[] luceneResults = new VersionsAndSeqNoResolver.DocIdAndVersion[luceneCount];
+                performActionWithDirectoryReader(SearcherScope.INTERNAL, reader -> {
+                    VersionsAndSeqNoResolver.batchLoadDocIdAndVersion(reader, luceneUids, luceneLoadSeqNo, luceneResults);
+                    return null;
+                });
+                for (int k = 0; k < luceneCount; k++) {
+                    final VersionsAndSeqNoResolver.DocIdAndVersion d = luceneResults[k];
+                    if (d != null) {
+                        resolvedVersions[luceneToSubBatch[k]] = new IndexVersionValue(null, d.version, d.seqNo, d.primaryTerm);
+                    }
+                }
+            }
+        }
+
+        // Phase 3: build a strategy per op using pre-resolved versions
+        final IndexingStrategy[] plans = new IndexingStrategy[count];
+        for (int i = 0; i < count; i++) {
+            plans[i] = planIndexingAsPrimaryWithVersion(ops[i], resolvedVersions[i], onFastPath[i]);
+        }
+        return plans;
+    }
+
     protected IndexingStrategy indexingStrategyForOperation(final Index index) throws IOException {
         if (index.origin() == Operation.Origin.PRIMARY) {
             return planIndexingAsPrimary(index);
@@ -1601,8 +1726,8 @@ public class InternalEngine extends Engine {
     /**
      * Produces an {@link IndexingStrategy} for a primary operation given a pre-resolved version value.
      * <p>
-     * The per-op path ({@link #planIndexingAsPrimary}) resolves the version before calling this method,
-     * so no reader acquisition happens here.
+     * Both the per-op path ({@link #planIndexingAsPrimary}) and the batch path ({@link #planPrimarySubBatch})
+     * resolve the version before calling this method, so no reader acquisition happens here.
      *
      * @param onFastPath   true when the operation can use the optimized append-only path and has been
      *                     confirmed (via {@link #mayHaveBeenIndexedBefore}) not to be a retry

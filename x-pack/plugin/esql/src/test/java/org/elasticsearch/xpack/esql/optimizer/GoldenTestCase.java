@@ -846,9 +846,9 @@ public abstract class GoldenTestCase extends ESTestCase {
         return mapping;
     }
 
-    record MappingPerIndex(String index, Map<String, EsField> mapping) {}
+    private record MappingPerIndex(String index, Map<String, EsField> mapping) {}
 
-    record MergedResult(Map<String, EsField> mapping) {}
+    private record MergedResult(Map<String, EsField> mapping) {}
 
     private static MergedResult mergeMappings(List<MappingPerIndex> mappingsPerIndex, boolean trackUnmappedFieldIndices) {
         Map<String, Map<String, EsField>> fieldNamesToFieldByIndices = new HashMap<>();
@@ -859,28 +859,89 @@ public abstract class GoldenTestCase extends ESTestCase {
             }
         }
         int numberOfIndices = mappingsPerIndex.size();
-        var mappings = fieldNamesToFieldByIndices.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> {
-            String fieldName = e.getKey();
-            Map<String, EsField> indexToFields = e.getValue();
-            EsField field = mergeFields(fieldName, indexToFields);
-            return trackUnmappedFieldIndices
-                ? IndexResolver.wrapIfPartiallyUnmapped(field, fieldName, fieldName, indexToFields.keySet(), numberOfIndices)
-                : field;
-        }));
+        Map<String, EsField> mappings = new HashMap<>();
+        for (var entry : fieldNamesToFieldByIndices.entrySet()) {
+            String fieldName = entry.getKey();
+            mappings.put(fieldName, mergeFields(fieldName, fieldName, entry.getValue(), trackUnmappedFieldIndices, numberOfIndices));
+        }
         return new MergedResult(mappings);
     }
 
-    private static EsField mergeFields(String fieldName, Map<String, EsField> indexToFields) {
-        var fields = indexToFields.values();
-        if (fields.stream().distinct().count() > 1) {
-            var typesToIndices = new HashMap<String, Set<String>>();
-            for (var indexToField : indexToFields.entrySet()) {
-                typesToIndices.computeIfAbsent(indexToField.getValue().getDataType().typeName(), k -> new HashSet<>())
-                    .add(indexToField.getKey());
-            }
-            return new InvalidMappedField(fieldName, typesToIndices);
+    private static EsField mergeFields(
+        String fieldName,
+        String fullName,
+        Map<String, EsField> fieldByIndex,
+        boolean trackUnmappedFieldIndices,
+        int numberOfIndices
+    ) {
+        EsField field;
+        if (fieldByIndex.values().stream().map(EsField::getDataType).distinct().count() > 1) {
+            field = new InvalidMappedField(fieldName, getTypesToIndices(fieldByIndex));
         } else {
-            return fields.iterator().next();
+            // We take scalar attributes (name, dataType, aggregatable, timeSeriesFieldType) from an arbitrary representative.
+            // This is safe because: dataType is already verified identical above, name is the map key, and the only fields
+            // that reach this path are OBJECT parents whose children differ; objects are never aggregatable and always have
+            // TimeSeriesFieldType.NONE (time series types are set on leaf fields, not parent objects).
+            List<EsField> fields = fieldByIndex.values().stream().distinct().limit(2).toList();
+            EsField representative = fields.getFirst();
+            if (fields.size() == 1) {
+                field = representative;
+            } else {
+                Map<String, EsField> mergedChildren = mergeSubFields(
+                    fullName,
+                    getSubNameToIndexToSubField(fieldByIndex),
+                    trackUnmappedFieldIndices,
+                    numberOfIndices
+                );
+                field = new EsField(
+                    representative.getName(),
+                    representative.getDataType(),
+                    mergedChildren,
+                    representative.isAggregatable(),
+                    representative.getTimeSeriesFieldType()
+                );
+            }
         }
+        return trackUnmappedFieldIndices
+            ? IndexResolver.wrapIfPartiallyUnmapped(field, fieldName, fullName, fieldByIndex.keySet(), numberOfIndices)
+            : field;
+    }
+
+    /** Returns {@code Map<SubName, Map<IndexName, EsField>>}; where are typedefs when you need them! */
+    private static Map<String, Map<String, EsField>> getSubNameToIndexToSubField(Map<String, EsField> fieldByIndex) {
+        Map<String, Map<String, EsField>> result = new HashMap<>();
+        for (var entry : fieldByIndex.entrySet()) {
+            String index = entry.getKey();
+            for (var property : entry.getValue().getProperties().entrySet()) {
+                result.computeIfAbsent(property.getKey(), k -> new HashMap<>()).put(index, property.getValue());
+            }
+        }
+        return result;
+    }
+
+    private static Map<String, EsField> mergeSubFields(
+        String parentFullName,
+        Map<String, Map<String, EsField>> subFieldsByIndexBySubName,
+        boolean trackUnmappedFieldIndices,
+        int numberOfIndices
+    ) {
+        Map<String, EsField> properties = new TreeMap<>();
+        for (var subEntry : subFieldsByIndexBySubName.entrySet()) {
+            String subName = subEntry.getKey();
+            properties.put(
+                subName,
+                mergeFields(subName, parentFullName + "." + subName, subEntry.getValue(), trackUnmappedFieldIndices, numberOfIndices)
+            );
+        }
+        return properties;
+    }
+
+    /** Returns {@code Map<TypeName, Set<IndexName>>}; where are typedefs when you need them! */
+    private static Map<String, Set<String>> getTypesToIndices(Map<String, EsField> fieldByIndex) {
+        var result = new HashMap<String, Set<String>>();
+        for (var entry : fieldByIndex.entrySet()) {
+            result.computeIfAbsent(entry.getValue().getDataType().typeName(), k -> new HashSet<>()).add(entry.getKey());
+        }
+        return result;
     }
 }

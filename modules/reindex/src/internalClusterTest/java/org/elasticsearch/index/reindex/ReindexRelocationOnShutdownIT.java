@@ -679,6 +679,9 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
                     ListTasksResponse rethrottleResponse = new RethrottleRequestBuilder(client()).setTargetTaskId(taskInfo.taskId())
                         // Forces the reindexing task to still take 2 seconds, giving enough time for the node to shut down
                         .setRequestsPerSecond((float) numDocs / 2)
+                        // Follow the relocation chain: if the task relocated between listing and rethrottling,
+                        // the rethrottle would silently return an empty success without this flag set.
+                        .setFollowRelocations(true)
                         .get();
                     rethrottleResponse.rethrowFailures("rethrottle after relocation");
                     return;

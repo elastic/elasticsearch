@@ -138,7 +138,7 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
             // Stage 4: rethrottle to unlimited via a *non-coordinator* node, since the coordinator's HTTP transport is being torn down.
             // The rethrottle is dispatched via internal transport (which is still up on the coordinator during the relocation hook),
             // and lets the throttled reindex advance past its current sleep so it can pick up the relocation flag.
-            rethrottleViaSurvivingNode(dataNodeAddress, taskId);
+            rethrottleViaSurvivingNode(dataNodeAddress, taskId, numDocs);
 
             // Stage 5: wait for the relocation chain in .tasks to show the original task was relocated and the relocated task completed
             // successfully. Without the fix, the resume action is rejected by RBAC and this never happens.
@@ -251,7 +251,7 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
         }
     }
 
-    private void rethrottleViaSurvivingNode(String dataNodeAddress, String taskId) throws Exception {
+    private void rethrottleViaSurvivingNode(String dataNodeAddress, String taskId, int numDocs) throws Exception {
         // Use the data node address captured before coordinator shutdown so the fixture is not asked to resolve a dead node.
         try (
             RestClient dataClient = buildClient(
@@ -262,7 +262,8 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
             // retry in case the reindex task is not initialized and ready to be rethrottled yet
             assertBusy(() -> {
                 final Request rethrottle = new Request("POST", "/_reindex/" + taskId + "/_rethrottle");
-                rethrottle.addParameter("requests_per_second", "-1");
+                // Forces the reindexing task to still take 2 seconds, giving enough time for the node to shut down
+                rethrottle.addParameter("requests_per_second", String.valueOf(numDocs / 2));
                 dataClient.performRequest(rethrottle);
             }, 15, TimeUnit.SECONDS);
         }

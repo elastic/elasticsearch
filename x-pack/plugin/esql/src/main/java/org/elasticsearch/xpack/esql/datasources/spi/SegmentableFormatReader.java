@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -74,16 +75,27 @@ public interface SegmentableFormatReader extends FormatReader {
      * the open region (or {@code -1} if none). Returning an offset inside the open region would
      * dispatch a malformed chunk.
      * <p>
-     * Default: backward scan for {@code \n} — correct for NDJSON and other line-oriented formats
-     * with no embedded newlines; O(1) when the buffer ends near a boundary. Formats with embedded
-     * newlines inside quoted fields (CSV/TSV) must override to track quote state.
+     * Default: drives {@link #findNextRecordBoundary} forward through the buffer, so embedded
+     * newlines inside quoted fields are handled correctly by any implementation that tracks
+     * quote state in its boundary scanner. A sub-stream is created per record because
+     * {@code findNextRecordBoundary} implementations may read beyond the returned boundary
+     * (e.g. via internal bulk-read buffers); each sub-stream is a lightweight view into the
+     * same backing array with no data copying.
      */
     default int findLastRecordBoundary(byte[] buf, int length) throws IOException {
-        for (int i = length - 1; i >= 0; i--) {
-            if (buf[i] == '\n') {
-                return i;
-            }
+        if (length <= 0) {
+            return -1;
         }
-        return -1;
+        int lastBoundary = -1;
+        int cumulative = 0;
+        while (cumulative < length) {
+            long consumed = findNextRecordBoundary(new ByteArrayInputStream(buf, cumulative, length - cumulative));
+            if (consumed < 0) {
+                return lastBoundary;
+            }
+            cumulative += Math.toIntExact(consumed);
+            lastBoundary = cumulative - 1;
+        }
+        return lastBoundary;
     }
 }

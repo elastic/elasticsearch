@@ -176,15 +176,14 @@ public class AlibabaCloudSearchService extends SenderService<AlibabaCloudSearchM
 
     @Override
     protected void doRerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
-        if (model instanceof AlibabaCloudSearchRerankModel alibabaCloudSearchModel) {
-            var actionCreator = new AlibabaCloudSearchActionCreator(getSender(), getServiceComponents());
-
-            var action = alibabaCloudSearchModel.accept(actionCreator, request.taskSettings());
-            action.execute(fromRerankRequest(request), timeout, listener);
-        } else {
+        if (!(model instanceof AlibabaCloudSearchRerankModel alibabaCloudSearchModel)) {
             listener.onFailure(createInvalidModelException(model));
+            return;
         }
+        var actionCreator = new AlibabaCloudSearchActionCreator(getSender(), getServiceComponents());
 
+        var action = alibabaCloudSearchModel.accept(actionCreator, request.taskSettings());
+        action.execute(fromRerankRequest(request), timeout, listener);
     }
 
     @Override

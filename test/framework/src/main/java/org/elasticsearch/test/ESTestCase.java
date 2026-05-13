@@ -218,6 +218,7 @@ import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.startsWith;
 

@@ -49,11 +49,7 @@ public class MetricAttributesUtilsTests extends ESTestCase {
 
     public void testAllKnownOriginsAreLowercase() {
         for (var origin : MetricAttributes.KNOWN_PRODUCT_ORIGINS) {
-            assertThat(
-                "KNOWN_PRODUCT_ORIGINS entry must be lowercase: " + origin,
-                origin,
-                equalTo(origin.toLowerCase(Locale.ROOT))
-            );
+            assertThat("KNOWN_PRODUCT_ORIGINS entry must be lowercase: " + origin, origin, equalTo(origin.toLowerCase(Locale.ROOT)));
         }
     }
 }

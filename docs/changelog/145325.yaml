@@ -1,0 +1,7 @@
+area: Watcher
+issues:
+ - 137562
+ - 131964
+pr: 145325
+summary: Clear watch schedules when starting trigger engine
+type: bug

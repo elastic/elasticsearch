@@ -240,6 +240,6 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 }

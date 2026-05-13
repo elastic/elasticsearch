@@ -151,7 +151,7 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
 
         @Override
         public String toString() {
-            return Strings.toString(this);
+            return Strings.toTruncatedString(this);
         }
     }
 

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.nativeaccess;
 
+import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.logging.NodeNamePatternConverter;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Optional;
@@ -17,6 +19,11 @@ import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.hamcrest.Matchers.not;
 
 public class VectorSimilarityFunctionsTests extends ESTestCase {
+
+    static {
+        NodeNamePatternConverter.setGlobalNodeName("foo");
+        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+    }
 
     final Optional<VectorSimilarityFunctions> vectorSimilarityFunctions;
 

@@ -134,6 +134,23 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             );
         }
 
+        /**
+         * Constructor that allows an {@link InferenceContext} to be specified
+         *
+         * @param taskType the {@link TaskType} of the inference request. May be {@link TaskType#ANY}, which will result in the task type
+         *                 being determined after parsing the stored model
+         * @param inferenceEntityId the endpoint ID
+         * @param query for {@link TaskType#RERANK}, the query to use
+         * @param returnDocuments for {@link TaskType#RERANK}, whether the request should return the input values as part of the results
+         * @param topN for {@link TaskType#RERANK}, the number of results to return
+         * @param input the inputs to use for the inference request
+         * @param taskSettings the task settings to use for the inference request
+         * @param inputType the {@link InputType} of the request
+         * @param inferenceTimeout the timeout to use. If null, a placeholder timeout will be used until the appropriate timeout for the
+         *                         task type and input type can be determined by the inference service implementation
+         * @param stream whether the request should use streaming
+         * @param context the {@link InferenceContext} to use, if {@code null} then an empty context will be used
+         */
         public Request(
             TaskType taskType,
             String inferenceEntityId,
@@ -367,7 +384,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             private Integer topN;
             private TimeValue timeout = DEFAULT_TIMEOUT;
             private boolean stream = false;
-            private InferenceContext context;
+            private InferenceContext context = InferenceContext.EMPTY_INSTANCE;
 
             private Builder() {}
 
@@ -430,8 +447,13 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 return this;
             }
 
+            /**
+             * Sets the {@link InferenceContext} for this request. If not set, an empty context will be used.
+             * If the context is set to {@code null}, an empty context will also be used.
+             * @param context the context to set
+             */
             public Builder setContext(InferenceContext context) {
-                this.context = context;
+                this.context = Objects.requireNonNullElse(context, InferenceContext.EMPTY_INSTANCE);
                 return this;
             }
 

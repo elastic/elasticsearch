@@ -282,12 +282,26 @@ public abstract class Rounding implements Writeable {
     public abstract byte id();
 
     public interface PreparedIterator {
+        /**
+         * The rounded value following {@link #next()}.
+         */
         long getRounded();
 
+        /**
+         * The floor of the current rounded interval.
+         * Returns {@code getRounded()} if current value not an interval.
+         */
         long getRoundedFloor();
 
+        /**
+         * The ceiling of the current interval.
+         * Returns {@code getRounded()} if current value not an interval.
+         */
         long getRoundedCeiling();
 
+        /**
+         * Advances to the next value.
+         */
         boolean next();
     }
 
@@ -326,9 +340,10 @@ public abstract class Rounding implements Writeable {
         }
 
         default PreparedIterator iterator(long startUtcMillis, long endUtcMillis) {
+            final long initial = round(startUtcMillis);
             return new PreparedIterator() {
-                long lo;
-                long hi = round(startUtcMillis);
+                long lo = initial;
+                long hi = initial;
 
                 @Override
                 public long getRounded() {

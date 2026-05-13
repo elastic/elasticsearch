@@ -242,7 +242,6 @@ public class TopNOperator implements Operator, Accountable {
 
     private ReleasableIterator<Page> output;
 
-    // AtomicLong because workers accumulate into it concurrently in parallel mode.
     private final AtomicLong receiveNanos = new AtomicLong();
     private long emitNanos;
 
@@ -270,17 +269,9 @@ public class TopNOperator implements Operator, Accountable {
 
     private final int topCount;
 
+    /** Parallel-mode state. Null iff the operator is sequential-only. */
     @Nullable
-    private final DriverContext driverContext;
-    @Nullable
-    private final ParallelWorkerConfig workerConfig;
-    @Nullable
-    private WorkerFanOut<TopNWorkerState> workers;
-    // Latched even if promoteToParallel throws partway, so a re-entry can't find sequentialState
-    // already nulled and silently drop dispatched rows.
-    private boolean promotionAttempted;
-    @Nullable
-    private AtomicLong[] occupiedRows;
+    private final ParallelState parallel;
 
     public TopNOperator(
         BlockFactory blockFactory,
@@ -361,21 +352,21 @@ public class TopNOperator implements Operator, Accountable {
         }
         // SORTED input or non-null minCompetitive rules out promotion at construction time.
         boolean canPromote = workerConfig != null && inputOrdering != InputOrdering.SORTED && minCompetitive == null;
-        this.driverContext = canPromote ? driverContext : null;
-        this.workerConfig = canPromote ? workerConfig : null;
+        this.parallel = canPromote ? new ParallelState(driverContext, workerConfig) : null;
     }
 
     @Override
     public boolean needsInput() {
+        WorkerFanOut<TopNWorkerState> workers = parallel == null ? null : parallel.workers;
         return workers != null ? workers.needsInput() : output == null;
     }
 
     @Override
     public void addInput(Page page) {
-        if (workers != null) {
+        if (parallel != null && parallel.workers != null) {
             pagesReceived++;
             rowsReceived += page.getPositionCount();
-            workers.addInput(page);
+            parallel.workers.addInput(page);
             return;
         }
         long start = System.nanoTime();
@@ -397,11 +388,11 @@ public class TopNOperator implements Operator, Accountable {
     // TODO: workers could offer local heap-tops to minCompetitive (max as a looser-but-correct bound),
     // which would let promotion fire under non-null minCompetitive.
     private boolean shouldPromoteToParallel() {
-        return workerConfig != null
-            && promotionAttempted == false
-            && workers == null
+        return parallel != null
+            && parallel.promotionAttempted == false
+            && parallel.workers == null
             && output == null
-            && rowsReceived > workerConfig.promotionThresholdRows();
+            && rowsReceived > parallel.config.promotionThresholdRows();
     }
 
     /** Returns true if any insert/replace happened, so callers can skip a no-op {@link #updateMinCompetitive}. */
@@ -457,8 +448,8 @@ public class TopNOperator implements Operator, Accountable {
 
     @Override
     public void finish() {
-        if (workers != null) {
-            workers.finish();
+        if (parallel != null && parallel.workers != null) {
+            parallel.workers.finish();
             return;
         }
         if (output == null) {
@@ -470,16 +461,16 @@ public class TopNOperator implements Operator, Accountable {
 
     @Override
     public boolean isFinished() {
-        if (workers != null) {
-            return workers.isFinished();
+        if (parallel != null && parallel.workers != null) {
+            return parallel.workers.isFinished();
         }
         return output != null && output.hasNext() == false;
     }
 
     @Override
     public boolean canProduceMoreDataWithoutExtraInput() {
-        if (workers != null) {
-            return workers.canProduceMoreDataWithoutExtraInput();
+        if (parallel != null && parallel.workers != null) {
+            return parallel.workers.canProduceMoreDataWithoutExtraInput();
         }
         return output != null && output.hasNext();
     }
@@ -487,8 +478,8 @@ public class TopNOperator implements Operator, Accountable {
     @Override
     public Page getOutput() {
         Page ret;
-        if (workers != null) {
-            ret = workers.getOutput();
+        if (parallel != null && parallel.workers != null) {
+            ret = parallel.workers.getOutput();
         } else {
             if (output == null || output.hasNext() == false) {
                 return null;
@@ -504,15 +495,18 @@ public class TopNOperator implements Operator, Accountable {
 
     @Override
     public IsBlockedResult isBlocked() {
-        return workers != null ? workers.isBlocked() : Operator.NOT_BLOCKED;
+        return parallel != null && parallel.workers != null ? parallel.workers.isBlocked() : Operator.NOT_BLOCKED;
     }
 
     @Override
     public void close() {
+        WorkerFanOut<TopNWorkerState> workers = parallel == null ? null : parallel.workers;
         Releasables.closeExpectNoException(workers, sequentialState, output, minCompetitive);
         sequentialState = null;
         output = null;
-        workers = null;
+        if (parallel != null) {
+            parallel.workers = null;
+        }
     }
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TopNOperator.class) + RamUsageEstimator
@@ -532,18 +526,26 @@ public class TopNOperator implements Operator, Accountable {
         if (sequentialState != null) {
             size += sequentialState.ramBytesUsed();
         }
-        if (workers != null) {
-            size += workers.ramBytesUsed();
+        if (parallel != null && parallel.workers != null) {
+            size += parallel.workers.ramBytesUsed();
         }
         return size;
     }
 
     @Override
     public Status status() {
+        int occupiedCount;
+        if (sequentialState != null) {
+            occupiedCount = sequentialState.queue.size();
+        } else if (parallel != null && parallel.occupiedRows != null) {
+            occupiedCount = Math.toIntExact(Arrays.stream(parallel.occupiedRows).mapToLong(AtomicLong::get).sum());
+        } else {
+            occupiedCount = 0;
+        }
         return new TopNOperatorStatus(
             receiveNanos.get(),
             emitNanos,
-            sequentialState != null ? sequentialState.queue.size() : occupiedRows != null ? totalOccupancy() : 0,
+            occupiedCount,
             ramBytesUsed(),
             pagesReceived,
             pagesEmitted,
@@ -551,11 +553,6 @@ public class TopNOperator implements Operator, Accountable {
             rowsEmitted,
             minCompetitiveUpdates
         );
-    }
-
-    private int totalOccupancy() {
-        assert occupiedRows != null;
-        return Math.toIntExact(Arrays.stream(occupiedRows).mapToLong(AtomicLong::get).sum());
     }
 
     @Override
@@ -574,17 +571,22 @@ public class TopNOperator implements Operator, Accountable {
     }
 
     private void promoteToParallel() {
-        assert workerConfig != null && driverContext != null : "promoteToParallel() called without parallel config";
+        assert parallel != null : "promoteToParallel() called without parallel config";
         // Latch before construction: if WorkerFanOut throws partway, its cleanup closes the seeded
         // state from sequentialState. Latching here prevents a re-entry from dispatching to slot 0
         // with no state.
-        promotionAttempted = true;
-        final int workerCount = workerConfig.workerCount();
-        occupiedRows = new AtomicLong[workerCount];
+        parallel.promotionAttempted = true;
+        final int workerCount = parallel.config.workerCount();
+        parallel.occupiedRows = new AtomicLong[workerCount];
         for (int i = 0; i < workerCount; i++) {
-            occupiedRows[i] = new AtomicLong();
+            parallel.occupiedRows[i] = new AtomicLong();
         }
-        workers = new WorkerFanOut<>(driverContext, workerConfig.executor(), workerCount, workerConfig.maxInFlightPages()) {
+        parallel.workers = new WorkerFanOut<>(
+            parallel.driverContext,
+            parallel.config.executor(),
+            workerCount,
+            parallel.config.maxInFlightPages()
+        ) {
             int dispatchCursor = 0;
 
             @Override
@@ -610,7 +612,7 @@ public class TopNOperator implements Operator, Accountable {
                     mergePageIntoQueue(page, state);
                 } finally {
                     receiveNanos.addAndGet(System.nanoTime() - start);
-                    occupiedRows[slotIndex].set(state.queue == null ? 0 : state.queue.size());
+                    parallel.occupiedRows[slotIndex].set(state.queue == null ? 0 : state.queue.size());
                 }
             }
 
@@ -655,6 +657,26 @@ public class TopNOperator implements Operator, Accountable {
                 }
             }
         };
+    }
+
+    /**
+     * Parallel-mode state: immutable wiring plus runtime fields populated at promotion. The
+     * {@code promotionAttempted} flag latches even if {@link #promoteToParallel()} throws partway,
+     * preventing a re-entry from dispatching to a slot whose state was already consumed.
+     */
+    private static final class ParallelState {
+        final DriverContext driverContext;
+        final ParallelWorkerConfig config;
+        boolean promotionAttempted;
+        @Nullable
+        WorkerFanOut<TopNWorkerState> workers;
+        @Nullable
+        AtomicLong[] occupiedRows;
+
+        ParallelState(DriverContext driverContext, ParallelWorkerConfig config) {
+            this.driverContext = driverContext;
+            this.config = config;
+        }
     }
 
     static final class TopNWorkerState implements Releasable, Accountable {

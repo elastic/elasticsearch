@@ -56,7 +56,7 @@ public class VectorScorerBFloat16OperationBenchmark {
         Utils.configureBenchmarkLogging();
     }
 
-    static final ValueLayout.OfShort LAYOUT_LE_BFLOAT16 = ValueLayout.JAVA_SHORT.withOrder(ByteOrder.LITTLE_ENDIAN);
+    static final ValueLayout.OfByte LAYOUT_LE_BFLOAT16 = ValueLayout.JAVA_BYTE;
     static final ValueLayout.OfFloat LAYOUT_LE_FLOAT32 = ValueLayout.JAVA_FLOAT.withOrder(ByteOrder.LITTLE_ENDIAN);
 
     byte[] bFloatsA;
@@ -104,11 +104,11 @@ public class VectorScorerBFloat16OperationBenchmark {
         };
 
         arena = Arena.ofConfined();
-        nativeSegA = arena.allocate((long) bFloatsA.length * BFloat16.BYTES);
+        nativeSegA = arena.allocate(bFloatsA.length);
         MemorySegment.copy(bFloatsA, 0, nativeSegA, LAYOUT_LE_BFLOAT16, 0L, bFloatsA.length);
         switch (queryType) {
             case BFLOAT16 -> {
-                nativeSegB = arena.allocate((long) bFloatsB.length * BFloat16.BYTES);
+                nativeSegB = arena.allocate(bFloatsB.length);
                 MemorySegment.copy(bFloatsB, 0, nativeSegB, LAYOUT_LE_BFLOAT16, 0L, bFloatsB.length);
             }
             case FLOAT32 -> {

@@ -60,7 +60,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     /** Pattern to match template placeholders like {{employees}} */
     private static final Pattern TEMPLATE_PATTERN = Pattern.compile("\\{\\{(\\w+)}}");
 
-    /** Base path for fixtures within the resource directory */
+    /** Default base path for fixtures within the resource directory */
     private static final String FIXTURES_BASE = "standalone";
 
     /**
@@ -323,6 +323,15 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
+     * Override to change the base directory within the resource tree where single-file fixtures live.
+     * Defaults to {@code "standalone"}. Subclasses testing compressed Parquet fixtures can override
+     * this to point at codec-specific directories (e.g. {@code "standalone-snappy"}).
+     */
+    protected String fixturesBase() {
+        return FIXTURES_BASE;
+    }
+
+    /**
      * Override to specify a reader implementation for the EXTERNAL query.
      * When non-null, a {@code "reader": "<name>"} parameter is injected into the WITH clause.
      *
@@ -439,7 +448,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         } else {
             // Single-file template: employees -> standalone/employees.parquet
             String filename = templateName + "." + format;
-            relativePath = FIXTURES_BASE + "/" + filename;
+            relativePath = fixturesBase() + "/" + filename;
         }
 
         switch (storageBackend) {

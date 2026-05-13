@@ -10,12 +10,10 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.util.HashMap;
 import java.util.HashSet;

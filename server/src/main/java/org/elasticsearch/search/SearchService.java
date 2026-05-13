@@ -1656,7 +1656,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     reader,
                     keepAliveInMillis,
                     relocatedReshardingMetadata,
-                    relocatedSplitShardCountSummary
+                    relocatedSplitShardCountSummary,
+                    0L
                 );
                 reader = null;
                 final ReaderContext finalReaderContext = readerContext;
@@ -1729,7 +1730,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     idGenerator.incrementAndGet(),
                     searcherSupplier.getSearcherId()
                 );
-                readerContext = new ReaderContext(id, indexService, shard, searcherSupplier, keepAlive.millis(), false, creatorTaskId);
+                readerContext = new PitReaderContext(
+                    id,
+                    indexService,
+                    shard,
+                    searcherSupplier,
+                    keepAlive.millis(),
+                    reshardingMetadataForContext,
+                    splitShardCountSummary,
+                    creatorTaskId
+                );
                 final ReaderContext finalReaderContext = readerContext;
                 searcherSupplier = null; // transfer ownership to reader context
                 searchOperationListener.onNewReaderContext(readerContext);

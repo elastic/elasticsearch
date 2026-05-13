@@ -166,7 +166,7 @@ public class GroqService extends SenderService<GroqModel> {
     }
 
     @Override
-    protected boolean supportsChunkedInfer() {
+    public boolean supportsChunkedInfer() {
         return false;
     }
 

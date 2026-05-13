@@ -9,10 +9,16 @@ package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.inference.ChunkInferenceInput;
+import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.RerankingInferenceService;
@@ -24,6 +30,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
+import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerService;
+import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.junit.After;
 import org.junit.Assume;
 import org.junit.Before;
@@ -32,7 +42,11 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
+import static org.elasticsearch.inference.InferenceString.fromStringList;
+import static org.elasticsearch.inference.InferenceStringTests.createRandomUsingDataTypes;
+import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.xpack.inference.Utils.TIMEOUT;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
@@ -40,6 +54,7 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * This class is for tests that apply to all implementations of {@link InferenceService} but which are not parameterized.
@@ -223,5 +238,59 @@ public abstract class InferenceServiceTestCase extends ESTestCase {
             assertThat(service.supportedStreamingTasks(), is(expectedStreamingTasks()));
             assertFalse(service.canStream(TaskType.ANY));
         }
+    }
+
+    public void testChunkedInferDoesNotSupportMultipleItemsPerContent() throws IOException {
+        try (var inferenceService = createInferenceService()) {
+            var multipleItemsInput = new InferenceStringGroup(fromStringList(List.of("input1", "input2")));
+            var exceptionMessage = Strings.format(
+                "Field [content] must contain a single item for [%s] service. "
+                    + "[content] object with multiple items found at $.input.content[0]",
+                inferenceService.name()
+            );
+            testChunkedInferFailure(inferenceService, multipleItemsInput, exceptionMessage);
+        }
+    }
+
+    public void testChunkedInferDoesNotSupportNonTextInputs() throws IOException {
+        try (var inferenceService = createInferenceService()) {
+            Assume.assumeFalse(inferenceService.supportsNonTextEmbeddingContent());
+
+            var nonTextInput = new InferenceStringGroup(createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT))));
+            var exceptionMessage = Strings.format(
+                "The %s service does not support embedding with non-text inputs",
+                inferenceService.name()
+            );
+            testChunkedInferFailure(inferenceService, nonTextInput, exceptionMessage);
+        }
+    }
+
+    private static void testChunkedInferFailure(
+        InferenceService inferenceService,
+        InferenceStringGroup inferenceStrings,
+        String exceptionMessage
+    ) {
+        Assume.assumeTrue(inferenceService.supportsChunkedInfer());
+
+        var inputs = List.of(new ChunkInferenceInput(inferenceStrings, null));
+        var listener = new TestPlainActionFuture<List<ChunkedInference>>();
+
+        Model model;
+        // SageMakerService and ElasticsearchInternalService check the type of the model in chunkedInfer(), so ensure we're using the
+        // appropriate type
+        if (inferenceService instanceof SageMakerService) {
+            model = mock(SageMakerModel.class);
+        } else if (inferenceService instanceof ElasticsearchInternalService) {
+            model = mock(ElasticInferenceServiceModel.class);
+            when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+        } else {
+            model = mock();
+        }
+
+        inferenceService.chunkedInfer(model, null, inputs, Map.of(), InputType.INTERNAL_INGEST, ESTestCase.TEST_REQUEST_TIMEOUT, listener);
+        var exception = expectThrows(ElasticsearchStatusException.class, listener::actionGet);
+
+        assertThat(exception.status(), is(BAD_REQUEST));
+        assertThat(exception.getMessage(), is(exceptionMessage));
     }
 }

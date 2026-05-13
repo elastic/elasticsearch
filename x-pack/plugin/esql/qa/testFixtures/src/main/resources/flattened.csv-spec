@@ -5,8 +5,8 @@ FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:02:48.461Z"
 ;
 
-@timestamp:date          | attributes:flattened                                        | resource.attributes:flattened
-2020-01-01T00:02:48.461Z | "{""rally.message_size"":""192"",""type"":""beats""}"        | "{""agent.id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-6vjxr""}"
+@timestamp:date          | attributes:flattened                                 | resource.attributes:flattened
+2020-01-01T00:02:48.461Z | "{""rally.message_size"":""192"",""type"":""beats""}" | "{""agent.id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-6vjxr""}"
 ;
 
 sort
@@ -17,9 +17,9 @@ FROM flattened_otel_logs
 | LIMIT 2
 ;
 
-@timestamp:date          | attributes:flattened                                                                                          | resource.attributes:flattened
-2020-01-01T00:02:48.461Z | "{""rally.message_size"":""192"",""type"":""beats""}"                                                          | "{""agent.id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-6vjxr""}"
-2020-01-01T00:07:43.000Z | "{""event.module"":""nginx"",""input.type"":""log"",""nginx.error.connection_id"":""184896""}"                   | "{""agent.id"":""3ac5081d-9275-4cde-a2a8-a00b794a20f4"",""agent.type"":""filebeat"",""host.ip"":[""10.224.0.170"",""fe80::4001:aff:fee0:aa""],""host.name"":""devops-ci-master-blue.c.elastic-ci-prod.internal""}"
+@timestamp:date          | attributes:flattened                                 | resource.attributes:flattened
+2020-01-01T00:00:00.000Z | "{""host.name"":""equal-host""}"                     | "{""host.name"":""equal-host""}"
+2020-01-01T00:02:48.461Z | "{""rally.message_size"":""192"",""type"":""beats""}" | "{""agent.id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-6vjxr""}"
 ;
 
 rename
@@ -56,7 +56,7 @@ FROM flattened_otel_logs
 ;
 
 count:long
-10
+12
 ;
 
 to_string
@@ -101,30 +101,48 @@ FROM flattened_otel_logs
 2020-01-01T00:02:48.461Z | "{""rally.message_size"":""192"",""type"":""beats""}"
 ;
 
+coalesceNullResourceAttributes
+required_capability: flattened_datatype
+required_capability: fn_coalesce_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:04:00.000Z"
+| EVAL c = COALESCE(resource.attributes, attributes)
+| KEEP @timestamp, c
+;
+
+@timestamp:date          | c:flattened
+2020-01-01T00:04:00.000Z | "{""host.name"":""null-resource-test""}"
+;
+
 isNull
 required_capability: flattened_datatype
 
 FROM flattened_otel_logs
-| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
-| EVAL n = attributes IS NULL
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z" OR @timestamp == "2020-01-01T00:04:00.000Z"
+| EVAL n = resource.attributes IS NULL
 | KEEP @timestamp, n
+| SORT @timestamp
 ;
 
 @timestamp:date          | n:boolean
 2020-01-01T00:02:48.461Z | false
+2020-01-01T00:04:00.000Z | true
 ;
 
 isNotNull
 required_capability: flattened_datatype
 
 FROM flattened_otel_logs
-| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
-| EVAL n = attributes IS NOT NULL
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z" OR @timestamp == "2020-01-01T00:04:00.000Z"
+| EVAL n = resource.attributes IS NOT NULL
 | KEEP @timestamp, n
+| SORT @timestamp
 ;
 
 @timestamp:date          | n:boolean
 2020-01-01T00:02:48.461Z | true
+2020-01-01T00:04:00.000Z | false
 ;
 
 casePicksPerRow
@@ -139,8 +157,8 @@ FROM flattened_otel_logs
 ;
 
 @timestamp:date          | c:flattened
+2020-01-01T00:00:00.000Z | "{""host.name"":""equal-host""}"
 2020-01-01T00:02:48.461Z | "{""rally.message_size"":""192"",""type"":""beats""}"
-2020-01-01T00:07:43.000Z | "{""agent.id"":""3ac5081d-9275-4cde-a2a8-a00b794a20f4"",""agent.type"":""filebeat"",""host.ip"":[""10.224.0.170"",""fe80::4001:aff:fee0:aa""],""host.name"":""devops-ci-master-blue.c.elastic-ci-prod.internal""}"
 ;
 
 caseDefaultArm
@@ -155,4 +173,36 @@ FROM flattened_otel_logs
 
 @timestamp:date          | c:flattened
 2020-01-01T00:02:48.461Z | "{""agent.id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-6vjxr""}"
+;
+
+equals
+required_capability: flattened_datatype
+required_capability: fn_equals_flattened
+
+FROM flattened_otel_logs
+| SORT @timestamp ASC
+| LIMIT 2
+| EVAL eq = attributes == resource.attributes
+| KEEP @timestamp, eq
+;
+
+@timestamp:date          | eq:boolean
+2020-01-01T00:00:00.000Z | true
+2020-01-01T00:02:48.461Z | false
+;
+
+notEquals
+required_capability: flattened_datatype
+required_capability: fn_not_equals_flattened
+
+FROM flattened_otel_logs
+| SORT @timestamp ASC
+| LIMIT 2
+| EVAL neq = attributes != resource.attributes
+| KEEP @timestamp, neq
+;
+
+@timestamp:date          | neq:boolean
+2020-01-01T00:00:00.000Z | false
+2020-01-01T00:02:48.461Z | true
 ;

@@ -612,11 +612,12 @@ final class ParquetPushedExpressions {
 
     /**
      * Evaluates a single expression against blocks decoded from specific columns. Used by
-     * multi-stage Phase 1 where each stage evaluates one expression at a time. The
-     * dictionary memoization cache is not threaded here because callers in this path do
-     * not own a row-group lifecycle that lines up with the cache's invalidation contract;
-     * the six-argument overload exists for completeness but is currently always invoked
-     * with a {@code null} cache.
+     * multi-stage Phase 1 where each stage evaluates one expression at a time. Dictionary
+     * memoization is intentionally not threaded here: this path does not own a row-group
+     * lifecycle compatible with the cache's invalidation contract, so the underlying
+     * {@code evaluateExpression} call receives a {@code null} cache and dictionary bitmaps
+     * are recomputed per batch. The full-filter path through {@link #evaluateFilter} is
+     * what carries the memoization map across batches.
      *
      * @param expr             the expression to evaluate
      * @param blocks           decoded blocks indexed by column position (may have nulls for non-stage columns)
@@ -632,26 +633,24 @@ final class ParquetPushedExpressions {
         int rowCount,
         @Nullable WordMask intermediateMask
     ) {
-        return evaluateSingleExpression(expr, blocks, attributes, rowCount, intermediateMask, null);
-    }
-
-    WordMask evaluateSingleExpression(
-        Expression expr,
-        Block[] blocks,
-        List<Attribute> attributes,
-        int rowCount,
-        @Nullable WordMask intermediateMask,
-        @Nullable Map<Expression, boolean[]> dictCache
-    ) {
         Map<String, Block> blockMap = new HashMap<>();
         for (int i = 0; i < blocks.length; i++) {
             if (blocks[i] != null && i < attributes.size()) {
                 blockMap.put(attributes.get(i).name(), blocks[i]);
             }
         }
-        return evaluateExpression(expr, blockMap, rowCount, intermediateMask, dictCache);
+        return evaluateExpression(expr, blockMap, rowCount, intermediateMask, null);
     }
 
+    /**
+     * Evaluates the held filter expressions against {@code predicateBlocks} and returns a
+     * survivor mask. Returns {@code null} when every row survives (the caller can then skip
+     * compaction entirely); otherwise returns {@code reusable} populated with the surviving
+     * positions. Equivalent to calling the four-argument overload with a {@code null}
+     * dictionary cache — no cross-batch memoization, dictionary bitmaps are recomputed on
+     * every call. Used by tests and by call sites that have no row-group lifecycle to hand
+     * a cache to.
+     */
     WordMask evaluateFilter(Map<String, Block> predicateBlocks, int rowCount, WordMask reusable) {
         return evaluateFilter(predicateBlocks, rowCount, reusable, null);
     }
@@ -675,6 +674,7 @@ final class ParquetPushedExpressions {
         @Nullable Map<Expression, boolean[]> dictCache
     ) {
         reusable.setAll(rowCount);
+        lastEvaluateExpressionCalls = 0;
         int evaluated = 0;
         for (Expression expr : expressions) {
             WordMask exprResult = evaluateExpression(expr, predicateBlocks, rowCount, reusable, dictCache);
@@ -703,13 +703,22 @@ final class ParquetPushedExpressions {
         return reusable;
     }
 
-    // Test-only observability: number of expressions actually evaluated by the most recent
-    // evaluateFilter call. Used to assert the empty-mask early-exit fires when the first
-    // predicate eliminates every row in a batch; production code does not read this field.
+    // Test-only observability. {@code lastExpressionsEvaluated} counts the number of
+    // top-level conjuncts the most recent evaluateFilter actually walked before either
+    // short-circuiting on an empty mask or running to completion.
+    // {@code lastEvaluateExpressionCalls} counts every entry to {@code evaluateExpression}
+    // — including recursive descents into nested And/Or — and resets at the start of each
+    // evaluateFilter. The pair lets tests distinguish the top-level loop's early exit from
+    // the nested-And short-circuit. Production code does not read these fields.
     private int lastExpressionsEvaluated;
+    private int lastEvaluateExpressionCalls;
 
     int lastExpressionsEvaluatedForTesting() {
         return lastExpressionsEvaluated;
+    }
+
+    int lastEvaluateExpressionCallsForTesting() {
+        return lastEvaluateExpressionCalls;
     }
 
     // Note: not static — uses the per-instance automaton cache in evaluateWildcardLike.
@@ -725,6 +734,7 @@ final class ParquetPushedExpressions {
         @Nullable WordMask intermediateMask,
         @Nullable Map<Expression, boolean[]> dictCache
     ) {
+        lastEvaluateExpressionCalls++;
         if (expr instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression ne && bc.right().foldable()) {
             Block block = blocks.get(ne.name());
             if (block == null) {
@@ -771,32 +781,39 @@ final class ParquetPushedExpressions {
             if (block == null) {
                 return null;
             }
-            WordMask mask = new WordMask();
-            // Fast path: the block has no nulls -> every row survives. setAll uses word-level
-            // operations to mark all positions in one pass instead of rowCount isNull() calls.
-            // Mirrors the same gate used by IsNull above and by maskNonNullRows on the
-            // dictionary fast path.
-            if (block.mayHaveNulls() == false) {
-                mask.setAll(rowCount);
-                return mask;
-            }
-            mask.reset(rowCount);
-            for (int i = 0; i < rowCount; i++) {
-                if (block.isNull(i) == false) {
-                    mask.set(i);
-                }
-            }
-            return mask;
+            // IsNotNull is exactly "the non-null rows", which is the primitive shared by
+            // the LIKE "*" shortcut and the dictionary ALL fast path. The mayHaveNulls()
+            // gate inside maskNonNullRows means a block with no nulls collapses to a
+            // single setAll without scanning rows.
+            return maskNonNullRows(block, rowCount);
         }
         if (expr instanceof Range range && range.value() instanceof NamedExpression ne) {
             Block block = blocks.get(ne.name());
             if (block == null) {
                 return null;
             }
+            // No dictionary cache threaded here: evaluateRange currently only handles numeric
+            // blocks (Int/Long/Double), which are not dictionary-encoded. If ever extended to
+            // BytesRef ranges over OrdinalBytesRefBlock, the cache would need to be wired in
+            // alongside the other dictionary-aware predicate evaluators.
             return evaluateRange(range, block, rowCount);
         }
         if (expr instanceof And and) {
             WordMask left = evaluateExpression(and.left(), blocks, rowCount, intermediateMask, dictCache);
+            // Nested-AND empty-mask short-circuit. Mirrors the top-level early exit in
+            // evaluateFilter: once the left arm has eliminated every row in this batch, no
+            // result from the right arm can rescue a row (AND is monotone over the survivor
+            // set), so evaluating right is pure waste — notably for predicates that do a
+            // per-batch dictionary scan ignoring the intermediateMask. The outer
+            // evaluateFilter loop only short-circuits between top-level conjuncts; this
+            // catches the same waste inside a planner-produced nested And. Note: we do not
+            // additionally tighten the intermediateMask passed to right with left's bits
+            // here, to avoid the per-And allocation; the existing intermediateMask
+            // threaded from the outer loop already carries the cumulative narrowing across
+            // previously evaluated top-level conjuncts.
+            if (left != null && left.isEmpty()) {
+                return left;
+            }
             WordMask right = evaluateExpression(and.right(), blocks, rowCount, intermediateMask, dictCache);
             if (left != null && right != null) {
                 left.and(right);
@@ -1309,9 +1326,22 @@ final class ParquetPushedExpressions {
      */
     private static WordMask maskNonNullRows(Block block, int rowCount) {
         WordMask mask = new WordMask();
+        maskNonNullRowsInto(block, rowCount, mask);
+        return mask;
+    }
+
+    /**
+     * Populates {@code mask} so that bit {@code i} is set iff {@code block.isNull(i)} is
+     * false. The caller owns the mask; this method does not allocate. Mirrors
+     * {@link #maskNonNullRows} which is the allocating wrapper. Both the {@code IsNotNull}
+     * predicate path and the dictionary fast-path {@code ALL} branch share this primitive
+     * so the {@code mayHaveNulls() == false} shortcut and the null-scan loop are written
+     * exactly once.
+     */
+    private static void maskNonNullRowsInto(Block block, int rowCount, WordMask mask) {
         if (block.mayHaveNulls() == false) {
             mask.setAll(rowCount);
-            return mask;
+            return;
         }
         mask.reset(rowCount);
         for (int i = 0; i < rowCount; i++) {
@@ -1319,7 +1349,6 @@ final class ParquetPushedExpressions {
                 mask.set(i);
             }
         }
-        return mask;
     }
 
     /**
@@ -1483,20 +1512,11 @@ final class ParquetPushedExpressions {
             return; // mask is already zero-initialized via reset(rowCount); no row can pass
         }
         if (shape == DictionaryMatchShape.ALL) {
-            // Every non-null row's ordinal points at a true. Mirrors maskNonNullRows: setAll
-            // when the block has no nulls, otherwise a single-pass null scan. Inline here
-            // (rather than calling maskNonNullRows) to write into the caller's already
-            // zero-initialized mask without allocating a second WordMask in a hot loop.
-            // Keep this in sync with maskNonNullRows if the strategy ever changes.
-            if (block.mayHaveNulls() == false) {
-                mask.setAll(rowCount);
-            } else {
-                for (int i = 0; i < rowCount; i++) {
-                    if (block.isNull(i) == false) {
-                        mask.set(i);
-                    }
-                }
-            }
+            // Every non-null row's ordinal points at a true entry, so the survivor set
+            // collapses to "non-null rows" — the same primitive the LIKE "*" shortcut and
+            // IsNotNull already use. Write directly into the caller's mask to avoid the
+            // extra WordMask allocation in this hot path.
+            maskNonNullRowsInto(block, rowCount, mask);
             return;
         }
         for (int i = 0; i < rowCount; i++) {

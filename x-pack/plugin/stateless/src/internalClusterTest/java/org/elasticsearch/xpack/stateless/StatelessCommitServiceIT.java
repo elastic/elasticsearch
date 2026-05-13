@@ -317,7 +317,8 @@ public class StatelessCommitServiceIT extends AbstractStatelessPluginIntegTestCa
 
         // Set up some data to be read.
         final int numDocsToIndex = randomIntBetween(5, 100);
-        indexDocsAndRefresh(indexName, numDocsToIndex);
+        indexDocs(indexName, numDocsToIndex);
+        refresh(indexName);
 
         logger.info("--> Created an index with search shards on node {} and indexed some data", otherSearchNode);
 
@@ -427,7 +428,8 @@ public class StatelessCommitServiceIT extends AbstractStatelessPluginIntegTestCa
         });
 
         var numDocsToIndex = randomIntBetween(5, 100);
-        indexDocsAndRefresh(miniTestHarness.indexName, numDocsToIndex);
+        indexDocs(miniTestHarness.indexName, numDocsToIndex);
+        refresh(miniTestHarness.indexName);
 
         logger.info("--> Finished writing data, commit notifications should have been sent");
 

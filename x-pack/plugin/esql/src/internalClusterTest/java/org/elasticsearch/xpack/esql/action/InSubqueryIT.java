@@ -11,11 +11,13 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 
 /**
@@ -262,6 +264,265 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
                 List.of(List.of(1, "red"), List.of(2, "blue"), List.of(3, "red"), List.of(5, "red"), List.of(6, "blue"))
             );
         }
+    }
+
+    // ---- forced hash-join path correctness ----
+    //
+    // These tests pin {@code in_subquery_hash_join_threshold=0} so SemiJoin.inlineData always
+    // routes through inlineAsHashJoin (BlockHash dedup + LEFT-join on sentinel + IS NOT NULL filter).
+    // They cover the cases the default-threshold tests above cannot — small subquery results that
+    // would otherwise be inlined as Filter(IN(literals...)).
+
+    /**
+     * Forces the hash-join path even with a small subquery. The {@code test} index has 6 rows, the
+     * subquery returns 3 unique ids; without forcing, this would be {@code Filter(IN(1,2,3))}.
+     * Verifies the hash-join LEFT-join + IS NOT NULL filter produces the same set of matches.
+     */
+    public void testInSubqueryHashJoinForced() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        try (var resp = run(syncEsqlQueryRequest("""
+            FROM test
+            | WHERE id IN (FROM test | SORT id | LIMIT 3 | KEEP id)
+            | SORT id
+            | KEEP id, color""").pragmas(forceHashJoin()))) {
+            assertColumnNames(resp.columns(), List.of("id", "color"));
+            assertValues(resp.values(), List.of(List.of(1, "red"), List.of(2, "blue"), List.of(3, "red")));
+        }
+    }
+
+    /**
+     * Same as above, but for NOT IN — the sentinel filter flips to IS NULL.
+     */
+    public void testNotInSubqueryHashJoinForced() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        try (var resp = run(syncEsqlQueryRequest("""
+            FROM test
+            | WHERE id NOT IN (FROM test | SORT id | LIMIT 3 | KEEP id)
+            | SORT id
+            | KEEP id, color""").pragmas(forceHashJoin()))) {
+            assertColumnNames(resp.columns(), List.of("id", "color"));
+            assertValues(resp.values(), List.of(List.of(4, "blue"), List.of(5, "red"), List.of(6, "blue")));
+        }
+    }
+
+    /**
+     * Subquery returns duplicate values ({@code color} = "red" appears 3x, "blue" 3x). Without
+     * dedup, the LEFT-join would produce a row per duplicate and a single left row matching "red"
+     * would appear three times. This pins that BlockHash dedup collapses the right side correctly.
+     */
+    public void testInSubqueryHashJoinDuplicatesOnRightSide() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        try (var resp = run(syncEsqlQueryRequest("""
+            FROM test
+            | WHERE color IN (FROM test | KEEP color)
+            | SORT id
+            | KEEP id, color""").pragmas(forceHashJoin()))) {
+            assertColumnNames(resp.columns(), List.of("id", "color"));
+            // All 6 rows pass — each "red"/"blue" matches exactly one dedup row on the right.
+            assertValues(
+                resp.values(),
+                List.of(List.of(1, "red"), List.of(2, "blue"), List.of(3, "red"), List.of(4, "blue"), List.of(5, "red"), List.of(6, "blue"))
+            );
+        }
+    }
+
+    /**
+     * Subquery whose result contains a null does not cause spurious matches on non-null left rows.
+     * A subquery emitting {@code {red, null}} must match left rows whose color is "red" but NOT
+     * match left rows whose color is "blue" (the null on the right side has no effect on non-null
+     * left lookups).
+     */
+    public void testInSubqueryHashJoinNullOnBothSide() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        // Add a row with id=7 and no color so the subquery can emit a null in its output.
+        client().prepareBulk()
+            .add(new IndexRequest("test").id("7").source("id", 7))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        try (var resp = run(syncEsqlQueryRequest("""
+            FROM test
+            | WHERE color IN (FROM test | WHERE id == 1 OR id == 7 | KEEP color)
+            | SORT id
+            | KEEP id, color""").pragmas(forceHashJoin()))) {
+            assertColumnNames(resp.columns(), List.of("id", "color"));
+            // Subquery dedups to {red}; only the "red" rows on the left match.
+            assertValues(resp.values(), List.of(List.of(1, "red"), List.of(3, "red"), List.of(5, "red")));
+        }
+    }
+
+    /**
+     * SQL semantics for {@code NOT IN} with a NULL on the right: the predicate is FALSE for
+     * matches and NULL for non-matches (because {@code x = NULL} is NULL), so every row is
+     * filtered out. {@code SemiJoin#inlineAsHashJoin} short-circuits this to {@code Filter(FALSE)}
+     * as soon as it sees a NULL in the subquery output, without ever building the LEFT join.
+     */
+    public void testNotInSubqueryHashJoinNullOnBothSides() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        client().prepareBulk()
+            .add(new IndexRequest("test").id("7").source("id", 7))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        try (var resp = run(syncEsqlQueryRequest("""
+            FROM test
+            | WHERE color NOT IN (FROM test | WHERE id == 1 OR id == 7 | KEEP color)
+            | SORT id
+            | KEEP id""").pragmas(forceHashJoin()))) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertValues(resp.values(), List.of());
+        }
+    }
+
+    /**
+     * Empty subquery under the forced hash-join threshold still falls through the empty-result
+     * fast path inside {@code inlineData} (before BlockHash). SEMI -> Filter(FALSE) -> 0 rows.
+     */
+    public void testInSubqueryHashJoinEmptyResult() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        try (var resp = run(syncEsqlQueryRequest("""
+            FROM test
+            | WHERE id IN (FROM test | WHERE id > 100 | KEEP id)
+            | SORT id
+            | KEEP id""").pragmas(forceHashJoin()))) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertValues(resp.values(), List.of());
+        }
+    }
+
+    /**
+     * Empty subquery + NOT IN under forced hash-join: ANTI semantics with empty right side returns
+     * all left rows (Filter(TRUE)).
+     */
+    public void testNotInSubqueryHashJoinEmptyResult() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        try (var resp = run(syncEsqlQueryRequest("""
+            FROM test
+            | WHERE id NOT IN (FROM test | WHERE id > 100 | KEEP id)
+            | SORT id
+            | KEEP id""").pragmas(forceHashJoin()))) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(2), List.of(3), List.of(4), List.of(5), List.of(6)));
+        }
+    }
+
+    /**
+     * Hash-join correctness across multiple shards. We create an index with 3 shards, populate it
+     * with 30 rows, run the subquery (which fans out across shards and gathers on the coordinator
+     * before dedup), and verify the result matches.
+     */
+    public void testInSubqueryHashJoinMultiShardCorrectness() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("multi")
+                .setSettings(Settings.builder().put("index.number_of_shards", 3))
+                .setMapping("id", "type=integer", "tag", "type=keyword")
+        );
+        var bulk = client().prepareBulk();
+        for (int i = 0; i < 30; i++) {
+            bulk.add(new IndexRequest("multi").id(String.valueOf(i)).source("id", i, "tag", i % 5 == 0 ? "match" : "other"));
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        ensureYellow("multi");
+
+        try (var resp = run(syncEsqlQueryRequest("""
+            FROM multi
+            | WHERE id IN (FROM multi | WHERE tag == "match" | KEEP id)
+            | STATS cnt = COUNT(*)
+            """).pragmas(forceHashJoin()))) {
+            assertColumnNames(resp.columns(), List.of("cnt"));
+            // ids 0, 5, 10, 15, 20, 25 match.
+            assertValues(resp.values(), List.of(List.of(6L)));
+        }
+    }
+
+    /**
+     * Nested IN subqueries under forced hash-join: both the inner and outer subqueries take the
+     * hash-join path. Verifies that successive {@code inlineData} invocations don't interfere
+     * (each manages its own dedup page and circuit-breaker accounting).
+     */
+    public void testNestedInSubqueryHashJoin() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        try (var resp = run(syncEsqlQueryRequest("""
+            FROM test
+            | WHERE id IN (
+                FROM test
+                | WHERE id IN (FROM test | WHERE color == "red" | KEEP id)
+                | WHERE id <= 3
+                | KEEP id
+              )
+            | SORT id
+            | KEEP id, color
+            """).pragmas(forceHashJoin()))) {
+            assertColumnNames(resp.columns(), List.of("id", "color"));
+            assertValues(resp.values(), List.of(List.of(1, "red"), List.of(3, "red")));
+        }
+    }
+
+    /**
+     * Parity check: the same query routed through the filter path (default threshold) and the
+     * hash-join path (forced) must return identical results. This is the strongest form of
+     * regression protection — any divergence between paths shows up as a test failure.
+     */
+    public void testInSubqueryHashJoinAndFilterPathsAgree() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        String query = """
+            FROM test
+            | WHERE id IN (FROM test | WHERE color == "red" | KEEP id)
+            | SORT id
+            | KEEP id, color
+            """;
+        try (
+            var defaultResp = run(syncEsqlQueryRequest(query).pragmas(QueryPragmas.EMPTY));
+            var forcedResp = run(syncEsqlQueryRequest(query).pragmas(forceHashJoin()))
+        ) {
+            assertEquals(getValuesList(defaultResp), getValuesList(forcedResp));
+        }
+    }
+
+    /**
+     * Parity with NULLs on both the left side (id=7 has no color) and inside the subquery output
+     * (the subquery's {@code KEEP color} emits the NULL for id=7 alongside "red"). Both paths
+     * must agree for {@code IN} <em>and</em> {@code NOT IN}: the filter path inherits SQL NULL
+     * semantics from the {@code In} operator, the hash-join path closes the same gap via the
+     * left-side {@code IsNotNull(leftField)} filter, right-side NULL stripping in dedup, and the
+     * ANTI-with-null-right short-circuit.
+     */
+    public void testInSubqueryHashJoinAndFilterPathsAgreeWithNulls() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        client().prepareBulk()
+            .add(new IndexRequest("test").id("7").source("id", 7))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        String inQuery = """
+            FROM test
+            | WHERE color IN (FROM test | WHERE id == 1 OR id == 7 | KEEP color)
+            | SORT id
+            | KEEP id
+            """;
+        try (
+            var defaultResp = run(syncEsqlQueryRequest(inQuery).pragmas(QueryPragmas.EMPTY));
+            var forcedResp = run(syncEsqlQueryRequest(inQuery).pragmas(forceHashJoin()))
+        ) {
+            assertEquals(getValuesList(defaultResp), getValuesList(forcedResp));
+        }
+        String notInQuery = """
+            FROM test
+            | WHERE color NOT IN (FROM test | WHERE id == 1 OR id == 7 | KEEP color)
+            | SORT id
+            | KEEP id
+            """;
+        try (
+            var defaultResp = run(syncEsqlQueryRequest(notInQuery).pragmas(QueryPragmas.EMPTY));
+            var forcedResp = run(syncEsqlQueryRequest(notInQuery).pragmas(forceHashJoin()))
+        ) {
+            assertEquals(getValuesList(defaultResp), getValuesList(forcedResp));
+        }
+    }
+
+    private static QueryPragmas forceHashJoin() {
+        // pragma value 0 means "always use hash-join, never filter-of-literals"
+        return new QueryPragmas(Settings.builder().put("in_subquery_hash_join_threshold", 0).build());
     }
 
     // ---- helpers ----

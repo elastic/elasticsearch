@@ -2073,3 +2073,86 @@ lime
 olive
 teal
 ;
+
+// null related tests
+// if there are null on the left hand side of IN or IN subquery, the row will be filtered out regardless of the right hand side value.
+nullOnBothSidesOfInSubqueryHashJoin
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE gender IN (FROM employees | KEEP gender)
+| STATS c = COUNT(*) BY gender
+| SORT c
+;
+
+c:long | gender:keyword
+33     | F
+57     | M
+;
+
+nullOnBothSidesOfInSubqueryFilter
+required_capability: where_in_subquery_without_view
+
+// emp_no=10010 has gender=null
+FROM employees
+| WHERE gender IN (FROM employees | WHERE emp_no IN (10001, 10002, 10010) | KEEP gender)
+| STATS c = COUNT(*) BY gender
+| SORT c
+;
+
+c:long | gender:keyword
+33     | F
+57     | M
+;
+
+nullInInListPredicate
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE gender IN ("F", "M", null)
+| STATS c = COUNT(*) BY gender
+| SORT c
+;
+
+c:long | gender:keyword
+33     | F
+57     | M
+;
+
+// if there are null on the right hand side of NOT IN or NOT IN subquery, the row will be filtered out regardless of the left hand side value.
+nullOnBothSidesOfNotInSubqueryHashJoin
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE languages NOT IN (FROM employees | KEEP languages)
+| STATS c = COUNT(*) BY languages
+| SORT c
+;
+
+c:long | languages:integer
+;
+
+nullOnBothSidesOfNotInSubqueryFilter
+required_capability: where_in_subquery_without_view
+
+// emp_no=10020 has languages=null
+FROM employees
+| WHERE languages NOT IN (FROM employees | WHERE emp_no IN (10001, 10003, 10005, 10006, 10020) | KEEP languages)
+| STATS c = COUNT(*) BY languages
+| SORT c
+;
+
+c:long | languages:integer
+;
+
+nullInNotInListPredicate
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE languages NOT IN (1, 2, 3 , 4, null)
+| STATS c = COUNT(*) BY languages
+| SORT c
+;
+
+c:long | languages:integer
+;

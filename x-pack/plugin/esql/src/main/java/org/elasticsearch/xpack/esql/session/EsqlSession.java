@@ -648,9 +648,19 @@ public class EsqlSession {
                 AtomicReference<Page> localRelationPage = new AtomicReference<>();
                 subPlanAndCallback = new SubPlanAndCallback(semiJoinTuple.subPlan(), result -> {
                     LocalRelation resultWrapper = resultToPlan(semiJoinTuple.subPlan().source(), result);
+                    // SemiJoin.inlineData may release this page eagerly (filter / empty paths) or swap
+                    // it for a smaller, breaker-tracked dedup page (hash-join path) so the cleanup
+                    // below releases the right one at end of main plan execution.
                     localRelationPage.set(resultWrapper.supplier().get());
                     subPlansResults.add(resultWrapper);
-                    return SemiJoin.newMainPlan(mainPlan, semiJoinTuple, resultWrapper, resolveInSubqueryHashJoinThreshold(configuration));
+                    return SemiJoin.newMainPlan(
+                        mainPlan,
+                        semiJoinTuple,
+                        resultWrapper,
+                        resolveInSubqueryHashJoinThreshold(configuration),
+                        blockFactory,
+                        localRelationPage
+                    );
                 }, () -> releaseLocalRelationBlocks(localRelationPage), true);
             }
         } else if (firstJoin instanceof InlineJoin) {

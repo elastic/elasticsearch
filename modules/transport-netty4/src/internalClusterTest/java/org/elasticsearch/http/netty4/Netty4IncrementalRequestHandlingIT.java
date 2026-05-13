@@ -505,7 +505,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
                 }
             };
             MockLog.assertThatLogger(
-                testRunnable,
+                testRunnable::run,
                 HttpBodyTracer.class,
                 new MockLog.SeenEventExpectation(
                     "request part",

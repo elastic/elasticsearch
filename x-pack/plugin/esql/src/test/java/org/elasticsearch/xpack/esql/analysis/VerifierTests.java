@@ -1466,6 +1466,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFieldExtractFirstArgumentMustBeFlattened() {
+        assumeTrue("Requires FIELD_EXTRACT_FUNCTION capability", EsqlCapabilities.Cap.FIELD_EXTRACT_FUNCTION.isEnabled());
         var index = analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json").stripErrorPrefix(true);
         index.error(
             "FROM flattened_otel_logs | EVAL x = field_extract(@timestamp, \"a\")",
@@ -4052,6 +4053,14 @@ public class VerifierTests extends ESTestCase {
         fullText().error(
             "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"order\": \"invalid\"})",
             equalTo("1:29: 'order' option must be 'score' or 'none', found [invalid]")
+        );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"analyzer\": \"\"})",
+            equalTo("1:29: 'analyzer' option must be a non-empty string")
+        );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"analyzer\": \"  \"})",
+            equalTo("1:29: 'analyzer' option must be a non-empty string")
         );
     }
 

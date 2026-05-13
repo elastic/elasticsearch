@@ -64,6 +64,7 @@ import static org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver.ESQL_USE_
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -190,6 +191,19 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return clusterHasCapability("GET", "/_query", List.of(), List.of("DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_VERSION")).orElse(false);
     }
 
+    private static Boolean vectordbDocumentIndexModeSupported;
+
+    private boolean vectordbDocumentIndexModeSupported() throws IOException {
+        if (vectordbDocumentIndexModeSupported == null) {
+            vectordbDocumentIndexModeSupported = fetchVectordbDocumentIndexModeSupported();
+        }
+        return vectordbDocumentIndexModeSupported;
+    }
+
+    protected boolean fetchVectordbDocumentIndexModeSupported() throws IOException {
+        return clusterHasCapability("PUT", "/{index}", List.of(), List.of("vectordb_document_index_mode")).orElse(false);
+    }
+
     protected boolean lookupJoinOnAllIndicesSupported() throws IOException {
         return true;
     }
@@ -258,6 +272,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     @Before
     public void createIndices() throws IOException {
+        if (indexMode == IndexMode.VECTORDB_DOCUMENT) {
+            assumeTrue("Cluster has nodes that do not support index.mode=vectordb_document", vectordbDocumentIndexModeSupported());
+        }
         if (supportsNodeAssignment()) {
             for (Map.Entry<String, NodeInfo> e : localNodeToInfo().entrySet()) {
                 createIndexForNode(client(), minVersion(), e.getKey(), e.getValue().id(), indexMode);
@@ -530,7 +547,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             String indexName = e.getKey();
             MapMatcher expectedValues = matchesMap();
             if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minVersion(), false)) {
-                expectedValues = expectedValues.entry("f_dense_vector", matchesList().item(0.5).item(10.0).item(5.9999995));
+                // Tolerance to accommodate both FLOAT and BFLOAT16 element types (default in IndexMode.VECTORDB_DOCUMENT).
+                expectedValues = expectedValues.entry(
+                    "f_dense_vector",
+                    matchesList().item(closeTo(0.5, 0.05)).item(closeTo(10.0, 0.05)).item(closeTo(5.9999995, 0.05))
+                );
             } else {
                 // While dense_vector was under construction, we could've also encountered other values here, e.g. [0.04, 0.86, 0.51].
                 // We'll ignore the exact value here.
@@ -1062,7 +1083,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 // See expectedType for an explanation
                 if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, false)
                     && coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV)) {
-                    yield equalTo(List.of(0.5, 10.0, 5.9999995));
+                    // Tolerance to accommodate both FLOAT and BFLOAT16 element types (default in IndexMode.VECTORDB_DOCUMENT).
+                    yield matchesList().item(closeTo(0.5, 0.05)).item(closeTo(10.0, 0.05)).item(closeTo(5.9999995, 0.05));
                 }
                 if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
                     // On previous versions where DENSE_VECTOR was still under construction, we could end up with
@@ -1309,7 +1331,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     private boolean syntheticSourceByDefault() {
         return switch (indexMode) {
             case TIME_SERIES, LOGSDB, COLUMNAR, COLUMNAR_LOGSDB -> true;
-            case STANDARD, LOOKUP -> false;
+            case STANDARD, LOOKUP, VECTORDB_DOCUMENT -> false;
         };
     }
 

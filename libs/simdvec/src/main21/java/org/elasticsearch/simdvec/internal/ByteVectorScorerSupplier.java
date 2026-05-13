@@ -28,7 +28,6 @@ import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRO
 public abstract sealed class ByteVectorScorerSupplier implements RandomVectorScorerSupplier {
 
     final int dims;
-    final int maxOrd;
     final MemorySegmentAccessor input;
     final ByteVectorValues values;
     final VectorSimilarityFunction fallbackScorer;
@@ -39,12 +38,11 @@ public abstract sealed class ByteVectorScorerSupplier implements RandomVectorSco
         this.input = input;
         this.values = values;
         this.dims = values.dimension();
-        this.maxOrd = values.size();
         this.fallbackScorer = fallbackScorer;
     }
 
     protected final void checkOrdinal(int ord) {
-        if (ord < 0 || ord >= maxOrd) {
+        if (ord < 0 || ord >= values.size()) {
             throw new IllegalArgumentException("illegal ordinal: " + ord);
         }
     }

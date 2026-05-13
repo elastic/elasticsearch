@@ -229,9 +229,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/145728
-- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
-  method: testReindexTaskRelocatesOnNodeShutdown
-  issue: https://github.com/elastic/elasticsearch/issues/147449
 - class: org.elasticsearch.xpack.core.transform.transforms.pivot.ScriptConfigTests
   method: testFromXContent
   issue: https://github.com/elastic/elasticsearch/issues/147543
@@ -536,9 +533,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
   method: testMixedOperationsDuringSplit
   issue: https://github.com/elastic/elasticsearch/issues/148809
-- class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
-  method: testSearchShardRecoveryAddsTrackingToLatestShardCommit
-  issue: https://github.com/elastic/elasticsearch/issues/148883
 - class: org.elasticsearch.reindex.management.ReindexRethrottleRelocationIT
   method: testRethrottleByOriginalTaskIdAfterRelocation
   issue: https://github.com/elastic/elasticsearch/issues/148893
@@ -560,3 +554,12 @@ tests:
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Get old regression job stats}
   issue: https://github.com/elastic/elasticsearch/issues/147517
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:flattened.casePicksPerRow}
+  issue: https://github.com/elastic/elasticsearch/issues/149027
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:field_extract.caseWithFieldExtractInCondition}
+  issue: https://github.com/elastic/elasticsearch/issues/149028
+- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotIT
+  method: testSnapshotFailsCleanlyWhenShardClosesDuringDisconnect
+  issue: https://github.com/elastic/elasticsearch/issues/149032

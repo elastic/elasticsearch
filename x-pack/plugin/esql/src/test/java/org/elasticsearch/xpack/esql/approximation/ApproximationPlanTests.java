@@ -94,7 +94,7 @@ public class ApproximationPlanTests extends ApproximationTestCase {
         );
 
         for (Attribute attr : approximationPlan.output()) {
-            Map<String, Object> metadata = ApproximationPlan.columnMetadata(attr);
+            Map<String, Object> metadata = ApproximationPlan.createColumnMetadata(attr);
             switch (attr.name()) {
                 case "count", "sum":
                     assertThat(attr.synthetic(), equalTo(false));

@@ -1,0 +1,493 @@
+field_extract_host_name
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+// tag::field_extract_host_name[]
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL hn = field_extract(resource.attributes, "host.name")
+| KEEP hn
+// end::field_extract_host_name[]
+;
+
+// tag::field_extract_host_name-result[]
+hn:keyword
+infra-filebeat-6vjxr
+// end::field_extract_host_name-result[]
+;
+
+field_extract_nested_agent_id
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL agent_id = field_extract(resource.attributes, "agent.id")
+| KEEP agent_id
+;
+
+agent_id:keyword
+c92cc400-fe39-4252-bc0f-4b024e742f25
+;
+
+field_extract_missing_key
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL missing = field_extract(resource.attributes, "no.such.key")
+| KEEP missing
+;
+warningRegex:Line 3:18: evaluation of \[field_extract\(resource\.attributes,.+\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 3:18: java\.lang\.IllegalArgumentException: path \[no\.such\.key\] does not exist
+
+missing:keyword
+null
+;
+
+groupingByFlattenedSubfield
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| EVAL host.name = field_extract(resource.attributes, "host.name")
+| STATS c = count(*) BY host.name
+| SORT host.name
+;
+
+c:long | host.name:keyword
+1      | devops-ci-master-blue.c.elastic-ci-prod.internal
+1      | elasticsearch-ci-immutable-debian-9-pkg-1599049660880335683
+1      | elasticsearch-ci-immutable-sles-15-1599243844262984968
+1      | filebeat-6t7v6
+1      | filebeat-8pmfj
+2      | infra-filebeat-6vjxr
+1      | infra-filebeat-cpcmv
+1      | infra-filebeat-mdvqm
+1      | infra-filebeat-z5mjq
+;
+
+countDistinctOverFlattenedSubfield
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| EVAL host.name = field_extract(resource.attributes, "host.name")
+| STATS distinct_hosts = COUNT_DISTINCT(host.name)
+;
+
+distinct_hosts:long
+9
+;
+
+filteringByFlattenedSubfield
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| EVAL host.name = field_extract(resource.attributes, "host.name")
+| WHERE host.name == "infra-filebeat-6vjxr"
+| KEEP @timestamp, host.name
+| SORT @timestamp
+;
+
+@timestamp:date          | host.name:keyword
+2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr
+2020-01-01T11:38:54.751Z | infra-filebeat-6vjxr
+;
+
+sortingByFlattenedSubfield
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| EVAL host.name = field_extract(resource.attributes, "host.name")
+| SORT host.name ASC, @timestamp ASC
+| KEEP @timestamp, host.name
+| LIMIT 5
+;
+
+@timestamp:date          | host.name:keyword
+2020-01-01T00:07:43.000Z | devops-ci-master-blue.c.elastic-ci-prod.internal
+2020-01-01T14:37:29.195Z | elasticsearch-ci-immutable-debian-9-pkg-1599049660880335683
+2020-01-01T00:31:18.303Z | elasticsearch-ci-immutable-sles-15-1599243844262984968
+2020-01-01T11:43:13.255Z | filebeat-6t7v6
+2020-01-01T10:12:02.675Z | filebeat-8pmfj
+;
+
+evalLengthOfFlattenedSubfield
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T11:43:13.255Z"
+| EVAL host.name = field_extract(resource.attributes, "host.name")
+| EVAL host_length = LENGTH(host.name)
+| KEEP host.name, host_length
+;
+
+host.name:keyword | host_length:integer
+filebeat-6t7v6    | 14
+;
+
+fieldExtractAfterLimit
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| SORT @timestamp ASC
+| LIMIT 3
+| EVAL host.name = field_extract(resource.attributes, "host.name")
+| KEEP @timestamp, host.name
+;
+
+@timestamp:date          | host.name:keyword
+2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr
+2020-01-01T00:07:43.000Z | devops-ci-master-blue.c.elastic-ci-prod.internal
+2020-01-01T00:31:18.303Z | elasticsearch-ci-immutable-sles-15-1599243844262984968
+;
+
+fieldExtractInWhereAfterLimit
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| SORT @timestamp DESC
+| LIMIT 3
+| WHERE field_extract(resource.attributes, "host.name") == "infra-filebeat-cpcmv"
+| KEEP @timestamp
+;
+
+@timestamp:date
+2020-01-01T21:38:06.655Z
+;
+
+fieldExtractAfterSort
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| SORT @timestamp ASC
+| EVAL host.name = field_extract(resource.attributes, "host.name")
+| KEEP @timestamp, host.name
+| LIMIT 3
+;
+
+@timestamp:date          | host.name:keyword
+2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr
+2020-01-01T00:07:43.000Z | devops-ci-master-blue.c.elastic-ci-prod.internal
+2020-01-01T00:31:18.303Z | elasticsearch-ci-immutable-sles-15-1599243844262984968
+;
+
+fieldExtractInSubquery
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+required_capability: subquery_in_from_command
+
+FROM (FROM flattened_otel_logs | WHERE @timestamp >= "2020-01-01T12:00:00Z" | EVAL h_late = field_extract(resource.attributes, "host.name") | KEEP h_late),
+     (FROM flattened_otel_logs | WHERE @timestamp <  "2020-01-01T12:00:00Z" | EVAL h_early = field_extract(resource.attributes, "host.name") | KEEP h_early)
+| STATS d_late = COUNT_DISTINCT(h_late), d_early = COUNT_DISTINCT(h_early)
+;
+
+d_late:long | d_early:long
+3           | 6
+;
+
+fieldExtractAfterSubqueriesWithRename
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+required_capability: subquery_in_from_command
+
+FROM (FROM flattened_otel_logs | WHERE @timestamp >= "2020-01-01T12:00:00Z" | RENAME resource.attributes AS attrs_late  | KEEP attrs_late),
+     (FROM flattened_otel_logs | WHERE @timestamp <  "2020-01-01T12:00:00Z" | RENAME resource.attributes AS attrs_early | KEEP attrs_early)
+| EVAL h_late  = field_extract(attrs_late,  "host.name")
+| EVAL h_early = field_extract(attrs_early, "host.name")
+| STATS d_late = COUNT_DISTINCT(h_late), d_early = COUNT_DISTINCT(h_early)
+;
+
+d_late:long | d_early:long
+3           | 6
+;
+
+fieldExtractWithLookupJoin
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+required_capability: join_lookup_v12
+
+FROM flattened_otel_logs
+| EVAL host.name = field_extract(resource.attributes, "host.name")
+| LOOKUP JOIN host_threat_list ON host.name
+| WHERE threat_level IS NOT NULL
+| KEEP @timestamp, host.name, threat_level
+| SORT @timestamp
+;
+
+@timestamp:date          | host.name:keyword     | threat_level:keyword
+2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr  | high
+2020-01-01T11:38:54.751Z | infra-filebeat-6vjxr  | high
+2020-01-01T11:43:13.255Z | filebeat-6t7v6        | low
+;
+
+// Numeric leaves in a flattened root come out as their stringified value
+// in doc values, so FIELD_EXTRACT returns them as a keyword.
+numericLeafReturnedAsKeyword
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:07:43.000Z"
+| EVAL conn = field_extract(attributes, "nginx.error.connection_id")
+| KEEP conn
+;
+
+conn:keyword
+184896
+;
+
+// FIELD_EXTRACT on the `attributes` field, which is mapped with `index: false`.
+// `index: false` only affects search indexing, not doc values, so the function
+// still works.
+extractFromIndexFalseField
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL size = field_extract(attributes, "rally.message_size")
+| KEEP size
+;
+
+size:keyword
+192
+;
+
+// FIELD_EXTRACT result is `keyword`, so it must compose with all the regular
+// keyword-consuming functions. Spot-checks: TO_LOWER -> STARTS_WITH.
+resultInToLowerStartsWith
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| EVAL hn = field_extract(resource.attributes, "host.name")
+| WHERE STARTS_WITH(TO_LOWER(hn), "infra-filebeat-")
+| STATS c = count(*)
+;
+
+c:long
+5
+;
+
+// COALESCE chooses the first non-null. The first FIELD_EXTRACT call still
+// emits a warning per row (path doesn't exist), and the second produces the
+// host name. This test pins down null-propagation through COALESCE.
+resultInCoalesceFallback
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL hn = COALESCE(field_extract(resource.attributes, "no.such"),
+                     field_extract(resource.attributes, "host.name"))
+| KEEP hn
+;
+warningRegex:Line \d+:\d+: evaluation of \[field_extract\(resource\.attributes,.+\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line \d+:\d+: java\.lang\.IllegalArgumentException: path \[no\.such\] does not exist
+
+hn:keyword
+infra-filebeat-6vjxr
+;
+
+// Two independent FIELD_EXTRACT calls on the same flattened root, both must
+// produce their respective leaves.
+twoCallsInOneQuery
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL hn = field_extract(resource.attributes, "host.name")
+| EVAL aid = field_extract(resource.attributes, "agent.id")
+| KEEP hn, aid
+;
+
+hn:keyword            | aid:keyword
+infra-filebeat-6vjxr  | c92cc400-fe39-4252-bc0f-4b024e742f25
+;
+
+// A foldable but non-literal path expression (CONCAT of two literals) should
+// still go through the constant-evaluator path, validating the path once at
+// plan time rather than per row.
+computedConstantPath
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL hn = field_extract(resource.attributes, CONCAT("host.", "name"))
+| KEEP hn
+;
+
+hn:keyword
+infra-filebeat-6vjxr
+;
+
+// Path matching is case-sensitive: `Host.Name` does NOT match the flat key
+// `host.name`.
+caseSensitiveMismatch
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL hn = field_extract(resource.attributes, "Host.Name")
+| KEEP hn
+;
+warningRegex:Line \d+:\d+: evaluation of \[field_extract\(resource\.attributes,.+\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line \d+:\d+: java\.lang\.IllegalArgumentException: path \[Host\.Name\] does not exist
+
+hn:keyword
+null
+;
+
+// Path matching is exact, not a prefix: `host` is a prefix of the flat key
+// `host.name` but not the literal key, so the lookup must miss and return null.
+partialPrefixMismatch
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL hn = field_extract(resource.attributes, "host")
+| KEEP hn
+;
+warningRegex:Line \d+:\d+: evaluation of \[field_extract\(resource\.attributes,.+\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line \d+:\d+: java\.lang\.IllegalArgumentException: path \[host\] does not exist
+
+hn:keyword
+null
+;
+
+// Extracted keyword used as the LHS of an IN-list filter.
+inListWithExtract
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| EVAL hn = field_extract(resource.attributes, "host.name")
+| WHERE hn IN ("infra-filebeat-6vjxr", "filebeat-6t7v6")
+| KEEP @timestamp, hn
+| SORT @timestamp
+;
+
+@timestamp:date          | hn:keyword
+2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr
+2020-01-01T11:38:54.751Z | infra-filebeat-6vjxr
+2020-01-01T11:43:13.255Z | filebeat-6t7v6
+;
+
+// INLINE STATS appends an aggregate over the extracted sub-field to every row.
+// The duplicated host (`infra-filebeat-6vjxr`, count 2) sorts first, the rest
+// are unique (count 1).
+inlineStatsOverFlattenedSubfield
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+required_capability: inline_stats
+
+FROM flattened_otel_logs
+| EVAL host.name = field_extract(resource.attributes, "host.name")
+| INLINE STATS count = COUNT(*) BY host.name
+| DROP attributes, resource.attributes
+| SORT count DESC, @timestamp ASC
+| LIMIT 5
+;
+
+@timestamp:date          | count:long | host.name:keyword
+2020-01-01T00:02:48.461Z | 2          | infra-filebeat-6vjxr
+2020-01-01T11:38:54.751Z | 2          | infra-filebeat-6vjxr
+2020-01-01T00:07:43.000Z | 1          | devops-ci-master-blue.c.elastic-ci-prod.internal
+2020-01-01T00:31:18.303Z | 1          | elasticsearch-ci-immutable-sles-15-1599243844262984968
+2020-01-01T00:58:35.557Z | 1          | infra-filebeat-mdvqm
+;
+
+// MV_EXPAND on a single-valued field_extract result is a row-preserving no-op,
+// but the test pins down that the keyword output of field_extract composes
+// cleanly with MV_EXPAND. Multi-valued flattened sub-fields (e.g. an
+// array-valued `host.ip`) are not yet supported by FIELD_EXTRACT and are
+// tracked as a follow-up.
+mvExpandOnSingleValuedExtract
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| EVAL hn = field_extract(resource.attributes, "host.name")
+| MV_EXPAND hn
+| KEEP @timestamp, hn
+| SORT @timestamp ASC
+| LIMIT 3
+;
+
+@timestamp:date          | hn:keyword
+2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr
+2020-01-01T00:07:43.000Z | devops-ci-master-blue.c.elastic-ci-prod.internal
+2020-01-01T00:31:18.303Z | elasticsearch-ci-immutable-sles-15-1599243844262984968
+;
+
+caseWithFieldExtractInCondition
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+required_capability: fn_case_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL c = CASE(FIELD_EXTRACT(attributes, "type") == "beats", attributes, resource.attributes)
+| KEEP @timestamp, c
+;
+
+@timestamp:date          | c:flattened
+2020-01-01T00:02:48.461Z | "{""rally.message_size"":""192"",""type"":""beats""}"
+;
+
+fieldExtractOnCaseResult
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+required_capability: fn_case_flattened
+
+FROM flattened_otel_logs
+| WHERE FIELD_EXTRACT(CASE(@timestamp < "2020-01-01T12:00:00Z", resource.attributes, attributes), "host.name") == "infra-filebeat-6vjxr"
+| KEEP @timestamp
+| SORT @timestamp
+;
+warningRegex:Line 2:9: evaluation of \[FIELD_EXTRACT\(CASE\(.+\),.+\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:9: java\.lang\.IllegalArgumentException: path \[host\.name\] does not exist
+
+@timestamp:date
+2020-01-01T00:02:48.461Z
+2020-01-01T11:38:54.751Z
+;

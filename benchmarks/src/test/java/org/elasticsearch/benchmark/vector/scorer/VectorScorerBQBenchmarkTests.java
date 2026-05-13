@@ -13,11 +13,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 
-import java.util.Random;
-
 public class VectorScorerBQBenchmarkTests extends BenchmarkTest {
 
-    private static final int REPETITIONS = 10;
     private static final int NUM_VECTORS = VectorScorerBQBenchmark.NUM_VECTORS;
     private static final int NUM_QUERIES = VectorScorerBQBenchmark.NUM_QUERIES;
 
@@ -37,80 +34,60 @@ public class VectorScorerBQBenchmarkTests extends BenchmarkTest {
     }
 
     public void testSingleScalarVsVectorized() throws Exception {
-        for (int i = 0; i < REPETITIONS; i++) {
-            var seed = randomLong();
+        var scalar = new VectorScorerBQBenchmark();
+        var vectorized = new VectorScorerBQBenchmark();
+        try {
+            var data = VectorScorerBQBenchmark.generateRandomVectorData(random(), dims, NUM_VECTORS, NUM_QUERIES, similarityFunction);
 
-            var scalar = new VectorScorerBQBenchmark();
-            var vectorized = new VectorScorerBQBenchmark();
-            try {
-                var data = VectorScorerBQBenchmark.generateRandomVectorData(
-                    new Random(seed),
-                    dims,
-                    NUM_VECTORS,
-                    NUM_QUERIES,
-                    similarityFunction
-                );
+            scalar.implementation = VectorScorerBQBenchmark.VectorImplementation.SCALAR;
+            scalar.dims = dims;
+            scalar.directoryType = directoryType;
+            scalar.similarityFunction = similarityFunction;
+            scalar.setup(data);
 
-                scalar.implementation = VectorScorerBQBenchmark.VectorImplementation.SCALAR;
-                scalar.dims = dims;
-                scalar.directoryType = directoryType;
-                scalar.similarityFunction = similarityFunction;
-                scalar.setup(data);
+            float[] expected = scalar.scoreRandom();
 
-                float[] expected = scalar.scoreRandom();
+            vectorized.implementation = VectorScorerBQBenchmark.VectorImplementation.VECTORIZED;
+            vectorized.dims = dims;
+            vectorized.directoryType = directoryType;
+            vectorized.similarityFunction = similarityFunction;
+            vectorized.setup(data);
 
-                vectorized.implementation = VectorScorerBQBenchmark.VectorImplementation.VECTORIZED;
-                vectorized.dims = dims;
-                vectorized.directoryType = directoryType;
-                vectorized.similarityFunction = similarityFunction;
-                vectorized.setup(data);
+            float[] result = vectorized.scoreRandom();
 
-                float[] result = vectorized.scoreRandom();
-
-                assertArrayEqualsPercent("single scoring, scalar VS vectorized", expected, result, deltaPercent, DEFAULT_DELTA);
-            } finally {
-                scalar.teardown();
-                vectorized.teardown();
-            }
+            assertArrayEqualsPercent("single scoring, scalar VS vectorized", expected, result, deltaPercent, DEFAULT_DELTA);
+        } finally {
+            scalar.teardown();
+            vectorized.teardown();
         }
     }
 
     public void testBulkScalarVsVectorized() throws Exception {
-        for (int i = 0; i < REPETITIONS; i++) {
-            var seed = randomLong();
+        var scalar = new VectorScorerBQBenchmark();
+        var vectorized = new VectorScorerBQBenchmark();
+        try {
+            var data = VectorScorerBQBenchmark.generateRandomVectorData(random(), dims, NUM_VECTORS, NUM_QUERIES, similarityFunction);
 
-            var scalar = new VectorScorerBQBenchmark();
-            var vectorized = new VectorScorerBQBenchmark();
-            try {
-                var data = VectorScorerBQBenchmark.generateRandomVectorData(
-                    new Random(seed),
-                    dims,
-                    NUM_VECTORS,
-                    NUM_QUERIES,
-                    similarityFunction
-                );
+            scalar.implementation = VectorScorerBQBenchmark.VectorImplementation.SCALAR;
+            scalar.dims = dims;
+            scalar.directoryType = directoryType;
+            scalar.similarityFunction = similarityFunction;
+            scalar.setup(data);
 
-                scalar.implementation = VectorScorerBQBenchmark.VectorImplementation.SCALAR;
-                scalar.dims = dims;
-                scalar.directoryType = directoryType;
-                scalar.similarityFunction = similarityFunction;
-                scalar.setup(data);
+            float[] expected = scalar.bulkScoreRandom();
 
-                float[] expected = scalar.bulkScoreRandom();
+            vectorized.implementation = VectorScorerBQBenchmark.VectorImplementation.VECTORIZED;
+            vectorized.dims = dims;
+            vectorized.directoryType = directoryType;
+            vectorized.similarityFunction = similarityFunction;
+            vectorized.setup(data);
 
-                vectorized.implementation = VectorScorerBQBenchmark.VectorImplementation.VECTORIZED;
-                vectorized.dims = dims;
-                vectorized.directoryType = directoryType;
-                vectorized.similarityFunction = similarityFunction;
-                vectorized.setup(data);
+            float[] result = vectorized.bulkScoreRandom();
 
-                float[] result = vectorized.bulkScoreRandom();
-
-                assertArrayEqualsPercent("bulk scoring, scalar VS vectorized", expected, result, deltaPercent, DEFAULT_DELTA);
-            } finally {
-                scalar.teardown();
-                vectorized.teardown();
-            }
+            assertArrayEqualsPercent("bulk scoring, scalar VS vectorized", expected, result, deltaPercent, DEFAULT_DELTA);
+        } finally {
+            scalar.teardown();
+            vectorized.teardown();
         }
     }
 

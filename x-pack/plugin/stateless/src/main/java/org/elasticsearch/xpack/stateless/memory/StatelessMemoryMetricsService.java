@@ -13,6 +13,8 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
 import org.elasticsearch.cluster.ShardHeapUsageEstimates;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -473,16 +475,19 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
 
         // new master use case: no indices exist in internal map
         if (event.nodesDelta().masterNodeChanged() || initialized == false) {
-            for (IndexMetadata indexMetadata : event.state().metadata().indicesAllProjects()) {
-                for (int id = 0; id < indexMetadata.getNumberOfShards(); id++) {
-                    var shardMemoryMetrics = newUninitialisedShardMemoryMetrics(relativeTimeInNanosSupplier.getAsLong());
-                    // new master should track the current assigned primary shard node in order to accept updates from such nodes
-                    ShardId shardId = new ShardId(indexMetadata.getIndex(), id);
-                    ShardRouting shardRouting = event.state().routingTable().shardRoutingTable(shardId).primaryShard();
-                    if (shardRouting.assignedToNode()) {
-                        shardMemoryMetrics.update(shardRouting.currentNodeId(), relativeTimeInNanos());
+            for (Map.Entry<ProjectId, ProjectMetadata> projectEntry : event.state().metadata().projects().entrySet()) {
+                final ProjectId projectId = projectEntry.getKey();
+                for (IndexMetadata indexMetadata : projectEntry.getValue()) {
+                    for (int id = 0; id < indexMetadata.getNumberOfShards(); id++) {
+                        var shardMemoryMetrics = newUninitialisedShardMemoryMetrics(relativeTimeInNanosSupplier.getAsLong());
+                        // new master should track the current assigned primary shard node in order to accept updates from such nodes
+                        ShardId shardId = new ShardId(indexMetadata.getIndex(), id);
+                        ShardRouting shardRouting = event.state().routingTable(projectId).shardRoutingTable(shardId).primaryShard();
+                        if (shardRouting.assignedToNode()) {
+                            shardMemoryMetrics.update(shardRouting.currentNodeId(), relativeTimeInNanos());
+                        }
+                        this.shardMemoryMetrics.put(shardId, shardMemoryMetrics);
                     }
-                    this.shardMemoryMetrics.put(shardId, shardMemoryMetrics);
                 }
             }
             initialized = true;
@@ -500,46 +505,49 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
                 }
             }
 
-            for (IndexMetadata indexMetadata : event.state().metadata().indicesAllProjects()) {
-                final Index index = indexMetadata.getIndex();
-                for (int id = 0; id < indexMetadata.getNumberOfShards(); id++) {
-                    // index created use case, EXACT values will be sent by index node
-                    shardMemoryMetrics.putIfAbsent(
-                        new ShardId(index, id),
-                        newUninitialisedShardMemoryMetrics(relativeTimeInNanosSupplier.getAsLong())
-                    );
-                }
-                // index mapping update use case
-                final IndexMetadata oldIndexMetadata = event.previousState().metadata().findIndex(index).orElse(null);
-                final IndexMetadata newIndexMetadata = event.state().metadata().findIndex(index).orElse(null);
+            for (Map.Entry<ProjectId, ProjectMetadata> projectEntry : event.state().metadata().projects().entrySet()) {
+                final ProjectId projectId = projectEntry.getKey();
+                for (IndexMetadata indexMetadata : projectEntry.getValue()) {
+                    final Index index = indexMetadata.getIndex();
+                    for (int id = 0; id < indexMetadata.getNumberOfShards(); id++) {
+                        // index created use case, EXACT values will be sent by index node
+                        shardMemoryMetrics.putIfAbsent(
+                            new ShardId(index, id),
+                            newUninitialisedShardMemoryMetrics(relativeTimeInNanosSupplier.getAsLong())
+                        );
+                    }
+                    // index mapping update use case
+                    final IndexMetadata oldIndexMetadata = event.previousState().metadata().findIndex(index).orElse(null);
+                    final IndexMetadata newIndexMetadata = event.state().metadata().findIndex(index).orElse(null);
 
-                if (oldIndexMetadata != null
-                    && newIndexMetadata != null
-                    && ClusterChangedEvent.indexMetadataChanged(oldIndexMetadata, newIndexMetadata)) {
-                    if (oldIndexMetadata.getMappingVersion() < newIndexMetadata.getMappingVersion()) {
-                        // set last known value as MINIMUM, EXACT value will be sent by index node
-                        for (int id = 0; id < indexMetadata.getNumberOfShards(); id++) {
-                            shardMemoryMetrics.get(new ShardId(index, id)).update(MetricQuality.MINIMUM, relativeTimeInNanos());
+                    if (oldIndexMetadata != null
+                        && newIndexMetadata != null
+                        && ClusterChangedEvent.indexMetadataChanged(oldIndexMetadata, newIndexMetadata)) {
+                        if (oldIndexMetadata.getMappingVersion() < newIndexMetadata.getMappingVersion()) {
+                            // set last known value as MINIMUM, EXACT value will be sent by index node
+                            for (int id = 0; id < indexMetadata.getNumberOfShards(); id++) {
+                                shardMemoryMetrics.get(new ShardId(index, id)).update(MetricQuality.MINIMUM, relativeTimeInNanos());
+                            }
                         }
                     }
-                }
 
-                // moving shards use case
-                if (event.indexRoutingTableChanged(index)) {
-                    for (int id = 0; id < indexMetadata.getNumberOfShards(); id++) {
-                        ShardId shardId = new ShardId(indexMetadata.getIndex(), id);
-                        ShardRouting newShardRouting = event.state().routingTable().shardRoutingTable(shardId).primaryShard();
-                        final ShardMemoryMetrics shardMemoryMetrics = this.shardMemoryMetrics.get(shardId);
-                        if (newShardRouting.assignedToNode()) {
-                            assert shardMemoryMetrics != null;
-                            final String lastKnownShardNodeId = shardMemoryMetrics.getMetricShardNodeId();
-                            final String newShardNodeId = newShardRouting.currentNodeId();
-                            if (newShardNodeId.equals(lastKnownShardNodeId) == false) {
-                                // preserve last-known value, since shard has moved and no mapping change happened
-                                shardMemoryMetrics.update(newShardRouting.currentNodeId(), relativeTimeInNanos());
+                    // moving shards use case
+                    if (event.indexRoutingTableChanged(index)) {
+                        for (int id = 0; id < indexMetadata.getNumberOfShards(); id++) {
+                            ShardId shardId = new ShardId(indexMetadata.getIndex(), id);
+                            ShardRouting newShardRouting = event.state().routingTable(projectId).shardRoutingTable(shardId).primaryShard();
+                            final ShardMemoryMetrics shardMemoryMetrics = this.shardMemoryMetrics.get(shardId);
+                            if (newShardRouting.assignedToNode()) {
+                                assert shardMemoryMetrics != null;
+                                final String lastKnownShardNodeId = shardMemoryMetrics.getMetricShardNodeId();
+                                final String newShardNodeId = newShardRouting.currentNodeId();
+                                if (newShardNodeId.equals(lastKnownShardNodeId) == false) {
+                                    // preserve last-known value, since shard has moved and no mapping change happened
+                                    shardMemoryMetrics.update(newShardRouting.currentNodeId(), relativeTimeInNanos());
+                                }
+                            } else {
+                                shardMemoryMetrics.update(MetricQuality.MINIMUM, relativeTimeInNanos());
                             }
-                        } else {
-                            shardMemoryMetrics.update(MetricQuality.MINIMUM, relativeTimeInNanos());
                         }
                     }
                 }

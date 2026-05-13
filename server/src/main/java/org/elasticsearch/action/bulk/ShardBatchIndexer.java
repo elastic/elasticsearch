@@ -15,15 +15,12 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.eirf.EirfRowReader;
-import org.elasticsearch.eirf.EirfRowToXContent;
 import org.elasticsearch.eirf.EirfRowXContentParser;
-import org.elasticsearch.eirf.EirfSchema;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -33,7 +30,6 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -194,21 +190,19 @@ public final class ShardBatchIndexer {
                 final IndexRequest indexRequest = (IndexRequest) item.request();
                 final DocWriteResponse primaryResponse = response.getResponse();
                 final EirfRowReader row = batch.getRowReader(i);
-                final EirfRowXContentParser parser = new EirfRowXContentParser(schemaTree, row);
 
                 final XContentType xContentType = indexRequest.getContentType() != null ? indexRequest.getContentType() : XContentType.JSON;
-                final BytesReference source = rowToSource(row, batch.schema(), xContentType);
                 final SourceToParse sourceToParse = new SourceToParse(
                     indexRequest.id(),
-                    source,
+                    schemaTree,
+                    row,
                     xContentType,
                     indexRequest.routing(),
                     Map.of(),
                     Map.of(),
                     indexRequest.getIncludeSourceOnError(),
                     XContentMeteringParserDecorator.NOOP,
-                    indexRequest.tsid(),
-                    parser
+                    indexRequest.tsid()
                 );
                 Engine.Index operation;
                 try {
@@ -262,13 +256,6 @@ public final class ShardBatchIndexer {
         }
 
         return new ReplicaBatchResult(processedItems, location);
-    }
-
-    static BytesReference rowToSource(EirfRowReader row, EirfSchema schema, XContentType xContentType) throws IOException {
-        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-            EirfRowToXContent.writeRow(row, schema, builder);
-            return BytesReference.bytes(builder);
-        }
     }
 
     record ReplicaBatchResult(int processedItems, @Nullable Translog.Location location) {}

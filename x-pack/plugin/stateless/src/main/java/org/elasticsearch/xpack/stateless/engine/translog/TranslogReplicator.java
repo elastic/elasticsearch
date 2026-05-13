@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.stateless.engine.translog;
 
+import com.carrotsearch.hppc.ObjectLongHashMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -20,6 +23,8 @@ import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
@@ -93,6 +98,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     private final ObjectStoreService objectStoreService;
     private final StatelessClusterConsistencyService consistencyService;
     private final ToLongFunction<ShardId> currentPrimaryTerm;
+    private final boolean supportsMultipleProjects;
     private final ThreadPool threadPool;
     private final Executor executor;
     private final Object generateFlushLock = new Object();
@@ -108,9 +114,10 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         final ThreadPool threadPool,
         final Settings settings,
         final ObjectStoreService objectStoreService,
-        final StatelessClusterConsistencyService consistencyService
+        final StatelessClusterConsistencyService consistencyService,
+        final boolean supportsMultipleProjects
     ) {
-        this(threadPool, settings, objectStoreService, consistencyService, shardId -> {
+        this(threadPool, settings, objectStoreService, consistencyService, supportsMultipleProjects, shardId -> {
             final Metadata metadata = consistencyService.state().metadata();
             IndexMetadata index = metadata.lookupProject(shardId.getIndex()).map(pm -> pm.index(shardId.getIndex())).orElse(null);
             if (index == null) {
@@ -125,6 +132,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         final Settings settings,
         final ObjectStoreService objectStoreService,
         final StatelessClusterConsistencyService consistencyService,
+        final boolean supportsMultipleProjects,
         final ToLongFunction<ShardId> currentPrimaryTerm
     ) {
         this.threadPool = threadPool;
@@ -134,6 +142,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         this.flushInterval = FLUSH_INTERVAL_SETTING.get(settings);
         this.flushSizeThreshold = FLUSH_SIZE_SETTING.get(settings);
         this.consistencyService = consistencyService;
+        this.supportsMultipleProjects = supportsMultipleProjects;
         this.currentPrimaryTerm = currentPrimaryTerm;
     }
 
@@ -158,6 +167,12 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     public BigArrays bigArrays() {
         return bigArrays;
+    }
+
+    // visible for testing
+    public long getTranslogBufferedDataSize() {
+        NodeTranslogBuffer buffer = currentBuffer.get();
+        return buffer == null ? 0L : buffer.getBufferSize();
     }
 
     @Override
@@ -476,7 +491,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     public record CompoundTranslogMetadata(
         String name,
         long generation,
-        Map<ShardId, TranslogMetadata.Operations> operations,
+        ObjectLongHashMap<ShardId> totalOps,
         Map<ShardId, ShardSyncState.SyncMarker> syncedLocations
     ) {}
 
@@ -593,21 +608,18 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         private final long generation;
         private final String blobName;
-        private final Map<ShardId, TranslogMetadata.Operations> operations;
+        // ObjectLongHashMap allows us to avoid using Long wrappers and HashMap$Node which can account for a significant amount of memory,
+        // when the number of shards and BlobTranslogFiles are high.
+        private final ObjectLongHashMap<ShardId> totalOps;
         private final Set<ShardId> includedShards;
 
         private volatile boolean safeForDelete = true;
         private ArrayList<ShardId> unsafeForDeleteShards = null;
 
-        BlobTranslogFile(
-            long generation,
-            String blobName,
-            Map<ShardId, TranslogMetadata.Operations> operations,
-            Set<ShardId> includedShards
-        ) {
+        BlobTranslogFile(long generation, String blobName, ObjectLongHashMap<ShardId> totalOps, Set<ShardId> includedShards) {
             this.generation = generation;
             this.blobName = blobName;
-            this.operations = operations;
+            this.totalOps = totalOps;
             this.includedShards = includedShards;
         }
 
@@ -619,8 +631,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             return blobName;
         }
 
-        public Map<ShardId, TranslogMetadata.Operations> operations() {
-            return operations;
+        public long getTotalOps(ShardId shardId) {
+            return this.totalOps.get(shardId);
         }
 
         @Override
@@ -660,8 +672,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 + generation
                 + ", blobName='"
                 + blobName
-                + "', operations="
-                + operations
+                + "', totalOps="
+                + totalOps
                 + ", includedShards="
                 + includedShards
                 + '}';
@@ -673,7 +685,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         private final TranslogReplicator.CompoundTranslogMetadata metadata;
 
         private BlobTranslogFileImpl(CompoundTranslogMetadata metadata) {
-            super(metadata.generation(), metadata.name(), metadata.operations(), metadata.syncedLocations().keySet());
+            super(metadata.generation(), metadata.name(), metadata.totalOps(), metadata.syncedLocations().keySet());
             this.metadata = metadata;
         }
 
@@ -702,7 +714,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 BlobTranslogFileImpl translogFile = uploadTranslogTask.translogFile;
                 CompoundTranslogMetadata metadata = uploadTranslogTask.translog.metadata();
                 for (Map.Entry<ShardId, ShardSyncState.SyncMarker> entry : metadata.syncedLocations().entrySet()) {
-                    assert translogFile.operations().get(entry.getKey()).totalOps() > 0;
+                    assert translogFile.getTotalOps(entry.getKey()) > 0;
                     ShardSyncState shardSyncState = shardSyncStates.get(entry.getKey());
                     // If the shard sync state has been deregistered we can just ignore
                     if (shardSyncState != null) {
@@ -766,8 +778,27 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             validateClusterStateTask.run();
         }
 
+        private boolean projectUnderDeletion(ShardId shardId, Metadata metadata, ProjectStateRegistry projectStateRegistry) {
+            var optionalProjectMetadata = metadata.lookupProject(shardId.getIndex());
+            if (optionalProjectMetadata.isEmpty()) {
+                // TODO: is it possible for this check to see no metadata?
+                final var message = Strings.format(
+                    "project not found for shard [%s] during translog file upload validation, treating as marked for deletion",
+                    shardId
+                );
+                assert false : message;
+                logger.warn(message);
+                return true;
+            }
+            return projectStateRegistry.isProjectMarkedForDeletion(optionalProjectMetadata.get().id());
+        }
+
         private void markClusterStateValidateFinished(long validateGeneration) {
             HashSet<ShardSyncState> modifiedShardSyncedLocations = new HashSet<>();
+            HashSet<ShardSyncState> shardsUnderProjectDeletion = new HashSet<>();
+            final var clusterState = consistencyService.state();
+            final var clusterStateMetadata = clusterState.metadata();
+            final var projectStateRegistry = ProjectStateRegistry.get(clusterState);
             synchronized (ongoingValidateClusterState) {
                 Iterator<ValidateClusterStateForUploadTask> iterator = ongoingValidateClusterState.iterator();
                 while (iterator.hasNext()) {
@@ -779,8 +810,29 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                                 activeTranslogFiles.add(upload);
                                 for (Map.Entry<ShardId, ShardSyncState.SyncMarker> entry : upload.metadata.syncedLocations().entrySet()) {
                                     ShardSyncState shardSyncState = shardSyncStates.get(entry.getKey());
-                                    // If the shard sync state has been deregistered we can just ignore
-                                    if (shardSyncState != null) {
+                                    if (shardSyncState == null) {
+                                        logger.debug(
+                                            () -> format(
+                                                "skipped shard %s sync notification after translog file [%s] upload because "
+                                                    + "shard unregistered",
+                                                entry.getKey(),
+                                                upload.blobName()
+                                            )
+                                        );
+                                        continue;
+                                    }
+                                    if (supportsMultipleProjects
+                                        && projectUnderDeletion(entry.getKey(), clusterStateMetadata, projectStateRegistry)) {
+                                        shardsUnderProjectDeletion.add(shardSyncState);
+                                        logger.debug(
+                                            () -> format(
+                                                "skipped shard %s sync notification after translog file [%s] upload because "
+                                                    + "project is marked for deletion",
+                                                entry.getKey(),
+                                                upload.blobName()
+                                            )
+                                        );
+                                    } else {
                                         ShardSyncState.SyncMarker syncMarker = entry.getValue();
                                         boolean syncFinishedAccepted = shardSyncState.markSyncFinished(syncMarker);
                                         if (syncFinishedAccepted) {
@@ -798,15 +850,6 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                                                 )
                                             );
                                         }
-                                    } else {
-                                        logger.debug(
-                                            () -> format(
-                                                "skipped shard %s sync notification after translog file [%s] upload because "
-                                                    + "shard unregistered",
-                                                entry.getKey(),
-                                                upload.blobName()
-                                            )
-                                        );
                                     }
                                 }
                             } finally {
@@ -821,6 +864,14 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             }
             for (ShardSyncState modifiedShardSyncedLocation : modifiedShardSyncedLocations) {
                 modifiedShardSyncedLocation.notifyListeners();
+            }
+            for (ShardSyncState shardSyncState : shardsUnderProjectDeletion) {
+                // TODO: consider defining a dedicated ProjectNotFoundException instead of reusing ResourceNotFoundException
+                shardSyncState.failPendingListeners(
+                    new ResourceNotFoundException(
+                        "The project containing shard [" + shardSyncState.getShardId() + "] is marked for deletion"
+                    )
+                );
             }
         }
 

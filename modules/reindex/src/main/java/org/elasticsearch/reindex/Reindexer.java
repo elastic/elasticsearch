@@ -48,6 +48,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
@@ -86,6 +87,7 @@ import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -119,6 +121,14 @@ public class Reindexer {
 
     private static final Logger logger = LogManager.getLogger(Reindexer.class);
 
+    /// Allows setting the system property `es.reindex.disable_pit_search` as an escape hatch to disable the use of PIT-based search, and
+    /// force the use of the legacy scroll-based search.
+    // TODO(#2715): Remove this when we're confident the PIT version works
+    private static final boolean DISABLE_PIT_SEARCH = Booleans.parseBooleanLenient(
+        System.getProperty("es.reindex.disable_pit_search"),
+        false
+    );
+
     private final ClusterService clusterService;
     private final ReindexSettings reindexSettings;
     private final ProjectResolver projectResolver;
@@ -128,6 +138,8 @@ public class Reindexer {
     private final ReindexSslConfig reindexSslConfig;
     @Nullable
     private final ReindexMetrics reindexMetrics;
+    @Nullable
+    private final BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics;
     private final TaskManager taskManager;
     private final TransportService transportService;
     private final ReindexRelocationNodePicker relocationNodePicker;
@@ -144,6 +156,7 @@ public class Reindexer {
         ScriptService scriptService,
         ReindexSslConfig reindexSslConfig,
         @Nullable ReindexMetrics reindexMetrics,
+        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
         TransportService transportService,
         ReindexRelocationNodePicker relocationNodePicker,
         FeatureService featureService,
@@ -157,6 +170,7 @@ public class Reindexer {
         this.scriptService = scriptService;
         this.reindexSslConfig = reindexSslConfig;
         this.reindexMetrics = reindexMetrics;
+        this.bulkByScrollSearchContextMetrics = bulkByScrollSearchContextMetrics;
         this.taskManager = transportService.getTaskManager(); // implicit null check
         this.transportService = transportService;
         this.relocationNodePicker = Objects.requireNonNull(relocationNodePicker);
@@ -228,7 +242,7 @@ public class Reindexer {
         Consumer<Version> workerAction = createWorkerAction(task, request, bulkClient, responseListener);
 
         // Point-in-time searching is disabled, so default to scroll
-        if (featureService.clusterHasFeature(clusterService.state(), REINDEX_PIT_SEARCH_FEATURE) == false) {
+        if (featureService.clusterHasFeature(clusterService.state(), REINDEX_PIT_SEARCH_FEATURE) == false || DISABLE_PIT_SEARCH) {
             executePaginatedSearch(task, request, responseListener, workerAction, null);
         }
         /**
@@ -285,7 +299,8 @@ public class Reindexer {
                 request,
                 listener,
                 remoteVersion,
-                reindexShutdownGracePeriod
+                reindexShutdownGracePeriod,
+                bulkByScrollSearchContextMetrics
             );
             searchAction.start();
         };
@@ -532,8 +547,6 @@ public class Reindexer {
             exponentialBackoff(request.getRetryBackoffInitialTime(), request.getMaxRetries()),
             threadPool,
             restClient,
-            // TODO - Do we want to pass in a countRetry runnable here to count the number of times we retry?
-            // https://github.com/elastic/elasticsearch-team/issues/2382
             rejectAwareListener
         );
     }
@@ -729,6 +742,14 @@ public class Reindexer {
                 l.onFailure(e);
                 return;
             }
+
+            // Capture RPS under the relocation guard, blocking concurrent rethrottle from this point on.
+            // RPS is carried on the request itself; the destination allocates the RPS amongst incomplete slices.
+            // Completed slices will have the old RPS values.
+            final float capturedRPS = task.isLeader()
+                ? task.getLeaderState().captureRequestsPerSecondForRelocation()
+                : task.getWorkerState().captureRequestsPerSecondForRelocation();
+            request.setRequestsPerSecond(capturedRPS);
             request.setResumeInfo(
                 new ResumeInfo(resumeInfo.relocationOrigin(), resumeInfo.worker(), resumeInfo.slices(), sourceTaskResult)
             );
@@ -935,7 +956,8 @@ public class Reindexer {
             ReindexRequest request,
             ActionListener<BulkByScrollResponse> listener,
             @Nullable Version remoteVersion,
-            TimeValue maxTaskShutdownGracePeriod
+            TimeValue maxTaskShutdownGracePeriod,
+            @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics
         ) {
             super(
                 task,
@@ -955,9 +977,12 @@ public class Reindexer {
                 scriptService,
                 sslConfig,
                 remoteVersion,
+                bulkByScrollSearchContextMetrics,
+                BulkByScrollSearchContextMetrics.TaskKind.REINDEX,
+                request.getRemoteInfo() != null,
                 maxTaskShutdownGracePeriod
             );
-            this.destinationIndexIdMapper = destinationIndexMode(state).idFieldMapperWithoutFieldData();
+            this.destinationIndexIdMapper = destinationIndexMode(state).idFieldMapperForReindex();
         }
 
         private IndexMode destinationIndexMode(ProjectState state) {
@@ -994,7 +1019,8 @@ public class Reindexer {
                         restClient,
                         remoteInfo,
                         searchRequest,
-                        remoteVersion
+                        remoteVersion,
+                        searchContextKeepaliveDeadline
                     );
                 }
                 return new RemoteScrollablePaginatedHitSource(
@@ -1007,7 +1033,8 @@ public class Reindexer {
                     restClient,
                     remoteInfo,
                     searchRequest,
-                    remoteVersion
+                    remoteVersion,
+                    searchContextKeepaliveDeadline
                 );
             }
             return super.buildScrollableResultSource(backoffPolicy, searchRequest);
@@ -1080,7 +1107,27 @@ public class Reindexer {
                     index.source(BytesReference.bytes(builder), builder.contentType());
                 } catch (IOException e) {
                     throw new UncheckedIOException(
-                        "failed to convert hit from " + sourceXContentType + " to " + mainRequestXContentType,
+                        "failed to convert hit ["
+                            + doc.getIndex()
+                            + "]["
+                            + doc.getId()
+                            + "] from "
+                            + sourceXContentType
+                            + " to "
+                            + mainRequestXContentType,
+                        e
+                    );
+                } catch (XContentParseException e) {
+                    throw new XContentParseException(
+                        e.getLocation(),
+                        "failed to convert hit ["
+                            + doc.getIndex()
+                            + "]["
+                            + doc.getId()
+                            + "] from "
+                            + sourceXContentType
+                            + " to "
+                            + mainRequestXContentType,
                         e
                     );
                 }

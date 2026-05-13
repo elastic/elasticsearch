@@ -24,6 +24,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Function;
 
 /**
  * Fans page-level work across a fixed pool of worker slots, each owning per-slot state of type {@code W}.
@@ -261,6 +262,23 @@ public abstract class WorkerFanOut<W extends Releasable & Accountable> implement
         return total;
     }
 
+    /**
+     * Apply {@code mapper} to each non-null worker state in slot order, lock-free. The mapper races
+     * with both worker threads and Driver-thread cleanup, so it must read only volatile primitives
+     * or final thread-safe references on the state — anything else can NPE or see torn data.
+     * Released slots are skipped.
+     */
+    public final <T> List<T> mapStates(Function<W, T> mapper) {
+        List<T> results = new ArrayList<>(workers.length);
+        for (WorkerSlot<W> slot : workers) {
+            W state = slot.state;
+            if (state != null) {
+                results.add(mapper.apply(state));
+            }
+        }
+        return results;
+    }
+
     private ReleasableIterator<Page> buildResultFromWorkers() {
         List<W> states = new ArrayList<>(workers.length);
         for (WorkerSlot<W> slot : workers) {
@@ -342,7 +360,8 @@ public abstract class WorkerFanOut<W extends Releasable & Accountable> implement
         final ConcurrentLinkedDeque<Page> inbox = new ConcurrentLinkedDeque<>();
         final AtomicBoolean running = new AtomicBoolean(false);
         final int index;
-        W state;
+        // Volatile so mapStates can read without acquiring the slot lock.
+        volatile W state;
         // Refreshed by each drain under lock; read lock-free by ramBytesUsed.
         volatile long ramBytesSnapshot;
 

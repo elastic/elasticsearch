@@ -23,6 +23,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -331,6 +332,62 @@ public class WorkerFanOutTests extends ComputeTestCase {
             }
         }
         assertThat(signalled, greaterThanOrEqualTo(iterations));
+    }
+
+    public void testMapStates() throws Exception {
+        executor = Executors.newFixedThreadPool(2);
+        DriverContext driverContext = newDriverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+
+        try (TestFanOut fanOut = new TestFanOut(driverContext, executor, 2, 8)) {
+            // Slot order is preserved: 6 pages round-robin → 3 each.
+            for (int i = 0; i < 6; i++) {
+                fanOut.addInput(makePage(blockFactory, i));
+            }
+            awaitProcessed(fanOut, 6);
+
+            List<Integer> counts = fanOut.mapStates(s -> s.processed.get());
+            assertThat(counts.size(), equalTo(2));
+            assertThat(counts.get(0), equalTo(3));
+            assertThat(counts.get(1), equalTo(3));
+
+            // Concurrent-write safety: park a drain on a latch, hammer mapStates from this thread,
+            // assert it never throws and returns plausible values.
+            CountDownLatch release = new CountDownLatch(1);
+            CountDownLatch started = new CountDownLatch(1);
+            fanOut.pageHandler = (state, page, slotIndex) -> {
+                started.countDown();
+                assertTrue(release.await(10, TimeUnit.SECONDS));
+                state.processed.incrementAndGet();
+            };
+            fanOut.addInput(makePage(blockFactory, 99));
+            assertTrue(started.await(10, TimeUnit.SECONDS));
+            for (int i = 0; i < 100; i++) {
+                List<Integer> snap = fanOut.mapStates(s -> s.processed.get());
+                assertThat(snap.size(), equalTo(2));
+                for (Integer c : snap) {
+                    assertThat(c, greaterThanOrEqualTo(3));
+                }
+            }
+            release.countDown();
+            awaitProcessed(fanOut, 7);
+
+            // close() nulls slot.state, so mapStates returns an empty list.
+            fanOut.close();
+            assertThat(fanOut.mapStates(s -> s.processed.get()), empty());
+        }
+    }
+
+    private void awaitProcessed(TestFanOut fanOut, int expected) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
+            int total = fanOut.mapStates(s -> s.processed.get()).stream().mapToInt(Integer::intValue).sum();
+            if (total >= expected) {
+                return;
+            }
+            Thread.sleep(1);
+        }
+        fail("workers did not process " + expected + " pages in time");
     }
 
 }

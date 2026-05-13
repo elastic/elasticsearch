@@ -26,7 +26,6 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -537,8 +536,8 @@ public class TopNOperator implements Operator, Accountable {
         int occupiedCount;
         if (sequentialState != null) {
             occupiedCount = sequentialState.queue.size();
-        } else if (parallel != null && parallel.occupiedRows != null) {
-            occupiedCount = Math.toIntExact(Arrays.stream(parallel.occupiedRows).mapToLong(AtomicLong::get).sum());
+        } else if (parallel != null && parallel.workers != null) {
+            occupiedCount = Math.toIntExact(parallel.workers.mapStates(s -> s.occupiedRows).stream().mapToLong(Long::longValue).sum());
         } else {
             occupiedCount = 0;
         }
@@ -577,10 +576,6 @@ public class TopNOperator implements Operator, Accountable {
         // with no state.
         parallel.promotionAttempted = true;
         final int workerCount = parallel.config.workerCount();
-        parallel.occupiedRows = new AtomicLong[workerCount];
-        for (int i = 0; i < workerCount; i++) {
-            parallel.occupiedRows[i] = new AtomicLong();
-        }
         parallel.workers = new WorkerFanOut<>(
             parallel.driverContext,
             parallel.config.executor(),
@@ -612,7 +607,7 @@ public class TopNOperator implements Operator, Accountable {
                     mergePageIntoQueue(page, state);
                 } finally {
                     receiveNanos.addAndGet(System.nanoTime() - start);
-                    parallel.occupiedRows[slotIndex].set(state.queue == null ? 0 : state.queue.size());
+                    state.occupiedRows = state.queue == null ? 0 : state.queue.size();
                 }
             }
 
@@ -670,8 +665,6 @@ public class TopNOperator implements Operator, Accountable {
         boolean promotionAttempted;
         @Nullable
         WorkerFanOut<TopNWorkerState> workers;
-        @Nullable
-        AtomicLong[] occupiedRows;
 
         ParallelState(DriverContext driverContext, ParallelWorkerConfig config) {
             this.driverContext = driverContext;
@@ -682,6 +675,9 @@ public class TopNOperator implements Operator, Accountable {
     static final class TopNWorkerState implements Releasable, Accountable {
         TopNQueue queue;
         TopNRow spare;
+        // Snapshot of queue.size(). Single-writer (the slot's drain task), so volatile is enough — no
+        // need for AtomicLong. Read lock-free from status() via WorkerFanOut.mapStates.
+        volatile long occupiedRows;
 
         TopNWorkerState(TopNQueue queue) {
             this.queue = queue;

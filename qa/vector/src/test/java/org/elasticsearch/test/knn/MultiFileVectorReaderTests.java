@@ -118,6 +118,31 @@ public class MultiFileVectorReaderTests extends ESTestCase {
         }
     }
 
+    public void testOverReadingPastTotalDocsThrowsClearError() throws IOException {
+        float[][] vectors1 = { { 1.0f, 2.0f }, { 3.0f, 4.0f } };
+        float[][] vectors2 = { { 5.0f, 6.0f }, { 7.0f, 8.0f }, { 9.0f, 10.0f } };
+        Path file1 = writeFvecFile("part1.fvec", vectors1);
+        Path file2 = writeFvecFile("part2.fvec", vectors2);
+
+        try (
+            var reader = IndexVectorReader.MultiFileVectorReader.create(
+                List.of(file1, file2),
+                -1,
+                VectorEncoding.FLOAT32,
+                Integer.MAX_VALUE,
+                false
+            )
+        ) {
+            assertEquals(5, reader.totalDocs());
+            for (int i = 0; i < 5; i++) {
+                reader.nextFloatVector();
+            }
+            // 6th call must throw a clear IllegalStateException, not an IOOBE
+            IllegalStateException ex = expectThrows(IllegalStateException.class, reader::nextFloatVector);
+            assertTrue("error should mention exhausted state", ex.getMessage().contains("exhausted"));
+        }
+    }
+
     public void testRawFloatFilesWithKnownDim() throws IOException {
         float[][] vectors1 = { { 1.0f, 2.0f, 3.0f } };
         float[][] vectors2 = { { 4.0f, 5.0f, 6.0f } };

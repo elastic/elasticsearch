@@ -21,6 +21,8 @@ import org.elasticsearch.test.knn.SearchParameters;
 import java.io.IOException;
 import java.util.Random;
 
+import static org.elasticsearch.test.knn.KnnIndexTester.logger;
+
 /**
  *  Generates non-partitioned vector data for KNN benchmarking.
  */
@@ -32,7 +34,13 @@ public final class NonPartitionDataGenerator extends DataGenerator {
 
     @Override
     public KnnIndexTester.IndexingSetup createIndexingSetup() throws IOException {
-        return new KnnIndexTester.IndexingSetup(docs(), new KnnIndexer.DefaultDocumentFactory(), numDocs());
+        IndexVectorReader reader = docs();
+        int available = reader.totalVectors();
+        int effectiveTotalDocs = (available >= 0) ? Math.min(numDocs(), available) : numDocs();
+        if (available >= 0 && available < numDocs()) {
+            logger.warn("num_docs={} exceeds available vectors in doc files ({}); capping to {}", numDocs(), available, available);
+        }
+        return new KnnIndexTester.IndexingSetup(reader, new KnnIndexer.DefaultDocumentFactory(), effectiveTotalDocs);
     }
 
     @Override

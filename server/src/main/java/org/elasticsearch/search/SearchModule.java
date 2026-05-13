@@ -45,6 +45,7 @@ import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
+import org.elasticsearch.index.query.NestedFieldFilterQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -1205,6 +1206,9 @@ public class SearchModule {
         }));
         registerQuery(new QuerySpec<>(ToChildBlockJoinQueryBuilder.NAME, ToChildBlockJoinQueryBuilder::new, parser -> {
             throw new IllegalArgumentException("[to_child_block_join] queries cannot be provided directly");
+        }));
+        registerQuery(new QuerySpec<>(NestedFieldFilterQueryBuilder.NAME, NestedFieldFilterQueryBuilder::new, parser -> {
+            throw new IllegalArgumentException("[nested_field_filter] queries cannot be provided directly");
         }));
         registerQuery(
             new QuerySpec<>(RandomSamplingQueryBuilder.NAME, RandomSamplingQueryBuilder::new, RandomSamplingQueryBuilder::fromXContent)

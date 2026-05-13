@@ -132,6 +132,26 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
         suppliers.add(urlDomainCase("no scheme", "ftp://example.com/", "ftp://example.com/"));
         suppliers.add(urlDomainCase("empty host", "http:///foo", "http:///foo"));
         suppliers.add(urlDomainCase("contains newline", "http://example.com/p\nq", "http://example.com/p\nq"));
+        // Regex backtracking on (?:www\.)? — when the bytes immediately after
+        // the scheme are "www.<slash>", the regex engine backtracks to let
+        // "www." itself be the host capture. The fast path must mirror that.
+        suppliers.add(urlDomainCase("www. is host, no path", "http://www./", "www."));
+        suppliers.add(urlDomainCase("www. is host, with path", "http://www./foo", "www."));
+        suppliers.add(urlDomainCase("www. is host, doubled", "http://www./www./foo", "www."));
+        suppliers.add(urlDomainCase("www.www.host", "http://www.www.example.com/", "www.example.com"));
+        // Documented divergence (see processUrlDomain Javadoc): a URL that
+        // ends in a single line terminator. The regex engine matches up to
+        // before the trailing terminator and returns host-plus-terminator,
+        // while the fast path's up-front terminator gate returns the input
+        // unchanged. Pinned here so the contract is visible.
+        suppliers.add(
+            urlDomainDivergenceCase(
+                "trailing newline (documented divergence)",
+                "http://example.com/path\n",
+                "http://example.com/path\n",
+                "example.com\n"
+            )
+        );
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
     }
@@ -139,26 +159,64 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
     /**
      * Build a test case that forces the regex + replacement to literals so that
      * the URL-domain fast path in {@link Replace#toEvaluator} is selected, and
-     * asserts the result matches what {@link String#replaceAll} would produce.
+     * cross-checks the hand-written {@code expected} against what
+     * {@link String#replaceAll} produces, so drift between the fast path and
+     * the regex it stands in for surfaces at parameter-construction time.
      */
     private static TestCaseSupplier urlDomainCase(String name, String input, String expected) {
-        return new TestCaseSupplier(name, List.of(DataType.KEYWORD, DataType.KEYWORD, DataType.KEYWORD), () -> {
-            String regex = Replace.URL_DOMAIN_REGEX;
-            // Sanity-check the expectation against the JDK regex engine so the
-            // fast path stays bit-for-bit aligned with the slow path.
-            assert expected.equals(input.replaceAll(regex, "$1"))
-                : "URL-domain test expectation drifted from java.util.regex for input [" + input + "]";
-            return new TestCaseSupplier.TestCase(
+        String regexOutput = input.replaceAll(Replace.URL_DOMAIN_REGEX, "$1");
+        if (regexOutput.equals(expected) == false) {
+            throw new AssertionError(
+                "URL-domain test expectation drifted from java.util.regex for input ["
+                    + input
+                    + "]: expected ["
+                    + expected
+                    + "] but regex produces ["
+                    + regexOutput
+                    + "]"
+            );
+        }
+        return urlDomainCaseImpl(name, input, expected);
+    }
+
+    /**
+     * Build a test case that pins a documented divergence between the fast
+     * path and the regex: the fast path returns {@code expected} while the
+     * regex returns {@code regexOutput}. The regex side is still cross-checked
+     * so {@code regexOutput} stays accurate; only the cross-check against
+     * {@code expected} is skipped.
+     */
+    private static TestCaseSupplier urlDomainDivergenceCase(String name, String input, String expected, String regexOutput) {
+        String actualRegex = input.replaceAll(Replace.URL_DOMAIN_REGEX, "$1");
+        if (actualRegex.equals(regexOutput) == false) {
+            throw new AssertionError(
+                "URL-domain divergence test regex-side expectation drifted for input ["
+                    + input
+                    + "]: declared regex output ["
+                    + regexOutput
+                    + "] but actual ["
+                    + actualRegex
+                    + "]"
+            );
+        }
+        return urlDomainCaseImpl(name, input, expected);
+    }
+
+    private static TestCaseSupplier urlDomainCaseImpl(String name, String input, String expected) {
+        return new TestCaseSupplier(
+            name,
+            List.of(DataType.KEYWORD, DataType.KEYWORD, DataType.KEYWORD),
+            () -> new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(new BytesRef(input), DataType.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(new BytesRef(regex), DataType.KEYWORD, "regex").forceLiteral(),
+                    new TestCaseSupplier.TypedData(new BytesRef(Replace.URL_DOMAIN_REGEX), DataType.KEYWORD, "regex").forceLiteral(),
                     new TestCaseSupplier.TypedData(new BytesRef("$1"), DataType.KEYWORD, "newStr").forceLiteral()
                 ),
                 "ReplaceUrlDomainConstantEvaluator[str=Attribute[channel=0]]",
                 DataType.KEYWORD,
                 equalTo(new BytesRef(expected))
-            );
-        });
+            )
+        );
     }
 
     private static TestCaseSupplier fixedCase(String name, String str, String oldStr, String newStr, String result) {

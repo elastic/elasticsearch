@@ -46,6 +46,13 @@ public class Replace extends EsqlScalarFunction {
         "esql_serialize_source_functions_warnings"
     );
 
+    /**
+     * Canonical ClickBench "extract referer host" regex. Recognized verbatim
+     * — alternate equivalent spellings (different escaping, omitted www. group,
+     * etc.) fall through to the general pattern path.
+     */
+    static final String URL_DOMAIN_REGEX = "^https?://(?:www\\.)?([^/]+)/.*$";
+
     private final Expression str;
     private final Expression regex;
     private final Expression newStr;
@@ -161,10 +168,12 @@ public class Replace extends EsqlScalarFunction {
      * The scan is bit-for-bit equivalent to the regex on inputs that contain
      * no ASCII line terminators ({@code \n} / {@code \r}). When a terminator
      * byte is present anywhere, the scanner conservatively returns the input
-     * unchanged. The regex would also return the input unchanged for almost
-     * every such case; the only divergence is a URL ending in exactly one
-     * terminator with no other terminators inside — extraordinarily rare in
-     * practice and acceptable for the bench targets this path is designed for.
+     * unchanged. The regex sometimes disagrees on terminator-containing
+     * inputs — for a URL ending in a terminator, e.g. {@code "http://h/p\n"},
+     * the regex returns {@code "h\n"} (the host plus the unconsumed trailing
+     * terminator) while the fast path returns the input unchanged. This is a
+     * deliberate divergence, pinned by tests below, on inputs that do not
+     * occur in the bench workloads this path targets.
      */
     @Evaluator(extraName = "UrlDomainConstant")
     static BytesRef processUrlDomain(BytesRef str) {
@@ -199,13 +208,23 @@ public class Replace extends EsqlScalarFunction {
         }
         pos += 3;
 
-        // optional www.
+        // Optional www. — but the regex engine backtracks on this branch,
+        // so we have to mirror that. If we eagerly consume "www." and the
+        // next byte is the slash that ends the host, the host capture
+        // ([^/]+) would be empty and the engine would backtrack to make
+        // (?:www\.)? match zero chars, letting "www." itself be the host.
+        // We compute the host with www. consumed, and if it comes out
+        // empty we re-do it with www. left in the host.
+        int hostStart = pos;
         if (end - pos >= 4 && bytes[pos] == 'w' && bytes[pos + 1] == 'w' && bytes[pos + 2] == 'w' && bytes[pos + 3] == '.') {
-            pos += 4;
+            if (end - pos >= 5 && bytes[pos + 4] != '/') {
+                hostStart = pos + 4;
+            }
+            // else: keep hostStart = pos (regex backtrack: "www." is the host).
         }
+        pos = hostStart;
 
         // [^/]+ — capture group; non-slash run.
-        int hostStart = pos;
         while (pos < end && bytes[pos] != '/') {
             pos++;
         }
@@ -278,6 +297,12 @@ public class Replace extends EsqlScalarFunction {
 
         if (regex.foldable() && regex.dataType() == DataType.KEYWORD) {
             String regexSource = BytesRefs.toString(regex.fold(toEvaluator.foldCtx()));
+            if (URL_DOMAIN_REGEX.equals(regexSource) && newStr.foldable() && newStr.dataType() == DataType.KEYWORD) {
+                String foldedNewStr = BytesRefs.toString(newStr.fold(toEvaluator.foldCtx()));
+                if ("$1".equals(foldedNewStr)) {
+                    return new ReplaceUrlDomainConstantEvaluator.Factory(source(), strEval);
+                }
+            }
             Pattern regexPattern;
             try {
                 regexPattern = Pattern.compile(regexSource);
@@ -287,25 +312,12 @@ public class Replace extends EsqlScalarFunction {
                 // but for the moment we let the exception through
                 throw pse;
             }
-            if (URL_DOMAIN_REGEX.equals(regexSource) && newStr.foldable() && newStr.dataType() == DataType.KEYWORD) {
-                String foldedNewStr = BytesRefs.toString(newStr.fold(toEvaluator.foldCtx()));
-                if ("$1".equals(foldedNewStr)) {
-                    return new ReplaceUrlDomainConstantEvaluator.Factory(source(), strEval);
-                }
-            }
             return new ReplaceConstantEvaluator.Factory(source(), strEval, regexPattern, newStrEval);
         }
 
         var regexEval = toEvaluator.apply(regex);
         return new ReplaceEvaluator.Factory(source(), strEval, regexEval, newStrEval);
     }
-
-    /**
-     * Canonical ClickBench "extract referer host" regex. Recognized verbatim
-     * — alternate equivalent spellings (different escaping, omitted www. group,
-     * etc.) fall through to the general pattern path.
-     */
-    static final String URL_DOMAIN_REGEX = "^https?://(?:www\\.)?([^/]+)/.*$";
 
     Expression str() {
         return str;

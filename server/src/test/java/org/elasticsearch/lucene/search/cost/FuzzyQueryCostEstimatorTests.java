@@ -9,7 +9,17 @@
 
 package org.elasticsearch.lucene.search.cost;
 
+import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.test.ESTestCase;
+
+import java.nio.charset.StandardCharsets;
+import java.util.BitSet;
+import java.util.Locale;
+import java.util.Random;
+
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class FuzzyQueryCostEstimatorTests extends ESTestCase {
 
@@ -40,8 +50,6 @@ public class FuzzyQueryCostEstimatorTests extends ESTestCase {
     }
 
     public void testNarrowAlphabetIsFlat() {
-        // Below the wide-alphabet threshold the alphabet term is constant (factor 1) — the
-        // estimator deliberately does not try to track sub-threshold variation.
         long bd1 = new FuzzyQueryCostEstimator(20, 1, 2, 0).estimate();
         long bd26 = new FuzzyQueryCostEstimator(20, 26, 2, 0).estimate();
         long bd64 = new FuzzyQueryCostEstimator(20, 64, 2, 0).estimate();
@@ -56,8 +64,6 @@ public class FuzzyQueryCostEstimatorTests extends ESTestCase {
     }
 
     public void testPrefixLongerThanTermIsClampedNotNegative() {
-        // When the prefix swallows the entire term, the dynamic part should collapse to zero
-        // and only the BASE constant remain.
         long allPrefix = new FuzzyQueryCostEstimator(5, 5, 2, 100).estimate();
         assertEquals(FuzzyQueryCostEstimator.BASE_BYTES, allPrefix);
     }
@@ -73,12 +79,109 @@ public class FuzzyQueryCostEstimatorTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> new FuzzyQueryCostEstimator(10, 10, 99, 0));
     }
 
-    // The previous empirical "estimate >= sum(CompiledAutomaton#ramBytesUsed())" check that
-    // walked a {termLen, maxEdits, prefix, alphabet, transpositions} grid was intentionally
-    // dropped. Coupling unit tests to Lucene's internal RAM accounting is brittle: small
-    // Lucene refactors that don't actually regress the breaker would still turn the test red.
-    // The monotonicity and invariant assertions above plus the end-to-end coverage in
-    // server/src/internalClusterTest/.../AccountableQueryCircuitBreakerIT cover the property
-    // we actually care about (pathological fuzzy clauses trip the breaker). The empirical
-    // ceiling property is better re-validated periodically via a JMH benchmark.
+    public void testEstimateIsCeilingOnMeasuredAutomataRam() {
+        int[] termLengths = { 5, 20, 50, 200, 600};
+        int[] maxEditsValues = { 1, 2 };
+        int[] prefixLengths = { 0, 3 };
+        Alphabet[] alphabets = Alphabet.values();
+        boolean[] transpositionsValues = { true, false };
+
+        long worstRatioMicros = 0;
+        long bestRatioMicros = Long.MAX_VALUE;
+
+        for (int termLength : termLengths) {
+            for (int maxEdits : maxEditsValues) {
+                for (int prefix : prefixLengths) {
+                    for (Alphabet alphabet : alphabets) {
+                        for (boolean transpositions : transpositionsValues) {
+
+                            Random rnd = new Random(0xC0FFEEL ^ termLength ^ alphabet.ordinal());
+                            String term = alphabet.generate(termLength, rnd);
+                            byte[] utf8 = term.getBytes(StandardCharsets.UTF_8);
+                            int distinctUtf8Bytes = countDistinctUtf8Bytes(utf8);
+
+                            long estimated = new FuzzyQueryCostEstimator(utf8.length, distinctUtf8Bytes, maxEdits, prefix).estimate();
+                            long measured = sumCompiledAutomataRamBytes(term, maxEdits, prefix, transpositions);
+
+                            double ratio = measured == 0L ? Double.POSITIVE_INFINITY : (double) estimated / (double) measured;
+                            long ratioMicros = measured == 0L ? Long.MAX_VALUE : Math.round(ratio * 1_000_000.0);
+                            worstRatioMicros = Math.max(worstRatioMicros, ratioMicros);
+                            bestRatioMicros = Math.min(bestRatioMicros, ratioMicros);
+
+                            assertThat(
+                                String.format(
+                                    Locale.ROOT,
+                                    "estimate must be a ceiling on measured ramBytesUsed "
+                                        + "[termLen=%d, maxEdits=%d, prefix=%d, alphabet=%s, transpositions=%s, "
+                                        + "estimated=%d, measured=%d, ratio=%.3f]",
+                                    termLength,
+                                    maxEdits,
+                                    prefix,
+                                    alphabet,
+                                    transpositions,
+                                    estimated,
+                                    measured,
+                                    ratio
+                                ),
+                                estimated,
+                                greaterThan(measured)
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static long sumCompiledAutomataRamBytes(String term, int maxEdits, int prefixLength, boolean transpositions) {
+        long sum = 0L;
+        for (int e = 0; e <= maxEdits; e++) {
+            CompiledAutomaton ca = FuzzyQuery.getFuzzyAutomaton(term, e, prefixLength, transpositions);
+            sum += ca.ramBytesUsed();
+        }
+        return sum;
+    }
+
+    private static int countDistinctUtf8Bytes(byte[] utf8) {
+        BitSet seen = new BitSet(256);
+        for (byte b : utf8) {
+            seen.set(b & 0xff);
+        }
+        return seen.cardinality();
+    }
+
+    private enum Alphabet {
+        SINGLE_CHAR {
+            @Override
+            String generate(int n, Random r) {
+                return "a".repeat(n);
+            }
+        },
+        ASCII_LETTERS {
+            @Override
+            String generate(int n, Random r) {
+                StringBuilder sb = new StringBuilder(n);
+                for (int i = 0; i < n; i++) {
+                    sb.append((char) ('a' + r.nextInt(26)));
+                }
+                return sb.toString();
+            }
+        },
+        UNICODE_BMP {
+            @Override
+            String generate(int n, Random r) {
+                StringBuilder sb = new StringBuilder(n);
+                for (int i = 0; i < n; i++) {
+                    int cp;
+                    do {
+                        cp = r.nextInt(0xD800);
+                    } while (Character.isISOControl(cp) || Character.isWhitespace(cp));
+                    sb.appendCodePoint(cp);
+                }
+                return sb.toString();
+            }
+        };
+
+        abstract String generate(int n, Random r);
+    }
 }

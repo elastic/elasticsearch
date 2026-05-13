@@ -72,7 +72,12 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
         return updater(client, rolloverState, mock(AnomalyDetectionAuditor.class), mock(SystemAuditor.class), HEAL_ENABLED);
     }
 
-    private static MlAnomaliesIndexUpdate updater(Client client, ClusterState rolloverState, AnomalyDetectionAuditor auditor, BooleanSupplier healEnabled) {
+    private static MlAnomaliesIndexUpdate updater(
+        Client client,
+        ClusterState rolloverState,
+        AnomalyDetectionAuditor auditor,
+        BooleanSupplier healEnabled
+    ) {
         return updater(client, rolloverState, auditor, mock(SystemAuditor.class), healEnabled);
     }
 
@@ -83,7 +88,14 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
         SystemAuditor systemAuditor,
         BooleanSupplier healEnabled
     ) {
-        return new MlAnomaliesIndexUpdate(mockClusterService(rolloverState), TestIndexNameExpressionResolver.newInstance(), client, auditor, systemAuditor, healEnabled);
+        return new MlAnomaliesIndexUpdate(
+            mockClusterService(rolloverState),
+            TestIndexNameExpressionResolver.newInstance(),
+            client,
+            auditor,
+            systemAuditor,
+            healEnabled
+        );
     }
 
     public void testIsAbleToRun_IndicesDoNotExist() {

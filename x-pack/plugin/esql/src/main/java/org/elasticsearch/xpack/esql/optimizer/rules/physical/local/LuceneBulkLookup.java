@@ -85,8 +85,10 @@ public class LuceneBulkLookup extends PhysicalOptimizerRules.OptimizerRule<LeafE
         if (expr instanceof EsqlBinaryComparison binaryComparison
             && binaryComparison.left() instanceof Attribute leftAttribute
             && binaryComparison.right() instanceof Attribute rightAttribute
+            && binaryComparison.getFunctionType() == EsqlBinaryComparison.BinaryComparisonOperation.EQ
             && leftAttribute.dataType() == DataType.KEYWORD
-            && rightAttribute.dataType() == DataType.KEYWORD) {
+            && rightAttribute.dataType() == DataType.KEYWORD
+        ) {
             logger.debug("Bulk lookup on KEYWORD expression {} == {}", leftAttribute.name(), rightAttribute.name());
 
             return new BulkLookupMvFilterExec(

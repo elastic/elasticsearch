@@ -38,6 +38,8 @@
             elasticsearch.querylog.include.system_indices: true
             esql.querylog.threshold.info: 0ms
             esql.querylog.include.user: true
+      allowed_warnings:
+        - "ES|QL query logging is deprecated. Please consider using the core query logging feature."
 
   - do:
       xpack.usage: {}

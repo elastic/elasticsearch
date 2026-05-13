@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 148974
+summary: Support POST forms in Prometheus APIs
+type: enhancement

@@ -116,11 +116,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     /** Keys recognised by {@link #withConfigTrackingConsumedKeys(Map)}. */
     static final Set<String> RECOGNIZED_KEYS = Set.of(CONFIG_OPTIMIZED_READER, CONFIG_LATE_MATERIALIZATION);
 
-    static {
-        // Don't allow slow path.
-        UninitializedArrays.ensureUnsafeEnabled();
-    }
-
     public ParquetFormatReader(BlockFactory blockFactory) {
         this(blockFactory, FilterCompat.NOOP, null, false, true, true);
     }

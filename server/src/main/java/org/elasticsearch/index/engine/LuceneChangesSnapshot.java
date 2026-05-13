@@ -188,10 +188,14 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
                 parallelArray.version[index] = combinedDocValues.docVersion(segmentDocID);
                 parallelArray.isTombStone[index] = combinedDocValues.isTombstone(segmentDocID);
                 parallelArray.hasRecoverySource[index] = combinedDocValues.hasRecoverySource(segmentDocID);
-                // If _routing isn't configured to be required then isn't guaranteed that all documents have a routing value.
-                // This why this docId check is required here.
-                if (routingDocValues != null && routingDocValues.advanceExact(segmentDocID)) {
-                    parallelArray.routingOrdinals[index] = routingDocValues.ordValue();
+                if (ordinalToRoutingLookup != null) {
+                    // If _routing isn't configured to be required then isn't guaranteed that all documents have a routing value.
+                    // This why this docId check is required here.
+                    if (routingDocValues != null && routingDocValues.advanceExact(segmentDocID)) {
+                        parallelArray.routingOrdinals[index] = routingDocValues.ordValue();
+                    } else {
+                        parallelArray.routingOrdinals[index] = -1;
+                    }
                 }
             }
             // now sort back based on the shardIndex. we use this to store the previous index

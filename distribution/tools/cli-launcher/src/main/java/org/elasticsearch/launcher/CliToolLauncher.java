@@ -21,7 +21,6 @@ import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.Map;
 
@@ -53,11 +52,8 @@ class CliToolLauncher {
      */
     @SuppressForbidden(reason = "uses System.out and System.err")
     public static void main(String[] args) throws Exception {
-        OutputStream originalStdOut = null;
-        if (isRedirectStdoutToStderr()) {
-            originalStdOut = System.out;
-            installOutputMux();
-        }
+        Terminal terminal = isRedirectStdoutToStderr() ? Terminal.DEFAULT.delegateTo(RedirectedStdoutTerminal.create()) : Terminal.DEFAULT;
+        terminal.installSystemStreams();
 
         ProcessInfo pinfo = ProcessInfo.fromSystem();
 
@@ -68,7 +64,6 @@ class CliToolLauncher {
         String libs = pinfo.sysprops().getOrDefault("cli.libs", "");
 
         command = CliToolProvider.load(pinfo.sysprops(), toolname, libs).create();
-        Terminal terminal = originalStdOut != null ? new RedirectedStdoutTerminal(originalStdOut) : Terminal.DEFAULT;
         Runtime.getRuntime().addShutdownHook(createShutdownHook(terminal, command));
 
         int exitCode = command.main(args, terminal, pinfo);

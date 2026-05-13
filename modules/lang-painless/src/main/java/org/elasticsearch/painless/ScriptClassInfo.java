@@ -36,6 +36,7 @@ public class ScriptClassInfo {
     private final List<org.objectweb.asm.commons.Method> needsMethods;
     private final List<org.objectweb.asm.commons.Method> getMethods;
     private final List<Class<?>> getReturns;
+    private final boolean supportsCancellation;
     public final List<FunctionTable.LocalFunction> converters;
     public final FunctionTable.LocalFunction defConverter;
 
@@ -156,6 +157,17 @@ public class ScriptClassInfo {
         this.needsMethods = unmodifiableList(needsMethods);
         this.getMethods = unmodifiableList(getMethods);
         this.getReturns = unmodifiableList(getReturns);
+        this.supportsCancellation = detectCancellationSupport(baseClass);
+    }
+
+    /** See {@link #supportsCancellation()}. */
+    private static boolean detectCancellationSupport(Class<?> baseClass) {
+        try {
+            java.lang.reflect.Method m = baseClass.getMethod("_getCancellationCheck");
+            return m.isDefault() == false && m.getReturnType() == Runnable.class;
+        } catch (NoSuchMethodException e) {
+            return false;
+        }
     }
 
     /**
@@ -200,6 +212,14 @@ public class ScriptClassInfo {
      */
     public List<org.objectweb.asm.commons.Method> getGetMethods() {
         return getMethods;
+    }
+
+    /**
+     * Whether the script base class overrides {@code _getCancellationCheck()}. Drives
+     * {@link org.elasticsearch.painless.symbol.IRDecorations.IRCCancellationCheck} attachment.
+     */
+    public boolean supportsCancellation() {
+        return supportsCancellation;
     }
 
     /**

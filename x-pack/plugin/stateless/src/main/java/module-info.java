@@ -23,6 +23,7 @@ module org.elasticsearch.xpack.stateless {
 
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
+    requires hppc;
 
     exports org.elasticsearch.xpack.stateless
         to

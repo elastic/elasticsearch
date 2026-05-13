@@ -90,6 +90,13 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 @Fork(1)
 public class EvalBenchmark {
+    // Initialize logging before any BlockFactory / DriverContext field touches LogManager — otherwise
+    // BlockFactory.<clinit> fires before the LogConfigurator SPI is set up and NPEs.
+    // Matches the AggregatorBenchmark pattern.
+    static {
+        Utils.configureBenchmarkLogging();
+    }
+
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
         .breaker(new NoopCircuitBreaker("none"))
         .build();
@@ -101,7 +108,6 @@ public class EvalBenchmark {
     static final DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
 
     static {
-        Utils.configureBenchmarkLogging();
         if (false == "true".equals(System.getProperty("skipSelfTest"))) {
             // Smoke test all the expected values and force loading subclasses more like prod
             selfTest();

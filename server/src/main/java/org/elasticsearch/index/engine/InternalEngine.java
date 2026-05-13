@@ -1584,11 +1584,38 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private IndexingStrategy planIndexingAsPrimary(Index index) throws IOException {
+    private IndexingStrategy planIndexingAsPrimary(final Index index) throws IOException {
         assert index.origin() == Operation.Origin.PRIMARY : "planing as primary but origin isn't. got " + index.origin();
+        final boolean onFastPath = canOptimizeAddDocument(index) && mayHaveBeenIndexedBefore(index) == false;
+        VersionValue versionValue = null;
+        if (onFastPath == false
+            && (sequenceNumbersAreDisabled() == false
+                || index.getIfSeqNo() == UNASSIGNED_SEQ_NO
+                || index.getIfPrimaryTerm() == UNASSIGNED_PRIMARY_TERM)) {
+            versionMap.enforceSafeAccess();
+            versionValue = resolveDocVersion(index, index.getIfSeqNo() != UNASSIGNED_SEQ_NO);
+        }
+        return planIndexingAsPrimaryWithVersion(index, versionValue, onFastPath);
+    }
+
+    /**
+     * Produces an {@link IndexingStrategy} for a primary operation given a pre-resolved version value.
+     * <p>
+     * The per-op path ({@link #planIndexingAsPrimary}) resolves the version before calling this method,
+     * so no reader acquisition happens here.
+     *
+     * @param onFastPath   true when the operation can use the optimized append-only path and has been
+     *                     confirmed (via {@link #mayHaveBeenIndexedBefore}) not to be a retry
+     * @param versionValue the resolved version, or null if the document was not found
+     */
+    private IndexingStrategy planIndexingAsPrimaryWithVersion(
+        final Index index,
+        final VersionValue versionValue,
+        final boolean onFastPath
+    ) {
+        assert index.origin() == Operation.Origin.PRIMARY : "planning as primary but origin is: " + index.origin();
         final int reservingDocs = index.parsedDoc().docs().size();
-        // resolve an external operation into an internal one which is safe to replay
-        if (canOptimizeAddDocument(index) && mayHaveBeenIndexedBefore(index) == false) {
+        if (onFastPath) {
             final Exception reserveError = tryAcquireInFlightDocs(index, reservingDocs);
             if (reserveError != null) {
                 return IndexingStrategy.failAsTooManyDocs(reserveError, index.id());
@@ -1603,9 +1630,6 @@ public class InternalEngine extends Engine {
             return IndexingStrategy.optimisticConcurrencyControlNotSupported(index.id(), shardId);
         }
 
-        versionMap.enforceSafeAccess();
-        // resolves incoming version
-        final VersionValue versionValue = resolveDocVersion(index, index.getIfSeqNo() != UNASSIGNED_SEQ_NO);
         final long currentVersion = versionValue == null ? Versions.NOT_FOUND : versionValue.version;
         final boolean currentNotFoundOrDeleted = versionValue == null || versionValue.isDelete();
 

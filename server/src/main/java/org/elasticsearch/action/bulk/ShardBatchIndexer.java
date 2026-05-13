@@ -147,7 +147,18 @@ public final class ShardBatchIndexer {
                 return;
             }
 
-            final List<Engine.IndexResult> results = primary.applyIndexOperationBatchOnPrimary(operations);
+            // parseMappings produces operations 1:1 with items[chunkStart..chunkEnd),
+            // so the EIRF row index for operations.get(j) is chunkStart + j.
+            final int[] rowIndices = new int[operations.size()];
+            for (int j = 0; j < rowIndices.length; j++) {
+                rowIndices[j] = chunkStart + j;
+            }
+            final List<Engine.IndexResult> results = primary.applyIndexOperationBatchOnPrimary(
+                operations,
+                batch.data(),
+                XContentType.JSON,
+                rowIndices
+            );
 
             for (Engine.IndexResult result : results) {
                 assert context.hasMoreOperationsToExecute();
@@ -172,6 +183,8 @@ public final class ShardBatchIndexer {
         for (int chunkStart = 0; chunkStart < items.length; chunkStart += BATCH_CHUNK_SIZE) {
             final int chunkEnd = Math.min(chunkStart + BATCH_CHUNK_SIZE, items.length);
             final List<Engine.Index> operations = new ArrayList<>(chunkEnd - chunkStart);
+            // The replica loop may skip NOOPs and stop early on failures, so rowIndices is sparse.
+            final List<Integer> rowIndicesList = new ArrayList<>(chunkEnd - chunkStart);
 
             int i = chunkStart;
             while (i < chunkEnd) {
@@ -233,11 +246,21 @@ public final class ShardBatchIndexer {
                     break;
                 }
                 operations.add(operation);
+                rowIndicesList.add(i);
                 i++;
             }
 
             if (operations.isEmpty() == false) {
-                final List<Engine.IndexResult> results = replica.applyIndexOperationBatchOnReplica(operations);
+                final int[] rowIndices = new int[rowIndicesList.size()];
+                for (int j = 0; j < rowIndices.length; j++) {
+                    rowIndices[j] = rowIndicesList.get(j);
+                }
+                final List<Engine.IndexResult> results = replica.applyIndexOperationBatchOnReplica(
+                    operations,
+                    batch.data(),
+                    XContentType.JSON,
+                    rowIndices
+                );
                 for (Engine.IndexResult result : results) {
                     if (result.getFailure() != null) {
                         throw result.getFailure();

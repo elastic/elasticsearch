@@ -51,6 +51,7 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -108,6 +109,7 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -1355,6 +1357,18 @@ public class InternalEngine extends Engine {
 
     @Override
     public List<IndexResult> indexBatch(List<Index> operations) throws IOException {
+        return indexBatch(operations, null, null, null);
+    }
+
+    @Override
+    public List<IndexResult> indexBatch(
+        List<Index> operations,
+        @Nullable BytesReference batchData,
+        @Nullable XContentType xContentType,
+        @Nullable int[] rowIndices
+    ) throws IOException {
+        assert batchData == null || (xContentType != null && rowIndices != null && rowIndices.length == operations.size())
+            : "batchData requires xContentType and matching rowIndices length";
         try (var ignored = acquireEnsureOpenRef()) {
             // Assert no duplicate uids — the caller (TransportShardBulkAction) must bail to
             // sequential if duplicates exist, since re-entrant locks would allow both into the
@@ -1388,7 +1402,7 @@ public class InternalEngine extends Engine {
                         subBatchCount++;
                     }
 
-                    processSubBatch(operations, idx, subBatchCount, allResults);
+                    processSubBatch(operations, idx, subBatchCount, allResults, batchData, xContentType, rowIndices);
                 } catch (RuntimeException | IOException e) {
                     failOnTragicEvent(idx, subBatchCount, operations, e);
                     throw e;
@@ -1433,11 +1447,20 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void processSubBatch(List<Index> operations, int subBatchIdx, int subBatchSize, IndexResult[] allResults) throws IOException {
+    private void processSubBatch(
+        List<Index> operations,
+        int subBatchIdx,
+        int subBatchSize,
+        IndexResult[] allResults,
+        @Nullable BytesReference batchData,
+        @Nullable XContentType xContentType,
+        @Nullable int[] rowIndices
+    ) throws IOException {
         final boolean fromTranslog = operations.getFirst().origin().isFromTranslog();
         assert assertNoMixedRecoveryOperations(operations);
         final Index[] subBatchOps = new Index[subBatchSize];
         final IndexingStrategy[] plans = new IndexingStrategy[subBatchSize];
+        final boolean batchedTranslog = batchData != null;
 
         // Indexing Plan
         int reservedDocs = 0;
@@ -1525,27 +1548,73 @@ public class InternalEngine extends Engine {
 
             // Translog
             if (fromTranslog == false) {
-                for (int i = 0; i < subBatchSize; i++) {
-                    Index index = subBatchOps[i];
-                    IndexResult result = allResults[subBatchIdx + i];
-                    assert index.origin().isFromTranslog() == false;
-                    final Translog.Location location;
-                    if (result.getResultType() == Result.Type.SUCCESS) {
-                        // TODO: Add new batch operation to Translog and add all in one go.
-                        location = translog.add(new Translog.Index(index, result));
-                    } else if (result.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                        final NoOp noOp = new NoOp(
-                            result.getSeqNo(),
-                            index.primaryTerm(),
-                            index.origin(),
-                            index.startTime(),
-                            result.getFailure().toString()
-                        );
-                        location = innerNoOp(noOp).getTranslogLocation();
-                    } else {
-                        location = null;
+                if (batchedTranslog) {
+                    // Build a single Translog.IndexBatch covering every successful op in this
+                    // sub-batch. Failed ops fall back to the existing per-op NoOp path below.
+                    final List<Translog.IndexBatch.DocMeta> docMetas = new ArrayList<>(subBatchSize);
+                    for (int i = 0; i < subBatchSize; i++) {
+                        IndexResult result = allResults[subBatchIdx + i];
+                        if (result.getResultType() == Result.Type.SUCCESS) {
+                            Index index = subBatchOps[i];
+                            docMetas.add(
+                                new Translog.IndexBatch.DocMeta(
+                                    index.uid(),
+                                    result.getSeqNo(),
+                                    index.primaryTerm(),
+                                    result.getVersion(),
+                                    index.routing(),
+                                    index.getAutoGeneratedIdTimestamp(),
+                                    rowIndices[subBatchIdx + i]
+                                )
+                            );
+                        }
                     }
-                    result.setTranslogLocation(location);
+                    final Translog.Location batchLocation = docMetas.isEmpty()
+                        ? null
+                        : translog.add(new Translog.IndexBatch(batchData, xContentType, docMetas));
+
+                    for (int i = 0; i < subBatchSize; i++) {
+                        Index index = subBatchOps[i];
+                        IndexResult result = allResults[subBatchIdx + i];
+                        final Translog.Location location;
+                        if (result.getResultType() == Result.Type.SUCCESS) {
+                            location = batchLocation;
+                        } else if (result.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                            final NoOp noOp = new NoOp(
+                                result.getSeqNo(),
+                                index.primaryTerm(),
+                                index.origin(),
+                                index.startTime(),
+                                result.getFailure().toString()
+                            );
+                            location = innerNoOp(noOp).getTranslogLocation();
+                        } else {
+                            location = null;
+                        }
+                        result.setTranslogLocation(location);
+                    }
+                } else {
+                    for (int i = 0; i < subBatchSize; i++) {
+                        Index index = subBatchOps[i];
+                        IndexResult result = allResults[subBatchIdx + i];
+                        assert index.origin().isFromTranslog() == false;
+                        final Translog.Location location;
+                        if (result.getResultType() == Result.Type.SUCCESS) {
+                            location = translog.add(new Translog.Index(index, result));
+                        } else if (result.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                            final NoOp noOp = new NoOp(
+                                result.getSeqNo(),
+                                index.primaryTerm(),
+                                index.origin(),
+                                index.startTime(),
+                                result.getFailure().toString()
+                            );
+                            location = innerNoOp(noOp).getTranslogLocation();
+                        } else {
+                            location = null;
+                        }
+                        result.setTranslogLocation(location);
+                    }
                 }
             }
 
@@ -1556,7 +1625,16 @@ public class InternalEngine extends Engine {
                 IndexResult result = allResults[subBatchIdx + i];
 
                 if (plan.indexIntoLucene && result.getResultType() == Result.Type.SUCCESS) {
-                    final Translog.Location translogLocation = trackTranslogLocation.get() ? result.getTranslogLocation() : null;
+                    // For batched translog writes, the result's Location points at a batch record
+                    // that cannot satisfy a realtime GET (Translog.readOperation throws on BATCH).
+                    // Store null here so realtime GET falls through to refresh+searcher; the
+                    // result.translogLocation still carries the batch Location for durability acks.
+                    final Translog.Location translogLocation;
+                    if (batchedTranslog) {
+                        translogLocation = null;
+                    } else {
+                        translogLocation = trackTranslogLocation.get() ? result.getTranslogLocation() : null;
+                    }
                     versionMap.maybePutIndexUnderLock(
                         index.uid(),
                         new IndexVersionValue(translogLocation, plan.versionForIndexing, index.seqNo(), index.primaryTerm())

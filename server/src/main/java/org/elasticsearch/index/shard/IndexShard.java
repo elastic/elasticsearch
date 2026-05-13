@@ -50,6 +50,7 @@ import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -163,6 +164,7 @@ import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -1136,28 +1138,61 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * signaling the caller to fall back to the item-by-item path.
      */
     public List<Engine.IndexResult> applyIndexOperationBatchOnPrimary(List<Engine.Index> operations) throws IOException {
+        return applyIndexOperationBatchOnPrimary(operations, null, null, null);
+    }
+
+    /**
+     * Same as {@link #applyIndexOperationBatchOnPrimary(List)} but lets the caller supply the raw
+     * EIRF batch bytes so the engine can write a single batched translog record covering all
+     * successful ops. When {@code batchData} is null, behaves identically to the no-arg overload.
+     */
+    public List<Engine.IndexResult> applyIndexOperationBatchOnPrimary(
+        List<Engine.Index> operations,
+        @Nullable BytesReference batchData,
+        @Nullable XContentType xContentType,
+        @Nullable int[] rowIndices
+    ) throws IOException {
         ensureWriteAllowed(Engine.Operation.Origin.PRIMARY);
         final Engine engine = getEngine();
-        return indexBatch(engine, operations);
+        return indexBatch(engine, operations, batchData, xContentType, rowIndices);
     }
 
     /**
      * Applies a batch of index operations on a replica.
      */
     public List<Engine.IndexResult> applyIndexOperationBatchOnReplica(List<Engine.Index> operations) throws IOException {
-        ensureWriteAllowed(Engine.Operation.Origin.REPLICA);
-        final Engine engine = getEngine();
-        return indexBatch(engine, operations);
+        return applyIndexOperationBatchOnReplica(operations, null, null, null);
     }
 
-    private List<Engine.IndexResult> indexBatch(Engine engine, List<Engine.Index> operations) throws IOException {
+    /**
+     * Same as {@link #applyIndexOperationBatchOnReplica(List)} but threads the raw EIRF batch
+     * bytes through to the engine for batched translog encoding.
+     */
+    public List<Engine.IndexResult> applyIndexOperationBatchOnReplica(
+        List<Engine.Index> operations,
+        @Nullable BytesReference batchData,
+        @Nullable XContentType xContentType,
+        @Nullable int[] rowIndices
+    ) throws IOException {
+        ensureWriteAllowed(Engine.Operation.Origin.REPLICA);
+        final Engine engine = getEngine();
+        return indexBatch(engine, operations, batchData, xContentType, rowIndices);
+    }
+
+    private List<Engine.IndexResult> indexBatch(
+        Engine engine,
+        List<Engine.Index> operations,
+        @Nullable BytesReference batchData,
+        @Nullable XContentType xContentType,
+        @Nullable int[] rowIndices
+    ) throws IOException {
         List<Engine.Index> preIndexOps = new ArrayList<>(operations.size());
         // TODO: Right now the only production users are stats. Should add batch listener.
         for (Engine.Index op : operations) {
             preIndexOps.add(indexingOperationListeners.preIndex(shardId, op));
         }
         try {
-            List<Engine.IndexResult> results = engine.indexBatch(preIndexOps);
+            List<Engine.IndexResult> results = engine.indexBatch(preIndexOps, batchData, xContentType, rowIndices);
             // TODO: Look at if these can be batch optimized
             for (int i = 0; i < results.size(); i++) {
                 indexingOperationListeners.postIndex(shardId, preIndexOps.get(i), results.get(i));

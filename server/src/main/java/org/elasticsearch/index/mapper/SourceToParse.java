@@ -116,7 +116,7 @@ public class SourceToParse {
         this.dynamicTemplateParams = dynamicTemplateParams;
         this.meteringParserDecorator = meteringParserDecorator;
         this.tsid = tsid;
-        this.source = new Source(schemaTree, row, source, xContentType, includeSourceOnError);
+        this.source = new Source(schemaTree, row, source, xContentType, includeSourceOnError, true);
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType) {
@@ -187,6 +187,7 @@ public class SourceToParse {
     // TODO: Eventually will want to combine this with our other source abstractions IndexSource, etc.
     public static class Source {
 
+        private final boolean setIncludeSourceOnError;
         private final boolean includeSourceOnError;
         private final EirfRowXContentParser.SchemaNode schemaTree;
         private final EirfRowReader row;
@@ -198,7 +199,8 @@ public class SourceToParse {
             EirfRowReader row,
             BytesReference originalSourceBytes,
             XContentType xContentType,
-            boolean includeSourceOnError
+            boolean includeSourceOnError,
+            boolean setIncludeSourceOnError
         ) {
             // originalSourceBytes must be null if row is not null. And vice versa.
             assert originalSourceBytes == null || row == null;
@@ -211,6 +213,11 @@ public class SourceToParse {
                 : new BytesArray(originalSourceBytes.toBytesRef());
             this.xContentType = Objects.requireNonNull(xContentType);
             this.includeSourceOnError = includeSourceOnError;
+            this.setIncludeSourceOnError = setIncludeSourceOnError;
+        }
+
+        public static Source fromBytes(BytesReference originalSourceBytes, XContentType xContentType) {
+            return new Source(null, null, originalSourceBytes, xContentType, false, false);
         }
 
         public boolean isEmpty() {
@@ -228,7 +235,7 @@ public class SourceToParse {
                 return new EirfRowXContentParser(schemaTree, row);
             } else {
                 return XContentHelper.createParser(
-                    configuration.withIncludeSourceOnError(includeSourceOnError),
+                    setIncludeSourceOnError ? configuration.withIncludeSourceOnError(includeSourceOnError) : configuration,
                     originalSourceBytes,
                     xContentType
                 );

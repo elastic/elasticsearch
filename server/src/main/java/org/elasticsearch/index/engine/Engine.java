@@ -102,6 +102,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -720,6 +721,27 @@ public abstract class Engine implements Closeable {
             results.add(index(index));
         }
         return results;
+    }
+
+    /**
+     * Index a batch of operations that originated from a single EIRF row batch. When
+     * {@code batchData} is non-null, implementations may write a single batched translog record
+     * covering all successful ops; when null, this falls back to {@link #indexBatch(List)}.
+     *
+     * @param operations  the per-doc index operations, in caller order
+     * @param batchData   the raw EIRF batch bytes shared by all rows, or {@code null} for the
+     *                    non-batched path
+     * @param xContentType the original xContent type of the sources encoded in {@code batchData}
+     * @param rowIndices  per-op row indices into {@code batchData}; {@code rowIndices[i]}
+     *                    identifies the EIRF row that produced {@code operations.get(i)}
+     */
+    public List<IndexResult> indexBatch(
+        List<Index> operations,
+        @Nullable BytesReference batchData,
+        @Nullable XContentType xContentType,
+        @Nullable int[] rowIndices
+    ) throws IOException {
+        return indexBatch(operations);
     }
 
     /**

@@ -664,6 +664,52 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
+    /**
+     * Adds an EIRF row batch to the transaction log as a single record. The returned {@link Location}
+     * covers the whole batch; on read, {@link TranslogSnapshot#next()} explodes the record back into
+     * individual {@link Index} ops. Reading the batch back via {@link BaseTranslogReader#read(Location)}
+     * is not currently supported.
+     */
+    public Location add(final IndexBatch batch) throws IOException {
+        try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler())) {
+            writeHeaderWithSize(out, batch);
+            final BytesReference header = out.bytes();
+            Serialized serialized = Serialized.create(header, null, new CRC32());
+
+            readLock.lock();
+            try {
+                ensureOpen();
+                final long batchPrimaryTerm = batch.primaryTerm();
+                if (batchPrimaryTerm > current.getPrimaryTerm()) {
+                    assert false
+                        : "Batch term is newer than the current term; "
+                            + "current term["
+                            + current.getPrimaryTerm()
+                            + "], batch term["
+                            + batchPrimaryTerm
+                            + "]";
+                    throw new IllegalArgumentException(
+                        "Batch term is newer than the current term; "
+                            + "current term["
+                            + current.getPrimaryTerm()
+                            + "], batch term["
+                            + batchPrimaryTerm
+                            + "]"
+                    );
+                }
+                return current.addBatch(serialized, batch.docMetas());
+            } finally {
+                readLock.unlock();
+            }
+        } catch (final AlreadyClosedException | IOException ex) {
+            closeOnTragicEvent(ex);
+            throw ex;
+        } catch (final Exception ex) {
+            closeOnTragicEvent(ex);
+            throw new TranslogException(shardId, "Failed to write batch [" + batch + "]", ex);
+        }
+    }
+
     public record Serialized(BytesReference header, @Nullable BytesReference source, int length, int checksum) {
 
         public Serialized(BytesReference header, @Nullable BytesReference source, int checksum) {
@@ -1150,16 +1196,44 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
+     * Marker for an entry on the transaction log. Either a single-document {@link Operation}
+     * (Index/Delete/NoOp) or an EIRF row {@link IndexBatch} carrying N documents in one record.
+     * <p>
+     * Batches are deliberately <em>not</em> a subclass of {@link Operation}: an Operation has one
+     * seqNo and every downstream consumer (snapshots, version resolution, recovery) treats it as
+     * such. Snapshots explode batches back into individual {@link Index} ops on read.
+     */
+    public sealed interface Record permits Operation, IndexBatch {
+        long primaryTerm();
+    }
+
+    /**
+     * Reads the type byte and the body of either an {@link Operation} or an {@link IndexBatch}.
+     * Does not consume a size prefix or verify a checksum — use
+     * {@link #readRecord(BufferedChecksumStreamInput)} when reading framed on-disk records.
+     */
+    public static Record readRecordBody(final StreamInput input) throws IOException {
+        final Translog.Operation.Type type = Translog.Operation.Type.fromId(input.readByte());
+        return switch (type) {
+            case CREATE, INDEX -> Index.readFrom(input);
+            case DELETE -> Delete.readFrom(input);
+            case NO_OP -> new NoOp(input);
+            case BATCH -> IndexBatch.readFrom(input);
+        };
+    }
+
+    /**
      * A generic interface representing an operation performed on the transaction log.
      * Each is associated with a type.
      */
-    public abstract static sealed class Operation implements Writeable permits Delete, Index, NoOp {
+    public abstract static sealed class Operation implements Writeable, Record permits Delete, Index, NoOp {
         public enum Type {
             @Deprecated
             CREATE((byte) 1),
             INDEX((byte) 2),
             DELETE((byte) 3),
-            NO_OP((byte) 4);
+            NO_OP((byte) 4),
+            BATCH((byte) 5);
 
             private final byte id;
 
@@ -1177,6 +1251,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     case 2 -> INDEX;
                     case 3 -> DELETE;
                     case 4 -> NO_OP;
+                    case 5 -> BATCH;
                     default -> throw new IllegalArgumentException("no type mapped for [" + id + "]");
                 };
             }
@@ -1199,12 +1274,14 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return seqNo;
         }
 
+        @Override
         public final long primaryTerm() {
             return primaryTerm;
         }
 
         /**
-         * Reads the type and the operation from the given stream.
+         * Reads the type and the operation from the given stream. Throws if the next record is an
+         * {@link IndexBatch}; use {@link Translog#readRecordBody(StreamInput)} for batch-aware reads.
          */
         public static Operation readOperation(final StreamInput input) throws IOException {
             final Translog.Operation.Type type = Translog.Operation.Type.fromId(input.readByte());
@@ -1213,6 +1290,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 case CREATE, INDEX -> Index.readFrom(input);
                 case DELETE -> Delete.readFrom(input);
                 case NO_OP -> new NoOp(input);
+                case BATCH -> throw new IOException("Cannot read batch record as a single Operation");
             };
         }
 
@@ -1694,6 +1772,194 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
+    /**
+     * A translog record holding an EIRF row batch: a single on-disk record that carries N documents
+     * (the {@link #batchData} bytes) plus per-document metadata needed for replay.
+     * <p>
+     * Not an {@link Operation}: a single Operation has one seqNo and downstream consumers rely on
+     * that invariant. {@link TranslogSnapshot} explodes a batch into individual {@link Index} ops
+     * on read so existing consumers keep working without batch awareness.
+     */
+    public static final class IndexBatch implements Writeable, Record {
+
+        /**
+         * Per-document metadata required to reconstruct a single {@link Index} on explode.
+         * {@code rowIndex} identifies which row inside {@link #batchData} this metadata describes —
+         * this lets a batch record cover a sparse subset of the underlying EIRF batch if needed.
+         */
+        public record DocMeta(
+            BytesRef uid,
+            long seqNo,
+            long primaryTerm,
+            long version,
+            @Nullable String routing,
+            long autoGeneratedIdTimestamp,
+            int rowIndex
+        ) implements Writeable {
+
+            public DocMeta {
+                Objects.requireNonNull(uid, "uid");
+            }
+
+            static DocMeta readFrom(StreamInput in) throws IOException {
+                BytesRef uid = in.readBytesRef();
+                long seqNo = in.readLong();
+                long primaryTerm = in.readLong();
+                long version = in.readLong();
+                String routing = in.readOptionalString();
+                long autoGeneratedIdTimestamp = in.readLong();
+                int rowIndex = in.readVInt();
+                return new DocMeta(uid, seqNo, primaryTerm, version, routing, autoGeneratedIdTimestamp, rowIndex);
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                out.writeBytesRef(uid);
+                out.writeLong(seqNo);
+                out.writeLong(primaryTerm);
+                out.writeLong(version);
+                out.writeOptionalString(routing);
+                out.writeLong(autoGeneratedIdTimestamp);
+                out.writeVInt(rowIndex);
+            }
+        }
+
+        private final BytesReference batchData;
+        private final org.elasticsearch.xcontent.XContentType xContentType;
+        private final List<DocMeta> docMetas;
+
+        public IndexBatch(BytesReference batchData, org.elasticsearch.xcontent.XContentType xContentType, List<DocMeta> docMetas) {
+            if (docMetas.isEmpty()) {
+                throw new IllegalArgumentException("a batch must contain at least one document");
+            }
+            this.batchData = Objects.requireNonNull(batchData, "batchData");
+            this.xContentType = Objects.requireNonNull(xContentType, "xContentType");
+            this.docMetas = List.copyOf(docMetas);
+        }
+
+        public static IndexBatch readFrom(StreamInput in) throws IOException {
+            org.elasticsearch.xcontent.XContentType xContentType = org.elasticsearch.xcontent.XContentType.ofOrdinal(in.readByte());
+            BytesReference batchData = in.readBytesReference();
+            int count = in.readVInt();
+            List<DocMeta> metas = new ArrayList<>(count);
+            for (int i = 0; i < count; i++) {
+                metas.add(DocMeta.readFrom(in));
+            }
+            return new IndexBatch(batchData, xContentType, metas);
+        }
+
+        public BytesReference batchData() {
+            return batchData;
+        }
+
+        public org.elasticsearch.xcontent.XContentType xContentType() {
+            return xContentType;
+        }
+
+        public List<DocMeta> docMetas() {
+            return docMetas;
+        }
+
+        public int docCount() {
+            return docMetas.size();
+        }
+
+        /**
+         * The primary term used for the on-disk record-level term check. Returns the max term
+         * across the batch; per-document terms are still carried on each {@link DocMeta}.
+         */
+        @Override
+        public long primaryTerm() {
+            long max = Long.MIN_VALUE;
+            for (DocMeta meta : docMetas) {
+                if (meta.primaryTerm > max) {
+                    max = meta.primaryTerm;
+                }
+            }
+            return max;
+        }
+
+        public long estimateSize() {
+            // 1 byte xContentType + length-prefixed batchData + vInt docCount + per-doc fields
+            long size = 1L + Integer.BYTES + batchData.length() + Integer.BYTES;
+            for (DocMeta meta : docMetas) {
+                size += meta.uid.length + Integer.BYTES // uid (length-prefixed)
+                    + (4 * Long.BYTES) // seqNo, primaryTerm, version, autoGeneratedIdTimestamp
+                    + Integer.BYTES // rowIndex vInt (upper bound)
+                    + 1 + (meta.routing != null ? 2 * meta.routing.length() : 0); // routing optional
+            }
+            return size;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeByte(Operation.Type.BATCH.id());
+            writeBody(out);
+        }
+
+        void writeBody(StreamOutput out) throws IOException {
+            out.writeByte((byte) xContentType.ordinal());
+            out.writeBytesReference(batchData);
+            out.writeVInt(docMetas.size());
+            for (DocMeta meta : docMetas) {
+                meta.writeTo(out);
+            }
+        }
+
+        /**
+         * Decodes this batch back into one {@link Translog.Index} per row, reconstructing each
+         * source via {@link org.elasticsearch.eirf.EirfRowToXContent#writeRowFromSchema} in the
+         * original {@link org.elasticsearch.xcontent.XContentType}.
+         */
+        public List<Index> explode() throws IOException {
+            try (org.elasticsearch.eirf.EirfBatch eirf = new org.elasticsearch.eirf.EirfBatch(batchData, () -> {})) {
+                org.elasticsearch.eirf.EirfRowXContentParser.SchemaNode schemaTree = org.elasticsearch.eirf.EirfRowXContentParser
+                    .buildSchemaTree(eirf.schema());
+                List<Index> out = new ArrayList<>(docMetas.size());
+                for (DocMeta meta : docMetas) {
+                    org.elasticsearch.eirf.EirfRowReader row = eirf.getRowReader(meta.rowIndex);
+                    BytesReference source;
+                    try (
+                        org.elasticsearch.xcontent.XContentBuilder builder = org.elasticsearch.xcontent.XContentBuilder.builder(
+                            xContentType.xContent()
+                        )
+                    ) {
+                        org.elasticsearch.eirf.EirfRowToXContent.writeRowFromSchema(row, schemaTree, builder);
+                        source = BytesReference.bytes(builder);
+                    }
+                    out.add(
+                        new Index(meta.uid, meta.seqNo, meta.primaryTerm, meta.version, source, meta.routing, meta.autoGeneratedIdTimestamp)
+                    );
+                }
+                return out;
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o instanceof IndexBatch other) {
+                return batchData.equals(other.batchData) && xContentType == other.xContentType && docMetas.equals(other.docMetas);
+            }
+            return false;
+        }
+
+        @Override
+        public int hashCode() {
+            int result = batchData.hashCode();
+            result = 31 * result + xContentType.hashCode();
+            result = 31 * result + docMetas.hashCode();
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            return "IndexBatch{docCount=" + docMetas.size() + ", xContentType=" + xContentType + '}';
+        }
+    }
+
     public enum Durability {
 
         /**
@@ -1764,6 +2030,32 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
+     * Reads a length-prefixed translog record (Operation or IndexBatch) from a checksummed stream,
+     * verifying its trailing checksum. Mirrors {@link #readOperation(BufferedChecksumStreamInput)}.
+     */
+    public static Translog.Record readRecord(BufferedChecksumStreamInput in) throws IOException {
+        final Translog.Record record;
+        try {
+            final int opSize = in.readInt();
+            if (opSize < 4) {
+                throw new TranslogCorruptedException(in.getSource(), "operation size must be at least 4 but was: " + opSize);
+            }
+            in.resetDigest();
+            if (in.markSupported()) {
+                in.mark(opSize);
+                in.skip(opSize - 4);
+                verifyChecksum(in);
+                in.reset();
+            }
+            record = readRecordBody(in);
+            verifyChecksum(in);
+        } catch (EOFException e) {
+            throw new TruncatedTranslogException(in.getSource(), "reached premature end of file, translog is truncated", e);
+        }
+        return record;
+    }
+
+    /**
      * Writes all operations in the given iterable to the given output stream including the size of the array
      * use {@link #readOperations(StreamInput, String)} to read it back.
      */
@@ -1806,6 +2098,24 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             case Delete delete -> TranslogHeaderWriter.writeDeleteHeader(out, delete);
             case NoOp noOp -> TranslogHeaderWriter.writeNoOpHeader(out, noOp);
         }
+    }
+
+    /**
+     * Writes a length-prefixed {@link IndexBatch} record (size + BATCH type byte + body) to the
+     * given buffer, matching the on-disk framing used by {@link TranslogHeaderWriter} for
+     * single-op records.
+     */
+    public static void writeHeaderWithSize(RecyclerBytesStreamOutput out, Translog.IndexBatch batch) throws IOException {
+        final long start = out.position();
+        out.skip(Integer.BYTES);
+        out.writeByte(Translog.Operation.Type.BATCH.id());
+        batch.writeBody(out);
+        final long end = out.position();
+        // total operation size on disk = (bytes after the size int) + 4 bytes for trailing checksum
+        final int operationSize = (int) (end - Integer.BYTES - start) + Integer.BYTES;
+        out.seek(start);
+        out.writeInt(operationSize);
+        out.seek(end);
     }
 
     /**

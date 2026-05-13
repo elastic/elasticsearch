@@ -1021,12 +1021,18 @@ public class TranslogTests extends ESTestCase {
                     while (run.get() && idGenerator.get() < maxOps) {
                         long id = idGenerator.getAndIncrement();
                         final Translog.Operation op;
-                        final Translog.Operation.Type type = Translog.Operation.Type.values()[((int) (id % Translog.Operation.Type
-                            .values().length))];
+                        // BATCH records are produced via Translog.add(IndexBatch); these tests cover the single-op path only.
+                        final Translog.Operation.Type[] singleOpTypes = {
+                            Translog.Operation.Type.CREATE,
+                            Translog.Operation.Type.INDEX,
+                            Translog.Operation.Type.DELETE,
+                            Translog.Operation.Type.NO_OP };
+                        final Translog.Operation.Type type = singleOpTypes[((int) (id % singleOpTypes.length))];
                         op = switch (type) {
                             case CREATE, INDEX -> indexOp("" + id, id, primaryTerm.get(), Long.toString(id));
                             case DELETE -> new Translog.Delete(Long.toString(id), id, primaryTerm.get());
                             case NO_OP -> new Translog.NoOp(id, 1, Long.toString(id));
+                            case BATCH -> throw new AssertionError("unreachable: BATCH excluded from singleOpTypes");
                         };
                         Translog.Location location = translog.add(op);
                         tracker.markSeqNoAsProcessed(id);
@@ -2425,7 +2431,13 @@ public class TranslogTests extends ESTestCase {
                 downLatch.await();
                 for (int opCount = 0; opCount < opsPerThread; opCount++) {
                     Translog.Operation op;
-                    final Translog.Operation.Type type = randomFrom(Translog.Operation.Type.values());
+                    // BATCH records are produced via Translog.add(IndexBatch); these tests cover the single-op path only.
+                    final Translog.Operation.Type type = randomFrom(
+                        Translog.Operation.Type.CREATE,
+                        Translog.Operation.Type.INDEX,
+                        Translog.Operation.Type.DELETE,
+                        Translog.Operation.Type.NO_OP
+                    );
                     op = switch (type) {
                         case CREATE, INDEX -> indexOp(
                             threadId + "_" + opCount,
@@ -2440,6 +2452,7 @@ public class TranslogTests extends ESTestCase {
                             1 + randomInt(100000)
                         );
                         case NO_OP -> new Translog.NoOp(seqNoGenerator.getAndIncrement(), primaryTerm.get(), randomAlphaOfLength(16));
+                        case BATCH -> throw new AssertionError("unreachable: BATCH excluded from randomFrom");
                     };
 
                     Translog.Location loc = add(op);

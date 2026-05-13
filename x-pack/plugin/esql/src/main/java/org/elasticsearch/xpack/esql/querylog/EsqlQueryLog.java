@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.querylog;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.TimeValue;
@@ -24,6 +26,7 @@ import org.elasticsearch.xpack.esql.session.Versioned;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_QUERYLOG_INCLUDE_USER_SETTING;
@@ -49,6 +52,10 @@ public final class EsqlQueryLog {
 
     public static final String LOGGER_NAME = "esql.querylog";
     private static final Logger queryLogger = LogManager.getLogger(LOGGER_NAME);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(EsqlQueryLog.class);
+    private static final String DEPRECATION_MESSAGE = "ES|QL query logging is deprecated. "
+        + "Please consider using the core query logging feature.";
+    private static final AtomicBoolean deprecatedLogged = new AtomicBoolean(false);
     private final ActionLoggingFields additionalFields;
 
     private volatile long queryWarnThreshold;
@@ -92,20 +99,30 @@ public final class EsqlQueryLog {
         }
     }
 
+    private void deprecatedIfEnabled(long threshold) {
+        if (threshold >= 0 && deprecatedLogged.compareAndSet(false, true)) {
+            deprecationLogger.warn(DeprecationCategory.SETTINGS, LOGGER_NAME, DEPRECATION_MESSAGE);
+        }
+    }
+
     public void setQueryWarnThreshold(TimeValue queryWarnThreshold) {
         this.queryWarnThreshold = queryWarnThreshold.nanos();
+        deprecatedIfEnabled(this.queryWarnThreshold);
     }
 
     public void setQueryInfoThreshold(TimeValue queryInfoThreshold) {
         this.queryInfoThreshold = queryInfoThreshold.nanos();
+        deprecatedIfEnabled(this.queryInfoThreshold);
     }
 
     public void setQueryDebugThreshold(TimeValue queryDebugThreshold) {
         this.queryDebugThreshold = queryDebugThreshold.nanos();
+        deprecatedIfEnabled(this.queryDebugThreshold);
     }
 
     public void setQueryTraceThreshold(TimeValue queryTraceThreshold) {
         this.queryTraceThreshold = queryTraceThreshold.nanos();
+        deprecatedIfEnabled(this.queryTraceThreshold);
     }
 
     static final class Message {

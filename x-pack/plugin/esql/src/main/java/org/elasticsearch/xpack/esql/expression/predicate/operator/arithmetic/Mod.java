@@ -84,11 +84,12 @@ public class Mod extends EsqlArithmeticOperation {
     /**
      * Fast path for a foldable scalar divisor: skip the per-row block fetch
      * for the right-hand side and bake the divisor into the evaluator via {@code @Fixed}.
-     * Common in ClickBench-style aggregations like {@code STATS ... BY EventDate % 30}.
-     * Falls back to the column-vs-column path for non-foldable, unsigned_long,
-     * zero-valued, or non-numeric divisors — the zero case is kept on the slow
-     * path so that the existing per-row warning / null behavior is preserved
-     * instead of failing the query at plan time.
+     * This lets the JIT replace the per-row {@code IDIV} with a Granlund-Montgomery
+     * shift+multiply sequence — common in ClickBench-style aggregations such as
+     * {@code STATS ... BY EventTime - EventTime % 60}. Falls back to the column-vs-column
+     * path for non-foldable, unsigned_long, zero-valued, or non-numeric divisors — the
+     * zero case is kept on the slow path so that the existing per-row warning / null
+     * behavior is preserved instead of failing the query at plan time.
      */
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {

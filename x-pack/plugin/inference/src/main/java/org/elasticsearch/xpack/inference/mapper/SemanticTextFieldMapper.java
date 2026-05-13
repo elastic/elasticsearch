@@ -326,6 +326,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                     DenseVectorFieldMapper.Builder denseVectorMapperBuilder = new DenseVectorFieldMapper.Builder(
                         CHUNKED_EMBEDDINGS_FIELD,
                         indexVersionCreated,
+                        indexSettings.getMode(),
                         false,
                         experimentalFeaturesEnabled,
                         vectorsFormatProviders,

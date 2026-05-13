@@ -29,6 +29,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
@@ -38,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -161,6 +163,24 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
      */
     private final FilterPredicate triviallyPassesPredicate;
     private final WordMask survivorMask;
+    /**
+     * Memoizes the dictionary-match bitmap computed by {@link ParquetPushedExpressions} for
+     * every pushed leaf predicate, so the predicate is evaluated against the dictionary
+     * once per row group rather than once per batch. The underlying {@code BytesRefArray}
+     * is fixed for the lifetime of a row group (see {@code PageColumnReader#ensureCachedDictArray}),
+     * which is what makes the entries valid across batches.
+     *
+     * <p>Lifecycle by stamp, not by callback: {@link #dictionaryBitmapsForCurrentRowGroup}
+     * compares the cached row-group ordinal with the current one and wipes the map on a
+     * mismatch. This makes the cache self-invalidating — a missed wipe in {@code advanceRowGroup}
+     * (e.g. on the two-phase "all rows filtered, try next row group" retry path) cannot
+     * leak entries into a different row group's evaluation.
+     *
+     * <p>{@code null} when late materialization is off; in that case no dictionary fast path
+     * runs and the map would be pure overhead.
+     */
+    private final Map<Expression, boolean[]> dictionaryBitmaps;
+    private int dictionaryBitmapsRowGroup = -1;
     private long rowsEliminatedByLateMaterialization;
     /**
      * When {@code true}, row-group statistics prove every row in the current row group satisfies
@@ -231,6 +251,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         this.isPredicateColumn = classifyPredicateColumns(attributes, columnInfos, pushedExpressions);
         this.lateMaterialization = pushedExpressions != null;
         this.survivorMask = lateMaterialization ? new WordMask() : null;
+        this.dictionaryBitmaps = lateMaterialization ? new IdentityHashMap<>() : null;
         // Caller supplies null when late materialization is off; defensively also drop it here so
         // the trivially-passes check is gated by a single condition below.
         this.triviallyPassesPredicate = lateMaterialization ? triviallyPassesPredicate : null;
@@ -559,6 +580,24 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     }
 
     /**
+     * Returns the per-row-group dictionary bitmap memo for the current {@link #rowGroupOrdinal},
+     * resetting it on a row-group transition. The memo is owned by the iterator and shared
+     * with {@link ParquetPushedExpressions#evaluateFilter}; the caller writes new bitmaps to
+     * it as predicates are evaluated and reads them on subsequent batches within the same
+     * row group. Returns {@code null} when late materialization is off.
+     */
+    private Map<Expression, boolean[]> dictionaryBitmapsForCurrentRowGroup() {
+        if (dictionaryBitmaps == null) {
+            return null;
+        }
+        if (dictionaryBitmapsRowGroup != rowGroupOrdinal) {
+            dictionaryBitmaps.clear();
+            dictionaryBitmapsRowGroup = rowGroupOrdinal;
+        }
+        return dictionaryBitmaps;
+    }
+
+    /**
      * Advances to the next surviving row group: applies the row-group statistics filter to skip
      * dropped row groups, then builds a {@link PrefetchedPageReadStore} from the prefetched
      * (or sync-fetched) bytes for the surviving row group. Triggers prefetch for the row group
@@ -574,6 +613,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         // Loop is for the two-phase "all rows filtered out" case, where the current row group
         // contributes zero rows and we must immediately attempt the next surviving ordinal.
         // Single-phase always returns within the first iteration via the standard return below.
+        // No cache wipe needed here: dictionaryBitmapsForCurrentRowGroup() self-invalidates on
+        // a row-group ordinal mismatch, so any retry through this loop with a different
+        // rowGroupOrdinal will see a fresh map at the next evaluateFilter call.
         while (true) {
             int nextOrdinal = nextSurvivingRowGroupOrdinal(rowGroupOrdinal + 1);
             if (nextOrdinal >= reader.getRowGroups().size()) {
@@ -908,7 +950,12 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
                 }
                 predicateBlockMap.put(attributes.get(col).name(), predicateBlocks[col]);
             }
-            WordMask mask = pushedExpressions.evaluateFilter(predicateBlockMap, rowsToRead, survivorMask);
+            WordMask mask = pushedExpressions.evaluateFilter(
+                predicateBlockMap,
+                rowsToRead,
+                survivorMask,
+                dictionaryBitmapsForCurrentRowGroup()
+            );
             int survivorCount;
             int[] positions;
             if (mask == null) {
@@ -1597,7 +1644,12 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
             }
 
             // Phase 2: evaluate filter
-            WordMask mask = pushedExpressions.evaluateFilter(predicateBlockMap, rowsToRead, survivorMask);
+            WordMask mask = pushedExpressions.evaluateFilter(
+                predicateBlockMap,
+                rowsToRead,
+                survivorMask,
+                dictionaryBitmapsForCurrentRowGroup()
+            );
 
             int survivorCount = rowsToRead;
             int[] positions = null;

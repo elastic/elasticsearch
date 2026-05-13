@@ -1466,6 +1466,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFieldExtractFirstArgumentMustBeFlattened() {
+        assumeTrue("Requires FIELD_EXTRACT_FUNCTION capability", EsqlCapabilities.Cap.FIELD_EXTRACT_FUNCTION.isEnabled());
         var index = analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json").stripErrorPrefix(true);
         index.error(
             "FROM flattened_otel_logs | EVAL x = field_extract(@timestamp, \"a\")",

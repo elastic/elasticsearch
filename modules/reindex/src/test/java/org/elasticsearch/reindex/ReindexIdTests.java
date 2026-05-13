@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -26,12 +27,18 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollActionTestCase;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Reindex tests for picking ids.
@@ -56,6 +63,72 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
 
     public void testMissingIndexWithTsdbTemplateClearsId() throws Exception {
         assertThat(action(stateWithTemplate(tsdbSettings())).buildRequest(doc()).getId(), nullValue());
+    }
+
+    public void testConversionErrorContainsDocId() {
+        final PaginatedHitSource.BasicHit hit = new PaginatedHitSource.BasicHit("source_index", "doc_123", -1).setSource(
+            new BytesArray("not valid json"),
+            XContentType.JSON
+        );
+        final ReindexRequest req = request();
+        req.getDestination().source(new BytesArray("{}"), XContentType.CBOR);
+        final ProjectState projectState = ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID);
+        final Reindexer.AsyncIndexBySearchAction action = new Reindexer.AsyncIndexBySearchAction(
+            task,
+            logger,
+            null,
+            null,
+            threadPool,
+            null,
+            projectState,
+            null,
+            req,
+            listener(),
+            null,
+            randomTimeValue(),
+            null
+        );
+        expectThrows(
+            XContentParseException.class,
+            equalTo("[1:5] failed to convert hit [source_index][doc_123] from JSON to CBOR"),
+            () -> action.buildRequest(hit)
+        );
+    }
+
+    /**
+     * Simulates an I/O failure when opening the hit source stream so the {@link IOException} branch is exercised (not XContent parsing).
+     */
+    public void testConversionIoErrorContainsDocId() throws IOException {
+        final BytesReference source = mock(BytesReference.class);
+        when(source.hasArray()).thenReturn(false);
+        doThrow(new IOException(randomAlphaOfLength(8))).when(source).streamInput();
+        final PaginatedHitSource.BasicHit hit = new PaginatedHitSource.BasicHit("source_index", "doc_123", -1).setSource(
+            source,
+            XContentType.JSON
+        );
+        final ReindexRequest req = request();
+        req.getDestination().source(new BytesArray("{}"), XContentType.CBOR);
+        final ProjectState projectState = ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID);
+        final Reindexer.AsyncIndexBySearchAction action = new Reindexer.AsyncIndexBySearchAction(
+            task,
+            logger,
+            null,
+            null,
+            threadPool,
+            null,
+            projectState,
+            null,
+            req,
+            listener(),
+            null,
+            randomTimeValue(),
+            null
+        );
+        expectThrows(
+            UncheckedIOException.class,
+            equalTo("failed to convert hit [source_index][doc_123] from JSON to CBOR"),
+            () -> action.buildRequest(hit)
+        );
     }
 
     private ProjectState stateWithTemplate(Settings.Builder settings) {

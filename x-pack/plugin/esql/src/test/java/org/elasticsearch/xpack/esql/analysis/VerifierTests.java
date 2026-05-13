@@ -4053,6 +4053,14 @@ public class VerifierTests extends ESTestCase {
             "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"order\": \"invalid\"})",
             equalTo("1:29: 'order' option must be 'score' or 'none', found [invalid]")
         );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"analyzer\": \"\"})",
+            equalTo("1:29: 'analyzer' option must be a non-empty string")
+        );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"analyzer\": \"  \"})",
+            equalTo("1:29: 'analyzer' option must be a non-empty string")
+        );
     }
 
     public void testTimeSeriesWithUnsupportedDataType() {

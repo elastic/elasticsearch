@@ -84,6 +84,8 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
             null,
             req,
             listener(),
+            null,
+            randomTimeValue(),
             null
         );
         expectThrows(
@@ -118,6 +120,8 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
             null,
             req,
             listener(),
+            null,
+            randomTimeValue(),
             null
         );
         expectThrows(

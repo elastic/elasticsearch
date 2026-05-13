@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -29,14 +30,16 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 /**
- * Integration tests for the reindexed-v7 heal logic in {@link MlAnomaliesIndexUpdate}.
+ * Integration tests for the reindexed-anomalies heal logic in {@link MlAnomaliesIndexUpdate}.
  *
- * Each test sets up the broken post-upgrade state (a {@code .reindexed-v7-ml-anomalies-*}
+ * Each test sets up the broken post-upgrade state (a {@code .reindexed-*-ml-anomalies-*}
  * index with {@code job_id} mapped as {@code text} and live {@code .ml-anomalies-*} aliases)
  * then drives the heal and asserts the actual cluster-state outcome: aliases moved, target
  * index exists with the correct keyword mapping, bad index is left alias-free.
@@ -158,6 +161,86 @@ public class MlAnomaliesIndexUpdateIT extends MlSingleNodeTestCase {
         assertNoMlAliasesOnIndex(unrelatedSibling, state);
     }
 
+    public void testHeals_GivenV7AndV8ReindexedSharedResults_DifferentJobs_HealsBothToSingleTarget() {
+        String v7 = ".reindexed-v7-ml-anomalies-shared-000001";
+        String v8 = ".reindexed-v8-ml-anomalies-shared";
+        String targetIndex = ".ml-anomalies-shared-000001";
+
+        createBadIndex(v7, BROKEN_MAPPING, List.of("jobA"));
+        createBadIndex(v8, BROKEN_MAPPING, List.of("jobB"));
+
+        AnomalyDetectionAuditor auditor = mock(AnomalyDetectionAuditor.class);
+        SystemAuditor systemAuditor = mock(SystemAuditor.class);
+        new MlAnomaliesIndexUpdate(
+            clusterService(),
+            TestIndexNameExpressionResolver.newInstance(),
+            client(),
+            auditor,
+            systemAuditor,
+            () -> true
+        ).runUpdate(clusterService().state());
+
+        ClusterState state = clusterService().state();
+        assertBadIndexHasNoMlAliases(v7, state);
+        assertBadIndexHasNoMlAliases(v8, state);
+        assertAliasesOnIndex(targetIndex, List.of("jobA", "jobB"), state);
+        assertJobIdIsKeyword(targetIndex, state);
+        verify(systemAuditor, times(2)).warning(anyString());
+        verify(auditor).warning(eq("jobA"), anyString());
+        verify(auditor).warning(eq("jobB"), anyString());
+    }
+
+    public void testHeals_GivenReindexedV8SharedIndexWithBadMapping_HealsToNewIndex() {
+        String badIndex = ".reindexed-v8-ml-anomalies-shared";
+        String targetIndex = ".ml-anomalies-shared-000001";
+        List<String> jobs = List.of("v8OnlyJob");
+
+        createBadIndex(badIndex, BROKEN_MAPPING, jobs);
+        runHeal();
+
+        ClusterState state = clusterService().state();
+        assertBadIndexHasNoMlAliases(badIndex, state);
+        assertAliasesOnIndex(targetIndex, jobs, state);
+        assertJobIdIsKeyword(targetIndex, state);
+    }
+
+    public void testHeals_RunsHealBeforeRolloverLegacyIndex_NoException() {
+        // Legacy-shaped name (no 6-digit suffix) on the current index version still triggers the
+        // rollover path, while a broken reindexed-v7 index triggers heal — runUpdate must complete
+        // without alias conflicts (heal runs first, then rollover reads fresh cluster state).
+        String legacy = ".ml-anomalies-healrollover";
+        client().admin().indices().create(new CreateIndexRequest(legacy)).actionGet();
+
+        var aliasReq = client().admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
+        aliasReq.addAliasAction(
+            IndicesAliasesRequest.AliasActions.add()
+                .index(legacy)
+                .alias(AnomalyDetectorsIndex.jobResultsAliasedName("legacyRolloverJob"))
+                .isHidden(true)
+        );
+        aliasReq.addAliasAction(
+            IndicesAliasesRequest.AliasActions.add()
+                .index(legacy)
+                .alias(AnomalyDetectorsIndex.resultsWriteAlias("legacyRolloverJob"))
+                .writeIndex(true)
+                .isHidden(true)
+        );
+        aliasReq.get();
+
+        createBadIndex(".reindexed-v7-ml-anomalies-shared-000001", BROKEN_MAPPING, List.of("healRolloverJob"));
+
+        AnomalyDetectionAuditor auditor = mock(AnomalyDetectionAuditor.class);
+        SystemAuditor systemAuditor = mock(SystemAuditor.class);
+        new MlAnomaliesIndexUpdate(
+            clusterService(),
+            TestIndexNameExpressionResolver.newInstance(),
+            client(),
+            auditor,
+            systemAuditor,
+            () -> true
+        ).runUpdate(clusterService().state());
+    }
+
     public void testHeals_GivenSharedIndexWithSuffixCollision_PicksNextIndex() {
         String badIndex = ".reindexed-v7-ml-anomalies-shared-000001";
         String existingBlocker = ".ml-anomalies-shared-000001";
@@ -187,6 +270,7 @@ public class MlAnomaliesIndexUpdateIT extends MlSingleNodeTestCase {
         AnomalyDetectionAuditor auditor = mock(AnomalyDetectionAuditor.class);
         SystemAuditor systemAuditor = mock(SystemAuditor.class);
         MlAnomaliesIndexUpdate updater = new MlAnomaliesIndexUpdate(
+            clusterService(),
             TestIndexNameExpressionResolver.newInstance(),
             client(),
             auditor,

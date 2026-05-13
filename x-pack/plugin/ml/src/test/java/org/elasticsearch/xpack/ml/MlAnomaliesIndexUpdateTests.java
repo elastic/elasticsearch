@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexVersion;
@@ -61,29 +62,37 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
     private static final BooleanSupplier HEAL_ENABLED = () -> true;
     private static final BooleanSupplier HEAL_DISABLED = () -> false;
 
-    private static MlAnomaliesIndexUpdate updater(Client client) {
-        return updater(client, mock(AnomalyDetectionAuditor.class), mock(SystemAuditor.class), HEAL_ENABLED);
+    private static ClusterService mockClusterService(ClusterState state) {
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(state);
+        return clusterService;
     }
 
-    private static MlAnomaliesIndexUpdate updater(Client client, AnomalyDetectionAuditor auditor, BooleanSupplier healEnabled) {
-        return updater(client, auditor, mock(SystemAuditor.class), healEnabled);
+    private static MlAnomaliesIndexUpdate updater(Client client, ClusterState rolloverState) {
+        return updater(client, rolloverState, mock(AnomalyDetectionAuditor.class), mock(SystemAuditor.class), HEAL_ENABLED);
+    }
+
+    private static MlAnomaliesIndexUpdate updater(Client client, ClusterState rolloverState, AnomalyDetectionAuditor auditor, BooleanSupplier healEnabled) {
+        return updater(client, rolloverState, auditor, mock(SystemAuditor.class), healEnabled);
     }
 
     private static MlAnomaliesIndexUpdate updater(
         Client client,
+        ClusterState rolloverState,
         AnomalyDetectionAuditor auditor,
         SystemAuditor systemAuditor,
         BooleanSupplier healEnabled
     ) {
-        return new MlAnomaliesIndexUpdate(TestIndexNameExpressionResolver.newInstance(), client, auditor, systemAuditor, healEnabled);
+        return new MlAnomaliesIndexUpdate(mockClusterService(rolloverState), TestIndexNameExpressionResolver.newInstance(), client, auditor, systemAuditor, healEnabled);
     }
 
     public void testIsAbleToRun_IndicesDoNotExist() {
         RoutingTable.Builder routingTable = RoutingTable.builder();
-        var u = updater(mock(Client.class));
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
         csBuilder.routingTable(routingTable.build());
-        assertTrue(u.isAbleToRun(csBuilder.build()));
+        ClusterState state = csBuilder.build();
+        var u = updater(mock(Client.class), state);
+        assertTrue(u.isAbleToRun(state));
     }
 
     public void testIsAbleToRun_IndicesHaveNoRouting() {
@@ -102,7 +111,8 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
         csBuilder.routingTable(RoutingTable.builder().build()); // no routing table
         csBuilder.metadata(metadata);
 
-        assertFalse(updater(mock(Client.class)).isAbleToRun(csBuilder.build()));
+        ClusterState cs = csBuilder.build();
+        assertFalse(updater(mock(Client.class), cs).isAbleToRun(cs));
     }
 
     public void testRunUpdate_UpToDateIndices() {
@@ -115,8 +125,9 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
         csBuilder.metadata(metadata);
 
+        ClusterState cs = csBuilder.build();
         var client = mock(Client.class);
-        updater(client).runUpdate(csBuilder.build());
+        updater(client, cs).runUpdate(cs);
         // everything up to date so no network calls expected
         verify(client).settings();
         verify(client).threadPool();
@@ -134,8 +145,9 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
         csBuilder.metadata(metadata);
 
+        ClusterState cs = csBuilder.build();
         var client = mockClientWithRolloverAndAlias(indexName);
-        updater(client).runUpdate(csBuilder.build());
+        updater(client, cs).runUpdate(cs);
         verify(client).settings();
         verify(client, times(7)).threadPool();
         verify(client).projectResolver();
@@ -153,7 +165,7 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
         SystemAuditor systemAuditor = mock(SystemAuditor.class);
         mockThreadPool(client);
 
-        updater(client, auditor, systemAuditor, HEAL_ENABLED).runUpdate(cs);
+        updater(client, cs, auditor, systemAuditor, HEAL_ENABLED).runUpdate(cs);
 
         verify(client, never()).execute(same(TransportCreateIndexAction.TYPE), any(), any());
         verify(client, never()).execute(same(TransportIndicesAliasesAction.TYPE), any(), any());
@@ -181,7 +193,7 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
         SystemAuditor systemAuditor = mock(SystemAuditor.class);
         mockThreadPool(client);
 
-        updater(client, auditor, systemAuditor, HEAL_ENABLED).runUpdate(cs);
+        updater(client, cs, auditor, systemAuditor, HEAL_ENABLED).runUpdate(cs);
 
         verify(client, never()).execute(same(TransportCreateIndexAction.TYPE), any(), any());
         verify(auditor, never()).warning(any(), any());
@@ -223,10 +235,10 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
         SystemAuditor systemAuditor = mock(SystemAuditor.class);
         var client = mockClientWithRolloverFailureAndHeal(targetIndex);
 
-        var updater = updater(client, auditor, systemAuditor, HEAL_ENABLED);
+        var updater = updater(client, cs, auditor, systemAuditor, HEAL_ENABLED);
         var ex = expectThrows(ElasticsearchStatusException.class, () -> updater.runUpdate(cs));
         assertEquals(RestStatus.CONFLICT, ex.status());
-        // The combined exception should have the rollover failure suppressed
+        // The combined exception should include the rollover failure as a suppressed cause.
         assertTrue(ex.getSuppressed().length > 0);
 
         // Heal ran despite rollover failure: create + aliases + audit
@@ -246,7 +258,7 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
         doThrow(new RuntimeException("notifications index unavailable")).when(systemAuditor).warning(anyString());
 
         var client = mockClientForHeal(targetIndex);
-        var updater = updater(client, auditor, systemAuditor, HEAL_ENABLED);
+        var updater = updater(client, cs, auditor, systemAuditor, HEAL_ENABLED);
 
         // Should NOT throw even though the auditor threw
         updater.runUpdate(cs);
@@ -264,7 +276,7 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
         var client = mock(Client.class);
         mockThreadPool(client);
 
-        updater(client, auditor, systemAuditor, HEAL_DISABLED).runUpdate(cs);
+        updater(client, cs, auditor, systemAuditor, HEAL_DISABLED).runUpdate(cs);
 
         verify(client, never()).execute(same(TransportCreateIndexAction.TYPE), any(), any());
         verify(client, never()).execute(same(TransportIndicesAliasesAction.TYPE), any(), any());

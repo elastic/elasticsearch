@@ -1374,6 +1374,7 @@ public class MachineLearning extends Plugin
                     client
                 ),
                 new MlAnomaliesIndexUpdate(
+                    clusterService,
                     indexNameExpressionResolver,
                     client,
                     anomalyDetectionAuditor,

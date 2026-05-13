@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -57,6 +58,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -65,15 +68,19 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 /**
  * Rollover the various .ml-anomalies result indices updating the read and write aliases.
  * Also detects and heals indices that were rolled over with an incorrect dynamic job_id
- * mapping (the ".reindexed-v7-ml-anomalies-*" bug introduced in ES 8.18/8.19).
+ * mapping (the reindexed-ml-anomalies bug introduced in ES 8.18/8.19, including
+ * {@code .reindexed-v7-ml-anomalies-*} and {@code .reindexed-v8-ml-anomalies-*} lineages).
  */
 public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction {
 
     private static final Logger logger = LogManager.getLogger(MlAnomaliesIndexUpdate.class);
 
     /**
-     * Kill-switch: set to {@code false} to disable the reindexed-v7 heal step without affecting
+     * Kill-switch: set to {@code false} to disable the reindexed-anomalies heal step without affecting
      * the normal rollover loop. Dynamically updatable.
+     * <p>
+     * Setting key retains {@code reindexed_v7} for backwards compatibility; the heal applies to
+     * all {@code .reindexed-*-ml-anomalies-*} indices with broken {@code job_id} mappings.
      */
     public static final Setting<Boolean> HEAL_REINDEXED_V7_ENABLED = Setting.boolSetting(
         "xpack.ml.anomalies.heal_reindexed_v7.enabled",
@@ -82,11 +89,17 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
         Setting.Property.NodeScope
     );
 
-    /** Prefix that identifies a bad "reindexed-v7" anomalies index. */
-    static final String REINDEXED_V7_PREFIX = ".reindexed-v7-";
+    /**
+     * Index pattern used to resolve all reindexed ML anomalies candidates (e.g.
+     * {@code .reindexed-v7-ml-anomalies-*}, {@code .reindexed-v8-ml-anomalies-*}).
+     */
+    static final String REINDEXED_ANOMALIES_PATTERN = ".reindexed-*-ml-anomalies-*";
 
-    /** Index pattern used to resolve all .reindexed-v7-ml-anomalies-* candidates. */
-    static final String REINDEXED_V7_PATTERN = REINDEXED_V7_PREFIX + "ml-anomalies-*";
+    /**
+     * Strips {@code .reindexed-<version>-} from a concrete index name, leaving {@code ml-anomalies-...}
+     * so {@link MlIndexAndAlias#baseIndexName} can derive the canonical results base (e.g. {@code .ml-anomalies-shared}).
+     */
+    private static final Pattern REINDEXED_ANOMALIES_STRIP = Pattern.compile("^\\.reindexed-[^-]+-(ml-anomalies-.*)$");
 
     /**
      * Timeout for each synchronous alias-update call during the heal step.
@@ -96,6 +109,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
     /** Max collision retries when the derived target index name already exists. */
     private static final int MAX_SUFFIX_RETRIES = 5;
 
+    private final ClusterService clusterService;
     private final IndexNameExpressionResolver expressionResolver;
     private final OriginSettingClient client;
     private final AnomalyDetectionAuditor auditor;
@@ -103,12 +117,14 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
     private final BooleanSupplier healEnabled;
 
     public MlAnomaliesIndexUpdate(
+        ClusterService clusterService,
         IndexNameExpressionResolver expressionResolver,
         Client client,
         AnomalyDetectionAuditor auditor,
         SystemAuditor systemAuditor,
         BooleanSupplier healEnabled
     ) {
+        this.clusterService = clusterService;
         this.expressionResolver = expressionResolver;
         this.client = new OriginSettingClient(client, ML_ORIGIN);
         this.auditor = auditor;
@@ -148,8 +164,9 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
 
     /**
      * Executes updates related to ML anomaly indices.
-     * - Runs the rollover process for ML anomaly indices.
-     * - Attempts to heal any <code>.reindexed-v7-ml-anomalies-*</code> indices if necessary.
+     * - Heals any <code>.reindexed-*-ml-anomalies-*</code> indices with broken {@code job_id} mappings if necessary.
+     * - Runs the rollover process for ML anomaly indices against a fresh {@link ClusterState} so rollovers see
+     *   aliases already moved off reindexed lineages by the heal step.
      * If either task fails, an aggregated {@link ElasticsearchStatusException} is thrown
      * containing all suppressed failures.
      *
@@ -158,26 +175,24 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
      */
     @Override
     public void runUpdate(ClusterState latestState) {
-        // roll over legacy ml anomalies indices if necessary
-        Exception rolloverFailure = null;
-        try {
-            runRolloverLoop(latestState);
-        } catch (Exception e) {
-            rolloverFailure = e;
-        }
-
-        // heal reindexed-v7 ml anomalies indices if necessary
         Exception healFailure = null;
         try {
-            healReindexedV7Anomalies(latestState);
+            healReindexedAnomalies(latestState);
         } catch (Exception e) {
             healFailure = e;
         }
 
+        Exception rolloverFailure = null;
+        try {
+            runRolloverLoop(clusterService.state());
+        } catch (Exception e) {
+            rolloverFailure = e;
+        }
+
         if (rolloverFailure != null || healFailure != null) {
             var combined = new ElasticsearchStatusException("One or more ml anomalies index update steps failed.", RestStatus.CONFLICT);
-            if (rolloverFailure != null) combined.addSuppressed(rolloverFailure);
             if (healFailure != null) combined.addSuppressed(healFailure);
+            if (rolloverFailure != null) combined.addSuppressed(rolloverFailure);
             throw combined;
         }
     }
@@ -280,7 +295,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
     }
 
     /**
-     * Detects any {@code .reindexed-v7-ml-anomalies-*} indices that still carry live
+     * Detects any {@code .reindexed-*-ml-anomalies-*} indices that still carry live
      * {@code .ml-anomalies-*} read/write aliases (i.e., that were created in the buggy
      * template-mismatch window), and moves those aliases to a correctly-mapped target index.
      *
@@ -290,14 +305,17 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
      *
      * @param state Cluster state used for resolving anomaly indices.
      */
-    void healReindexedV7Anomalies(ClusterState state) {
+    void healReindexedAnomalies(ClusterState state) {
         if (healEnabled.getAsBoolean() == false) {
             logger.debug("Setting [{}] is disabled; heal step skipped", HEAL_REINDEXED_V7_ENABLED.getKey());
             return;
         }
 
-        // Resolve all .reindexed-v7-ml-anomalies-* candidates from cluster state
-        String[] candidates = expressionResolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpenHidden(), REINDEXED_V7_PATTERN);
+        String[] candidates = expressionResolver.concreteIndexNames(
+            state,
+            IndicesOptions.lenientExpandOpenHidden(),
+            REINDEXED_ANOMALIES_PATTERN
+        );
 
         List<Exception> failures = new ArrayList<>();
 
@@ -309,8 +327,8 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
             try {
                 healOneBadIndex(badIndex, state, targetByBase);
             } catch (Exception e) {
-                logger.warn("failed to heal reindexed-v7 ml anomalies index [{}]", badIndex, e);
-                String msg = Strings.format("failed to heal reindexed-v7 ml anomalies index [%s]", badIndex);
+                logger.warn("failed to heal reindexed ml anomalies index [{}]", badIndex, e);
+                String msg = Strings.format("failed to heal reindexed ml anomalies index [%s]", badIndex);
                 if (e instanceof ElasticsearchException ee) {
                     failures.add(new ElasticsearchStatusException(msg, ee.status(), ee));
                 } else {
@@ -320,7 +338,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
         }
 
         if (failures.isEmpty() == false) {
-            var combined = new ElasticsearchStatusException("one or more reindexed-v7 ml anomalies heal steps failed", RestStatus.CONFLICT);
+            var combined = new ElasticsearchStatusException("one or more reindexed ml anomalies heal steps failed", RestStatus.CONFLICT);
             failures.forEach(combined::addSuppressed);
             throw combined;
         }
@@ -359,9 +377,13 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
             AnomalyDetectorsIndex.jobIdFromAlias(am.alias()).ifPresent(jobIds::add);
         }
 
-        // Derive target base name (strip .reindexed-v7- prefix and 6-digit suffix)
-        String strippedName = "." + badIndex.substring(REINDEXED_V7_PREFIX.length()); // e.g. ".ml-anomalies-shared-000001"
-        String targetBase = MlIndexAndAlias.baseIndexName(strippedName);               // e.g. ".ml-anomalies-shared"
+        Matcher stripMatch = REINDEXED_ANOMALIES_STRIP.matcher(badIndex);
+        if (stripMatch.matches() == false) {
+            throw new IllegalStateException("unexpected reindexed ml anomalies index name [" + badIndex + "]");
+        }
+        // e.g. ".ml-anomalies-shared-000001" or ".ml-anomalies-shared" (no 6-digit suffix)
+        String strippedName = "." + stripMatch.group(1);
+        String targetBase = MlIndexAndAlias.baseIndexName(strippedName); // e.g. ".ml-anomalies-shared"
 
         String targetIndex = targetByBase.computeIfAbsent(targetBase, base -> resolveOrCreateTargetIndex(base, state));
         moveAliasesToTarget(badIndex, targetIndex, jobIds);

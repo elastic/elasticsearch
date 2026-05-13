@@ -952,6 +952,13 @@ public enum IndexMode {
                 if (IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING.exists(indexTemplateAndCreateRequestSettings) == false) {
                     additionalSettings.put(intraMergeKey, true);
                 }
+
+                // Disable merge IO auto-throttling.
+                // Only applied when the user has not set it explicitly.
+                String autoThrottleKey = MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey();
+                if (MergeSchedulerConfig.AUTO_THROTTLE_SETTING.exists(indexTemplateAndCreateRequestSettings) == false) {
+                    additionalSettings.put(autoThrottleKey, false);
+                }
             }
         }
 

@@ -32,16 +32,16 @@ This can reduce latency on clusters that contain many large time series data str
 
 When you omit `{index}` in the path, qualifying indices are identified through the default index expression `metrics-*`.
 
-All endpoints support `GET` requests with parameters in the query string and `POST` requests with parameters in an `application/x-www-form-urlencoded` body.
-
 ## Query endpoints [promql-http-api-query-endpoints]
 
 These endpoints mirror the Prometheus [range query](https://prometheus.io/docs/prometheus/latest/querying/api/#range-queries) and [instant query](https://prometheus.io/docs/prometheus/latest/querying/api/#instant-queries) APIs.
 
 ### Range query [promql-http-api-query-range]
 
-`GET /_prometheus/api/v1/query_range` or `POST /_prometheus/api/v1/query_range`\
-`GET /_prometheus/{index}/api/v1/query_range` or `POST /_prometheus/{index}/api/v1/query_range`
+`GET  /_prometheus/api/v1/query_range`\
+`POST /_prometheus/api/v1/query_range`\
+`GET  /_prometheus/{index}/api/v1/query_range`\
+`POST /_prometheus/{index}/api/v1/query_range`
 
 This endpoint evaluates a PromQL expression over a time window and returns matrix data (`resultType: "matrix"`).
 
@@ -57,8 +57,10 @@ The `timeout`, `lookback_delta`, and `stats` parameters are not supported yet (s
 
 ### Instant query [promql-http-api-query-instant]
 
-`GET /_prometheus/api/v1/query` or `POST /_prometheus/api/v1/query`\
-`GET /_prometheus/{index}/api/v1/query` or `POST /_prometheus/{index}/api/v1/query`
+`GET  /_prometheus/api/v1/query`\
+`POST /_prometheus/api/v1/query`\
+`GET  /_prometheus/{index}/api/v1/query`\
+`POST /_prometheus/{index}/api/v1/query`
 
 This endpoint evaluates at a single instant and returns vector data (`resultType: "vector"`).
 
@@ -76,8 +78,10 @@ These entrypoints mirror the Prometheus [metric metadata](https://prometheus.io/
 
 ### Label names [promql-http-api-labels]
 
-`GET /_prometheus/api/v1/labels` or `POST /_prometheus/api/v1/labels`\
-`GET /_prometheus/{index}/api/v1/labels` or `POST /_prometheus/{index}/api/v1/labels`
+`GET  /_prometheus/api/v1/labels`\
+`POST /_prometheus/api/v1/labels`\
+`GET  /_prometheus/{index}/api/v1/labels`\
+`POST /_prometheus/{index}/api/v1/labels`
 
 This endpoint returns sorted label names present on matching series.
 `match[]` is not required. If you omit every `match[]`, results are still limited to the `start` and `end` time range.
@@ -91,8 +95,10 @@ This endpoint returns sorted label names present on matching series.
 
 ### Label values [promql-http-api-label-values]
 
-`GET /_prometheus/api/v1/label/{name}/values` or `POST /_prometheus/api/v1/label/{name}/values`\
-`GET /_prometheus/{index}/api/v1/label/{name}/values` or `POST /_prometheus/{index}/api/v1/label/{name}/values`
+`GET  /_prometheus/api/v1/label/{name}/values`\
+`POST /_prometheus/api/v1/label/{name}/values`\
+`GET  /_prometheus/{index}/api/v1/label/{name}/values`\
+`POST /_prometheus/{index}/api/v1/label/{name}/values`
 
 This endpoint returns sorted, deduplicated values for one label.
 `match[]` is not required. If you omit every `match[]`, results are still limited to the `start` and `end` time range.
@@ -109,8 +115,10 @@ Unknown label names are returned as an empty successful result (`data: []`), mat
 
 ### Series [promql-http-api-series]
 
-`GET /_prometheus/api/v1/series` or `POST /_prometheus/api/v1/series`\
-`GET /_prometheus/{index}/api/v1/series` or `POST /_prometheus/{index}/api/v1/series`
+`GET  /_prometheus/api/v1/series`\
+`POST /_prometheus/api/v1/series`\
+`GET  /_prometheus/{index}/api/v1/series`\
+`POST /_prometheus/{index}/api/v1/series`
 
 This endpoint returns the set of series matching the given selectors.
 At least one `match[]` parameter is required.
@@ -126,8 +134,8 @@ At least one `match[]` parameter is required.
 
 {applies_to}`stack: preview 9.5.0` {applies_to}`serverless: preview`
 
-`GET /_prometheus/api/v1/metadata` or `POST /_prometheus/api/v1/metadata`\
-`GET /_prometheus/{index}/api/v1/metadata` or `POST /_prometheus/{index}/api/v1/metadata`
+`GET /_prometheus/api/v1/metadata`\
+`GET /_prometheus/{index}/api/v1/metadata`
 
 This endpoint returns metric-level information such as type, help, and unit, analogous to Prometheus `TYPE`, `HELP`, and `UNIT` lines.
 
@@ -147,7 +155,7 @@ The `metadata` route does not support `match[]`, `start`, or `end`.
 Parameter encodings match the [Prometheus HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/). See the upstream [format overview](https://prometheus.io/docs/prometheus/latest/querying/api/#format-overview).
 
 For `GET` requests, send parameters in the query string.
-For `POST` requests, send parameters in an `application/x-www-form-urlencoded` request body.
+For endpoints that support `POST`, send parameters in an `application/x-www-form-urlencoded` request body.
 Do not repeat a parameter in both the URL and the form body.
 
 ### Timestamps [promql-http-api-param-timestamp]

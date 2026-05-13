@@ -800,6 +800,9 @@ public class FollowingEngineTests extends ESTestCase {
             case LOOKUP:
                 settingsBuilder.put("index.mode", IndexMode.LOOKUP.getName());
                 break;
+            case VECTORDB_DOCUMENT:
+                settingsBuilder.put("index.mode", IndexMode.VECTORDB_DOCUMENT.getName());
+                break;
             default:
                 throw new UnsupportedOperationException("Unknown index mode [" + indexMode + "]");
         }

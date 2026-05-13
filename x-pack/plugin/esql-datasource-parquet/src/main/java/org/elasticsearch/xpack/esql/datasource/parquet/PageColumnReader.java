@@ -186,7 +186,10 @@ final class PageColumnReader implements Releasable {
             source.close();
             return blockFactory.newConstantNullBlock(0);
         }
-        Block filtered = source.filter(false, Arrays.copyOf(positions, survivorCount));
+        if (positions.length != survivorCount) {
+            positions = Arrays.copyOf(positions, survivorCount);
+        }
+        Block filtered = source.filter(false, positions);
         source.close();
         return filtered;
     }

@@ -22,6 +22,6 @@ steps:
           diskType: hyperdisk-balanced
           diskSizeGb: 350
           preemptible: true
-          spotZones: us-east1-b,us-east1-c,us-east1-d,us-central1-a,us-central1-b,us-central1-c,us-central1-f,us-west1-a,us-west1-b
+          spotZones: asia-south2-a,asia-south2-b,asia-south2-c
         env:
           PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"

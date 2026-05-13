@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.logging;
 
-import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -68,44 +67,13 @@ public class LoggingFeatureSetUsage extends XPackFeatureUsage {
         }
     }
 
-    record QueryLoggingConfig(LoggingConfig base, boolean system, String threshold) implements Writeable, ToXContentObject {
-
-        QueryLoggingConfig(StreamInput input) throws IOException {
-            this(new LoggingConfig(input), input.readBoolean(), input.readOptionalString());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            base.writeTo(out);
-            out.writeBoolean(system);
-            out.writeOptionalString(threshold);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            base.toXContent(builder, params);
-            builder.field("system", system);
-            if (Strings.isNotEmpty(threshold)) {
-                builder.field("threshold", threshold);
-            }
-            builder.endObject();
-            return builder;
-        }
-    }
-
     private final EsqlLoggingConfig esqlConfig;
-    private final QueryLoggingConfig queryConfig;
 
-    LoggingFeatureSetUsage(QueryLoggingConfig queryConfig, EsqlLoggingConfig esqlConfig) {
+    LoggingFeatureSetUsage(EsqlLoggingConfig esqlConfig) {
         super(XPackField.LOGGING, true, true);
         this.esqlConfig = esqlConfig;
-        this.queryConfig = queryConfig;
     }
 
-    QueryLoggingConfig queryConfig() {
-        return queryConfig;
-    }
 
     EsqlLoggingConfig esqlConfig() {
         return esqlConfig;
@@ -114,19 +82,16 @@ public class LoggingFeatureSetUsage extends XPackFeatureUsage {
     public LoggingFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
         esqlConfig = new EsqlLoggingConfig(input);
-        queryConfig = new QueryLoggingConfig(input);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         esqlConfig.writeTo(out);
-        queryConfig.writeTo(out);
     }
 
     @Override
     protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("querylog", queryConfig);
         builder.field("esql", esqlConfig);
     }
 
@@ -141,11 +106,11 @@ public class LoggingFeatureSetUsage extends XPackFeatureUsage {
             return false;
         }
         LoggingFeatureSetUsage that = (LoggingFeatureSetUsage) o;
-        return Objects.equals(esqlConfig, that.esqlConfig) && Objects.equals(queryConfig, that.queryConfig);
+        return Objects.equals(esqlConfig, that.esqlConfig);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(esqlConfig, queryConfig);
+        return Objects.hash(esqlConfig);
     }
 }

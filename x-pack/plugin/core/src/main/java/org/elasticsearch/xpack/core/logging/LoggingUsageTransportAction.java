@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.logging.LoggingFeatureSetUsage.EsqlLoggingConfig;
 import org.elasticsearch.xpack.core.logging.LoggingFeatureSetUsage.LoggingConfig;
-import org.elasticsearch.xpack.core.logging.LoggingFeatureSetUsage.QueryLoggingConfig;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -51,7 +50,7 @@ public class LoggingUsageTransportAction extends XPackUsageFeatureTransportActio
         ActionListener<XPackUsageFeatureResponse> listener
     ) throws Exception {
         var settings = clusterService.getClusterSettings();
-        var usage = new LoggingFeatureSetUsage(getQueryLoggingConfig(settings), getEsqlLoggingConfig(settings));
+        var usage = new LoggingFeatureSetUsage(getEsqlLoggingConfig(settings));
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }
 
@@ -74,22 +73,5 @@ public class LoggingUsageTransportAction extends XPackUsageFeatureTransportActio
         return thresholds.isEmpty()
             ? new EsqlLoggingConfig(new LoggingConfig(false, includeUserEnabled), Map.of())
             : new EsqlLoggingConfig(new LoggingConfig(true, includeUserEnabled), thresholds);
-    }
-
-    @SuppressWarnings("unchecked")
-    private QueryLoggingConfig getQueryLoggingConfig(ClusterSettings clusterSettings) {
-        Setting<TimeValue> value = (Setting<TimeValue>) clusterSettings.get("elasticsearch.querylog.threshold");
-        String threshold = null;
-        if (value != null && clusterSettings.get(value).nanos() > 0) {
-            threshold = clusterSettings.get(value).getStringRep();
-        }
-        return new QueryLoggingConfig(
-            new LoggingConfig(
-                getBooleanSetting(clusterSettings, "elasticsearch.querylog.enabled"),
-                getBooleanSetting(clusterSettings, "elasticsearch.querylog.include.user")
-            ),
-            getBooleanSetting(clusterSettings, "elasticsearch.querylog.include.system_indices"),
-            threshold
-        );
     }
 }

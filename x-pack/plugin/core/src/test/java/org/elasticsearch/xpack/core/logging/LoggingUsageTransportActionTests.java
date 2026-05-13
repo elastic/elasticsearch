@@ -44,10 +44,6 @@ public class LoggingUsageTransportActionTests extends ESTestCase {
 
     private static final Set<Setting<?>> ALL_SETTINGS = new HashSet<>(
         Set.of(
-            QueryLogger.QUERY_LOGGER_ENABLED,
-            QueryLogger.QUERY_LOGGER_THRESHOLD,
-            QueryLogger.QUERY_LOGGER_INCLUDE_USER,
-            QueryLogger.QUERY_LOGGER_LOG_SYSTEM,
             ESQL_QUERYLOG_INCLUDE_USER
         )
     );
@@ -70,36 +66,6 @@ public class LoggingUsageTransportActionTests extends ESTestCase {
     }
 
     private final TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
-
-    public void testElasticsearchQueryLogBooleanSettings() throws Exception {
-        boolean enabled = randomBoolean(), system = randomBoolean(), user = randomBoolean();
-
-        Settings on = Settings.builder()
-            .put(QueryLogger.QUERY_LOGGER_ENABLED.getKey(), enabled)
-            .put(QueryLogger.QUERY_LOGGER_INCLUDE_USER.getKey(), user)
-            .put(QueryLogger.QUERY_LOGGER_LOG_SYSTEM.getKey(), system)
-            .build();
-        LoggingFeatureSetUsage usageOn = usage(on);
-        assertThat(usageOn.queryConfig().base().enabled(), equalTo(enabled));
-        assertThat(usageOn.queryConfig().base().userInfo(), equalTo(user));
-        assertThat(usageOn.queryConfig().system(), equalTo(system));
-    }
-
-    public void testElasticsearchQueryLogThresholdSetting() throws Exception {
-        TimeValue threshold = TimeValue.timeValueMillis(randomIntBetween(1, 100));
-        Settings settings = Settings.builder().put(QueryLogger.QUERY_LOGGER_THRESHOLD.getKey(), threshold.getStringRep()).build();
-
-        LoggingFeatureSetUsage usage = usage(settings);
-        assertThat(usage.queryConfig().threshold(), equalTo(threshold.getStringRep()));
-    }
-
-    public void testElasticsearchQueryLogThresholdAbsentWhenNotPositive() throws Exception {
-        Settings minusOne = Settings.builder().put(QueryLogger.QUERY_LOGGER_THRESHOLD.getKey(), TimeValue.MINUS_ONE.getStringRep()).build();
-        assertThat(usage(minusOne).queryConfig().threshold(), nullValue());
-
-        Settings zero = Settings.builder().put(QueryLogger.QUERY_LOGGER_THRESHOLD.getKey(), TimeValue.ZERO.getStringRep()).build();
-        assertThat(usage(zero).queryConfig().threshold(), nullValue());
-    }
 
     public void testEsqlQueryLogThresholdSettings() throws Exception {
         String level = randomFrom(ESQL_SETTINGS.keySet());

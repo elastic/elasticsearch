@@ -24,6 +24,8 @@ dependencies {
   compileOnly project(xpackModule('core'))
   compileOnly project(xpackModule('blob-cache'))
 
+  implementation 'com.carrotsearch:hppc:0.8.1'
+
   testImplementation project(':test:framework')
   testImplementation testArtifact(project(xpackModule('searchable-snapshots')))
   testImplementation 'com.amazonaws:aws-java-sdk-core:1.12.684'

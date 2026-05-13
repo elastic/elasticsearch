@@ -25,7 +25,7 @@ import static org.elasticsearch.test.ESTestCase.randomIntBetween;
  * Shared suppliers for {@link DataType#FLATTENED} test cases,
  * used by both {@link TestCaseSupplier} and {@link MultiRowTestCaseSupplier}.
  */
-class FlattenedCases {
+public class FlattenedCases {
     static final Supplier<BytesRef> EMPTY = json(b -> {});
     static final Supplier<BytesRef> SINGLE_KEY = json(b -> b.field(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20)));
     static final Supplier<BytesRef> MULTI_KEY = json(b -> {
@@ -45,7 +45,7 @@ class FlattenedCases {
             b.endObject();
         }
     });
-    static final Supplier<BytesRef> RANDOM = () -> randomFrom(EMPTY, SINGLE_KEY, MULTI_KEY, OBJECT).get();
+    public static final Supplier<BytesRef> RANDOM = () -> randomFrom(EMPTY, SINGLE_KEY, MULTI_KEY, OBJECT).get();
 
     private static Supplier<BytesRef> json(CheckedConsumer<XContentBuilder, IOException> body) {
         return () -> {

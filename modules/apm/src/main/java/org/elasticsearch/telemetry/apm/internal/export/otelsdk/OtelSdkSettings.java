@@ -51,9 +51,8 @@ public final class OtelSdkSettings {
     /** How often {@code BatchSpanProcessor} flushes buffered spans to the exporter. */
     public static final Setting<TimeValue> TELEMETRY_OTEL_TRACES_INTERVAL = Setting.timeSetting(
         "telemetry.otel.traces.interval",
-        // 5 s matches the OTel SDK's default OTEL_BSP_SCHEDULE_DELAY. This caps span export latency
-        // for under-full batches; full batches (default 512 spans) are flushed immediately regardless.
-        TimeValue.timeValueSeconds(5),
+        // Matches the APM agent's api_request_time default; full batches (512 spans) flush immediately.
+        TimeValue.timeValueSeconds(10),
         NodeScope
     );
 

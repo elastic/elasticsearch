@@ -47,8 +47,8 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.telemetry.InferenceStats;
-import org.elasticsearch.inference.telemetry.InferenceStatsTests;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ParseField;
@@ -149,6 +149,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
     private static final String INFERENCE_ENTITY_ID_VALUE = "inference_id";
     private String randomInferenceEntityId;
     private InferenceStats inferenceStats;
+    private LongHistogram mockDeploymentDurationHistogram;
 
     private static ThreadPool threadPool;
 
@@ -158,7 +159,8 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
     public void setUp() throws Exception {
         super.setUp();
         randomInferenceEntityId = randomAlphaOfLength(10);
-        inferenceStats = InferenceStatsTests.mockInferenceStats();
+        mockDeploymentDurationHistogram = mock(LongHistogram.class);
+        inferenceStats = new InferenceStats(mock(), mock(), mockDeploymentDurationHistogram, Map.of());
         threadPool = createThreadPool(inferenceUtilityExecutors());
     }
 
@@ -2103,7 +2105,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             );
 
             assertThat(exception.getMessage(), is("failed"));
-            verify(inferenceStats.deploymentDuration()).record(anyLong(), assertArg(attributes -> {
+            verify(mockDeploymentDurationHistogram).record(anyLong(), assertArg(attributes -> {
                 assertNotNull(attributes);
                 assertThat(attributes.get("error_type"), is("504"));
             }));
@@ -2133,7 +2135,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
                         + "Use the trained model stats API to track the state of the deployment."
                 )
             );
-            verify(inferenceStats.deploymentDuration()).record(anyLong(), assertArg(attributes -> {
+            verify(mockDeploymentDurationHistogram).record(anyLong(), assertArg(attributes -> {
                 assertNotNull(attributes);
                 assertThat(attributes.get("error_type"), is("408"));
             }));
@@ -2154,7 +2156,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             service.start(model, TimeValue.timeValueSeconds(30), actionListener);
             assertTrue(actionListener.actionGet(TimeValue.timeValueSeconds(30)));
 
-            verify(inferenceStats.deploymentDuration()).record(anyLong(), assertArg(attributes -> {
+            verify(mockDeploymentDurationHistogram).record(anyLong(), assertArg(attributes -> {
                 assertNotNull(attributes);
                 assertNull(attributes.get("error_type"));
                 assertThat(attributes.get("status_code"), is(200));

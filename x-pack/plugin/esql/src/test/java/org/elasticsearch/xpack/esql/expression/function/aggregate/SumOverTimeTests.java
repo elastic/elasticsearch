@@ -140,7 +140,7 @@ public class SumOverTimeTests extends AbstractAggregationTestCase {
                     case EXPONENTIAL_HISTOGRAM -> {
                         var sums = data.stream()
                             .map(obj -> (ExponentialHistogram) obj)
-                            .filter(obj -> obj.valueCount() > 0)
+                            .filter(obj -> obj.isEmpty() == false)
                             .mapToDouble(ExponentialHistogram::sum)
                             .toArray();
                         yield sums.length == 0 ? null : Arrays.stream(sums).sum();

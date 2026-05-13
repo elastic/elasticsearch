@@ -13,10 +13,13 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.BFloat16Support;
 import org.elasticsearch.simdvec.MathUtils;
 import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
+
+import java.nio.ShortBuffer;
 
 final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
@@ -26,6 +29,28 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         } else {
             return a * b + c;
         }
+    }
+
+    static void floatToBFloat16(float[] floats, ShortBuffer bFloats, int startOffset) {
+        for (int i = startOffset; i < floats.length; i++) {
+            bFloats.put(BFloat16Support.floatToBFloat16(floats[i]));
+        }
+    }
+
+    static void bFloat16ToFloat(ShortBuffer bFloats, float[] floats, int startOffset) {
+        for (int i = startOffset; i < floats.length; i++) {
+            floats[i] = BFloat16Support.bFloat16ToFloat(bFloats.get());
+        }
+    }
+
+    @Override
+    public void floatToBFloat16(float[] floats, ShortBuffer bFloats) {
+        floatToBFloat16(floats, bFloats, 0);
+    }
+
+    @Override
+    public void bFloat16ToFloat(ShortBuffer bFloats, float[] floats) {
+        bFloat16ToFloat(bFloats, floats, 0);
     }
 
     @Override
@@ -563,6 +588,17 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength) {
         return ByteArrayUtils.contains(value, valueOffset, valueLength, term, termOffset, termLength);
+    }
+
+    @Override
+    public void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
+        assert values.length % 8 == 0 && matches.length == values.length / 64;
+        for (int i = 0; i < values.length; i++) {
+            long v = values[i];
+            if (lowerValue <= v && v <= upperValue) {
+                matches[i >>> 6] |= 1L << (i & 0x3f);
+            }
+        }
     }
 
     @Override

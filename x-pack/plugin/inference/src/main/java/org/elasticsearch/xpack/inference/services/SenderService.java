@@ -18,6 +18,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -251,7 +252,13 @@ public abstract class SenderService<M extends Model> implements InferenceService
                 }
 
                 validationException.throwIfValidationErrorsExist();
-                yield new QueryAndDocsInputs(query, input, returnDocuments, topN, stream);
+                yield new QueryAndDocsInputs(
+                    new InferenceString(DataType.TEXT, query),
+                    InferenceString.fromStringList(input),
+                    returnDocuments,
+                    topN,
+                    stream
+                );
             }
             case TEXT_EMBEDDING, SPARSE_EMBEDDING -> {
                 ValidationException validationException = new ValidationException();
@@ -292,7 +299,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
     public void embeddingInfer(Model model, EmbeddingRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         try {
             var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, request.inputType(), clusterService, model.getTaskType());
-            if (supportsImageEmbeddingContent() == false && containsNonTextEntry(request.inputs())) {
+            if (supportsNonTextEmbeddingContent() == false && containsNonTextEntry(request.inputs())) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
                         Strings.format("The %s service does not support embedding with non-text inputs", name()),
@@ -333,14 +340,6 @@ public abstract class SenderService<M extends Model> implements InferenceService
      * @return true if the service supports sending embedding requests where multiple inputs are used to generate a single embedding vector
      */
     protected boolean supportsMultipleItemsPerContent() {
-        return false;
-    }
-
-    /**
-     * Override as necessary for services which support images in embedding inputs
-     * @return true if the service supports images in embedding inputs
-     */
-    protected boolean supportsImageEmbeddingContent() {
         return false;
     }
 
@@ -396,17 +395,12 @@ public abstract class SenderService<M extends Model> implements InferenceService
                 if (input.isEmpty()) {
                     listener.onResponse(List.of());
                 } else {
-                    if (supportsImageEmbeddingContent() == false
-                        && containsNonTextEntry(input.stream().map(ChunkInferenceInput::input).toList())) {
-                        listener.onFailure(
-                            new ElasticsearchStatusException(
-                                Strings.format("The %s service does not support embedding with non-text inputs", name()),
-                                RestStatus.BAD_REQUEST
-                            )
-                        );
+                    try {
+                        InferenceService.validateChunkedInferInputs(this, input);
+                    } catch (Exception e) {
+                        listener.onFailure(e);
                         return;
                     }
-                    // a non-null query is not supported and is dropped by all providers
                     doChunkedInfer(model, input, taskSettings, inputType, resolvedInferenceTimeout, listener);
                 }
             } else {
@@ -459,10 +453,6 @@ public abstract class SenderService<M extends Model> implements InferenceService
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     );
-
-    protected boolean supportsChunkedInfer() {
-        return true;
-    }
 
     @Override
     public void start(Model model, @Nullable TimeValue timeout, ActionListener<Boolean> listener) {

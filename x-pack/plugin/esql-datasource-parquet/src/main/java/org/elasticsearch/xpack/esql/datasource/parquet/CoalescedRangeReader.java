@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 final class CoalescedRangeReader {
 
-    static final long DEFAULT_MAX_COALESCE_GAP = 512 * 1024;
+    static final long DEFAULT_MAX_COALESCE_GAP = 1024 * 1024;
 
     /**
      * A byte range within a file: {@code [offset, offset + length)}.

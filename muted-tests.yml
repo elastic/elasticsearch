@@ -476,9 +476,6 @@ tests:
 - class: org.elasticsearch.compute.data.BlockAccountingTests
   method: testBytesRefVector
   issue: https://github.com/elastic/elasticsearch/issues/148481
-- class: org.elasticsearch.xpack.stateless.engine.SoftDeletesRetentionIT
-  method: testRetentionLeasesIgnoredForSoftDeletesPolicy
-  issue: https://github.com/elastic/elasticsearch/issues/148557
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148339

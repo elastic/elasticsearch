@@ -62,7 +62,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT;
+import static org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest.DEFAULT_SCROLL_TIMEOUT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 /**
@@ -142,6 +142,7 @@ public class RemoteReindexResumeIT extends ESIntegTestCase {
             .setDestIndex(destIndex)
             .setSourceBatchSize(batchSize)
             .setRefresh(true)
+            .setRequestsPerSecond(randomStats.getRequestsPerSecond())
             .setRemoteInfo(
                 new RemoteInfo(
                     "http",
@@ -214,6 +215,7 @@ public class RemoteReindexResumeIT extends ESIntegTestCase {
                 .setDestIndex(destIndex)
                 .setSourceBatchSize(batchSize)
                 .setRefresh(true)
+                .setRequestsPerSecond(randomStats.getRequestsPerSecond())
                 .setRemoteInfo(
                     new RemoteInfo(
                         "http",
@@ -302,6 +304,7 @@ public class RemoteReindexResumeIT extends ESIntegTestCase {
                 .setDestIndex(destIndex)
                 .setSourceBatchSize(batchSize)
                 .setRefresh(true)
+                .setRequestsPerSecond(randomStats.getRequestsPerSecond())
                 .setRemoteInfo(
                     new RemoteInfo(
                         "http",

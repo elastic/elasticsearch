@@ -216,6 +216,11 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return bytes.valueMaxByteSize();
+    }
+
+    @Override
     public BlockFactory blockFactory() {
         return ordinals.blockFactory();
     }

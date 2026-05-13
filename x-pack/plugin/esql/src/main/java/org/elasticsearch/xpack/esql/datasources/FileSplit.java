@@ -284,7 +284,9 @@ public class FileSplit implements ExternalSplit {
 
     /**
      * Returns the compact split stats, or {@code null} if only legacy map stats are available.
+     * Overrides {@link ExternalSplit#splitStats()} with a covariant return type.
      */
+    @Override
     @Nullable
     public SplitStats splitStats() {
         return splitStats;

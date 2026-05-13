@@ -10,7 +10,7 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
@@ -116,7 +116,7 @@ public class ReindexMetrics {
             return SlicingMode.MANUAL;
         }
         int slices = request.getSlices();
-        if (slices == AbstractBulkByScrollRequest.AUTO_SLICES) {
+        if (slices == AbstractBulkByPaginatedSearchRequest.AUTO_SLICES) {
             return SlicingMode.AUTO;
         } else if (slices > 1) {
             return SlicingMode.FIXED;

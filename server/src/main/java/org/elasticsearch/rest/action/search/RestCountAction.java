@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -82,7 +83,7 @@ public class RestCountAction extends BaseRestHandler {
                 searchSourceBuilder.query(RestActions.getQueryContent(parser, countRequest));
             }
         });
-        countRequest.routing(request.param("routing"));
+        applyRoutingOrSliceForCountRequest(request, countRequest);
         float minScore = request.paramAsFloat("min_score", -1f);
         if (minScore != -1f) {
             searchSourceBuilder.minScore(minScore);
@@ -114,6 +115,18 @@ public class RestCountAction extends BaseRestHandler {
                 return new RestResponse(response.status(), builder);
             }
         });
+    }
+
+    /**
+     * Applies {@code routing} / {@code _slice} URL parameters. Matches {@link RestSearchAction#parseSearchRequest} slice handling.
+     * package private for testing
+     */
+    static void applyRoutingOrSliceForCountRequest(RestRequest request, SearchRequest searchRequest) {
+        final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request);
+        searchRequest.routing(parsedRouting.routing());
+        searchRequest.searchSlice(
+            parsedRouting.fromSlice() ? (parsedRouting.routing() == null ? SliceIndexing.SLICE_ALL : parsedRouting.routing()) : null
+        );
     }
 
 }

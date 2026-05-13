@@ -135,10 +135,31 @@ public class Similarities {
         Operation.BULK_SPARSE
     );
 
+    static final MethodHandle DOT_PRODUCT_D2Q4_PACKED = DISTANCE_FUNCS.getHandle(
+        Function.DOT_PRODUCT,
+        BBQType.D2Q4_PACKED,
+        Operation.SINGLE
+    );
+    static final MethodHandle DOT_PRODUCT_D2Q4_PACKED_BULK = DISTANCE_FUNCS.getHandle(
+        Function.DOT_PRODUCT,
+        BBQType.D2Q4_PACKED,
+        Operation.BULK
+    );
+    static final MethodHandle DOT_PRODUCT_D2Q4_PACKED_BULK_WITH_OFFSETS = DISTANCE_FUNCS.getHandle(
+        Function.DOT_PRODUCT,
+        BBQType.D2Q4_PACKED,
+        Operation.BULK_OFFSETS
+    );
+
     static final MethodHandle DOT_PRODUCT_DBF16QF32 = DISTANCE_FUNCS.getBFloat16Handle(
         Function.DOT_PRODUCT,
         BFloat16QueryType.FLOAT32,
         Operation.SINGLE
+    );
+    static final MethodHandle DOT_PRODUCT_DBF16QF32_BULK = DISTANCE_FUNCS.getBFloat16Handle(
+        Function.DOT_PRODUCT,
+        BFloat16QueryType.FLOAT32,
+        Operation.BULK
     );
     static final MethodHandle DOT_PRODUCT_DBF16QF32_BULK_SPARSE = DISTANCE_FUNCS.getBFloat16Handle(
         Function.DOT_PRODUCT,
@@ -178,6 +199,7 @@ public class Similarities {
     );
 
     static final MethodHandle DOT_PRODUCT_F32 = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, DataType.FLOAT32, Operation.SINGLE);
+    static final MethodHandle DOT_PRODUCT_F32_BULK = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, DataType.FLOAT32, Operation.BULK);
     static final MethodHandle DOT_PRODUCT_F32_BULK_SPARSE = DISTANCE_FUNCS.getHandle(
         Function.DOT_PRODUCT,
         DataType.FLOAT32,
@@ -342,7 +364,7 @@ public class Similarities {
         }
     }
 
-    static void dotProductI8Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
+    public static void dotProductI8Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
         try {
             DOT_PRODUCT_I8_BULK.invokeExact(a, b, length, count, scores);
         } catch (Throwable e) {
@@ -518,6 +540,38 @@ public class Similarities {
         }
     }
 
+    public static long dotProductD2Q4Packed(MemorySegment a, MemorySegment query, int length) {
+        try {
+            return (long) DOT_PRODUCT_D2Q4_PACKED.invokeExact(a, query, length);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    public static void dotProductD2Q4PackedBulk(MemorySegment a, MemorySegment query, int length, int count, MemorySegment scores) {
+        try {
+            DOT_PRODUCT_D2Q4_PACKED_BULK.invokeExact(a, query, length, count, scores);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    public static void dotProductD2Q4PackedBulkWithOffsets(
+        MemorySegment a,
+        MemorySegment query,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    ) {
+        try {
+            DOT_PRODUCT_D2Q4_PACKED_BULK_WITH_OFFSETS.invokeExact(a, query, length, pitch, offsets, count, scores);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
     public static long dotProductD4Q4(MemorySegment a, MemorySegment query, int length) {
         try {
             return (long) DOT_PRODUCT_D4Q4.invokeExact(a, query, length);
@@ -561,6 +615,20 @@ public class Similarities {
     public static float dotProductDBF16QF32(MemorySegment a, MemorySegment b, int length) {
         try {
             return (float) DOT_PRODUCT_DBF16QF32.invokeExact(a, b, length);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    public static void dotProductDBF16QF32Bulk(
+        MemorySegment vectors,
+        MemorySegment query,
+        int dimensions,
+        int count,
+        MemorySegment scores
+    ) {
+        try {
+            DOT_PRODUCT_DBF16QF32_BULK.invokeExact(vectors, query, dimensions, count, scores);
         } catch (Throwable e) {
             throw rethrow(e);
         }
@@ -649,6 +717,14 @@ public class Similarities {
     public static float dotProductF32(MemorySegment a, MemorySegment b, int length) {
         try {
             return (float) DOT_PRODUCT_F32.invokeExact(a, b, length);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    public static void dotProductF32Bulk(MemorySegment vectors, MemorySegment query, int dimensions, int count, MemorySegment scores) {
+        try {
+            DOT_PRODUCT_F32_BULK.invokeExact(vectors, query, dimensions, count, scores);
         } catch (Throwable e) {
             throw rethrow(e);
         }

@@ -11,11 +11,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,7 +38,9 @@ import java.util.Objects;
  * Instances are effectively immutable after construction and safe for use within a single
  * request processing thread.
  */
-public final class SplitStats implements Writeable {
+public final class SplitStats implements org.elasticsearch.xpack.esql.datasources.spi.SplitStats, Writeable {
+
+    private static final Logger logger = LogManager.getLogger(SplitStats.class);
 
     /** Empty stats with zero rows and no columns. */
     public static final SplitStats EMPTY = new SplitStats(
@@ -145,11 +150,13 @@ public final class SplitStats implements Writeable {
         return columnSegmentOrdinals.length;
     }
 
+    @Override
     public long rowCount() {
         return rowCount;
     }
 
     /** Returns size in bytes, or {@code -1} if unknown. */
+    @Override
     public long sizeInBytes() {
         return sizeInBytes;
     }
@@ -249,12 +256,14 @@ public final class SplitStats implements Writeable {
      * Returns the null count for the column with the given name, or {@code -1} if the column
      * is not found or its null count is unknown.
      */
+    @Override
     public long columnNullCount(String name) {
         int col = findColumn(name);
         return col >= 0 ? nullCounts[col] : -1;
     }
 
     /** Returns the min value for the column with the given name, or {@code null} if not found. */
+    @Override
     @Nullable
     public Object columnMin(String name) {
         int col = findColumn(name);
@@ -262,6 +271,7 @@ public final class SplitStats implements Writeable {
     }
 
     /** Returns the max value for the column with the given name, or {@code null} if not found. */
+    @Override
     @Nullable
     public Object columnMax(String name) {
         int col = findColumn(name);
@@ -269,9 +279,83 @@ public final class SplitStats implements Writeable {
     }
 
     /** Returns the size in bytes for the column with the given name, or {@code -1} if not found. */
+    @Override
     public long columnSizeBytes(String name) {
         int col = findColumn(name);
         return col >= 0 ? sizesBytes[col] : -1;
+    }
+
+    /**
+     * Merges two min stat values with cross-type numeric widening. Handles nulls: if one side
+     * is null the other is returned. Returns {@code null} when both inputs are non-null but
+     * incompatible (e.g. Long + Double) — callers should treat this as "unknown" and clear
+     * the stat so it is not fed into stats-driven optimizations with a wrong value.
+     * <p>
+     * Covers {@link SchemaReconciliation#schemaWiden} cases at the stats-value level
+     * (Integer+Long→Long, Integer+Double→Double), plus Parquet FLOAT vs DOUBLE which both
+     * map to ESQL {@code DOUBLE} at the schema level but retain distinct Java stat types.
+     * Long+Double and Long+Float are intentionally incompatible (lossy above 2^53).
+     * DATETIME/DATE_NANOS is not handled — both are {@code Long} at the Java level so
+     * the same-class fast path covers them; if different epoch resolutions ever surface
+     * as different Java types in stats, they will fall through to the incompatible path.
+     */
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    @Nullable
+    static Object mergedMin(@Nullable Object existing, @Nullable Object incoming) {
+        if (existing == null) return incoming;
+        if (incoming == null) return existing;
+        if (existing.getClass() == incoming.getClass()) {
+            if (existing instanceof Comparable c) {
+                return c.compareTo(incoming) <= 0 ? existing : incoming;
+            }
+            return null;
+        }
+        return crossTypeExtremum(existing, incoming, true);
+    }
+
+    /**
+     * Merges two max stat values with cross-type numeric widening. Same contract as
+     * {@link #mergedMin} — returns {@code null} for incompatible non-null inputs.
+     */
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    @Nullable
+    static Object mergedMax(@Nullable Object existing, @Nullable Object incoming) {
+        if (existing == null) return incoming;
+        if (incoming == null) return existing;
+        if (existing.getClass() == incoming.getClass()) {
+            if (existing instanceof Comparable c) {
+                return c.compareTo(incoming) >= 0 ? existing : incoming;
+            }
+            return null;
+        }
+        return crossTypeExtremum(existing, incoming, false);
+    }
+
+    /**
+     * Selects the min ({@code selectMin=true}) or max of two values whose Java types differ,
+     * promoting both to a common numeric type. Returns the winner in the widened type, or
+     * {@code null} if the pair is incompatible. Zero-allocation beyond the return-value autobox.
+     */
+    @Nullable
+    private static Object crossTypeExtremum(Object a, Object b, boolean selectMin) {
+        if (a instanceof Integer ai && b instanceof Long bl) {
+            long la = ai.longValue();
+            return (selectMin ? la <= bl : la >= bl) ? la : bl;
+        }
+        if (a instanceof Long al && b instanceof Integer bi) {
+            long lb = bi.longValue();
+            return (selectMin ? al <= lb : al >= lb) ? al : lb;
+        }
+        // Long + Double/Float is intentionally incompatible (lossy above 2^53)
+        if (a instanceof Long || b instanceof Long) {
+            return null;
+        }
+        // Remaining pairs: Integer, Float, Double — all safely promotable to double
+        if (a instanceof Number na && b instanceof Number nb) {
+            double da = na.doubleValue(), db = nb.doubleValue();
+            return (selectMin ? da <= db : da >= db) ? da : db;
+        }
+        return null;
     }
 
     /**
@@ -279,10 +363,17 @@ public final class SplitStats implements Writeable {
      * sizes are summed, null counts are summed, mins take the minimum, maxes take the maximum.
      * Columns present in some splits but not others are included in the result with partial
      * data from the splits where they appear.
+     * <p>
+     * When min/max values have different numeric Java types across splits (e.g. {@code Integer}
+     * from a Parquet INT32 file vs {@code Long} from an INT64 file after UNION_BY_NAME widening),
+     * both values are promoted to a common type via {@link #mergedMin}/{@link #mergedMax}.
+     * Incompatible types (e.g. Long + Double) cause the stat to be cleared to {@code null},
+     * preventing wrong-result pushdown. This should not happen when
+     * {@link SchemaReconciliation#schemaWiden} has correctly unified the schema and indicates
+     * a bug worth investigating.
      *
      * @return the merged stats, or {@code null} if the list is null or empty
      */
-    @SuppressWarnings({ "rawtypes", "unchecked" })
     @Nullable
     public static SplitStats merge(List<SplitStats> statsList) {
         if (statsList == null || statsList.isEmpty()) {
@@ -297,6 +388,8 @@ public final class SplitStats implements Writeable {
         boolean hasSize = false;
         Map<String, Integer> columnOrdinals = new LinkedHashMap<>();
         StringBuilder nameBuf = new StringBuilder();
+        BitSet poisonedMins = new BitSet();
+        BitSet poisonedMaxs = new BitSet();
 
         for (SplitStats stats : statsList) {
             totalRows += stats.rowCount;
@@ -322,29 +415,41 @@ public final class SplitStats implements Writeable {
                     if (existingNc >= 0 && newNc >= 0) {
                         builder.nullCount(ord, existingNc + newNc);
                     }
-                    // Min of mins (only compare values of the same type)
-                    Object existingMin = builder.minsList.get(ord);
-                    Object newMin = stats.mins[i];
-                    if (existingMin != null && newMin != null) {
-                        if (existingMin instanceof Comparable eMin
-                            && newMin instanceof Comparable nMin
-                            && existingMin.getClass() == newMin.getClass()) {
-                            builder.min(ord, eMin.compareTo(nMin) <= 0 ? existingMin : newMin);
+                    // Min of mins (widen numeric types if needed; null on incompatible)
+                    if (poisonedMins.get(ord) == false) {
+                        Object existingMin = builder.minsList.get(ord);
+                        Object newMin = stats.mins[i];
+                        Object merged = mergedMin(existingMin, newMin);
+                        if (merged == null && existingMin != null && newMin != null) {
+                            poisonedMins.set(ord);
+                            if (existingMin.getClass() != newMin.getClass()) {
+                                logger.warn(
+                                    "clearing min stat for column [{}]: incompatible types [{}/{}]",
+                                    colName,
+                                    existingMin.getClass().getSimpleName(),
+                                    newMin.getClass().getSimpleName()
+                                );
+                            }
                         }
-                    } else if (newMin != null) {
-                        builder.min(ord, newMin);
+                        builder.min(ord, merged);
                     }
-                    // Max of maxes (only compare values of the same type)
-                    Object existingMax = builder.maxsList.get(ord);
-                    Object newMax = stats.maxs[i];
-                    if (existingMax != null && newMax != null) {
-                        if (existingMax instanceof Comparable eMax
-                            && newMax instanceof Comparable nMax
-                            && existingMax.getClass() == newMax.getClass()) {
-                            builder.max(ord, eMax.compareTo(nMax) >= 0 ? existingMax : newMax);
+                    // Max of maxes (widen numeric types if needed; null on incompatible)
+                    if (poisonedMaxs.get(ord) == false) {
+                        Object existingMax = builder.maxsList.get(ord);
+                        Object newMax = stats.maxs[i];
+                        Object merged = mergedMax(existingMax, newMax);
+                        if (merged == null && existingMax != null && newMax != null) {
+                            poisonedMaxs.set(ord);
+                            if (existingMax.getClass() != newMax.getClass()) {
+                                logger.warn(
+                                    "clearing max stat for column [{}]: incompatible types [{}/{}]",
+                                    colName,
+                                    existingMax.getClass().getSimpleName(),
+                                    newMax.getClass().getSimpleName()
+                                );
+                            }
                         }
-                    } else if (newMax != null) {
-                        builder.max(ord, newMax);
+                        builder.max(ord, merged);
                     }
                     // Sum sizes
                     long existingSb = builder.sizesBytesList.get(ord);
@@ -462,30 +567,39 @@ public final class SplitStats implements Writeable {
     }
 
     /**
-     * Resolves the effective {@link SplitStats} for a set of splits. For single-split queries
-     * the per-split stats (if available) or the sourceMetadata map is used; for multi-split
-     * queries the per-split stats are merged. Returns {@code null} if any split lacks stats.
+     * Resolves the effective {@link org.elasticsearch.xpack.esql.datasources.spi.SplitStats} for
+     * a set of splits. Uses {@link ExternalSplit#splitStats()} on each split, which handles both
+     * {@link FileSplit} and {@link CoalescedSplit} transparently without flattening. For single-split
+     * queries the per-split stats (if available) or the sourceMetadata map is used; for multi-split
+     * queries a {@link MergedSplitStats} over the per-split stats is returned. Returns {@code null}
+     * if any split lacks stats.
      */
     @Nullable
-    public static SplitStats resolveEffectiveStats(List<? extends ExternalSplit> splits, Map<String, Object> sourceMetadata) {
+    public static org.elasticsearch.xpack.esql.datasources.spi.SplitStats resolveEffectiveStats(
+        List<? extends ExternalSplit> splits,
+        Map<String, Object> sourceMetadata
+    ) {
         if (splits.size() <= 1) {
-            if (splits.size() == 1 && splits.getFirst() instanceof FileSplit fs && fs.splitStats() != null) {
-                return fs.splitStats();
+            if (splits.size() == 1) {
+                org.elasticsearch.xpack.esql.datasources.spi.SplitStats perSplit = splits.getFirst().splitStats();
+                if (perSplit != null) {
+                    return perSplit;
+                }
             }
             if (sourceMetadata != null && Boolean.TRUE.equals(sourceMetadata.get(SourceStatisticsSerializer.STATS_PARTIAL))) {
                 return null;
             }
             return of(sourceMetadata);
         }
-        List<SplitStats> perSplit = new ArrayList<>(splits.size());
+        List<org.elasticsearch.xpack.esql.datasources.spi.SplitStats> perSplitStats = new ArrayList<>(splits.size());
         for (ExternalSplit split : splits) {
-            if (split instanceof FileSplit fs && fs.splitStats() != null) {
-                perSplit.add(fs.splitStats());
-            } else {
+            org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats = split.splitStats();
+            if (stats == null) {
                 return null;
             }
+            perSplitStats.add(stats);
         }
-        return merge(perSplit);
+        return new MergedSplitStats(perSplitStats);
     }
 
     @Override

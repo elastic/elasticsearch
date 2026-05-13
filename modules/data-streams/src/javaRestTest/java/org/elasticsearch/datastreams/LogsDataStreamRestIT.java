@@ -23,6 +23,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matchers;
@@ -47,6 +48,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
+        .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .build();
@@ -167,6 +169,76 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
                 },
                 "method": {
                   "type": "keyword"
+                },
+                "ip_address": {
+                  "type": "ip"
+                }
+              }
+            }
+          }
+        }""";
+
+    static final String LOGS_COLUMNAR_TEMPLATE = """
+        {
+          "index_patterns": [ "logs-*-*" ],
+          "data_stream": {},
+          "priority": 201,
+          "template": {
+            "settings": {
+              "index": {
+                "mode": "columnar"
+              }
+            },
+            "mappings": {
+              "properties": {
+                "@timestamp" : {
+                  "type": "date"
+                },
+                "host.name": {
+                  "type": "keyword"
+                },
+                "pid": {
+                  "type": "long"
+                },
+                "method": {
+                  "type": "keyword"
+                },
+                "ip_address": {
+                  "type": "ip"
+                }
+              }
+            }
+          }
+        }""";
+
+    static final String LOGS_COLUMNAR_LOGSDB_TEMPLATE = """
+        {
+          "index_patterns": [ "logs-*-*" ],
+          "data_stream": {},
+          "priority": 201,
+          "composed_of": [ "logs@mappings", "logs@settings" ],
+          "template": {
+            "settings": {
+              "index": {
+                "mode": "columnar_logsdb"
+              }
+            },
+            "mappings": {
+              "properties": {
+                "@timestamp" : {
+                  "type": "date"
+                },
+                "host.name": {
+                  "type": "keyword"
+                },
+                "pid": {
+                  "type": "long"
+                },
+                "method": {
+                  "type": "keyword"
+                },
+                "message": {
+                  "type": "text"
                 },
                 "ip_address": {
                   "type": "ip"
@@ -402,6 +474,144 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         assertDataStreamBackingIndexMode("logsdb", 4, DATA_STREAM_NAME);
     }
 
+    public void testColumnarIndexing() throws IOException {
+        putTemplate(client, "custom-template", LOGS_COLUMNAR_TEMPLATE);
+        createDataStream(client, DATA_STREAM_NAME);
+        indexDocument(
+            client,
+            DATA_STREAM_NAME,
+            document(
+                Instant.now(),
+                randomAlphaOfLength(10),
+                randomNonNegativeLong(),
+                randomFrom("PUT", "POST", "GET"),
+                randomAlphaOfLength(32),
+                randomIp(randomBoolean()),
+                randomLongBetween(1_000_000L, 2_000_000L)
+            )
+        );
+        assertDataStreamBackingIndexMode("columnar", 0, DATA_STREAM_NAME);
+        rolloverDataStream(client, DATA_STREAM_NAME);
+        indexDocument(
+            client,
+            DATA_STREAM_NAME,
+            document(
+                Instant.now(),
+                randomAlphaOfLength(10),
+                randomNonNegativeLong(),
+                randomFrom("PUT", "POST", "GET"),
+                randomAlphaOfLength(32),
+                randomIp(randomBoolean()),
+                randomLongBetween(1_000_000L, 2_000_000L)
+            )
+        );
+        assertDataStreamBackingIndexMode("columnar", 1, DATA_STREAM_NAME);
+    }
+
+    public void testColumnarLogsDBIndexing() throws IOException {
+        putTemplate(client, "custom-template", LOGS_COLUMNAR_LOGSDB_TEMPLATE);
+        createDataStream(client, DATA_STREAM_NAME);
+        indexDocument(
+            client,
+            DATA_STREAM_NAME,
+            document(
+                Instant.now(),
+                randomAlphaOfLength(10),
+                randomNonNegativeLong(),
+                randomFrom("PUT", "POST", "GET"),
+                randomAlphaOfLength(32),
+                randomIp(randomBoolean()),
+                randomLongBetween(1_000_000L, 2_000_000L)
+            )
+        );
+        assertDataStreamBackingIndexMode("columnar_logsdb", 0, DATA_STREAM_NAME);
+        rolloverDataStream(client, DATA_STREAM_NAME);
+        indexDocument(
+            client,
+            DATA_STREAM_NAME,
+            document(
+                Instant.now(),
+                randomAlphaOfLength(10),
+                randomNonNegativeLong(),
+                randomFrom("PUT", "POST", "GET"),
+                randomAlphaOfLength(32),
+                randomIp(randomBoolean()),
+                randomLongBetween(1_000_000L, 2_000_000L)
+            )
+        );
+        assertDataStreamBackingIndexMode("columnar_logsdb", 1, DATA_STREAM_NAME);
+    }
+
+    public void testColumnarIndexModeSwitch() throws IOException {
+        putTemplate(client, "custom-template", LOGS_TEMPLATE);
+        createDataStream(client, DATA_STREAM_NAME);
+        indexDocument(
+            client,
+            DATA_STREAM_NAME,
+            document(
+                Instant.now(),
+                randomAlphaOfLength(10),
+                randomNonNegativeLong(),
+                randomFrom("PUT", "POST", "GET"),
+                randomAlphaOfLength(32),
+                randomIp(randomBoolean()),
+                randomLongBetween(1_000_000L, 2_000_000L)
+            )
+        );
+        assertDataStreamBackingIndexMode("logsdb", 0, DATA_STREAM_NAME);
+
+        putTemplate(client, "custom-template", LOGS_COLUMNAR_LOGSDB_TEMPLATE);
+        rolloverDataStream(client, DATA_STREAM_NAME);
+        indexDocument(
+            client,
+            DATA_STREAM_NAME,
+            document(
+                Instant.now(),
+                randomAlphaOfLength(10),
+                randomNonNegativeLong(),
+                randomFrom("PUT", "POST", "GET"),
+                randomAlphaOfLength(32),
+                randomIp(randomBoolean()),
+                randomLongBetween(1_000_000L, 2_000_000L)
+            )
+        );
+        assertDataStreamBackingIndexMode("columnar_logsdb", 1, DATA_STREAM_NAME);
+
+        putTemplate(client, "custom-template", LOGS_COLUMNAR_TEMPLATE);
+        rolloverDataStream(client, DATA_STREAM_NAME);
+        indexDocument(
+            client,
+            DATA_STREAM_NAME,
+            document(
+                Instant.now(),
+                randomAlphaOfLength(10),
+                randomNonNegativeLong(),
+                randomFrom("PUT", "POST", "GET"),
+                randomAlphaOfLength(32),
+                randomIp(randomBoolean()),
+                randomLongBetween(1_000_000L, 2_000_000L)
+            )
+        );
+        assertDataStreamBackingIndexMode("columnar", 2, DATA_STREAM_NAME);
+
+        putTemplate(client, "custom-template", LOGS_TEMPLATE);
+        rolloverDataStream(client, DATA_STREAM_NAME);
+        indexDocument(
+            client,
+            DATA_STREAM_NAME,
+            document(
+                Instant.now(),
+                randomAlphaOfLength(10),
+                randomNonNegativeLong(),
+                randomFrom("PUT", "POST", "GET"),
+                randomAlphaOfLength(32),
+                randomIp(randomBoolean()),
+                randomLongBetween(1_000_000L, 2_000_000L)
+            )
+        );
+        assertDataStreamBackingIndexMode("logsdb", 3, DATA_STREAM_NAME);
+    }
+
     public void testLogsDBToStandardReindex() throws IOException {
         // LogsDB data stream
         putTemplate(client, "logs-template", LOGS_TEMPLATE);
@@ -494,6 +704,144 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         assertDocCount(client, "logs-apache-kafka", 10);
     }
 
+    public void testStandardToColumnarLogsDBReindex() throws IOException {
+        // Standard data stream
+        putTemplate(client, "standard-template", STANDARD_TEMPLATE);
+        createDataStream(client, "standard-apache-kafka");
+
+        // ColumnarLogsDB data stream
+        putTemplate(client, "logs-template", LOGS_COLUMNAR_LOGSDB_TEMPLATE);
+        createDataStream(client, "logs-apache-kafka");
+
+        // Index some documents in the standard data stream
+        for (int i = 0; i < 10; i++) {
+            indexDocument(
+                client,
+                "standard-apache-kafka",
+                document(
+                    Instant.now().plusSeconds(10),
+                    randomAlphaOfLength(10),
+                    randomNonNegativeLong(),
+                    randomFrom("PUT", "POST", "GET"),
+                    randomAlphaOfLength(64),
+                    randomIp(randomBoolean()),
+                    randomLongBetween(1_000_000L, 2_000_000L)
+                )
+            );
+        }
+        assertDataStreamBackingIndexMode("standard", 0, "standard-apache-kafka");
+        assertDocCount(client, "standard-apache-kafka", 10);
+
+        // Reindex the standard data stream into a columnar_logsdb data stream
+        final Request reindexRequest = new Request("POST", "/_reindex?refresh=true");
+        reindexRequest.setJsonEntity("""
+            {
+                "source": {
+                    "index": "standard-apache-kafka"
+                },
+                "dest": {
+                  "index": "logs-apache-kafka",
+                  "op_type": "create"
+                }
+            }
+            """);
+        assertOK(client.performRequest(reindexRequest));
+        assertDataStreamBackingIndexMode("columnar_logsdb", 0, "logs-apache-kafka");
+        assertDocCount(client, "logs-apache-kafka", 10);
+    }
+
+    public void testLogsDBToColumnarLogsDBReindex() throws IOException {
+        // LogsDB data stream (source)
+        putTemplate(client, "logs-template", LOGS_TEMPLATE);
+        createDataStream(client, "logs-apache-kafka");
+
+        // Index some documents in the logsdb data stream
+        for (int i = 0; i < 10; i++) {
+            indexDocument(
+                client,
+                "logs-apache-kafka",
+                document(
+                    Instant.now().plusSeconds(10),
+                    randomAlphaOfLength(10),
+                    randomNonNegativeLong(),
+                    randomFrom("PUT", "POST", "GET"),
+                    randomAlphaOfLength(64),
+                    randomIp(randomBoolean()),
+                    randomLongBetween(1_000_000L, 2_000_000L)
+                )
+            );
+        }
+        assertDataStreamBackingIndexMode("logsdb", 0, "logs-apache-kafka");
+        assertDocCount(client, "logs-apache-kafka", 10);
+
+        // Switch template to columnar_logsdb and create destination data stream
+        putTemplate(client, "logs-template", LOGS_COLUMNAR_LOGSDB_TEMPLATE);
+        createDataStream(client, "logs-apache-nginx");
+
+        // Reindex the logsdb data stream into a columnar_logsdb data stream
+        final Request reindexRequest = new Request("POST", "/_reindex?refresh=true");
+        reindexRequest.setJsonEntity("""
+            {
+                "source": {
+                    "index": "logs-apache-kafka"
+                },
+                "dest": {
+                  "index": "logs-apache-nginx",
+                  "op_type": "create"
+                }
+            }
+            """);
+        assertOK(client.performRequest(reindexRequest));
+        assertDataStreamBackingIndexMode("columnar_logsdb", 0, "logs-apache-nginx");
+        assertDocCount(client, "logs-apache-nginx", 10);
+    }
+
+    public void testColumnarToColumnarLogsDBReindex() throws IOException {
+        // Columnar data stream (source)
+        putTemplate(client, "logs-template", LOGS_COLUMNAR_TEMPLATE);
+        createDataStream(client, "logs-apache-kafka");
+
+        // Index some documents in the columnar data stream
+        for (int i = 0; i < 10; i++) {
+            indexDocument(
+                client,
+                "logs-apache-kafka",
+                document(
+                    Instant.now().plusSeconds(10),
+                    randomAlphaOfLength(10),
+                    randomNonNegativeLong(),
+                    randomFrom("PUT", "POST", "GET"),
+                    randomAlphaOfLength(64),
+                    randomIp(randomBoolean()),
+                    randomLongBetween(1_000_000L, 2_000_000L)
+                )
+            );
+        }
+        assertDataStreamBackingIndexMode("columnar", 0, "logs-apache-kafka");
+        assertDocCount(client, "logs-apache-kafka", 10);
+
+        // Switch template to columnar_logsdb and create destination data stream
+        putTemplate(client, "logs-template", LOGS_COLUMNAR_LOGSDB_TEMPLATE);
+        createDataStream(client, "logs-apache-nginx");
+
+        // Reindex the columnar data stream into a columnar_logsdb data stream
+        final Request reindexRequest = new Request("POST", "/_reindex?refresh=true");
+        reindexRequest.setJsonEntity("""
+            {
+                "source": {
+                    "index": "logs-apache-kafka"
+                },
+                "dest": {
+                  "index": "logs-apache-nginx",
+                  "op_type": "create"
+                }
+            }
+            """);
+        assertOK(client.performRequest(reindexRequest));
+        assertDataStreamBackingIndexMode("columnar_logsdb", 0, "logs-apache-nginx");
+        assertDocCount(client, "logs-apache-nginx", 10);
+    }
+
     public void testLogsDBSnapshotCreateRestoreMount() throws IOException {
         final String repository = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         registerRepository(repository, FsRepository.TYPE, Settings.builder().put("location", randomAlphaOfLength(6)));
@@ -534,6 +882,86 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         assertThat(getSettings(client, restoreIndex).get("index.mode"), Matchers.equalTo(IndexMode.LOGSDB.getName()));
     }
 
+    public void testColumnarSnapshotCreateRestoreMount() throws IOException {
+        final String repository = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        registerRepository(repository, FsRepository.TYPE, Settings.builder().put("location", randomAlphaOfLength(6)));
+
+        final String index = randomAlphaOfLength(12).toLowerCase(Locale.ROOT);
+        createIndex(client, index, Settings.builder().put("index.mode", IndexMode.COLUMNAR.getName()).build());
+
+        for (int i = 0; i < 10; i++) {
+            indexDocument(
+                client,
+                index,
+                document(
+                    Instant.now().plusSeconds(10),
+                    randomAlphaOfLength(10),
+                    randomNonNegativeLong(),
+                    randomFrom("PUT", "POST", "GET"),
+                    randomAlphaOfLength(64),
+                    randomIp(randomBoolean()),
+                    randomLongBetween(1_000_000L, 2_000_000L)
+                )
+            );
+        }
+
+        final String snapshot = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        deleteSnapshot(repository, snapshot, true);
+        createSnapshot(client, repository, snapshot, true, index);
+        wipeDataStreams();
+        wipeAllIndices();
+        restoreSnapshot(client, repository, snapshot, true, index);
+
+        final String restoreIndex = randomAlphaOfLength(7).toLowerCase(Locale.ROOT);
+        final Request mountRequest = new Request("POST", "/_snapshot/" + repository + '/' + snapshot + "/_mount");
+        mountRequest.addParameter("wait_for_completion", "true");
+        mountRequest.setJsonEntity("{\"index\": \"" + index + "\",\"renamed_index\": \"" + restoreIndex + "\"}");
+
+        assertOK(client.performRequest(mountRequest));
+        assertDocCount(client, restoreIndex, 10);
+        assertThat(getSettings(client, restoreIndex).get("index.mode"), Matchers.equalTo(IndexMode.COLUMNAR.getName()));
+    }
+
+    public void testColumnarLogsDBSnapshotCreateRestoreMount() throws IOException {
+        final String repository = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        registerRepository(repository, FsRepository.TYPE, Settings.builder().put("location", randomAlphaOfLength(6)));
+
+        final String index = randomAlphaOfLength(12).toLowerCase(Locale.ROOT);
+        createIndex(client, index, Settings.builder().put("index.mode", IndexMode.COLUMNAR_LOGSDB.getName()).build());
+
+        for (int i = 0; i < 10; i++) {
+            indexDocument(
+                client,
+                index,
+                document(
+                    Instant.now().plusSeconds(10),
+                    randomAlphaOfLength(10),
+                    randomNonNegativeLong(),
+                    randomFrom("PUT", "POST", "GET"),
+                    randomAlphaOfLength(64),
+                    randomIp(randomBoolean()),
+                    randomLongBetween(1_000_000L, 2_000_000L)
+                )
+            );
+        }
+
+        final String snapshot = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        deleteSnapshot(repository, snapshot, true);
+        createSnapshot(client, repository, snapshot, true, index);
+        wipeDataStreams();
+        wipeAllIndices();
+        restoreSnapshot(client, repository, snapshot, true, index);
+
+        final String restoreIndex = randomAlphaOfLength(7).toLowerCase(Locale.ROOT);
+        final Request mountRequest = new Request("POST", "/_snapshot/" + repository + '/' + snapshot + "/_mount");
+        mountRequest.addParameter("wait_for_completion", "true");
+        mountRequest.setJsonEntity("{\"index\": \"" + index + "\",\"renamed_index\": \"" + restoreIndex + "\"}");
+
+        assertOK(client.performRequest(mountRequest));
+        assertDocCount(client, restoreIndex, 10);
+        assertThat(getSettings(client, restoreIndex).get("index.mode"), Matchers.equalTo(IndexMode.COLUMNAR_LOGSDB.getName()));
+    }
+
     // NOTE: this test will fail on snapshot creation after fixing
     // https://github.com/elastic/elasticsearch/issues/112735
     public void testLogsDBSourceOnlySnapshotCreation() throws IOException {
@@ -549,6 +977,96 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
 
         final String index = randomAlphaOfLength(12).toLowerCase(Locale.ROOT);
         createIndex(client, index, Settings.builder().put("index.mode", IndexMode.LOGSDB.getName()).build());
+
+        for (int i = 0; i < 10; i++) {
+            indexDocument(
+                client,
+                index,
+                document(
+                    Instant.now().plusSeconds(10),
+                    randomAlphaOfLength(10),
+                    randomNonNegativeLong(),
+                    randomFrom("PUT", "POST", "GET"),
+                    randomAlphaOfLength(64),
+                    randomIp(randomBoolean()),
+                    randomLongBetween(1_000_000L, 2_000_000L)
+                )
+            );
+        }
+
+        final String snapshot = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        deleteSnapshot(sourceOnlyRepository, snapshot, true);
+        createSnapshot(client, sourceOnlyRepository, snapshot, true, index);
+        wipeDataStreams();
+        wipeAllIndices();
+        // Can't snapshot _source only on an index that has incomplete source ie. has _source disabled or filters the source
+        final ResponseException responseException = expectThrows(
+            ResponseException.class,
+            () -> restoreSnapshot(client, sourceOnlyRepository, snapshot, true, index)
+        );
+        assertThat(responseException.getMessage(), Matchers.containsString("wasn't fully snapshotted"));
+    }
+
+    // NOTE: this test will fail on snapshot creation after fixing
+    // https://github.com/elastic/elasticsearch/issues/112735
+    public void testColumnarSourceOnlySnapshotCreation() throws IOException {
+        final String repository = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        registerRepository(repository, FsRepository.TYPE, Settings.builder().put("location", randomAlphaOfLength(6)));
+        // A source-only repository delegates storage to another repository
+        final String sourceOnlyRepository = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        registerRepository(
+            sourceOnlyRepository,
+            "source",
+            Settings.builder().put("delegate_type", FsRepository.TYPE).put("location", repository)
+        );
+
+        final String index = randomAlphaOfLength(12).toLowerCase(Locale.ROOT);
+        createIndex(client, index, Settings.builder().put("index.mode", IndexMode.COLUMNAR.getName()).build());
+
+        for (int i = 0; i < 10; i++) {
+            indexDocument(
+                client,
+                index,
+                document(
+                    Instant.now().plusSeconds(10),
+                    randomAlphaOfLength(10),
+                    randomNonNegativeLong(),
+                    randomFrom("PUT", "POST", "GET"),
+                    randomAlphaOfLength(64),
+                    randomIp(randomBoolean()),
+                    randomLongBetween(1_000_000L, 2_000_000L)
+                )
+            );
+        }
+
+        final String snapshot = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        deleteSnapshot(sourceOnlyRepository, snapshot, true);
+        createSnapshot(client, sourceOnlyRepository, snapshot, true, index);
+        wipeDataStreams();
+        wipeAllIndices();
+        // Can't snapshot _source only on an index that has incomplete source ie. has _source disabled or filters the source
+        final ResponseException responseException = expectThrows(
+            ResponseException.class,
+            () -> restoreSnapshot(client, sourceOnlyRepository, snapshot, true, index)
+        );
+        assertThat(responseException.getMessage(), Matchers.containsString("wasn't fully snapshotted"));
+    }
+
+    // NOTE: this test will fail on snapshot creation after fixing
+    // https://github.com/elastic/elasticsearch/issues/112735
+    public void testColumnarLogsDBSourceOnlySnapshotCreation() throws IOException {
+        final String repository = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        registerRepository(repository, FsRepository.TYPE, Settings.builder().put("location", randomAlphaOfLength(6)));
+        // A source-only repository delegates storage to another repository
+        final String sourceOnlyRepository = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        registerRepository(
+            sourceOnlyRepository,
+            "source",
+            Settings.builder().put("delegate_type", FsRepository.TYPE).put("location", repository)
+        );
+
+        final String index = randomAlphaOfLength(12).toLowerCase(Locale.ROOT);
+        createIndex(client, index, Settings.builder().put("index.mode", IndexMode.COLUMNAR_LOGSDB.getName()).build());
 
         for (int i = 0; i < 10; i++) {
             indexDocument(

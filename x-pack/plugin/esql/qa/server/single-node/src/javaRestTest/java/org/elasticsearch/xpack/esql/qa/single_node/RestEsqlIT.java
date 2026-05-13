@@ -1601,4 +1601,27 @@ public class RestEsqlIT extends RestEsqlTestCase {
             deleteIndex(indexName);
         }
     }
+
+    public void testBucketColumnMetadataCsvTxtFormat() throws IOException {
+        assumeTrue("requires column_metadata_bucket capability", EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET.isEnabled());
+
+        Request indexRequest = new Request("POST", "/bucket_csv_test/_doc/");
+        indexRequest.addParameter("refresh", "true");
+        indexRequest.setJsonEntity("{\"date\":\"1985-07-09T00:00:00.000Z\"}");
+        assertOK(client().performRequest(indexRequest));
+
+        try {
+            String query = "FROM bucket_csv_test | STATS c=COUNT(*) BY bucket=BUCKET(date, 1 month) | LIMIT 10";
+            // CSV: verify the writer handles a metadata-bearing bucket column without error and produces correct output
+            String csvBody = runEsqlAsTextWithFormat(requestObjectBuilder().query(query), "csv", null, mode);
+            assertThat(csvBody, equalTo("c,bucket\r\n1,1985-07-01T00:00:00.000Z\r\n"));
+
+            // TXT: smoke-check only — the columnar writer pads/aligns differently, no exact match needed
+            String txtBody = runEsqlAsTextWithFormat(requestObjectBuilder().query(query), "txt", null, mode);
+            assertThat(txtBody, containsString("bucket"));
+            assertThat(txtBody, containsString("1985-07-01T00:00:00.000Z"));
+        } finally {
+            deleteIndex("bucket_csv_test");
+        }
+    }
 }

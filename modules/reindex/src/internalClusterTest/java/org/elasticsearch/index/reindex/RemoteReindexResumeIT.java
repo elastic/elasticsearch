@@ -16,7 +16,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -31,8 +35,10 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.rest.root.MainRestPlugin;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.tasks.TaskId;
@@ -342,6 +348,104 @@ public class RemoteReindexResumeIT extends ESIntegTestCase {
         } finally {
             mockRemote.stop(0);
         }
+    }
+
+    /// Resume remote reindex using PIT against this cluster's HTTP endpoint (real ES, no mock). With
+    /// `totalDocs > DEFAULT_TRACK_TOTAL_HITS_UP_TO`, the resumed task exercises cache + substitution end-to-end;
+    /// a regression surfaces as `Status#total = 0` via [#assertStatus].
+    public void testResumeReindexFromPit_realRemote() {
+        assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+        String sourceIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
+        String destIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
+        int totalDocs = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO + randomIntBetween(50, 200);
+        int batchSize = randomIntBetween(500, 2000);
+
+        createIndex(sourceIndex);
+        indexRandom(true, sourceIndex, totalDocs);
+
+        OpenPointInTimeResponse openPitResponse = client().execute(
+            TransportOpenPointInTimeAction.TYPE,
+            new OpenPointInTimeRequest(sourceIndex).keepAlive(DEFAULT_SCROLL_TIMEOUT)
+        ).actionGet();
+        BytesReference pitId = openPitResponse.getPointInTimeId();
+
+        // Issue the first PIT batch via the in-process client to capture pit_id and search_after for the resume.
+        // trackTotalHits(true) so the assertion below sees the accurate total when totalDocs > the default cap.
+        SearchRequest firstPitSearch = new SearchRequest().source(
+            new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(DEFAULT_SCROLL_TIMEOUT))
+                .sort(SortBuilders.pitTiebreaker())
+                .size(batchSize)
+                .trackTotalHits(true)
+        );
+        SearchResponse searchResponse = client().search(firstPitSearch).actionGet();
+        Object[] searchAfterValues;
+        try {
+            assertEquals((int) searchResponse.getHits().getTotalHits().value(), totalDocs);
+            assertEquals(searchResponse.getHits().getHits().length, batchSize);
+            if (searchResponse.pointInTimeId() != null) {
+                pitId = searchResponse.pointInTimeId();
+            }
+            SearchHit lastHit = searchResponse.getHits().getHits()[searchResponse.getHits().getHits().length - 1];
+            searchAfterValues = lastHit.getSortValues();
+            assertNotNull(searchAfterValues);
+        } finally {
+            searchResponse.decRef();
+        }
+
+        int remainingDocs = totalDocs - batchSize;
+        BulkByScrollTask.Status randomStats = randomStats();
+        // Random start time in the past to ensure that "took" is updated
+        long startTime = timeAgo(randomTimeValue(2, 10, TimeUnit.HOURS));
+        InetSocketAddress remoteAddress = randomFrom(cluster().httpAddresses());
+
+        ReindexRequest request = new ReindexRequest().setSourceIndices(sourceIndex)
+            .setShouldStoreResult(true)
+            .setEligibleForRelocationOnShutdown(true)
+            .setDestIndex(destIndex)
+            .setSourceBatchSize(batchSize)
+            .setRefresh(true)
+            .setRequestsPerSecond(randomStats.getRequestsPerSecond())
+            .setRemoteInfo(
+                new RemoteInfo(
+                    "http",
+                    remoteAddress.getHostString(),
+                    remoteAddress.getPort(),
+                    null,
+                    new BytesArray("{\"match_all\":{}}"),
+                    null,
+                    null,
+                    Map.of(),
+                    RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                    RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+                )
+            )
+            .setResumeInfo(
+                new ResumeInfo(
+                    randomOrigin(),
+                    new PitWorkerResumeInfo(pitId, searchAfterValues, startTime, randomStats, Version.CURRENT),
+                    null
+                )
+            );
+        request.getSearchRequest()
+            .source(
+                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(DEFAULT_SCROLL_TIMEOUT))
+                    .sort(SortBuilders.pitTiebreaker())
+                    .size(batchSize)
+            );
+        // ReindexRequest by default enables scroll, but PIT and scroll are mutually exclusive
+        request.getSearchRequest().scroll(null);
+        // PIT searches must not set explicit indices on SearchRequest (see ReindexRequest#convertSearchRequestToUsePit)
+        request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
+
+        ResumeBulkByScrollResponse resumeResponse = client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(request))
+            .actionGet();
+        GetTaskResponse getTaskResponse = clusterAdmin().prepareGetTask(resumeResponse.getTaskId())
+            .setWaitForCompletion(true)
+            .setTimeout(TimeValue.timeValueSeconds(60))
+            .get();
+
+        assertStatus(getTaskResponse.getTask(), randomStats, totalDocs, batchSize, remainingDocs);
+        assertHitCount(prepareSearch(destIndex), remainingDocs);
     }
 
     public void testRejectRemote_sliced() {

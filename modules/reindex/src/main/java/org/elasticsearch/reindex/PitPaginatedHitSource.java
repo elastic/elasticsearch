@@ -12,6 +12,7 @@ package org.elasticsearch.reindex;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.ResumeInfo.PitWorkerResumeInfo;
@@ -27,6 +28,14 @@ import java.util.function.Consumer;
 public abstract class PitPaginatedHitSource extends PaginatedHitSource {
 
     private final AtomicReference<Object[]> searchAfterValues = new AtomicReference<>();
+
+    /// Total hit count from the first batch, or `null` until the first batch has been observed. Subsequent
+    /// batches disable `track_total_hits` and reuse this cached value to keep
+    /// [org.elasticsearch.index.reindex.BulkByScrollTask.Status#getTotal()] accurate.
+    ///
+    /// Precondition: the first batch must run with accurate `track_total_hits` for this cache to be
+    /// meaningful. Reindex's `prepareSearchRequest` enforces this for PIT searches.
+    private final AtomicReference<Long> cachedTotalHits = new AtomicReference<>();
 
     public PitPaginatedHitSource(
         Logger logger,
@@ -56,6 +65,14 @@ public abstract class PitPaginatedHitSource extends PaginatedHitSource {
     @Override
     protected final void onBatchResponse(Response response) {
         searchAfterValues.set(response.getSearchAfterValues());
+        // Only the first batch runs with accurate track_total_hits, so cache it once and ignore later batches.
+        cachedTotalHits.compareAndSet(null, response.getTotalHits());
+    }
+
+    /// Total hits captured from the first batch, or `null` before the first batch has been observed.
+    @Nullable
+    protected final Long getCachedTotalHits() {
+        return cachedTotalHits.get();
     }
 
     @Override

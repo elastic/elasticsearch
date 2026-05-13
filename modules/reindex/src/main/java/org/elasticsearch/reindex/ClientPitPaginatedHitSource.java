@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
@@ -115,6 +116,10 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
             currentKeepAlive.set(effectiveKeepAlive);
         }
         SearchSourceBuilder source = firstSearchRequest.source().shallowCopy().searchAfter(searchAfter).pointInTimeBuilder(extended);
+        // Cache is seeded after the first batch, so drop track_total_hits on follow-ups to keep Max WAND active.
+        if (getCachedTotalHits() != null) {
+            source.trackTotalHits(false);
+        }
         SearchRequest nextRequest = new SearchRequest(firstSearchRequest).source(source);
         client.search(nextRequest, wrapListener(searchListener));
     }
@@ -143,7 +148,7 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
                 if (keepAlive != null) {
                     keepaliveDeadline.recordSuccessfulExtension(keepAlive);
                 }
-                searchListener.onResponse(wrapSearchResponse(searchResponse));
+                searchListener.onResponse(wrapSearchResponse(searchResponse, getCachedTotalHits()));
             }
 
             @Override
@@ -162,7 +167,7 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
         onCompletion.run();
     }
 
-    private static Response wrapSearchResponse(SearchResponse response) {
+    private static Response wrapSearchResponse(SearchResponse response, @Nullable Long cachedTotal) {
         List<PaginatedSearchFailure> failures;
         if (response.getShardFailures() == null) {
             failures = emptyList();
@@ -183,7 +188,14 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
             }
             hits = unmodifiableList(hits);
         }
-        long total = response.getHits().getTotalHits().value();
+        // Substitute the cached total on follow-up batches whose response total is a placeholder.
+        long total;
+        if (cachedTotal != null) {
+            total = cachedTotal;
+        } else {
+            var totalHits = response.getHits().getTotalHits();
+            total = totalHits != null ? totalHits.value() : 0L;
+        }
         Object[] searchAfterValues = null;
         if (hits.isEmpty() == false) {
             Hit lastHit = hits.getLast();

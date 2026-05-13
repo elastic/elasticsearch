@@ -6,10 +6,12 @@
  */
 package org.elasticsearch.xpack.dlm.frozen;
 
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
@@ -47,9 +49,11 @@ public class DLMFrozenTransitionPlugin extends Plugin {
             var transitionSettings = DLMFrozenTransitionSettings.create(services.clusterService());
             components.add(transitionSettings);
 
+            var originClient = new OriginSettingClient(services.client(), ClientHelper.DLM_FROZEN_ORIGIN);
+
             var transitionService = new DLMFrozenTransitionService(
                 services.clusterService(),
-                services.client(),
+                originClient,
                 getLicenseStateSupplier(),
                 transitionSettings,
                 services.dlmErrorStore()
@@ -58,7 +62,7 @@ public class DLMFrozenTransitionPlugin extends Plugin {
             components.add(transitionService);
             managedServices.add(transitionService);
 
-            var cleanupService = new DLMFrozenCleanupService(services.clusterService(), services.client());
+            var cleanupService = new DLMFrozenCleanupService(services.clusterService(), originClient);
             cleanupService.init();
             components.add(cleanupService);
             managedServices.add(cleanupService);

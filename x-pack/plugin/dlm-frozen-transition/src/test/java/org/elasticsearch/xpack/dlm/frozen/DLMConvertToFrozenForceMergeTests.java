@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
@@ -33,6 +34,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
@@ -47,6 +49,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.junit.After;
 import org.junit.Before;
 
@@ -71,6 +74,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
     private ThreadPool threadPool;
     private ClusterService clusterService;
     private AtomicReference<ForceMergeRequest> capturedForceMergeRequest;
+    private AtomicReference<String> capturedForceMergeOrigin;
     private AtomicReference<BroadcastResponse> mockForceMergeResponse;
     private AtomicReference<Exception> mockForceMergeFailure;
     private AtomicReference<IndicesSegmentResponse> mockSegmentResponse;
@@ -91,6 +95,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
         );
         index = new Index(indexName, indexUuid);
         capturedForceMergeRequest = new AtomicReference<>();
+        capturedForceMergeOrigin = new AtomicReference<>();
         mockForceMergeResponse = new AtomicReference<>();
         mockForceMergeFailure = new AtomicReference<>();
         mockSegmentResponse = new AtomicReference<>();
@@ -116,6 +121,9 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
             ) {
                 if (request instanceof ForceMergeRequest) {
                     capturedForceMergeRequest.set((ForceMergeRequest) request);
+                    capturedForceMergeOrigin.set(
+                        threadPool().getThreadContext().getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME)
+                    );
                     if (mockForceMergeFailure.get() != null) {
                         listener.onFailure(mockForceMergeFailure.get());
                     } else if (mockForceMergeResponse.get() != null) {
@@ -138,6 +146,25 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
                 }
             }
         };
+    }
+
+    public void testForceMergeIssuesRequestWithDlmFrozenOrigin() throws InterruptedException {
+        mockForceMergeResponse.set(new BroadcastResponse(1, 1, 0, List.of()));
+
+        createProjectState();
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
+            indexName,
+            projectId,
+            new OriginSettingClient(createMockClient(), ClientHelper.DLM_FROZEN_ORIGIN),
+            clusterService,
+            () -> licenseState,
+            Clock.systemUTC()
+        );
+
+        converter.maybeForceMergeIndex(indexName);
+
+        assertThat(capturedForceMergeRequest.get(), is(notNullValue()));
+        assertThat(capturedForceMergeOrigin.get(), is(ClientHelper.DLM_FROZEN_ORIGIN));
     }
 
     public void testSkipsForceMergeWhenAlreadyForceMergedToSingleSegment() throws InterruptedException {

@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -100,7 +101,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         // contract is "positional column layout for the source", which is the file's actual schema —
         // not the projection. Reusing {@code output} here would mis-align readSchema for any query
         // that triggers projection pushdown on the external source.
-        List<Attribute> sourceSchema = in.getTransportVersion().supports(ExternalSourceExec.ESQL_EXTERNAL_SOURCE_READ_SCHEMA)
+        List<Attribute> sourceSchema = in.getTransportVersion().supports(FileSplit.ESQL_EXTERNAL_SOURCE_READ_SCHEMA)
             ? in.readNamedWriteableCollectionAsList(Attribute.class)
             : output;
         var metadata = new SimpleSourceMetadata(sourceSchema, sourceType, sourcePath, null, null, sourceMetadata, config);
@@ -116,7 +117,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         out.writeGenericValue(metadata.config());
         out.writeGenericValue(metadata.sourceMetadata());
         // See {@link #readFrom} for why the schema is serialized separately from {@code output}.
-        if (out.getTransportVersion().supports(ExternalSourceExec.ESQL_EXTERNAL_SOURCE_READ_SCHEMA)) {
+        if (out.getTransportVersion().supports(FileSplit.ESQL_EXTERNAL_SOURCE_READ_SCHEMA)) {
             out.writeNamedWriteableCollection(metadata.schema());
         }
     }
@@ -173,8 +174,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             FormatReader.NO_LIMIT,
             null,
             fileList,
-            List.of(),
-            metadata.schema()
+            List.of()
         );
     }
 

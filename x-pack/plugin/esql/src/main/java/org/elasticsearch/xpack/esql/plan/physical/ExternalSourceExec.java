@@ -46,9 +46,6 @@ import java.util.Objects;
  *       locally on each data node by the LocalPhysicalPlanOptimizer via FormatReader.filterPushdownSupport()</li>
  *   <li><b>Data node execution</b>: Created on data nodes by LocalMapper from
  *       {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation} inside FragmentExec</li>
- *   <li><b>Optional read schema</b>: {@link #readSchema()} carries the planner-resolved schema
- *       (typically inferred from one representative file in a multi-file glob). Runtime readers
- *       use it as the authoritative positional layout; {@code null} → per-file inference.</li>
  * </ul>
  */
 public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, DataSourceExec {
@@ -60,9 +57,6 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     );
 
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_SPLITS = TransportVersion.fromName("esql_external_source_splits");
-    // Public so the sibling {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation}
-    // can gate its own schema field on the same TV — both writers share the same wire-protocol bump.
-    public static final TransportVersion ESQL_EXTERNAL_SOURCE_READ_SCHEMA = TransportVersion.fromName("esql_external_source_read_schema");
 
     private final String sourcePath;
     private final String sourceType;
@@ -82,9 +76,6 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     private final Integer estimatedRowSize;
     private final FileList fileList; // NOT serialized - resolved on coordinator, null on data nodes
     private final List<ExternalSplit> splits;
-    /** Planner-resolved typed column layout; {@code null} means runtime falls back to per-file inference. */
-    @Nullable
-    private final List<Attribute> readSchema;
 
     public ExternalSourceExec(
         Source source,
@@ -109,8 +100,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             fileList,
-            List.of(),
-            null
+            List.of()
         );
     }
 
@@ -139,39 +129,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedLimit,
             estimatedRowSize,
             fileList,
-            splits,
-            null
-        );
-    }
-
-    public ExternalSourceExec(
-        Source source,
-        String sourcePath,
-        String sourceType,
-        List<Attribute> attributes,
-        Map<String, Object> config,
-        Map<String, Object> sourceMetadata,
-        Object pushedFilter,
-        List<Expression> pushedExpressions,
-        int pushedLimit,
-        Integer estimatedRowSize,
-        FileList fileList,
-        List<ExternalSplit> splits
-    ) {
-        this(
-            source,
-            sourcePath,
-            sourceType,
-            attributes,
-            config,
-            sourceMetadata,
-            pushedFilter,
-            pushedExpressions,
-            pushedLimit,
-            estimatedRowSize,
-            fileList,
-            splits,
-            null
+            splits
         );
     }
 
@@ -191,8 +149,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         int pushedLimit,
         Integer estimatedRowSize,
         FileList fileList,
-        List<ExternalSplit> splits,
-        List<Attribute> readSchema
+        List<ExternalSplit> splits
     ) {
         this(
             source,
@@ -207,15 +164,14 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             null,
             estimatedRowSize,
             fileList,
-            splits,
-            readSchema
+            splits
         );
     }
 
     /**
      * Primary constructor that also accepts a transient {@link BlockHash.TopNDef} hint for in-hash TopN pruning.
      * Package-private on purpose so the public, longest constructor (used by tooling and tree tests) remains
-     * the thirteen-arg one above. Use {@link #withPushedTopN(BlockHash.TopNDef)} from optimizer rules.
+     * the twelve-arg one above. Use {@link #withPushedTopN(BlockHash.TopNDef)} from optimizer rules.
      */
     ExternalSourceExec(
         Source source,
@@ -230,8 +186,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         @Nullable BlockHash.TopNDef pushedTopN,
         Integer estimatedRowSize,
         FileList fileList,
-        List<ExternalSplit> splits,
-        List<Attribute> readSchema
+        List<ExternalSplit> splits
     ) {
         super(source);
         if (sourcePath == null) {
@@ -255,7 +210,6 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         this.estimatedRowSize = estimatedRowSize;
         this.fileList = fileList;
         this.splits = splits != null ? List.copyOf(splits) : List.of();
-        this.readSchema = (readSchema == null || readSchema.isEmpty()) ? null : List.copyOf(readSchema);
     }
 
     public ExternalSourceExec(
@@ -280,8 +234,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             null,
-            List.of(),
-            null
+            List.of()
         );
     }
 
@@ -306,8 +259,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             null,
-            List.of(),
-            null
+            List.of()
         );
     }
 
@@ -324,11 +276,6 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         List<ExternalSplit> splits = in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_SPLITS)
             ? in.readNamedWriteableCollectionAsList(ExternalSplit.class)
             : List.of();
-        // Older nodes don't write the field; on the wire empty list represents the in-memory null.
-        List<Attribute> wireReadSchema = in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_READ_SCHEMA)
-            ? in.readNamedWriteableCollectionAsList(Attribute.class)
-            : List.of();
-        List<Attribute> readSchema = wireReadSchema.isEmpty() ? null : wireReadSchema;
 
         return new ExternalSourceExec(
             source,
@@ -342,8 +289,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             null,
-            splits,
-            readSchema
+            splits
         );
     }
 
@@ -358,10 +304,6 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         out.writeOptionalVInt(estimatedRowSize);
         if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_SPLITS)) {
             out.writeNamedWriteableCollection(splits);
-        }
-        if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_READ_SCHEMA)) {
-            // Empty on the wire encodes the in-memory null.
-            out.writeNamedWriteableCollection(readSchema != null ? readSchema : List.of());
         }
     }
 
@@ -415,12 +357,6 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         return splits;
     }
 
-    /** See field-level Javadoc on {@link #readSchema}. */
-    @Nullable
-    public List<Attribute> readSchema() {
-        return readSchema;
-    }
-
     public ExternalSourceExec withSplits(List<ExternalSplit> newSplits) {
         return new ExternalSourceExec(
             source(),
@@ -435,8 +371,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedTopN,
             estimatedRowSize,
             fileList,
-            newSplits,
-            readSchema
+            newSplits
         );
     }
 
@@ -454,8 +389,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedTopN,
             estimatedRowSize,
             fileList,
-            splits,
-            readSchema
+            splits
         );
     }
 
@@ -473,8 +407,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedTopN,
             estimatedRowSize,
             fileList,
-            splits,
-            readSchema
+            splits
         );
     }
 
@@ -492,8 +425,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedTopN,
             estimatedRowSize,
             fileList,
-            splits,
-            readSchema
+            splits
         );
     }
 
@@ -514,8 +446,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             newPushedTopN,
             estimatedRowSize,
             fileList,
-            splits,
-            readSchema
+            splits
         );
     }
 
@@ -550,8 +481,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedTopN,
             newEstimatedRowSize,
             fileList,
-            splits,
-            readSchema
+            splits
         );
     }
 
@@ -560,7 +490,6 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         // pushedTopN: excluded — transient local-execution hint; including it would break the
         // node-reflection invariant in EsqlNodeSubclassTests#testInfoParameters. Preserved via
         // explicit with* methods; rendered in nodeString() for debuggability.
-        // readSchema: included — structural planning-time field that must survive tree-rewrites.
         return NodeInfo.create(
             this,
             ExternalSourceExec::new,
@@ -574,8 +503,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedLimit,
             estimatedRowSize,
             fileList,
-            splits,
-            readSchema
+            splits
         );
     }
 
@@ -593,8 +521,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedTopN,
             estimatedRowSize,
             fileList,
-            splits,
-            readSchema
+            splits
         );
     }
 
@@ -620,8 +547,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             && Objects.equals(pushedTopN, other.pushedTopN)
             && Objects.equals(estimatedRowSize, other.estimatedRowSize)
             && Objects.equals(fileList, other.fileList)
-            && Objects.equals(splits, other.splits)
-            && Objects.equals(readSchema, other.readSchema);
+            && Objects.equals(splits, other.splits);
     }
 
     @Override
@@ -646,9 +572,6 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         }
         if (splits.isEmpty() == false) {
             sb.append("[splits=").append(splits.size()).append("]");
-        }
-        if (readSchema != null && readSchema.isEmpty() == false) {
-            sb.append("[readSchema=").append(readSchema.size()).append("]");
         }
         NodeUtils.toString(sb, attributes, format);
     }

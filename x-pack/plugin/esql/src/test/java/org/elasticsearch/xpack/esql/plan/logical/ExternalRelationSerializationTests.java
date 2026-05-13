@@ -78,8 +78,8 @@ public class ExternalRelationSerializationTests extends AbstractLogicalPlanSeria
      * source's full positional column layout — the case that triggers post-optimizer-narrowing
      * (e.g. a STATS aggregation projects external columns down to a single aggregated column).
      * The serialized form must carry the full {@code metadata.schema()} so that the data-node
-     * rebuild does not mistake the projection for the source schema and break the
-     * {@link org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec#readSchema()} contract.
+     * rebuild does not mistake the projection for the source schema, which would lose the
+     * coordinator's reconciled per-source layout.
      */
     public void testSchemaWiderThanOutputRoundTrips() throws IOException {
         List<Attribute> fullSchema = randomFieldAttributes(3, 6, false);

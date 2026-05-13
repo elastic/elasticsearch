@@ -37,10 +37,6 @@ import java.util.concurrent.Executor;
  * during optimization. Since external sources execute on coordinator only, this filter
  * is never serialized - it's created during local physical optimization and consumed
  * immediately by the operator factory in the same JVM.
- *
- * <p>The {@link #readSchema()} is an optional planner-resolved typed column layout threaded down
- * to {@link FormatReadContext#readSchema()}; {@code null} means readers fall back to per-file
- * inference.
  */
 public record SourceOperatorContext(
     String sourceType,
@@ -61,8 +57,7 @@ public record SourceOperatorContext(
     Set<String> partitionColumnNames,
     @Nullable ExternalSliceQueue sliceQueue,
     int parsingParallelism,
-    int parallelism,
-    @Nullable List<Attribute> readSchema
+    int parallelism
 ) {
     public SourceOperatorContext {
         Check.notNull(path, "path cannot be null");
@@ -75,7 +70,6 @@ public record SourceOperatorContext(
         partitionColumnNames = partitionColumnNames != null && partitionColumnNames.isEmpty() == false
             ? Collections.unmodifiableSet(new LinkedHashSet<>(partitionColumnNames))
             : Set.of();
-        readSchema = (readSchema == null || readSchema.isEmpty()) ? null : List.copyOf(readSchema);
 
         if (batchSize <= 0) {
             throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
@@ -124,8 +118,7 @@ public record SourceOperatorContext(
             null,
             null,
             1,
-            1,
-            null
+            1
         );
     }
 
@@ -161,8 +154,7 @@ public record SourceOperatorContext(
             null,
             null,
             1,
-            1,
-            null
+            1
         );
     }
 
@@ -197,8 +189,7 @@ public record SourceOperatorContext(
             null,
             null,
             1,
-            1,
-            null
+            1
         );
     }
 
@@ -231,8 +222,7 @@ public record SourceOperatorContext(
             null,
             null,
             1,
-            1,
-            null
+            1
         );
     }
 
@@ -261,8 +251,6 @@ public record SourceOperatorContext(
         private ExternalSliceQueue sliceQueue;
         private int parsingParallelism = 1;
         private int parallelism = 1;
-        @Nullable
-        private List<Attribute> readSchema = null;
 
         public Builder sourceType(String sourceType) {
             this.sourceType = sourceType;
@@ -364,12 +352,6 @@ public record SourceOperatorContext(
             return this;
         }
 
-        /** See {@link SourceOperatorContext#readSchema()}; pass {@code null} to fall back to per-file inference. */
-        public Builder readSchema(@Nullable List<Attribute> readSchema) {
-            this.readSchema = readSchema;
-            return this;
-        }
-
         public SourceOperatorContext build() {
             return new SourceOperatorContext(
                 sourceType,
@@ -390,8 +372,7 @@ public record SourceOperatorContext(
                 partitionColumnNames,
                 sliceQueue,
                 parsingParallelism,
-                parallelism,
-                readSchema
+                parallelism
             );
         }
     }

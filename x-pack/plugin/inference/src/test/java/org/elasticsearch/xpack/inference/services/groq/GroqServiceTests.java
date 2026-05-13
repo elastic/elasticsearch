@@ -12,58 +12,40 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
-import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
+import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.groq.action.GroqActionCreatorTests;
 import org.elasticsearch.xpack.inference.services.groq.completion.GroqChatCompletionModel;
-import org.elasticsearch.xpack.inference.services.groq.completion.GroqChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.io.IOException;
-import java.net.URI;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.groq.action.GroqActionCreatorTests.createModel;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
-public class GroqServiceTests extends ESTestCase {
+public class GroqServiceTests extends InferenceServiceTestCase {
 
     private static final String INFERENCE_ENTITY_ID_VALUE = "id";
-    private ThreadPool threadPool;
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        threadPool = new TestThreadPool(getTestName());
-    }
-
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
-        terminate(threadPool);
-    }
 
     public void testUnifiedHandlerUsesOpenAiUnifiedChatCompletionHandler() {
         var handler = GroqService.UNIFIED_CHAT_COMPLETION_HANDLER;
@@ -71,7 +53,7 @@ public class GroqServiceTests extends ESTestCase {
     }
 
     public void testParseRequestConfigCreatesModel() throws Exception {
-        try (GroqService service = createService()) {
+        try (var service = createInferenceService()) {
             PlainActionFuture<Model> future = new PlainActionFuture<>();
             service.parseRequestConfig(
                 "groq-test",
@@ -88,7 +70,7 @@ public class GroqServiceTests extends ESTestCase {
     }
 
     public void testParseRequestConfigRequiresModelId() throws Exception {
-        try (GroqService service = createService()) {
+        try (var service = createInferenceService()) {
             Map<String, Object> serviceSettings = new HashMap<>();
             serviceSettings.put(DefaultSecretSettings.API_KEY, "secret-key");
             PlainActionFuture<Model> future = new PlainActionFuture<>();
@@ -100,7 +82,7 @@ public class GroqServiceTests extends ESTestCase {
     }
 
     public void testParseRequestConfigRejectsUnsupportedTaskType() throws Exception {
-        try (GroqService service = createService()) {
+        try (var service = createInferenceService()) {
             PlainActionFuture<Model> future = new PlainActionFuture<>();
             service.parseRequestConfig(
                 "groq-test",
@@ -114,7 +96,7 @@ public class GroqServiceTests extends ESTestCase {
     }
 
     public void testParsePersistedConfigWithSecretsUsesSecretSettings() throws Exception {
-        try (GroqService service = createService()) {
+        try (var service = createInferenceService()) {
             Map<String, Object> config = new HashMap<>();
             config.put(ModelConfigurations.SERVICE_SETTINGS, new HashMap<>(Map.of(ServiceFields.MODEL_ID, "persisted-model")));
 
@@ -129,34 +111,15 @@ public class GroqServiceTests extends ESTestCase {
         }
     }
 
-    public void testDoInferRejectsNonGroqModel() throws Exception {
-        try (GroqService service = createService()) {
-            PlainActionFuture<InferenceServiceResults> future = new PlainActionFuture<>();
-            service.doInfer(createNonGroqModel(), null, Map.of(), TimeValue.ZERO, future);
-
-            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, future::actionGet);
-            assertThat(exception.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
-        }
-    }
-
-    public void testDoChunkedInferAlwaysFails() throws Exception {
-        try (GroqService service = createService()) {
-            PlainActionFuture<List<ChunkedInference>> future = new PlainActionFuture<>();
+    public void testChunkedInferNotSupported() throws Exception {
+        try (var service = createInferenceService()) {
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             List<ChunkInferenceInput> inputs = List.of();
-            service.doChunkedInfer(null, inputs, Map.of(), null, TimeValue.ZERO, future);
+            service.chunkedInfer(createModel("some_url"), null, inputs, Map.of(), null, null, listener);
 
-            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, future::actionGet);
-            assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
-            assertThat(exception.getMessage(), containsString("Groq does not support chunked inference"));
+            var exception = expectThrows(UnsupportedOperationException.class, listener::actionGet);
+            assertThat(exception.getMessage(), containsString("groq service does not support chunked inference"));
         }
-    }
-
-    private GroqService createService() {
-        return new GroqService(
-            mock(HttpRequestSender.Factory.class),
-            ServiceComponentsTests.createWithEmptySettings(threadPool),
-            mock(ClusterService.class)
-        );
     }
 
     private Map<String, Object> createRequestConfig(String modelId, String apiKey, String user, String org) {
@@ -176,14 +139,8 @@ public class GroqServiceTests extends ESTestCase {
         return config;
     }
 
-    private Model createNonGroqModel() {
-        var serviceSettings = new GroqChatCompletionServiceSettings("other-model", (URI) null, null, null);
-        var configurations = new ModelConfigurations("non-groq", TaskType.CHAT_COMPLETION, "other-service", serviceSettings);
-        return new Model(configurations);
-    }
-
     public void testBuildModelFromConfigAndSecrets_ChatCompletion() throws IOException {
-        var model = GroqActionCreatorTests.createModel("some_url");
+        var model = createModel("some_url");
         validateModelBuilding(model);
     }
 
@@ -194,7 +151,7 @@ public class GroqServiceTests extends ESTestCase {
             GroqService.NAME,
             mock(ServiceSettings.class)
         );
-        try (var inferenceService = createService()) {
+        try (var inferenceService = createInferenceService()) {
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
                 () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
@@ -207,9 +164,23 @@ public class GroqServiceTests extends ESTestCase {
     }
 
     private void validateModelBuilding(Model model) throws IOException {
-        try (var inferenceService = createService()) {
+        try (var inferenceService = createInferenceService()) {
             var resultModel = inferenceService.buildModelFromConfigAndSecrets(model.getConfigurations(), model.getSecrets());
             assertThat(resultModel, is(model));
         }
+    }
+
+    @Override
+    public InferenceService createInferenceService() {
+        return new GroqService(
+            HttpRequestSenderTests.createSenderFactory(threadPool, clientManager),
+            ServiceComponentsTests.createWithEmptySettings(threadPool),
+            mock(ClusterService.class)
+        );
+    }
+
+    @Override
+    public EnumSet<TaskType> expectedStreamingTasks() {
+        return EnumSet.of(TaskType.CHAT_COMPLETION);
     }
 }

@@ -14,7 +14,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public sealed abstract class TypeConflictedField extends EsField permits InvalidMappedField, CompactInvalidMappedField {
+public abstract sealed class TypeConflictedField extends EsField permits InvalidMappedField, CompactInvalidMappedField {
     public TypeConflictedField(
         String name,
         DataType esDataType,

@@ -18,7 +18,6 @@ import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
-import org.elasticsearch.core.Releasables;
 import org.junit.After;
 
 import java.util.ArrayList;

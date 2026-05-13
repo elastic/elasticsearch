@@ -387,10 +387,7 @@ public class TopNOperator implements Operator, Accountable {
     }
 
     private boolean shouldPromoteToParallel() {
-        return parallel != null
-            && parallel.workers == null
-            && output == null
-            && rowsReceived > parallel.config.promotionThresholdRows();
+        return parallel != null && parallel.workers == null && output == null && rowsReceived > parallel.config.promotionThresholdRows();
     }
 
     /** Returns true if any insert/replace happened, so callers can skip a no-op {@link #updateMinCompetitive}. */

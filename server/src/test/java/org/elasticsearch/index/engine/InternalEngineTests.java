@@ -8269,6 +8269,43 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testIndexBatchGcExpiredTombstoneTreatedAsNotFound() throws IOException {
+        // Set gcDeletesInMillis to -1 so any tombstone is immediately GC-eligible.
+        engine.engineConfig.getIndexSettings()
+            .updateIndexMetadata(
+                IndexMetadata.builder(engine.config().getIndexSettings().getIndexMetadata())
+                    .settings(
+                        Settings.builder()
+                            .put(engine.config().getIndexSettings().getSettings())
+                            .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), TimeValue.timeValueMillis(-1))
+                    )
+                    .build()
+            );
+        engine.onSettingsChanged();
+        engine.config().setEnableGcDeletes(true);
+
+        // Index the document and refresh so it is live in the internal Lucene reader.
+        ParsedDocument doc = createParsedDoc("1", null);
+        indexDoc(engine, indexForDoc(doc));
+        engine.refresh("test");
+
+        // Delete the document. The tombstone lands in the versionMap with gcDeletesInMillis=-1,
+        // making it immediately GC-eligible. The physical deletion is recorded in the IndexWriter
+        // but has NOT been picked up by the internal reader (no refresh since the delete), so the
+        // old document is still visible as live in Lucene.
+        engine.delete(new Engine.Delete(doc.id(), newUid(doc), primaryTerm.get()));
+
+        // Re-index via the batch path. The correct behavior (matching resolveDocVersion) is to
+        // treat the GC-expired tombstone as "not found" and create a fresh document. The bug
+        // causes planPrimarySubBatch to route the GC-expired entry to the Lucene lookup instead,
+        // where the stale live document is found, and the operation is incorrectly treated as an
+        // update rather than a create.
+        List<Engine.IndexResult> results = engine.indexBatch(List.of(indexForDoc(doc)));
+        assertThat(results, hasSize(1));
+        assertThat(results.getFirst().getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+        assertThat(results.getFirst().isCreated(), equalTo(true));
+    }
+
     private static void releaseCommitRef(Map<IndexCommit, Engine.IndexCommitRef> commits, long generation) {
         var releasable = commits.keySet().stream().filter(c -> c.getGeneration() == generation).findFirst();
         assertThat(releasable, isPresent());

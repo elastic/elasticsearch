@@ -31,6 +31,26 @@ public class LookupGoldenTests extends GoldenTestCase {
     }
 
     /**
+     * Lookup on a keyword field.
+     */
+    public void testKeywordLookupOnField() {
+        runGoldenTest("""
+            ROW language_name = "French"
+            | LOOKUP JOIN languages_lookup ON language_name
+            """, STAGES);
+    }
+
+    /**
+     * Lookup on a keyword expression.
+     */
+    public void testKeywordLookupOnExpression() {
+        runGoldenTest("""
+            ROW name = "French"
+            | LOOKUP JOIN languages_lookup ON name == language_name
+            """, STAGES);
+    }
+
+    /**
      * WHERE clause with a pushable right-only filter (equality on a keyword field).
      * The logical optimizer pushes it into the join's right side, and the lookup physical optimizer
      * pushes it down to ParameterizedQueryExec.query().

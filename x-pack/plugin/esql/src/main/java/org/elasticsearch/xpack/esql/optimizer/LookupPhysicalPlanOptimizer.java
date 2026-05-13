@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LuceneBulkLookup;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -30,6 +31,7 @@ public class LookupPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physi
 
     private static final List<Batch<PhysicalPlan>> RULES = List.of(
         new Batch<>("Push to source", new ReplaceSourceAttributes(), new PushFiltersToSource()),
+        new Batch<>("Lucene bulk keyword lookup", new LuceneBulkLookup()),
         new Batch<>("Field extraction", Limiter.ONCE, new InsertFieldExtraction())
     );
 

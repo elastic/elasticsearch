@@ -198,30 +198,56 @@ final class BytesRefBlockHash extends BlockHash {
     private IntVector addOrdinalsVector(OrdinalBytesRefVector inputBlock) {
         IntVector inputOrds = inputBlock.getOrdinalsVector();
         BytesRefVector dict = inputBlock.getDictionaryVector();
-        BytesRef scratch = new BytesRef();
         if (inputOrds.isConstant()) {
+            BytesRef scratch = new BytesRef();
             int ord = inputOrds.getInt(0);
             int groupId = Math.toIntExact(hashOrdToGroupNullReserved(hash.add(dict.getBytesRef(ord, scratch))));
             return blockFactory.newConstantIntVector(groupId, inputOrds.getPositionCount());
         }
-        int[] localToGlobal = new int[dict.getPositionCount()];
-        Arrays.fill(localToGlobal, UNSEEN);
-        try (var builder = blockFactory.newIntVectorBuilder(inputOrds.getPositionCount())) {
+        // The lazy path costs a measurable branch+load per row on dense Parquet pages where every dict
+        // entry is referenced; only take it when phantoms are actually
+        // possible (filter()/slice()/keepMask() flagged the block as needing compaction).
+        return inputBlock.needsCompaction() ? addOrdinalsVectorLazy(inputOrds, dict) : addOrdinalsVectorEager(inputOrds, dict);
+    }
+
+    private IntVector addOrdinalsVectorEager(IntVector inputOrds, BytesRefVector dict) {
+        try (var hashOrds = add(dict); var builder = blockFactory.newIntVectorBuilder(inputOrds.getPositionCount())) {
             for (int p = 0; p < inputOrds.getPositionCount(); p++) {
-                builder.appendInt(groupForOrd(inputOrds.getInt(p), dict, localToGlobal, scratch));
+                builder.appendInt(hashOrds.getInt(inputOrds.getInt(p)));
             }
             return builder.build();
         }
     }
 
-    private IntBlock addOrdinalsBlock(OrdinalBytesRefBlock inputBlock) {
-        BytesRefVector dict = inputBlock.getDictionaryVector();
-        int[] localToGlobal = new int[dict.getPositionCount()];
-        Arrays.fill(localToGlobal, UNSEEN);
+    private IntVector addOrdinalsVectorLazy(IntVector inputOrds, BytesRefVector dict) {
         BytesRef scratch = new BytesRef();
+        long acquiredBytes = (long) Integer.BYTES * dict.getPositionCount();
+        blockFactory.breaker().addEstimateBytesAndMaybeBreak(acquiredBytes, "BytesRefBlockHash");
+        try {
+            int[] localToGlobal = new int[dict.getPositionCount()];
+            Arrays.fill(localToGlobal, UNSEEN);
+            try (var builder = blockFactory.newIntVectorBuilder(inputOrds.getPositionCount())) {
+                for (int p = 0; p < inputOrds.getPositionCount(); p++) {
+                    builder.appendInt(groupForOrd(inputOrds.getInt(p), dict, localToGlobal, scratch));
+                }
+                return builder.build();
+            }
+        } finally {
+            blockFactory.breaker().addWithoutBreaking(-acquiredBytes);
+        }
+    }
+
+    private IntBlock addOrdinalsBlock(OrdinalBytesRefBlock inputBlock) {
+        // See addOrdinalsVector for the rationale behind this split.
+        return inputBlock.needsCompaction() ? addOrdinalsBlockLazy(inputBlock) : addOrdinalsBlockEager(inputBlock);
+    }
+
+    private IntBlock addOrdinalsBlockEager(OrdinalBytesRefBlock inputBlock) {
+        BytesRefVector dict = inputBlock.getDictionaryVector();
         try (
             IntBlock inputOrds = new MultivalueDedupeInt(inputBlock.getOrdinalsBlock()).dedupeToBlockAdaptive(blockFactory);
-            IntBlock.Builder builder = blockFactory.newIntBlockBuilder(inputOrds.getPositionCount())
+            IntBlock.Builder builder = blockFactory.newIntBlockBuilder(inputOrds.getPositionCount());
+            IntVector hashOrds = add(dict)
         ) {
             for (int p = 0; p < inputOrds.getPositionCount(); p++) {
                 int valueCount = inputOrds.getValueCount(p);
@@ -231,18 +257,56 @@ final class BytesRefBlockHash extends BlockHash {
                         builder.appendInt(0);
                         seenNull = true;
                     }
-                    case 1 -> builder.appendInt(groupForOrd(inputOrds.getInt(firstIndex), dict, localToGlobal, scratch));
+                    case 1 -> builder.appendInt(hashOrds.getInt(inputOrds.getInt(firstIndex)));
                     default -> {
                         int end = firstIndex + valueCount;
                         builder.beginPositionEntry();
                         for (int i = firstIndex; i < end; i++) {
-                            builder.appendInt(groupForOrd(inputOrds.getInt(i), dict, localToGlobal, scratch));
+                            builder.appendInt(hashOrds.getInt(inputOrds.getInt(i)));
                         }
                         builder.endPositionEntry();
                     }
                 }
             }
             return builder.build();
+        }
+    }
+
+    private IntBlock addOrdinalsBlockLazy(OrdinalBytesRefBlock inputBlock) {
+        BytesRefVector dict = inputBlock.getDictionaryVector();
+        long acquiredBytes = (long) Integer.BYTES * dict.getPositionCount();
+        blockFactory.breaker().addEstimateBytesAndMaybeBreak(acquiredBytes, "BytesRefBlockHash");
+        try {
+            int[] localToGlobal = new int[dict.getPositionCount()];
+            Arrays.fill(localToGlobal, UNSEEN);
+            BytesRef scratch = new BytesRef();
+            try (
+                IntBlock inputOrds = new MultivalueDedupeInt(inputBlock.getOrdinalsBlock()).dedupeToBlockAdaptive(blockFactory);
+                IntBlock.Builder builder = blockFactory.newIntBlockBuilder(inputOrds.getPositionCount())
+            ) {
+                for (int p = 0; p < inputOrds.getPositionCount(); p++) {
+                    int valueCount = inputOrds.getValueCount(p);
+                    int firstIndex = inputOrds.getFirstValueIndex(p);
+                    switch (valueCount) {
+                        case 0 -> {
+                            builder.appendInt(0);
+                            seenNull = true;
+                        }
+                        case 1 -> builder.appendInt(groupForOrd(inputOrds.getInt(firstIndex), dict, localToGlobal, scratch));
+                        default -> {
+                            int end = firstIndex + valueCount;
+                            builder.beginPositionEntry();
+                            for (int i = firstIndex; i < end; i++) {
+                                builder.appendInt(groupForOrd(inputOrds.getInt(i), dict, localToGlobal, scratch));
+                            }
+                            builder.endPositionEntry();
+                        }
+                    }
+                }
+                return builder.build();
+            }
+        } finally {
+            blockFactory.breaker().addWithoutBreaking(-acquiredBytes);
         }
     }
 

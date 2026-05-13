@@ -95,22 +95,13 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
         }
         int dictSize = bytes.getPositionCount();
         boolean[] referenced = referencedDictionaryEntries();
-        int referencedCount = 0;
-        for (int oldOrd = 0; oldOrd < dictSize; oldOrd++) {
-            if (referenced[oldOrd]) {
-                referencedCount++;
-            }
-        }
-        if (referencedCount == dictSize) {
-            ordinals.incRef();
-            bytes.incRef();
-            return new OrdinalBytesRefVector(ordinals, bytes, false);
-        }
         int positionCount = ordinals.getPositionCount();
         int[] remap = new int[dictSize];
         BytesRefVector compactBytes = null;
         IntVector remappedOrds = null;
-        try (BytesRefVector.Builder dictBuilder = blockFactory().newBytesRefVectorBuilder(referencedCount)) {
+        // See OrdinalBytesRefBlock#compact for why this single-pass build + post-check is preferred
+        // over a separate counting pass.
+        try (BytesRefVector.Builder dictBuilder = blockFactory().newBytesRefVectorBuilder(dictSize)) {
             BytesRef scratch = new BytesRef();
             int newOrd = 0;
             for (int oldOrd = 0; oldOrd < dictSize; oldOrd++) {
@@ -120,6 +111,11 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
                 } else {
                     remap[oldOrd] = -1;
                 }
+            }
+            if (newOrd == dictSize) {
+                ordinals.incRef();
+                bytes.incRef();
+                return new OrdinalBytesRefVector(ordinals, bytes, false);
             }
             compactBytes = dictBuilder.build();
             try (IntVector.Builder ordsBuilder = blockFactory().newIntVectorFixedBuilder(positionCount)) {

@@ -470,13 +470,11 @@ public class BlockHashTests extends BlockHashTestCase {
                     assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 4)));
                     assertKeys(ordsAndKeys.keys(), "item-2", "item-1", "item-4", "item-3");
                 } else {
-                    // Lazy hashing adds dictionary entries in first-visit (input ord) order rather
-                    // than dictionary order: ords 1, 0, 3, 2 -> "item-2", "item-1", "item-4", "item-3".
                     assertThat(ordsAndKeys.description(), startsWith("BytesRefBlockHash{channel=0, entries=4, size="));
                     assertThat(ordsAndKeys.description(), endsWith("b, seenNull=false}"));
-                    assertOrds(ordsAndKeys.ords(), 1, 2, 3, 1, 3, 2, 4, 3);
+                    assertOrds(ordsAndKeys.ords(), 2, 1, 4, 2, 4, 1, 3, 4);
                     assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(1, 5)));
-                    assertKeys(ordsAndKeys.keys(), "item-2", "item-1", "item-4", "item-3");
+                    assertKeys(ordsAndKeys.keys(), "item-1", "item-2", "item-3", "item-4");
                 }
             }, new OrdinalBytesRefVector(ords.build(), bytes.build()).asBlock());
         }
@@ -603,7 +601,7 @@ public class BlockHashTests extends BlockHashTestCase {
                     assertKeys(ordsAndKeys.keys(), "a", "b");
                     assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(1, 3)));
                 }
-            }, new OrdinalBytesRefVector(ords.build(), bytes.build()).asBlock());
+            }, new OrdinalBytesRefVector(ords.build(), bytes.build(), true).asBlock());
         }
     }
 
@@ -638,7 +636,7 @@ public class BlockHashTests extends BlockHashTestCase {
                     assertKeys(ordsAndKeys.keys(), null, "a", "b");
                     assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 3)));
                 }
-            }, new OrdinalBytesRefBlock(ords.build(), bytes.build()));
+            }, new OrdinalBytesRefBlock(ords.build(), bytes.build(), true));
         }
     }
 

@@ -43,10 +43,12 @@ public class DistinctByOperator extends AbstractPageMappingOperator {
     }
 
     private final int keyChannel;
+    private final BlockFactory blockFactory;
     private final BytesRefHashTable seenKeys;
 
     public DistinctByOperator(int keyChannel, BlockFactory blockFactory) {
         this.keyChannel = keyChannel;
+        this.blockFactory = blockFactory;
         this.seenKeys = HashImplFactory.newBytesRefHash(blockFactory);
     }
 
@@ -109,21 +111,27 @@ public class DistinctByOperator extends AbstractPageMappingOperator {
     private Page processOrdinalsVector(Page page, OrdinalBytesRefVector ordinals) {
         BytesRefVector dict = ordinals.getDictionaryVector();
         IntVector ords = ordinals.getOrdinalsVector();
-        boolean[] seenInPage = new boolean[dict.getPositionCount()];
-        BytesRef scratch = new BytesRef();
-        int rowCount = 0;
-        int[] positions = new int[page.getPositionCount()];
-        for (int p = 0; p < ords.getPositionCount(); p++) {
-            int ord = ords.getInt(p);
-            if (seenInPage[ord]) {
-                continue;
+        long acquiredBytes = (long) Byte.BYTES * dict.getPositionCount();
+        blockFactory.breaker().addEstimateBytesAndMaybeBreak(acquiredBytes, "DistinctByOperator");
+        try {
+            boolean[] seenInPage = new boolean[dict.getPositionCount()];
+            BytesRef scratch = new BytesRef();
+            int rowCount = 0;
+            int[] positions = new int[page.getPositionCount()];
+            for (int p = 0; p < ords.getPositionCount(); p++) {
+                int ord = ords.getInt(p);
+                if (seenInPage[ord]) {
+                    continue;
+                }
+                seenInPage[ord] = true;
+                if (seenKeys.add(dict.getBytesRef(ord, scratch)) >= 0) {
+                    positions[rowCount++] = p;
+                }
             }
-            seenInPage[ord] = true;
-            if (seenKeys.add(dict.getBytesRef(ord, scratch)) >= 0) {
-                positions[rowCount++] = p;
-            }
+            return filteredPage(page, positions, rowCount);
+        } finally {
+            blockFactory.breaker().addWithoutBreaking(-acquiredBytes);
         }
-        return filteredPage(page, positions, rowCount);
     }
 
     /**
@@ -133,24 +141,30 @@ public class DistinctByOperator extends AbstractPageMappingOperator {
     private Page processOrdinalsBlock(Page page, OrdinalBytesRefBlock ordinals) {
         BytesRefVector dict = ordinals.getDictionaryVector();
         IntBlock ords = ordinals.getOrdinalsBlock();
-        boolean[] seenInPage = new boolean[dict.getPositionCount()];
-        BytesRef scratch = new BytesRef();
-        int rowCount = 0;
-        int[] positions = new int[page.getPositionCount()];
-        for (int p = 0; p < ords.getPositionCount(); p++) {
-            if (ords.isNull(p)) {
-                continue;
+        long acquiredBytes = (long) Byte.BYTES * dict.getPositionCount();
+        blockFactory.breaker().addEstimateBytesAndMaybeBreak(acquiredBytes, "DistinctByOperator");
+        try {
+            boolean[] seenInPage = new boolean[dict.getPositionCount()];
+            BytesRef scratch = new BytesRef();
+            int rowCount = 0;
+            int[] positions = new int[page.getPositionCount()];
+            for (int p = 0; p < ords.getPositionCount(); p++) {
+                if (ords.isNull(p)) {
+                    continue;
+                }
+                int ord = ords.getInt(ords.getFirstValueIndex(p));
+                if (seenInPage[ord]) {
+                    continue;
+                }
+                seenInPage[ord] = true;
+                if (seenKeys.add(dict.getBytesRef(ord, scratch)) >= 0) {
+                    positions[rowCount++] = p;
+                }
             }
-            int ord = ords.getInt(ords.getFirstValueIndex(p));
-            if (seenInPage[ord]) {
-                continue;
-            }
-            seenInPage[ord] = true;
-            if (seenKeys.add(dict.getBytesRef(ord, scratch)) >= 0) {
-                positions[rowCount++] = p;
-            }
+            return filteredPage(page, positions, rowCount);
+        } finally {
+            blockFactory.breaker().addWithoutBreaking(-acquiredBytes);
         }
-        return filteredPage(page, positions, rowCount);
     }
 
     private static Page filteredPage(Page page, int[] positions, int rowCount) {

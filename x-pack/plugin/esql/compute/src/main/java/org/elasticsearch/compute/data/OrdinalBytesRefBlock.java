@@ -87,6 +87,17 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
      */
     public boolean[] referencedDictionaryEntries() {
         boolean[] referenced = new boolean[bytes.getPositionCount()];
+        // Fast path for dense ordinals (no nulls, single-valued positions) — overwhelmingly common
+        // for blocks produced by filter()/keepMask()/slice(), which is precisely the source of
+        // phantoms this method is here to detect.
+        IntVector ordsVector = ordinals.asVector();
+        if (ordsVector != null) {
+            int positionCount = ordsVector.getPositionCount();
+            for (int p = 0; p < positionCount; p++) {
+                referenced[ordsVector.getInt(p)] = true;
+            }
+            return referenced;
+        }
         int positionCount = ordinals.getPositionCount();
         for (int p = 0; p < positionCount; p++) {
             if (ordinals.isNull(p)) {
@@ -115,22 +126,16 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
         }
         int dictSize = bytes.getPositionCount();
         boolean[] referenced = referencedDictionaryEntries();
-        int referencedCount = 0;
-        for (int oldOrd = 0; oldOrd < dictSize; oldOrd++) {
-            if (referenced[oldOrd]) {
-                referencedCount++;
-            }
-        }
-        if (referencedCount == dictSize) {
-            ordinals.incRef();
-            bytes.incRef();
-            return new OrdinalBytesRefBlock(ordinals, bytes, false);
-        }
         int positionCount = ordinals.getPositionCount();
         int[] remap = new int[dictSize];
         BytesRefVector compactBytes = null;
         IntBlock remappedOrds = null;
-        try (BytesRefVector.Builder dictBuilder = blockFactory().newBytesRefVectorBuilder(referencedCount)) {
+        // Single dictionary pass: build `remap` and the compact dictionary together. When `newOrd`
+        // ends up equal to `dictSize`, the flag was conservatively set but no phantoms exist —
+        // discard the freshly built (identical) dictionary and reuse the source children. Builder
+        // is sized to `dictSize` (an upper bound) rather than the exact referenced count so we
+        // don't need a separate counting pass; over-allocation is bounded by the dictionary size.
+        try (BytesRefVector.Builder dictBuilder = blockFactory().newBytesRefVectorBuilder(dictSize)) {
             BytesRef scratch = new BytesRef();
             int newOrd = 0;
             for (int oldOrd = 0; oldOrd < dictSize; oldOrd++) {
@@ -140,6 +145,11 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
                 } else {
                     remap[oldOrd] = -1;
                 }
+            }
+            if (newOrd == dictSize) {
+                ordinals.incRef();
+                bytes.incRef();
+                return new OrdinalBytesRefBlock(ordinals, bytes, false);
             }
             compactBytes = dictBuilder.build();
             try (IntBlock.Builder ordsBuilder = blockFactory().newIntBlockBuilder(positionCount)) {

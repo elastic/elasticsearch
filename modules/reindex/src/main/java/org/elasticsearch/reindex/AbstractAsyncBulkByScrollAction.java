@@ -917,19 +917,17 @@ public abstract class AbstractAsyncBulkByScrollAction<
             toRelease.releaseRemainingHits();
         }
         paginatedHitSource.close(threadPool.getThreadContext().preserveContext(() -> {
-            task.addListener(() -> {
-                if (resolvedFailure == null) {
-                    BulkByScrollResponse response = buildResponse(
-                            timeValueMillis(System.currentTimeMillis() - startTimeEpochMillis.get()),
-                            indexingFailures,
-                            resolvedSearchFailures,
-                            timedOut
-                    );
-                    listener.onResponse(response);
-                } else {
-                    listener.onFailure(resolvedFailure);
-                }
-            });
+            if (resolvedFailure == null) {
+                BulkByScrollResponse response = buildResponse(
+                    timeValueMillis(System.currentTimeMillis() - startTimeEpochMillis.get()),
+                    indexingFailures,
+                    resolvedSearchFailures,
+                    timedOut
+                );
+                listener.onResponse(response);
+            } else {
+                listener.onFailure(resolvedFailure);
+            }
         }));
     }
 

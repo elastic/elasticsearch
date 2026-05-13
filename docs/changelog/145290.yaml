@@ -1,5 +1,5 @@
 pr: 145290
-summary: Reject reindex with op_type create and non-internal version_type
+summary: Reject reindexes with wrong parameters
 area: Reindex
 type: bug
 issues:

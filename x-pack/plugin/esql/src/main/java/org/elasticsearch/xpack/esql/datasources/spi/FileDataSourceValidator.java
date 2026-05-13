@@ -9,9 +9,12 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
 
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -28,6 +31,11 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationU
  * directly to the constructor — the validator appends {@code "://"} internally when
  * matching resource URIs, so plugins do not need to duplicate the scheme list with
  * URI suffixes.
+ *
+ * <p>Format-specific dataset fields (e.g. CSV's {@code delimiter}, Parquet's
+ * {@code optimized_reader}) are accepted when a {@link FormatConfigKeyResolver} is
+ * set via {@link #withFormatConfigKeyResolver}. Without a resolver, only the
+ * base dataset fields are accepted — preserving backward compatibility.
  */
 public class FileDataSourceValidator implements DataSourceValidator {
 
@@ -36,20 +44,41 @@ public class FileDataSourceValidator implements DataSourceValidator {
     private static final String SCHEMA_SAMPLE_SIZE = "schema_sample_size";
     private static final int SCHEMA_SAMPLE_SIZE_MAX = 1000;
     private static final String ERROR_MODE = "error_mode";
-    private static final Set<String> DATASET_FIELDS = Set.of(PARTITION_DETECTION, SCHEMA_SAMPLE_SIZE, ERROR_MODE);
+    static final Set<String> DATASET_FIELDS = Set.of(PARTITION_DETECTION, SCHEMA_SAMPLE_SIZE, ERROR_MODE);
 
     private final String type;
     private final Function<Map<String, Object>, DataSourceConfiguration> configFactory;
     private final Set<String> supportedSchemes;
+    @Nullable
+    private final FormatConfigKeyResolver formatConfigKeyResolver;
 
     public FileDataSourceValidator(
         String type,
         Function<Map<String, Object>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes
     ) {
+        this(type, configFactory, supportedSchemes, null);
+    }
+
+    private FileDataSourceValidator(
+        String type,
+        Function<Map<String, Object>, DataSourceConfiguration> configFactory,
+        Set<String> supportedSchemes,
+        @Nullable FormatConfigKeyResolver formatConfigKeyResolver
+    ) {
         this.type = type;
         this.configFactory = configFactory;
         this.supportedSchemes = supportedSchemes;
+        this.formatConfigKeyResolver = formatConfigKeyResolver;
+    }
+
+    /**
+     * Returns a new validator that also accepts format-specific dataset fields
+     * resolved from the resource's file extension. The resolver maps an extension
+     * (e.g. {@code ".csv"}) to the set of config keys the format reader recognises.
+     */
+    public FileDataSourceValidator withFormatConfigKeyResolver(FormatConfigKeyResolver resolver) {
+        return new FileDataSourceValidator(type, configFactory, supportedSchemes, resolver);
     }
 
     @Override
@@ -79,7 +108,9 @@ public class FileDataSourceValidator implements DataSourceValidator {
         if (datasetSettings == null) {
             datasetSettings = Map.of();
         }
-        rejectUnknownFields(datasetSettings, DATASET_FIELDS, errors);
+
+        Set<String> acceptedFields = resolveAcceptedFields(resource);
+        rejectUnknownFields(datasetSettings, acceptedFields, errors);
 
         Map<String, Object> result = new HashMap<>();
         validateEnum(
@@ -93,8 +124,95 @@ public class FileDataSourceValidator implements DataSourceValidator {
         validateEnum(datasetSettings, result, ERROR_MODE, ErrorPolicy.Mode.values(), ErrorPolicy.Mode::parse, errors);
         validateInt(datasetSettings, result, SCHEMA_SAMPLE_SIZE, 1, SCHEMA_SAMPLE_SIZE_MAX, errors);
 
+        // Format-specific fields pass through without type validation at CRUD time;
+        // the format reader validates types when it consumes the config at query time.
+        if (acceptedFields.size() > DATASET_FIELDS.size()) {
+            for (Map.Entry<String, Object> entry : datasetSettings.entrySet()) {
+                if (DATASET_FIELDS.contains(entry.getKey()) == false && acceptedFields.contains(entry.getKey())) {
+                    result.put(entry.getKey(), entry.getValue());
+                }
+            }
+        }
+
         errors.throwIfValidationErrorsExist();
         return result;
+    }
+
+    /**
+     * Resolves the full set of accepted dataset fields by unioning the base fields
+     * with any format-specific config keys derived from the resource's file extension.
+     */
+    private Set<String> resolveAcceptedFields(@Nullable String resource) {
+        if (formatConfigKeyResolver == null || resource == null) {
+            return DATASET_FIELDS;
+        }
+        Set<String> formatKeys = resolveFormatKeys(resource);
+        if (formatKeys.isEmpty()) {
+            return DATASET_FIELDS;
+        }
+        Set<String> union = new HashSet<>(DATASET_FIELDS);
+        union.addAll(formatKeys);
+        return union;
+    }
+
+    /**
+     * Extracts the file extension from a resource URI and resolves format-specific
+     * config keys. Handles compound extensions (e.g. {@code data.csv.gz}) by
+     * stripping the outermost extension and retrying with the inner one.
+     */
+    private Set<String> resolveFormatKeys(String resource) {
+        String objectName = extractObjectName(resource);
+        if (objectName == null) {
+            return Set.of();
+        }
+
+        int lastDot = objectName.lastIndexOf('.');
+        if (lastDot < 0 || lastDot == objectName.length() - 1) {
+            return Set.of();
+        }
+        String ext = objectName.substring(lastDot).toLowerCase(Locale.ROOT);
+        Set<String> keys = formatConfigKeyResolver.configKeysForExtension(ext);
+        if (keys != null && keys.isEmpty() == false) {
+            return keys;
+        }
+
+        // Try compound extension: strip the outermost extension and look at the inner one.
+        String inner = objectName.substring(0, lastDot);
+        int innerDot = inner.lastIndexOf('.');
+        if (innerDot >= 0 && innerDot < inner.length() - 1) {
+            String innerExt = inner.substring(innerDot).toLowerCase(Locale.ROOT);
+            keys = formatConfigKeyResolver.configKeysForExtension(innerExt);
+            if (keys != null) {
+                return keys;
+            }
+        }
+        return Set.of();
+    }
+
+    /** Extracts the object/path portion after the {@code scheme://host/} prefix, stripping any query or fragment. */
+    @Nullable
+    private static String extractObjectName(String resource) {
+        int schemeEnd = resource.indexOf("://");
+        if (schemeEnd < 0) {
+            return null;
+        }
+        String afterScheme = resource.substring(schemeEnd + 3);
+        int firstSlash = afterScheme.indexOf('/');
+        String path;
+        if (firstSlash < 0) {
+            path = afterScheme;
+        } else {
+            path = afterScheme.substring(firstSlash + 1);
+        }
+        int qMark = path.indexOf('?');
+        if (qMark >= 0) {
+            path = path.substring(0, qMark);
+        }
+        int hash = path.indexOf('#');
+        if (hash >= 0) {
+            path = path.substring(0, hash);
+        }
+        return path;
     }
 
     private void validateResource(String resource, ValidationException errors) {
@@ -118,5 +236,20 @@ public class FileDataSourceValidator implements DataSourceValidator {
                 "[resource] must use one of the supported URI schemes " + supportedPrefixes + " but was [" + resource + "]"
             );
         }
+    }
+
+    /**
+     * Resolves format-specific configuration keys from a file extension.
+     * Built from all registered {@link FormatSpec} declarations at startup.
+     */
+    @FunctionalInterface
+    public interface FormatConfigKeyResolver {
+        /**
+         * Returns the set of per-dataset config keys the format associated with
+         * the given extension recognises, or {@code null} if the extension is
+         * unknown or has no registered format.
+         */
+        @Nullable
+        Set<String> configKeysForExtension(String extension);
     }
 }

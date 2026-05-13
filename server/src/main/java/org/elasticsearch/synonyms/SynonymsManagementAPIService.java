@@ -191,21 +191,15 @@ public class SynonymsManagementAPIService {
         this.pitBatchSize = pitBatchSize;
         this.bulkChunkSize = bulkChunkSize;
         this.featureService = featureService;
-        this.clusterSupportsMultipleSynonymSets = featureService.clusterHasFeature(
-            clusterService.state(),
-            SynonymFeatures.MULTIPLE_SYNONYM_SETS_PER_FILTER
-        );
-        if (this.clusterSupportsMultipleSynonymSets == false) {
-            clusterService.addListener(new ClusterStateListener() {
-                @Override
-                public void clusterChanged(ClusterChangedEvent event) {
-                    if (featureService.clusterHasFeature(event.state(), SynonymFeatures.MULTIPLE_SYNONYM_SETS_PER_FILTER)) {
-                        clusterSupportsMultipleSynonymSets = true;
-                        clusterService.removeListener(this);
-                    }
+        clusterService.addListener(new ClusterStateListener() {
+            @Override
+            public void clusterChanged(ClusterChangedEvent event) {
+                if (featureService.clusterHasFeature(event.state(), SynonymFeatures.MULTIPLE_SYNONYM_SETS_PER_FILTER)) {
+                    clusterSupportsMultipleSynonymSets = true;
+                    clusterService.removeListener(this);
                 }
-            });
-        }
+            }
+        });
     }
 
     /* The synonym index stores two object types:
@@ -396,13 +390,7 @@ public class SynonymsManagementAPIService {
             }
 
             fetchPagesWithPit(existingSetIds, currentPitId, null, new ArrayList<>(), listener);
-        }, e -> {
-            Throwable cause = ExceptionsHelper.unwrapCause(e);
-            Exception failure = cause instanceof IndexNotFoundException
-                ? new ResourceNotFoundException("synonyms sets " + synonymSetIds + " not found")
-                : e;
-            closePitAndThen(pitId, () -> listener.onFailure(failure));
-        }));
+        }, e -> mapFailureAndClosePit(e, pitId, synonymSetIds, listener)));
     }
 
     private void fetchPagesWithPit(
@@ -462,13 +450,23 @@ public class SynonymsManagementAPIService {
 
             Object[] lastSortValues = hits[hits.length - 1].getSortValues();
             fetchPagesWithPit(synonymSetIds, currentPitId, lastSortValues, accumulated, listener);
-        }, e -> {
-            Throwable cause = ExceptionsHelper.unwrapCause(e);
-            Exception failure = cause instanceof IndexNotFoundException
-                ? new ResourceNotFoundException("synonyms sets " + synonymSetIds + " not found")
-                : e;
-            closePitAndThen(pitId, () -> listener.onFailure(failure));
-        }));
+        }, e -> mapFailureAndClosePit(e, pitId, synonymSetIds, listener)));
+    }
+
+    private void mapFailureAndClosePit(Exception e, BytesReference pitId, Set<String> synonymSetIds, ActionListener<?> listener) {
+        Exception failure = translateIndexNotFound(e, "synonyms sets " + synonymSetIds + " not found");
+        closePitAndThen(pitId, () -> listener.onFailure(failure));
+    }
+
+    static Exception translateIndexNotFound(Exception e, String notFoundMessage) {
+        Throwable cause = ExceptionsHelper.unwrapCause(e);
+        if (cause instanceof IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus) {
+            cause = cause.getCause();
+        }
+        if (cause instanceof IndexNotFoundException) {
+            return new ResourceNotFoundException(notFoundMessage);
+        }
+        return e;
     }
 
     private void closePitAndThen(BytesReference pitId, Runnable andThen) {
@@ -1025,15 +1023,7 @@ public class SynonymsManagementAPIService {
 
         @Override
         public void onFailure(Exception e) {
-            Throwable cause = ExceptionsHelper.unwrapCause(e);
-            if (cause instanceof IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus) {
-                cause = cause.getCause();
-            }
-            if (cause instanceof IndexNotFoundException) {
-                delegate.onFailure(new ResourceNotFoundException(notFoundMessage));
-                return;
-            }
-            delegate.onFailure(e);
+            delegate.onFailure(translateIndexNotFound(e, notFoundMessage));
         }
     }
 }

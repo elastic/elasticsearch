@@ -571,7 +571,7 @@ public class ScriptServiceTests extends ESTestCase {
 
         assertEquals(cacheExpireFooTimeValue, ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace("foo").get(s));
         assertEquals(cacheExpireBackupTimeValue, ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace("bar").get(s));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { cacheExpireSetting, cacheExpireSetting });
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { cacheSizeSetting, cacheExpireSetting });
     }
 
     public void testUseContextSettingValue() {

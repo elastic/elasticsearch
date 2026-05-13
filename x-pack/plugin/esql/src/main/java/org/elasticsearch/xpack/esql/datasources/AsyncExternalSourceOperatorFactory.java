@@ -820,7 +820,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         state.lastBoundSchema = cachedSchema;
                     }
                 }
-                pages = openWithParallelism(fileReader, obj, cols, errorPolicy, recordAlignedMacro, firstSplit);
+                // Prefer the per-file readSchema attached to this split (coordinator's inference of
+                // *this specific file*). Fall back to the plan-node-level field only for legacy paths
+                // where splits weren't constructed with per-file pins.
+                List<Attribute> splitReadSchema = fileSplit.readSchema() != null ? fileSplit.readSchema() : readSchema;
+                pages = openWithParallelism(fileReader, obj, cols, errorPolicy, recordAlignedMacro, firstSplit, splitReadSchema);
                 if (pages == null) {
                     boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
                     FormatReadContext ctx = FormatReadContext.builder()
@@ -831,7 +835,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .firstSplit(firstSplit)
                         .lastSplit(lastSplit)
                         .recordAligned(recordAlignedMacro)
-                        .readSchema(readSchema)
+                        .readSchema(splitReadSchema)
                         .build();
                     pages = fileReader.read(obj, ctx);
                 }
@@ -915,7 +919,20 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         CloseableIterator<Page> pages = null;
         try {
             StorageObject obj = storageProvider.newObject(files.path(fileIndex));
-            pages = openWithParallelism(formatReader, obj, cols, errorPolicy, false, true);
+            // Pull this file's coordinator-inferred schema from schemaInfo when available, so the
+            // reader is pinned to the same inference the per-file ColumnMapping was built against.
+            SchemaReconciliation.ColumnMapping mapping = null;
+            List<Attribute> perFileReadSchema = readSchema;
+            if (state.schemaInfo != null) {
+                SchemaReconciliation.FileSchemaInfo info = state.schemaInfo.get(files.path(fileIndex));
+                if (info != null) {
+                    mapping = info.mapping();
+                    if (info.fileSchema() != null) {
+                        perFileReadSchema = info.fileSchema();
+                    }
+                }
+            }
+            pages = openWithParallelism(formatReader, obj, cols, errorPolicy, false, true, perFileReadSchema);
             if (pages == null) {
                 int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining;
                 FormatReadContext ctx = FormatReadContext.builder()
@@ -923,16 +940,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .batchSize(batchSize)
                     .rowLimit(fileBudget)
                     .errorPolicy(errorPolicy)
-                    .readSchema(readSchema)
+                    .readSchema(perFileReadSchema)
                     .build();
                 pages = formatReader.read(obj, ctx);
-            }
-            SchemaReconciliation.ColumnMapping mapping = null;
-            if (state.schemaInfo != null) {
-                SchemaReconciliation.FileSchemaInfo info = state.schemaInfo.get(files.path(fileIndex));
-                if (info != null) {
-                    mapping = info.mapping();
-                }
             }
             CloseableIterator<Page> adapted = adaptSchema(pages, mapping, state.driverContext);
             state.pages = wrapWithInjector(adapted, state.multiFileInjector);
@@ -977,7 +987,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     ) {
         ActionListener<Void> failureListener = failureListener(buffer, driverContext);
         executor.execute(ActionRunnable.run(failureListener, () -> {
-            CloseableIterator<Page> pages = openWithParallelism(formatReader, storageObject, projectedColumns, errorPolicy, false, true);
+            CloseableIterator<Page> pages = openWithParallelism(
+                formatReader,
+                storageObject,
+                projectedColumns,
+                errorPolicy,
+                false,
+                true,
+                readSchema
+            );
             if (pages == null) {
                 FormatReadContext ctx = FormatReadContext.builder()
                     .projectedColumns(projectedColumns)
@@ -1170,7 +1188,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         List<String> cols,
         ErrorPolicy policy,
         boolean recordAlignedMacroSplit,
-        boolean splitIncludesFileLeader
+        boolean splitIncludesFileLeader,
+        @Nullable List<Attribute> perFileReadSchema
     ) throws IOException {
         if (rowLimit != FormatReader.NO_LIMIT || parsingParallelism <= 1) {
             return null;
@@ -1192,7 +1211,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     policy,
                     recordAlignedMacroSplit,
                     splitIncludesFileLeader,
-                    readSchema
+                    perFileReadSchema
                 );
             }
             case STREAM_ONLY_COMPRESSED -> {
@@ -1220,7 +1239,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         parsingParallelism,
                         executor,
                         policy,
-                        readSchema
+                        perFileReadSchema
                     );
                 } catch (Exception e) {
                     decompressed.close();

@@ -1611,15 +1611,13 @@ public class RestEsqlIT extends RestEsqlTestCase {
         assertOK(client().performRequest(indexRequest));
 
         try {
-            RequestObjectBuilder builder = requestObjectBuilder().query(
-                "FROM bucket_csv_test | STATS c=COUNT(*) BY bucket=BUCKET(date, 1 month)"
-            );
+            String query = "FROM bucket_csv_test | STATS c=COUNT(*) BY bucket=BUCKET(date, 1 month) | LIMIT 10";
             // CSV: verify the writer handles a metadata-bearing bucket column without error and produces correct output
-            String csvBody = runEsqlAsTextWithFormat(builder, "csv", null, mode);
+            String csvBody = runEsqlAsTextWithFormat(requestObjectBuilder().query(query), "csv", null, mode);
             assertThat(csvBody, equalTo("c,bucket\r\n1,1985-07-01T00:00:00.000Z\r\n"));
 
             // TXT: smoke-check only — the columnar writer pads/aligns differently, no exact match needed
-            String txtBody = runEsqlAsTextWithFormat(builder, "txt", null, mode);
+            String txtBody = runEsqlAsTextWithFormat(requestObjectBuilder().query(query), "txt", null, mode);
             assertThat(txtBody, containsString("bucket"));
             assertThat(txtBody, containsString("1985-07-01T00:00:00.000Z"));
         } finally {

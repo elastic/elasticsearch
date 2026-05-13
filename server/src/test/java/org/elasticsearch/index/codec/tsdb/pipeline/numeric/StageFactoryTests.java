@@ -23,7 +23,11 @@ public class StageFactoryTests extends ESTestCase {
     }
 
     public void testTransformStageCreationMatchesSpec() {
-        final StageSpec.TransformSpec[] specs = { new StageSpec.DeltaStage(), new StageSpec.OffsetStage(), new StageSpec.GcdStage() };
+        final StageSpec.TransformSpec[] specs = {
+            new StageSpec.DeltaStage(),
+            new StageSpec.OffsetStage(),
+            new StageSpec.GcdStage(),
+            new StageSpec.DeltaOfDeltaStage() };
         for (StageSpec.TransformSpec spec : specs) {
             final NumericCodecStage stage = StageFactory.newTransformStage(spec);
             assertEquals(spec.stageId().id, stage.id());
@@ -40,7 +44,11 @@ public class StageFactoryTests extends ESTestCase {
     }
 
     public void testNewPayloadStageRejectsTransformSpec() {
-        final StageSpec.TransformSpec[] specs = { new StageSpec.DeltaStage(), new StageSpec.OffsetStage(), new StageSpec.GcdStage() };
+        final StageSpec.TransformSpec[] specs = {
+            new StageSpec.DeltaStage(),
+            new StageSpec.OffsetStage(),
+            new StageSpec.GcdStage(),
+            new StageSpec.DeltaOfDeltaStage() };
         for (StageSpec.TransformSpec spec : specs) {
             expectThrows(IllegalArgumentException.class, () -> StageFactory.newPayloadStage(spec, 128));
         }

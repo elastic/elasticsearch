@@ -16,6 +16,7 @@ import org.elasticsearch.index.codec.tsdb.pipeline.StageId;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageSpec;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.BitPackCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaCodecStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaOfDeltaCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.GcdCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.OffsetCodecStage;
 
@@ -44,6 +45,7 @@ public final class StageFactory {
             case StageSpec.DeltaStage ignored -> DeltaCodecStage.INSTANCE;
             case StageSpec.OffsetStage ignored -> OffsetCodecStage.INSTANCE;
             case StageSpec.GcdStage ignored -> GcdCodecStage.INSTANCE;
+            case StageSpec.DeltaOfDeltaStage ignored -> DeltaOfDeltaCodecStage.INSTANCE;
             default -> throw new IllegalArgumentException("Not a transform stage: " + spec);
         };
     }
@@ -77,6 +79,7 @@ public final class StageFactory {
             case DELTA_STAGE -> new StageSpec.DeltaStage();
             case OFFSET_STAGE -> new StageSpec.OffsetStage();
             case GCD_STAGE -> new StageSpec.GcdStage();
+            case DELTA_OF_DELTA_STAGE -> new StageSpec.DeltaOfDeltaStage();
             case BITPACK_PAYLOAD -> new StageSpec.BitPackPayload();
         };
     }

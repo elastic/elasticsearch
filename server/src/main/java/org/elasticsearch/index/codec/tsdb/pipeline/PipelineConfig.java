@@ -130,6 +130,17 @@ public record PipelineConfig(
         }
 
         /**
+         * Adds a delta-of-delta encoding stage. Targets near-constant-rate sequences
+         * (e.g. {@code @timestamp}) where second-order differences are zero or small noise.
+         *
+         * @return this builder
+         */
+        public LongBuilder deltaOfDelta() {
+            transforms.add(new StageSpec.DeltaOfDeltaStage());
+            return this;
+        }
+
+        /**
          * Adds a bit-packing payload and builds the configuration.
          *
          * @return the pipeline configuration

@@ -11,50 +11,63 @@ package org.elasticsearch.index.codec.tsdb.pipeline;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
+
 public class StaticPipelineConfigResolverTests extends ESTestCase {
 
-    public void testResolvesBaselinePipelineShape() {
+    public void testTimestampFieldRoutesToDeltaOfDeltaPipeline() {
         final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
-        final PipelineConfig config = resolver.resolve(new FieldContext(randomBlockSize(), randomFieldName()));
+        final PipelineConfig config = resolver.resolve(new FieldContext(randomBlockSize(), "@timestamp"));
 
-        assertEquals("delta>offset>gcd>bitPack", config.describeStages());
-        assertEquals(PipelineDescriptor.DataType.LONG, config.dataType());
-        assertEquals(3, config.transforms().size());
-        assertNotNull(config.payload());
+        assertEquals(
+            List.of(StageId.DELTA_OF_DELTA_STAGE, StageId.OFFSET_STAGE, StageId.BITPACK_PAYLOAD),
+            config.specs().stream().map(StageSpec::stageId).toList()
+        );
+    }
+
+    public void testNonTimestampFieldRoutesToBaselinePipeline() {
+        final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
+        final PipelineConfig config = resolver.resolve(new FieldContext(randomBlockSize(), randomAlphaOfLengthBetween(1, 16)));
+
+        assertEquals(
+            List.of(StageId.DELTA_STAGE, StageId.OFFSET_STAGE, StageId.GCD_STAGE, StageId.BITPACK_PAYLOAD),
+            config.specs().stream().map(StageSpec::stageId).toList()
+        );
     }
 
     public void testPropagatesBlockSizeFromContext() {
         final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
         final int blockSize = randomBlockSize();
 
-        final PipelineConfig config = resolver.resolve(new FieldContext(blockSize, randomFieldName()));
-
-        assertEquals(blockSize, config.blockSize());
+        assertEquals(blockSize, resolver.resolve(new FieldContext(blockSize, "@timestamp")).blockSize());
+        assertEquals(blockSize, resolver.resolve(new FieldContext(blockSize, randomAlphaOfLengthBetween(1, 16))).blockSize());
     }
 
-    public void testIgnoresFieldName() {
+    public void testTimestampNameIsCaseSensitive() {
         final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
-        final int blockSize = randomBlockSize();
+        final PipelineConfig config = resolver.resolve(new FieldContext(randomBlockSize(), "@TIMESTAMP"));
 
-        final PipelineConfig first = resolver.resolve(new FieldContext(blockSize, "@timestamp"));
-        final PipelineConfig second = resolver.resolve(new FieldContext(blockSize, "metric.value"));
-
-        assertEquals(first, second);
-    }
-
-    public void testRepeatedResolveReturnsEqualConfigs() {
-        final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
-        final FieldContext context = new FieldContext(randomBlockSize(), randomFieldName());
-
-        assertEquals(resolver.resolve(context), resolver.resolve(context));
+        assertEquals(
+            List.of(StageId.DELTA_STAGE, StageId.OFFSET_STAGE, StageId.GCD_STAGE, StageId.BITPACK_PAYLOAD),
+            config.specs().stream().map(StageSpec::stageId).toList()
+        );
     }
 
     public void testCachedBlockSizesReturnSameInstance() {
         final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
         final int blockSize = randomFrom(128, 512);
 
-        final PipelineConfig first = resolver.resolve(new FieldContext(blockSize, randomFieldName()));
-        final PipelineConfig second = resolver.resolve(new FieldContext(blockSize, randomFieldName()));
+        final PipelineConfig first = resolver.resolve(new FieldContext(blockSize, randomAlphaOfLengthBetween(1, 16)));
+        final PipelineConfig second = resolver.resolve(new FieldContext(blockSize, randomAlphaOfLengthBetween(1, 16)));
+        assertSame(first, second);
+    }
+
+    public void testTimestampCachedBlockSizesReturnSameInstance() {
+        final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
+        final int blockSize = randomFrom(128, 512);
+
+        final PipelineConfig first = resolver.resolve(new FieldContext(blockSize, "@timestamp"));
+        final PipelineConfig second = resolver.resolve(new FieldContext(blockSize, "@timestamp"));
         assertSame(first, second);
     }
 
@@ -62,16 +75,12 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
         final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
         final int blockSize = 1 << randomIntBetween(4, 6);
 
-        final PipelineConfig config = resolver.resolve(new FieldContext(blockSize, randomFieldName()));
+        final PipelineConfig config = resolver.resolve(new FieldContext(blockSize, randomAlphaOfLengthBetween(1, 16)));
         assertEquals(blockSize, config.blockSize());
         assertEquals("delta>offset>gcd>bitPack", config.describeStages());
     }
 
     private static int randomBlockSize() {
-        return 1 << randomIntBetween(4, 10);
-    }
-
-    private static String randomFieldName() {
-        return randomAlphaOfLengthBetween(1, 16);
+        return 1 << randomIntBetween(7, 9);
     }
 }

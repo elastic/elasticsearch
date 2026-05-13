@@ -29,6 +29,8 @@ public enum StageId {
     OFFSET_STAGE((byte) 0x02, "offset"),
     /** GCD factoring transform stage. */
     GCD_STAGE((byte) 0x03, "gcd"),
+    /** Delta-of-delta encoding transform stage. */
+    DELTA_OF_DELTA_STAGE((byte) 0x04, "deltaOfDelta"),
 
     /** Bit-packing terminal payload stage. */
     BITPACK_PAYLOAD((byte) 0xA1, "bitPack");
@@ -60,6 +62,7 @@ public enum StageId {
             case (byte) 0x01 -> DELTA_STAGE;
             case (byte) 0x02 -> OFFSET_STAGE;
             case (byte) 0x03 -> GCD_STAGE;
+            case (byte) 0x04 -> DELTA_OF_DELTA_STAGE;
             case (byte) 0xA1 -> BITPACK_PAYLOAD;
             default -> throw new IllegalArgumentException("Unknown stage ID: 0x" + Integer.toHexString(id & 0xFF));
         };

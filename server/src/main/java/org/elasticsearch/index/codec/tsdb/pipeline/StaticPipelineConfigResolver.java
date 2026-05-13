@@ -10,30 +10,45 @@
 package org.elasticsearch.index.codec.tsdb.pipeline;
 
 /**
- * A {@link PipelineConfigResolver} that returns the same pipeline for all fields:
- * {@code delta > offset > gcd > bitpack}. This matches the ES819 baseline
- * encoding and is the default for ES95.
+ * A {@link PipelineConfigResolver} that selects an encoding pipeline by field name.
  *
- * <p>The two production block sizes ({@code 128} and {@code 512}, see
+ * <p>The data stream timestamp field ({@code @timestamp}) is routed to
+ * {@code deltaOfDelta > offset > bitpack}. All other fields use the ES819 baseline
+ * pipeline {@code delta > offset > gcd > bitpack}.
+ *
+ * <p>Both pipelines have their {@link PipelineConfig} precomputed at class load
+ * for the two production block sizes ({@code 128} and {@code 512}, see
  * {@code ES95TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT} and
- * {@code NUMERIC_LARGE_BLOCK_SHIFT}) have their {@link PipelineConfig} precomputed
- * at class load so the per-field write path reuses a single instance instead of
- * rebuilding the same builder chain on every call. Unknown block sizes (e.g.
- * those used by unit tests) fall back to a fresh build.
+ * {@code NUMERIC_LARGE_BLOCK_SHIFT}) so the per-field write path reuses a single
+ * instance instead of rebuilding the same builder chain on every call. Unknown
+ * block sizes (e.g. those used by unit tests) fall back to a fresh build.
  */
 public final class StaticPipelineConfigResolver implements PipelineConfigResolver {
 
     /** Shared stateless instance; mirrors the {@code INSTANCE} pattern used by stage classes. */
     public static final StaticPipelineConfigResolver INSTANCE = new StaticPipelineConfigResolver();
 
+    static final String TIMESTAMP_FIELD_NAME = "@timestamp";
+
     private static final PipelineConfig BLOCK_128 = build(128);
     private static final PipelineConfig BLOCK_512 = build(512);
+    private static final PipelineConfig TIMESTAMP_128 = buildTimestamp(128);
+    private static final PipelineConfig TIMESTAMP_512 = buildTimestamp(512);
 
     private StaticPipelineConfigResolver() {}
 
     @Override
     public PipelineConfig resolve(final FieldContext context) {
         final int blockSize = context.blockSize();
+        if (TIMESTAMP_FIELD_NAME.equals(context.fieldName())) {
+            if (blockSize == 128) {
+                return TIMESTAMP_128;
+            }
+            if (blockSize == 512) {
+                return TIMESTAMP_512;
+            }
+            return buildTimestamp(blockSize);
+        }
         if (blockSize == 128) {
             return BLOCK_128;
         }
@@ -45,5 +60,9 @@ public final class StaticPipelineConfigResolver implements PipelineConfigResolve
 
     private static PipelineConfig build(final int blockSize) {
         return PipelineConfig.forLongs(blockSize).delta().offset().gcd().bitPack();
+    }
+
+    private static PipelineConfig buildTimestamp(final int blockSize) {
+        return PipelineConfig.forLongs(blockSize).deltaOfDelta().offset().bitPack();
     }
 }

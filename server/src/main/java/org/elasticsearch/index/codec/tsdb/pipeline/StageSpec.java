@@ -54,6 +54,14 @@ public sealed interface StageSpec {
         }
     }
 
+    /** Delta-of-delta encoding: stores second-order differences for near-constant-rate sequences. */
+    record DeltaOfDeltaStage() implements TransformSpec {
+        @Override
+        public StageId stageId() {
+            return StageId.DELTA_OF_DELTA_STAGE;
+        }
+    }
+
     /** Bit-packing payload: packs values using the minimum number of bits. */
     record BitPackPayload() implements PayloadSpec {
         @Override

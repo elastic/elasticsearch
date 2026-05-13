@@ -18,6 +18,7 @@ import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageId;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageSpec;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaCodecStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaOfDeltaCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.GcdCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.OffsetCodecStage;
 
@@ -118,6 +119,12 @@ public final class NumericEncodePipeline {
                     context
                 );
                 case GCD_STAGE -> GcdCodecStage.encodeStatic((GcdCodecStage) transformStages[i], values, context.valueCount(), context);
+                case DELTA_OF_DELTA_STAGE -> DeltaOfDeltaCodecStage.encodeStatic(
+                    (DeltaOfDeltaCodecStage) transformStages[i],
+                    values,
+                    context.valueCount(),
+                    context
+                );
                 default -> throw new IllegalStateException("Unexpected encode stage: " + stageIds[i]);
             }
         }

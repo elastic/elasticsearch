@@ -12,6 +12,8 @@ package org.elasticsearch.index;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -219,6 +221,28 @@ public class ColumnarLogsdbIndexModeTests extends ESTestCase {
         assertThat(settings.getMode(), equalTo(IndexMode.COLUMNAR_LOGSDB));
         assertThat("agent_id", equalTo(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey())));
         assertThat("_last", equalTo(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey())));
+    }
+
+    public void testIgnoreMalformedDefaultsToTrue() {
+        Settings settings = IndexSettingsTests.newIndexMeta("test", buildSettings()).getSettings();
+        assertTrue(FieldMapper.IGNORE_MALFORMED_SETTING.get(settings));
+    }
+
+    public void testIgnoreMalformedDefaultsToFalseOnOldVersion() {
+        Settings settings = IndexSettingsTests.newIndexMeta("test", buildSettings(), IndexVersions.LENIENT_UPDATEABLE_SYNONYMS)
+            .getSettings();
+        assertFalse(FieldMapper.IGNORE_MALFORMED_SETTING.get(settings));
+    }
+
+    public void testIgnoreDynamicBeyondLimitDefaultsToTrue() {
+        Settings settings = IndexSettingsTests.newIndexMeta("test", buildSettings()).getSettings();
+        assertTrue(MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.get(settings));
+    }
+
+    public void testIgnoreDynamicBeyondLimitDefaultsToFalseOnOldVersion() {
+        Settings settings = IndexSettingsTests.newIndexMeta("test", buildSettings(), IndexVersions.ENABLE_IGNORE_ABOVE_LOGSDB)
+            .getSettings();
+        assertFalse(MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.get(settings));
     }
 
     private Settings buildSettings() {

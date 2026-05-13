@@ -141,7 +141,7 @@ public class ContextualAiService extends SenderService<ContextualAiModel> implem
     }
 
     @Override
-    protected boolean supportsChunkedInfer() {
+    public boolean supportsChunkedInfer() {
         return false;
     }
 

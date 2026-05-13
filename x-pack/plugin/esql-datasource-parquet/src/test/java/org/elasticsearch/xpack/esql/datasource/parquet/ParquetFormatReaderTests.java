@@ -2251,10 +2251,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             .named("v_bool")
             .named("retention_test_pc");
 
-        // batchSize must be a multiple of 8 so PlainValueDecoder.readBooleans does not skip
-        // bits across batch boundaries - that is an unrelated decoder issue we do not want to
-        // entangle with this regression.
-        int batchSize = 32;
+        int batchSize = 37;
         int totalRows = batchSize * 20;
         // Lookahead must exceed the DecodeBuffers slot count (2 for long/double, 1 for
         // int/boolean) so the producer is guaranteed to reuse a buffer the consumer still

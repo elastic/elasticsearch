@@ -22,7 +22,7 @@
 "Logging usage reflects persisted querylog and ES|QL querylog settings":
   - requires:
       reason: "Logging usage tracking requires 'logging_usage' capability"
-      test_runner_features: [ capabilities ]
+      test_runner_features: [ capabilities, allowed_warnings ]
       capabilities:
         - method: GET
           path: /_xpack/usage

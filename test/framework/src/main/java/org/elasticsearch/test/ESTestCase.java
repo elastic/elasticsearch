@@ -820,25 +820,25 @@ public abstract class ESTestCase extends LuceneTestCase {
                     }
                     return new DeprecationWarning(level, warningText);
                 }).collect(Collectors.toSet());
+                final Set<String> unexpectedWarnings = actualWarningStrings.stream()
+                    .map(warningString -> HeaderWarning.extractWarningValueFromWarningHeader(warningString, stripXContentPosition))
+                    .collect(Collectors.toCollection(HashSet::new));
+
                 for (DeprecationWarning expectedWarning : expectedWarnings) {
                     DeprecationWarning escapedExpectedWarning = new DeprecationWarning(
                         expectedWarning.level,
                         HeaderWarning.escapeAndEncode(expectedWarning.message)
                     );
                     assertThat(actualDeprecationWarnings, hasItem(escapedExpectedWarning));
+                    unexpectedWarnings.remove(expectedWarning.message);
                 }
-                assertEquals(
-                    "Expected "
-                        + expectedWarnings.length
-                        + " warnings but found "
-                        + actualWarningStrings.size()
-                        + "\nExpected: "
-                        + Arrays.asList(expectedWarnings)
-                        + "\nActual: "
-                        + actualWarningStrings,
-                    expectedWarnings.length,
-                    actualWarningStrings.size()
-                );
+                // Do not alert on filtered warnings in addition to expected ones.
+                filteredWarnings().forEach(filtered -> unexpectedWarnings.forEach(warning -> {
+                    if (warning.contains(filtered)) {
+                        unexpectedWarnings.remove(warning);
+                    }
+                }));
+                assertThat("Unexpected warnings found: " + unexpectedWarnings, unexpectedWarnings, empty());
             }
         } finally {
             resetDeprecationLogger();

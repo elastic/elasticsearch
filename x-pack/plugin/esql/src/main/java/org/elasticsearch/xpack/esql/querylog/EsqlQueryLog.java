@@ -53,7 +53,7 @@ public final class EsqlQueryLog {
     public static final String LOGGER_NAME = "esql.querylog";
     private static final Logger queryLogger = LogManager.getLogger(LOGGER_NAME);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(EsqlQueryLog.class);
-    static final String DEPRECATION_MESSAGE = "ES|QL query logging is deprecated. "
+    public static final String DEPRECATION_MESSAGE = "ES|QL query logging is deprecated. "
         + "Please consider using the core query logging feature.";
     private final AtomicBoolean deprecatedLogged = new AtomicBoolean(false);
     private final ActionLoggingFields additionalFields;

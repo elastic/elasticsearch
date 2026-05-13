@@ -116,11 +116,6 @@ public class FuzzyQueryCostEstimatorBenchmark {
         byte[] utf8 = term.getBytes(StandardCharsets.UTF_8);
         termByteLength = utf8.length;
         distinctUtf8Bytes = countDistinctUtf8Bytes(utf8);
-
-        // prefixLength is the (UTF-16) char count fed to FuzzyQuery#getFuzzyAutomaton; the
-        // production path in FuzzyQueries#chargeQuery passes the same char count to the
-        // estimator, so the benchmark mirrors that to stay apples-to-apples with what the
-        // breaker actually sees at runtime.
         precomputedEstimate = new FuzzyQueryCostEstimator(termByteLength, distinctUtf8Bytes, maxEdits, prefixLength).estimate();
         precomputedMeasured = sumRamBytes(term, maxEdits, prefixLength, transpositions);
         precomputedRatio = precomputedMeasured == 0 ? 0.0 : (double) precomputedEstimate / (double) precomputedMeasured;

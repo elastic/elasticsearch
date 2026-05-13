@@ -31,8 +31,7 @@ final class OtelSdkResource {
             .put("service.agent.name", "elasticsearch-otel-sdk")
             .put("service.agent.version", Build.current().version())
             .put("telemetry.distro.name", "elasticsearch-otel-sdk")
-            .put("telemetry.distro.version", Build.current().version())
-            .put("service.language.name", "java");
+            .put("telemetry.distro.version", Build.current().version());
         String nodeName = settings.get("node.name");
         if (nodeName != null) {
             builder.put("service.instance.id", nodeName);

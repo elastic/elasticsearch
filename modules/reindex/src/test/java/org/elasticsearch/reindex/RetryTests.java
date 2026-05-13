@@ -24,8 +24,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequestBuilder;
-import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequestBuilder;
@@ -105,7 +103,7 @@ public class RetryTests extends ESIntegTestCase {
     }
 
     public void testReindexFromRemote() throws Exception {
-        Function<Client, AbstractBulkByScrollRequestBuilder<?, ?>> function = client -> {
+        Function<Client, AbstractBulkByPaginatedSearchRequestBuilder<?, ?>> function = client -> {
             /*
              * Use the master node for the reindex from remote because that node
              * doesn't have a copy of the data on it.
@@ -156,7 +154,7 @@ public class RetryTests extends ESIntegTestCase {
 
     private void testCase(
         String action,
-        Function<Client, AbstractBulkByScrollRequestBuilder<?, ?>> request,
+        Function<Client, AbstractBulkByPaginatedSearchRequestBuilder<?, ?>> request,
         BulkIndexByScrollResponseMatcher matcher
     ) throws Exception {
         /*
@@ -189,7 +187,7 @@ public class RetryTests extends ESIntegTestCase {
         assertFalse(initialBulkResponse.buildFailureMessage(), initialBulkResponse.hasFailures());
         indicesAdmin().prepareRefresh("source").get();
 
-        AbstractBulkByScrollRequestBuilder<?, ?> builder = request.apply(internalCluster().masterClient());
+        AbstractBulkByPaginatedSearchRequestBuilder<?, ?> builder = request.apply(internalCluster().masterClient());
         // Make sure we use more than one batch so we have to scroll
         builder.source().setSize(DOC_COUNT / randomIntBetween(2, 10));
 

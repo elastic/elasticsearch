@@ -60,6 +60,7 @@ public final class InferenceStringGroup implements Writeable, ToXContentObject {
 
     private final List<InferenceString> inferenceStrings;
     private final boolean containsNonTextEntry;
+    private final boolean containsPdfEntry;
 
     /**
      * @param inferenceStrings the list of {@link InferenceString} which should result in generating a single embedding vector
@@ -70,6 +71,7 @@ public final class InferenceStringGroup implements Writeable, ToXContentObject {
             throw new IllegalArgumentException("InferenceStringGroup constructor argument cannot be an empty list");
         }
         containsNonTextEntry = inferenceStrings.stream().anyMatch(InferenceString::isNonText);
+        containsPdfEntry = inferenceStrings.stream().anyMatch(InferenceString::isPdf);
     }
 
     public InferenceStringGroup(StreamInput in) throws IOException {
@@ -93,8 +95,16 @@ public final class InferenceStringGroup implements Writeable, ToXContentObject {
         return containsNonTextEntry;
     }
 
+    public boolean containsPdfEntry() {
+        return containsPdfEntry;
+    }
+
+    public int size() {
+        return inferenceStrings.size();
+    }
+
     public boolean containsMultipleInferenceStrings() {
-        return inferenceStrings.size() > 1;
+        return size() > 1;
     }
 
     @Override
@@ -125,7 +135,7 @@ public final class InferenceStringGroup implements Writeable, ToXContentObject {
     }
 
     private void assertSingleElement() {
-        assert inferenceStrings.size() == 1 : "Multiple-input InferenceStringGroup used in code path expecting a single input.";
+        assert size() == 1 : "Multiple-input InferenceStringGroup used in code path expecting a single input.";
     }
 
     /**
@@ -139,10 +149,7 @@ public final class InferenceStringGroup implements Writeable, ToXContentObject {
      * @return a list of {@link InferenceString}
      */
     public static List<InferenceString> toInferenceStringList(List<InferenceStringGroup> inferenceStringGroups) {
-        return inferenceStringGroups.stream().map(group -> {
-            assert group.inferenceStrings.size() == 1 : "Multiple-input InferenceStringGroup passed to InferenceStringGroup.toStringList";
-            return group.inferenceStrings.getFirst();
-        }).toList();
+        return inferenceStringGroups.stream().map(InferenceStringGroup::value).toList();
     }
 
     /**
@@ -157,7 +164,7 @@ public final class InferenceStringGroup implements Writeable, ToXContentObject {
      * @return a list of {@link InferenceString}
      */
     public static List<String> toStringList(List<InferenceStringGroup> inferenceStringGroups) {
-        return InferenceString.toStringList(toInferenceStringList(inferenceStringGroups));
+        return inferenceStringGroups.stream().map(InferenceStringGroup::textValue).toList();
     }
 
     /**

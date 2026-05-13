@@ -38,8 +38,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
-import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ResumeInfo;
@@ -81,7 +79,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.BackoffPolicy.exponentialBackoff;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
-import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES;
+import static org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest.MAX_DOCS_ALL_MATCHES;
 import static org.elasticsearch.rest.RestStatus.CONFLICT;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 
@@ -90,7 +88,7 @@ import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
  * their tests can use them. Most methods run in the listener thread pool because they are meant to be fast and don't expect to block.
  */
 public abstract class AbstractAsyncBulkByScrollAction<
-    Request extends AbstractBulkByScrollRequest<Request>,
+    Request extends AbstractBulkByPaginatedSearchRequest<Request>,
     Action extends TransportAction<Request, ?>> {
 
     protected final Logger logger;
@@ -273,7 +271,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * @param remoteVersion when reindexing from remote, the remote cluster version. {@code null} when searching the local cluster.
      */
     // Visible for testing
-    static <Request extends AbstractBulkByScrollRequest<Request>> SearchRequest prepareSearchRequest(
+    static <Request extends AbstractBulkByPaginatedSearchRequest<Request>> SearchRequest prepareSearchRequest(
         Request mainRequest,
         boolean needsSourceDocumentVersions,
         boolean needsSourceDocumentSeqNoAndPrimaryTerm,
@@ -308,6 +306,13 @@ public abstract class AbstractAsyncBulkByScrollAction<
         }
         sourceBuilder.version(needsSourceDocumentVersions);
         sourceBuilder.seqNoAndPrimaryTerm(needsSourceDocumentSeqNoAndPrimaryTerm);
+
+        // Force accurate track_total_hits for PIT reindex so Status#total reflects the actual number of matching
+        // documents instead of being clamped at the search default. Scroll doesn't need this, it already forces
+        // accurate counting
+        if (sourceBuilder.pointInTimeBuilder() != null && sourceBuilder.trackTotalHitsUpTo() == null) {
+            sourceBuilder.trackTotalHits(true);
+        }
 
         if (needsVectors) {
             // always include vectors in the response unless explicitly set

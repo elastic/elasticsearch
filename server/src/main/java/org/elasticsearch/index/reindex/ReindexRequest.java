@@ -124,7 +124,7 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
             if (getSearchRequest().source().query() != null) {
                 e = addValidationError("reindex from remote sources should use RemoteInfo's query instead of source's query", e);
             }
-            if (getSlices() == AbstractBulkByScrollRequest.AUTO_SLICES || getSlices() > 1) {
+            if (getSlices() == AbstractBulkByPaginatedSearchRequest.AUTO_SLICES || getSlices() > 1) {
                 e = addValidationError("reindex from remote sources doesn't support slices > 1 but was [" + getSlices() + "]", e);
             }
             if (getSearchRequest().source().slice() != null) {
@@ -540,8 +540,8 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
         return string == null ? defaultValue : parseTimeValue(string, name);
     }
 
-    static void setMaxDocsValidateIdentical(AbstractBulkByScrollRequest<?> request, int maxDocs) {
-        if (request.getMaxDocs() != AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES && request.getMaxDocs() != maxDocs) {
+    static void setMaxDocsValidateIdentical(AbstractBulkByPaginatedSearchRequest<?> request, int maxDocs) {
+        if (request.getMaxDocs() != AbstractBulkByPaginatedSearchRequest.MAX_DOCS_ALL_MATCHES && request.getMaxDocs() != maxDocs) {
             throw new IllegalArgumentException(
                 "[max_docs] set to two different values [" + request.getMaxDocs() + "]" + " and [" + maxDocs + "]"
             );

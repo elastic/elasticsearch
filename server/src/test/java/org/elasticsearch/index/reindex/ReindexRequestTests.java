@@ -49,7 +49,7 @@ import static org.junit.Assert.assertArrayEquals;
 /**
  * Tests some of the validation of {@linkplain ReindexRequest}. See reindex's rest tests for much more.
  */
-public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<ReindexRequest> {
+public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTestCase<ReindexRequest> {
 
     private final BytesReference matchAll = new BytesArray("{ \"foo\" : \"bar\" }");
 
@@ -215,7 +215,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
             )
         );
         // Enable automatic slicing with an automatically chosen number of slices (like setting the slices URL parameter to "auto"):
-        reindex.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+        reindex.setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
         ActionRequestValidationException e = reindex.validate();
         assertEquals(
             "Validation Failed: 1: reindex from remote sources doesn't support slices > 1 but was [" + reindex.getSlices() + "];",
@@ -561,7 +561,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
     /** Verifies that the {@code from} parameter is rejected when not using PIT. */
     public void testFromParameterRejectedWhenNotUsingPit() {
         ReindexRequest request = newRequest();
-        request.getSearchRequest().scroll(null);  // avoid SearchRequest's scroll+from error; we test AbstractBulkByScrollRequest only
+        request.getSearchRequest().scroll(null);  // avoid SearchRequest's scroll+from error; we test AbstractBulkBySearchRequest only
         request.getSearchRequest().source().from(1);
         ActionRequestValidationException validationException = request.validate();
         assertNotNull(validationException);

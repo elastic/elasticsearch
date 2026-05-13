@@ -50,7 +50,10 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 public final class Case extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Case", Case::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Case.class).unaryVariadic(Case::new).name("case");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Case.class)
+        .unaryVariadic(Case::new)
+        .capabilities("flattened")
+        .name("case");
 
     record Condition(Expression condition, Expression value) {
         ConditionEvaluatorSupplier toEvaluator(ToEvaluator toEvaluator) {
@@ -72,6 +75,7 @@ public final class Case extends EsqlScalarFunction {
             "date_nanos",
             "dense_vector",
             "double",
+            "flattened",
             "geo_point",
             "geo_shape",
             "geohash",
@@ -126,6 +130,7 @@ public final class Case extends EsqlScalarFunction {
                 "date_nanos",
                 "dense_vector",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",

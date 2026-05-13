@@ -492,6 +492,38 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE_FOR_LOGSDB_INDICES, fieldType.ignoreAbove().get());
     }
 
+    public void testIgnoreAboveIsSetReturnsFalseWhenIgnoreAboveIsGivenButItsTheSameAsDefaultForColumnarLogsdbIndices() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        // given
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
+        MappingParserContext mappingParserContext = mock(MappingParserContext.class);
+        doReturn(settings).when(mappingParserContext).getSettings();
+        doReturn(indexSettings).when(mappingParserContext).getIndexSettings();
+        doReturn(mock(ScriptCompiler.class)).when(mappingParserContext).scriptCompiler();
+
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", mappingParserContext);
+        builder.ignoreAbove(Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE_FOR_LOGSDB_INDICES);
+
+        KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
+            "field",
+            IndexType.terms(true, true),
+            new TextSearchInfo(mock(FieldType.class), null, mock(NamedAnalyzer.class), mock(NamedAnalyzer.class)),
+            mock(NamedAnalyzer.class),
+            builder,
+            true
+        );
+
+        // when/then
+        assertFalse(fieldType.ignoreAbove().isSet());
+        assertEquals(Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE_FOR_LOGSDB_INDICES, fieldType.ignoreAbove().get());
+    }
+
     public void testIgnoreAboveIsSetReturnsTrueWhenIgnoreAboveIsGivenAsLogsdbDefaultButIndexModIsNotLogsdb() {
         // given
         Settings settings = Settings.builder()

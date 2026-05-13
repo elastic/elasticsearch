@@ -227,6 +227,10 @@ tasks.named("splitPackagesAudit").configure {
   dependsOn extractNativeLibs
 }
 
+tasks.named("sourcesJar").configure {
+  dependsOn extractNativeLibs
+}
+
 // ---------------------------------------------------------------------------
 
 tasks.named("test").configure {

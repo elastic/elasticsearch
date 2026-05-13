@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
@@ -27,4 +28,12 @@ interface PhysicalOperationProviders {
         PhysicalOperation source,
         LocalExecutionPlannerContext context
     );
+
+    /**
+     * Returns the node-level {@link AnalysisRegistry} for resolving analyzers by name,
+     * or {@code null} if this provider doesn't have one.
+     */
+    default AnalysisRegistry analysisRegistry() {
+        return null;
+    }
 }

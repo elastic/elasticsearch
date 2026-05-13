@@ -209,3 +209,24 @@ instance-2       | 2025-09-25T00:40:00.000Z | 2.25E-4    | 0.098632   | 0.0     
 instance-2       | 2025-09-25T00:50:00.000Z | 2.2E-4     | 0.092109   | 0.0        | 0.946027   | 0.0032622
 instance-2       | 2025-09-25T01:00:00.000Z | 2.45E-4    | 0.008362   | 0.0        | 0.033433   | 0.0011529
 ;
+
+// -------------------------------------------------------------------------------
+
+isNotNullFilter (timeseries mode)
+required_capability: ts_command_v0
+required_capability: fix_histogram_blockloaders_isnull
+
+TS tdigest_timeseries_index
+ | WHERE caseTestPlaceholder IS NOT NULL
+ | STATS cnt = COUNT(caseTestPlaceholder) BY instance
+ | KEEP instance, cnt
+ | SORT instance
+;
+
+instance:keyword  | cnt:long
+hand-rolled       | 28
+hand-rolled-empty | 40
+instance-0        | 0
+instance-1        | 0
+instance-2        | 0
+;

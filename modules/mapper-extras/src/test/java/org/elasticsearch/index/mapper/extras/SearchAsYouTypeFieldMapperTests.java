@@ -8,12 +8,10 @@
  */
 package org.elasticsearch.index.mapper.extras;
 
-import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
@@ -35,18 +33,10 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
-import org.elasticsearch.index.analysis.AnalysisMode;
-import org.elasticsearch.index.analysis.AnalyzerComponents;
 import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.analysis.ReloadableCustomAnalyzer;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -78,7 +68,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -899,114 +888,4 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         return false;
     }
 
-    /**
-     * Regression test for https://github.com/elastic/elasticsearch/issues/146914.
-     * When the delegate of a {@code SearchAsYouTypeAnalyzer} is a {@link ReloadableCustomAnalyzer}, calling
-     * {@code tokenStream()} must not throw a {@code ClassCastException} caused by the delegate's reuse
-     * strategy trying to cast the outer wrapper to {@code ReloadableCustomAnalyzer}.
-     */
-    public void testSearchAsYouTypeAnalyzerWithReloadableDelegate() throws Exception {
-        TokenizerFactory tokenizerFactory = TokenizerFactory.newFactory("standard", StandardTokenizer::new);
-
-        AbstractTokenFilterFactory noOpSearchTimeFilter = new AbstractTokenFilterFactory("no_op_search_time") {
-            @Override
-            public AnalysisMode getAnalysisMode() {
-                return AnalysisMode.SEARCH_TIME;
-            }
-
-            @Override
-            public TokenStream create(TokenStream tokenStream) {
-                return tokenStream;
-            }
-        };
-
-        AnalyzerComponents components = new AnalyzerComponents(
-            tokenizerFactory,
-            new CharFilterFactory[0],
-            new TokenFilterFactory[] { noOpSearchTimeFilter }
-        );
-
-        try (
-            ReloadableCustomAnalyzer reloadableAnalyzer = new ReloadableCustomAnalyzer(components, 0, -1);
-            SearchAsYouTypeAnalyzer wrapper = SearchAsYouTypeAnalyzer.withShingle(reloadableAnalyzer, 2)
-        ) {
-            // Before the fix, this threw ClassCastException because SearchAsYouTypeAnalyzer inherited the
-            // delegate's reuse strategy, which hardcodes a cast to ReloadableCustomAnalyzer.
-            try (TokenStream ts = wrapper.tokenStream("field", "hello world")) {
-                ts.reset();
-                ts.end();
-            }
-        }
-    }
-
-    /**
-     * Verifies that after reloading a {@link ReloadableCustomAnalyzer}, its {@code SearchAsYouTypeAnalyzer}
-     * wrapper detects the new components and recreates token streams rather than serving stale cached ones.
-     * This guards against regressions where a reload-unaware strategy (e.g. {@code PER_FIELD_REUSE_STRATEGY})
-     * is used, which would silently ignore synonym or filter updates after the first use.
-     */
-    public void testSearchAsYouTypeAnalyzerPropagatesReloadToWrapper() throws Exception {
-        TokenizerFactory tokenizerFactory = TokenizerFactory.newFactory("standard", StandardTokenizer::new);
-
-        AtomicInteger createCallCount = new AtomicInteger(0);
-        AbstractTokenFilterFactory trackingFilter = new AbstractTokenFilterFactory("tracking") {
-            @Override
-            public AnalysisMode getAnalysisMode() {
-                return AnalysisMode.SEARCH_TIME;
-            }
-
-            @Override
-            public TokenStream create(TokenStream tokenStream) {
-                createCallCount.incrementAndGet();
-                return tokenStream;
-            }
-        };
-
-        AnalyzerComponents initialComponents = new AnalyzerComponents(
-            tokenizerFactory,
-            new CharFilterFactory[0],
-            new TokenFilterFactory[] { trackingFilter }
-        );
-
-        try (
-            ReloadableCustomAnalyzer reloadableAnalyzer = new ReloadableCustomAnalyzer(initialComponents, 0, -1);
-            SearchAsYouTypeAnalyzer wrapper = SearchAsYouTypeAnalyzer.withShingle(reloadableAnalyzer, 2)
-        ) {
-            // First use: components are built fresh
-            try (TokenStream ts = wrapper.tokenStream("field", "hello world")) {
-                ts.reset();
-                while (ts.incrementToken()) {
-                }
-                ts.end();
-            }
-            assertEquals("token stream components should be created on first use", 1, createCallCount.get());
-
-            // Second use without reload: must reuse the cached token stream
-            try (TokenStream ts = wrapper.tokenStream("field", "hello world")) {
-                ts.reset();
-                while (ts.incrementToken()) {
-                }
-                ts.end();
-            }
-            assertEquals("token stream components should be reused when the delegate has not been reloaded", 1, createCallCount.get());
-
-            // Reload: replaces the volatile components reference inside the delegate with a new instance
-            reloadableAnalyzer.reload(
-                "test_analyzer",
-                Settings.builder().put("tokenizer", "standard").putList("filter", "tracking").build(),
-                Map.of("standard", tokenizerFactory),
-                Map.of(),
-                Map.of("tracking", trackingFilter)
-            );
-
-            // After reload: wrapper must detect the new components and recreate token streams
-            try (TokenStream ts = wrapper.tokenStream("field", "hello world")) {
-                ts.reset();
-                while (ts.incrementToken()) {
-                }
-                ts.end();
-            }
-            assertEquals("token stream components must be recreated after reload", 2, createCallCount.get());
-        }
-    }
 }

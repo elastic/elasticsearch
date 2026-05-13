@@ -21,27 +21,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class ElasticsearchAnalyzerWrapperTests extends ESTestCase {
 
     /**
-     * A minimal {@link ElasticsearchAnalyzerWrapper} that returns the wrapped delegate's components unchanged.
-     * Used to verify the base class's reuse-strategy selection without coupling to any specific wrapper subclass.
-     */
-    private static final class IdentityWrapper extends ElasticsearchAnalyzerWrapper {
-        private final Analyzer delegate;
-
-        IdentityWrapper(Analyzer delegate) {
-            super(delegate);
-            this.delegate = delegate;
-        }
-
-        @Override
-        protected Analyzer getWrappedAnalyzer(String fieldName) {
-            return delegate;
-        }
-    }
-
-    /**
      * Verifies that {@link ElasticsearchAnalyzerWrapper} selects a reload-aware reuse strategy when wrapping a
      * {@link ReloadableCustomAnalyzer}. After the delegate is reloaded, the wrapper must invalidate its cached
-     * token stream and rebuild it from the new components — otherwise synonym/filter updates are silently ignored.
+     * token stream and rebuild it from the new components — otherwise reloadable analyzer's
+     * updates are silently ignored.
      */
     public void testWrapperPropagatesReloadFromReloadableDelegate() throws Exception {
         TokenizerFactory tokenizerFactory = TokenizerFactory.newFactory("standard", StandardTokenizer::new);
@@ -66,7 +49,12 @@ public class ElasticsearchAnalyzerWrapperTests extends ESTestCase {
 
         try (
             ReloadableCustomAnalyzer delegate = new ReloadableCustomAnalyzer(components, 0, -1);
-            IdentityWrapper wrapper = new IdentityWrapper(delegate)
+            ElasticsearchAnalyzerWrapper wrapper = new ElasticsearchAnalyzerWrapper(delegate) {
+                @Override
+                protected Analyzer getWrappedAnalyzer(String fieldName) {
+                    return delegate;
+                }
+            }
         ) {
             consume(wrapper);
             assertEquals("first use should create components", 1, createCallCount.get());

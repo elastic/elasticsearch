@@ -31,13 +31,9 @@ public abstract class ElasticsearchAnalyzerWrapper extends AnalyzerWrapper {
         public TokenStreamComponents getReusableComponents(Analyzer analyzer, String fieldName) {
             ElasticsearchAnalyzerWrapper wrapper = (ElasticsearchAnalyzerWrapper) analyzer;
             ReloadableCustomAnalyzer rca = (ReloadableCustomAnalyzer) wrapper.getWrappedAnalyzer(fieldName);
-
-            // Pin storedComponents for this thread via the shared pinning logic.
-            rca.pinCurrentComponents();
-
-            AnalyzerComponents pinned = rca.getStoredComponents();
+            AnalyzerComponents current = rca.getComponents();
             WrapperEntry entry = (WrapperEntry) getStoredValue(analyzer);
-            if (entry == null || entry.components != pinned) {
+            if (entry == null || entry.components != current) {
                 return null;
             }
             return entry.tsc;
@@ -47,7 +43,7 @@ public abstract class ElasticsearchAnalyzerWrapper extends AnalyzerWrapper {
         public void setReusableComponents(Analyzer analyzer, String fieldName, TokenStreamComponents tsc) {
             ElasticsearchAnalyzerWrapper wrapper = (ElasticsearchAnalyzerWrapper) analyzer;
             ReloadableCustomAnalyzer rca = (ReloadableCustomAnalyzer) wrapper.getWrappedAnalyzer(fieldName);
-            setStoredValue(analyzer, new WrapperEntry(rca.getStoredComponents(), tsc));
+            setStoredValue(analyzer, new WrapperEntry(rca.getComponents(), tsc));
         }
     };
 

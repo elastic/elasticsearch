@@ -36,15 +36,17 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
     private final int offsetGap;
 
     /**
-     * Reuse strategy used when this analyzer is invoked directly (not through an
-     * {@link org.apache.lucene.analysis.AnalyzerWrapper}).
-     * <p>Wrapped use is handled by {@link ElasticsearchAnalyzerWrapper}.
+     * An alternative {@link ReuseStrategy} that allows swapping the stored analyzer components when they change.
+     * This is used to change e.g. token filters in search time analyzers.
      */
     private static final ReuseStrategy UPDATE_STRATEGY = new ReuseStrategy() {
         @Override
         public TokenStreamComponents getReusableComponents(Analyzer analyzer, String fieldName) {
             ReloadableCustomAnalyzer custom = (ReloadableCustomAnalyzer) analyzer;
-            if (custom.pinCurrentComponents() == false) {
+            AnalyzerComponents components = custom.getComponents();
+            AnalyzerComponents storedComponents = custom.getStoredComponents();
+            if (storedComponents == null || components != storedComponents) {
+                custom.setStoredComponents(components);
                 return null;
             }
             TokenStreamComponents tokenStream = (TokenStreamComponents) getStoredValue(analyzer);
@@ -157,31 +159,14 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
         storedComponents.set(components);
     }
 
-    AnalyzerComponents getStoredComponents() {
+    private AnalyzerComponents getStoredComponents() {
         return storedComponents.get();
-    }
-
-    /**
-     * Pins the current {@link AnalyzerComponents} snapshot to {@code storedComponents} for this thread.
-     * Both {@link #UPDATE_STRATEGY} and {@link ElasticsearchAnalyzerWrapper} use this single source
-     * of truth for the "snapshot pinned for this call" contract.
-     *
-     * @return {@code true} if the previously pinned components are still current (reusable),
-     *         {@code false} if components changed and a new snapshot was pinned
-     */
-    boolean pinCurrentComponents() {
-        AnalyzerComponents current = getComponents();
-        AnalyzerComponents stored = getStoredComponents();
-        if (stored == null || current != stored) {
-            setStoredComponents(current);
-            return false;
-        }
-        return true;
     }
 
     @Override
     protected TokenStreamComponents createComponents(String fieldName) {
-        AnalyzerComponents components = getStoredComponents();
+        AnalyzerComponents stored = getStoredComponents();
+        final AnalyzerComponents components = stored != null ? stored : getComponents();
         Tokenizer tokenizer = components.getTokenizerFactory().create();
         TokenStream tokenStream = tokenizer;
         for (TokenFilterFactory tokenFilter : components.getTokenFilters()) {
@@ -192,7 +177,11 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
 
     @Override
     protected Reader initReader(String fieldName, Reader reader) {
-        AnalyzerComponents components = getStoredComponents();
+        AnalyzerComponents stored = getStoredComponents();
+        // AnalyzerWrapper subclasses that wrap this RCA bypass UPDATE_STRATEGY, so storedComponents
+        // may be unset; fall back to the volatile. initReader and createComponents may then see
+        // different versions, but char filters are never updateable so the difference is harmless.
+        final AnalyzerComponents components = stored != null ? stored : getComponents();
         if (CollectionUtils.isEmpty(components.getCharFilters()) == false) {
             for (CharFilterFactory charFilter : components.getCharFilters()) {
                 reader = charFilter.create(reader);

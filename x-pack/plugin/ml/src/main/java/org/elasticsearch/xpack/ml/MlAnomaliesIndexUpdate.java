@@ -537,9 +537,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
                         // generations legitimately hold the read alias for historical results.
                         continue;
                     }
-                    req.addAliasAction(
-                        IndicesAliasesRequest.AliasActions.remove().index(claimantName).alias(aliasName).mustExist(false)
-                    );
+                    req.addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(claimantName).alias(aliasName).mustExist(false));
                 }
             }
 

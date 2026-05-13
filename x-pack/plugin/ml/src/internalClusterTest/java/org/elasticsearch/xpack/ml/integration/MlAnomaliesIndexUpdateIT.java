@@ -243,10 +243,7 @@ public class MlAnomaliesIndexUpdateIT extends MlSingleNodeTestCase {
         // v7's writeIndex=true claim.
         var addV8Aliases = client().admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         addV8Aliases.addAliasAction(
-            IndicesAliasesRequest.AliasActions.add()
-                .index(v8)
-                .alias(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
-                .isHidden(true)
+            IndicesAliasesRequest.AliasActions.add().index(v8).alias(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).isHidden(true)
         );
         addV8Aliases.addAliasAction(
             IndicesAliasesRequest.AliasActions.add()

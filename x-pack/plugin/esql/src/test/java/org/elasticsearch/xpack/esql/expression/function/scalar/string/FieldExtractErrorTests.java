@@ -22,6 +22,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class FieldExtractErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
+        assumeTrue("FLATTENED type is only supported in snapshot builds", DataType.FLATTENED.supportedVersion().supportedLocally());
         return paramsToSuppliers(FieldExtractTests.parameters());
     }
 

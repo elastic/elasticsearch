@@ -44,7 +44,13 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         int numResponse = randomIntBetween(0, 10);
         for (int i = 0; i < numResponse; i++) {
             responses.add(
-                new FieldCapabilitiesIndexResponse("index_" + i, null, randomFieldCaps(), randomBoolean(), randomFrom(IndexMode.values()))
+                new FieldCapabilitiesIndexResponse(
+                    "index_" + i,
+                    null,
+                    randomFieldCaps(),
+                    randomBoolean(),
+                    randomFrom(IndexMode.availableModes())
+                )
             );
         }
         int numUnmatched = randomIntBetween(0, 3);
@@ -66,7 +72,13 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         int mutation = response.getIndexResponses().isEmpty() ? 0 : randomIntBetween(0, 3);
         switch (mutation) {
             case 0 -> newResponses.add(
-                new FieldCapabilitiesIndexResponse("extra_index", null, randomFieldCaps(), randomBoolean(), randomFrom(IndexMode.values()))
+                new FieldCapabilitiesIndexResponse(
+                    "extra_index",
+                    null,
+                    randomFieldCaps(),
+                    randomBoolean(),
+                    randomFrom(IndexMode.availableModes())
+                )
             );
             case 1 -> {
                 int toRemove = randomInt(newResponses.size() - 1);
@@ -81,7 +93,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                         null,
                         randomFieldCaps(),
                         randomBoolean(),
-                        randomFrom(IndexMode.values())
+                        randomFrom(IndexMode.availableModes())
                     )
                 );
             }
@@ -95,7 +107,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                         UUIDs.randomBase64UUID(),
                         resp.get(),
                         true,
-                        randomFrom(IndexMode.values())
+                        randomFrom(IndexMode.availableModes())
                     )
                 );
             }
@@ -112,6 +124,12 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         Randomness.shuffle(indexResponses);
         FieldCapabilitiesNodeResponse inNode = randomNodeResponse(indexResponses);
         final TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
+        final boolean hasColumnarMode = indexResponses.stream()
+            .anyMatch(r -> r.getIndexMode() == IndexMode.COLUMNAR || r.getIndexMode() == IndexMode.COLUMNAR_LOGSDB);
+        assumeTrue(
+            "columnar index modes require transport version " + IndexMode.COLUMNAR_INDEX_MODES_ADDED,
+            hasColumnarMode == false || version.supports(IndexMode.COLUMNAR_INDEX_MODES_ADDED)
+        );
         final FieldCapabilitiesNodeResponse outNode = copyInstance(inNode, version);
         assertThat(outNode.getFailures().keySet(), equalTo(inNode.getFailures().keySet()));
         assertThat(outNode.getUnmatchedShardIds(), equalTo(inNode.getUnmatchedShardIds()));

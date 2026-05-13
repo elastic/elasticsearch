@@ -21,6 +21,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.WindowFilter;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DeltaOnlyHistogramMergeOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMerge;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
@@ -145,6 +147,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
+import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -7726,7 +7729,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var sumExtraction = as(Alias.unwrap(sumExtractionEval.expressions().get(0)), ExtractHistogramComponent.class);
 
-        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMerge.class);
+        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), DeltaOnlyHistogramMergeOverTime.class);
         assertFalse(mergePerSeries.hasFilter());
         assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
 
@@ -7757,7 +7760,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var sumExtraction = as(Alias.unwrap(sumExtractionEval.expressions().get(0)), ExtractHistogramComponent.class);
 
-        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMerge.class);
+        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), DeltaOnlyHistogramMergeOverTime.class);
         assertTrue(mergePerSeries.hasFilter());
         assertThat(mergePerSeries.filter(), instanceOf(Equals.class));
         assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
@@ -7790,7 +7793,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var crossSeriesMerge = as(Alias.unwrap(finalAgg.aggregates().get(0)), HistogramMerge.class);
         assertFalse(crossSeriesMerge.hasFilter());
 
-        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMerge.class);
+        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), DeltaOnlyHistogramMergeOverTime.class);
         assertFalse(mergePerSeries.hasFilter());
         assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
 
@@ -7822,7 +7825,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var crossSeriesMerge = as(Alias.unwrap(finalAgg.aggregates().get(0)), HistogramMerge.class);
         assertFalse(crossSeriesMerge.hasFilter());
 
-        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMerge.class);
+        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), DeltaOnlyHistogramMergeOverTime.class);
         assertTrue(mergePerSeries.hasFilter());
         assertThat(mergePerSeries.filter(), instanceOf(Equals.class));
         assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
@@ -7854,7 +7857,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var sumExtraction = as(Alias.unwrap(sumExtractionEval.expressions().get(0)), ExtractHistogramComponent.class);
 
-        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMerge.class);
+        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), DeltaOnlyHistogramMergeOverTime.class);
         assertFalse(mergePerSeries.hasFilter());
         assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
 
@@ -7886,13 +7889,44 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var crossSeriesMerge = as(Alias.unwrap(finalAgg.aggregates().get(0)), HistogramMerge.class);
         assertFalse(crossSeriesMerge.hasFilter());
 
-        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMerge.class);
+        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), DeltaOnlyHistogramMergeOverTime.class);
         assertFalse(mergePerSeries.hasFilter());
         assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
 
         assertThat(Expressions.attribute(aggsByTsid.groupings().get(1)).id(), equalTo(evalBucket.fields().get(0).id()));
         Bucket bucket = as(Alias.unwrap(evalBucket.fields().get(0)), Bucket.class);
         assertThat(Expressions.attribute(bucket.field()).name(), equalTo("@timestamp"));
+    }
+
+    public void testHistogramMergeOverTimeBwcFix() {
+        var query = """
+            TS exp_histo_sample | STATS SUM(responseTime) BY bucket(@timestamp, 1 minute) | LIMIT 10
+            """;
+        // With current version, the per-series agg should remain DeltaOnlyHistogramMergeOverTime
+        {
+            var plan = planMetrics(query);
+            var limit = as(plan, Limit.class);
+            Aggregate finalAgg = as(limit.child(), Aggregate.class);
+            Eval sumExtractionEval = as(finalAgg.child(), Eval.class);
+            TimeSeriesAggregate aggsByTsid = as(sumExtractionEval.child(), TimeSeriesAggregate.class);
+            var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), DeltaOnlyHistogramMergeOverTime.class);
+            assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
+        }
+        // With an old version that doesn't support the new aggregator, the fix should replace it with HistogramMerge
+        {
+            var oldVersion = TransportVersionUtils.getPreviousVersion(DeltaOnlyHistogramMergeOverTime.DEDICATED_AGGREGATOR);
+            var oldVersionOptimizer = new LogicalPlanOptimizer(
+                new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), oldVersion)
+            );
+            var plan = oldVersionOptimizer.optimize(metricsAnalyzer().minimumTransportVersion(oldVersion).query(query));
+            // Verify the TimeSeriesAggregate now uses HistogramMerge for the per-series aggregation
+            var limit = as(plan, Limit.class);
+            Aggregate finalAgg = as(limit.child(), Aggregate.class);
+            Eval sumExtractionEval = as(finalAgg.child(), Eval.class);
+            TimeSeriesAggregate aggsByTsid = as(sumExtractionEval.child(), TimeSeriesAggregate.class);
+            var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMerge.class);
+            assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
+        }
     }
 
     public void testTranslateOverTimeWithWindow() {
@@ -8798,6 +8832,100 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var mvExpand = as(orderBy.child(), MvExpand.class);
         var mvExpand2 = as(mvExpand.child(), MvExpand.class);
         as(mvExpand2.child(), Row.class);
+    }
+
+    public void testPruneRedundantOrderByThroughCompoundOutputEval() {
+        var rule = new PruneRedundantOrderBy();
+
+        var query = """
+            row x = 1
+            | sort x
+            | registered_domain rd = "www.example.com"
+            | stats c = count(*)
+            """;
+        LogicalPlan analyzed = defaultAnalyzer().query(query);
+        LogicalPlan optimized = rule.apply(analyzed);
+
+        var limit = as(optimized, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        var registeredDomain = as(aggregate.child(), RegisteredDomain.class);
+        as(registeredDomain.child(), Row.class);
+    }
+
+    public void testPruneRedundantOrderByThroughCompoundOutputEvalAndMvExpand() {
+        var rule = new PruneRedundantOrderBy();
+
+        var query = """
+            row a = 1, name_str = "a b"
+            | rename a as id_int
+            | sort id_int
+            | mv_expand name_str
+            | registered_domain g = "www.example.com"
+            | stats c = count(*) by g.domain
+            """;
+        LogicalPlan analyzed = defaultAnalyzer().query(query);
+        LogicalPlan optimized = rule.apply(analyzed);
+
+        var limit = as(optimized, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        var registeredDomain = as(aggregate.child(), RegisteredDomain.class);
+        var mvExpand = as(registeredDomain.child(), MvExpand.class);
+        var project = as(mvExpand.child(), Project.class);
+        as(project.child(), Row.class);
+    }
+
+    public void testPruneRedundantOrderByThroughCompoundOutputEvalWithOuterOrderBy() {
+        var rule = new PruneRedundantOrderBy();
+
+        var query = """
+            row x = 1
+            | sort x
+            | registered_domain rd = "www.example.com"
+            | sort rd.domain
+            """;
+        LogicalPlan analyzed = defaultAnalyzer().query(query);
+        LogicalPlan optimized = rule.apply(analyzed);
+
+        var limit = as(optimized, Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        var registeredDomain = as(orderBy.child(), RegisteredDomain.class);
+        as(registeredDomain.child(), Row.class);
+    }
+
+    public void testPruneRedundantOrderByThroughUriParts() {
+        var rule = new PruneRedundantOrderBy();
+
+        var query = """
+            row x = 1
+            | sort x
+            | uri_parts p = "https://www.example.com/foo"
+            | stats c = count(*)
+            """;
+        LogicalPlan analyzed = defaultAnalyzer().query(query);
+        LogicalPlan optimized = rule.apply(analyzed);
+
+        var limit = as(optimized, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        var uriParts = as(aggregate.child(), UriParts.class);
+        as(uriParts.child(), Row.class);
+    }
+
+    public void testPruneRedundantOrderByThroughUserAgent() {
+        var rule = new PruneRedundantOrderBy();
+
+        var query = """
+            row x = 1
+            | sort x
+            | user_agent ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2)"
+            | stats c = count(*)
+            """;
+        LogicalPlan analyzed = defaultAnalyzer().query(query);
+        LogicalPlan optimized = rule.apply(analyzed);
+
+        var limit = as(optimized, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        var userAgent = as(aggregate.child(), UserAgent.class);
+        as(userAgent.child(), Row.class);
     }
 
     /**
@@ -11194,7 +11322,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             "*",
             mapping,
             Map.of("ts_index", IndexMode.TIME_SERIES, "standard_index", IndexMode.STANDARD),
-            Map.of(),
             Map.of(),
             Map.of()
         );

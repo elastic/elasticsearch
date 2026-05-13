@@ -30,6 +30,7 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Booleans;
@@ -635,6 +636,35 @@ public class CompletionFieldMapperTests extends MapperTestCase {
 
         List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertThat(fields, containsInAnyOrder(suggestField("suggestion1"), suggestField("suggestion2"), suggestField("suggestion3")));
+    }
+
+    public void testArrayObjectsLimitDoesNotApplyToCompletionField() throws Exception {
+        int limit = 2;
+        MapperService mapperService = createMapperService(
+            Settings.builder().put(getIndexSettings()).put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), limit).build(),
+            fieldMapping(this::minimalMapping)
+        );
+        DocumentMapper defaultMapper = mapperService.documentMapper();
+        ParsedDocument parsedDocument = defaultMapper.parse(source(b -> {
+            b.startArray("field");
+            for (int i = 0; i < limit + 3; i++) {
+                b.startObject().field("input", "suggestion" + i).field("weight", i + 1).endObject();
+            }
+            b.endArray();
+        }));
+
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("field");
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
+        assertThat(
+            fields,
+            containsInAnyOrder(
+                suggestField("suggestion0"),
+                suggestField("suggestion1"),
+                suggestField("suggestion2"),
+                suggestField("suggestion3"),
+                suggestField("suggestion4")
+            )
+        );
     }
 
     public void testParsingMixed() throws Exception {

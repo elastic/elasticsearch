@@ -74,4 +74,43 @@ public interface RangeAwareFormatReader extends FormatReader {
      * @return an iterator that yields pages from the matching row groups
      */
     CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) throws IOException;
+
+    /**
+     * Returns {@code true} if this reader supports batch multi-file reads via
+     * {@link #readAll}. When supported the execution framework calls {@link #readAll}
+     * for a batch of files instead of calling {@link #readRange} once per split,
+     * allowing the reader to process multiple files concurrently in a single call.
+     * <p>
+     * Only enabled when there are no per-file virtual partition columns (those require
+     * per-split injection that is incompatible with a unified batch iterator).
+     * The default implementation returns {@code false}.
+     */
+    default boolean supportsBatchRead() {
+        return false;
+    }
+
+    /**
+     * Reads all given objects in a single batched call, returning a unified page iterator.
+     * Called by the framework instead of {@link #readRange} when {@link #supportsBatchRead()}
+     * returns {@code true}.
+     * <p>
+     * The reader is responsible for applying any pushed filters and projections internally.
+     * The returned iterator may interleave pages from different files.
+     *
+     * @param splits           per-split descriptors; each carries a storage object plus the byte
+     *                         range {@code [offset, offset+length)} that identifies which row
+     *                         groups within the file belong to this split
+     * @param projectedColumns columns to project, or {@code null} for all columns
+     * @param batchSize        target page size in rows
+     */
+    default CloseableIterator<Page> readAll(List<SplitRef> splits, List<String> projectedColumns, int batchSize) throws IOException {
+        throw new UnsupportedOperationException("readAll not supported by " + getClass().getSimpleName());
+    }
+
+    /**
+     * Per-split descriptor passed to {@link #readAll}. Carries the storage object together
+     * with the byte range {@code [offset, offset+length)} that identifies the row groups
+     * belonging to this split within the file.
+     */
+    record SplitRef(StorageObject object, long offset, long length) {}
 }

@@ -30,7 +30,6 @@ public final class Utils {
     }
 
     public static void configureBenchmarkLogging() {
-        LogConfigurator.loadLog4jPlugins();
         NodeNamePatternConverter.setGlobalNodeName("benchmark");
         LogConfigurator.configureESLogging();
     }

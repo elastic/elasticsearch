@@ -102,9 +102,10 @@ import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM
 
 public class DataStreamsPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, HealthPlugin {
 
+    public static final int TIME_SERIES_POLL_INTERVAL_DEFAULT = 3;
     public static final Setting<TimeValue> TIME_SERIES_POLL_INTERVAL = Setting.timeSetting(
         "time_series.poll_interval",
-        TimeValue.timeValueMinutes(5),
+        TimeValue.timeValueMinutes(TIME_SERIES_POLL_INTERVAL_DEFAULT),
         TimeValue.timeValueMinutes(1),
         TimeValue.timeValueMinutes(10),
         Setting.Property.NodeScope,
@@ -112,9 +113,10 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
     );
 
     private static final TimeValue MAX_LOOK_AHEAD_TIME = TimeValue.timeValueHours(2);
+    public static final int LOOK_AHEAD_TIME_DEFAULT = 9;
     public static final Setting<TimeValue> LOOK_AHEAD_TIME = Setting.timeSetting(
         "index.look_ahead_time",
-        TimeValue.timeValueMinutes(30),
+        TimeValue.timeValueMinutes(LOOK_AHEAD_TIME_DEFAULT),
         TimeValue.timeValueMinutes(1),
         TimeValue.timeValueDays(7), // is effectively 2h now.
         Setting.Property.IndexScope,

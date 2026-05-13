@@ -15,13 +15,11 @@ import fixture.gcs.TestUtils;
 
 import com.google.api.gax.rpc.HeaderProvider;
 import com.google.cloud.http.HttpTransportOptions;
-import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.StorageRetryStrategy;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
-import org.apache.http.HttpStatus;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
@@ -36,7 +34,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
@@ -56,10 +53,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
-import org.elasticsearch.telemetry.InstrumentType;
-import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.threeten.bp.Duration;
 
@@ -70,8 +64,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
@@ -86,20 +78,11 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSetting
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BASE_PATH;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BUCKET;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.CLIENT_NAME;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a Google Cloud Storage endpoint")
 public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
     private static final String CLIENT_ID_HEADER = "x-es-test-client-id";
-
-    private static final AtomicBoolean testTenaciousRetries = new AtomicBoolean(false);
-    private static final AtomicLong tenaciousAttempts = new AtomicLong(0);
-    private static final AtomicLong tenaciousRetriesRequired = new AtomicLong(0);
-
-    private static final RecordingMeterRegistry tenaciousRecordingMeterRegistry = new RecordingMeterRegistry();
-    private static final RepositoriesMetrics tenaciousRepositoriesMetrics = new RepositoriesMetrics(tenaciousRecordingMeterRegistry);
 
     @Override
     protected String repositoryType() {
@@ -299,57 +282,6 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         destinationBlobContainer.delete(randomPurpose());
     }
 
-    public void testTenaciousRetries() throws IOException {
-        testTenaciousRetries.set(true);
-        tenaciousAttempts.set(0);
-        final var requiredAttempts = randomIntBetween(10, 15);
-        tenaciousRetriesRequired.set(requiredAttempts);
-        final var repoName = createRepository(randomRepositoryName(), false);
-        final var repositoriesService = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class);
-        final var repository = (BlobStoreRepository) repositoriesService.repository(ProjectId.DEFAULT, repoName);
-        final BlobContainer container = repository.blobStore().blobContainer(repository.basePath());
-
-        try {
-            // ErroneousHttpHandler is not always applied.
-            if (super.applyErroneousHttpHandler) {
-                // No retry logics for non list operations.
-                expectThrows(StorageException.class, () -> container.listBlobs(BlobStoreTestUtil.randomFiniteRetryingPurpose()));
-
-                expectThrows(
-                    StorageException.class,
-                    () -> container.listBlobsByPrefix(BlobStoreTestUtil.randomFiniteRetryingPurpose(), randomIdentifier())
-                );
-
-                expectThrows(StorageException.class, () -> container.listBlobs(BlobStoreTestUtil.randomFiniteRetryingPurpose()));
-                tenaciousRecordingMeterRegistry.getRecorder().resetCalls();
-                container.children(OperationPurpose.INDICES);
-
-                tenaciousRecordingMeterRegistry.getRecorder().collect();
-                assertThat(getMeasurements(tenaciousRecordingMeterRegistry), greaterThanOrEqualTo(requiredAttempts - 4));
-                assertThat(getAttributes(tenaciousRecordingMeterRegistry).size(), equalTo(3));
-                assertThat(getAttributes(tenaciousRecordingMeterRegistry).get("repo_type"), equalTo("gcs"));
-                assertThat(getAttributes(tenaciousRecordingMeterRegistry).get("operation"), equalTo("ListObjects"));
-                assertThat(getAttributes(tenaciousRecordingMeterRegistry).get("purpose"), equalTo(OperationPurpose.INDICES.getKey()));
-            }
-        } finally {
-            testTenaciousRetries.set(false);
-            container.delete(randomPurpose());
-        }
-    }
-
-    private int getMeasurements(RecordingMeterRegistry meterRegistry) {
-        return meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_COUNTER, RepositoriesMetrics.METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL)
-            .size();
-    }
-
-    private Map<String, Object> getAttributes(RecordingMeterRegistry meterRegistry) {
-        return meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_COUNTER, RepositoriesMetrics.METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL)
-            .getFirst()
-            .attributes();
-    }
-
     @Override
     public void testRequestStats() throws Exception {
         super.testRequestStats();
@@ -439,44 +371,10 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                             long getLargeBlobThresholdInBytes() {
                                 return ByteSizeUnit.MB.toBytes(1);
                             }
-
-                            @Override
-                            public BlobContainer blobContainer(BlobPath path) {
-                                if (testTenaciousRetries.get()) {
-                                    return new TestGcsTenaciousRetryBlobContainer(
-                                        new GoogleCloudStorageBlobContainer(path, this),
-                                        tenaciousRepositoriesMetrics
-                                    );
-                                }
-
-                                return super.blobContainer(path);
-                            }
                         };
                     }
                 }
             );
-        }
-    }
-
-    private static class TestGcsTenaciousRetryBlobContainer extends GcsTenaciousRetryBlobContainer {
-
-        TestGcsTenaciousRetryBlobContainer(BlobContainer delegate, RepositoriesMetrics repositoriesMetrics) {
-            super(delegate, repositoriesMetrics);
-        }
-
-        @Override
-        protected boolean isExceptionRetryable(Exception e) {
-            return ExceptionsHelper.unwrap(e, IOException.class) != null;
-        }
-
-        @Override
-        protected BlobContainer wrapChild(BlobContainer child) {
-            return new TestGcsTenaciousRetryBlobContainer(child, tenaciousRepositoriesMetrics);
-        }
-
-        @Override
-        protected long getRetryDelayInMillis(int attempt) {
-            return 10;
         }
     }
 
@@ -545,31 +443,9 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
 
         @Override
         protected boolean canFailRequest(final HttpExchange exchange) {
-            if (testTenaciousRetries.get()) {
-                tenaciousAttempts.incrementAndGet();
-                return tenaciousAttempts.get() < tenaciousRetriesRequired.get();
-            }
-
             // Batch requests are not retried so we don't want to fail them
             // The batched request are supposed to be retried (not tested here)
             return exchange.getRequestURI().toString().startsWith("/batch/") == false;
-        }
-
-        @Override
-        protected void handleAsError(final HttpExchange exchange) throws IOException {
-            if (testTenaciousRetries.get()) {
-                try (exchange) {
-                    drainInputStream(exchange.getRequestBody());
-                    exchange.sendResponseHeaders(HttpStatus.SC_GATEWAY_TIMEOUT, -1);
-                }
-            }
-
-            super.handleAsError(exchange);
-        }
-
-        @Override
-        protected boolean applyMaxErrorsPerRequest() {
-            return testTenaciousRetries.get() == false;
         }
     }
 

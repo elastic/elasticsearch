@@ -613,8 +613,57 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             if (rowLimit != FormatReader.NO_LIMIT && state.rowsRemaining <= 0) {
                 return DrainResult.DONE;
             }
+            // Yield on upstream-blocked (e.g. streaming-parallel iterator waiting on parser threads)
+            // — symmetric to the downstream-buffer-full yield below. Without this the producer-loop
+            // would spin inside {@code hasNext()} holding its executor slot while the iterator's
+            // segmenter/parser sub-tasks compete for slots on the same pool: with default
+            // {@code parsing_parallelism = cores} and F concurrent file readers we'd need
+            // F + F + F×cores slots, exhausting the generic pool on multi-file gzip globs.
+            // Synchronous iterators ({@code CloseableIterator}'s default) return an
+            // immediately-completed listener and fall straight through.
+            SubscribableListener<Void> ready = pages.waitForReady();
+            if (ready.isDone() == false) {
+                ready.addListener(ActionListener.wrap(v -> {
+                    try {
+                        executor.execute(() -> runProducerLoop(state, completionListener));
+                    } catch (Exception e) {
+                        closeQuietly(state.pages);
+                        state.pages = null;
+                        completionListener.onFailure(e);
+                    }
+                }, e -> {
+                    closeQuietly(state.pages);
+                    state.pages = null;
+                    completionListener.onFailure(e);
+                }));
+                return DrainResult.BLOCKED;
+            }
             if (pages.hasNext() == false) {
-                return DrainResult.EOF;
+                // Race: waitForReady reported done (page available or EOF), but by the time we
+                // called hasNext the state advanced (e.g. another consumer drained, or POISON
+                // got handled inside hasNext and the next slot is not yet populated). For
+                // synchronous iterators where the default waitForReady returns immediately-done,
+                // hasNext=false truly means EOF and the recheck remains done. For async iterators
+                // like {@code StreamingParallelIterator}, a non-done recheck means the iterator
+                // is still producing — yield and let the parser-side {@code signalReady()} wake us.
+                SubscribableListener<Void> recheck = pages.waitForReady();
+                if (recheck.isDone()) {
+                    return DrainResult.EOF;
+                }
+                recheck.addListener(ActionListener.wrap(v -> {
+                    try {
+                        executor.execute(() -> runProducerLoop(state, completionListener));
+                    } catch (Exception e) {
+                        closeQuietly(state.pages);
+                        state.pages = null;
+                        completionListener.onFailure(e);
+                    }
+                }, e -> {
+                    closeQuietly(state.pages);
+                    state.pages = null;
+                    completionListener.onFailure(e);
+                }));
+                return DrainResult.BLOCKED;
             }
             SubscribableListener<Void> space = buffer.waitForSpace();
             if (space.isDone() == false) {

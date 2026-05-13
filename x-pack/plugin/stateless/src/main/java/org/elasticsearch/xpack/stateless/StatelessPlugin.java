@@ -188,7 +188,6 @@ import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTask;
 import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTaskExecutor;
 import org.elasticsearch.xpack.stateless.recovery.PITRelocationService;
 import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
-import org.elasticsearch.xpack.stateless.recovery.RelocationHandoffMetrics;
 import org.elasticsearch.xpack.stateless.recovery.RemoveRefreshClusterBlockService;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
@@ -492,7 +491,6 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<TranslogReplicator> translogReplicator = new SetOnce<>();
     private final SetOnce<TranslogRecoveryMetrics> translogReplicatorMetrics = new SetOnce<>();
     private final SetOnce<HollowShardsMetrics> hollowShardMetrics = new SetOnce<>();
-    private final SetOnce<RelocationHandoffMetrics> relocationHandoffMetrics = new SetOnce<>();
     private final SetOnce<StatelessElectionStrategy> electionStrategy = new SetOnce<>();
     private final SetOnce<StoreHeartbeatService> storeHeartbeatService = new SetOnce<>();
     // protected for testing
@@ -855,8 +853,6 @@ public class StatelessPlugin extends Plugin
             HollowShardsMetrics.from(services.telemetryProvider().getMeterRegistry(), this::amountOfHollowableShards)
         );
         components.add(hollowShardMetrics.get());
-        setAndGet(relocationHandoffMetrics, RelocationHandoffMetrics.from(services.telemetryProvider().getMeterRegistry()));
-        components.add(relocationHandoffMetrics.get());
         components.add(new StatelessComponents(translogReplicator, objectStoreService));
         setAndGet(this.bccHeaderReadExecutor, new BCCHeaderReadExecutor(threadPool));
 
@@ -1504,7 +1500,7 @@ public class StatelessPlugin extends Plugin
                 getStatelessSharedBlobCacheService(),
                 snapshotsCommitService,
                 clusterService.get(),
-                relocationHandoffMetrics.get()
+                recoveryMetricsCollector.get()
             )
         );
         indexModule.addIndexEventListener(recoveryMetricsCollector.get());

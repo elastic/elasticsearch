@@ -577,6 +577,19 @@ public final class MultiRowTestCaseSupplier {
         return cases;
     }
 
+    public static List<TypedDataSupplier> flattenedCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        if (DataType.FLATTENED.supportedVersion().supportedLocally() == false) {
+            return cases;
+        }
+        addSuppliers(cases, minRows, maxRows, "empty", DataType.FLATTENED, FlattenedCases.EMPTY);
+        addSuppliers(cases, minRows, maxRows, "single key", DataType.FLATTENED, FlattenedCases.SINGLE_KEY);
+        addSuppliers(cases, minRows, maxRows, "multi key", DataType.FLATTENED, FlattenedCases.MULTI_KEY);
+        addSuppliers(cases, minRows, maxRows, "object", DataType.FLATTENED, FlattenedCases.OBJECT);
+        addSuppliers(cases, minRows, maxRows, "random", DataType.FLATTENED, FlattenedCases.RANDOM);
+        return cases;
+    }
+
     public static List<TypedDataSupplier> tsidCases(int minRows, int maxRows) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 

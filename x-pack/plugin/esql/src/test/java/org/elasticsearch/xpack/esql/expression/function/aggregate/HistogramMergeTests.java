@@ -79,7 +79,7 @@ public class HistogramMergeTests extends AbstractAggregationTestCase {
         });
     }
 
-    private static Matcher<?> createExpectedTDigestMatcher(List<Object> fieldValues) {
+    static Matcher<?> createExpectedTDigestMatcher(List<Object> fieldValues) {
         List<TDigestHolder> inputValues = fieldValues.stream().map(v -> (TDigestHolder) v).toList();
         return new BaseMatcher<TDigestHolder>() {
             @Override
@@ -96,7 +96,7 @@ public class HistogramMergeTests extends AbstractAggregationTestCase {
         };
     }
 
-    private static Matcher<?> createExpectedExponentialHistogramMatcher(List<Object> fieldValues) {
+    static Matcher<?> createExpectedExponentialHistogramMatcher(List<Object> fieldValues) {
         ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(ExponentialHistogramCircuitBreaker.noop());
 
         boolean anyValuesNonNull = false;

@@ -38,6 +38,8 @@ steps:
             machineType: n4-standard-16
             diskType: hyperdisk-balanced
             buildDirectory: /dev/shm/bk
+            preemptible: true
+            spotZones: us-east1-b,us-east1-c,us-east1-d,us-central1-a,us-central1-b,us-central1-c,us-central1-f,us-west1-a,us-west1-b
           matrix:
             setup:
               PART: ["1", "2", "3", "4", "5", "6"]

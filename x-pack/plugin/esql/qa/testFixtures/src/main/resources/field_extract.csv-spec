@@ -456,3 +456,38 @@ FROM flattened_otel_logs
 2020-01-01T00:07:43.000Z | devops-ci-master-blue.c.elastic-ci-prod.internal
 2020-01-01T00:31:18.303Z | elasticsearch-ci-immutable-sles-15-1599243844262984968
 ;
+
+caseWithFieldExtractInCondition
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+required_capability: fn_case_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL c = CASE(FIELD_EXTRACT(attributes, "type") == "beats", attributes, resource.attributes)
+| KEEP @timestamp, c
+;
+
+@timestamp:date          | c:flattened
+2020-01-01T00:02:48.461Z | "{""rally.message_size"":""192"",""type"":""beats""}"
+;
+
+fieldExtractOnCaseResult
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+required_capability: fn_case_flattened
+
+FROM flattened_otel_logs
+| WHERE FIELD_EXTRACT(CASE(@timestamp < "2020-01-01T12:00:00Z", resource.attributes, attributes), "host.name") == "infra-filebeat-6vjxr"
+| KEEP @timestamp
+| SORT @timestamp
+;
+warningRegex:Line 2:9: evaluation of \[FIELD_EXTRACT\(CASE\(.+\),.+\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:9: java\.lang\.IllegalArgumentException: path \[host\.name\] does not exist
+
+@timestamp:date
+2020-01-01T00:02:48.461Z
+2020-01-01T11:38:54.751Z
+;

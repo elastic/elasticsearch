@@ -3,7 +3,19 @@
 ### Supported function named parameters
 
 `strategy`
-:   (keyword) The chunking strategy to use. Default value is `sentence`.
+:   (keyword) The chunking strategy to use. Default value is `sentence`. Available strategies:
+
+* `sentence`: splits at sentence boundaries. Use `sentence_overlap` to share a sentence between
+  adjacent chunks.
+* `word`: splits on individual words. Use `overlap` to share words between adjacent chunks.
+* `recursive`: splits using configurable separator patterns — either a predefined
+  `separator_group` (`plaintext` or `markdown`) or a custom list of `separators` — falling back
+  to sentence-level splitting when no separator produces a chunk within `max_chunk_size`.
+* `none`: returns the entire input as a single chunk.
+
+For a full description of each strategy and how its options interact, refer to
+[chunking strategies](docs-content://explore-analyze/elastic-inference/inference-api.md#chunking-strategies).
+
 
 `max_chunk_size`
 :   (integer) The maximum size of a chunk in words. This value cannot be lower than `20` (for `sentence` strategy)
@@ -18,7 +30,7 @@ This value cannot be higher than half the `max_chunk_size` value.
 
 `sentence_overlap`
 :   (integer) The number of overlapping sentences for chunks. It is applicable only for a `sentence` chunking strategy.
-It can be either `1` or `0`.
+It can be either `1` or `0`. Defaults to `0`.
 
 
 `separator_group`

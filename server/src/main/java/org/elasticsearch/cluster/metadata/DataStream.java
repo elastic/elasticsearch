@@ -870,26 +870,18 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         DataStreamAutoShardingEvent autoShardingEvent
     ) {
         IndexMode dsIndexMode = this.indexMode;
-        if ((dsIndexMode == null || dsIndexMode == IndexMode.STANDARD) && indexModeFromTemplate == IndexMode.TIME_SERIES) {
-            // This allows for migrating a data stream to be a tsdb data stream:
-            // (only if index_mode=null|standard then allow it to be set to time_series)
-            dsIndexMode = IndexMode.TIME_SERIES;
-        } else if (dsIndexMode == IndexMode.TIME_SERIES && (indexModeFromTemplate == null || indexModeFromTemplate == IndexMode.STANDARD)) {
-            // Allow downgrading a time series data stream to a regular data stream
-            dsIndexMode = null;
-        } else if ((dsIndexMode == null || dsIndexMode == IndexMode.STANDARD) && indexModeFromTemplate == IndexMode.LOGSDB) {
-            dsIndexMode = IndexMode.LOGSDB;
-        } else if (dsIndexMode == IndexMode.LOGSDB && (indexModeFromTemplate == null || indexModeFromTemplate == IndexMode.STANDARD)) {
-            // Allow downgrading a time series data stream to a regular data stream
-            dsIndexMode = null;
-        } else if (dsIndexMode == IndexMode.TIME_SERIES && indexModeFromTemplate == IndexMode.LOGSDB) {
-            dsIndexMode = IndexMode.LOGSDB;
-            LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
-        } else if (dsIndexMode == IndexMode.LOGSDB && indexModeFromTemplate == IndexMode.TIME_SERIES) {
-            dsIndexMode = IndexMode.TIME_SERIES;
-            LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
+        if (dsIndexMode == IndexMode.LOOKUP || indexModeFromTemplate == IndexMode.LOOKUP) {
+            throw new IllegalArgumentException(
+                "[" + name + "] is a data stream, unsafe rollover is not allowed for [" + IndexMode.LOOKUP + "] index mode"
+            );
         }
-
+        if (dsIndexMode != indexModeFromTemplate) {
+            if (indexModeFromTemplate == IndexMode.TIME_SERIES
+                && (dsIndexMode == IndexMode.LOGSDB || dsIndexMode == IndexMode.COLUMNAR_LOGSDB)) {
+                LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
+            }
+            dsIndexMode = indexModeFromTemplate;
+        }
         List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices);
         backingIndices.add(writeIndex);
         return copy().setBackingIndices(

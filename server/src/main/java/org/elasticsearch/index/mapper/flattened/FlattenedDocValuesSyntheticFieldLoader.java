@@ -212,10 +212,12 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         };
 
         String parentPrefix = fieldFullPath + ".";
-        List<Map.Entry<String, SourceLoader.SyntheticFieldLoader>> sortedSubFieldEntries = subFieldLoaders.stream()
-            .filter(SourceLoader.SyntheticFieldLoader::hasValue)
-            .map(loader -> Map.entry(loader.fieldName().substring(parentPrefix.length()), loader))
-            .toList();
+        List<Map.Entry<String, SourceLoader.SyntheticFieldLoader>> sortedSubFieldEntries = new ArrayList<>();
+        for (SourceLoader.SyntheticFieldLoader loader : subFieldLoaders) {
+            if (loader.hasValue()) {
+                sortedSubFieldEntries.add(Map.entry(loader.fieldName().substring(parentPrefix.length()), loader));
+            }
+        }
 
         return new FlattenedFieldSyntheticWriterHelper(sortedKeyedValues, keyedOffsetFieldSupplier, sortedSubFieldEntries);
     }

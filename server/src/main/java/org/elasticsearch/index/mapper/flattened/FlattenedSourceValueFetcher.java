@@ -34,7 +34,7 @@ import java.util.TreeSet;
  * into a single flat JSON blob rather than being processed individually. Just like doc
  * values.
  */
-class FlattenedSourceValueFetcher extends SourceValueFetcher {
+final class FlattenedSourceValueFetcher extends SourceValueFetcher {
     private final Set<String> sourcePaths;
     private final Object nullValue;
     private final boolean preserveArrays;

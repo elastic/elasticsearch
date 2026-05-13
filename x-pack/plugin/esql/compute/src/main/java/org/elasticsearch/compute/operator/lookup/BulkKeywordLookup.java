@@ -40,11 +40,11 @@ public class BulkKeywordLookup {
     private PostingsEnum[] postingsCache = null;
     private final BytesRef scratch = new BytesRef();
 
-    public BulkKeywordLookup(MappedFieldType rightFieldType, int matchChannelOffset, int extractChannelOffset, Warnings warnings) {
+    public BulkKeywordLookup(String rightFieldName, int matchChannelOffset, int extractChannelOffset, Warnings warnings) {
         this.matchChannelOffset = matchChannelOffset; // offset of field in left (page shipped to lookup index)
         this.extractChannelOffset = extractChannelOffset; // offset of field in right (page from ValuesSourceReaderOperator)
         this.warnings = warnings;
-        this.fieldName = rightFieldType.name();
+        this.fieldName = rightFieldName;
     }
 
     /**

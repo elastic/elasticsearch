@@ -189,12 +189,16 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
 
     @Override
     public BytesRefVector filter(boolean mayContainDuplicates, int... positions) {
-        // Share the dictionary with the filtered vector; flagged needsCompaction so phantoms are stripped
-        // at the wire boundary or by consumers that walk the dictionary directly.
+        // See OrdinalBytesRefBlock#filter: a no-duplicates filter whose length matches the source is a
+        // permutation, so no rows are dropped and we can propagate the source's flag rather than
+        // forcing true.
+        boolean filteredNeedsCompaction = (mayContainDuplicates == false && positions.length == ordinals.getPositionCount())
+            ? needsCompaction
+            : true;
         OrdinalBytesRefVector result = null;
         IntVector filteredOrdinals = ordinals.filter(mayContainDuplicates, positions);
         try {
-            result = new OrdinalBytesRefVector(filteredOrdinals, bytes, true);
+            result = new OrdinalBytesRefVector(filteredOrdinals, bytes, filteredNeedsCompaction);
             bytes.incRef();
         } finally {
             if (result == null) {

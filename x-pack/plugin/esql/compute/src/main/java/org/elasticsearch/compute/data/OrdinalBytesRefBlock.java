@@ -243,12 +243,17 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
 
     @Override
     public BytesRefBlock filter(boolean mayContainDuplicates, int... positions) {
-        // Share the dictionary with the filtered block; the result is flagged needsCompaction so the wire
-        // boundary (and any consumer that walks the dictionary directly) can compact away phantoms.
+        // Share the dictionary with the filtered block. By default we flag needsCompaction so the
+        // wire boundary and dictionary-walking consumers can strip phantoms. If positions is a
+        // permutation of the source (no duplicates, same length) every source row survives and no
+        // new phantoms are introduced — propagate the source's flag instead of forcing true.
+        boolean filteredNeedsCompaction = (mayContainDuplicates == false && positions.length == ordinals.getPositionCount())
+            ? needsCompaction
+            : true;
         OrdinalBytesRefBlock result = null;
         IntBlock filteredOrdinals = ordinals.filter(mayContainDuplicates, positions);
         try {
-            result = new OrdinalBytesRefBlock(filteredOrdinals, bytes, true);
+            result = new OrdinalBytesRefBlock(filteredOrdinals, bytes, filteredNeedsCompaction);
             bytes.incRef();
         } finally {
             if (result == null) {

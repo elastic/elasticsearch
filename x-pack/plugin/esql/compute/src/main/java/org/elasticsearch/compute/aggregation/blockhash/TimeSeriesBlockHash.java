@@ -30,8 +30,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
-import java.util.Arrays;
-
 /**
  * An optimized block hash that receives two blocks: tsid and timestamp, which are sorted.
  * Since the incoming data is sorted, this block hash checks tsid ordinals to avoid redundant
@@ -158,8 +156,8 @@ public final class TimeSeriesBlockHash extends BlockHash {
         try {
             // Lazy ord-to-tsid cache. Phantom dictionary entries (left over from filter()/slice()/keepMask())
             // are never visited because no row references them, and therefore never enter tsidHash.
+            // Entries store {@code tsid + 1}; the zero-init array doubles as the "unseen" sentinel.
             final int[] dictOrds = new int[dictLength];
-            Arrays.fill(dictOrds, UNSEEN);
             final int[] groupIds = new int[ordinalsLength];
             int prevTsid = lazyTsid(dictOrds, dictVector, ordinalsVector.getInt(0));
             long prevTimestamp = timestamps.getLong(0);
@@ -184,15 +182,13 @@ public final class TimeSeriesBlockHash extends BlockHash {
         }
     }
 
-    private static final int UNSEEN = -1;
-
     private int lazyTsid(int[] cache, BytesRefVector dict, int dictOrd) {
         int tsid = cache[dictOrd];
-        if (tsid == UNSEEN) {
-            tsid = Math.toIntExact(hashOrdToGroup(tsidHash.add(dict.getBytesRef(dictOrd, scratch))));
+        if (tsid == 0) {
+            tsid = Math.toIntExact(hashOrdToGroup(tsidHash.add(dict.getBytesRef(dictOrd, scratch)))) + 1;
             cache[dictOrd] = tsid;
         }
-        return tsid;
+        return tsid - 1;
     }
 
     private void addVector(BytesRefVector tsidVector, LongVector timestamps, GroupingAggregatorFunction.AddInput addInput) {

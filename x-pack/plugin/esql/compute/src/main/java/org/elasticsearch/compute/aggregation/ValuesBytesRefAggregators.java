@@ -18,10 +18,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 
-import java.util.Arrays;
-
 final class ValuesBytesRefAggregators {
-    private static final int UNSEEN = -1;
 
     static GroupingAggregatorFunction.AddInput wrapAddInput(
         GroupingAggregatorFunction.AddInput delegate,
@@ -38,11 +35,13 @@ final class ValuesBytesRefAggregators {
         blockFactory.breaker().addEstimateBytesAndMaybeBreak(acquiredBytes, "ValuesBytesRefAggregator");
         boolean success = false;
         try {
-            // Ord-to-hashId cache. When phantoms are possible (needsCompaction()==true) we leave entries
-            // at UNSEEN and let lazyHashId fill them on first reference, so phantom dict entries never
-            // enter state.bytes. When no phantoms are possible (the dense Parquet path) we pre-hash the
-            // whole dictionary up front, so the per-row UNSEEN branch in lazyHashId is always predicted
-            // not-taken — restoring the old eager fast path for clickbench-style dense aggregations.
+            // Ord-to-hashId cache. Entries store {@code hashId + 1}, so the zero-initialized array
+            // doubles as the "unseen" sentinel. When phantoms are possible (needsCompaction()==true)
+            // we leave the array zeroed and let lazyHashId fill entries on first reference, so
+            // phantom dict entries never enter state.bytes. When no phantoms are possible (the dense
+            // Parquet path) we pre-hash the whole dictionary up front, so the per-row zero-check in
+            // lazyHashId is always predicted not-taken — restoring the old eager fast path for
+            // clickbench-style dense aggregations.
             final int[] hashIds = valuesOrdinal.needsCompaction() ? newLazyHashIds(dict.getPositionCount()) : eagerHashIds(state, dict);
             final BytesRef scratch = new BytesRef();
             final IntBlock ordinalIds = valuesOrdinal.getOrdinalsBlock();
@@ -184,37 +183,37 @@ final class ValuesBytesRefAggregators {
     }
 
     /**
-     * Returns a per-page lazy ord-to-hashId cache, sized by the dictionary and pre-filled with
-     * {@link #UNSEEN}. Entries are populated by {@link #lazyHashId} on first reference, so phantom
-     * dictionary entries that no row touches never enter {@code state.bytes}.
+     * Returns a per-page lazy ord-to-hashId cache, sized by the dictionary. Entries are populated by
+     * {@link #lazyHashId} on first reference, so phantom dictionary entries that no row touches never
+     * enter {@code state.bytes}. The cache stores {@code hashId + 1}; the JVM's zero-init makes
+     * {@code 0} the implicit "unseen" sentinel without an explicit fill.
      */
     static int[] newLazyHashIds(int dictSize) {
-        int[] cache = new int[dictSize];
-        Arrays.fill(cache, UNSEEN);
-        return cache;
+        return new int[dictSize];
     }
 
     /**
      * Eager counterpart used when the input block guarantees no phantom dictionary entries: every
-     * dict entry is hashed up front, so subsequent {@link #lazyHashId} calls hit on the first
-     * cache load and the {@code v == UNSEEN} branch becomes a predicted-not-taken no-op.
+     * dict entry is hashed up front (storing {@code hashId + 1}), so subsequent {@link #lazyHashId}
+     * calls hit on the first cache load and the {@code v == 0} branch becomes a predicted-not-taken
+     * no-op.
      */
     static int[] eagerHashIds(ValuesBytesRefAggregator.GroupingState state, BytesRefVector dict) {
         int[] cache = new int[dict.getPositionCount()];
         BytesRef scratch = new BytesRef();
         for (int p = 0; p < dict.getPositionCount(); p++) {
-            cache[p] = Math.toIntExact(BlockHash.hashOrdToGroup(state.bytes.add(dict.getBytesRef(p, scratch))));
+            cache[p] = Math.toIntExact(BlockHash.hashOrdToGroup(state.bytes.add(dict.getBytesRef(p, scratch)))) + 1;
         }
         return cache;
     }
 
     static int lazyHashId(int ord, BytesRefVector dict, int[] cache, BytesRef scratch, ValuesBytesRefAggregator.GroupingState state) {
         int v = cache[ord];
-        if (v == UNSEEN) {
-            v = Math.toIntExact(BlockHash.hashOrdToGroup(state.bytes.add(dict.getBytesRef(ord, scratch))));
+        if (v == 0) {
+            v = Math.toIntExact(BlockHash.hashOrdToGroup(state.bytes.add(dict.getBytesRef(ord, scratch)))) + 1;
             cache[ord] = v;
         }
-        return v;
+        return v - 1;
     }
 
     static void addOrdinalInputBlock(

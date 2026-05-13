@@ -41,6 +41,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.Preference;
@@ -190,14 +191,21 @@ public class SynonymsManagementAPIService {
         this.pitBatchSize = pitBatchSize;
         this.bulkChunkSize = bulkChunkSize;
         this.featureService = featureService;
-        // Cache feature support to avoid calling clusterService.state() from the cluster applier thread,
-        // which is forbidden. SynonymTokenFilterFactory calls checkClusterSupportsMultipleSynonymSets()
-        // from IndicesService.createIndex, which runs on the cluster applier thread.
-        ClusterStateListener multiSetFeatureListener = event -> this.clusterSupportsMultipleSynonymSets = featureService.clusterHasFeature(
-            event.state(),
+        this.clusterSupportsMultipleSynonymSets = featureService.clusterHasFeature(
+            clusterService.state(),
             SynonymFeatures.MULTIPLE_SYNONYM_SETS_PER_FILTER
         );
-        clusterService.addListener(multiSetFeatureListener);
+        if (this.clusterSupportsMultipleSynonymSets == false) {
+            clusterService.addListener(new ClusterStateListener() {
+                @Override
+                public void clusterChanged(ClusterChangedEvent event) {
+                    if (featureService.clusterHasFeature(event.state(), SynonymFeatures.MULTIPLE_SYNONYM_SETS_PER_FILTER)) {
+                        clusterSupportsMultipleSynonymSets = true;
+                        clusterService.removeListener(this);
+                    }
+                }
+            });
+        }
     }
 
     /* The synonym index stores two object types:

@@ -1,6 +1,6 @@
 # OTel audit log delivery: POC writeup for ES-14356
 
-This PoC validates the ES side of the OTel audit-log pipeline: an audit event emitted by `LoggingAuditTrail` reaches an in-process recording OTLP server through log4j and the OTel SDK, in a security-enabled multi-node test, with `project.id` attached and the SDK's `BatchLogRecordProcessor` keeping I/O off the calling thread. The real `otel-delivery-gateway`, MOTel, and destination project aren't exercised here; closing that gap is [§4.12](#sec-4-12). Around half of the cross-team requirements are satisfied or close to it; the meaningful gaps are mTLS to the gateway, a stdout fallback for exhausted retries, per-project filtering, dynamic configuration, and a few field-shape problems caused by the upstream `OpenTelemetryAppender`. R3 specifically has three open gaps that are larger than the PoC suggests: `security_config_change` events bypass `withThreadContext` in the existing audit-emit code ([§4.3](#sec-4-3)); cross-cluster CPS strips the project header at the boundary, so linked-side events have no `project.id` ([§4.4](#sec-4-4)); and Cloud API key audit (the dominant serverless path) is structurally incomplete and gets `project.id` only because the platform ingress sets it ([§4.13](#sec-4-13)).
+This PoC validates the ES side of the OTel audit-log pipeline: an audit event emitted by `LoggingAuditTrail` reaches an in-process recording OTLP server through log4j and the OTel SDK, in a security-enabled multi-node test, with `project.id` attached and the SDK's `BatchLogRecordProcessor` keeping I/O off the calling thread. The real `otel-delivery-gateway`, MOTel, and destination project aren't exercised here; closing that gap is [§4.12](#sec-4-12). Around half of the cross-team requirements are satisfied or close to it; the meaningful gaps are mTLS to the gateway, a stdout fallback for exhausted retries, per-project filtering, dynamic configuration, and a few field-shape problems caused by the upstream `OpenTelemetryAppender`. R3 specifically has four open gaps that are larger than the PoC suggests: `security_config_change` events bypass `withThreadContext` in the existing audit-emit code ([§4.3](#sec-4-3)); cross-cluster CPS strips the project header at the boundary, so linked-side events have no `project.id` ([§4.4](#sec-4-4)); Cloud API key audit (the dominant serverless path) is structurally incomplete and gets `project.id` only because the platform ingress sets it ([§4.13](#sec-4-13)); and audit reads `project.id` via a different mechanism than authorization, so the two can disagree on any deployment ([§4.14](#sec-4-14)).
 
 I'm not expecting anyone to read this doc end-to-end;
 I've arranged it so you can skip to the parts you care about.
@@ -48,7 +48,7 @@ Sources: Gateway TDD §"Standardized Audit Log schema" + §"How services emit"; 
 
 ### <a id="sec-2-3"></a>2.3 R3: Enrich audit events with `project.id`
 
-*Partially satisfied ([§3.3](#sec-3-3)). Three open gaps: `security_config_change` events bypass the chokepoint ([§4.3](#sec-4-3)); cross-cluster CPS leaves linked-side events without `project.id` ([§4.4](#sec-4-4)); Cloud API key audit shape is incomplete and the chokepoint is fragile under UIAM ([§4.13](#sec-4-13)).*
+*Partially satisfied ([§3.3](#sec-3-3)). Four open gaps: `security_config_change` events bypass the chokepoint ([§4.3](#sec-4-3)); cross-cluster CPS leaves linked-side events without `project.id` ([§4.4](#sec-4-4)); Cloud API key audit shape is incomplete and the chokepoint is fragile under UIAM ([§4.13](#sec-4-13)); and audit reads `project.id` via a different mechanism than authorization, so the two can disagree on any deployment ([§4.14](#sec-4-14)).*
 
 Audit events must carry `project.id` so the gateway can route per-project. The PoC plumbs the field through `LoggingAuditTrail.LogEntryBuilder.withThreadContext()`. The 12 public audit-emit methods all reach this chokepoint; however, `accessGranted` also emits a parallel `security_config_change` log entry through a private builder factory that bypasses `withThreadContext()`, so events of `event.type=security_config_change` (put_user, put_role, change_password, create_api_key, etc.) do not carry `project.id`. End-to-end OTLP delivery has been verified for one event type only.
 
@@ -99,6 +99,8 @@ In a multi-project setup, ES must drop audit records for projects whose customer
 **Placement** (must be ES-side; downstream components can't filter per project today): in the [#log-delivery-project-team thread of 2026-04-29](https://elastic.slack.com/archives/C09PANY7FFS/p1777474914646739), Ankit Sethi wrote *"a lot of this can/should happen within the security plugin itself"*; Valentin Crettaz concurred *"MOTel is too far away down the delivery pipeline to do this, the filtering needs to happen at the source (i.e. by ES/Serverless itself)"*; Julio Camarero wrote *"since these logs are sent over HTTP, we can save a lot of resources if only logs which should be routed are sent, therefore, I fully agree with the approach of filtering happening at elasticsearch."* In a parallel [#hosted-otel-collector thread the same day](https://elastic.slack.com/archives/C076MUD9BK8/p1777471821757409), Vignesh Shanmugam wrote *"the processing/redact bits should live as part of the SDK layer inside ES for now till we have support for managed processing layer"*, and Andrew Wilkins later noted *"otel-delivery-gateway is the thing that would be transforming logs before they hit MOTel"* (i.e. the eventual external home for transformations is the gateway, not MOTel). As of today, neither MOTel nor the gateway filters per project.
 
 **Durable reason** (ES-side even if downstream filtering eventually becomes possible): cost. Emitting OTLP for N projects only to drop most of it downstream still pays the ES → gateway network hop. Even a future gateway-side filter wouldn't satisfy this; the cost is incurred before the filter sees the record.
+
+**Customer toggle**: `_cluster/settings` is permanently off the table in serverless (Ryan Ernst, Mark Vieira; see [§4.15](#sec-4-15)). Customers turn audit on/off per project via the Control Plane's Project API (`PATCH /api/v1/serverless/projects/<type>/{id}`), which is already wired up for audit-logging enablement today. The signal reaches ES via file-based settings; see [§4.15](#sec-4-15) for the structural cost of exposing additional audit settings this way, and [§5.5](#sec-5-5) for the `ProjectScope` setting-type alternative.
 
 ### <a id="sec-2-9"></a>2.9 R9: Non-blocking emit path
 
@@ -296,11 +298,11 @@ Today the `BatchLogRecordProcessor` drops on queue overflow with no fallback. Pr
 
 ### <a id="sec-4-8"></a>4.8 R8: Per-project ID filter
 
-The PoC has no per-project gating; the only per-project field on the record today is `project.id` itself (R3). Production needs (a) an appender-path filter that drops events whose `project.id` is not in the enabled set, and (b) a config source for the enabled set. Per the Gateway TDD §"Conditionally enabling per-tenant log delivery in ECP services / applications", the mechanism is per-project file-based settings rendered by the `elasticsearch-controller`, which ES then reads. This is coupled to R12: the filter has to react to those settings changing without a restart.
+The PoC has no per-project gating; the only per-project field on the record today is `project.id` itself (R3). Production needs (a) an appender-path filter that drops events whose `project.id` is not in the enabled set, and (b) a config source for the enabled set. Per the Gateway TDD §"Conditionally enabling per-tenant log delivery in ECP services / applications", the mechanism is per-project file-based settings rendered by the `elasticsearch-controller`, which ES then reads. This is coupled to R12: the filter has to react to those settings changing without a restart. See [§4.15](#sec-4-15) for the structural cost of carrying this per-project.
 
 ### <a id="sec-4-9"></a>4.9 R12: Configuration without cluster restart
 
-The PoC reads `telemetry.otel.logs.enabled` once in `OtelSdkExportLogsSupplier.install()` at startup; toggling it requires a restart. R8's per-project state would have the same problem if implemented today. Production needs a settings/state listener that re-installs or reconfigures the appender path on change. Cluster-level dynamic on/off for `xpack.security.audit.enabled` is being addressed separately by Audit TDD Req 1 / [PR 147333](https://github.com/elastic/elasticsearch/pull/147333), but that's a different setting and doesn't cover the OTel-logs path.
+The PoC reads `telemetry.otel.logs.enabled` once in `OtelSdkExportLogsSupplier.install()` at startup; toggling it requires a restart. R8's per-project state would have the same problem if implemented today. Production needs a settings/state listener that re-installs or reconfigures the appender path on change. Cluster-level dynamic on/off for `xpack.security.audit.enabled` is being addressed separately by Audit TDD Req 1 / [PR 147333](https://github.com/elastic/elasticsearch/pull/147333), but that's a different setting and doesn't cover the OTel-logs path. R12's per-project state inherits the [§4.15](#sec-4-15) structural cost.
 
 ### <a id="sec-4-10"></a>4.10 R13: Tuned retry policy and buffer size
 
@@ -319,13 +321,56 @@ The PoC's IT uses an in-process recording server, and that test still serves its
 `LoggingAuditTrail.addAuthenticationFieldsToLogEntry(...)` carries an `assert false == authentication.isCloudApiKey()` (added in [PR #129227](https://github.com/elastic/elasticsearch/pull/129227), June 2025) labelled *"audit logging for Cloud API keys is not supported"*. The assert is a Java-`assert` only — it's a no-op in production (`-ea` is off) but fires in tests. Inspecting the method body, the path runs cleanly for Cloud API keys; the assert is documenting a structural-shape gap, not guarding a crash:
 
 - `Authentication.isApiKey()` returns `false` for Cloud API keys (their `Subject.Type` is `CLOUD_API_KEY`, not `API_KEY`), so the `if (authentication.isApiKey() || authentication.isCrossClusterAccess())` branch on the API-key path never runs. As a result, **`api_key.id` and `api_key.name` are not populated** for any Cloud-API-key-authenticated audit event. The event ends up with `principal_realm = _cloud_api_key` and an `authentication_type = api_key` but no key identifier. An audit consumer expecting `api_key.id` for API-key-typed events sees a hole.
-- Separately, on serverless the dominant authentication method is UIAM (Cloud API keys), and UIAM doesn't put `X-Elastic-Project-Id` into `ThreadContext` itself — its project context lives in `CloudAuthenticateProjectContext` carried through auth metadata. So when only UIAM is in the picture (no platform ingress also setting the header), `withThreadContext` finds nothing and `project.id` is absent. In production the platform ingress *also* sets `X-Elastic-Project-Id`, so the header path works; but the dependency on the ingress for the R3 chokepoint to fire is a fragility worth noting, and any non-ingress UIAM call path (e.g. service-to-service inside ECP) would emit audit events with no `project.id`. (The "ingress always sets the header" assumption should be confirmed authoritatively with the Control-Plane / Platform Ingress team, including the set of paths where it would *not* fire.)
+- Separately, on serverless the dominant authentication method is UIAM (Cloud API keys), and UIAM doesn't put `X-Elastic-Project-Id` into `ThreadContext` itself — its project context lives in `CloudAuthenticateProjectContext` carried through auth metadata. So when only UIAM is in the picture (no platform ingress also setting the header), `withThreadContext` finds nothing and `project.id` is absent. In production the platform ingress *also* sets `X-Elastic-Project-Id`, so the header path works; but the dependency on the ingress for the R3 chokepoint to fire is a fragility worth noting, and any non-ingress UIAM call path (e.g. service-to-service inside ECP) would emit audit events with no `project.id`. (The "ingress always sets the header" assumption should be confirmed authoritatively with the Control-Plane / Platform Ingress team, including the set of paths where it would *not* fire.) This is one specific manifestation of the broader audit-vs-auth divergence in [§4.14](#sec-4-14).
 
 Decisions and work needed:
 
 1. **Decide the audit shape for Cloud-API-key-authenticated requests.** Specifically: which fields populate the `api_key.*` namespace, given the source values live in Cloud API key metadata rather than the regular API key store? This is mostly an alignment conversation with the UIAM team (Slobodan Adamović owns the original assert).
 2. **Source `project.id` from somewhere other than (or in addition to) the HTTP header.** Options: read from `CloudAuthenticateProjectContext` if present; pull from the `serverless.project_id` node setting; use the `CustomAuditLoggingMetadataProvider` extension point ([§5.4](#sec-5-4)) to let the serverless module inject project ID independently of the ingress header path. Whichever choice is made, decoupling R3 from ingress fragility is the win.
 3. **Implement the chosen shape and remove the assert.** The fix unblocks the [§4.4](#sec-4-4) routing-direction conversation (which is gated on linked-side `project.id` being populated at all).
+
+### <a id="sec-4-14"></a>4.14 Audit reads `project.id` via a different mechanism than authorization
+
+The PoC populates `project.id` on audit records by having `LoggingAuditTrail.LogEntryBuilder.withThreadContext(...)` read `Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER` directly from `ThreadContext`. Authorization, by contrast, goes through `ProjectResolver.getProjectId()` — the canonical accessor — which has fallback logic on the same header. The two reads of "the current project" can disagree.
+
+`ServerlessProjectResolver.getFallbackProjectId()` currently returns `Metadata.DEFAULT_PROJECT_ID` and is tagged `@FixForMultiProject(description = "This should throw an exception")`. A sibling check in `allowAccessToAllProjects(...)` is tagged `@FixForMultiProject(description = "Should require a user")` for the no-auth-allows-all-projects branch. Both are known multi-project defects scheduled for repair.
+
+So today, the same request can be:
+
+- **Authorized** as a real project (because `ProjectResolver` falls back to `DEFAULT_PROJECT_ID`, or grants access-to-all on missing-auth, per the annotations above), AND
+- **Audited** with `project.id` absent (because the raw header is null and audit has no fallback).
+
+That divergence is itself a structural bug: audit records should reflect what authorization actually used. It also subsumes more specific manifestations:
+
+- The CPS linked-side gap ([§4.4](#sec-4-4)): header stripped at the cross-cluster boundary, resolver falls back to `DEFAULT_PROJECT_ID`, audit emits null.
+- The Cloud API key / ingress dependency ([§4.13](#sec-4-13)): UIAM doesn't populate the header itself, so audit depends on the platform ingress; auth uses the resolver fallback or `CloudAuthenticateProjectContext` auth metadata.
+- Any non-ingress-fronted serverless call path (e.g. service-to-service inside ECP) has the same shape: auth resolves something (legitimately or via the fallback bug), audit records nothing.
+
+The fix is to pull audit and auth onto the same source of truth. [§5.4](#sec-5-4) lays out the constructor options; this session's analysis recommends `CustomAuditLoggingMetadataProvider`, since it handles the divergence in core ES *and* the linked-side and ingress-fragility manifestations in one place. See [§6.1.8](#sec-6-1-8).
+
+Note on terminology: `DEFAULT_PROJECT_ID` is the legitimate marker only in non-serverless deployments (which have no project concept). In any serverless deployment — single-project per cluster or multi-project — every cluster has a real customer-assigned project ID, and `DEFAULT_PROJECT_ID` is always wrong. The storage-architecture axis (stateful = disk, stateless = object store) is orthogonal to this.
+
+### <a id="sec-4-15"></a>4.15 Per-project exposure of existing ES audit settings is structural work, not configuration
+
+Audit logging in ES already has the relevant knobs: `xpack.security.audit.enabled`, `xpack.security.audit.logfile.emit_*`, the event filters, etc. Each is a cluster-level `Setting<T>`, consumed via `Settings` plus (where applicable) a cluster-settings listener. In serverless multi-project, cluster-level granularity is wrong — the cluster can host multiple projects, each potentially wanting different audit configuration. Exposing any of these per-project (which R8 requires for the audit-enabled toggle, and which R12's per-project state would need) requires:
+
+1. Negotiating the Project API contract with the Control Plane team — field names, shape, per-log-type sub-levers.
+2. Adding a `Metadata.ProjectCustom` (or extending an existing one) to hold the per-project copy, populated from the rendered file settings via a `ReservedProjectStateHandler`.
+3. Generalizing each setting's consumer so it reads from either `Settings` (for stateful and single-project serverless) or the per-project `ProjectCustom` (for multi-project).
+4. Maintaining the dual representation going forward: each new audit setting that needs per-project granularity pays the same tax.
+
+This is significant structural work relative to the apparent ask ("let the customer turn audit logging on or off per project"). R8 ([§4.8](#sec-4-8)) and R12 ([§4.9](#sec-4-9)) both inherit this cost. Worth surfacing to stakeholders before the work starts so they can weigh it against alternatives: e.g., cluster-wide audit configuration in serverless (which constrains the UX but avoids the per-project plumbing entirely), or scoping R8 narrowly to delivery-side filtering (drop on emit based on `project.id`) without exposing customer-facing per-project toggles in this round.
+
+**Customer-facing chain** (confirmed in [#log-delivery-project-team thread 2026-05-12](https://elastic.slack.com/archives/C8UUBNASY/p1778614283945929) and [its sub-thread](https://elastic.slack.com/archives/C8UUBNASY/p1778614459655819)): the customer's entry point is the Control Plane's Project API — specifically the public `PATCH /api/v1/serverless/projects/<type>/{id}` endpoint, already used today to enable audit logging at the project level. The API persists configuration in CosmosDB and propagates it via `elasticsearchappconfig` / `kibanaappconfig` Kubernetes resources to the regional `elasticsearch-controller` / `kibana-controller`, which renders per-project file settings into the cluster. ES reads via reserved-state handlers.
+
+**Two important constraints from that thread:**
+
+- **`_cluster/settings` is permanently off the table in serverless.** Ryan Ernst: doesn't make sense in MP, and won't change. Mark Vieira confirmed. So the only customer path for adjusting any ES setting in serverless is the Project API.
+- **The Project API has no arbitrary-cluster-settings facility.** Mark Vieira: there are "setting-like things" in the API but "we'd have to introduce these as explicit settings" — each one requires explicit Project API extension. This is what makes the per-setting tax above unavoidable under today's architecture.
+
+**Concrete customer-controllable settings inventory (audit logs alone):** five `xpack.security.audit.logfile.events.ignore_filters.*`, plus `events.include` and `events.exclude`, plus likely more. Cost-impacting, customers will want control. Valentin Crettaz has committed to producing a mapping document covering ES audit logs, Kibana audit logs, ES query logs, and Kibana user activity logs.
+
+**Principle from the same thread (3 `:100:` reactions on Mark Vieira's framing):** *"I'd be remiss to just default to 'let's just handle it entirely in ES' because we feel it's less friction."* The right architectural answer is to go through the Project API even though it's higher-friction than wiring directly in ES. A design-discussion meeting is scheduled (Mark, Patrick, Ankit Sethi, Valentin, Ryan, Julio Camarero) to nail down the convention going forward. See [§5.5](#sec-5-5) for the structural alternative ([`ProjectScope`](#sec-5-5)).
 
 ## <a id="sec-5"></a>5. Decision points
 
@@ -369,12 +414,30 @@ This is worth deciding before the audit-log path grows further.
 
 ### <a id="sec-5-4"></a>5.4 `LoggingAuditTrail` constructor signature for `project.id`
 
-The PoC reads `X-Elastic-Project-Id` from `ThreadContext` directly inside `withThreadContext()`, which works because the header is always populated by the time audit events fire. Two alternatives are worth weighing:
+The PoC reads `X-Elastic-Project-Id` from `ThreadContext` directly inside `withThreadContext()`, which works for the common origin-customer-via-ingress path. [§4.14](#sec-4-14) makes a stronger argument for changing it: audit reads the raw header, auth uses `ProjectResolver` (with `@FixForMultiProject`-tagged fallbacks), and the two can disagree on what project the request is operating under. Three options:
 
-- Inject `ProjectResolver` into the `LoggingAuditTrail` constructor. `ProjectResolver` is the canonical accessor and handles edge cases (cross-cluster, internal actions with no project) more gracefully.
-- Use the `CustomAuditLoggingMetadataProvider` extension point proposed in Audit TDD Req 7. That keeps the OSS `LoggingAuditTrail` unchanged and lets the Serverless module inject `project.id` (and any future per-deployment metadata) via the existing extension pattern, similar to how `CustomAuthenticator` is used by UIAM. Worth coordinating with the audit TDD owner.
+- **`CustomAuditLoggingMetadataProvider`** (Audit TDD Req 7). **Recommended.** The Serverless module registers a provider that injects `project.id` from whichever source is right for the call path (resolver, cluster config, UIAM auth metadata). Non-serverless ES has no provider loaded, so the field is structurally absent. Cleanly handles the [§4.14](#sec-4-14) divergence, the [§4.4](#sec-4-4) linked-side gap, and the [§4.13](#sec-4-13) ingress fragility in one place; aligned with the audit TDD's design; lets the dual-deployment discriminator (serverless vs not) fall out of which modules load. Worth coordinating with the audit TDD owner on contract details.
+- **Inject `ProjectResolver`** into the `LoggingAuditTrail` constructor. Reads from the canonical accessor, so audit and auth agree by construction. Doesn't solve the linked-side gap on its own (resolver returns `DEFAULT_PROJECT_ID` there until the `@FixForMultiProject` fallback is repaired) and doesn't isolate the project concept from non-serverless ES.
+- **Keep the direct `ThreadContext` read.** Status quo. Leaves [§4.14](#sec-4-14) unresolved.
 
-Not urgent; the header path is correct for the common case.
+### <a id="sec-5-5"></a>5.5 Per-setting plumbing vs. `ProjectScope` setting type
+
+The [§4.15](#sec-4-15) structural cost is per-setting today: each audit setting we want to expose to serverless customers requires the four-step ritual (Project API field, CosmosDB persistence, `ProjectCustom` in ES, consumer refactor). Audit alone needs at least seven settings; Valentin's pending inventory will add Kibana audit, ES query logs, and Kibana user activity logs. There are also "potentially hundreds" of existing `NodeScope` settings across ES that will eventually want project-scoped exposure.
+
+A structural alternative, raised in [#log-delivery-project-team 2026-05-13](https://elastic.slack.com/archives/C8UUBNASY/p1778614459655819): introduce a `ProjectScope` setting type alongside the existing `NodeScope`. The idea:
+
+- A `ProjectScope` setting knows how to source its value contextually: from `Settings` / cluster settings in non-serverless deployments; from per-project file settings (rendered into a `ProjectCustom` by the reserved-state handler) in serverless.
+- Existing `NodeScope` settings can be converted to `ProjectScope` over time without callsite refactors — the `Setting<T>` itself handles the dual lookup, and the listeners run in a thread context where `ProjectLocal.get()` returns the right per-project value.
+- Mark Vieira (Core/Infra) green-lit the direction in principle: *"That should be possible. If they are existing settings, you'd just make them project scoped and then it would be set by the existing file-based settings mechanism for cluster settings."* (with the caveat: *"with some work in this area to make per-project settings more ergonomic"*).
+
+Two options:
+
+| Option | Pros | Cons |
+|---|---|---|
+| **Plan A: per-setting plumbing.** Each setting we expose gets its own field in the Project API, its own field in a `ProjectCustom`, and its own consumer refactor. | Smallest delta for the specific audit settings we need now. No new framework. | Repeats the four-step ritual for every future per-project setting (potentially hundreds). Drift risk between `Setting<T>` and `ProjectCustom` representations. |
+| **Plan B: `ProjectScope` setting type.** Build the framework once; every `ProjectScope` setting routes correctly without per-callsite work. | Amortizes cost across hundreds of settings beyond audit. Cleaner ergonomics; one `Setting<T>` per concept rather than parallel representations. Mark indicated this aligns with how Core/Infra would want per-project settings to work. | Larger upfront investment (framework + listener semantics + thread-context plumbing for `ProjectLocal`). Crosses into Tim Vernum / Yang Wang's design territory. |
+
+This decision is broader than the audit PoC and likely needs to happen in the design-discussion meeting referenced in [§4.15](#sec-4-15). Tim Vernum is the obvious person to involve (he wrote the canonical project-id-resolution pattern; see [§4.14](#sec-4-14)); Yang Wang likely as well.
 
 ## <a id="sec-6"></a>6. Next steps
 
@@ -391,9 +454,10 @@ Decisions that need to be made before further implementation work begins. Each i
 5. <a id="sec-6-1-5"></a>**Where the SDK setup lives ([§5.3](#sec-5-3)).** Keep in `modules/apm/` or carve out a new `modules/customer-telemetry/`. Worth deciding before more audit-log code accumulates here. *[Decided by: Core/Infra.]*
 6. <a id="sec-6-1-6"></a>**`request.body` PII story ([§4.11](#sec-4-11)).** Default-off vs redaction vs sampling. Needs security review before the field can leave the cluster. *[Decided by: ES Security team. Discussion with: Core/Infra, otel-delivery-gateway team (storage and handling expectations downstream).]*
 7. <a id="sec-6-1-7"></a>**gRPC vs HTTP ([§2.5](#sec-2-5)).** Confirm with the gateway team that OTLP/HTTP-protobuf is acceptable; the gateway TDD parenthetically says gRPC. *[Decided by: otel-delivery-gateway team.]*
-8. <a id="sec-6-1-8"></a>**`LoggingAuditTrail` constructor ([§5.4](#sec-5-4)).** Inject `ProjectResolver` vs use the Audit TDD's `CustomAuditLoggingMetadataProvider` extension point vs keep the direct `ThreadContext` read. Not urgent. *[Decided by: Core/Infra. Discussion with: Ankit Sethi (extension-point ownership) if the extension-point option is picked.]*
+8. <a id="sec-6-1-8"></a>**`LoggingAuditTrail` constructor ([§5.4](#sec-5-4)).** Inject `ProjectResolver` vs use the Audit TDD's `CustomAuditLoggingMetadataProvider` extension point vs keep the direct `ThreadContext` read. Doc recommends the extension point: it resolves the [§4.14](#sec-4-14) audit-auth divergence, the [§4.4](#sec-4-4) linked-side gap, and the [§4.13](#sec-4-13) ingress fragility uniformly. Effectively merges with [§6.1.10](#sec-6-1-10) if the extension point is chosen. *[Decided by: Core/Infra. Discussion with: Ankit Sethi (extension-point ownership).]*
 9. <a id="sec-6-1-9"></a>**Cloud API key audit shape ([§4.13](#sec-4-13)).** Decide what the `api_key.*` namespace should hold for Cloud-API-key-authenticated audit events, given the source values live in Cloud API key metadata (UIAM) rather than the regular API key store. Mostly an alignment conversation with the UIAM team; gates [6.2.12](#sec-6-2-12). *[Decided by: Slobodan Adamović / UIAM team. Discussion with: ES Security, Ankit Sethi.]*
-10. <a id="sec-6-1-10"></a>**Linked-side `project.id` mechanism ([§4.4](#sec-4-4)).** Pick the mechanism by which a CPS-linked cluster derives `project.id` on inbound cross-cluster traffic: cluster-config-derived from the linked cluster's `serverless.project_id` setting; cross-cluster transport propagation of the originator's ID as `originating_project.id`; or via `CustomAuditLoggingMetadataProvider`. Implementation follows in [6.2.11](#sec-6-2-11); gates [6.1.3](#sec-6-1-3). *[Decided by: CPS team. Discussion with: Ankit Sethi (if via the extension point), serverless platform.]*
+10. <a id="sec-6-1-10"></a>**Linked-side `project.id` mechanism ([§4.4](#sec-4-4)).** Pick the mechanism by which a CPS-linked cluster derives `project.id` on inbound cross-cluster traffic: cluster-config-derived from the linked cluster's `serverless.project_id` setting; cross-cluster transport propagation of the originator's ID as `originating_project.id`; or via `CustomAuditLoggingMetadataProvider`. The three options mirror those in [§6.1.8](#sec-6-1-8); resolving §6.1.8 in favor of the extension point collapses this decision into "implement the linked-side provider." Implementation follows in [6.2.11](#sec-6-2-11); gates [6.1.3](#sec-6-1-3). *[Decided by: CPS team. Discussion with: Ankit Sethi (if via the extension point), serverless platform.]*
+11. <a id="sec-6-1-11"></a>**Per-project setting exposure: Plan A vs Plan B ([§5.5](#sec-5-5)).** Per-setting plumbing (Project API field + `ProjectCustom` + consumer refactor, per setting) vs. investing in a `ProjectScope` setting type that amortizes the cost across hundreds of settings beyond audit. Determines the shape and scope of R8 and R12 implementation, and sets a convention for future per-project ES settings. Crosses the audit scope into broader Core/Infra framework work. *[Decided by: Core/Infra. Discussion with: Tim Vernum, Yang Wang (per-project framework design); Control Plane / Julio Camarero (Project API contract). Forum: Friday design-discussion meeting referenced in [§4.15](#sec-4-15).]*
 
 ### <a id="sec-6-2"></a>6.2 Implementation work
 
@@ -409,6 +473,63 @@ Decisions that need to be made before further implementation work begins. Each i
 10. <a id="sec-6-2-10"></a>**Integration test against the real gateway ([§4.12](#sec-4-12)).** Add an IT that runs against the real `otel-delivery-gateway` component, alongside (not replacing) the existing in-process recording-server IT. Test-environment shape, what the IT validates, and ownership need alignment with the gateway team.
 11. <a id="sec-6-2-11"></a>**Populate `project.id` on linked-cluster audit events ([§4.4](#sec-4-4)).** Implementation follows from [6.1.10](#sec-6-1-10). Without this, [6.1.3](#sec-6-1-3) cannot be discussed concretely.
 12. <a id="sec-6-2-12"></a>**Decouple R3 chokepoint from the platform ingress ([§4.13](#sec-4-13)).** Source `project.id` from the UIAM auth context (`CloudAuthenticateProjectContext`) or from a per-node setting, in addition to or instead of the `X-Elastic-Project-Id` header. Implementation follows [6.1.9](#sec-6-1-9). Removes the assert in `LoggingAuditTrail.addAuthenticationFieldsToLogEntry` once the Cloud API key audit shape is finalized, and populates `api_key.id`/`api_key.name` on those events.
+
+### <a id="sec-6-3"></a>6.3 Questions by audience
+
+A routing view of [§6.1](#sec-6-1) and [§6.2](#sec-6-2): each subsection lists the questions the named audience needs to weigh in on, with references back to the full context. Each question gives one section pointer for background (typically [§4](#sec-4) or [§5](#sec-5)) and one for where it's tracked on the punch list (typically [§6.1](#sec-6-1) or [§6.2](#sec-6-2)).
+
+#### `otel-delivery-gateway` team (`#log-delivery-project-team`)
+
+Largest set of asks — most are contract/coordination questions tied to specific work items.
+
+1. **OTLP/HTTP-protobuf vs gRPC.** Confirm HTTP-protobuf is acceptable for ES → gateway; the gateway TDD parenthetically says gRPC. ([§2.5](#sec-2-5), [§6.1.7](#sec-6-1-7))
+2. **mTLS contract.** What identity does the gateway expect on the client cert, and does our OTel-Java `OtlpHttpLogRecordExporterBuilder` expose client TLS directly or do we wrap the underlying HTTP client? ([§4.5](#sec-4-5), [§6.2.2](#sec-6-2-2))
+3. **Stdout fallback format.** What recognizable format should ES write to stdout when retries are exhausted? Format and the ingestion contract need agreement with the replay-service team below. ([§4.7](#sec-4-7), [§6.2.4](#sec-6-2-4))
+4. **Retry and buffer-size targets.** Confirm or revise the ~2 min retry / ~30–50 MB buffer values from the TDD. ([§4.10](#sec-4-10), [§6.2.7](#sec-6-2-7))
+5. **Real-gateway IT contract.** Test-environment shape, what the IT validates, ownership. ([§4.12](#sec-4-12), [§6.2.10](#sec-6-2-10))
+6. **CPS routing direction.** When a CPS query in project A reaches project B, deliver the audit event to A (originator) or B (data-owner)? Gated on the UIAM and CPS team answers below being resolved first. ([§4.4](#sec-4-4), [§6.1.3](#sec-6-1-3))
+7. **Downstream `request.body` PII handling.** Consulted only; ES Security owns the decision. ([§4.11](#sec-4-11), [§6.1.6](#sec-6-1-6))
+
+#### Audit TDD owner (Ankit Sethi)
+
+1. **Is the missing `withThreadContext` on the `security_config_change` emit path a bug, not intentional?** The R3 chokepoint argument relies on closing this. ([§4.3](#sec-4-3), [§6.2.1](#sec-6-2-1))
+2. **Scope of the `CustomAuditLoggingMetadataProvider` extension point.** Doc recommends this as the mechanism for injecting `project.id` from serverless, covering the [§4.14](#sec-4-14) audit-auth divergence, the [§4.4](#sec-4-4) linked-side gap, and the [§4.13](#sec-4-13) ingress fragility in one place. Needs sign-off on contract details — it's Req 7 of his TDD. ([§5.4](#sec-5-4), [§6.1.8](#sec-6-1-8), [§6.1.10](#sec-6-1-10))
+3. **Hard rows in the field-mapping table.** What shape do audit consumers expect for `apikey.*`, the `indices` array, and the nested `security_config_change` blobs (flatten vs opaque-JSON-string)? ([§5.2](#sec-5-2), [§6.1.2](#sec-6-1-2))
+
+#### CPS team
+
+1. **Linked-side `project.id` mechanism.** Pick from: cluster-config-derived (`serverless.project_id`), cross-cluster transport propagation as `originating_project.id`, or via `CustomAuditLoggingMetadataProvider`. Empirical context: a local IT confirmed linked-side events carry no `project.id` today (13 events, 3+10 split between origin/linked clusters, all without `project.id`). ([§4.4](#sec-4-4), [§6.1.10](#sec-6-1-10))
+2. **Same-cluster CPS sanity check.** Does the `AbstractProjectResolver.executeOnProject(...)` path carry `project.id` correctly today? Our local IT exercised only the cross-cluster fan-out. ([§4.4](#sec-4-4))
+
+#### UIAM team (Slobodan Adamović owns the original assert)
+
+1. **Cloud API key audit shape.** What should the `api_key.*` namespace hold for Cloud-API-key-authenticated audit events, given the source values live in Cloud API key metadata rather than the regular API key store? Unblocks removing the [PR #129227](https://github.com/elastic/elasticsearch/pull/129227) assert and finalizing the field shape. ([§4.13](#sec-4-13), [§6.1.9](#sec-6-1-9))
+
+#### Control-Plane / Platform Ingress team
+
+1. **Ingress invariant for `X-Elastic-Project-Id`.** Confirm the platform ingress always sets the header on inbound customer HTTP, including any non-HTTP paths (service-to-service inside ECP) where it would *not* fire. The R3 chokepoint argument depends on this. ([§3.3](#sec-3-3), [§4.13](#sec-4-13))
+
+#### Control-Plane / `elasticsearch-controller` team (Julio Camarero)
+
+1. **Project API audit-configuration fields.** The propagation chain (Project API → CosmosDB → `elasticsearchappconfig` → `elasticsearch-controller` → ES file settings) is understood and the `PATCH /api/v1/serverless/projects/<type>/{id}` endpoint already supports enabling audit logging. The open question is which specific audit settings the Project API will expose (Valentin's pending settings-mapping doc feeds this) and what shape they land in as file settings. ([§4.8](#sec-4-8), [§4.15](#sec-4-15), [§6.2.5](#sec-6-2-5))
+2. **Cert distribution.** The Vault → cert-manager → secret mount path for the gateway client cert. ([§4.5](#sec-4-5), [§6.2.2](#sec-6-2-2))
+
+#### Tim Vernum, Yang Wang — per-project framework design
+
+1. **`ProjectScope` setting type viability.** Whether to invest in a project-scoped setting type that routes between cluster settings (non-serverless) and per-project file settings (serverless), versus paying the per-setting plumbing cost on each setting individually. Broader than audit logging — affects potentially hundreds of existing `NodeScope` settings. ([§5.5](#sec-5-5), [§6.1.11](#sec-6-1-11))
+2. **Listener semantics for project-scoped dynamic settings.** If `ProjectScope` is built, how do listeners receive per-project updates with the right thread context so `ProjectLocal.get()` returns the right value? Crosses into ES core threading model territory. ([§5.5](#sec-5-5))
+
+#### ES Security team
+
+1. **`request.body` PII story.** Default-off vs redaction vs sampling — required before the field can leave the cluster. ([§4.11](#sec-4-11), [§6.1.6](#sec-6-1-6))
+
+#### Platform-side replay-service team
+
+1. **Stdout ingestion contract.** What format does the replay service expect to pull from the internal observability pipeline when ES writes audit records to stdout on retry exhaustion? ([§4.7](#sec-4-7), [§6.2.4](#sec-6-2-4))
+
+#### Serverless platform team
+
+1. **R6 strip-fields placement.** Ratify (or revisit) the existing-settings approach, already in place via `serverless-default-settings.yml` (gates `cluster.name`, `cluster.uuid`, `node.name`, `node.id` off at the source). ([§4.6](#sec-4-6), [§6.1.4](#sec-6-1-4))
 
 ## <a id="sec-appendix-a"></a>Appendix A: Options considered and rejected
 

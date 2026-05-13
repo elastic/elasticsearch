@@ -31,6 +31,7 @@ public record MappingHints(HistogramMapping histogramMapping, boolean docCount) 
 
     public static final String MAPPING_HINTS = "elasticsearch.mapping.hints";
     public static final String AGGREGATE_METRIC_DOUBLE = "aggregate_metric_double";
+    public static final String HISTOGRAM_RAW = "histogram:raw";
     public static final String DOC_COUNT = "_doc_count";
 
     public static MappingHints DEFAULT_TDIGEST = new MappingHints(HistogramMapping.TDIGEST, false);
@@ -49,7 +50,8 @@ public record MappingHints(HistogramMapping histogramMapping, boolean docCount) 
         for (int i = 0, attributesSize = attributes.size(); i < attributesSize; i++) {
             KeyValue attribute = attributes.get(i);
             if (attribute.getKey().equals(MAPPING_HINTS)) {
-                HistogramMapping histoMapping = this.histogramMapping;
+                boolean aggregateMetricDouble = false;
+                boolean histogramRaw = false;
                 boolean docCount = this.docCount;
                 if (attribute.getValue().hasArrayValue()) {
                     List<AnyValue> valuesList = attribute.getValue().getArrayValue().getValuesList();
@@ -58,12 +60,20 @@ public record MappingHints(HistogramMapping histogramMapping, boolean docCount) 
                         if (hint.hasStringValue()) {
                             String value = hint.getStringValue();
                             if (value.equals(AGGREGATE_METRIC_DOUBLE)) {
-                                histoMapping = HistogramMapping.AGGREGATE_METRIC_DOUBLE;
+                                aggregateMetricDouble = true;
+                            } else if (value.equals(HISTOGRAM_RAW)) {
+                                histogramRaw = true;
                             } else if (value.equals(DOC_COUNT)) {
                                 docCount = true;
                             }
                         }
                     }
+                }
+                HistogramMapping histoMapping = this.histogramMapping;
+                if (aggregateMetricDouble) {
+                    histoMapping = HistogramMapping.AGGREGATE_METRIC_DOUBLE;
+                } else if (histogramRaw) {
+                    histoMapping = HistogramMapping.HISTOGRAM_RAW;
                 }
                 return new MappingHints(histoMapping, docCount);
             }

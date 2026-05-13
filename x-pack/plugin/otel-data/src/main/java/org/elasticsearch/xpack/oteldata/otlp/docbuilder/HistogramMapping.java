@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.oteldata.otlp.docbuilder;
 
 public enum HistogramMapping {
     TDIGEST,
+    HISTOGRAM_RAW,
     EXPONENTIAL_HISTOGRAM,
     AGGREGATE_METRIC_DOUBLE
 }

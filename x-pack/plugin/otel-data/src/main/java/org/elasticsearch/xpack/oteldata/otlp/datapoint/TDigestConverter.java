@@ -86,6 +86,14 @@ class TDigestConverter {
     }
 
     static <E extends Exception> void counts(HistogramDataPoint dp, CheckedLongConsumer<E> counts) throws E {
+        int explicitBoundsCount = dp.getExplicitBoundsCount();
+        if (explicitBoundsCount == 0) {
+            long count = dp.getCount();
+            if (count > 0) {
+                counts.accept(count);
+            }
+            return;
+        }
         for (int i = 0; i < dp.getBucketCountsCount(); i++) {
             long count = dp.getBucketCounts(i);
             if (count != 0) {
@@ -101,6 +109,14 @@ class TDigestConverter {
      * </a>
      */
     static <E extends Exception> void centroidValues(HistogramDataPoint dp, CheckedDoubleConsumer<E> values) throws E {
+        int explicitBoundsCount = dp.getExplicitBoundsCount();
+        if (explicitBoundsCount == 0) {
+            long count = dp.getCount();
+            if (count > 0) {
+                values.accept(dp.getSum() / count);
+            }
+            return;
+        }
         int size = dp.getBucketCountsCount();
         for (int i = 0; i < size; i++) {
             long count = dp.getBucketCounts(i);

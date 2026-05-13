@@ -121,8 +121,17 @@ public class ExponentialHistogramConverter {
         // Then we probably need to just drop min/max, which aren't really useful for cumulative histograms anyway
 
         int size = dataPoint.getBucketCountsCount();
+        int explicitBoundsCount = dataPoint.getExplicitBoundsCount();
 
-        if (size > 0) {
+        if (explicitBoundsCount == 0) {
+            long count = dataPoint.getCount();
+            if (count > 0) {
+                bucketsScratch.clear();
+                bucketsScratch.append(dataPoint.getSum() / count, count);
+                bucketsScratch.writeBuckets(builder);
+                writeSummaryStatistics(dataPoint, builder);
+            }
+        } else if (size > 0) {
             bucketsScratch.clear();
 
             boolean minHandled = false;
@@ -167,17 +176,21 @@ public class ExponentialHistogramConverter {
                 }
             }
             bucketsScratch.writeBuckets(builder);
-            if (dataPoint.hasSum()) {
-                builder.field(SUM_FIELD, dataPoint.getSum());
-            }
-            if (dataPoint.hasMin()) {
-                builder.field(MIN_FIELD, dataPoint.getMin());
-            }
-            if (dataPoint.hasMax()) {
-                builder.field(MAX_FIELD, dataPoint.getMax());
-            }
+            writeSummaryStatistics(dataPoint, builder);
         }
         builder.endObject();
+    }
+
+    private static void writeSummaryStatistics(HistogramDataPoint dataPoint, XContentBuilder builder) throws IOException {
+        if (dataPoint.hasSum()) {
+            builder.field(SUM_FIELD, dataPoint.getSum());
+        }
+        if (dataPoint.hasMin()) {
+            builder.field(MIN_FIELD, dataPoint.getMin());
+        }
+        if (dataPoint.hasMax()) {
+            builder.field(MAX_FIELD, dataPoint.getMax());
+        }
     }
 
     private static class IndexWithCountList {

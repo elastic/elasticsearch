@@ -72,6 +72,10 @@
               mode: "columnar"
               number_of_shards: 5
               number_of_routing_shards: 5
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
 
   - do:
       field_caps:

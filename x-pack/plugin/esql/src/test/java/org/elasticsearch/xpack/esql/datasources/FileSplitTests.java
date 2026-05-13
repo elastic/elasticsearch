@@ -12,6 +12,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -215,8 +220,6 @@ public class FileSplitTests extends ESTestCase {
     /**
      * Null {@code readSchema} round-trips as null. This is the smoke test that the new wire-encoding
      * branch on {@link FileSplit} doesn't accidentally invent a non-null value during deserialization.
-     * Non-null round-trip is covered by {@code ExternalRelationSerializationTests} (which exercises
-     * the same {@code writeNamedWriteableCollection(Attribute)} path).
      */
     public void testNamedWriteableRoundTripWithNullReadSchema() throws IOException {
         StoragePath path = StoragePath.of("s3://bucket/file.csv");
@@ -230,5 +233,33 @@ public class FileSplitTests extends ESTestCase {
 
         assertEquals(original, deserialized);
         assertNull(deserialized.readSchema());
+    }
+
+    /**
+     * Non-null {@code readSchema} round-trips via the primitive (count, name, typeName) wire encoding.
+     * Critical because {@code FileSplit} crosses the wire inside {@code DataNodeRequest} on a
+     * {@code RecyclerBytesStreamOutput} (not a {@code PlanStreamOutput}); the encoding therefore
+     * cannot delegate to {@code writeNamedWriteableCollection(Attribute)}, which would cast.
+     */
+    public void testNamedWriteableRoundTripWithNonNullReadSchema() throws IOException {
+        StoragePath path = StoragePath.of("s3://bucket/data.csv");
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.KEYWORD, Nullability.TRUE, null, false),
+            new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.INTEGER, Nullability.TRUE, null, false),
+            new ReferenceAttribute(Source.EMPTY, null, "col2", DataType.DOUBLE, Nullability.TRUE, null, false)
+        );
+        FileSplit original = FileSplit.withReadSchema("file", path, 0, 2048, ".csv", Map.of(), Map.of(), null, schema);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeNamedWriteable(original);
+
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
+        FileSplit deserialized = (FileSplit) in.readNamedWriteable(ExternalSplit.class);
+
+        assertEquals(schema.size(), deserialized.readSchema().size());
+        for (int i = 0; i < schema.size(); i++) {
+            assertEquals(schema.get(i).name(), deserialized.readSchema().get(i).name());
+            assertEquals(schema.get(i).dataType(), deserialized.readSchema().get(i).dataType());
+        }
     }
 }

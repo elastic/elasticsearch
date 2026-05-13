@@ -107,7 +107,8 @@ public class BulkByScrollTask extends CancellableTask {
                 elasticsearchException.getCause() : ExceptionsHelper.unwrapCause(error);
         if (cause instanceof TaskCancelledException taskCancelledException) {
             TaskInfo taskInfo = taskInfo(node.getId(), true);
-            // task might not actually be cancelled here, but rather be in the process of cancelling
+            // task might not actually be cancelled at this point, but rather be in the process of cancelling
+            // make sure the task result is indeed serialized as cancelled
             BulkByScrollTask.Status status = (BulkByScrollTask.Status) taskInfo.status();
             BulkByScrollTask.Status cancelledStatus = new BulkByScrollTask.Status(
                 status.sliceId,

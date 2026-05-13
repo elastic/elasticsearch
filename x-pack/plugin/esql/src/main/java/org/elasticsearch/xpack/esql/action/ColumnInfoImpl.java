@@ -91,6 +91,10 @@ public class ColumnInfoImpl implements ColumnInfo {
         this(name, DataType.fromEs(type), originalTypes, null);
     }
 
+    public ColumnInfoImpl(String name, String type, @Nullable List<String> originalTypes, @Nullable Map<String, Object> meta) {
+        this(name, DataType.fromEs(type), originalTypes, meta);
+    }
+
     public ColumnInfoImpl(String name, DataType type, @Nullable List<String> originalTypes) {
         this(name, type, originalTypes, null);
     }

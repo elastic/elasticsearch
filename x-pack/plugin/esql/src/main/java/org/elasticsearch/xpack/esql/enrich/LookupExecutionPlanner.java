@@ -508,7 +508,7 @@ public class LookupExecutionPlanner {
             Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, planSource);
             QueryBuilder rewrittenQuery = rewriteQuery(query, searchExecutionContext);
 
-            LookupEnrichQueryGenerator queryList = getBulkKeywordQueryGenerator(warnings);
+            LookupEnrichQueryGenerator queryList = getBulkKeywordQueryGenerator(lookupDriverContext.aliasFilter(), warnings);
             if (queryList == null) {
                 queryList = queryListFromPlanFactory.create(
                     matchFields,
@@ -533,7 +533,13 @@ public class LookupExecutionPlanner {
         }
 
         @Nullable
-        private LookupEnrichQueryGenerator getBulkKeywordQueryGenerator(Warnings warnings) {
+        private LookupEnrichQueryGenerator getBulkKeywordQueryGenerator(AliasFilter aliasFilter, Warnings warnings) {
+
+            // This optimization avoids Lucene queries so we can't use it when an AliasFilter is in effect.
+            if (aliasFilter != null && aliasFilter != AliasFilter.EMPTY) {
+                return null;
+            }
+
             if (bulkLookupLeft != null) {
                 int matchChannelOffset = -1;
                 for (int i = 0; i < matchFields.size(); i++) {

@@ -20,7 +20,6 @@ import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
@@ -164,11 +163,21 @@ public final class VersionsAndSeqNoResolver {
         assert results.length == n && loadSeqNo.length == n;
 
         // Sort by UID so each segment can be scanned with a single forward pass.
-        final Integer[] order = new Integer[n];
+        // Insertion sort: batch sizes are small and this avoids boxing.
+        final int[] order = new int[n];
         for (int i = 0; i < n; i++) {
             order[i] = i;
         }
-        Arrays.sort(order, (a, b) -> uids[a].compareTo(uids[b]));
+        for (int i = 1; i < n; i++) {
+            final int key = order[i];
+            final BytesRef keyUid = uids[key];
+            int j = i - 1;
+            while (j >= 0 && uids[order[j]].compareTo(keyUid) > 0) {
+                order[j + 1] = order[j];
+                j--;
+            }
+            order[j + 1] = key;
+        }
 
         final BytesRef[] sortedUids = new BytesRef[n];
         final boolean[] sortedLoadSeqNo = new boolean[n];

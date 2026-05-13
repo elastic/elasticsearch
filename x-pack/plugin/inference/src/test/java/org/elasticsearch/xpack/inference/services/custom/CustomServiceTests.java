@@ -11,43 +11,31 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
-import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.ChunkingStrategy;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankingInferenceService;
-import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.test.http.MockResponse;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
-import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.custom.response.CompletionResponseParser;
-import org.elasticsearch.xpack.inference.services.custom.response.CustomResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.DenseEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.RerankResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddingResponseParser;
-import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 
@@ -63,340 +51,19 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
-import static org.elasticsearch.xpack.inference.services.custom.response.RerankResponseParser.RERANK_PARSER_DOCUMENT_TEXT;
-import static org.elasticsearch.xpack.inference.services.custom.response.RerankResponseParser.RERANK_PARSER_INDEX;
-import static org.elasticsearch.xpack.inference.services.custom.response.RerankResponseParser.RERANK_PARSER_SCORE;
-import static org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddingResponseParser.SPARSE_EMBEDDING_TOKEN_PATH;
-import static org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddingResponseParser.SPARSE_EMBEDDING_WEIGHT_PATH;
+import static org.elasticsearch.xpack.inference.services.custom.CustomServiceParameterizedTestConfiguration.URL_VALUE;
+import static org.elasticsearch.xpack.inference.services.custom.CustomServiceParameterizedTestConfiguration.createCustomModel;
+import static org.elasticsearch.xpack.inference.services.custom.CustomServiceParameterizedTestConfiguration.createInternalEmbeddingModel;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Mockito.mock;
 
-public class CustomServiceTests extends AbstractInferenceServiceTests {
-
-    private static final String INFERENCE_ID_VALUE = "inference_id";
-
-    public CustomServiceTests() {
-        super(createTestConfiguration());
-    }
-
-    public static TestConfiguration createTestConfiguration() {
-        return new TestConfiguration.Builder(
-            new CommonConfig(
-                TaskType.TEXT_EMBEDDING,
-                TaskType.CHAT_COMPLETION,
-                EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING, TaskType.RERANK, TaskType.COMPLETION)
-            ) {
-                @Override
-                protected CustomService createService(ThreadPool threadPool, HttpClientManager clientManager) {
-                    return CustomServiceTests.createService(threadPool, clientManager);
-                }
-
-                @Override
-                protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
-                    return CustomServiceTests.createServiceSettingsMap(taskType);
-                }
-
-                @Override
-                protected ModelConfigurations createModelConfigurations(TaskType taskType) {
-                    switch (taskType) {
-                        case TEXT_EMBEDDING, SPARSE_EMBEDDING, RERANK, COMPLETION -> {
-                            return new ModelConfigurations(
-                                "some_inference_id",
-                                taskType,
-                                CustomService.NAME,
-                                CustomServiceSettings.fromMap(
-                                    createServiceSettingsMap(taskType),
-                                    ConfigurationParseContext.PERSISTENT,
-                                    taskType
-                                ),
-                                CustomTaskSettings.fromMap(createTaskSettingsMap())
-                            );
-                        }
-                        // Chat completion is not supported, but in order to test unsupported task types it is included here
-                        case CHAT_COMPLETION -> {
-                            return new ModelConfigurations(
-                                "some_inference_id",
-                                taskType,
-                                CustomService.NAME,
-                                mock(CustomServiceSettings.class),
-                                mock(CustomTaskSettings.class)
-                            );
-                        }
-                        default -> throw new IllegalArgumentException("unexpected task type [" + taskType + "]");
-                    }
-                }
-
-                @Override
-                protected ModelSecrets createModelSecrets(ConfigurationParseContext context) {
-                    return new ModelSecrets(CustomSecretSettings.fromMap(createSecretSettingsMap()));
-                }
-
-                @Override
-                protected Map<String, Object> createTaskSettingsMap() {
-                    return CustomServiceTests.createTaskSettingsMap();
-                }
-
-                @Override
-                protected Map<String, Object> createSecretSettingsMap() {
-                    return CustomServiceTests.createSecretSettingsMap();
-                }
-
-                @Override
-                protected void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
-                    CustomServiceTests.assertModel(model, taskType, modelIncludesSecrets);
-                }
-
-                @Override
-                protected EnumSet<TaskType> supportedStreamingTasks() {
-                    return EnumSet.noneOf(TaskType.class);
-                }
-
-                @Override
-                protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
-                    assertThat(
-                        rerankingInferenceService.rerankerWindowSize("any model"),
-                        CoreMatchers.is(RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE)
-                    );
-                }
-            }
-        ).enableUpdateModelTests(new UpdateModelConfiguration() {
-            @Override
-            protected CustomModel createEmbeddingModel(SimilarityMeasure similarityMeasure, TaskType taskType) {
-                return createInternalEmbeddingModel(similarityMeasure);
-            }
-        }).build();
-    }
-
-    private static void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
-        switch (taskType) {
-            case TEXT_EMBEDDING -> assertTextEmbeddingModel(model, modelIncludesSecrets);
-            case SPARSE_EMBEDDING -> assertSparseEmbeddingModel(model, modelIncludesSecrets);
-            case COMPLETION -> assertCompletionModel(model, modelIncludesSecrets);
-            case RERANK -> assertRerankModel(model, modelIncludesSecrets);
-            default -> fail("unexpected task type [" + taskType + "]");
-        }
-    }
-
-    private static void assertTextEmbeddingModel(Model model, boolean modelIncludesSecrets) {
-        var customModel = assertCommonModelFields(model, modelIncludesSecrets);
-
-        assertThat(customModel.getTaskType(), is(TaskType.TEXT_EMBEDDING));
-        assertThat(customModel.getServiceSettings().getResponseJsonParser(), instanceOf(DenseEmbeddingResponseParser.class));
-    }
-
-    private static void assertSparseEmbeddingModel(Model model, boolean modelIncludesSecrets) {
-        var customModel = assertCommonModelFields(model, modelIncludesSecrets);
-
-        assertThat(customModel.getTaskType(), is(TaskType.SPARSE_EMBEDDING));
-        assertThat(customModel.getServiceSettings().getResponseJsonParser(), instanceOf(SparseEmbeddingResponseParser.class));
-    }
-
-    private static CustomModel assertCommonModelFields(Model model, boolean modelIncludesSecrets) {
-        assertThat(model, instanceOf(CustomModel.class));
-
-        var customModel = (CustomModel) model;
-
-        assertThat(customModel.getServiceSettings().getUrl(), is("http://www.abc.com"));
-        assertThat(customModel.getTaskSettings().getParameters(), is(Map.of("test_key", "test_value")));
-        if (modelIncludesSecrets) {
-            assertThat(
-                customModel.getSecretSettings().getSecretParameters(),
-                is(Map.of("test_key", new SecureString("test_value".toCharArray())))
-            );
-        }
-
-        return customModel;
-    }
-
-    private static void assertCompletionModel(Model model, boolean modelIncludesSecrets) {
-        var customModel = assertCommonModelFields(model, modelIncludesSecrets);
-        assertThat(customModel.getTaskType(), is(TaskType.COMPLETION));
-        assertThat(customModel.getServiceSettings().getResponseJsonParser(), instanceOf(CompletionResponseParser.class));
-    }
-
-    private static void assertRerankModel(Model model, boolean modelIncludesSecrets) {
-        var customModel = assertCommonModelFields(model, modelIncludesSecrets);
-        assertThat(customModel.getTaskType(), is(TaskType.RERANK));
-        assertThat(customModel.getServiceSettings().getResponseJsonParser(), instanceOf(RerankResponseParser.class));
-    }
-
-    public static CustomService createService(ThreadPool threadPool, HttpClientManager clientManager) {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        return new CustomService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
-    }
-
-    private static Map<String, Object> createServiceSettingsMap(TaskType taskType) {
-        var settingsMap = new HashMap<>(
-            Map.of(
-                ServiceFields.URL,
-                "http://www.abc.com",
-                CustomServiceSettings.HEADERS,
-                Map.of("key", "value"),
-                QueryParameters.QUERY_PARAMETERS,
-                List.of(List.of("key", "value")),
-                CustomServiceSettings.REQUEST,
-                "request body",
-                CustomServiceSettings.RESPONSE,
-                new HashMap<>(Map.of(CustomServiceSettings.JSON_PARSER, createResponseParserMap(taskType)))
-            )
-        );
-
-        if (taskType == TaskType.TEXT_EMBEDDING) {
-            settingsMap.putAll(
-                Map.of(
-                    ServiceFields.SIMILARITY,
-                    SimilarityMeasure.DOT_PRODUCT.toString(),
-                    ServiceFields.DIMENSIONS,
-                    1536,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    512
-                )
-            );
-        }
-
-        return settingsMap;
-    }
-
-    private static Map<String, Object> createResponseParserMap(TaskType taskType) {
-        return switch (taskType) {
-            case TEXT_EMBEDDING -> new HashMap<>(
-                Map.of(DenseEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
-            );
-            case COMPLETION -> new HashMap<>(Map.of(CompletionResponseParser.COMPLETION_PARSER_RESULT, "$.result.text"));
-            case SPARSE_EMBEDDING -> new HashMap<>(
-                Map.of(
-                    SPARSE_EMBEDDING_TOKEN_PATH,
-                    "$.result[*].embeddings[*].token",
-                    SPARSE_EMBEDDING_WEIGHT_PATH,
-                    "$.result[*].embeddings[*].weight"
-                )
-            );
-            case RERANK -> new HashMap<>(
-                Map.of(
-                    RERANK_PARSER_SCORE,
-                    "$.result.scores[*].score",
-                    RERANK_PARSER_INDEX,
-                    "$.result.scores[*].index",
-                    RERANK_PARSER_DOCUMENT_TEXT,
-                    "$.result.scores[*].document_text"
-                )
-            );
-            default -> throw new IllegalArgumentException("unexpected task type [" + taskType + "]");
-        };
-    }
-
-    private static Map<String, Object> createTaskSettingsMap() {
-        return new HashMap<>(Map.of(CustomTaskSettings.PARAMETERS, new HashMap<>(Map.of("test_key", "test_value"))));
-    }
-
-    private static Map<String, Object> createSecretSettingsMap() {
-        return new HashMap<>(Map.of(CustomSecretSettings.SECRET_PARAMETERS, new HashMap<>(Map.of("test_key", "test_value"))));
-    }
-
-    private static CustomModel createInternalEmbeddingModel(SimilarityMeasure similarityMeasure) {
-        return createInternalEmbeddingModel(
-            similarityMeasure,
-            new DenseEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT),
-            "http://www.abc.com"
-        );
-    }
-
-    private static CustomModel createInternalEmbeddingModel(DenseEmbeddingResponseParser parser, String url) {
-        return createInternalEmbeddingModel(SimilarityMeasure.DOT_PRODUCT, parser, url);
-    }
-
-    private static CustomModel createInternalEmbeddingModel(
-        @Nullable SimilarityMeasure similarityMeasure,
-        DenseEmbeddingResponseParser parser,
-        String url
-    ) {
-        var inferenceId = "inference_id";
-
-        return new CustomModel(
-            inferenceId,
-            TaskType.TEXT_EMBEDDING,
-            CustomService.NAME,
-            new CustomServiceSettings(
-                new CustomServiceSettings.TextEmbeddingSettings(similarityMeasure, 123, 456),
-                url,
-                Map.of("key", "value"),
-                QueryParameters.EMPTY,
-                "{\"input\":${input}}",
-                parser,
-                new RateLimitSettings(10_000)
-            ),
-            new CustomTaskSettings(Map.of("key", "test_value")),
-            new CustomSecretSettings(Map.of("test_key", new SecureString("test_value".toCharArray())))
-        );
-    }
-
-    private static CustomModel createInternalEmbeddingModel(
-        @Nullable SimilarityMeasure similarityMeasure,
-        DenseEmbeddingResponseParser parser,
-        String url,
-        @Nullable ChunkingSettings chunkingSettings,
-        @Nullable Integer batchSize
-    ) {
-        var inferenceId = "inference_id";
-
-        return new CustomModel(
-            inferenceId,
-            TaskType.TEXT_EMBEDDING,
-            CustomService.NAME,
-            new CustomServiceSettings(
-                new CustomServiceSettings.TextEmbeddingSettings(similarityMeasure, 123, 456),
-                url,
-                Map.of("key", "value"),
-                QueryParameters.EMPTY,
-                "{\"input\":${input}}",
-                parser,
-                new RateLimitSettings(10_000),
-                batchSize,
-                InputTypeTranslator.EMPTY_TRANSLATOR
-            ),
-            new CustomTaskSettings(Map.of("key", "test_value")),
-            new CustomSecretSettings(Map.of("test_key", new SecureString("test_value".toCharArray()))),
-            chunkingSettings
-        );
-    }
-
-    private static CustomModel createCustomModel(
-        TaskType taskType,
-        CustomResponseParser customResponseParser,
-        String url,
-        @Nullable ChunkingSettings chunkingSettings
-    ) {
-        return new CustomModel(
-            "model_id",
-            taskType,
-            CustomService.NAME,
-            new CustomServiceSettings(
-                getDefaultTextEmbeddingSettings(taskType),
-                url,
-                Map.of("key", "value"),
-                QueryParameters.EMPTY,
-                "{\"input\":${input}}",
-                customResponseParser,
-                new RateLimitSettings(10_000)
-            ),
-            new CustomTaskSettings(Map.of("key", "test_value")),
-            new CustomSecretSettings(Map.of("test_key", new SecureString("test_value".toCharArray()))),
-            chunkingSettings
-        );
-    }
-
-    private static CustomServiceSettings.TextEmbeddingSettings getDefaultTextEmbeddingSettings(TaskType taskType) {
-        return taskType == TaskType.TEXT_EMBEDDING
-            ? CustomServiceSettings.TextEmbeddingSettings.DEFAULT_FLOAT
-            : CustomServiceSettings.TextEmbeddingSettings.NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS;
-    }
+public class CustomServiceTests extends InferenceServiceTestCase {
 
     public void testInfer_ReturnsAnError_WithoutParsingTheResponseBody() throws IOException {
-        try (var service = createService(threadPool, clientManager)) {
+        try (var service = createInferenceService()) {
             String responseJson = "error";
 
             webServer.enqueue(new MockResponse().setResponseCode(400).setBody(responseJson));
@@ -435,7 +102,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
     }
 
     public void testInfer_HandlesTextEmbeddingRequest_OpenAI_Format() throws IOException {
-        try (var service = createService(threadPool, clientManager)) {
+        try (var service = createInferenceService()) {
             String responseJson = """
                 {
                   "object": "list",
@@ -489,7 +156,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
     }
 
     public void testInfer_HandlesRerankRequest_Cohere_Format() throws IOException {
-        try (var service = createService(threadPool, clientManager)) {
+        try (var service = createInferenceService()) {
             String responseJson = """
                 {
                     "index": "44873262-1315-4c06-8433-fdc90c9790d0",
@@ -572,7 +239,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
     }
 
     public void testInfer_HandlesCompletionRequest_OpenAI_Format() throws IOException {
-        try (var service = createService(threadPool, clientManager)) {
+        try (var service = createInferenceService()) {
             String responseJson = """
                 {
                   "id": "chatcmpl-123",
@@ -634,7 +301,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
     }
 
     public void testInfer_HandlesSparseEmbeddingRequest_Alibaba_Format() throws IOException {
-        try (var service = createService(threadPool, clientManager)) {
+        try (var service = createInferenceService()) {
             String responseJson = """
                 {
                     "request_id": "75C50B5B-E79E-4930-****-F48DBB392231",
@@ -707,24 +374,25 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
     }
 
     public void testParseRequestConfig_ThrowsAValidationError_WhenReplacementDoesNotFillTemplate() throws Exception {
-        try (var service = createService(threadPool, clientManager)) {
+        try (var service = createInferenceService()) {
 
-            var settingsMap = new HashMap<>(
+            var settingsMap = new HashMap<String, Object>(
                 Map.of(
                     ServiceFields.URL,
                     "http://www.abc.com",
-                    CustomServiceSettings.HEADERS,
-                    Map.of("key", "value"),
-                    QueryParameters.QUERY_PARAMETERS,
-                    List.of(List.of("key", "value")),
                     CustomServiceSettings.REQUEST,
                     "request body ${some_template}",
                     CustomServiceSettings.RESPONSE,
-                    new HashMap<>(Map.of(CustomServiceSettings.JSON_PARSER, createResponseParserMap(TaskType.COMPLETION)))
+                    new HashMap<>(
+                        Map.of(
+                            CustomServiceSettings.JSON_PARSER,
+                            new HashMap<>(Map.of(CompletionResponseParser.COMPLETION_PARSER_RESULT, "$.result.text"))
+                        )
+                    )
                 )
             );
 
-            var config = getRequestConfigMap(settingsMap, createTaskSettingsMap(), createSecretSettingsMap());
+            var config = getRequestConfigMap(settingsMap, Map.of(), Map.of());
 
             var listener = new PlainActionFuture<Model>();
             service.parseRequestConfig("id", TaskType.COMPLETION, config, listener);
@@ -739,50 +407,6 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                         + "templates have a corresponding field definition.;"
                 )
             );
-        }
-    }
-
-    public void testParseRequestConfig_DoesNotThrow_WhenChunkingSettingsArePresentForSparseEmbeddings() throws IOException {
-        try (var service = createService(threadPool, clientManager)) {
-            Map<String, Object> serviceSettingsMap = new HashMap<>(
-                Map.of(
-                    ServiceFields.URL,
-                    "http://www.abc.com",
-                    CustomServiceSettings.HEADERS,
-                    Map.of("key", "value"),
-                    QueryParameters.QUERY_PARAMETERS,
-                    List.of(List.of("key", "value")),
-                    CustomServiceSettings.REQUEST,
-                    "request body",
-                    CustomServiceSettings.RESPONSE,
-                    new HashMap<>(Map.of(CustomServiceSettings.JSON_PARSER, createResponseParserMap(TaskType.SPARSE_EMBEDDING)))
-                )
-            );
-
-            Map<String, Object> chunkingSettingsMap = new HashMap<>(
-                Map.of(
-                    ChunkingSettingsOptions.STRATEGY.toString(),
-                    "sentence",
-                    ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(),
-                    40,
-                    ChunkingSettingsOptions.SENTENCE_OVERLAP.toString(),
-                    0
-                )
-            );
-
-            var config = getRequestConfigMap(serviceSettingsMap, createTaskSettingsMap(), chunkingSettingsMap, createSecretSettingsMap());
-            var listener = new PlainActionFuture<Model>();
-
-            service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, listener);
-
-            // Check chunking settings
-            CustomModel model = (CustomModel) listener.actionGet(TIMEOUT);
-            ChunkingSettings chunkingSettings = model.getConfigurations().getChunkingSettings();
-
-            assertThat(chunkingSettings, instanceOf(SentenceBoundaryChunkingSettings.class));
-            assertThat(chunkingSettings.getChunkingStrategy(), equalTo(ChunkingStrategy.SENTENCE));
-            assertThat(chunkingSettings.maxChunkSize(), equalTo(40));
-            assertThat(((SentenceBoundaryChunkingSettings) chunkingSettings).sentenceOverlap(), equalTo(0));
         }
     }
 
@@ -824,7 +448,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
             }
             """;
 
-        try (var service = createService(threadPool, clientManager)) {
+        try (var service = createInferenceService()) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
@@ -899,7 +523,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
             }
             """;
 
-        try (var service = createService(threadPool, clientManager)) {
+        try (var service = createInferenceService()) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
@@ -987,7 +611,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 }
             """;
 
-        try (var service = createService(threadPool, clientManager)) {
+        try (var service = createInferenceService()) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
@@ -1099,7 +723,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 }
             """;
 
-        try (var service = createService(threadPool, clientManager)) {
+        try (var service = createInferenceService()) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
@@ -1167,7 +791,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
             getUrl(webServer)
         );
 
-        try (var service = createService(threadPool, clientManager)) {
+        try (var service = createInferenceService()) {
 
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
@@ -1178,65 +802,51 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
         }
     }
 
-    public void testBuildModelFromConfigAndSecrets_TextEmbedding() throws IOException {
-        var model = createTestModel(TaskType.TEXT_EMBEDDING);
-        validateModelBuilding(model);
+    @Override
+    public InferenceService createInferenceService() {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        return new CustomService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
     }
 
-    public void testBuildModelFromConfigAndSecrets_SparseEmbedding() throws IOException {
-        var model = createTestModel(TaskType.SPARSE_EMBEDDING);
-        validateModelBuilding(model);
-    }
-
-    public void testBuildModelFromConfigAndSecrets_Completion() throws IOException {
-        var model = createTestModel(TaskType.COMPLETION);
-        validateModelBuilding(model);
-    }
-
-    public void testBuildModelFromConfigAndSecrets_Rerank() throws IOException {
-        var model = createTestModel(TaskType.RERANK);
-        validateModelBuilding(model);
-    }
-
-    public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
-        var modelConfigurations = new ModelConfigurations(
-            INFERENCE_ID_VALUE,
-            TaskType.CHAT_COMPLETION,
-            CustomService.NAME,
-            mock(ServiceSettings.class)
-        );
-        try (var inferenceService = createInferenceService()) {
-            var thrownException = expectThrows(
-                ElasticsearchStatusException.class,
-                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
-            );
-            assertThat(
-                thrownException.getMessage(),
-                CoreMatchers.is(
-                    org.elasticsearch.core.Strings.format(
-                        "The [%s] service does not support task type [%s]",
-                        CustomService.NAME,
-                        TaskType.CHAT_COMPLETION
+    @Override
+    public Model createEmbeddingModel(SimilarityMeasure similarity) {
+        HashMap<String, Object> settingsMap = new HashMap<>(
+            Map.of(
+                ServiceFields.URL,
+                URL_VALUE,
+                CustomServiceSettings.REQUEST,
+                randomAlphaOfLength(8),
+                CustomServiceSettings.RESPONSE,
+                new HashMap<>(
+                    Map.of(
+                        CustomServiceSettings.JSON_PARSER,
+                        new HashMap<>(
+                            Map.of(DenseEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
+                        )
                     )
                 )
-            );
+            )
+        );
+        if (similarity != null) {
+            settingsMap.put(ServiceFields.SIMILARITY, similarity.toString());
         }
-    }
-
-    private Model createTestModel(TaskType taskType) {
+        var settings = CustomServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING);
         return CustomModelTests.createModel(
-            INFERENCE_ID_VALUE,
-            taskType,
-            CustomServiceSettingsTests.createRandom(),
-            CustomTaskSettingsTests.createRandom(),
-            CustomSecretSettingsTests.createRandom()
+            randomAlphaOfLength(8),
+            TaskType.TEXT_EMBEDDING,
+            settings,
+            CustomTaskSettings.EMPTY_SETTINGS,
+            null
         );
     }
 
-    private void validateModelBuilding(Model model) throws IOException {
-        try (var inferenceService = createInferenceService()) {
-            var resultModel = inferenceService.buildModelFromConfigAndSecrets(model.getConfigurations(), model.getSecrets());
-            assertThat(resultModel, CoreMatchers.is(model));
-        }
+    @Override
+    public EnumSet<TaskType> expectedStreamingTasks() {
+        return EnumSet.noneOf(TaskType.class);
+    }
+
+    @Override
+    protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
+        assertThat(rerankingInferenceService.rerankerWindowSize("any model"), CoreMatchers.is(300));
     }
 }

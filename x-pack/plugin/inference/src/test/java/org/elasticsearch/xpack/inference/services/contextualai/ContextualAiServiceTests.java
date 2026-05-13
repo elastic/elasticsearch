@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceService;
@@ -27,13 +26,9 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
-import org.elasticsearch.test.http.MockWebServer;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
-import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankModel;
 import org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankModelTests;
@@ -42,8 +37,6 @@ import org.elasticsearch.xpack.inference.services.contextualai.rerank.Contextual
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.CoreMatchers;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -53,7 +46,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.inference.InferenceStringTests.createRandomUsingDataTypes;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
@@ -69,25 +61,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ContextualAiServiceTests extends InferenceServiceTestCase {
-    private static final String API_KEY_VALUE = "secret";
-
-    private final MockWebServer webServer = new MockWebServer();
-    private ThreadPool threadPool;
-    private HttpClientManager clientManager;
-
-    @Before
-    public void init() throws Exception {
-        webServer.start();
-        threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
-    }
-
-    @After
-    public void shutdown() throws Exception {
-        clientManager.close();
-        terminate(threadPool);
-        webServer.close();
-    }
 
     public void testRerankInfer() throws IOException {
         var responseJson = """
@@ -110,7 +83,7 @@ public class ContextualAiServiceTests extends InferenceServiceTestCase {
 
             var instruction = randomAlphaOfLengthOrNull(8);
             var modelId = randomAlphaOfLength(8);
-            var model = ContextualAiRerankModelTests.createModel(getUrl(webServer), API_KEY_VALUE, modelId, null, instruction);
+            var model = ContextualAiRerankModelTests.createModel(getUrl(webServer), TEST_API_KEY, modelId, null, instruction);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
@@ -147,7 +120,7 @@ public class ContextualAiServiceTests extends InferenceServiceTestCase {
             );
             assertThat(
                 webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION),
-                CoreMatchers.is(Strings.format("Bearer %s", API_KEY_VALUE))
+                CoreMatchers.is(Strings.format("Bearer %s", TEST_API_KEY))
             );
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
@@ -208,6 +181,11 @@ public class ContextualAiServiceTests extends InferenceServiceTestCase {
             createWithEmptySettings(threadPool),
             mockClusterServiceEmpty()
         );
+    }
+
+    @Override
+    public EnumSet<TaskType> expectedStreamingTasks() {
+        return EnumSet.noneOf(TaskType.class);
     }
 
     @Override

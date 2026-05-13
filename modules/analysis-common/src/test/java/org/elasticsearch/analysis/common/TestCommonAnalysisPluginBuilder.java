@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -26,6 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -36,6 +38,7 @@ public class TestCommonAnalysisPluginBuilder {
     private Client client = null;
     private CircuitBreakerService circuitBreakerService = null;
     private ClusterService clusterService = null;
+    private FeatureService featureService = null;
 
     public TestCommonAnalysisPluginBuilder(ThreadPool threadPool) {
         this.threadPool = threadPool;
@@ -58,6 +61,11 @@ public class TestCommonAnalysisPluginBuilder {
 
     public TestCommonAnalysisPluginBuilder clusterService(ClusterService clusterService) {
         this.clusterService = clusterService;
+        return this;
+    }
+
+    public TestCommonAnalysisPluginBuilder featureService(FeatureService featureService) {
+        this.featureService = featureService;
         return this;
     }
 
@@ -85,11 +93,20 @@ public class TestCommonAnalysisPluginBuilder {
             when(clusterService.state()).thenReturn(clusterState);
         }
 
+        FeatureService featureService;
+        if (this.featureService != null) {
+            featureService = this.featureService;
+        } else {
+            featureService = mock(FeatureService.class);
+            when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
+        }
+
         Plugin.PluginServices pluginServices = mock(Plugin.PluginServices.class);
         when(pluginServices.scriptService()).thenReturn(scriptService);
         when(pluginServices.client()).thenReturn(client);
         when(pluginServices.indicesService()).thenReturn(indicesService);
         when(pluginServices.clusterService()).thenReturn(clusterService);
+        when(pluginServices.featureService()).thenReturn(featureService);
 
         CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
         plugin.createComponents(pluginServices);

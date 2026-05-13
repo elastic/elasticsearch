@@ -101,6 +101,12 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                             + "]"
                     );
                 }
+                // Reject multi-set configs on partially-upgraded clusters at index creation time only.
+                // Do NOT check during METADATA_VERIFICATION (recovery) or RELOAD_ANALYZERS — throwing
+                // there would prevent shards from loading.
+                if (synonymsSets.size() > 1 && context == IndexCreationContext.CREATE_INDEX) {
+                    factory.synonymsManagementAPIService.checkClusterSupportsMultipleSynonymSets();
+                }
                 // provide empty synonyms on index creation and index metadata checks to ensure that we
                 // don't block a master thread
                 if (context != IndexCreationContext.RELOAD_ANALYZERS) {

@@ -39,6 +39,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.indices.SystemIndices;
@@ -85,7 +86,14 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
     }
 
     private SynonymsManagementAPIService buildService(Client client, ClusterService cs, int maxRules, int chunkSize) {
-        return new SynonymsManagementAPIService(client, cs, maxRules, SynonymsManagementAPIService.PIT_BATCH_SIZE, chunkSize);
+        return new SynonymsManagementAPIService(
+            client,
+            cs,
+            maxRules,
+            SynonymsManagementAPIService.PIT_BATCH_SIZE,
+            chunkSize,
+            new FeatureService(List.of(new SynonymFeatures()))
+        );
     }
 
     /**
@@ -299,19 +307,17 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
      */
     public void testGetSynonymSetRulesAllMissingThrowsResourceNotFound() {
         // Neither set exists in the index metadata (GET returns not found for both).
-        var client = new PitSearchClient(
-            threadPool,
-            new SearchHit[0],
-            0L,
-            Map.of("set-a", false, "set-b", false)
-        );
+        var client = new PitSearchClient(threadPool, new SearchHit[0], 0L, Map.of("set-a", false, "set-b", false));
         var service = buildService(client, clusterService, 1000, SynonymsManagementAPIService.BULK_CHUNK_SIZE);
 
         var future = new PlainActionFuture<PagedResult<SynonymRule>>();
         service.getSynonymSetRules(Set.of("set-a", "set-b"), true, future);
 
         Exception ex = expectThrows(ResourceNotFoundException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
-        assertThat(ex.getMessage(), allOf(containsString("synonyms sets"), containsString("set-a"), containsString("set-b"), containsString("not found")));
+        assertThat(
+            ex.getMessage(),
+            allOf(containsString("synonyms sets"), containsString("set-a"), containsString("set-b"), containsString("not found"))
+        );
     }
 
     /** Builds a SearchHit with the three fields getSynonymSetRules reads from each rule document. */

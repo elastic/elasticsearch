@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.plugins.Plugin;
@@ -53,7 +54,8 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
             clusterService(),
             maxSynonymRules,
             SynonymsManagementAPIService.PIT_BATCH_SIZE,
-            SynonymsManagementAPIService.BULK_CHUNK_SIZE
+            SynonymsManagementAPIService.BULK_CHUNK_SIZE,
+            internalCluster().getInstance(FeatureService.class)
         );
     }
 
@@ -85,7 +87,8 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
             clusterService(),
             maxRules,
             pitBatchSize,
-            SynonymsManagementAPIService.BULK_CHUNK_SIZE
+            SynonymsManagementAPIService.BULK_CHUNK_SIZE,
+            internalCluster().getInstance(FeatureService.class)
         );
 
         String synonymSetId = randomIdentifier();
@@ -111,7 +114,8 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
             clusterService(),
             maxRules,
             pitBatchSize,
-            SynonymsManagementAPIService.BULK_CHUNK_SIZE
+            SynonymsManagementAPIService.BULK_CHUNK_SIZE,
+            internalCluster().getInstance(FeatureService.class)
         );
 
         String synonymSetId = randomIdentifier();
@@ -264,7 +268,8 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
             clusterService(),
             100_000,
             SynonymsManagementAPIService.PIT_BATCH_SIZE,
-            SynonymsManagementAPIService.BULK_CHUNK_SIZE
+            SynonymsManagementAPIService.BULK_CHUNK_SIZE,
+            internalCluster().getInstance(FeatureService.class)
         ) {
             @Override
             void checkSynonymsIndexHealth(ActionListener<ClusterHealthResponse> listener) {

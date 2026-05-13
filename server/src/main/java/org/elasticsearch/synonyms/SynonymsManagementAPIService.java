@@ -50,6 +50,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -143,6 +144,7 @@ public class SynonymsManagementAPIService {
     private final int pitBatchSize;
     private final int bulkChunkSize;
     private final ClusterService clusterService;
+    private final FeatureService featureService;
 
     // Package private for testing
     static Logger logger = LogManager.getLogger(SynonymsManagementAPIService.class);
@@ -161,18 +163,33 @@ public class SynonymsManagementAPIService {
         .setOrigin(SYNONYMS_ORIGIN)
         .build();
 
-    public SynonymsManagementAPIService(Client client, ClusterService clusterService) {
-        this(client, clusterService, clusterService.getClusterSettings().get(MAX_SYNONYM_RULES_SETTING), PIT_BATCH_SIZE, BULK_CHUNK_SIZE);
+    public SynonymsManagementAPIService(Client client, ClusterService clusterService, FeatureService featureService) {
+        this(
+            client,
+            clusterService,
+            clusterService.getClusterSettings().get(MAX_SYNONYM_RULES_SETTING),
+            PIT_BATCH_SIZE,
+            BULK_CHUNK_SIZE,
+            featureService
+        );
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_SYNONYM_RULES_SETTING, v -> this.maxSynonymRules = v);
     }
 
     // VisibleForTesting
-    SynonymsManagementAPIService(Client client, ClusterService clusterService, int maxSynonymRules, int pitBatchSize, int bulkChunkSize) {
+    SynonymsManagementAPIService(
+        Client client,
+        ClusterService clusterService,
+        int maxSynonymRules,
+        int pitBatchSize,
+        int bulkChunkSize,
+        FeatureService featureService
+    ) {
         this.client = new OriginSettingClient(client, SYNONYMS_ORIGIN);
         this.clusterService = clusterService;
         this.maxSynonymRules = maxSynonymRules;
         this.pitBatchSize = pitBatchSize;
         this.bulkChunkSize = bulkChunkSize;
+        this.featureService = featureService;
     }
 
     /* The synonym index stores two object types:
@@ -856,6 +873,18 @@ public class SynonymsManagementAPIService {
             return false;
         }
         return true;
+    }
+
+    /**
+     * Throws {@link IllegalArgumentException} if the cluster is not fully upgraded to support multiple synonym sets per filter.
+     * This must only be called at index creation time, not during shard recovery or analyzer reload, to avoid bricking the cluster.
+     */
+    public void checkClusterSupportsMultipleSynonymSets() {
+        if (featureService.clusterHasFeature(clusterService.state(), SynonymFeatures.MULTIPLE_SYNONYM_SETS_PER_FILTER) == false) {
+            throw new IllegalArgumentException(
+                "Multiple synonym sets per filter are not supported until all nodes in the cluster have been upgraded"
+            );
+        }
     }
 
     public void deleteSynonymsSet(String synonymSetId, ActionListener<AcknowledgedResponse> listener) {

@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -53,6 +54,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SynonymsAnalysisTests extends ESTestCase {
     private IndexAnalyzers indexAnalyzers;
@@ -624,6 +628,30 @@ public class SynonymsAnalysisTests extends ESTestCase {
             () -> createTestAnalysis(idxSettings, settings, commonAnalysisPlugin)
         );
         assertThat(e.getMessage(), containsString("At most " + SynonymTokenFilterFactory.MAX_SYNONYM_SETS_PER_FILTER));
+    }
+
+    /**
+     * When the cluster is not fully upgraded, creating an index with multiple synonym sets in a
+     * single filter must be rejected at index creation time. This prevents silent inconsistency
+     * during rolling upgrades, where old nodes would only see the first synonym set.
+     */
+    public void testMultipleSynonymSetsRejectedOnPartiallyUpgradedCluster() throws IOException {
+        FeatureService absentFeatureService = mock(FeatureService.class);
+        when(absentFeatureService.clusterHasFeature(any(), any())).thenReturn(false);
+        CommonAnalysisPlugin plugin = new TestCommonAnalysisPluginBuilder(threadPool).featureService(absentFeatureService).build();
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("path.home", createTempDir().toString())
+            .put("index.analysis.filter.my_synonyms.type", "synonym_graph")
+            .put("index.analysis.filter.my_synonyms.updateable", "true")
+            .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase", "my_synonyms")
+            .putList("index.analysis.filter.my_synonyms.synonyms_set", "set-a", "set-b")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(idxSettings, settings, plugin));
+        assertThat(e.getMessage(), containsString("not supported until all nodes in the cluster have been upgraded"));
     }
 
     private void match(String analyzerName, String source, String target) throws IOException {

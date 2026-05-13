@@ -41,9 +41,9 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.Preference;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
@@ -193,8 +193,10 @@ public class SynonymsManagementAPIService {
         // Cache feature support to avoid calling clusterService.state() from the cluster applier thread,
         // which is forbidden. SynonymTokenFilterFactory calls checkClusterSupportsMultipleSynonymSets()
         // from IndicesService.createIndex, which runs on the cluster applier thread.
-        ClusterStateListener multiSetFeatureListener = event -> this.clusterSupportsMultipleSynonymSets = featureService
-            .clusterHasFeature(event.state(), SynonymFeatures.MULTIPLE_SYNONYM_SETS_PER_FILTER);
+        ClusterStateListener multiSetFeatureListener = event -> this.clusterSupportsMultipleSynonymSets = featureService.clusterHasFeature(
+            event.state(),
+            SynonymFeatures.MULTIPLE_SYNONYM_SETS_PER_FILTER
+        );
         clusterService.addListener(multiSetFeatureListener);
     }
 

@@ -343,14 +343,6 @@ public abstract class SenderService<M extends Model> implements InferenceService
         return false;
     }
 
-    /**
-     * Override as necessary for services which support images in embedding inputs
-     * @return true if the service supports images in embedding inputs
-     */
-    protected boolean supportsNonTextEmbeddingContent() {
-        return false;
-    }
-
     @Override
     public void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         try {
@@ -403,17 +395,12 @@ public abstract class SenderService<M extends Model> implements InferenceService
                 if (input.isEmpty()) {
                     listener.onResponse(List.of());
                 } else {
-                    if (supportsNonTextEmbeddingContent() == false
-                        && containsNonTextEntry(input.stream().map(ChunkInferenceInput::input).toList())) {
-                        listener.onFailure(
-                            new ElasticsearchStatusException(
-                                Strings.format("The %s service does not support embedding with non-text inputs", name()),
-                                RestStatus.BAD_REQUEST
-                            )
-                        );
+                    try {
+                        InferenceService.validateChunkedInferInputs(this, input);
+                    } catch (Exception e) {
+                        listener.onFailure(e);
                         return;
                     }
-                    // a non-null query is not supported and is dropped by all providers
                     doChunkedInfer(model, input, taskSettings, inputType, resolvedInferenceTimeout, listener);
                 }
             } else {
@@ -466,10 +453,6 @@ public abstract class SenderService<M extends Model> implements InferenceService
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     );
-
-    protected boolean supportsChunkedInfer() {
-        return true;
-    }
 
     @Override
     public void start(Model model, @Nullable TimeValue timeout, ActionListener<Boolean> listener) {

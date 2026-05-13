@@ -99,6 +99,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final int rowLimit;
     private final Executor executor;
     private final FileList fileList;
+    // Per-file planner-resolved schemas; populated from SourceOperatorContext.schemaMap().
+    // Always non-null (empty for legacy/unresolved paths).
+    private final Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
     private final Set<String> partitionColumnNames;
     private final Map<String, Object> partitionValues;
     private final ExternalSliceQueue sliceQueue;
@@ -130,6 +133,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         int rowLimit,
         Executor executor,
         FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
         Set<String> partitionColumnNames,
         Map<String, Object> partitionValues,
         ExternalSliceQueue sliceQueue,
@@ -171,6 +175,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.maxBufferSize = maxBufferSize;
         this.rowLimit = rowLimit;
         this.fileList = fileList;
+        this.schemaMap = schemaMap != null ? schemaMap : Map.of();
         this.partitionColumnNames = partitionColumnNames != null ? partitionColumnNames : Set.of();
         this.partitionValues = partitionValues != null ? partitionValues : Map.of();
         this.sliceQueue = sliceQueue;
@@ -215,6 +220,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
         private int rowLimit = FormatReader.NO_LIMIT;
         private FileList fileList;
+        private Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
         private Set<String> partitionColumnNames;
         private Map<String, Object> partitionValues;
         private ExternalSliceQueue sliceQueue;
@@ -250,6 +256,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
         public Builder fileList(@Nullable FileList fileList) {
             this.fileList = fileList;
+            return this;
+        }
+
+        public Builder schemaMap(@Nullable Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap) {
+            this.schemaMap = schemaMap;
             return this;
         }
 
@@ -317,6 +328,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 rowLimit,
                 executor,
                 fileList,
+                schemaMap,
                 partitionColumnNames,
                 partitionValues,
                 sliceQueue,
@@ -475,7 +487,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         DriverContext driverContext,
         VirtualColumnInjector injector
     ) {
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = fileList != null ? fileList.fileSchemaInfo() : null;
+        // Per-file schemas now travel as a dedicated SourceOperatorContext.schemaMap() field, populated
+        // from ExternalSourceExec.schemaMap. Always non-null (empty map for legacy paths). The previous
+        // FileList.fileSchemaInfo() asymmetry is removed.
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = schemaMap;
         ActionListener<Void> completionListener = ActionListener.assertOnce(ActionListener.wrap(v -> {
             buffer.finish(false);
             driverContext.removeAsyncAction();

@@ -183,7 +183,7 @@ public class FileSplitProvider implements SplitProvider {
         Map<String, Object> config = context.config();
         List<Expression> filterHints = context.filterHints();
         Set<String> projectedDataColumns = fileBackedProjectedColumns(context.projectedDataColumns(), partitionInfo);
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = fileList.fileSchemaInfo();
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = context.schemaMap();
 
         // Side effect: validates optional {@link #CONFIG_TARGET_SPLIT_SIZE} when users pass WITH options.
         @SuppressWarnings("unused")

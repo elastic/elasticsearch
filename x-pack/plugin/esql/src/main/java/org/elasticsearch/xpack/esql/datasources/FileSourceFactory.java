@@ -242,6 +242,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
             )
                 .rowLimit(context.rowLimit())
                 .fileList(context.fileList())
+                .schemaMap(context.schemaMap())
                 .partitionColumnNames(context.partitionColumnNames())
                 .partitionValues(partitionValues)
                 .sliceQueue(context.sliceQueue())

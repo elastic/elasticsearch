@@ -18,9 +18,11 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -75,6 +77,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     private final BlockHash.TopNDef pushedTopN;
     private final Integer estimatedRowSize;
     private final FileList fileList; // NOT serialized - resolved on coordinator, null on data nodes
+    // NOT serialized - coordinator-only per-file schema reconciliation paired with fileList.
+    // Consumed by AsyncExternalSourceOperatorFactory / FileSplitProvider to bake
+    // FileSplit.readSchema and to drive the UBN SchemaAdaptingIterator. Empty (never null) on
+    // data nodes and for legacy paths.
+    private final Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
     private final List<ExternalSplit> splits;
 
     public ExternalSourceExec(
@@ -100,6 +107,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             fileList,
+            Map.of(),
             List.of()
         );
     }
@@ -129,13 +137,17 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedLimit,
             estimatedRowSize,
             fileList,
+            Map.of(),
             splits
         );
     }
 
     /**
-     * Longest public ctor; used by {@link #info()}, by
-     * {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec()}, and by tree tests.
+     * Back-compat 12-arg overload (no schemaMap). Defaults schemaMap to an empty map so the
+     * coordinator-side ride-along is no-op for callers that have not been threaded yet (tests,
+     * tree reflection); the analyzer and
+     * {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec} use the longest
+     * 13-arg ctor below to deliver the real planner-resolved schema info.
      */
     public ExternalSourceExec(
         Source source,
@@ -161,9 +173,46 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedFilter,
             pushedExpressions,
             pushedLimit,
+            estimatedRowSize,
+            fileList,
+            Map.of(),
+            splits
+        );
+    }
+
+    /**
+     * Longest public ctor; used by {@link #info()}, by
+     * {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec()}, and by tree tests.
+     */
+    public ExternalSourceExec(
+        Source source,
+        String sourcePath,
+        String sourceType,
+        List<Attribute> attributes,
+        Map<String, Object> config,
+        Map<String, Object> sourceMetadata,
+        Object pushedFilter,
+        List<Expression> pushedExpressions,
+        int pushedLimit,
+        Integer estimatedRowSize,
+        FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        List<ExternalSplit> splits
+    ) {
+        this(
+            source,
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            pushedExpressions,
+            pushedLimit,
             null,
             estimatedRowSize,
             fileList,
+            schemaMap,
             splits
         );
     }
@@ -186,6 +235,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         @Nullable BlockHash.TopNDef pushedTopN,
         Integer estimatedRowSize,
         FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
         List<ExternalSplit> splits
     ) {
         super(source);
@@ -209,6 +259,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         this.pushedTopN = pushedTopN;
         this.estimatedRowSize = estimatedRowSize;
         this.fileList = fileList;
+        this.schemaMap = schemaMap != null ? schemaMap : Map.of();
         this.splits = splits != null ? List.copyOf(splits) : List.of();
     }
 
@@ -234,6 +285,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             null,
+            Map.of(),
             List.of()
         );
     }
@@ -259,6 +311,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             null,
+            Map.of(),
             List.of()
         );
     }
@@ -289,6 +342,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             null,
+            Map.of(),
             splits
         );
     }
@@ -353,6 +407,10 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         return fileList;
     }
 
+    public Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap() {
+        return schemaMap;
+    }
+
     public List<ExternalSplit> splits() {
         return splits;
     }
@@ -371,6 +429,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedTopN,
             estimatedRowSize,
             fileList,
+            schemaMap,
             newSplits
         );
     }
@@ -389,6 +448,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedTopN,
             estimatedRowSize,
             fileList,
+            schemaMap,
             splits
         );
     }
@@ -407,6 +467,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedTopN,
             estimatedRowSize,
             fileList,
+            schemaMap,
             splits
         );
     }
@@ -425,6 +486,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedTopN,
             estimatedRowSize,
             fileList,
+            schemaMap,
             splits
         );
     }
@@ -446,6 +508,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             newPushedTopN,
             estimatedRowSize,
             fileList,
+            schemaMap,
             splits
         );
     }
@@ -481,6 +544,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedTopN,
             newEstimatedRowSize,
             fileList,
+            schemaMap,
             splits
         );
     }
@@ -503,6 +567,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedLimit,
             estimatedRowSize,
             fileList,
+            schemaMap,
             splits
         );
     }
@@ -521,6 +586,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedTopN,
             estimatedRowSize,
             fileList,
+            schemaMap,
             splits
         );
     }
@@ -547,6 +613,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             && Objects.equals(pushedTopN, other.pushedTopN)
             && Objects.equals(estimatedRowSize, other.estimatedRowSize)
             && Objects.equals(fileList, other.fileList)
+            && Objects.equals(schemaMap, other.schemaMap)
             && Objects.equals(splits, other.splits);
     }
 

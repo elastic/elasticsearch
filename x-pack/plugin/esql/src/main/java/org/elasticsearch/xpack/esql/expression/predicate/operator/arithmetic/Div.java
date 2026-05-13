@@ -109,10 +109,11 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
      * for the right-hand side and bake the divisor into the evaluator via {@code @Fixed}.
      * This lets the JIT replace the per-row {@code IDIV} with a Granlund-Montgomery
      * shift+multiply sequence — the same instruction-level win that motivates the
-     * matching fast path in {@link Mod}. Falls back to the column-vs-column path for
-     * non-foldable, unsigned_long, zero-valued, or non-numeric divisors — the zero case
-     * is kept on the slow path so that the existing per-row warning / null behavior is
-     * preserved instead of failing the query at plan time.
+     * matching fast path in {@link Mod}. Example: {@code EVAL kb = bytes / 1024}.
+     * Falls back to the column-vs-column path for non-foldable, unsigned_long,
+     * zero-valued, or non-numeric divisors — the zero case is kept on the slow path
+     * so that the existing per-row warning / null behavior is preserved instead of
+     * failing the query at plan time.
      */
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {

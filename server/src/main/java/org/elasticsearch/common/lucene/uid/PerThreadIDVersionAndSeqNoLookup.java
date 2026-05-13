@@ -159,20 +159,27 @@ final class PerThreadIDVersionAndSeqNoLookup {
     private int getDocID(BytesRef id, LeafReaderContext context) throws IOException {
         // termsEnum can possibly be null here if this leaf contains only no-ops.
         if (termsEnum != null && termsEnum.seekExact(id)) {
-            final Bits liveDocs = context.reader().getLiveDocs();
-            int docID = DocIdSetIterator.NO_MORE_DOCS;
-            // there may be more than one matching docID, in the case of nested docs, so we want the last one:
-            docsEnum = termsEnum.postings(docsEnum, 0);
-            for (int d = docsEnum.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = docsEnum.nextDoc()) {
-                if (liveDocs != null && liveDocs.get(d) == false) {
-                    continue;
-                }
-                docID = d;
-            }
-            return docID;
+            return scanLiveDoc(context.reader().getLiveDocs());
         } else {
             return DocIdSetIterator.NO_MORE_DOCS;
         }
+    }
+
+    /**
+     * Scans postings for the term the {@link #termsEnum} is currently positioned on and returns the
+     * highest live doc ID found, or {@link DocIdSetIterator#NO_MORE_DOCS} if no live doc exists.
+     * There may be more than one matching doc ID in the case of nested docs, so we want the last one.
+     */
+    private int scanLiveDoc(Bits liveDocs) throws IOException {
+        int docID = DocIdSetIterator.NO_MORE_DOCS;
+        docsEnum = termsEnum.postings(docsEnum, 0);
+        for (int d = docsEnum.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = docsEnum.nextDoc()) {
+            if (liveDocs != null && liveDocs.get(d) == false) {
+                continue;
+            }
+            docID = d;
+        }
+        return docID;
     }
 
     private static long readNumericDocValues(LeafReader reader, String field, int docId) throws IOException {

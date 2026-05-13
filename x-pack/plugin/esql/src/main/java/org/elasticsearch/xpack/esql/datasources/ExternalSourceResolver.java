@@ -337,6 +337,23 @@ public class ExternalSourceResolver {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
         }
 
+        // FIRST_FILE_WINS contract: every file is read AS the anchor's schema. Replicate the anchor's
+        // schema into a per-file FileSchemaInfo entry for every file so FileSplitProvider populates
+        // each FileSplit.readSchema and the reader stays pinned to the planner's view, no re-inference.
+        List<Attribute> anchorSchema = extMetadata.schema();
+        if (anchorSchema != null && anchorSchema.isEmpty() == false) {
+            Map<StoragePath, SchemaReconciliation.FileSchemaInfo> perFileInfo = new LinkedHashMap<>();
+            int[] identity = new int[anchorSchema.size()];
+            for (int i = 0; i < identity.length; i++) {
+                identity[i] = i;
+            }
+            SchemaReconciliation.ColumnMapping identityMapping = new SchemaReconciliation.ColumnMapping(identity, null);
+            for (int i = 0; i < listing.fileCount(); i++) {
+                perFileInfo.put(listing.path(i), new SchemaReconciliation.FileSchemaInfo(anchorSchema, identityMapping, null));
+            }
+            listing = GlobExpander.withSchemaInfo(listing, Map.copyOf(perFileInfo));
+        }
+
         return new ExternalSourceResolution.ResolvedSource(extMetadata, listing);
     }
 

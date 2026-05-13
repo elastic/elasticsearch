@@ -42,7 +42,7 @@ public abstract class LeafQueryBuilder<QB extends LeafQueryBuilder<QB>> extends 
     protected final Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor queryVisitor) throws IOException {
         Query query = doToQuery(context);
         if (query != null) {
-            context.addCircuitBreakerMemory(estimateRamBytes(query), "clause:" + getName());
+            context.addCircuitBreakerMemory(estimateRamBytes(query), "clause:" + getClass().getSimpleName());
             query.visit(queryVisitor);
         }
         return query;

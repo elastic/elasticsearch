@@ -127,10 +127,10 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         String expectedMapping;
         if (useColumnarId) {
             expectedMapping = """
-            {"_doc":{"_id":{"mode":"columnar"},"properties":{"date":{"type":"integer"}}}}""";
+                {"_doc":{"_id":{"mode":"columnar"},"properties":{"date":{"type":"integer"}}}}""";
         } else {
             expectedMapping = """
-            {"_doc":{"properties":{"date":{"type":"integer"}}}}""";
+                {"_doc":{"properties":{"date":{"type":"integer"}}}}""";
         }
         assertThat(getMappingsResponse.mappings().get("test").source().toString(), equalTo(expectedMapping));
     }

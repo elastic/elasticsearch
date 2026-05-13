@@ -1796,7 +1796,7 @@ public class InternalEngineTests extends EngineTestCase {
                     if (op != null) {
                         assertThat(op, instanceOf(Translog.Index.class));
                         assertThat(msg, Uid.decodeId(((Translog.Index) op).uid()), is(in(liveDocs)));
-                        assertEquals(msg, ((Translog.Index) op).source(), B_1);
+                        assertEquals(msg, B_1, ((Translog.Index) op).source());
                     }
                 } else {
                     assertThat(msg, ops.get(seqno), notNullValue());
@@ -1889,7 +1889,7 @@ public class InternalEngineTests extends EngineTestCase {
                     Translog.Operation op = ops.get(seqno);
                     assertThat(msg, op, notNullValue());
                     if (op instanceof Translog.Index) {
-                        assertEquals(msg, ((Translog.Index) op).source(), B_1);
+                        assertEquals(msg, B_1, ((Translog.Index) op).source());
                     }
                 }
             }
@@ -4467,7 +4467,7 @@ public class InternalEngineTests extends EngineTestCase {
         );
         indexResult = indexDoc(engine, index);
         assertThat(indexResult.getVersion(), equalTo(1L));
-        assertNotEquals(indexResult.getSeqNo(), UNASSIGNED_SEQ_NO);
+        assertNotEquals(UNASSIGNED_SEQ_NO, indexResult.getSeqNo());
         engine.refresh("test");
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, 10);
@@ -5740,7 +5740,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertTrue(engine.refreshNeeded());
             var refreshResult = engine.refresh("test", Engine.SearcherScope.INTERNAL, true);
             assertTrue(refreshResult.refreshed());
-            assertNotEquals(refreshResult.generation(), Engine.RefreshResult.UNKNOWN_GENERATION);
+            assertNotEquals(Engine.RefreshResult.UNKNOWN_GENERATION, refreshResult.generation());
             try (
                 Engine.Searcher getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
                 Engine.Searcher searchSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)
@@ -7900,7 +7900,7 @@ public class InternalEngineTests extends EngineTestCase {
         ) {
             var refresh1Result = engine.refresh("warm_up");
             assertTrue(refresh1Result.refreshed());
-            assertNotEquals("when refreshed, generation must be set", refresh1Result.generation(), Engine.RefreshResult.UNKNOWN_GENERATION);
+            assertNotEquals("when refreshed, generation must be set", Engine.RefreshResult.UNKNOWN_GENERATION, refresh1Result.generation());
             for (int i = 0; i < 10; i++) {
                 indexDoc(engine, indexForDoc(createParsedDoc(String.valueOf(i), null)));
             }

@@ -142,13 +142,13 @@ public class VersionLookupTests extends ESTestCase {
         LeafReaderContext segment = reader.leaves().getFirst();
         PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), true);
         assertTrue(lookup.loadedTimestampRange);
-        assertEquals(lookup.minTimestamp, 1_000L);
-        assertEquals(lookup.maxTimestamp, 1_000_000L);
+        assertEquals(1_000L, lookup.minTimestamp);
+        assertEquals(1_000_000L, lookup.maxTimestamp);
 
         lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), false);
         assertFalse(lookup.loadedTimestampRange);
-        assertEquals(lookup.minTimestamp, 0L);
-        assertEquals(lookup.maxTimestamp, Long.MAX_VALUE);
+        assertEquals(0L, lookup.minTimestamp);
+        assertEquals(Long.MAX_VALUE, lookup.maxTimestamp);
 
         reader.close();
         writer.close();
@@ -164,8 +164,8 @@ public class VersionLookupTests extends ESTestCase {
         LeafReaderContext segment = reader.leaves().getFirst();
         PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), true);
         assertTrue(lookup.loadedTimestampRange);
-        assertEquals(lookup.minTimestamp, 0L);
-        assertEquals(lookup.maxTimestamp, Long.MAX_VALUE);
+        assertEquals(0L, lookup.minTimestamp);
+        assertEquals(Long.MAX_VALUE, lookup.maxTimestamp);
         reader.close();
         writer.close();
         dir.close();

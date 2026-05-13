@@ -32,9 +32,14 @@ final class InternalPacks {
         if (vector != null) {
             OrdinalBytesRefVector ordinals = vector.asOrdinals();
             if (ordinals != null) {
-                var encoded = packBytesVector(driverContext, ordinals.getDictionaryVector());
-                ordinals.getOrdinalsVector().incRef();
-                return new OrdinalBytesRefVector(ordinals.getOrdinalsVector(), encoded).asBlock();
+                // Compact away phantom dictionary entries (left over by filter()/slice()/keepMask())
+                // before encoding, so we don't waste work encoding values no row references and don't
+                // propagate phantoms into the new ordinal block we hand back.
+                try (OrdinalBytesRefVector compact = ordinals.compact()) {
+                    var encoded = packBytesVector(driverContext, compact.getDictionaryVector());
+                    compact.getOrdinalsVector().incRef();
+                    return new OrdinalBytesRefVector(compact.getOrdinalsVector(), encoded).asBlock();
+                }
             } else {
                 return packBytesVector(driverContext, vector).asBlock();
             }

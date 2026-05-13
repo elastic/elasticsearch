@@ -45,6 +45,13 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
     private final Page originalPage;
     private final BlockOptimization blockOptimization;
     private Page optimizedPage;
+    /**
+     * In {@link BlockOptimization#DICTIONARY} mode, marks dictionary entries actually referenced by an
+     * ordinal in {@link #originalPage}. Phantom dict entries (left over by upstream {@code filter()}/
+     * {@code slice()}/{@code keepMask()}) sit at unreferenced positions and we skip Lucene queries for
+     * them in {@link #nextQuery()} / {@link #processBulkQueries}. {@code null} until the first call.
+     */
+    private boolean[] referencedDictionaryEntries;
     private int queryPosition = -1;
     private final IndexedByShardId<? extends ShardContext> shardContexts;
     private final ShardContext shardContext;
@@ -122,6 +129,20 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
      */
     public Page getInputPage() {
         return getInputPageInternal();
+    }
+
+    /**
+     * Lazily computes (and caches) which dictionary positions are actually referenced by some ordinal
+     * in {@link #originalPage}. Returns {@code null} when not in DICTIONARY mode (no phantoms possible).
+     */
+    private boolean[] referencedDictionaryEntries() {
+        if (blockOptimization != BlockOptimization.DICTIONARY) {
+            return null;
+        }
+        if (referencedDictionaryEntries == null) {
+            referencedDictionaryEntries = BlockOptimization.extractOrdinalBlock(originalPage).referencedDictionaryEntries();
+        }
+        return referencedDictionaryEntries;
     }
 
     @Override
@@ -209,9 +230,14 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
             bulkKeywordLookup.initializeCaches(indexReader);
         }
 
+        boolean[] referenced = referencedDictionaryEntries();
         int totalMatches = 0;
         do {
             if (queryPosition >= queryList.getPositionCount(inputPage)) break;
+            if (referenced != null && referenced[queryPosition] == false) {
+                queryPosition++;
+                continue;
+            }
 
             final int matches = bulkKeywordLookup.processQuery(
                 inputPage,
@@ -260,7 +286,12 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
     private Query nextQuery() {
         ++queryPosition;
         Page inputPage = getInputPageInternal();
+        boolean[] referenced = referencedDictionaryEntries();
         while (isFinished() == false) {
+            if (referenced != null && referenced[queryPosition] == false) {
+                ++queryPosition;
+                continue;
+            }
             Query query = queryList.getQuery(queryPosition, inputPage, searchExecutionContext);
             if (query != null) {
                 return query;

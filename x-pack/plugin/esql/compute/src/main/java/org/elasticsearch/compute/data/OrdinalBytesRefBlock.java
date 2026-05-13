@@ -79,6 +79,29 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     }
 
     /**
+     * Returns a freshly allocated boolean array of length {@code getDictionaryVector().getPositionCount()}
+     * where {@code result[ord]} is {@code true} iff {@code ord} is referenced by at least one non-null
+     * ordinal in this block. Useful for consumers that want to skip phantom dictionary entries (left over
+     * by {@code filter()}/{@code slice()}/{@code keepMask()}) without paying the cost of a full
+     * {@link #compact()} that also remaps the ordinals.
+     */
+    public boolean[] referencedDictionaryEntries() {
+        boolean[] referenced = new boolean[bytes.getPositionCount()];
+        int positionCount = ordinals.getPositionCount();
+        for (int p = 0; p < positionCount; p++) {
+            if (ordinals.isNull(p)) {
+                continue;
+            }
+            int start = ordinals.getFirstValueIndex(p);
+            int end = start + ordinals.getValueCount(p);
+            for (int i = start; i < end; i++) {
+                referenced[ordinals.getInt(i)] = true;
+            }
+        }
+        return referenced;
+    }
+
+    /**
      * Returns a block whose dictionary is guaranteed to contain only entries referenced by at least one
      * ordinal. If {@link #needsCompaction()} is {@code false}, returns {@code this} (with an extra ref).
      * If a walk of the ordinals discovers every dictionary entry is referenced, returns a wrapper around
@@ -91,21 +114,11 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
             return this;
         }
         int dictSize = bytes.getPositionCount();
-        boolean[] referenced = new boolean[dictSize];
+        boolean[] referenced = referencedDictionaryEntries();
         int referencedCount = 0;
-        int positionCount = ordinals.getPositionCount();
-        for (int p = 0; p < positionCount; p++) {
-            if (ordinals.isNull(p)) {
-                continue;
-            }
-            int start = ordinals.getFirstValueIndex(p);
-            int end = start + ordinals.getValueCount(p);
-            for (int i = start; i < end; i++) {
-                int ord = ordinals.getInt(i);
-                if (referenced[ord] == false) {
-                    referenced[ord] = true;
-                    referencedCount++;
-                }
+        for (int oldOrd = 0; oldOrd < dictSize; oldOrd++) {
+            if (referenced[oldOrd]) {
+                referencedCount++;
             }
         }
         if (referencedCount == dictSize) {
@@ -113,6 +126,7 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
             bytes.incRef();
             return new OrdinalBytesRefBlock(ordinals, bytes, false);
         }
+        int positionCount = ordinals.getPositionCount();
         int[] remap = new int[dictSize];
         BytesRefVector compactBytes = null;
         IntBlock remappedOrds = null;

@@ -30,6 +30,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
+import java.util.Arrays;
+
 /**
  * An optimized block hash that receives two blocks: tsid and timestamp, which are sorted.
  * Since the incoming data is sorted, this block hash checks tsid ordinals to avoid redundant
@@ -154,19 +156,18 @@ public final class TimeSeriesBlockHash extends BlockHash {
         long acquiredBytes = (long) Integer.BYTES * (ordinalsLength + dictLength);
         blockFactory.breaker().addEstimateBytesAndMaybeBreak(acquiredBytes, "TimeSeriesBlockHash");
         try {
+            // Lazy ord-to-tsid cache. Phantom dictionary entries (left over from filter()/slice()/keepMask())
+            // are never visited because no row references them, and therefore never enter tsidHash.
             final int[] dictOrds = new int[dictLength];
-            for (int p = 0; p < dictLength; p++) {
-                BytesRef v = dictVector.getBytesRef(p, scratch);
-                dictOrds[p] = Math.toIntExact(hashOrdToGroup(tsidHash.add(v)));
-            }
+            Arrays.fill(dictOrds, UNSEEN);
             final int[] groupIds = new int[ordinalsLength];
-            int prevTsid = dictOrds[ordinalsVector.getInt(0)];
+            int prevTsid = lazyTsid(dictOrds, dictVector, ordinalsVector.getInt(0));
             long prevTimestamp = timestamps.getLong(0);
             int prevGroupId = Math.toIntExact(hashOrdToGroup(finalHash.add(prevTsid, prevTimestamp)));
             groupIds[0] = prevGroupId;
             for (int p = 1; p < ordinalsLength; p++) {
                 final long timestamp = timestamps.getLong(p);
-                int tsid = dictOrds[ordinalsVector.getInt(p)];
+                int tsid = lazyTsid(dictOrds, dictVector, ordinalsVector.getInt(p));
                 if (tsid != prevTsid || timestamp != prevTimestamp) {
                     prevTimestamp = timestamp;
                     prevGroupId = Math.toIntExact(hashOrdToGroup(finalHash.add(tsid, prevTimestamp)));
@@ -181,6 +182,17 @@ public final class TimeSeriesBlockHash extends BlockHash {
         } finally {
             blockFactory.breaker().addWithoutBreaking(-acquiredBytes);
         }
+    }
+
+    private static final int UNSEEN = -1;
+
+    private int lazyTsid(int[] cache, BytesRefVector dict, int dictOrd) {
+        int tsid = cache[dictOrd];
+        if (tsid == UNSEEN) {
+            tsid = Math.toIntExact(hashOrdToGroup(tsidHash.add(dict.getBytesRef(dictOrd, scratch))));
+            cache[dictOrd] = tsid;
+        }
+        return tsid;
     }
 
     private void addVector(BytesRefVector tsidVector, LongVector timestamps, GroupingAggregatorFunction.AddInput addInput) {

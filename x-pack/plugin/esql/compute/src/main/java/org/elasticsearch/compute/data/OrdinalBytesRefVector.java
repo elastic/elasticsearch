@@ -72,6 +72,18 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
     }
 
     /**
+     * Vector counterpart of {@link OrdinalBytesRefBlock#referencedDictionaryEntries()}.
+     */
+    public boolean[] referencedDictionaryEntries() {
+        boolean[] referenced = new boolean[bytes.getPositionCount()];
+        int positionCount = ordinals.getPositionCount();
+        for (int p = 0; p < positionCount; p++) {
+            referenced[ordinals.getInt(p)] = true;
+        }
+        return referenced;
+    }
+
+    /**
      * Vector counterpart of {@link OrdinalBytesRefBlock#compact()}. Returns {@code this} (with an extra
      * ref) when no compaction is needed; otherwise returns a new vector with a phantom-free dictionary
      * and remapped ordinals. The returned vector must be closed by the caller.
@@ -82,13 +94,10 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
             return this;
         }
         int dictSize = bytes.getPositionCount();
-        boolean[] referenced = new boolean[dictSize];
+        boolean[] referenced = referencedDictionaryEntries();
         int referencedCount = 0;
-        int positionCount = ordinals.getPositionCount();
-        for (int p = 0; p < positionCount; p++) {
-            int ord = ordinals.getInt(p);
-            if (referenced[ord] == false) {
-                referenced[ord] = true;
+        for (int oldOrd = 0; oldOrd < dictSize; oldOrd++) {
+            if (referenced[oldOrd]) {
                 referencedCount++;
             }
         }
@@ -97,6 +106,7 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
             bytes.incRef();
             return new OrdinalBytesRefVector(ordinals, bytes, false);
         }
+        int positionCount = ordinals.getPositionCount();
         int[] remap = new int[dictSize];
         BytesRefVector compactBytes = null;
         IntVector remappedOrds = null;

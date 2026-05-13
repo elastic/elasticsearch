@@ -378,9 +378,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         if (dataLocation == null) {
             dataLocation = randomFrom(DataLocation.values());
         }
-        // WHERE IN subqueries nest full queries with '|' inside FROM/WHERE; addRemoteIndices splits on '|'
-        // naively and cannot rewrite CCS index patterns yet. These cases are skipped in shouldSkipTest;
-        // avoid rewriting here so the parameterized constructor does not fail before assumptions run.
+        // convertToRemoteIndices does not support WHERE IN subquery yet
         if (testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITH_VIEW.capabilityName())) {
             return testCase;
         }

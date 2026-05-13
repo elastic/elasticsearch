@@ -80,9 +80,14 @@ public class FieldNameUtils {
             inlinestatsAggs.add(((InlineStats) i).aggregate());
         }
 
-        if (false == mainPipelineRequiresFieldCollection(parsed, inlinestatsAggs)) {
+        if (false == mainQueryRequiresFieldCollection(parsed, inlinestatsAggs)) {
             // no explicit columns selection, for example "from employees"
             // also, inlinestats only adds columns to the existent output, its Aggregate shouldn't interfere with potentially using "*"
+            return new PreAnalysisResult(IndexResolver.ALL_FIELDS, Set.of());
+        }
+
+        // If main query does not require all_fields, check if subqueries require all_fields
+        if (false == subqueryRequiresFieldCollection(parsed, inlinestatsAggs)) {
             return new PreAnalysisResult(IndexResolver.ALL_FIELDS, Set.of());
         }
 
@@ -350,26 +355,36 @@ public class FieldNameUtils {
     }
 
     /**
-     * Checks whether the main pipeline (excluding subquery plans inside SemiJoin/AntiJoin right children)
+     * Checks whether the main query (excluding subquery plans inside SemiJoin/AntiJoin right children)
      * contains a plan node that requires explicit field collection (e.g. KEEP, STATS).
      * Subquery plans are skipped because a KEEP inside a subquery should not force field collection
      * for the main query — the main query may still need all fields.
      */
-    private static boolean mainPipelineRequiresFieldCollection(LogicalPlan plan, Set<Aggregate> inlinestatsAggs) {
+    private static boolean mainQueryRequiresFieldCollection(LogicalPlan plan, Set<Aggregate> inlinestatsAggs) {
         if (shouldCollectReferencedFields(plan, inlinestatsAggs)) {
             return true;
         }
         // Skip the right (subquery) child of SemiJoin/AntiJoin — its KEEP/STATS should not
         // force the main pipeline into explicit field collection.
         if (plan instanceof SemiJoin semiJoin) {
-            return mainPipelineRequiresFieldCollection(semiJoin.left(), inlinestatsAggs);
+            return mainQueryRequiresFieldCollection(semiJoin.left(), inlinestatsAggs);
         }
         for (LogicalPlan child : plan.children()) {
-            if (mainPipelineRequiresFieldCollection(child, inlinestatsAggs)) {
+            if (mainQueryRequiresFieldCollection(child, inlinestatsAggs)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private static boolean subqueryRequiresFieldCollection(LogicalPlan plan, Set<Aggregate> inlinestatsAggs) {
+        Holder<Boolean> requireFieldCollection = new Holder<>(true);
+        plan.forEachUp(SemiJoin.class, sj -> {
+            if (sj.right().anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs)) == false) {
+                requireFieldCollection.set(false);
+            }
+        });
+        return requireFieldCollection.get();
     }
 
     /**

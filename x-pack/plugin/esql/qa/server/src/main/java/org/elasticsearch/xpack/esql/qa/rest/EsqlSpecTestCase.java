@@ -196,6 +196,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (shouldLoadViews()) {
             VIEWS.protectedBlock(() -> {
                 if (supportsViews()) {
+                    // create views with IN subquery inside their definition only if the cluster has the capability to support IN subquery
                     loadViewsIntoEs(adminClient(), this::clusterHasCapability);
                 }
                 return null;

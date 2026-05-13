@@ -80,11 +80,11 @@ public class UnionAllFromDisjunctiveInSubquery extends UnionAll {
                 }
                 String message;
                 if (nested instanceof UnionAllFromDisjunctiveInSubquery) {
-                    message = "Nested disjunctive (OR) IN/NOT IN subqueries are not supported";
+                    message = "Nested disjunctive (OR) IN subqueries are not supported";
                 } else if (nested instanceof UnionAll) {
-                    message = "Disjunctive (OR) IN/NOT IN subqueries are not supported inside FROM subqueries";
+                    message = "Disjunctive (OR) IN subqueries are not supported inside FROM subqueries";
                 } else {
-                    message = "Disjunctive (OR) IN/NOT IN subqueries are not supported with FORK";
+                    message = "Disjunctive (OR) IN subqueries are not supported with FORK";
                 }
                 failures.add(Failure.fail(self, message));
             });

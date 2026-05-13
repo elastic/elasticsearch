@@ -58,7 +58,7 @@ public class LogicalPlanOptimizerInSubqueryTests extends AbstractLogicalPlanOpti
             FROM test,
                  (FROM test | WHERE emp_no IN (FROM test | KEEP emp_no) OR salary > 50000 | KEEP emp_no)
             """));
-        assertThat(e.getMessage(), containsString("Disjunctive (OR) IN/NOT IN subqueries are not supported inside FROM subqueries"));
+        assertThat(e.getMessage(), containsString("Disjunctive (OR) IN subqueries are not supported inside FROM subqueries"));
     }
 
     /**
@@ -69,7 +69,7 @@ public class LogicalPlanOptimizerInSubqueryTests extends AbstractLogicalPlanOpti
             FROM test,
                  (FROM test | WHERE emp_no NOT IN (FROM test | KEEP emp_no) OR salary > 50000 | KEEP emp_no)
             """));
-        assertThat(e.getMessage(), containsString("Disjunctive (OR) IN/NOT IN subqueries are not supported inside FROM subqueries"));
+        assertThat(e.getMessage(), containsString("Disjunctive (OR) IN subqueries are not supported inside FROM subqueries"));
     }
 
     /**
@@ -84,7 +84,7 @@ public class LogicalPlanOptimizerInSubqueryTests extends AbstractLogicalPlanOpti
                 | KEEP emp_no
               ) OR salary > 50000
             """));
-        assertThat(e.getMessage(), containsString("Nested disjunctive (OR) IN/NOT IN subqueries are not supported"));
+        assertThat(e.getMessage(), containsString("Nested disjunctive (OR) IN subqueries are not supported"));
     }
 
     /**
@@ -96,7 +96,7 @@ public class LogicalPlanOptimizerInSubqueryTests extends AbstractLogicalPlanOpti
             | WHERE emp_no IN (FROM test | KEEP emp_no) OR salary > 50000
             | FORK (WHERE emp_no > 10000) (WHERE emp_no < 10050)
             """));
-        assertThat(e.getMessage(), containsString("FORK after disjunctive (OR) IN/NOT IN subquery is not supported"));
+        assertThat(e.getMessage(), containsString("FORK after disjunctive (OR) IN subquery is not supported"));
     }
 
     /**
@@ -152,7 +152,7 @@ public class LogicalPlanOptimizerInSubqueryTests extends AbstractLogicalPlanOpti
             """));
         assertThat(
             e.getMessage(),
-            containsString("IN/NOT IN subquery [emp_no IN (FROM test | SORT emp_no | KEEP emp_no)] cannot yet have an unbounded SORT")
+            containsString("IN subquery [emp_no IN (FROM test | SORT emp_no | KEEP emp_no)] cannot yet have an unbounded SORT")
         );
     }
 
@@ -166,9 +166,7 @@ public class LogicalPlanOptimizerInSubqueryTests extends AbstractLogicalPlanOpti
             """));
         assertThat(
             e.getMessage(),
-            containsString(
-                "IN/NOT IN subquery [emp_no NOT IN (FROM test | SORT emp_no DESC | KEEP emp_no)] cannot yet have an unbounded SORT"
-            )
+            containsString("IN subquery [emp_no NOT IN (FROM test | SORT emp_no DESC | KEEP emp_no)] cannot yet have an unbounded SORT")
         );
     }
 

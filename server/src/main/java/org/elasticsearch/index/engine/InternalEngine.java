@@ -1643,15 +1643,8 @@ public class InternalEngine extends Engine {
         versionMap.enforceSafeAccess();
         // resolves incoming version
         final VersionValue versionValue = resolveDocVersion(index, index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO);
-        final long currentVersion;
-        final boolean currentNotFoundOrDeleted;
-        if (versionValue == null) {
-            currentVersion = Versions.NOT_FOUND;
-            currentNotFoundOrDeleted = true;
-        } else {
-            currentVersion = versionValue.version;
-            currentNotFoundOrDeleted = versionValue.isDelete();
-        }
+        final long currentVersion = versionValue == null ? Versions.NOT_FOUND : versionValue.version;
+        final boolean currentNotFoundOrDeleted = versionValue == null || versionValue.isDelete();
 
         if (index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && currentNotFoundOrDeleted) {
             final VersionConflictEngineException e = new VersionConflictEngineException(
@@ -2089,15 +2082,9 @@ public class InternalEngine extends Engine {
         // resolve operation from external to internal
         final VersionValue versionValue = resolveDocVersion(delete, delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO);
         assert incrementVersionLookup();
-        final long currentVersion;
-        final boolean currentlyDeleted;
-        if (versionValue == null) {
-            currentVersion = Versions.NOT_FOUND;
-            currentlyDeleted = true;
-        } else {
-            currentVersion = versionValue.version;
-            currentlyDeleted = versionValue.isDelete();
-        }
+        final long currentVersion = versionValue == null ? Versions.NOT_FOUND : versionValue.version;
+        final boolean currentlyDeleted = versionValue == null || versionValue.isDelete();
+
         final DeletionStrategy plan;
         if (delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && currentlyDeleted) {
             final VersionConflictEngineException e = new VersionConflictEngineException(

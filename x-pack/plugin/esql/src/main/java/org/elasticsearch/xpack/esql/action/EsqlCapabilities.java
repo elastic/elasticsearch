@@ -2739,6 +2739,14 @@ public class EsqlCapabilities {
         APPROXIMATION_FIX_MIN_SOURCE_ROW_COUNT,
 
         /**
+         * Fix for histogram block loaders (tdigest, exponential_histogram) passing {@code nullsFiltered=true} to
+         * sub-block-loaders for min, max and sum. Those sub-fields can be absent for empty histograms even when the
+         * histogram field itself is present, so the null-filtered guarantee does not hold for them.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/147854">#147854</a>
+         */
+        FIX_HISTOGRAM_BLOCKLOADERS_ISNULL,
+
+        /**
          * Fix for {@code CompoundOutputEval} commands not implementing {@code SortAgnostic}, causing {@code PruneRedundantOrderBy} to
          * fail when a SORT precedes these commands.
          */

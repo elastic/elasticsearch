@@ -1,11 +1,10 @@
 area: ES|QL
 deprecation:
   area: ES|QL
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
-  title: Add deprecation message for ESQL log
+  details: ES|QL query logging is deprecated - please use core query logging. 
+  impact: This will produce a deprecation message if ES|QL query logging setting is enabled. 
+  title: Add deprecation message for ES|QL query log
 issues: []
 pr: 149013
-summary: Add deprecation message for ESQL log
+summary: Add deprecation message for ES|QL query log
 type: deprecation

@@ -160,7 +160,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             int remaining = k - scoreDocs.length;
             // add oversampling if we have a parents bitset
             if (parentsFilter != null) {
-                remaining = (int) Math.ceil(1.2f * k);
+                remaining = (int) Math.ceil(1.2f * remaining);
             }
             int[] excludedDocs = sortedDocIds(scoreDocs);
             Query fallback = innerQuery.createFallbackQuery(searcher.getIndexReader(), excludedDocs, remaining);

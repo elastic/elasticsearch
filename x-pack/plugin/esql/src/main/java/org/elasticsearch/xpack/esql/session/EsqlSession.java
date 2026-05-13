@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.PreAnalysisVerifier;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -330,6 +331,10 @@ public class EsqlSession {
         // ViewCompaction.postIndexResolution(), which runs as an analyzer rule after ResolveTable so
         // lenient field-caps can pair each shadow with its strict sibling.
         LogicalPlan plan = ViewCompaction.preIndexResolution(viewResolution.plan());
+        // Run structural checks that don't need analysis or index resolution. Doing this here
+        // (after view resolution, before pre-analysis) lets a malformed query fail-fast without
+        // paying for field-caps round trips.
+        PreAnalysisVerifier.verify(plan);
         Configuration configurationToUse = configuration;
         if (plan instanceof Explain explain) {
             explainMode = true;
@@ -886,8 +891,8 @@ public class EsqlSession {
         // Rewrite FROM targets that resolve to datasets into UnresolvedExternalRelation so the rest of
         // pre-analysis + analysis treats them identically to the inline EXTERNAL command. Pattern
         // expansion (wildcards, exclusions, date math, etc.) flows through the same
-        // IndexNameExpressionResolver path indices use. The rewriter bails internally when the feature
-        // flag is off or no datasets are registered.
+        // IndexNameExpressionResolver path indices use. The rewriter bails internally when there are
+        // no datasets registered (the feature flag gates the CRUD layer that puts datasets there).
         parsed = DatasetRewriter.rewrite(parsed, projectMetadata, indexNameExpressionResolver);
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         preAnalysisProfile.stop();
@@ -1276,7 +1281,6 @@ public class EsqlSession {
                 index,
                 lookupIndexResolution.get().mapping(),
                 Map.of(indexName, IndexMode.LOOKUP),
-                Map.of(),
                 Map.of(),
                 Map.of()
             );

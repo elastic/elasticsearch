@@ -40,6 +40,7 @@ public class InferenceStats {
     static final String STACK_VERSION_ATTRIBUTE = "es_stack_version";
     // Indicates whether the node is a production release (i.e. not a snapshot, alpha, etc.)
     static final String PRODUCTION_RELEASE_ATTRIBUTE = "es_production_release";
+    static final String ES_PLUGIN_VALUE = "inference";
     private static final Logger logger = LogManager.getLogger(InferenceStats.class);
     private final LongCounter requestCountInstrument;
     private final LongHistogram inferenceDurationInstrument;
@@ -85,7 +86,7 @@ public class InferenceStats {
                 "Inference API time spent waiting for Trained Model Deployments",
                 "ms"
             ),
-            Map.of(STACK_VERSION_ATTRIBUTE, stackVersion, PRODUCTION_RELEASE_ATTRIBUTE, isProductionRelease)
+            Map.of(STACK_VERSION_ATTRIBUTE, stackVersion, PRODUCTION_RELEASE_ATTRIBUTE, isProductionRelease, MetricAttributes.ES_PLUGIN, ES_PLUGIN_VALUE)
         );
     }
 

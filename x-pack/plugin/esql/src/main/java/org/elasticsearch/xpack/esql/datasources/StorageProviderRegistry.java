@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
@@ -17,9 +20,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -52,7 +57,12 @@ public class StorageProviderRegistry implements Closeable {
     private final List<StorageProvider> createdProviders = new ArrayList<>();
 
     private final Map<String, ConcurrencyLimiter> limiters = new ConcurrentHashMap<>();
+    private final Map<String, ConcurrencyBudgetAllocator> allocators = new ConcurrentHashMap<>();
     private final Map<String, AdaptiveBackoff> backoffs = new ConcurrentHashMap<>();
+
+    // Cache for providers created with a non-empty per-query configuration map.
+    // Avoids reconstructing cloud clients (S3, GCS, Azure) for repeated calls with the same config.
+    private final StorageProviderCache configuredProviderCache = new StorageProviderCache();
 
     private final Settings settings;
     private volatile int maxConcurrentRequests;
@@ -95,22 +105,73 @@ public class StorageProviderRegistry implements Closeable {
         return factories.containsKey(normalized) || providers.containsKey(normalized);
     }
 
+    /**
+     * Framework-level WITH keys that are consumed by {@link FileSourceFactory} / format readers
+     * and must not be forwarded to storage provider configurations. References the canonical
+     * constants so adding/renaming a framework option in one place updates the filter here too.
+     */
+    static final Set<String> FRAMEWORK_KEYS = Set.of(
+        FormatNameResolver.CONFIG_FORMAT,
+        FormatNameResolver.CONFIG_READER,
+        ErrorPolicy.CONFIG_MAX_ERRORS,
+        ErrorPolicy.CONFIG_MAX_ERROR_RATIO,
+        ErrorPolicy.CONFIG_ERROR_MODE
+    );
+
+    /**
+     * Convenience: returns the StorageProvider only.
+     * Use {@link #createProviderTrackingConsumedKeys(String, Settings, Map)} when the consumed-keys set is needed.
+     */
     public StorageProvider createProvider(String scheme, Settings settings, Map<String, Object> config) {
+        return createProviderTrackingConsumedKeys(scheme, settings, config).value();
+    }
+
+    public Configured<StorageProvider> createProviderTrackingConsumedKeys(String scheme, Settings settings, Map<String, Object> config) {
         String normalizedScheme = scheme.toLowerCase(Locale.ROOT);
 
-        if (config == null || config.isEmpty()) {
+        Map<String, Object> storageConfig = stripFrameworkKeys(config);
+        if (storageConfig == null || storageConfig.isEmpty()) {
             StorageProvider provider = providers.get(normalizedScheme);
             if (provider == null) {
                 provider = createDefaultProvider(normalizedScheme);
             }
-            return provider;
+            return Configured.empty(provider);
         }
 
         StorageProviderFactory factory = factories.get(normalizedScheme);
         if (factory == null) {
             throw new IllegalArgumentException("No SPI storage factory registered for scheme: " + scheme);
         }
-        return wrapProvider(factory.create(settings, config), normalizedScheme);
+
+        // Cache providers by (scheme, storageConfig) so queries with the same configuration map
+        // reuse the same cloud client and connection pool instead of constructing a new one.
+        // The cache key uses the stripped config so framework-only keys (e.g. format) don't
+        // produce spurious cache misses.
+        StorageProviderCache.CacheKey cacheKey = new StorageProviderCache.CacheKey(normalizedScheme, storageConfig);
+        try {
+            return configuredProviderCache.getOrCreate(cacheKey, () -> {
+                Configured<StorageProvider> raw = factory.createTrackingConsumedKeys(settings, storageConfig);
+                return new Configured<>(wrapProvider(raw.value(), normalizedScheme), raw.consumedKeys());
+            });
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            // The factory does not declare checked exceptions, so this path is unreachable.
+            throw new RuntimeException("Unexpected checked exception from StorageProviderFactory", e);
+        }
+    }
+
+    private static Map<String, Object> stripFrameworkKeys(Map<String, Object> config) {
+        if (config == null || config.isEmpty()) {
+            return config;
+        }
+        boolean hasFrameworkKeys = config.keySet().stream().anyMatch(FRAMEWORK_KEYS::contains);
+        if (hasFrameworkKeys == false) {
+            return config;
+        }
+        Map<String, Object> filtered = new HashMap<>(config);
+        FRAMEWORK_KEYS.forEach(filtered::remove);
+        return filtered;
     }
 
     private synchronized StorageProvider createDefaultProvider(String normalizedScheme) {
@@ -137,6 +198,21 @@ public class StorageProviderRegistry implements Closeable {
         RetryPolicy retryPolicy = buildRetryPolicy(backoff);
         StorageProvider limited = new ConcurrencyLimitedStorageProvider(provider, limiter);
         return new RetryableStorageProvider(limited, retryPolicy);
+    }
+
+    /**
+     * Returns a per-query concurrency budget allocator for the given scheme, or {@code null}
+     * if per-query budgeting is not applicable (file scheme or concurrency limiting disabled).
+     */
+    public ConcurrencyBudgetAllocator allocatorForScheme(String scheme) {
+        if ("file".equals(scheme)) {
+            return null;
+        }
+        int permits = maxConcurrentRequests;
+        if (permits <= 0) {
+            return null;
+        }
+        return allocators.computeIfAbsent(scheme, k -> new ConcurrencyBudgetAllocator(permits));
     }
 
     private ConcurrencyLimiter limiterForScheme(String scheme) {
@@ -166,6 +242,8 @@ public class StorageProviderRegistry implements Closeable {
         List<StorageProvider> toClose = new ArrayList<>(createdProviders);
         createdProviders.clear();
         providers.clear();
+        // Close default (zero-config) providers first, then the config-keyed cache.
         IOUtils.close(toClose);
+        configuredProviderCache.close();
     }
 }

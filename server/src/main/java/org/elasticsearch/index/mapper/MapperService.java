@@ -37,7 +37,6 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -50,9 +49,9 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -139,6 +138,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Property.Dynamic,
         Property.IndexScope
     );
+
+    public static final Setting<Long> INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING = Setting.longSetting(
+        "index.mapping.array_objects.limit",
+        20000L,
+        1,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     public static final Setting<Long> INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.total_fields.limit",
         1000L,
@@ -214,6 +222,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final Supplier<MappingParserContext> mappingParserContextSupplier;
     private final Function<Query, BitSetProducer> bitSetProducer;
     private final MapperMetrics mapperMetrics;
+    private final BooleanSupplier idFieldDataEnabled;
 
     private volatile DocumentMapper mapper;
     private volatile long mappingVersion;
@@ -226,7 +235,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         SimilarityService similarityService,
         MapperRegistry mapperRegistry,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
-        IdFieldMapper idFieldMapper,
+        BooleanSupplier idFieldDataEnabled,
         ScriptCompiler scriptCompiler,
         Function<Query, BitSetProducer> bitSetProducer,
         MapperMetrics mapperMetrics,
@@ -241,7 +250,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             similarityService,
             mapperRegistry,
             searchExecutionContextSupplier,
-            idFieldMapper,
+            idFieldDataEnabled,
             scriptCompiler,
             bitSetProducer,
             mapperMetrics,
@@ -259,7 +268,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         SimilarityService similarityService,
         MapperRegistry mapperRegistry,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
-        IdFieldMapper idFieldMapper,
+        BooleanSupplier idFieldDataEnabled,
         ScriptCompiler scriptCompiler,
         Function<Query, BitSetProducer> bitSetProducer,
         MapperMetrics mapperMetrics,
@@ -282,7 +291,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             scriptCompiler,
             indexAnalyzers,
             indexSettings,
-            idFieldMapper,
             bitSetProducer,
             mapperRegistry.getVectorsFormatProviders(),
             mapperRegistry.getNamespaceValidator(),
@@ -301,6 +309,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.bitSetProducer = bitSetProducer;
         this.mapperMetrics = mapperMetrics;
         this.mapper = documentMapper;
+        this.idFieldDataEnabled = idFieldDataEnabled;
     }
 
     public boolean hasNested() {
@@ -313,6 +322,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public MappingParserContext parserContext() {
         return mappingParserContextSupplier.get();
+    }
+
+    /**
+     * @return a supplier that can be used to check whether loading field data from _id field's inverted index is allowed.
+     */
+    public BooleanSupplier getIdFieldDataEnabled() {
+        return idFieldDataEnabled;
     }
 
     /**
@@ -379,7 +395,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             : "index mismatch: expected " + index() + " but was " + newIndexMetadata.getIndex();
 
         if (currentIndexMetadata != null && currentIndexMetadata.getMappingVersion() == newIndexMetadata.getMappingVersion()) {
-            assert assertNoUpdateRequired(newIndexMetadata);
             return;
         }
 
@@ -391,7 +406,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             DocumentMapper previousMapper;
             synchronized (this) {
                 previousMapper = this.mapper;
-                assert assertRefreshIsNotNeeded(type, incomingBuilder);
                 Mapping incomingMapping = buildMapping(incomingBuilder, MergeReason.MAPPING_RECOVERY);
                 this.mapper = newDocumentMapper(incomingMapping, MergeReason.MAPPING_RECOVERY, incomingMappingSource);
                 this.mappingVersion = newIndexMetadata.getMappingVersion();
@@ -405,58 +419,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 logger.debug("[{}] {} mapping (source suppressed due to length, use TRACE level if needed)", index(), op);
             }
         }
-    }
-
-    private boolean assertRefreshIsNotNeeded(String type, MappingBuilder incomingBuilder) {
-        Mapping mergedMapping = mergeBuilders(incomingBuilder, MergeReason.MAPPING_RECOVERY);
-        Mapping incomingMapping = incomingBuilder.build(MergeReason.MAPPING_RECOVERY);
-        // skip the runtime section or removed runtime fields will make the assertion fail
-        ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(RootObjectMapper.TOXCONTENT_SKIP_RUNTIME, "true"));
-        CompressedXContent mergedMappingSource;
-        try {
-            mergedMappingSource = new CompressedXContent(mergedMapping, params);
-        } catch (Exception e) {
-            throw new AssertionError("failed to serialize source for type [" + type + "]", e);
-        }
-        CompressedXContent incomingMappingSource;
-        try {
-            incomingMappingSource = new CompressedXContent(incomingMapping, params);
-        } catch (Exception e) {
-            throw new AssertionError("failed to serialize source for type [" + type + "]", e);
-        }
-        // we used to ask the master to refresh its mappings whenever the result of merging the incoming mappings with the
-        // current mappings differs from the incoming mappings. We now rather assert that this situation never happens.
-        assert mergedMappingSource.equals(incomingMappingSource)
-            : "["
-                + index()
-                + "] parsed mapping, and got different sources\n"
-                + "incoming:\n"
-                + incomingMappingSource
-                + "\nmerged:\n"
-                + mergedMappingSource;
-        return true;
-    }
-
-    boolean assertNoUpdateRequired(final IndexMetadata newIndexMetadata) {
-        MappingMetadata mapping = newIndexMetadata.mapping();
-        if (mapping != null) {
-            // mapping representations may change between versions (eg text field mappers
-            // used to always explicitly serialize analyzers), so we cannot simply check
-            // that the incoming mappings are the same as the current ones: we need to
-            // parse the incoming mappings into a DocumentMapper and check that its
-            // serialization is the same as the existing mapper
-            Mapping newMapping = parseMapping(mapping.type(), MergeReason.MAPPING_UPDATE, mapping.source());
-            final CompressedXContent currentSource = this.mapper.mappingSource();
-            final CompressedXContent newSource = newMapping.toCompressedXContent();
-            if (Objects.equals(currentSource, newSource) == false
-                && mapper.isSyntheticSourceMalformed(currentSource, indexVersionCreated) == false) {
-                throw new IllegalStateException(
-                    "expected current mapping [" + currentSource + "] to be the same as new mapping [" + newSource + "]"
-                );
-            }
-        }
-        return true;
-
     }
 
     public void merge(IndexMetadata indexMetadata, MergeReason reason) {

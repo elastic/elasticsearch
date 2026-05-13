@@ -187,6 +187,18 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
             new TestHttpResponse(RestStatus.PARTIAL_CONTENT, blobBytes.slice(start, length), TestHttpExchange.EMPTY_HEADERS),
             getBlobContents(handler, bucket, blobName, null, new HttpHeaderParser.Range(start, end))
         );
+
+        // Suffix range: last N bytes.
+        var suffixLength = randomIntBetween(1, blobBytes.length() - 1);
+        assertEquals(
+            "Suffix Range: bytes=-" + suffixLength,
+            new TestHttpResponse(
+                RestStatus.PARTIAL_CONTENT,
+                blobBytes.slice(blobBytes.length() - suffixLength, suffixLength),
+                TestHttpExchange.EMPTY_HEADERS
+            ),
+            getBlobContents(handler, bucket, blobName, null, new HttpHeaderParser.Range(-suffixLength, null))
+        );
     }
 
     public void testZeroLengthObjectGets() {
@@ -215,6 +227,100 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
             getBlobContents(handler, bucket, blobName, null, new HttpHeaderParser.Range(randomIntBetween(0, 30), randomIntBetween(31, 100)))
         );
     }
+
+    public void testXmlApiHeadObject() {
+        final var bucket = randomIdentifier();
+        final var handler = new GoogleCloudStorageHttpHandler(bucket);
+        final var blobName = randomIdentifier("blob_name_");
+        final var blobBytes = randomBytesReference(256);
+        assertEquals(RestStatus.OK, executeUpload(handler, bucket, blobName, blobBytes, 0L).restStatus());
+
+        // Existing object: status, content metadata, and ETag/x-goog-generation headers are populated.
+        final var hit = executeXmlApi(handler, "HEAD", bucket, blobName);
+        assertEquals(RestStatus.OK.getStatus(), hit.responseCode);
+        assertEquals(BytesArray.EMPTY, hit.body);
+        assertEquals(String.valueOf(blobBytes.length()), hit.headers.getFirst("Content-length"));
+        assertEquals("application/octet-stream", hit.headers.getFirst("Content-type"));
+        assertEquals("\"1\"", hit.headers.getFirst("Etag"));
+        assertEquals("1", hit.headers.getFirst("X-goog-generation"));
+        assertNotNull("Last-Modified must be set", hit.headers.getFirst("Last-modified"));
+
+        // Missing object: MockGcsBlobStore.getBlob throws BlobNotFoundException, dispatcher catch maps to 404.
+        final var miss = executeXmlApi(handler, "HEAD", bucket, "does-not-exist");
+        assertEquals(RestStatus.NOT_FOUND.getStatus(), miss.responseCode);
+    }
+
+    public void testXmlApiGetObject() {
+        final var bucket = randomIdentifier();
+        final var handler = new GoogleCloudStorageHttpHandler(bucket);
+        final var blobName = randomIdentifier("blob_name_");
+        final var blobBytes = randomBytesReference(256);
+        assertEquals(RestStatus.OK, executeUpload(handler, bucket, blobName, blobBytes, 0L).restStatus());
+
+        // Full body when no Range header is sent.
+        final var full = executeXmlApi(handler, "GET", bucket, blobName);
+        assertEquals(RestStatus.OK.getStatus(), full.responseCode);
+        assertEquals(blobBytes, full.body);
+        assertNull("OK response must not advertise a Content-Range", full.headers.getFirst("Content-range"));
+
+        // Bounded range: 206 + Content-Range.
+        final var boundedStart = randomIntBetween(0, blobBytes.length() - 1);
+        final var boundedLength = randomIntBetween(1, blobBytes.length() - boundedStart);
+        final var boundedEnd = boundedStart + boundedLength - 1;
+        final var bounded = executeXmlApi(handler, "GET", bucket, blobName, "bytes=" + boundedStart + "-" + boundedEnd);
+        assertEquals(RestStatus.PARTIAL_CONTENT.getStatus(), bounded.responseCode);
+        assertEquals(blobBytes.slice(boundedStart, boundedLength), bounded.body);
+        assertEquals("bytes " + boundedStart + "-" + boundedEnd + "/" + blobBytes.length(), bounded.headers.getFirst("Content-range"));
+
+        // Suffix range: real GCS XML API supports bytes=-N (last N bytes).
+        final var suffixLength = randomIntBetween(1, blobBytes.length() - 1);
+        final var suffixStart = blobBytes.length() - suffixLength;
+        final var suffix = executeXmlApi(handler, "GET", bucket, blobName, "bytes=-" + suffixLength);
+        assertEquals(RestStatus.PARTIAL_CONTENT.getStatus(), suffix.responseCode);
+        assertEquals(blobBytes.slice(suffixStart, suffixLength), suffix.body);
+        assertEquals(
+            "bytes " + suffixStart + "-" + (blobBytes.length() - 1) + "/" + blobBytes.length(),
+            suffix.headers.getFirst("Content-range")
+        );
+
+        // Unsatisfiable range (start past EOF): 416.
+        final var pastEofStart = randomIntBetween(blobBytes.length(), Integer.MAX_VALUE - 1);
+        final var pastEofEnd = randomIntBetween(pastEofStart, Integer.MAX_VALUE);
+        final var unsatisfiable = executeXmlApi(handler, "GET", bucket, blobName, "bytes=" + pastEofStart + "-" + pastEofEnd);
+        assertEquals(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), unsatisfiable.responseCode);
+
+        // Missing object: MockGcsBlobStore.getBlob throws BlobNotFoundException, dispatcher catch maps to 404.
+        final var missing = executeXmlApi(handler, "GET", bucket, "does-not-exist");
+        assertEquals(RestStatus.NOT_FOUND.getStatus(), missing.responseCode);
+    }
+
+    private static RawResponse executeXmlApi(GoogleCloudStorageHttpHandler handler, String method, String bucket, String key) {
+        return executeXmlApi(handler, method, bucket, key, null);
+    }
+
+    private static RawResponse executeXmlApi(
+        GoogleCloudStorageHttpHandler handler,
+        String method,
+        String bucket,
+        String key,
+        @Nullable String rangeHeaderValue
+    ) {
+        final var headers = rangeHeaderValue != null ? Headers.of("Range", rangeHeaderValue) : TestHttpExchange.EMPTY_HEADERS;
+        // URLEncoder is form-encoded; for a path segment we have to fix up '+' (space) so the handler's
+        // URLDecoder.decode round-trips correctly. Bucket is constrained to be percent-safe by GCS naming
+        // rules so it is left as-is.
+        final var encodedKey = URLEncoder.encode(key, StandardCharsets.UTF_8).replace("+", "%20");
+        final var exchange = new TestHttpExchange(method, "/" + bucket + "/" + encodedKey, BytesArray.EMPTY, headers);
+        try {
+            handler.handle(exchange);
+        } catch (IOException e) {
+            fail(e);
+        }
+        return new RawResponse(exchange.getResponseCode(), exchange.getResponseBodyContents(), exchange.getResponseHeaders());
+    }
+
+    /** Captures the full handler response without the {@link #handleRequest} header allow-list filter. */
+    private record RawResponse(int responseCode, BytesReference body, Headers headers) {}
 
     public void testResumableUpload() {
         final var bucket = randomIdentifier();
@@ -658,7 +764,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
             "GET",
             "/download/storage/v1/b/" + bucket + "/o/" + blobName + generateQueryString("ifGenerationMatch", ifGenerationMatch),
             BytesArray.EMPTY,
-            range != null ? rangeHeader(range.start(), range.end()) : TestHttpExchange.EMPTY_HEADERS
+            range != null ? Headers.of("Range", range.headerString()) : TestHttpExchange.EMPTY_HEADERS
         );
     }
 

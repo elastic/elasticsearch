@@ -14,9 +14,9 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.external.request.CompletionRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundCompletionRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchAccount;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionModel;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionTaskSettings;
@@ -32,7 +32,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
-public class AlibabaCloudSearchCompletionRequest extends AlibabaCloudSearchRequest implements CompletionRequest {
+public class AlibabaCloudSearchCompletionRequest extends AlibabaCloudSearchRequest implements OutboundCompletionRequest {
     private final AlibabaCloudSearchAccount account;
     private final List<String> input;
     private final URI uri;
@@ -89,7 +89,7 @@ public class AlibabaCloudSearchCompletionRequest extends AlibabaCloudSearchReque
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         return this;
     }
 

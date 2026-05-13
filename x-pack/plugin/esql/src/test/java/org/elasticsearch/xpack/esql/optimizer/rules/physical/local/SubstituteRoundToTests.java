@@ -292,6 +292,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
 
     // DateTrunc is transformed to RoundTo first but cannot be transformed to QueryAndTags, when the TopN is pushed down to EsQueryExec
     public void testDateTruncNotTransformToQueryAndTags() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
         for (String dateHistogram : dateHistograms) {
             if (dateHistogram.contains("bucket")) { // bucket cannot be used outside of stats
                 continue;
@@ -1037,6 +1038,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
      * {@link PushExpressionsToFieldLoadTests#testRoundToInTsEval} and friends.
      */
     public void testBlockLoaderFallbackForLong() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
         String query = """
             from test
             | stats count(*) by x = round_to(long, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
@@ -1077,6 +1079,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
      * Uses FROM (standard index mode).
      */
     public void testBlockLoaderFallbackForDate() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
         String query = """
             from test
             | stats count(*) by x = round_to(date, "2023-10-20"::date, "2023-10-21"::date, "2023-10-22"::date, "2023-10-23"::date)
@@ -1115,6 +1118,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
      * Uses FROM (standard index mode).
      */
     public void testBlockLoaderFallbackForDateNanos() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
         String query = """
             from test
             | stats count(*) by x = round_to(\
@@ -1178,6 +1182,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
      * RoundTo stays as-is regardless of block loader support.
      */
     public void testBlockLoaderFallbackNotAppliedWithLookupJoin() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
         String query = """
             from test
             | rename integer as language_code

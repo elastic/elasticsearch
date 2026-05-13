@@ -56,7 +56,8 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
             QUERY_TEXT,
             inputChannels.stream().map(this::evaluatorFactory).toList(),
             scoreChannel,
-            BATCH_SIZE
+            BATCH_SIZE,
+            null
         );
     }
 
@@ -196,7 +197,8 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
                     QUERY_TEXT,
                     inputChannels.stream().map(this::evaluatorFactory).toList(),
                     2,
-                    BATCH_SIZE
+                    BATCH_SIZE,
+                    null
                 );
 
                 // Verify factory is created correctly
@@ -282,7 +284,8 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
                     QUERY_TEXT,
                     inputChannels.stream().map(this::evaluatorFactory).toList(),
                     scoreChannel,
-                    BATCH_SIZE
+                    BATCH_SIZE,
+                    null
                 );
 
                 List<Page> results = runner.run(factory);
@@ -371,7 +374,8 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
             QUERY_TEXT,
             List.of(evaluatorFactory(inputChannel)),
             scoreChannel,
-            BATCH_SIZE
+            BATCH_SIZE,
+            null
         );
 
         var runner = new TestDriverRunner().builder(driverContext());

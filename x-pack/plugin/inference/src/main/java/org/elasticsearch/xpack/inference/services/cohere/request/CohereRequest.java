@@ -19,7 +19,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.cohere.CohereAccount;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 
@@ -31,7 +31,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
-public abstract class CohereRequest implements Request, ToXContentObject {
+public abstract class CohereRequest implements OutboundRequest, ToXContentObject {
 
     public static void decorateWithAuthHeader(HttpPost request, CohereAccount account) {
         request.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
@@ -101,7 +101,7 @@ public abstract class CohereRequest implements Request, ToXContentObject {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         // no truncation
         return this;
     }

@@ -1,7 +1,7 @@
 ---
 applies_to:
   stack: ga
-  serverless: unavailable
+  serverless: ga
 navigation_title: "Combine data with ENRICH"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-enrich-data.html

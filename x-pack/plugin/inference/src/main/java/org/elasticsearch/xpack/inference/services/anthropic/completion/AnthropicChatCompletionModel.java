@@ -54,7 +54,7 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
             service,
             AnthropicChatCompletionServiceSettings.fromMap(serviceSettings, context),
             AnthropicChatCompletionTaskSettings.fromMap(taskSettings, context),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

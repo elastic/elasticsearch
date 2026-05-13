@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -58,6 +60,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.ReductionPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.internal.AssumptionViolatedException;
@@ -85,7 +88,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
@@ -254,13 +256,16 @@ public abstract class GoldenTestCase extends ESTestCase {
             Path queryPath = PathUtils.get(basePath.toString(), queryPathParts);
             Files.createDirectories(queryPath.getParent());
             Files.writeString(queryPath, esqlQuery);
+            UnmappedResolution unmappedResolution = statement.setting(UNMAPPED_FIELDS);
             TestAnalyzer testAnalyzer = analyzer().addLanguagesLookup()
                 .addTestLookup()
                 .addAnalysisTestsEnrichResolution()
                 .addAnalysisTestsInferenceResolution()
                 .minimumTransportVersion(transportVersion)
-                .unmappedResolution(statement.setting(UNMAPPED_FIELDS));
-            loadIndexResolution(testDatasets(parsedPlan)).forEach(
+                .unmappedResolution(unmappedResolution);
+            boolean trackUnmappedFieldIndices = unmappedResolution == UnmappedResolution.LOAD
+                || parsedPlan.anyMatch(p -> p instanceof Insist);
+            loadIndexResolution(testDatasets(parsedPlan), trackUnmappedFieldIndices).forEach(
                 (pattern, resolution) -> testAnalyzer.addIndex(pattern.indexPattern(), resolution)
             );
             Analyzer analyzer = testAnalyzer.buildAnalyzer();
@@ -341,45 +346,20 @@ public abstract class GoldenTestCase extends ESTestCase {
                     if (stages.contains(Stage.NODE_REDUCE)) {
                         var dualFileOutput = (DualFileOutput) Stage.NODE_REDUCE.fileOutput;
                         result.addAll(
-                            addDualPlanResult(
-                                Stage.NODE_REDUCE,
-                                reductionPlan,
-                                dualFileOutput.nodeReduceOutput(),
-                                dualFileOutput.dataNodeOutput()
-                            )
+                            addNodeReduceDualPlanResult(reductionPlan, dualFileOutput.nodeReduceOutput(), dualFileOutput.dataNodeOutput())
                         );
                     }
                     if (stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
-                        var dualFileOutput = (DualFileOutput) Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION.fileOutput;
-                        switch (reductionPlan.localPhysicalOptimization()) {
-                            // If there is no local node-reduce physical optimization, there's nothing to verify!
-                            case DISABLED -> {
-                                result.add(
-                                    Tuple.tuple(
-                                        Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION,
-                                        verifyOrWrite(
-                                            localOptimize(reductionPlan.dataNodePlan(), configuration),
-                                            outputPath(dualFileOutput.dataNodeOutput())
-                                        )
-                                    )
-                                );
-                            }
-                            case ENABLED -> {
-                                var finalizedResult = new ReductionPlan(
-                                    (ExchangeSinkExec) localOptimize(reductionPlan.nodeReducePlan(), configuration),
-                                    (ExchangeSinkExec) localOptimize(reductionPlan.dataNodePlan(), configuration),
-                                    reductionPlan.localPhysicalOptimization()
-                                );
-                                result.addAll(
-                                    addDualPlanResult(
-                                        Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION,
-                                        finalizedResult,
-                                        dualFileOutput.nodeReduceOutput(),
-                                        dualFileOutput.dataNodeOutput()
-                                    )
-                                );
-                            }
-                        }
+                        var singleFileOutput = (SingleFileOutput) Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION.fileOutput;
+                        result.add(
+                            Tuple.tuple(
+                                Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION,
+                                verifyOrWrite(
+                                    localOptimize(reductionPlan.dataNodePlan(), configuration),
+                                    outputPath(singleFileOutput.output())
+                                )
+                            )
+                        );
                     }
                 }
             }
@@ -392,12 +372,9 @@ public abstract class GoldenTestCase extends ESTestCase {
             CREATED
         }
 
-        private List<Tuple<Stage, TestResult>> addDualPlanResult(
-            Stage stage,
-            ReductionPlan plan,
-            String nodeReduceName,
-            String dataNodeName
-        ) throws IOException {
+        private List<Tuple<Stage, TestResult>> addNodeReduceDualPlanResult(ReductionPlan plan, String nodeReduceName, String dataNodeName)
+            throws IOException {
+            var stage = Stage.NODE_REDUCE;
             var reduceResult = verifyOrWrite(plan.nodeReducePlan(), outputPath(nodeReduceName));
             var dataResult = verifyOrWrite(plan.dataNodePlan(), outputPath(dataNodeName));
             var result = new ArrayList<Tuple<Stage, TestResult>>();
@@ -533,8 +510,13 @@ public abstract class GoldenTestCase extends ESTestCase {
 
     /**
      * Normalizes synthetic attribute names of the form $$something($something)* that are followed by # (node id).
-     * Digit-only segments (generated at run time) are replaced with a stable running integer; text segments are kept as-is.
-     * Digits may appear anywhere in the name, including in the middle (e.g. {@code $$SUM$field$0$sum}).
+     * Each distinct synthetic name is assigned a stable id by order of first appearance in the plan, and that id
+     * replaces every digit-only segment in the name when rebuilt; text segments are kept as-is. Digits may appear
+     * anywhere in the name, including in the middle (e.g. {@code $$SUM$field$0$sum}).
+     * <p>
+     * Keying by the full name (rather than just the digit segments) ensures that two unrelated synthetic names
+     * with different text prefixes get independent ids, even when their digit tails happen to collide because
+     * the JVM-global counters that produced them drifted differently across test runs.
      */
     private static String normalizeSyntheticNames(String full) {
         return replaceMatches(full, SYNTHETIC_PATTERN, (matcher, idMap) -> {
@@ -546,7 +528,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                     appendSegment(numericSegments, seg);
                 } else {
                     if (numericSegments.isEmpty() == false) {
-                        appendSegment(result, idMap.getId(numericSegments.toString()));
+                        appendSegment(result, idMap.getId(matcher.group(1)));
                         numericSegments.setLength(0);
                         hasNormalized = true;
                     }
@@ -554,7 +536,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                 }
             }
             if (numericSegments.isEmpty() == false) {
-                appendSegment(result, idMap.getId(numericSegments.toString()));
+                appendSegment(result, idMap.getId(matcher.group(1)));
                 hasNormalized = true;
             }
             return hasNormalized ? result.toString() : matcher.group();
@@ -603,8 +585,9 @@ public abstract class GoldenTestCase extends ESTestCase {
 
     private static Test.TestResult verifyExisting(Path output, QueryPlan<?> plan) throws IOException {
         String full = plan.toString(Node.NodeStringFormat.FULL);
-        String testString = normalize(normalizeString(full));
-        if (testString.equals(normalize(Files.readString(output)))) {
+        String actualString = normalize(normalizeString(full));
+        String expectedString = normalize(Files.readString(output));
+        if (actualString.equals(expectedString)) {
             if (System.getProperty("golden.cleanactual") != null) {
                 Path path = actualPath(output);
                 if (Files.exists(path)) {
@@ -622,6 +605,8 @@ public abstract class GoldenTestCase extends ESTestCase {
             logger.info("Creating actual file at " + actualPath.toAbsolutePath());
             Files.writeString(actualPath, normalizeString(full), StandardCharsets.UTF_8);
         }
+
+        logger.info("Test failure:\n[Actual]\n{}\n[Expected]\n{}\n", actualString, expectedString);
         return Test.TestResult.FAILURE;
     }
 
@@ -667,14 +652,12 @@ public abstract class GoldenTestCase extends ESTestCase {
          * data nodes.
          */
         NODE_REDUCE(new DualFileOutput("local_reduce_planned_reduce_driver", "local_reduce_planned_data_driver")),
+
         /**
-         * A combination of {@link Stage#NODE_REDUCE} and {@link  Stage#LOCAL_PHYSICAL_OPTIMIZATION}: first produce the node
-         * reduce and data node plans, and then perform local physical optimization on both.
+         * A {@link Stage#LOCAL_PHYSICAL_OPTIMIZATION} performed on the data node plan after splitting off the node reduce plan. Since
+         * the node-reduce plan isn't optimized after being created, there is only one output to test here.
          */
-        // TODO should result in only one plan, see https://github.com/elastic/elasticsearch/issues/142392.
-        NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION(
-            new DualFileOutput("local_reduce_physical_optimization_reduce_driver", "local_reduce_physical_optimization_data_driver")
-        );
+        NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION(new SingleFileOutput("local_reduce_physical_optimization_data_driver"));
 
         private final StageOutput fileOutput;
 
@@ -682,12 +665,6 @@ public abstract class GoldenTestCase extends ESTestCase {
             this.fileOutput = fileOutput;
         }
     }
-
-    private sealed interface TestOutput {}
-
-    private record SingleTestOutput(String output) implements TestOutput {}
-
-    private record DualTestOutput(String nodeReduceOutput, String dataNodeOutput) implements TestOutput {}
 
     private static String normalize(String s) {
         return s.lines().map(String::strip).collect(Collectors.joining("\n"));
@@ -786,33 +763,38 @@ public abstract class GoldenTestCase extends ESTestCase {
     }
 
     public static Map<IndexPattern, IndexResolution> loadIndexResolution(
-        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> datasets
+        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> datasets,
+        boolean trackUnmappedFieldIndices
     ) {
         Map<IndexPattern, IndexResolution> indexResolutions = new HashMap<>();
         for (var entry : datasets.entrySet()) {
-            indexResolutions.put(entry.getKey(), loadIndexResolution(entry.getValue()));
+            indexResolutions.put(entry.getKey(), loadIndexResolution(entry.getValue(), trackUnmappedFieldIndices));
         }
         return indexResolutions;
     }
 
+    public static Map<IndexPattern, IndexResolution> loadIndexResolution(
+        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> datasets
+    ) {
+        return loadIndexResolution(datasets, false);
+    }
+
     public static IndexResolution loadIndexResolution(CsvTestsDataLoader.MultiIndexTestDataset datasets) {
+        return loadIndexResolution(datasets, false);
+    }
+
+    public static IndexResolution loadIndexResolution(
+        CsvTestsDataLoader.MultiIndexTestDataset datasets,
+        boolean trackUnmappedFieldIndices
+    ) {
         var indexNames = datasets.datasets().stream().map(CsvTestsDataLoader.TestDataset::indexName);
         Map<String, IndexMode> indexModes = indexNames.collect(Collectors.toMap(x -> x, x -> IndexMode.STANDARD));
         List<MappingPerIndex> mappings = datasets.datasets()
             .stream()
             .map(ds -> new MappingPerIndex(ds.indexName(), createMappingForIndex(ds)))
             .toList();
-        var mergedMappings = mergeMappings(mappings);
-        return IndexResolution.valid(
-            new EsIndex(
-                datasets.indexPattern(),
-                mergedMappings.mapping,
-                indexModes,
-                Map.of(),
-                Map.of(),
-                mergedMappings.fieldToUnmappedIndices
-            )
-        );
+        var mergedMappings = mergeMappings(mappings, trackUnmappedFieldIndices);
+        return IndexResolution.valid(new EsIndex(datasets.indexPattern(), mergedMappings.mapping, indexModes, Map.of(), Map.of()));
     }
 
     // TODO should de-duplicate, strong overlap with CsvTestsDataLoader#readMappingFile
@@ -864,48 +846,102 @@ public abstract class GoldenTestCase extends ESTestCase {
         return mapping;
     }
 
-    record MappingPerIndex(String index, Map<String, EsField> mapping) {}
+    private record MappingPerIndex(String index, Map<String, EsField> mapping) {}
 
-    record MergedResult(Map<String, EsField> mapping, Map<String, Set<String>> fieldToUnmappedIndices) {}
+    private record MergedResult(Map<String, EsField> mapping) {}
 
-    private static MergedResult mergeMappings(List<MappingPerIndex> mappingsPerIndex) {
-        int numberOfIndices = mappingsPerIndex.size();
-        Set<String> allIndices = mappingsPerIndex.stream().map(MappingPerIndex::index).collect(toSet());
-        Map<String, Map<String, EsField>> columnNamesToFieldByIndices = new HashMap<>();
+    private static MergedResult mergeMappings(List<MappingPerIndex> mappingsPerIndex, boolean trackUnmappedFieldIndices) {
+        Map<String, Map<String, EsField>> fieldNamesToFieldByIndices = new HashMap<>();
         for (var mappingPerIndex : mappingsPerIndex) {
             for (var entry : mappingPerIndex.mapping().entrySet()) {
-                String columnName = entry.getKey();
-                EsField field = entry.getValue();
-                columnNamesToFieldByIndices.computeIfAbsent(columnName, k -> new HashMap<>()).put(mappingPerIndex.index(), field);
+                fieldNamesToFieldByIndices.computeIfAbsent(entry.getKey(), k -> new HashMap<>())
+                    .put(mappingPerIndex.index(), entry.getValue());
             }
         }
-
-        Map<String, Set<String>> fieldToUnmappedIndices = new HashMap<>();
-        for (var e : columnNamesToFieldByIndices.entrySet()) {
-            if (e.getValue().size() < numberOfIndices) {
-                Set<String> unmappedIndices = allIndices.stream().filter(i -> e.getValue().containsKey(i) == false).collect(toSet());
-                if (unmappedIndices.isEmpty() == false) {
-                    fieldToUnmappedIndices.put(e.getKey(), unmappedIndices);
-                }
-            }
+        int numberOfIndices = mappingsPerIndex.size();
+        Map<String, EsField> mappings = new HashMap<>();
+        for (var entry : fieldNamesToFieldByIndices.entrySet()) {
+            String fieldName = entry.getKey();
+            mappings.put(fieldName, mergeFields(fieldName, fieldName, entry.getValue(), trackUnmappedFieldIndices, numberOfIndices));
         }
-        var mappings = columnNamesToFieldByIndices.entrySet()
-            .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> mergeFields(e.getKey(), e.getValue())));
-        return new MergedResult(mappings, fieldToUnmappedIndices);
+        return new MergedResult(mappings);
     }
 
-    private static EsField mergeFields(String index, Map<String, EsField> columnNameToField) {
-        var indexFields = columnNameToField.values();
-        if (indexFields.stream().distinct().count() > 1) {
-            var typesToIndices = new HashMap<String, Set<String>>();
-            for (var typeToIndex : columnNameToField.entrySet()) {
-                typesToIndices.computeIfAbsent(typeToIndex.getValue().getDataType().typeName(), k -> new HashSet<>())
-                    .add(typeToIndex.getKey());
-            }
-            return new InvalidMappedField(index, typesToIndices);
+    private static EsField mergeFields(
+        String fieldName,
+        String fullName,
+        Map<String, EsField> fieldByIndex,
+        boolean trackUnmappedFieldIndices,
+        int numberOfIndices
+    ) {
+        EsField field;
+        if (fieldByIndex.values().stream().map(EsField::getDataType).distinct().count() > 1) {
+            field = new InvalidMappedField(fieldName, getTypesToIndices(fieldByIndex));
         } else {
-            return indexFields.iterator().next();
+            // We take scalar attributes (name, dataType, aggregatable, timeSeriesFieldType) from an arbitrary representative.
+            // This is safe because: dataType is already verified identical above, name is the map key, and the only fields
+            // that reach this path are OBJECT parents whose children differ; objects are never aggregatable and always have
+            // TimeSeriesFieldType.NONE (time series types are set on leaf fields, not parent objects).
+            List<EsField> fields = fieldByIndex.values().stream().distinct().limit(2).toList();
+            EsField representative = fields.getFirst();
+            if (fields.size() == 1) {
+                field = representative;
+            } else {
+                Map<String, EsField> mergedChildren = mergeSubFields(
+                    fullName,
+                    getSubNameToIndexToSubField(fieldByIndex),
+                    trackUnmappedFieldIndices,
+                    numberOfIndices
+                );
+                field = new EsField(
+                    representative.getName(),
+                    representative.getDataType(),
+                    mergedChildren,
+                    representative.isAggregatable(),
+                    representative.getTimeSeriesFieldType()
+                );
+            }
         }
+        return trackUnmappedFieldIndices
+            ? IndexResolver.wrapIfPartiallyUnmapped(field, fieldName, fullName, fieldByIndex.keySet(), numberOfIndices)
+            : field;
+    }
+
+    /** Returns {@code Map<SubName, Map<IndexName, EsField>>}; where are typedefs when you need them! */
+    private static Map<String, Map<String, EsField>> getSubNameToIndexToSubField(Map<String, EsField> fieldByIndex) {
+        Map<String, Map<String, EsField>> result = new HashMap<>();
+        for (var entry : fieldByIndex.entrySet()) {
+            String index = entry.getKey();
+            for (var property : entry.getValue().getProperties().entrySet()) {
+                result.computeIfAbsent(property.getKey(), k -> new HashMap<>()).put(index, property.getValue());
+            }
+        }
+        return result;
+    }
+
+    private static Map<String, EsField> mergeSubFields(
+        String parentFullName,
+        Map<String, Map<String, EsField>> subFieldsByIndexBySubName,
+        boolean trackUnmappedFieldIndices,
+        int numberOfIndices
+    ) {
+        Map<String, EsField> properties = new TreeMap<>();
+        for (var subEntry : subFieldsByIndexBySubName.entrySet()) {
+            String subName = subEntry.getKey();
+            properties.put(
+                subName,
+                mergeFields(subName, parentFullName + "." + subName, subEntry.getValue(), trackUnmappedFieldIndices, numberOfIndices)
+            );
+        }
+        return properties;
+    }
+
+    /** Returns {@code Map<TypeName, Set<IndexName>>}; where are typedefs when you need them! */
+    private static Map<String, Set<String>> getTypesToIndices(Map<String, EsField> fieldByIndex) {
+        var result = new HashMap<String, Set<String>>();
+        for (var entry : fieldByIndex.entrySet()) {
+            result.computeIfAbsent(entry.getValue().getDataType().typeName(), k -> new HashSet<>()).add(entry.getKey());
+        }
+        return result;
     }
 }

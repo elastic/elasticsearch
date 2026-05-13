@@ -23,6 +23,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEFAULT_PROMQL_INDEX_PATTERN;
 
 /**
  * REST handler for the Prometheus {@code GET /api/v1/query} instant query endpoint.
@@ -71,7 +72,7 @@ public class PrometheusInstantQueryRestAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         String query = getRequiredParam(request, QUERY_PARAM);
-        String index = request.param(INDEX_PARAM, "*");
+        String index = request.param(INDEX_PARAM, DEFAULT_PROMQL_INDEX_PATTERN);
         int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);
 
         String timeStr = request.param(TIME_PARAM);

@@ -10,9 +10,9 @@
 package org.elasticsearch.plugins.cli;
 
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.cli.terminal.Terminal;
+import org.elasticsearch.cli.terminal.Terminal.Verbosity;
 
 import java.util.ArrayList;
 import java.util.Collections;

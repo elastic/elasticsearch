@@ -55,6 +55,12 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
             // for non-unary execution plans, we apply the rule for each child
             if (currentPlanNode instanceof MergeExec mergeExec) {
                 keepTraversing.set(FALSE);
+
+                if (mergeExec.output().isEmpty()) {
+                    // we have already pruned all columns, no need to apply the rule further down
+                    return mergeExec;
+                }
+
                 List<PhysicalPlan> newChildren = new ArrayList<>();
                 boolean changed = false;
 

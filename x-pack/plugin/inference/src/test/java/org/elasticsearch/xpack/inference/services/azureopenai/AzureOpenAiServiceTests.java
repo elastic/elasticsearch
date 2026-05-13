@@ -46,7 +46,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
@@ -109,7 +108,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.isA;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -966,18 +964,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
 
         try (var service = new AzureOpenAiService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                mockModel,
-                null,
-                null,
-                null,
-                List.of(""),
-                false,
-                new HashMap<>(),
-                InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(mockModel, null, null, null, List.of(""), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -986,7 +973,6 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -1033,18 +1019,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             );
             model.setUri(new URI(getUrl(webServer)));
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("abc"),
-                false,
-                new HashMap<>(),
-                InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -1136,18 +1111,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             );
             model.setUri(new URI(getUrl(webServer)));
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("abc"),
-                false,
-                new HashMap<>(),
-                InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(error.getMessage(), containsString("Received an authentication error status code for request"));
@@ -1208,15 +1172,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             model.setUri(new URI(getUrl(webServer)));
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             List<ChunkInferenceInput> input = List.of();
-            service.chunkedInfer(
-                model,
-                null,
-                input,
-                new HashMap<>(),
-                InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.chunkedInfer(model, null, input, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, empty());
@@ -1267,7 +1223,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1350,7 +1306,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString(CONTENT_VALUE), ROLE_VALUE, null, null))),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1401,7 +1357,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString(CONTENT_VALUE), ROLE_VALUE, null, null))),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 ActionListener.runAfter(ActionTestUtils.assertNoSuccessListener(e -> {
                     try (var builder = XContentFactory.jsonBuilder()) {
                         var t = unwrapCause(e);
@@ -1469,7 +1425,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString(CONTENT_VALUE), ROLE_VALUE, null, null))),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1536,18 +1492,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             );
             model.setUri(new URI(getUrl(webServer)));
             var listener = new PlainActionFuture<InferenceServiceResults>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("abc"),
-                true,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("abc"), true, new HashMap<>(), InputType.INGEST, null, listener);
 
             return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
         }

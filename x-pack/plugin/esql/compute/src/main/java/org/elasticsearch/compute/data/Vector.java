@@ -89,6 +89,13 @@ public interface Vector extends Accountable, RefCounted, Releasable {
     ElementType elementType();
 
     /**
+     * {@return the maximum byte size of any single value in this vector}
+     * For fixed-width types this is a constant. For {@code BytesRef}, this
+     * scans all values quickly.
+     */
+    int valueMaxByteSize();
+
+    /**
      * {@return true iff this vector is a constant vector - returns the same constant value for every position}
      */
     boolean isConstant();

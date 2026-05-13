@@ -43,6 +43,9 @@
           "type": "object",
           "enabled": false
         },
+        "effective_config_hash": {
+          "type": "keyword"
+        },
         "enrolled_at": {
           "type": "date"
         },
@@ -444,6 +447,9 @@
               "config": {
                 "properties": {
                   "description": {
+                    "type": "keyword"
+                  },
+                  "name": {
                     "type": "keyword"
                   }
                 }

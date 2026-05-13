@@ -87,6 +87,7 @@ public class TestEntitlementBootstrap {
             instrumentationRegistry
         );
         new MainInstrumentationProvider().init(instrumentationRegistry);
+        instrumentationRegistry.validate();
         EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), EntitlementInitialization.class.getName());
     }
 

@@ -1,0 +1,1 @@
+PROMQL index=k8s step=1h network_in_bits=(network.total_bytes_in * 8)

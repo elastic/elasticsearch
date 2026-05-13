@@ -10,6 +10,8 @@
 package org.elasticsearch.reindex;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -32,9 +34,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
@@ -43,10 +47,12 @@ import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.reindex.remote.RemotePitPaginatedHitSource;
 import org.elasticsearch.reindex.remote.RemoteScrollablePaginatedHitSource;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.Metadata;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -62,8 +68,10 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
 
@@ -73,7 +81,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.BackoffPolicy.exponentialBackoff;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
-import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES;
+import static org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest.MAX_DOCS_ALL_MATCHES;
 import static org.elasticsearch.rest.RestStatus.CONFLICT;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 
@@ -82,7 +90,7 @@ import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
  * their tests can use them. Most methods run in the listener thread pool because they are meant to be fast and don't expect to block.
  */
 public abstract class AbstractAsyncBulkByScrollAction<
-    Request extends AbstractBulkByScrollRequest<Request>,
+    Request extends AbstractBulkByPaginatedSearchRequest<Request>,
     Action extends TransportAction<Request, ?>> {
 
     protected final Logger logger;
@@ -115,6 +123,17 @@ public abstract class AbstractAsyncBulkByScrollAction<
     private final BiFunction<RequestWrapper<?>, PaginatedHitSource.Hit, RequestWrapper<?>> scriptApplier;
     private int lastBatchSize;
     /**
+     * The current scroll response being processed. Set atomically so that either {@link #prepareBulkRequest} or
+     * {@link #finishHim(Exception, List, List, boolean)} can claim exclusive ownership of the remaining hits and release them exactly once.
+     */
+    private final AtomicReference<ScrollConsumableHitsResponse> currentScrollResponse = new AtomicReference<>();
+    /**
+     * Set to {@code true} at the start of {@link #finishHim(Exception, List, List, boolean)} so {@link #prepareBulkRequest} can still
+     * release unconsumed hits when {@link #currentScrollResponse} is temporarily {@code null} after prepare's CAS (before the ref is
+     * restored when {@code maxDocs} leaves a partial batch).
+     */
+    private final AtomicBoolean requestFinishing = new AtomicBoolean(false);
+    /**
      * Keeps track of the total number of bulk operations performed
      * from a single scroll response. It is possible that
      * multiple bulk requests are performed from a single scroll
@@ -134,6 +153,18 @@ public abstract class AbstractAsyncBulkByScrollAction<
      */
     protected final Version remoteVersion;
 
+    protected final SearchContextKeepaliveDeadline searchContextKeepaliveDeadline;
+
+    @Nullable
+    private final BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics;
+    private final BulkByScrollSearchContextMetrics.TaskKind bulkByScrollTaskKind;
+    private final boolean remoteBulkByScrollSearch;
+
+    /**
+     * {@code _shard_doc} for search_after compatibility and performance (see paginate-search-results docs) was added in 7.12
+     */
+    private static final Version REMOTE_SHARD_DOC_SUPPORTED = Version.V_7_12_0;
+
     AbstractAsyncBulkByScrollAction(
         BulkByScrollTask task,
         boolean needsSourceDocumentVersions,
@@ -146,6 +177,9 @@ public abstract class AbstractAsyncBulkByScrollAction<
         ActionListener<BulkByScrollResponse> listener,
         @Nullable ScriptService scriptService,
         @Nullable ReindexSslConfig sslConfig,
+        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+        BulkByScrollSearchContextMetrics.TaskKind bulkByScrollTaskKind,
+        boolean remoteBulkByScrollSearch,
         TimeValue maxTaskShutdownGracePeriod
     ) {
         this(
@@ -162,6 +196,9 @@ public abstract class AbstractAsyncBulkByScrollAction<
             scriptService,
             sslConfig,
             null,
+            bulkByScrollSearchContextMetrics,
+            bulkByScrollTaskKind,
+            remoteBulkByScrollSearch,
             maxTaskShutdownGracePeriod
         );
     }
@@ -180,6 +217,9 @@ public abstract class AbstractAsyncBulkByScrollAction<
         @Nullable ScriptService scriptService,
         @Nullable ReindexSslConfig sslConfig,
         @Nullable Version remoteVersion,
+        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+        BulkByScrollSearchContextMetrics.TaskKind bulkByScrollTaskKind,
+        boolean remoteBulkByScrollSearch,
         TimeValue maxTaskShutdownGracePeriod
     ) {
         this.task = task;
@@ -195,6 +235,10 @@ public abstract class AbstractAsyncBulkByScrollAction<
         this.bulkClient = bulkClient;
         this.threadPool = threadPool;
         this.mainRequest = mainRequest;
+        this.searchContextKeepaliveDeadline = new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis);
+        this.bulkByScrollSearchContextMetrics = bulkByScrollSearchContextMetrics;
+        this.bulkByScrollTaskKind = bulkByScrollTaskKind;
+        this.remoteBulkByScrollSearch = remoteBulkByScrollSearch;
         this.relocationCooldownNanos = computeRelocationCooldownNanos(maxTaskShutdownGracePeriod);
         this.listener = listener;
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
@@ -202,7 +246,13 @@ public abstract class AbstractAsyncBulkByScrollAction<
         this.remoteVersion = remoteVersion;
         paginatedHitSource = buildScrollableResultSource(
             backoffPolicy,
-            prepareSearchRequest(mainRequest, needsSourceDocumentVersions, needsSourceDocumentSeqNoAndPrimaryTerm, needsVectors)
+            prepareSearchRequest(
+                mainRequest,
+                needsSourceDocumentVersions,
+                needsSourceDocumentSeqNoAndPrimaryTerm,
+                needsVectors,
+                remoteVersion
+            )
         );
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
     }
@@ -219,13 +269,16 @@ public abstract class AbstractAsyncBulkByScrollAction<
     /**
      * Prepares a search request to be used in a {@link PaginatedHitSource}.
      * Preparation might set a sort order (if not set already) and disable scroll if max docs is small enough.
+     *
+     * @param remoteVersion when reindexing from remote, the remote cluster version. {@code null} when searching the local cluster.
      */
     // Visible for testing
-    static <Request extends AbstractBulkByScrollRequest<Request>> SearchRequest prepareSearchRequest(
+    static <Request extends AbstractBulkByPaginatedSearchRequest<Request>> SearchRequest prepareSearchRequest(
         Request mainRequest,
         boolean needsSourceDocumentVersions,
         boolean needsSourceDocumentSeqNoAndPrimaryTerm,
-        boolean needsVectors
+        boolean needsVectors,
+        @Nullable Version remoteVersion
     ) {
         var preparedSearchRequest = new SearchRequest(mainRequest.getSearchRequest());
 
@@ -234,8 +287,9 @@ public abstract class AbstractAsyncBulkByScrollAction<
          * them and if we add _doc as the first sort by default then sorts will never work.... So we add it here, only if there isn't
          * another sort.
          *
-         * When using PIT, use _shard_doc for search_after compatibility and performance (see paginate-search-results docs).
-         * When using scroll, use _doc.
+         * When using PIT, use _shard_doc for search_after compatibility and performance (see paginate-search-results docs), except on
+         * remote clusters before 7.12.0 which do not support _shard_doc. For remote requests before 7.12 and on scroll requests, we
+         * default to _doc.
          *
          * This modifies the original request!
          */
@@ -243,13 +297,24 @@ public abstract class AbstractAsyncBulkByScrollAction<
         List<SortBuilder<?>> sorts = sourceBuilder.sorts();
         if (sorts == null || sorts.isEmpty()) {
             if (sourceBuilder.pointInTimeBuilder() != null) {
-                sourceBuilder.sort(fieldSort(FieldSortBuilder.SHARD_DOC_FIELD_NAME));
+                if (remoteVersion != null && remoteVersion.before(REMOTE_SHARD_DOC_SUPPORTED)) {
+                    sourceBuilder.sort(fieldSort(FieldSortBuilder.DOC_FIELD_NAME));
+                } else {
+                    sourceBuilder.sort(fieldSort(FieldSortBuilder.SHARD_DOC_FIELD_NAME));
+                }
             } else {
                 sourceBuilder.sort(fieldSort("_doc"));
             }
         }
         sourceBuilder.version(needsSourceDocumentVersions);
         sourceBuilder.seqNoAndPrimaryTerm(needsSourceDocumentSeqNoAndPrimaryTerm);
+
+        // Force accurate track_total_hits for PIT reindex so Status#total reflects the actual number of matching
+        // documents instead of being clamped at the search default. Scroll doesn't need this, it already forces
+        // accurate counting
+        if (sourceBuilder.pointInTimeBuilder() != null && sourceBuilder.trackTotalHitsUpTo() == null) {
+            sourceBuilder.trackTotalHits(true);
+        }
 
         if (needsVectors) {
             // always include vectors in the response unless explicitly set
@@ -267,8 +332,10 @@ public abstract class AbstractAsyncBulkByScrollAction<
             preparedSearchRequest.scroll(null);
             sourceBuilder.from(0);
         }
-        // Do not open scroll if max docs <= scroll size and not resuming on version conflicts
-        else if (mainRequest.getMaxDocs() != MAX_DOCS_ALL_MATCHES
+        // Do not open scroll if max docs <= scroll size and not resuming on version conflicts.
+        // Sliced searches must keep scroll (or use PIT above). Slicing without scroll or PIT fails SearchRequest validation.
+        else if (sourceBuilder.slice() == null
+            && mainRequest.getMaxDocs() != MAX_DOCS_ALL_MATCHES
             && mainRequest.getMaxDocs() <= preparedSearchRequest.source().size()
             && mainRequest.isAbortOnVersionConflict()) {
                 preparedSearchRequest.scroll(null);
@@ -350,7 +417,8 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 this::onScrollResponse,
                 this::finishHim,
                 searchClient,
-                searchRequest
+                searchRequest,
+                searchContextKeepaliveDeadline
             );
         }
         // Default to scroll
@@ -362,7 +430,8 @@ public abstract class AbstractAsyncBulkByScrollAction<
             this::onScrollResponse,
             this::finishHim,
             searchClient,
-            searchRequest
+            searchRequest,
+            searchContextKeepaliveDeadline
         );
     }
 
@@ -424,10 +493,12 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * @param asyncResponse the response to process from {@link PaginatedHitSource}
      */
     void onScrollResponse(long lastBatchStartTimeNS, int lastBatchSizeToUse, ScrollConsumableHitsResponse asyncResponse) {
+        currentScrollResponse.set(asyncResponse);
         PaginatedHitSource.Response response = asyncResponse.response();
         logger.debug("[{}]: got scroll response with [{}] hits", task.getId(), asyncResponse.remainingHits());
         if (task.isCancelled()) {
             logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
+            tryReleaseCurrentResponse(asyncResponse);
             finishHim(null);
             return;
         }
@@ -435,6 +506,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         (response.getFailures().size() > 0)
             // Timeouts aren't shard failures but we still need to pass them back to the user.
             || response.isTimedOut()) {
+            tryReleaseCurrentResponse(asyncResponse);
             refreshAndFinish(emptyList(), response.getFailures(), response.isTimedOut());
             return;
         }
@@ -455,6 +527,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
 
             @Override
             public void onFailure(Exception e) {
+                tryReleaseCurrentResponse(asyncResponse);
                 finishHim(e);
             }
         };
@@ -469,8 +542,18 @@ public abstract class AbstractAsyncBulkByScrollAction<
      */
     void prepareBulkRequest(long thisBatchStartTimeNS, ScrollConsumableHitsResponse asyncResponse) {
         logger.debug("[{}]: preparing bulk request", task.getId());
+        // Atomically claim ownership of the response. If finishHim already claimed it (CAS returns false),
+        // the hits have already been released — nothing to do here.
+        if (currentScrollResponse.compareAndSet(asyncResponse, null) == false) {
+            return;
+        }
+        if (requestFinishing.get()) {
+            asyncResponse.releaseRemainingHits();
+            return;
+        }
         if (task.isCancelled()) {
             logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
+            asyncResponse.releaseRemainingHits();
             finishHim(null);
             return;
         }
@@ -491,23 +574,45 @@ public abstract class AbstractAsyncBulkByScrollAction<
             hits = asyncResponse.consumeRemainingHits();
         }
 
-        BulkRequest request = buildBulk(hits);
-        if (request.requests().isEmpty()) {
-            /*
-             * If we noop-ed the entire batch then just skip to the next batch or the BulkRequest would fail validation.
-             */
-            notifyDone(thisBatchStartTimeNS, asyncResponse, 0);
+        // If there are unconsumed hits (e.g. maxDocs truncated the batch), restore the reference so finishHim can release them
+        // if the operation ends before the next prepareBulkRequest runs (e.g. bulk failure, maxDocs reached in onBulkResponse).
+        if (asyncResponse.hasRemainingHits()) {
+            currentScrollResponse.set(asyncResponse);
+        }
+
+        if (requestFinishing.get()) {
+            releaseHits(hits);
+            asyncResponse.releaseRemainingHits();
             return;
         }
-        request.timeout(mainRequest.getTimeout());
-        request.waitForActiveShards(mainRequest.getWaitForActiveShards());
-        sendBulkRequest(request, () -> notifyDone(thisBatchStartTimeNS, asyncResponse, request.requests().size()));
+
+        final Releasable releaseBatchHits = Releasables.releaseOnce(() -> releaseHits(hits));
+        boolean releaseBatchHitsHandedOff = false;
+        try {
+            final BulkRequest request = buildBulk(hits);
+            if (request.requests().isEmpty()) {
+                /*
+                 * If we noop-ed the entire batch then just skip to the next batch or the BulkRequest would fail validation.
+                 */
+                notifyDone(thisBatchStartTimeNS, asyncResponse, 0);
+                return;
+            }
+            request.timeout(mainRequest.getTimeout());
+            request.waitForActiveShards(mainRequest.getWaitForActiveShards());
+            sendBulkRequest(request, releaseBatchHits, () -> notifyDone(thisBatchStartTimeNS, asyncResponse, request.requests().size()));
+            releaseBatchHitsHandedOff = true;
+        } finally {
+            if (releaseBatchHitsHandedOff == false) {
+                releaseBatchHits.close();
+            }
+        }
     }
 
     /**
-     * Send a bulk request, handling retries.
+     * Send a bulk request, handling retries. Releases {@code releaseBatchHits} on cancellation, terminal finish, and before the bulk
+     * listener completes (success or failure) so hits are never leaked.
      */
-    void sendBulkRequest(BulkRequest request, Runnable onSuccess) {
+    void sendBulkRequest(BulkRequest request, Releasable releaseBatchHits, Runnable onSuccess) {
         final int requestSize = request.requests().size();
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -519,21 +624,18 @@ public abstract class AbstractAsyncBulkByScrollAction<
         }
         if (task.isCancelled()) {
             logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
+            releaseBatchHits.close();
             finishHim(null);
             return;
         }
-        bulkRetry.withBackoff(bulkClient::bulk, request, new ActionListener<BulkResponse>() {
-            @Override
-            public void onResponse(BulkResponse response) {
-                logger.debug("[{}]: completed [{}] entry bulk request", task.getId(), requestSize);
-                onBulkResponse(response, onSuccess);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                finishHim(e);
-            }
-        });
+        if (requestFinishing.get()) {
+            releaseBatchHits.close();
+            return;
+        }
+        bulkRetry.withBackoff(bulkClient::bulk, request, ActionListener.releaseBefore(releaseBatchHits, ActionListener.wrap(response -> {
+            logger.debug("[{}]: completed [{}] entry bulk request", task.getId(), requestSize);
+            onBulkResponse(response, onSuccess);
+        }, this::finishHim)));
     }
 
     /**
@@ -682,16 +784,6 @@ public abstract class AbstractAsyncBulkByScrollAction<
         asyncResponse.done(worker.throttleWaitTime(thisBatchStartTimeNS, System.nanoTime(), totalBatchSize));
     }
 
-    private void recordFailure(Failure failure, List<Failure> failures) {
-        if (failure.getStatus() == CONFLICT) {
-            worker.countVersionConflict();
-            if (false == mainRequest.isAbortOnVersionConflict()) {
-                return;
-            }
-        }
-        failures.add(failure);
-    }
-
     /**
      * Start terminating a request that finished non-catastrophically by refreshing the modified indices and then proceeding to
      * {@link #finishHim(Exception, List, List, boolean)}.
@@ -718,6 +810,60 @@ public abstract class AbstractAsyncBulkByScrollAction<
     }
 
     /**
+     * When pagination used PIT and the inferred keep-alive window has passed, {@link SearchContextMissingException} failures are mapped to
+     * HTTP 500; otherwise their default ({@link RestStatus#NOT_FOUND}) is preserved for BWC.
+     */
+    static List<PaginatedSearchFailure> remapSearchFailures(
+        boolean pitPagination,
+        boolean pastKeepaliveDeadline,
+        List<PaginatedSearchFailure> searchFailures
+    ) {
+        if (pitPagination == false || pastKeepaliveDeadline == false || searchFailures.isEmpty()) {
+            return searchFailures;
+        }
+        boolean anyScm = false;
+        for (PaginatedSearchFailure f : searchFailures) {
+            if (ExceptionsHelper.unwrap(f.getReason(), SearchContextMissingException.class) != null) {
+                anyScm = true;
+                break;
+            }
+        }
+        if (anyScm == false) {
+            return searchFailures;
+        }
+        List<PaginatedSearchFailure> remapped = new ArrayList<>(searchFailures.size());
+        for (PaginatedSearchFailure f : searchFailures) {
+            if (ExceptionsHelper.unwrap(f.getReason(), SearchContextMissingException.class) != null) {
+                remapped.add(
+                    new PaginatedSearchFailure(f.getReason(), f.getIndex(), f.getShardId(), f.getNodeId(), RestStatus.INTERNAL_SERVER_ERROR)
+                );
+            } else {
+                remapped.add(f);
+            }
+        }
+        return remapped;
+    }
+
+    /**
+     * Same policy as {@link #remapSearchFailures} for catastrophic failure on {@link ActionListener#onFailure}.
+     */
+    static Exception maybeWrapCatastrophicFailure(boolean pitPagination, boolean pastKeepaliveDeadline, Exception failure) {
+        if (failure == null || pitPagination == false || pastKeepaliveDeadline == false) {
+            return failure;
+        }
+        if (ExceptionsHelper.unwrap(failure, SearchContextMissingException.class) == null) {
+            return failure;
+        }
+        Throwable root = ExceptionsHelper.unwrapCause(failure);
+        String message = root.getMessage();
+        return new ElasticsearchStatusException(
+            message != null ? message : "search context missing",
+            RestStatus.INTERNAL_SERVER_ERROR,
+            failure
+        );
+    }
+
+    /**
      * Finish the request.
      *
      * @param failure if non null then the request failed catastrophically with this exception
@@ -741,17 +887,46 @@ public abstract class AbstractAsyncBulkByScrollAction<
         boolean timedOut
     ) {
         logger.debug("[{}]: finishing without any catastrophic failures", task.getId());
+        if (bulkByScrollSearchContextMetrics != null
+            && searchContextKeepaliveDeadline.shouldRecordKeepaliveExpiry(failure, searchFailures)) {
+            bulkByScrollSearchContextMetrics.recordKeepaliveExpiry(bulkByScrollTaskKind, remoteBulkByScrollSearch);
+            logger.warn(
+                "[{}]: bulk-by-scroll [{}] ({}) likely failed because the {} keep-alive expired",
+                task.getId(),
+                bulkByScrollTaskKind.attributeValue(),
+                remoteBulkByScrollSearch
+                    ? BulkByScrollSearchContextMetrics.ATTRIBUTE_VALUE_SEARCH_SOURCE_REMOTE
+                    : BulkByScrollSearchContextMetrics.ATTRIBUTE_VALUE_SEARCH_SOURCE_LOCAL,
+                paginatedHitSource instanceof PitPaginatedHitSource ? "point-in-time" : "scroll"
+            );
+        }
+        final boolean pitPagination = paginatedHitSource instanceof PitPaginatedHitSource;
+        final boolean pastKeepaliveDeadline = searchContextKeepaliveDeadline.isPastKeepaliveDeadline();
+        final List<PaginatedSearchFailure> resolvedSearchFailures = remapSearchFailures(
+            pitPagination,
+            pastKeepaliveDeadline,
+            searchFailures
+        );
+        final Exception resolvedFailure = maybeWrapCatastrophicFailure(pitPagination, pastKeepaliveDeadline, failure);
+        requestFinishing.set(true);
+        // Atomically claim the current response. If prepareBulkRequest already claimed it (null), this is a no-op.
+        // If we win the CAS, we release any hits that were not yet consumed (i.e. from consumedOffset to end).
+        // This covers: prepareBulkRequest hasn't run yet (consumedOffset == 0) and the maxDocs partial-batch case.
+        ScrollConsumableHitsResponse toRelease = currentScrollResponse.getAndSet(null);
+        if (toRelease != null) {
+            toRelease.releaseRemainingHits();
+        }
         paginatedHitSource.close(threadPool.getThreadContext().preserveContext(() -> {
-            if (failure == null) {
+            if (resolvedFailure == null) {
                 BulkByScrollResponse response = buildResponse(
                     timeValueMillis(System.currentTimeMillis() - startTimeEpochMillis.get()),
                     indexingFailures,
-                    searchFailures,
+                    resolvedSearchFailures,
                     timedOut
                 );
                 listener.onResponse(response);
             } else {
-                listener.onFailure(failure);
+                listener.onFailure(resolvedFailure);
             }
         }));
     }
@@ -787,6 +962,38 @@ public abstract class AbstractAsyncBulkByScrollAction<
         if (paginatedHitSource instanceof PitPaginatedHitSource pit) {
             pit.setSearchAfterValues(searchAfterValues);
         }
+    }
+
+    /**
+     * Seeds {@link #currentScrollResponse} for tests that need a specific scroll ref before {@link #prepareBulkRequest} (e.g. partial-batch
+     * / terminal-finish scenarios). Exists entirely for testing.
+     */
+    void setCurrentScrollResponseForTests(ScrollConsumableHitsResponse response) {
+        currentScrollResponse.set(response);
+    }
+
+    private static void releaseHits(List<? extends PaginatedHitSource.Hit> hits) {
+        for (PaginatedHitSource.Hit hit : hits) {
+            hit.release();
+        }
+    }
+
+    private boolean tryReleaseCurrentResponse(ScrollConsumableHitsResponse expected) {
+        if (currentScrollResponse.compareAndSet(expected, null)) {
+            expected.releaseRemainingHits();
+            return true;
+        }
+        return false;
+    }
+
+    private void recordFailure(Failure failure, List<Failure> failures) {
+        if (failure.getStatus() == CONFLICT) {
+            worker.countVersionConflict();
+            if (false == mainRequest.isAbortOnVersionConflict()) {
+                return;
+            }
+        }
+        failures.add(failure);
     }
 
     /**
@@ -1052,11 +1259,20 @@ public abstract class AbstractAsyncBulkByScrollAction<
     static class ScrollConsumableHitsResponse {
         private final PaginatedHitSource.AsyncResponse asyncResponse;
         private final List<? extends PaginatedHitSource.Hit> hits;
-        private int consumedOffset = 0;
+        /**
+         * Volatile for cross-thread visibility when {@link #remainingHits()} / {@link #hasRemainingHits()}
+         * are read while another thread updates this field. {@link #consumeHits} uses a non-atomic
+         * read-then-add on this value; {@code volatile} does not make that sequence atomic—callers rely
+         * on at most one thread executing {@code consumeHits} per response, coordinated by
+         * {@link AbstractAsyncBulkByScrollAction#currentScrollResponse} CAS, not on this field alone.
+         */
+        private volatile int consumedOffset = 0;
+        private final Releasable releaseRemainingHitsOnce;
 
         ScrollConsumableHitsResponse(PaginatedHitSource.AsyncResponse asyncResponse) {
             this.asyncResponse = asyncResponse;
             this.hits = asyncResponse.response().getHits();
+            this.releaseRemainingHitsOnce = Releasables.releaseOnce(this::doReleaseRemainingHits);
         }
 
         PaginatedHitSource.Response response() {
@@ -1089,6 +1305,22 @@ public abstract class AbstractAsyncBulkByScrollAction<
 
         int remainingHits() {
             return hits.size() - consumedOffset;
+        }
+
+        /**
+         * Release only the unconsumed hits (from consumedOffset to end). Safe to call from multiple
+         * threads concurrently — only the first call releases; subsequent calls are no-ops. This
+         * prevents double-release in the window where both prepareBulkRequest (via the requestFinishing
+         * path) and finishHim can hold a reference to this response simultaneously.
+         */
+        void releaseRemainingHits() {
+            releaseRemainingHitsOnce.close();
+        }
+
+        private void doReleaseRemainingHits() {
+            for (; consumedOffset < hits.size(); consumedOffset++) {
+                hits.get(consumedOffset).release();
+            }
         }
 
         void done(TimeValue extraKeepAlive) {

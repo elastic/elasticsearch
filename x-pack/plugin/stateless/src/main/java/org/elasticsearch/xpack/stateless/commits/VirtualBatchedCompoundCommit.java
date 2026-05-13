@@ -25,6 +25,8 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -37,6 +39,7 @@ import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.InternalFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 
 import java.io.ByteArrayInputStream;
@@ -122,6 +125,11 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     private final long creationTimeInMillis;
     // VBCC can no longer be appended to once it is frozen
     private volatile boolean frozen = false;
+    // Local file refs acquired at freeze time to keep the underlying Lucene files on disk until the VBCC is closed.
+    // This allows getBytesByRange to serve BCC chunk requests from local disk during the search-tier notification window,
+    // even after updateCommit has called markAsUploaded on those files. Entries for files that are already freed from disk
+    // (e.g. from older BCCs) are no-op releasables.
+    private List<Releasable> localFileRefs;
 
     // Tracks search nodes notified that the non-uploaded VBCC's commits are available from the index node.
     // Search shards may move to new search nodes before the commits are uploaded and tracking in the BlobReference begins.
@@ -186,6 +194,15 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 return false;
             }
             frozen = true;
+            // Acquire local file refs for all InternalFileReader entries. This keeps the underlying Lucene files on disk
+            // even after StatelessCommitService calls updateCommit (which calls markAsUploaded), so that getBytesByRange
+            // can serve BCC chunk requests directly from local disk during the search-tier notification window.
+            // Files from older BCCs that have already been freed from disk get a no-op releasable.
+            localFileRefs = internalDataReadersByOffset.values()
+                .stream()
+                .filter(r -> r instanceof InternalFileReader)
+                .map(r -> ((InternalFileReader) r).acquireLocalRef())
+                .toList();
             logger.debug("VBCC is successfully frozen");
             return true;
         } finally {
@@ -782,6 +799,9 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     @Override
     protected void closeInternal() {
         IOUtils.closeWhileHandlingException(pendingCompoundCommits);
+        if (localFileRefs != null) {
+            Releasables.close(localFileRefs);
+        }
     }
 
     public List<PendingCompoundCommit> getPendingCompoundCommits() {
@@ -1060,13 +1080,39 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
      * Internal data reader for an internal file
      */
     private record InternalFileReader(String filename, Directory directory) implements InternalDataReader {
+
+        /**
+         * Acquires a local file reference (via {@link IndexDirectory#tryAcquireLocalFileRef}) if {@link #directory} is an
+         * {@link IndexDirectory}. This keeps the file on disk even after {@code markAsUploaded} is called, so that
+         * {@link #openInput} can serve reads from local disk during the search-tier notification window.
+         */
+        Releasable acquireLocalRef() {
+            if (directory instanceof IndexDirectory indexDir) {
+                return indexDir.tryAcquireLocalFileRef(filename);
+            }
+            return () -> {};
+        }
+
+        /**
+         * Opens the file, preferring local disk (via {@link IndexDirectory#openInputPreferLocal}) when the directory is an
+         * {@link IndexDirectory} so that BCC chunk requests can be served directly from the indexing node's disk during the
+         * notification window. Falls back to the standard {@link Directory#openInput} (cache path) otherwise.
+         */
+        private IndexInput openInput(IOContext context) throws IOException {
+            if (directory instanceof IndexDirectory indexDir) {
+                return indexDir.openInputPreferLocal(filename, context);
+            }
+            var ctx = context == IOContext.READONCE ? IOContext.DEFAULT : context;
+            return directory.openInput(filename, ctx);
+        }
+
         @Override
         public InputStream getInputStream(long offset, long length) throws IOException {
             long fileLength = directory.fileLength(filename);
             assert offset < fileLength : "offset [" + offset + "] more than file length [" + fileLength + "]";
             long fileBytesToRead = Math.min(length, fileLength - offset);
             var ioContext = filename.startsWith(IndexFileNames.SEGMENTS) ? IOContext.READONCE : IOContext.DEFAULT;
-            IndexInput input = directory.openInput(filename, ioContext);
+            IndexInput input = openInput(ioContext);
             try {
                 input.seek(offset);
                 return new InputStreamIndexInput(input, fileBytesToRead) {
@@ -1089,7 +1135,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
          */
         @Override
         public InputStream getInputStream() throws IOException {
-            Store.VerifyingIndexInput input = new Store.VerifyingIndexInput(directory.openInput(filename, IOContext.READONCE));
+            Store.VerifyingIndexInput input = new Store.VerifyingIndexInput(openInput(IOContext.READONCE));
             logger.trace("opening validating input for {}", filename);
 
             return new InputStreamIndexInput(input, input.length()) {

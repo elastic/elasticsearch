@@ -36,10 +36,7 @@ public interface InternalCloudApiKeyService {
         ActionListener<CloudGrantApiKeyResult> listener
     );
 
-    void revokeCloudAuthentication(
-        PersistedCloudCredential persistedCredential,
-        ActionListener<Void> listener
-    );
+    void revokeCloudAuthentication(PersistedCloudCredential persistedCredential, ActionListener<Void> listener);
 
     /**
      * Default used when no real implementation is loaded.

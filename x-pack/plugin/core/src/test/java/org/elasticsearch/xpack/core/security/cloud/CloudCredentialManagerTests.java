@@ -50,7 +50,7 @@ public class CloudCredentialManagerTests extends ESTestCase {
     }
 
     public void testNoopResolverOfPersistedThrows() {
-        var persisted = new PersistedCloudCredential("an-id", new CloudCredential(new SecureString("v".toCharArray())));
+        var persisted = new PersistedCloudCredential("an-id", new SecureString("v".toCharArray()));
         expectThrows(UnsupportedOperationException.class, () -> manager.resolverOf(persisted));
     }
 
@@ -76,7 +76,7 @@ public class CloudCredentialManagerTests extends ESTestCase {
             // not crash a request path that carries a dormant persisted credential from a
             // previously-active config.
             var credential = new CloudCredential(new SecureString("v".toCharArray()));
-            var persisted = new PersistedCloudCredential("an-id", new CloudCredential(new SecureString("v".toCharArray())));
+            var persisted = new PersistedCloudCredential("an-id", new SecureString("v".toCharArray()));
             CloudCredentialResolver throwingResolver = () -> { throw new AssertionError("resolver must not be invoked on Noop"); };
 
             assertThat(manager.wrapClient(delegate, throwingResolver), sameInstance(delegate));

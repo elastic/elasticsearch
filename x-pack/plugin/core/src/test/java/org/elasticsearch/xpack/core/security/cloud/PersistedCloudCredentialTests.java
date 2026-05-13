@@ -33,7 +33,7 @@ public class PersistedCloudCredentialTests extends AbstractXContentSerializingTe
     protected PersistedCloudCredential createTestInstance() {
         return new PersistedCloudCredential(
             randomAlphaOfLengthBetween(5, 22),
-            new CloudCredential(new SecureString(randomAlphaOfLengthBetween(16, 256).toCharArray()))
+            new SecureString(randomAlphaOfLengthBetween(16, 256).toCharArray())
         );
     }
 
@@ -42,16 +42,13 @@ public class PersistedCloudCredentialTests extends AbstractXContentSerializingTe
         if (randomBoolean()) {
             return new PersistedCloudCredential(
                 randomValueOtherThan(instance.id(), () -> randomAlphaOfLengthBetween(5, 22)),
-                new CloudCredential(new SecureString(instance.credential().value().toString().toCharArray()))
+                new SecureString(instance.internalApiKey().toString().toCharArray())
             );
         } else {
             return new PersistedCloudCredential(
                 instance.id(),
-                new CloudCredential(
-                    new SecureString(
-                        randomValueOtherThan(instance.credential().value().toString(), () -> randomAlphaOfLengthBetween(16, 256))
-                            .toCharArray()
-                    )
+                new SecureString(
+                    randomValueOtherThan(instance.internalApiKey().toString(), () -> randomAlphaOfLengthBetween(16, 256)).toCharArray()
                 )
             );
         }

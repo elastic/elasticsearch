@@ -26,9 +26,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 /**
  * Persistence envelope for a cloud-managed credential, pairing the public API key {@code id} with
- * the opaque {@link CloudCredential} value. The {@code version} field exists so that a future
- * envelope encoding (e.g. an encrypted payload) can be introduced without breaking documents
- * written today.
+ * the raw internal API key text. The {@code version} field exists so that a future envelope encoding
+ * (e.g. an encrypted payload) can be introduced without breaking documents written today.
  */
 public final class PersistedCloudCredential implements Writeable, ToXContentObject, Releasable {
 
@@ -41,7 +40,7 @@ public final class PersistedCloudCredential implements Writeable, ToXContentObje
     private static final ConstructingObjectParser<PersistedCloudCredential, Void> PARSER = new ConstructingObjectParser<>(
         "persisted_cloud_credential",
         true,
-        args -> new PersistedCloudCredential((int) args[0], (String) args[1], (CloudCredential) args[2])
+        args -> new PersistedCloudCredential((int) args[0], (String) args[1], (SecureString) args[2])
     );
 
     static {
@@ -49,7 +48,7 @@ public final class PersistedCloudCredential implements Writeable, ToXContentObje
         PARSER.declareString(constructorArg(), ID_FIELD);
         PARSER.declareField(
             constructorArg(),
-            (p, c) -> new CloudCredential(new SecureString(p.text().toCharArray())),
+            (p, c) -> new SecureString(p.text().toCharArray()),
             VALUE_FIELD,
             ObjectParser.ValueType.STRING
         );
@@ -57,13 +56,13 @@ public final class PersistedCloudCredential implements Writeable, ToXContentObje
 
     private final int version;
     private final String id;
-    private final CloudCredential credential;
+    private final SecureString internalApiKey;
 
-    public PersistedCloudCredential(String id, CloudCredential credential) {
-        this(CURRENT_VERSION, id, credential);
+    public PersistedCloudCredential(String id, SecureString internalApiKey) {
+        this(CURRENT_VERSION, id, internalApiKey);
     }
 
-    private PersistedCloudCredential(int version, String id, CloudCredential credential) {
+    private PersistedCloudCredential(int version, String id, SecureString internalApiKey) {
         if (version <= 0 || version > CURRENT_VERSION) {
             throw new IllegalStateException(
                 "unsupported PersistedCloudCredential version [" + version + "]; supported versions are [1.." + CURRENT_VERSION + "]"
@@ -71,11 +70,11 @@ public final class PersistedCloudCredential implements Writeable, ToXContentObje
         }
         this.version = version;
         this.id = Objects.requireNonNull(id, "id must not be null");
-        this.credential = Objects.requireNonNull(credential, "credential must not be null");
+        this.internalApiKey = Objects.requireNonNull(internalApiKey, "internalApiKey must not be null");
     }
 
     public PersistedCloudCredential(StreamInput in) throws IOException {
-        this(in.readVInt(), in.readString(), new CloudCredential(in));
+        this(in.readVInt(), in.readString(), in.readSecureString());
     }
 
     public int version() {
@@ -86,15 +85,15 @@ public final class PersistedCloudCredential implements Writeable, ToXContentObje
         return id;
     }
 
-    public CloudCredential credential() {
-        return credential;
+    public SecureString internalApiKey() {
+        return internalApiKey;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(version);
         out.writeString(id);
-        credential.writeTo(out);
+        out.writeSecureString(internalApiKey);
     }
 
     @Override
@@ -102,7 +101,7 @@ public final class PersistedCloudCredential implements Writeable, ToXContentObje
         builder.startObject();
         builder.field(VERSION_FIELD.getPreferredName(), version);
         builder.field(ID_FIELD.getPreferredName(), id);
-        builder.field(VALUE_FIELD.getPreferredName(), credential.value().toString());
+        builder.field(VALUE_FIELD.getPreferredName(), internalApiKey.toString());
         return builder.endObject();
     }
 
@@ -111,11 +110,11 @@ public final class PersistedCloudCredential implements Writeable, ToXContentObje
     }
 
     /**
-     * Releases the underlying {@link CloudCredential} and the {@link SecureString} it owns.
+     * Releases the underlying {@link SecureString}.
      */
     @Override
     public void close() {
-        credential.close();
+        internalApiKey.close();
     }
 
     @Override
@@ -124,18 +123,18 @@ public final class PersistedCloudCredential implements Writeable, ToXContentObje
             return true;
         }
         if (o instanceof PersistedCloudCredential other) {
-            return version == other.version && id.equals(other.id) && credential.equals(other.credential);
+            return version == other.version && id.equals(other.id) && internalApiKey.equals(other.internalApiKey);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(version, id, credential);
+        return Objects.hash(version, id, internalApiKey);
     }
 
     @Override
     public String toString() {
-        return "PersistedCloudCredential{version=" + version + ", id=" + id + ", credential=::es_redacted::}";
+        return "PersistedCloudCredential{version=" + version + ", id=" + id + ", internalApiKey=::es_redacted::}";
     }
 }

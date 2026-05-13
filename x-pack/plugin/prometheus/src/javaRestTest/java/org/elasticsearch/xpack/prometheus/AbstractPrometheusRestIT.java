@@ -12,6 +12,9 @@ import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.compression.Snappy;
 
 import org.apache.http.HttpHeaders;
+import org.apache.http.NameValuePair;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
+import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
@@ -31,6 +34,7 @@ import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -101,6 +105,26 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
      */
     protected void addReadAuth(Request request) {
         request.setOptions(request.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + readApiKey).build());
+    }
+
+    /**
+     * Builds a randomized Prometheus read request, encoding params in the query string for {@code GET}
+     * requests and as an {@code application/x-www-form-urlencoded} body for {@code POST} requests.
+     */
+    protected Request prometheusReadRequest(String path, NameValuePair... params) {
+        Request request;
+        if (randomBoolean()) {
+            String endpoint = path;
+            if (params.length > 0) {
+                endpoint += (path.contains("?") ? "&" : "?") + URLEncodedUtils.format(List.of(params), StandardCharsets.UTF_8);
+            }
+            request = new Request("GET", endpoint);
+        } else {
+            request = new Request("POST", path);
+            request.setEntity(new UrlEncodedFormEntity(List.of(params), StandardCharsets.UTF_8));
+        }
+        addReadAuth(request);
+        return request;
     }
 
     // --- sample data helpers ---

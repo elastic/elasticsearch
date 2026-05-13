@@ -112,14 +112,14 @@ public class ContextualAiService extends SenderService<ContextualAiModel> implem
 
     @Override
     protected void doRerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
-        if (model instanceof ContextualAiRerankModel contextualAiRerankModel) {
-            var actionCreator = new ContextualAiActionCreator(getSender(), getServiceComponents());
-
-            var action = contextualAiRerankModel.accept(actionCreator, request.taskSettings());
-            action.execute(fromRerankRequest(request), timeout, listener);
-        } else {
+        if (!(model instanceof ContextualAiRerankModel contextualAiRerankModel)) {
             listener.onFailure(createInvalidModelException(model));
+            return;
         }
+        var actionCreator = new ContextualAiActionCreator(getSender(), getServiceComponents());
+
+        var action = contextualAiRerankModel.accept(actionCreator, request.taskSettings());
+        action.execute(fromRerankRequest(request), timeout, listener);
     }
 
     @Override

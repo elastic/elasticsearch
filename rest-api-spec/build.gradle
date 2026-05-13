@@ -140,6 +140,10 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   )
   task.skipTest("search.vectors/42_knn_search_bbq_flat/Vector rescoring has same scoring as exact search for kNN section", "scores have changed slightly with native implementations")
   task.skipTest("search.vectors/41_knn_search_bbq_hnsw/Vector rescoring has same scoring as exact search for kNN section", "scores have changed slightly with native implementations")
+  task.skipTest("search.vectors/41_knn_search_half_byte_quantized/Vector rescoring has the same scoring as exact search for kNN section", "scores have changed slightly with native implementations")
+  task.skipTest("search.vectors/41_knn_search_byte_quantized/Vector rescoring has the same scoring as exact search for kNN section", "scores have changed slightly with native implementations")
+  task.skipTest("search.vectors/42_knn_search_int4_flat/Vector rescoring has the same scoring as exact search for kNN section", "scores have changed slightly with native implementations")
+  task.skipTest("search.vectors/42_knn_search_int8_flat/Vector rescoring has the same scoring as exact search for kNN section", "scores have changed slightly with native implementations")
   task.skipTest("search.vectors/41_knn_search_byte_quantized/KNN Vector similarity search only", "min similarity score changed with Lucene 10.4")
   task.skipTest("search.vectors/42_knn_search_int8_flat/KNN Vector similarity search only", "min similarity score changed with Lucene 10.4")
   task.skipTest(

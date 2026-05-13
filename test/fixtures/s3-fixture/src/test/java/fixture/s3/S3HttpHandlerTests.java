@@ -94,12 +94,12 @@ public class S3HttpHandlerTests extends ESTestCase {
 
         assertListObjectsResponse(handler, "", null, """
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix><IsTruncated>false</IsTruncated>\
-            <Contents><Key>path/blob</Key><Size>50</Size></Contents>\
+            <Contents><Key>path/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>50</Size></Contents>\
             </ListBucketResult>""");
 
         assertListObjectsResponse(handler, "path/", null, """
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix>path/</Prefix><IsTruncated>false</IsTruncated>\
-            <Contents><Key>path/blob</Key><Size>50</Size></Contents>\
+            <Contents><Key>path/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>50</Size></Contents>\
             </ListBucketResult>""");
 
         assertListObjectsResponse(handler, "path/other", null, """
@@ -111,7 +111,7 @@ public class S3HttpHandlerTests extends ESTestCase {
         assertListObjectsResponse(handler, "path/", "/", """
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult>\
             <Prefix>path/</Prefix><Delimiter>/</Delimiter><IsTruncated>false</IsTruncated>\
-            <Contents><Key>path/blob</Key><Size>50</Size></Contents>\
+            <Contents><Key>path/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>50</Size></Contents>\
             <CommonPrefixes><Prefix>path/subpath1/</Prefix></CommonPrefixes>\
             <CommonPrefixes><Prefix>path/subpath2/</Prefix></CommonPrefixes>\
             </ListBucketResult>""");
@@ -121,8 +121,8 @@ public class S3HttpHandlerTests extends ESTestCase {
 
         assertListObjectsResponse(handler, "", null, """
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix><IsTruncated>false</IsTruncated>\
-            <Contents><Key>path/subpath1/blob</Key><Size>50</Size></Contents>\
-            <Contents><Key>path/subpath2/blob</Key><Size>50</Size></Contents>\
+            <Contents><Key>path/subpath1/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>50</Size></Contents>\
+            <Contents><Key>path/subpath2/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>50</Size></Contents>\
             </ListBucketResult>""");
 
         assertEquals(RestStatus.OK, handleRequest(handler, "DELETE", "/bucket/path/subpath1/blob").status());
@@ -202,6 +202,30 @@ public class S3HttpHandlerTests extends ESTestCase {
             ),
             handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesRangeHeader(start, end))
         );
+
+        // Suffix range: last N bytes of the blob.
+        var suffixLength = randomIntBetween(1, blobBytes.length() - 1);
+        var suffixStart = blobBytes.length() - suffixLength;
+        assertEquals(
+            "Suffix Range: bytes=-" + suffixLength,
+            new TestHttpResponse(
+                RestStatus.PARTIAL_CONTENT,
+                blobBytes.slice(suffixStart, suffixLength),
+                addETag(expectedEtag, contentRangeHeader(suffixStart, blobBytes.length() - 1, blobBytes.length()))
+            ),
+            handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesSuffixHeader(suffixLength))
+        );
+
+        // Suffix length larger than the blob: returns the entire object (RFC 9110 §14.1.2).
+        assertEquals(
+            "Suffix Range larger than blob: bytes=-" + (blobBytes.length() + 100),
+            new TestHttpResponse(
+                RestStatus.PARTIAL_CONTENT,
+                blobBytes,
+                addETag(expectedEtag, contentRangeHeader(0, blobBytes.length() - 1, blobBytes.length()))
+            ),
+            handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesSuffixHeader(blobBytes.length() + 100))
+        );
     }
 
     public void testSingleMultipartUpload() {
@@ -261,7 +285,7 @@ public class S3HttpHandlerTests extends ESTestCase {
 
         assertListObjectsResponse(handler, "", null, """
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix><IsTruncated>false</IsTruncated>\
-            <Contents><Key>path/blob</Key><Size>100</Size></Contents>\
+            <Contents><Key>path/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>100</Size></Contents>\
             </ListBucketResult>""");
 
         final var expectedContents = new BytesArray((part1 + part2).getBytes(StandardCharsets.UTF_8));
@@ -612,17 +636,21 @@ public class S3HttpHandlerTests extends ESTestCase {
         );
     }
 
-    private static Headers bytesRangeHeader(@Nullable Integer startInclusive, @Nullable Integer endInclusive) {
+    private static Headers bytesRangeHeader(int startInclusive, @Nullable Integer endInclusive) {
         StringBuilder range = new StringBuilder("bytes=");
-        if (startInclusive != null) {
-            range.append(startInclusive);
-        }
-        range.append('-');
+        range.append(startInclusive).append('-');
         if (endInclusive != null) {
             range.append(endInclusive);
         }
         var headers = new Headers();
         headers.put("Range", List.of(range.toString()));
+        return headers;
+    }
+
+    /** Suffix-range header per RFC 7233 §2.1: "bytes=-N" requests the last N bytes. */
+    private static Headers bytesSuffixHeader(int suffixLength) {
+        var headers = new Headers();
+        headers.put("Range", List.of("bytes=-" + suffixLength));
         return headers;
     }
 

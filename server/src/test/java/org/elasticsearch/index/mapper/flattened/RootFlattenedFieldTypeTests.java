@@ -49,7 +49,8 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             null,
-            false
+            false,
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY
         );
     }
 
@@ -80,7 +81,8 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             true,
             randomBoolean(),
             null,
-            false
+            false,
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("field", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
@@ -97,7 +99,8 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             true,
             randomBoolean(),
             null,
-            false
+            false,
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY
         );
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))), noDv.existsQuery(null));
 
@@ -111,7 +114,8 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             true,
             randomBoolean(),
             null,
-            false
+            false,
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY
         );
         assertEquals(new FieldExistsQuery("field._keyed"), withDv.existsQuery(null));
     }

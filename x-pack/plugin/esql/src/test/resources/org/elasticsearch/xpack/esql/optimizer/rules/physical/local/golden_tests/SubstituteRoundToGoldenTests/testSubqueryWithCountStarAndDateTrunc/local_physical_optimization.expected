@@ -11,7 +11,7 @@ ProjectExec[[x{r}#0, cnt{r}#1, date{r}#2]]
         \_AggregateExec[[x{r}#69],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS cnt#68, x{r}#69],FINAL,[x{r}#69, $$cnt$count{r}#71, $$cnt$seen{r}#72],null]
           \_ExchangeExec[[x{r}#69, $$cnt$count{r}#71, $$cnt$seen{r}#72],true]
             \_FilterExec[$$cnt$count{r}#73 > 0[LONG]]
-              \_EsStatsQueryExec[all_types], statsByStat{queryBuilderAndTags=[QueryBuilderAndTags[query={
+              \_EsStatsQueryExec[all_types], stats[ByStat{queryBuilderAndTags=[QueryBuilderAndTags[query={
   "esql_single_value" : {
     "field" : "date",
     "next" : {

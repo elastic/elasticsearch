@@ -37,7 +37,24 @@ public interface VectorScorerFactory {
      * @param values the random access vector values
      * @return an optional containing the vector scorer supplier, or empty
      */
-    Optional<RandomVectorScorerSupplier> getFloatVectorScorerSupplier(
+    Optional<RandomVectorScorerSupplier> getFloat32VectorScorerSupplier(
+        VectorSimilarityType similarityType,
+        IndexInput input,
+        FloatVectorValues values
+    );
+
+    /**
+     * Returns an optional containing a bfloat16 vector score supplier
+     * for the given parameters, or an empty optional if a scorer is not supported.
+     *
+     * @param similarityType the similarity type
+     * @param input the index input containing the vector data;
+     *    offset of the first vector is 0,
+     *    the length must be (maxOrd) * dims * 2
+     * @param values the random access vector values
+     * @return an optional containing the vector scorer supplier, or empty
+     */
+    Optional<RandomVectorScorerSupplier> getBFloat16VectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,
         FloatVectorValues values
@@ -54,7 +71,7 @@ public interface VectorScorerFactory {
      * @param values the random access vector values
      * @return an optional containing the vector scorer supplier, or empty
      */
-    Optional<RandomVectorScorerSupplier> getByteVectorScorerSupplier(
+    Optional<RandomVectorScorerSupplier> getInt8VectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,
         ByteVectorValues values
@@ -69,7 +86,18 @@ public interface VectorScorerFactory {
      * @param queryVector the query vector
      * @return an optional containing the vector scorer, or empty
      */
-    Optional<RandomVectorScorer> getFloatVectorScorer(VectorSimilarityFunction sim, FloatVectorValues values, float[] queryVector);
+    Optional<RandomVectorScorer> getFloat32VectorScorer(VectorSimilarityFunction sim, FloatVectorValues values, float[] queryVector);
+
+    /**
+     * Returns an optional containing a bfloat16 vector scorer for
+     * the given parameters, or an empty optional if a scorer is not supported.
+     *
+     * @param sim the similarity type
+     * @param values the random access vector values
+     * @param queryVector the query vector
+     * @return an optional containing the vector scorer, or empty
+     */
+    Optional<RandomVectorScorer> getBFloat16VectorScorer(VectorSimilarityFunction sim, FloatVectorValues values, float[] queryVector);
 
     /**
      * Returns an optional containing a byte vector scorer for
@@ -80,7 +108,7 @@ public interface VectorScorerFactory {
      * @param queryVector the query vector
      * @return an optional containing the vector scorer, or empty
      */
-    Optional<RandomVectorScorer> getByteVectorScorer(VectorSimilarityFunction sim, ByteVectorValues values, byte[] queryVector);
+    Optional<RandomVectorScorer> getInt8VectorScorer(VectorSimilarityFunction sim, ByteVectorValues values, byte[] queryVector);
 
     /**
      * Returns an optional containing an int7 scalar quantized vector score supplier

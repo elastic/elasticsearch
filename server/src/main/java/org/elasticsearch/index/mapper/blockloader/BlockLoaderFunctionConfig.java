@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.blockloader;
 
 import org.elasticsearch.index.mapper.MappedFieldType;
 
+import java.util.Arrays;
 import java.util.Set;
 
 /**
@@ -39,6 +40,26 @@ public interface BlockLoaderFunctionConfig {
         }
     }
 
+    /**
+     * Configuration for rounding long values to one of a sorted list of points.
+     */
+    record RoundToLongs(long[] points) implements BlockLoaderFunctionConfig {
+        @Override
+        public Function function() {
+            return Function.ROUND_TO;
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(points);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof RoundToLongs other && Arrays.equals(points, other.points);
+        }
+    }
+
     enum Function {
         AMD_COUNT,
         AMD_DEFAULT,
@@ -49,6 +70,7 @@ public interface BlockLoaderFunctionConfig {
         MV_MAX,
         MV_MIN,
         LENGTH,
+        ROUND_TO,
         V_COSINE,
         V_DOT_PRODUCT,
         V_HAMMING,

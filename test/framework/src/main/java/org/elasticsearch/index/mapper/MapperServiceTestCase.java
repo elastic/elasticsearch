@@ -132,6 +132,10 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return SETTINGS;
     }
 
+    protected XContentMeteringParserDecorator xContentMeteringParserDecorator() {
+        return XContentMeteringParserDecorator.NOOP;
+    }
+
     protected final Settings.Builder getIndexSettingsBuilder() {
         return Settings.builder().put(getIndexSettings());
     }
@@ -150,9 +154,11 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
 
     protected final DocumentMapper createDocumentMapper(XContentBuilder mappings, IndexMode indexMode) throws IOException {
         return switch (indexMode) {
-            case STANDARD, LOOKUP -> createDocumentMapper(mappings);
+            case STANDARD, LOOKUP, VECTORDB_DOCUMENT -> createDocumentMapper(mappings);
             case TIME_SERIES -> createTimeSeriesModeDocumentMapper(mappings);
             case LOGSDB -> createLogsModeDocumentMapper(mappings);
+            case COLUMNAR -> createColumnarModeDocumentMapper(mappings);
+            case COLUMNAR_LOGSDB -> createColumnarLogsdbModeDocumentMapper(mappings);
         };
     }
 
@@ -173,6 +179,16 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return createMapperService(settings, mappings).documentMapper();
     }
 
+    protected final DocumentMapper createColumnarModeDocumentMapper(XContentBuilder mappings) throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        return createMapperService(settings, mappings).documentMapper();
+    }
+
+    protected final DocumentMapper createColumnarLogsdbModeDocumentMapper(XContentBuilder mappings) throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.getName()).build();
+        return createMapperService(settings, mappings).documentMapper();
+    }
+
     protected final DocumentMapper createDocumentMapper(IndexVersion version, XContentBuilder mappings) throws IOException {
         return createMapperService(version, mappings).documentMapper();
     }
@@ -181,6 +197,12 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         var mapperService = createMapperService(mapping(b -> {}));
         merge(mapperService, mappings);
         return mapperService.documentMapper();
+    }
+
+    public final MappingBuilder parseMappings(XContentBuilder mappings) throws IOException {
+        try (MapperService mapperService = createMapperService("{\"_doc\":{}}")) {
+            return mapperService.parseMappings(new CompressedXContent(BytesReference.bytes(mappings)));
+        }
     }
 
     public final MapperService createMapperService(XContentBuilder mappings) throws IOException {
@@ -337,7 +359,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
                 () -> {
                     throw new UnsupportedOperationException();
                 },
-                indexSettings.getMode().buildIdFieldMapper(idFieldDataEnabled),
+                idFieldDataEnabled,
                 scriptCompiler,
                 bitsetFilterCache::getBitSetProducer,
                 mapperMetrics,
@@ -424,25 +446,22 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     /**
      * Build a {@link SourceToParse} with the id {@code "1"} and without any dynamic templates.
      */
-    public static SourceToParse source(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
+    public SourceToParse source(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
         return source("1", build, null);
     }
 
     /**
      * Build a {@link SourceToParse} without any dynamic templates.
      */
-    protected static SourceToParse source(
-        @Nullable String id,
-        CheckedConsumer<XContentBuilder, IOException> build,
-        @Nullable String routing
-    ) throws IOException {
+    protected SourceToParse source(@Nullable String id, CheckedConsumer<XContentBuilder, IOException> build, @Nullable String routing)
+        throws IOException {
         return source(id, build, routing, Map.of());
     }
 
     /**
      * Build a {@link SourceToParse}.
      */
-    protected static SourceToParse source(
+    protected SourceToParse source(
         @Nullable String id,
         CheckedConsumer<XContentBuilder, IOException> build,
         @Nullable String routing,
@@ -454,7 +473,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     /**
      * Build a {@link SourceToParse}.
      */
-    protected static SourceToParse source(
+    protected SourceToParse source(
         @Nullable String id,
         CheckedConsumer<XContentBuilder, IOException> build,
         @Nullable String routing,
@@ -472,7 +491,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             dynamicTemplates,
             dynamicTemplateParams,
             true,
-            XContentMeteringParserDecorator.NOOP,
+            xContentMeteringParserDecorator(),
             null
         );
     }
@@ -884,8 +903,9 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     protected TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup(
         Function<String, Set<String>> sourcePathsLookup
     ) {
-        return (mft, lookupSource, fdo) -> mft.fielddataBuilder(new FieldDataContext("test", null, lookupSource, sourcePathsLookup, fdo))
-            .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+        return (mft, lookupSource, fdo) -> mft.fielddataBuilder(
+            new FieldDataContext("test", null, lookupSource, sourcePathsLookup, () -> false, fdo)
+        ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
     }
 
     protected RandomIndexWriter indexWriterForSyntheticSource(Directory directory) throws IOException {

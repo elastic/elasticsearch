@@ -18,6 +18,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.http.ResponseInjectingHttpHandler;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -49,6 +50,11 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
         );
     }
 
+    @TestIssueLogging(
+        value = "org.elasticsearch.repositories.azure:TRACE,org.elasticsearch.http:TRACE,"
+            + "fixture.azure.AzureHttpHandler:TRACE,reactor.netty.http.client:DEBUG",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/145281"
+    )
     public void testRetriesAndOperationsAreTrackedSeparately() throws IOException {
         serverlessMode = true;
         final AzureBlobContainer blobContainer = asInstanceOf(AzureBlobContainer.class, createBlobContainer(between(1, 3)));
@@ -65,6 +71,7 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
                 requestHandlers.offer(new ResponseInjectingHttpHandler.FixedRequestHandler(RestStatus.TOO_MANY_REQUESTS));
             }
             final AzureBlobStore.Operation operation = randomFrom(supportedOperations);
+            logger.info("---> performing operation: {} {} retry", operation, triggerRetry ? "with" : "without");
             switch (operation) {
                 case PUT_BLOB -> blobStore.writeBlob(
                     purpose,
@@ -88,9 +95,9 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
         }
 
         final Map<String, BlobStoreActionStats> stats = blobStore.stats();
-        expectedActionStats.forEach((operation, value) -> {
+        expectedActionStats.forEach((operation, expected) -> {
             String key = statsKey(purpose, operation);
-            assertEquals(key, stats.get(key), value);
+            assertEquals(key, expected, stats.get(key));
         });
     }
 
@@ -115,15 +122,19 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
         });
         // BLOB_BATCH
         blobStore.deleteBlobs(purpose, List.of(randomIdentifier(), randomIdentifier(), randomIdentifier()).iterator());
+        // COPY_BLOB
+        blobStore.copyBlob(purpose, blobName, blobStore, randomIdentifier());
 
         Map<String, BlobStoreActionStats> stats = blobStore.stats();
         String statsMapString = stats.toString();
         assertEquals(statsMapString, 1L, stats.get(statsKey(purpose, AzureBlobStore.Operation.PUT_BLOB)).operations());
         assertEquals(statsMapString, 1L, stats.get(statsKey(purpose, AzureBlobStore.Operation.LIST_BLOBS)).operations());
-        assertEquals(statsMapString, 1L, stats.get(statsKey(purpose, AzureBlobStore.Operation.GET_BLOB_PROPERTIES)).operations());
+        // Copy polls blob properties for completion
+        assertEquals(statsMapString, 2L, stats.get(statsKey(purpose, AzureBlobStore.Operation.GET_BLOB_PROPERTIES)).operations());
         assertEquals(statsMapString, 1L, stats.get(statsKey(purpose, AzureBlobStore.Operation.PUT_BLOCK)).operations());
         assertEquals(statsMapString, 1L, stats.get(statsKey(purpose, AzureBlobStore.Operation.PUT_BLOCK_LIST)).operations());
         assertEquals(statsMapString, 1L, stats.get(statsKey(purpose, AzureBlobStore.Operation.BLOB_BATCH)).operations());
+        assertEquals(statsMapString, 1L, stats.get(statsKey(purpose, AzureBlobStore.Operation.COPY_BLOB)).operations());
     }
 
     public void testOperationPurposeIsNotReflectedInBlobStoreStatsWhenNotServerless() throws IOException {
@@ -150,16 +161,20 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
             });
             // BLOB_BATCH
             blobStore.deleteBlobs(purpose, List.of(randomIdentifier(), randomIdentifier(), randomIdentifier()).iterator());
+            // COPY_BLOB
+            blobStore.copyBlob(purpose, blobName, blobStore, randomIdentifier());
         }
 
         Map<String, BlobStoreActionStats> stats = blobStore.stats();
         String statsMapString = stats.toString();
         assertEquals(statsMapString, repeatTimes, stats.get(AzureBlobStore.Operation.PUT_BLOB.getKey()).operations());
         assertEquals(statsMapString, repeatTimes, stats.get(AzureBlobStore.Operation.LIST_BLOBS.getKey()).operations());
-        assertEquals(statsMapString, repeatTimes, stats.get(AzureBlobStore.Operation.GET_BLOB_PROPERTIES.getKey()).operations());
+        // Copy polls blob properties for completion
+        assertEquals(statsMapString, 2 * repeatTimes, stats.get(AzureBlobStore.Operation.GET_BLOB_PROPERTIES.getKey()).operations());
         assertEquals(statsMapString, repeatTimes, stats.get(AzureBlobStore.Operation.PUT_BLOCK.getKey()).operations());
         assertEquals(statsMapString, repeatTimes, stats.get(AzureBlobStore.Operation.PUT_BLOCK_LIST.getKey()).operations());
         assertEquals(statsMapString, repeatTimes, stats.get(AzureBlobStore.Operation.BLOB_BATCH.getKey()).operations());
+        assertEquals(statsMapString, repeatTimes, stats.get(AzureBlobStore.Operation.COPY_BLOB.getKey()).operations());
     }
 
     private static String statsKey(OperationPurpose purpose, AzureBlobStore.Operation operation) {

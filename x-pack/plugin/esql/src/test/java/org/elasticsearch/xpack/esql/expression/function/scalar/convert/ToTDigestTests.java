@@ -41,7 +41,7 @@ public class ToTDigestTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
-        FunctionAppliesTo expHistogramAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.4.0", "", true);
+        FunctionAppliesTo expHistogramAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
 
         TestCaseSupplier.forUnaryHistogram(
             suppliers,
@@ -138,7 +138,7 @@ public class ToTDigestTests extends AbstractScalarFunctionTestCase {
         double min = Double.NaN;
         double max = Double.NaN;
         double sum = Double.NaN;
-        if (in.valueCount() > 0) {
+        if (in.isEmpty() == false) {
             min = in.min();
             max = in.max();
             sum = in.sum();

@@ -71,8 +71,8 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
     ) {
         super(NAME, transportService, actionFilters, threadPool, client);
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
-        defaultMappingHints = MappingHints.fromSettings(clusterSettings.get(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE));
-        clusterSettings.addSettingsUpdateConsumer(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE, histogramFieldTypeSetting -> {
+        defaultMappingHints = MappingHints.fromSettings(clusterSettings.get(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING));
+        clusterSettings.addSettingsUpdateConsumer(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING, histogramFieldTypeSetting -> {
             defaultMappingHints = MappingHints.fromSettings(histogramFieldTypeSetting);
         });
         this.clusterService = clusterService;
@@ -84,7 +84,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         DataPointGroupingContext context = new DataPointGroupingContext(byteStringAccessor);
         var metricsServiceRequest = ExportMetricsServiceRequest.parseFrom(request.getRequest().streamInput());
         context.groupDataPoints(metricsServiceRequest);
-        if (context.totalDataPoints() == 0) {
+        if (context.totalItems() == 0) {
             return context;
         }
         MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor, defaultMappingHints);
@@ -97,9 +97,9 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
     }
 
     @Override
-    protected ExportMetricsServiceResponse responseWithRejectedDataPoints(int rejectedDataPoints, String message) {
+    protected ExportMetricsServiceResponse responseWithRejectedItems(int rejectedItems, String message) {
         ExportMetricsPartialSuccess partialSuccess = ExportMetricsPartialSuccess.newBuilder()
-            .setRejectedDataPoints(rejectedDataPoints)
+            .setRejectedDataPoints(rejectedItems)
             .setErrorMessage(message)
             .build();
         return ExportMetricsServiceResponse.newBuilder().setPartialSuccess(partialSuccess).build();

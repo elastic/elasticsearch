@@ -41,6 +41,13 @@ final class IntRangeVector extends AbstractVector implements IntVector {
     }
 
     @Override
+    public void copyTo(int srcPosition, int[] dst, int dstPosition, int length) {
+        for (int i = 0; i < length; i++) {
+            dst[dstPosition + i] = startInclusive + srcPosition + i;
+        }
+    }
+
+    @Override
     public IntBlock asBlock() {
         return new IntVectorBlock(this);
     }
@@ -109,6 +116,11 @@ final class IntRangeVector extends AbstractVector implements IntVector {
     @Override
     public ElementType elementType() {
         return ElementType.INT;
+    }
+
+    @Override
+    public int valueMaxByteSize() {
+        return Integer.BYTES;
     }
 
     @Override

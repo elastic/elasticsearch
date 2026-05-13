@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.querylog;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
 import org.elasticsearch.common.logging.activity.QueryLoggerContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
@@ -20,14 +19,17 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-public class EsqlLogContext extends ActivityLoggerContext implements QueryLoggerContext {
+public class EsqlLogContext extends QueryLoggerContext {
     public static final String TYPE = "esql";
     private final EsqlQueryRequest request;
     private final @Nullable EsqlQueryResponse response;
+    // Cached index names
+    private String[] indexNames = null;
 
     EsqlLogContext(Task task, EsqlQueryRequest request, EsqlQueryResponse response) {
         super(task, TYPE, response.getExecutionInfo().overallTook().nanos());
@@ -55,9 +57,9 @@ public class EsqlLogContext extends ActivityLoggerContext implements QueryLogger
         AtomicInteger skippedShards = new AtomicInteger(0);
         AtomicInteger failedShards = new AtomicInteger(0);
         info.getClusters().forEach((alias, clusterInfo) -> {
-            successShards.addAndGet(clusterInfo.getSuccessfulShards());
-            skippedShards.addAndGet(clusterInfo.getSkippedShards());
-            failedShards.addAndGet(clusterInfo.getFailedShards());
+            successShards.addAndGet(Objects.requireNonNullElse(clusterInfo.getSuccessfulShards(), 0));
+            skippedShards.addAndGet(Objects.requireNonNullElse(clusterInfo.getSkippedShards(), 0));
+            failedShards.addAndGet(Objects.requireNonNullElse(clusterInfo.getFailedShards(), 0));
         });
         return new ShardInfo(successShards.get(), skippedShards.get(), failedShards.get());
     }
@@ -79,7 +81,10 @@ public class EsqlLogContext extends ActivityLoggerContext implements QueryLogger
         if (response == null) {
             return null;
         }
-        return response.getExecutionInfo()
+        if (indexNames != null) {
+            return indexNames;
+        }
+        indexNames = response.getExecutionInfo()
             .getClusters()
             .values()
             .stream()
@@ -88,6 +93,7 @@ public class EsqlLogContext extends ActivityLoggerContext implements QueryLogger
                     .map(ind -> RemoteClusterAware.buildRemoteIndexName(cluster.getClusterAlias(), ind))
             )
             .toArray(String[]::new);
+        return indexNames;
     }
 
     // CCS stuff

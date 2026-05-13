@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.operator.blocksource.ListRowsBlockSourceOperator;
 
 import java.util.List;
@@ -51,5 +52,23 @@ public class AllLastBooleanByIntGroupingAggregatorFunctionTests extends Grouping
         GroundTruthFirstLastAggregator work = new GroundTruthFirstLastAggregator(false);
         processPages(work, input, group);
         work.check(BlockUtils.toJavaObject(result, position));
+    }
+
+    /** Tests that groups arriving out of order (key 1 before null key) are handled correctly. */
+    public void testTwoBlocksOneKeyNull() {
+        var runner = new TestDriverRunner().builder(driverContext()).collectDeepCopy();
+        BlockFactory blockFactory = runner.blockFactory();
+        Page page1 = new Page(
+            blockFactory.newConstantLongBlockWith(1L, 1),
+            blockFactory.newConstantBooleanBlockWith(randomBoolean(), 1),
+            blockFactory.newConstantIntBlockWith(randomInt(), 1)
+        );
+        Page page2 = new Page(
+            blockFactory.newConstantNullBlock(1),
+            blockFactory.newConstantBooleanBlockWith(randomBoolean(), 1),
+            blockFactory.newConstantIntBlockWith(randomInt(), 1)
+        );
+        runner.input(List.of(page1, page2));
+        assertSimpleOutput(runner.deepCopy(), runner.run(simple()));
     }
 }

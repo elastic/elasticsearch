@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
@@ -15,21 +14,25 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -39,10 +42,14 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -140,9 +147,108 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals("value", resolvedSchema.get(1).name());
     }
 
-    // ===== FileSet threading tests =====
+    // ===== Stats partial flag tests =====
 
-    public void testMultiFileResolutionReturnsFileSet() throws Exception {
+    public void testMultiFileFirstFileWinsSetsStatsPartial() throws Exception {
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/a.parquet", schema);
+        schemasByPath.put("s3://bucket/data/b.parquet", schema);
+
+        ExternalSourceResolution resolution = resolveMultiFile(
+            "s3://bucket/data/*.parquet",
+            schemasByPath,
+            List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200))
+        );
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+        assertNotNull(resolved);
+        assertEquals(Boolean.TRUE, resolved.metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL));
+    }
+
+    public void testMultiFileFirstFileWinsSetsFileCount() throws Exception {
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/a.parquet", schema);
+        schemasByPath.put("s3://bucket/data/b.parquet", schema);
+        schemasByPath.put("s3://bucket/data/c.parquet", schema);
+
+        ExternalSourceResolution resolution = resolveMultiFile(
+            "s3://bucket/data/*.parquet",
+            schemasByPath,
+            List.of(
+                entry("s3://bucket/data/a.parquet", 100),
+                entry("s3://bucket/data/b.parquet", 200),
+                entry("s3://bucket/data/c.parquet", 300)
+            )
+        );
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+        assertNotNull(resolved);
+        assertEquals(3L, resolved.metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_FILE_COUNT));
+    }
+
+    public void testSingleFileFirstFileWinsDoesNotSetStatsPartial() throws Exception {
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/only.parquet", schema);
+
+        ExternalSourceResolution resolution = resolveMultiFile(
+            "s3://bucket/data/*.parquet",
+            schemasByPath,
+            List.of(entry("s3://bucket/data/only.parquet", 100))
+        );
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+        assertNotNull(resolved);
+        assertNull(resolved.metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL));
+    }
+
+    /**
+     * When all files provide per-file row counts, multi-file FIRST_FILE_WINS resolution
+     * should aggregate statistics and NOT set STATS_PARTIAL.
+     */
+    public void testMultiFileFirstFileWinsAggregatesRowCountWhenStatsAvailable() throws Exception {
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/a.parquet", schema);
+        schemasByPath.put("s3://bucket/data/b.parquet", schema);
+        schemasByPath.put("s3://bucket/data/c.parquet", schema);
+
+        Map<String, Long> rowCountsByPath = new HashMap<>();
+        rowCountsByPath.put("s3://bucket/data/a.parquet", 1000L);
+        rowCountsByPath.put("s3://bucket/data/b.parquet", 2000L);
+        rowCountsByPath.put("s3://bucket/data/c.parquet", 3000L);
+
+        ExternalSourceResolution resolution = resolveMultiFileWithStats(
+            "s3://bucket/data/*.parquet",
+            schemasByPath,
+            rowCountsByPath,
+            List.of(
+                entry("s3://bucket/data/a.parquet", 100),
+                entry("s3://bucket/data/b.parquet", 200),
+                entry("s3://bucket/data/c.parquet", 300)
+            )
+        );
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+        assertNotNull(resolved);
+        Map<String, Object> meta = resolved.metadata().sourceMetadata();
+        // Aggregated row count should be the sum across all files.
+        assertEquals(6000L, meta.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        // No STATS_PARTIAL — stats cover all files.
+        assertNull(meta.get(SourceStatisticsSerializer.STATS_PARTIAL));
+        // File count should still be present.
+        assertEquals(3L, meta.get(SourceStatisticsSerializer.STATS_FILE_COUNT));
+    }
+
+    // ===== GenericFileList threading tests =====
+
+    public void testMultiFileResolutionReturnsGenericFileList() throws Exception {
         List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
 
         Map<String, List<Attribute>> schemasByPath = new HashMap<>();
@@ -155,11 +261,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
         assertNotNull(resolved);
-        FileSet fileSet = resolved.fileSet();
-        assertTrue(fileSet.isResolved());
-        assertEquals(2, fileSet.size());
-        assertEquals("s3://bucket/data/a.parquet", fileSet.files().get(0).path().toString());
-        assertEquals("s3://bucket/data/b.parquet", fileSet.files().get(1).path().toString());
+        FileList fileList = resolved.fileList();
+        assertTrue(fileList.isResolved());
+        assertEquals(2, fileList.fileCount());
+        assertEquals("s3://bucket/data/a.parquet", fileList.path(0).toString());
+        assertEquals("s3://bucket/data/b.parquet", fileList.path(1).toString());
     }
 
     public void testMultiFileResolutionPreservesOriginalPattern() throws Exception {
@@ -176,7 +282,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/dir/*.parquet");
         assertNotNull(resolved);
-        assertEquals("s3://bucket/dir/*.parquet", resolved.fileSet().originalPattern());
+        assertEquals("s3://bucket/dir/*.parquet", resolved.fileList().originalPattern());
     }
 
     public void testGlobNoMatchThrows() {
@@ -186,9 +292,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertTrue(e.getMessage().contains("Glob pattern matched no files"));
     }
 
-    // ===== Single-file resolution returns UNRESOLVED FileSet =====
+    // ===== Single-file resolution returns a resolved singleton FileList =====
 
-    public void testSingleFileResolutionReturnsUnresolvedFileSet() throws Exception {
+    public void testSingleFileResolutionReturnsResolvedSingletonFileList() throws Exception {
         List<Attribute> schema = List.of(attr("id", DataType.LONG));
 
         Map<String, List<Attribute>> schemasByPath = new HashMap<>();
@@ -198,7 +304,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/single.parquet");
         assertNotNull(resolved);
-        assertTrue(resolved.fileSet().isUnresolved());
+        FileList fileList = resolved.fileList();
+        assertTrue(fileList.isResolved());
+        assertEquals(1, fileList.fileCount());
+        assertEquals("s3://bucket/data/single.parquet", fileList.path(0).toString());
+        assertEquals(0L, fileList.size(0));
     }
 
     // ===== Schema type preservation =====
@@ -392,7 +502,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         List<Attribute> originalSchema = List.of(attr("a", DataType.INTEGER), attr("b", DataType.KEYWORD));
         ExternalSourceMetadata metadata = createStubMetadata("s3://bucket/file.parquet", originalSchema);
 
-        java.util.LinkedHashMap<String, DataType> partCols = new java.util.LinkedHashMap<>();
+        LinkedHashMap<String, DataType> partCols = new LinkedHashMap<>();
         partCols.put("year", DataType.INTEGER);
         partCols.put("region", DataType.KEYWORD);
         PartitionMetadata partitions = new PartitionMetadata(partCols, Map.of());
@@ -467,6 +577,201 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertTrue(resolution.isEmpty());
     }
 
+    // ===== Resolver + Cache integration =====
+
+    public void testCacheReducesListingAndSchemaLoaderCalls() throws Exception {
+        List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/a.parquet", schema);
+        schemasByPath.put("s3://bucket/data/b.parquet", schema);
+
+        List<StorageEntry> listing = List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200));
+
+        CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemasByPath);
+
+        Settings settings = Settings.builder()
+            .put("esql.source.cache.size", "10mb")
+            .put("esql.source.cache.enabled", true)
+            .put("esql.source.cache.schema.ttl", "5m")
+            .put("esql.source.cache.listing.ttl", "30s")
+            .build();
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
+            ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
+
+            PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
+            resolver.resolve(List.of("s3://bucket/data/*.parquet"), Map.of(), f1);
+            ExternalSourceResolution res1 = f1.actionGet();
+            assertNotNull(res1.resolvedSource("s3://bucket/data/*.parquet"));
+            assertEquals(2, res1.resolvedSource("s3://bucket/data/*.parquet").fileList().fileCount());
+            int listCallsAfterFirst = countingProvider.listCallCount.get();
+            int schemaCallsAfterFirst = countingProvider.schemaCallCount.get();
+            assertTrue("listing loader should have been called at least once", listCallsAfterFirst > 0);
+            assertTrue("schema loader should have been called at least once", schemaCallsAfterFirst > 0);
+
+            PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
+            resolver.resolve(List.of("s3://bucket/data/*.parquet"), Map.of(), f2);
+            ExternalSourceResolution res2 = f2.actionGet();
+            assertNotNull(res2.resolvedSource("s3://bucket/data/*.parquet"));
+            assertEquals(2, res2.resolvedSource("s3://bucket/data/*.parquet").fileList().fileCount());
+
+            assertEquals(
+                "listing loader should not be called again on cache hit",
+                listCallsAfterFirst,
+                countingProvider.listCallCount.get()
+            );
+            assertEquals(
+                "schema loader should not be called again on cache hit",
+                schemaCallsAfterFirst,
+                countingProvider.schemaCallCount.get()
+            );
+        }
+    }
+
+    public void testSingleFileSchemaCacheHitAfterMiss() throws Exception {
+        List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/single.parquet", schema);
+
+        CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of(), schemasByPath);
+
+        Settings settings = Settings.builder()
+            .put("esql.source.cache.size", "10mb")
+            .put("esql.source.cache.enabled", true)
+            .put("esql.source.cache.schema.ttl", "5m")
+            .put("esql.source.cache.listing.ttl", "30s")
+            .build();
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
+            ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
+
+            PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
+            resolver.resolve(List.of("s3://bucket/data/single.parquet"), Map.of(), f1);
+            ExternalSourceResolution res1 = f1.actionGet();
+            assertNotNull(res1.resolvedSource("s3://bucket/data/single.parquet"));
+            assertEquals(1, res1.resolvedSource("s3://bucket/data/single.parquet").fileList().fileCount());
+
+            Map<String, Object> stats1 = cacheService.usageStats();
+            assertEquals(1L, stats1.get("schema_cache.misses"));
+            assertEquals(0L, stats1.get("schema_cache.hits"));
+            assertEquals(1, stats1.get("schema_cache.count"));
+
+            PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
+            resolver.resolve(List.of("s3://bucket/data/single.parquet"), Map.of(), f2);
+            ExternalSourceResolution res2 = f2.actionGet();
+            assertNotNull(res2.resolvedSource("s3://bucket/data/single.parquet"));
+            assertEquals(1, res2.resolvedSource("s3://bucket/data/single.parquet").fileList().fileCount());
+
+            Map<String, Object> stats2 = cacheService.usageStats();
+            assertEquals(1L, stats2.get("schema_cache.misses"));
+            assertEquals(1L, stats2.get("schema_cache.hits"));
+            assertEquals(1, stats2.get("schema_cache.count"));
+        }
+    }
+
+    public void testSingleFileCacheDisabledBypassesCache() throws Exception {
+        List<Attribute> schema = List.of(attr("val", DataType.LONG));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/d/file.parquet", schema);
+
+        CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of(), schemasByPath);
+
+        Settings settings = Settings.builder()
+            .put("esql.source.cache.size", "10mb")
+            .put("esql.source.cache.enabled", false)
+            .put("esql.source.cache.schema.ttl", "5m")
+            .put("esql.source.cache.listing.ttl", "30s")
+            .build();
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
+            ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
+
+            for (int i = 0; i < 3; i++) {
+                PlainActionFuture<ExternalSourceResolution> f = new PlainActionFuture<>();
+                resolver.resolve(List.of("s3://bucket/d/file.parquet"), Map.of(), f);
+                ExternalSourceResolution res = f.actionGet();
+                assertNotNull(res.resolvedSource("s3://bucket/d/file.parquet"));
+            }
+
+            Map<String, Object> stats = cacheService.usageStats();
+            assertEquals("schema cache should have no entries when disabled", 0, stats.get("schema_cache.count"));
+            assertEquals("schema cache should have no hits when disabled", 0L, stats.get("schema_cache.hits"));
+            assertEquals("schema cache should have no misses when disabled", 0L, stats.get("schema_cache.misses"));
+        }
+    }
+
+    public void testCacheDisabledCallsLoaderEveryTime() throws Exception {
+        List<Attribute> schema = List.of(attr("val", DataType.LONG));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/d/x.parquet", schema);
+
+        List<StorageEntry> listing = List.of(entry("s3://bucket/d/x.parquet", 50));
+
+        CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of("s3://bucket/d/", listing), schemasByPath);
+
+        Settings settings = Settings.builder()
+            .put("esql.source.cache.size", "10mb")
+            .put("esql.source.cache.enabled", false)
+            .put("esql.source.cache.schema.ttl", "5m")
+            .put("esql.source.cache.listing.ttl", "30s")
+            .build();
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
+            ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
+
+            for (int i = 0; i < 3; i++) {
+                PlainActionFuture<ExternalSourceResolution> f = new PlainActionFuture<>();
+                resolver.resolve(List.of("s3://bucket/d/*.parquet"), Map.of(), f);
+                f.actionGet();
+            }
+
+            assertEquals(
+                "listing loader should be called on every resolve when cache is disabled",
+                3,
+                countingProvider.listCallCount.get()
+            );
+        }
+    }
+
+    /**
+     * Regression test for #147371: single-file caching path must not NPE when
+     * StorageObject.lastModified() returns null (e.g. gRPC/Flight, GCS/Azure fixtures).
+     */
+    public void testSingleFileCacheWithNullLastModifiedDoesNotThrow() throws Exception {
+        List<Attribute> schema = List.of(attr("id", DataType.INTEGER));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/null-mtime.parquet", schema);
+
+        NullMtimeStorageProvider nullMtimeProvider = new NullMtimeStorageProvider(schemasByPath);
+
+        Settings settings = Settings.builder()
+            .put("esql.source.cache.size", "10mb")
+            .put("esql.source.cache.enabled", true)
+            .put("esql.source.cache.schema.ttl", "5m")
+            .put("esql.source.cache.listing.ttl", "30s")
+            .build();
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
+            ExternalSourceResolver resolver = createResolverWithCache(nullMtimeProvider, schemasByPath, cacheService);
+
+            PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
+            resolver.resolve(List.of("s3://bucket/data/null-mtime.parquet"), Map.of(), f1);
+            ExternalSourceResolution res1 = f1.actionGet();
+            assertNotNull(res1.resolvedSource("s3://bucket/data/null-mtime.parquet"));
+            assertEquals(1, res1.resolvedSource("s3://bucket/data/null-mtime.parquet").fileList().fileCount());
+
+            // Second resolve should hit the cache without NPE
+            PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
+            resolver.resolve(List.of("s3://bucket/data/null-mtime.parquet"), Map.of(), f2);
+            ExternalSourceResolution res2 = f2.actionGet();
+            assertNotNull(res2.resolvedSource("s3://bucket/data/null-mtime.parquet"));
+
+            Map<String, Object> stats = cacheService.usageStats();
+            assertEquals(1L, stats.get("schema_cache.misses"));
+            assertEquals(1L, stats.get("schema_cache.hits"));
+        }
+    }
+
     // ===== Helpers =====
 
     private static Attribute attr(String name, DataType type) {
@@ -498,16 +803,67 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolver resolver = createResolver(schemasByPath, listingsByPrefix);
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
 
-        Map<String, Map<String, Expression>> pathParams = new HashMap<>();
+        Map<String, Map<String, Object>> pathConfigs = new HashMap<>();
         if (config.isEmpty() == false) {
-            Map<String, Expression> exprParams = new HashMap<>();
-            for (Map.Entry<String, Object> e : config.entrySet()) {
-                exprParams.put(e.getKey(), new Literal(Source.EMPTY, new BytesRef(e.getValue().toString()), DataType.KEYWORD));
-            }
-            pathParams.put(globPattern, exprParams);
+            pathConfigs.put(globPattern, new HashMap<>(config));
         }
 
-        resolver.resolve(List.of(globPattern), pathParams, future);
+        resolver.resolve(List.of(globPattern), pathConfigs, future);
+        return future.actionGet();
+    }
+
+    /**
+     * Resolves a multi-file glob pattern using a StubFormatReader that returns per-file row counts
+     * as statistics. This enables testing the aggregated-stats path in resolveMultiFileSource.
+     */
+    private ExternalSourceResolution resolveMultiFileWithStats(
+        String globPattern,
+        Map<String, List<Attribute>> schemasByPath,
+        Map<String, Long> rowCountsByPath,
+        List<StorageEntry> listing
+    ) throws Exception {
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        StoragePath sp = StoragePath.of(globPattern);
+        listingsByPrefix.put(sp.patternPrefix().toString(), listing);
+
+        StubFormatReaderWithStats formatReader = new StubFormatReaderWithStats(schemasByPath, rowCountsByPath);
+        StubStorageProvider storageProvider = new StubStorageProvider(listingsByPrefix, schemasByPath);
+
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("s3");
+            }
+
+            @Override
+            public Set<FormatSpec> formatSpecs() {
+                return Set.of(FormatSpec.of("parquet", ".parquet"));
+            }
+
+            @Override
+            public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+                return Map.of("s3", StorageProviderFactory.noConfigKeys(() -> storageProvider));
+            }
+
+            @Override
+            public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+                return Map.of("parquet", (s, bf) -> formatReader);
+            }
+        };
+
+        List<DataSourcePlugin> plugins = List.of(plugin);
+        DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            capabilities,
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
+
+        ExternalSourceResolver resolver = new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(globPattern), Map.of(), future);
         return future.actionGet();
     }
 
@@ -549,7 +905,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             @Override
             public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
-                return Map.of("s3", s -> storageProvider);
+                return Map.of("s3", stubStorageProviderFactory(storageProvider));
             }
 
             @Override
@@ -571,9 +927,75 @@ public class ExternalSourceResolverTests extends ESTestCase {
         return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
     }
 
+    /**
+     * Builds a {@link StorageProviderFactory} that claims every configuration key as consumed.
+     * Used by tests that don't care about validation but do thread per-query config through;
+     * without this, FileSourceFactory's coordinator validation would reject keys like
+     * {@code access_key} that the stub doesn't actually parse.
+     */
+    private static StorageProviderFactory stubStorageProviderFactory(StorageProvider provider) {
+        return new StorageProviderFactory() {
+            @Override
+            public StorageProvider create(Settings settings) {
+                return provider;
+            }
+
+            @Override
+            public Configured<StorageProvider> createTrackingConsumedKeys(Settings settings, Map<String, Object> config) {
+                if (config == null || config.isEmpty()) {
+                    return Configured.empty(provider);
+                }
+                return new Configured<>(provider, Set.copyOf(config.keySet()));
+            }
+        };
+    }
+
+    private ExternalSourceResolver createResolverWithCache(
+        StorageProvider storageProvider,
+        Map<String, List<Attribute>> schemasByPath,
+        ExternalSourceCacheService cacheService
+    ) {
+        StubFormatReader formatReader = new StubFormatReader(schemasByPath);
+
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("s3");
+            }
+
+            @Override
+            public Set<FormatSpec> formatSpecs() {
+                return Set.of(FormatSpec.of("parquet", ".parquet"));
+            }
+
+            @Override
+            public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+                return Map.of("s3", stubStorageProviderFactory(storageProvider));
+            }
+
+            @Override
+            public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+                return Map.of("parquet", (s, bf) -> formatReader);
+            }
+        };
+
+        List<DataSourcePlugin> plugins = List.of(plugin);
+        DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            capabilities,
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
+
+        return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module, Settings.EMPTY, cacheService);
+    }
+
     // ===== Stub implementations =====
 
-    private static class StubFormatReader implements FormatReader {
+    private static class StubFormatReader implements NoConfigFormatReader {
+
         private final Map<String, List<Attribute>> schemasByPath;
 
         StubFormatReader(Map<String, List<Attribute>> schemasByPath) {
@@ -632,6 +1054,88 @@ public class ExternalSourceResolverTests extends ESTestCase {
         public String location() {
             return location;
         }
+    }
+
+    /**
+     * A StubFormatReader that also returns per-file row counts as statistics.
+     * Used to test the aggregated stats path in multi-file resolution.
+     */
+    private static class StubFormatReaderWithStats implements NoConfigFormatReader {
+
+        private final Map<String, List<Attribute>> schemasByPath;
+        private final Map<String, Long> rowCountsByPath;
+
+        StubFormatReaderWithStats(Map<String, List<Attribute>> schemasByPath, Map<String, Long> rowCountsByPath) {
+            this.schemasByPath = schemasByPath;
+            this.rowCountsByPath = rowCountsByPath;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            String path = object.path().toString();
+            List<Attribute> schema = schemasByPath.get(path);
+            if (schema == null) {
+                throw new IllegalArgumentException("No schema configured for path: " + path);
+            }
+            Long rowCount = rowCountsByPath.get(path);
+            return new SourceMetadata() {
+                @Override
+                public List<Attribute> schema() {
+                    return schema;
+                }
+
+                @Override
+                public String sourceType() {
+                    return "parquet";
+                }
+
+                @Override
+                public String location() {
+                    return path;
+                }
+
+                @Override
+                public Optional<SourceStatistics> statistics() {
+                    if (rowCount == null) {
+                        return Optional.empty();
+                    }
+                    return Optional.of(new SourceStatistics() {
+                        @Override
+                        public OptionalLong rowCount() {
+                            return OptionalLong.of(rowCount);
+                        }
+
+                        @Override
+                        public OptionalLong sizeInBytes() {
+                            return OptionalLong.empty();
+                        }
+
+                        @Override
+                        public Optional<Map<String, ColumnStatistics>> columnStatistics() {
+                            return Optional.empty();
+                        }
+                    });
+                }
+            };
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String formatName() {
+            return "parquet";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
     }
 
     private static class StubStorageProvider implements StorageProvider {
@@ -738,6 +1242,109 @@ public class ExternalSourceResolverTests extends ESTestCase {
         @Override
         public StoragePath path() {
             return path;
+        }
+    }
+
+    /**
+     * Wraps StubStorageProvider with counters for listObjects and metadata (newObject) calls
+     * to verify that the cache eliminates redundant loader invocations.
+     */
+    private static class CountingStorageProvider implements StorageProvider {
+        final AtomicInteger listCallCount = new AtomicInteger();
+        final AtomicInteger schemaCallCount = new AtomicInteger();
+        private final StubStorageProvider delegate;
+
+        CountingStorageProvider(Map<String, List<StorageEntry>> listingsByPrefix, Map<String, List<Attribute>> schemasByPath) {
+            this.delegate = new StubStorageProvider(listingsByPrefix, schemasByPath);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path) {
+            schemaCallCount.incrementAndGet();
+            return delegate.newObject(path);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length) {
+            return delegate.newObject(path, length);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+            return delegate.newObject(path, length, lastModified);
+        }
+
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+            listCallCount.incrementAndGet();
+            return delegate.listObjects(prefix, recursive);
+        }
+
+        @Override
+        public boolean exists(StoragePath path) {
+            return delegate.exists(path);
+        }
+
+        @Override
+        public List<String> supportedSchemes() {
+            return delegate.supportedSchemes();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
+    }
+
+    /**
+     * StorageProvider whose objects return null for lastModified(), reproducing the
+     * conditions that caused #147371 (GCS/Azure fixtures, gRPC/Flight).
+     */
+    private static class NullMtimeStorageProvider implements StorageProvider {
+        private final StubStorageProvider delegate;
+
+        NullMtimeStorageProvider(Map<String, List<Attribute>> schemasByPath) {
+            this.delegate = new StubStorageProvider(Map.of(), schemasByPath);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path) {
+            return new StubStorageObject(path) {
+                @Override
+                public Instant lastModified() {
+                    return null;
+                }
+            };
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length) {
+            return delegate.newObject(path, length);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+            return delegate.newObject(path, length, lastModified);
+        }
+
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+            return delegate.listObjects(prefix, recursive);
+        }
+
+        @Override
+        public boolean exists(StoragePath path) {
+            return delegate.exists(path);
+        }
+
+        @Override
+        public List<String> supportedSchemes() {
+            return delegate.supportedSchemes();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
         }
     }
 }

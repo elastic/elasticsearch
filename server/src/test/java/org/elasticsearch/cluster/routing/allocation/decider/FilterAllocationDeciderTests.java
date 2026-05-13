@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -96,7 +97,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         assertNull(routingTable.index("idx").shard(0).shard(0).currentNodeId());
 
         // after failing the shard we are unassigned since the node is blacklisted and we can't initialize on the other node
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(state).allocationDeciders(allocationDeciders).build();
         allocation.debugDecision(true);
         Decision.Single decision = (Decision.Single) filterAllocationDecider.canAllocate(
             routingTable.index("idx").shard(0).primaryShard(),
@@ -162,7 +163,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         assertEquals(routingTable.index("idx").shard(0).primaryShard().state(), INITIALIZING);
         assertEquals(routingTable.index("idx").shard(0).primaryShard().currentNodeId(), "node1");
 
-        allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+        allocation = TestRoutingAllocationFactory.forClusterState(state).allocationDeciders(allocationDeciders).build();
         allocation.debugDecision(true);
         decision = (Decision.Single) filterAllocationDecider.canAllocate(
             routingTable.index("idx").shard(0).shard(0),
@@ -317,7 +318,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
 
         var clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         var decider = new FilterAllocationDecider(Settings.EMPTY, clusterSettings);
-        var allocation = new RoutingAllocation(new AllocationDeciders(List.of(decider)), clusterState, null, null, 0);
+        var allocation = TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(decider).build();
 
         var localRecoveryShard = ShardRouting.newUnassigned(
             new ShardId(index.getIndex(), 0),
@@ -394,7 +395,9 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
             .build();
 
         AllocationDeciders allocationDeciders = new AllocationDeciders(List.of(decider));
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, 0);
+        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
+            .allocationDeciders(allocationDeciders)
+            .build();
 
         // project 1, index-a: no special configuration, relies on cluster wide filtering
         ShardRouting routing1a = new TestShardRouting.Builder(new ShardId(project1.index("index-a").getIndex(), 0), null, true, UNASSIGNED)

@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.type.EsField.TimeSeriesFieldType;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Tests for {@link OrcFilterPushdownSupport} verifying RECHECK semantics.
@@ -39,6 +40,7 @@ public class OrcFilterPushdownSupportTests extends ESTestCase {
         FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(eq));
 
         assertTrue("Should have pushed filter", result.hasPushedFilter());
+        assertThat(result.pushedFilter(), instanceOf(OrcPushedExpressions.class));
         assertTrue("Remainder must not be empty", result.hasRemainder());
         assertEquals("Remainder must contain all original filters", 1, result.remainder().size());
     }

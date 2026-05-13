@@ -17,7 +17,6 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -42,24 +41,17 @@ public class GoogleAiStudioCompletionServiceSettings extends FilteredXContentObj
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(360);
 
     public static GoogleAiStudioCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
-        String model = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            GoogleAiStudioService.NAME,
-            context
-        );
+        var modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
         validationException.throwIfValidationErrorsExist();
 
-        return new GoogleAiStudioCompletionServiceSettings(model, rateLimitSettings);
+        return new GoogleAiStudioCompletionServiceSettings(modelId, rateLimitSettings);
     }
 
     private final String modelId;
-
     private final RateLimitSettings rateLimitSettings;
 
     public GoogleAiStudioCompletionServiceSettings(String modelId, @Nullable RateLimitSettings rateLimitSettings) {
@@ -70,6 +62,22 @@ public class GoogleAiStudioCompletionServiceSettings extends FilteredXContentObj
     public GoogleAiStudioCompletionServiceSettings(StreamInput in) throws IOException {
         modelId = in.readString();
         rateLimitSettings = new RateLimitSettings(in);
+    }
+
+    @Override
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new GoogleAiStudioCompletionServiceSettings(this.modelId, extractedRateLimitSettings);
     }
 
     @Override

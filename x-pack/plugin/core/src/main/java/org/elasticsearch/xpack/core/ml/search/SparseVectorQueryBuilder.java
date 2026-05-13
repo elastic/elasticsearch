@@ -39,7 +39,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class SparseVectorQueryBuilder extends LeafQueryBuilder<SparseVectorQueryBuilder> {
-    private static final MatchNoDocsQuery EMPTY_QUERY_VECTORS = new MatchNoDocsQuery("Empty query vectors");
     public static final String NAME = "sparse_vector";
     public static final String ALLOWED_FIELD_TYPE = "sparse_vector";
     public static final ParseField FIELD_FIELD = new ParseField("field");
@@ -51,8 +50,10 @@ public class SparseVectorQueryBuilder extends LeafQueryBuilder<SparseVectorQuery
 
     private static final boolean DEFAULT_PRUNE = false;
 
-    private static final TransportVersion SPARSE_VECTOR_FIELD_PRUNING_OPTIONS = TransportVersion.fromName(
-        "sparse_vector_field_pruning_options"
+    public static final String SPARSE_VECTOR_FIELD_PRUNING_OPTIONS = "sparse_vector_field_pruning_options";
+
+    private static final TransportVersion SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_TV = TransportVersion.fromName(
+        SPARSE_VECTOR_FIELD_PRUNING_OPTIONS
     );
 
     private final String fieldName;
@@ -121,7 +122,7 @@ public class SparseVectorQueryBuilder extends LeafQueryBuilder<SparseVectorQuery
         super(in);
         this.fieldName = in.readString();
 
-        if (in.getTransportVersion().supports(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS)) {
+        if (in.getTransportVersion().supports(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_TV)) {
             this.shouldPruneTokens = in.readOptionalBoolean();
         } else {
             this.shouldPruneTokens = in.readBoolean();
@@ -176,10 +177,11 @@ public class SparseVectorQueryBuilder extends LeafQueryBuilder<SparseVectorQuery
 
         out.writeString(fieldName);
 
-        if (out.getTransportVersion().supports(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS)) {
+        if (out.getTransportVersion().supports(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_TV)) {
             out.writeOptionalBoolean(shouldPruneTokens);
         } else {
-            out.writeBoolean(shouldPruneTokens);
+            // Older nodes carry shouldPruneTokens as a primitive boolean; coerce null to the false to avoid an NPE on auto-unboxing.
+            out.writeBoolean(shouldPruneTokens != null ? shouldPruneTokens : false);
         }
 
         out.writeOptionalCollection(queryVectors);
@@ -217,7 +219,7 @@ public class SparseVectorQueryBuilder extends LeafQueryBuilder<SparseVectorQuery
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         if (queryVectors == null) {
-            return EMPTY_QUERY_VECTORS;
+            throw new IllegalStateException("query vectors should be set during sparse_vector query rewrite");
         }
 
         final MappedFieldType ft = context.getFieldType(fieldName);

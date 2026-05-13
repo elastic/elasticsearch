@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
@@ -41,6 +42,8 @@ import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
+import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
+import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
@@ -103,14 +106,15 @@ public enum FeatureMetric {
     FUSE(Fuse.class::isInstance),
     COMPLETION(Completion.class::isInstance),
     SAMPLE(Sample.class::isInstance),
-    SUBQUERY(Subquery.class::isInstance),
+    SUBQUERY(node -> node instanceof Subquery && !(node instanceof NamedSubquery)),
     VIEW(plan -> false), // Views are counted in EsqlSession.gatherViewMetrics, not via plan traversal
     MMR(MMR.class::isInstance),
     PROMQL(PromqlCommand.class::isInstance),
     URI_PARTS(UriParts.class::isInstance),
     METRICS_INFO(MetricsInfo.class::isInstance),
     REGISTERED_DOMAIN(RegisteredDomain.class::isInstance),
-    TS_INFO(TsInfo.class::isInstance);
+    TS_INFO(TsInfo.class::isInstance),
+    USER_AGENT(UserAgent.class::isInstance);
 
     /**
      * List here plans we want to exclude from telemetry
@@ -122,7 +126,9 @@ public enum FeatureMetric {
         Limit.class, // LIMIT is managed in another way, see above
         FuseScoreEval.class,
         Aggregate.class, // STATS is managed in another way, see above
-        LocalRelation.class // produced as a short-circuit for empty index patterns (e.g. PROMQL on missing index)
+        LocalRelation.class, // produced as a short-circuit for empty index patterns (e.g. PROMQL on missing index)
+        NamedSubquery.class, // temporary plan node used as part of view resolution, but is removed by Analyzer
+        ViewShadowRelation.class // CPS lenient-lookup marker, stripped by ViewCompactionPostAnalysis after ResolveTable
     );
 
     private Predicate<LogicalPlan> planCheck;

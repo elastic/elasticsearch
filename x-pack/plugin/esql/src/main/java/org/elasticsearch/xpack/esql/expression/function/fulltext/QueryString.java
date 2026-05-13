@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -108,6 +109,9 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
         "QStr",
         QueryString::readFrom
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(QueryString.class)
+        .binaryConfig(QueryString::new)
+        .name("qstr");
 
     private final Configuration configuration;
 

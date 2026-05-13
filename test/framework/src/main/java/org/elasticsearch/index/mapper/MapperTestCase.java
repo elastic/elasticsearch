@@ -326,11 +326,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         });
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
-            "didn't throw while parsing " + source.source().utf8ToString(),
+            "didn't throw while parsing " + source.source().originalBytes().utf8ToString(),
             () -> mapperService.documentMapper().parse(source)
         );
         assertThat(
-            "incorrect exception while parsing " + source.source().utf8ToString(),
+            "incorrect exception while parsing " + source.source().originalBytes().utf8ToString(),
             e.getCause().getMessage(),
             exceptionMessageMatcher
         );
@@ -542,6 +542,40 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertParseMinimalWarnings();
     }
 
+    public void testNotIndexed() throws IOException {
+        ParameterChecker checker = new ParameterChecker();
+        registerParameters(checker);
+        assumeTrue("mapper must support the 'index' parameter", checker.checkedParameters.contains("index"));
+
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("index", false);
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", getSampleValueForDocument())));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        for (var field : fields) {
+            assertThat(field.fieldType().indexOptions(), equalTo(IndexOptions.NONE));
+        }
+    }
+
+    public void testDisableDefaultIndex() throws IOException {
+        assumeTrue("feature under test must be enabled", IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled());
+
+        ParameterChecker checker = new ParameterChecker();
+        registerParameters(checker);
+        assumeTrue("mapper must support the 'index' parameter", checker.checkedParameters.contains("index"));
+
+        var settings = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), true).build();
+        var mapperService = createMapperService(settings, fieldMapping(this::minimalMapping));
+        var documentMapper = mapperService.documentMapper();
+
+        ParsedDocument doc = documentMapper.parse(source(b -> b.field("field", this.getSampleValueForDocument())));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        for (var field : fields) {
+            assertThat(field.fieldType().indexOptions(), equalTo(IndexOptions.NONE));
+        }
+    }
+
     protected final void assertParseMinimalWarnings() {
         String[] warnings = getParseMinimalWarnings();
         if (warnings.length > 0) {
@@ -660,8 +694,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return result.get();
     }
 
-    protected static void assertScriptDocValues(MapperService mapperService, Object sourceValue, Matcher<List<?>> dvMatcher)
-        throws IOException {
+    protected void assertScriptDocValues(MapperService mapperService, Object sourceValue, Matcher<List<?>> dvMatcher) throws IOException {
         withLuceneIndex(mapperService, iw -> {
             iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("field", sourceValue))).rootDoc());
         }, iw -> {
@@ -677,6 +710,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     mapperService.getIndexSettings(),
                     () -> searchLookup,
                     Set::of,
+                    () -> false,
                     MappedFieldType.FielddataOperation.SCRIPT
                 )
             ).build(null, null);
@@ -688,11 +722,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     private class UpdateCheck {
+        final String paramName;
         final XContentBuilder init;
         final XContentBuilder update;
         final Consumer<FieldMapper> check;
 
-        private UpdateCheck(CheckedConsumer<XContentBuilder, IOException> update, Consumer<FieldMapper> check) throws IOException {
+        private UpdateCheck(String paramName, CheckedConsumer<XContentBuilder, IOException> update, Consumer<FieldMapper> check)
+            throws IOException {
+            this.paramName = paramName;
             this.init = fieldMapping(MapperTestCase.this::minimalMapping);
             this.update = fieldMapping(b -> {
                 minimalMapping(b);
@@ -702,10 +739,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
 
         private UpdateCheck(
+            String paramName,
             CheckedConsumer<XContentBuilder, IOException> init,
             CheckedConsumer<XContentBuilder, IOException> update,
             Consumer<FieldMapper> check
         ) throws IOException {
+            this.paramName = paramName;
             this.init = fieldMapping(init);
             this.update = fieldMapping(update);
             this.check = check;
@@ -730,7 +769,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         public void registerUpdateCheck(String param, CheckedConsumer<XContentBuilder, IOException> update, Consumer<FieldMapper> check)
             throws IOException {
             checkedParameters.add(param);
-            updateChecks.add(new UpdateCheck(update, check));
+            updateChecks.add(new UpdateCheck(param, update, check));
         }
 
         /**
@@ -748,7 +787,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             Consumer<FieldMapper> check
         ) throws IOException {
             checkedParameters.add(param);
-            updateChecks.add(new UpdateCheck(init, update, check));
+            updateChecks.add(new UpdateCheck(param, init, update, check));
         }
 
         /**
@@ -802,13 +841,21 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     protected abstract void registerParameters(ParameterChecker checker) throws IOException;
 
+    private static FieldMapper.Builder findChildBuilder(String name, MappingBuilder mappings) {
+        for (Mapper.Builder child : mappings.rootBuilder().getChildBuilders()) {
+            if (name.equals(child.leafName()) && child instanceof FieldMapper.Builder mb) {
+                return mb;
+            }
+        }
+        return null;
+    }
+
     public void testAllParametersAreChecked() throws IOException {
         ParameterChecker checker = new ParameterChecker();
         registerParameters(checker);
 
-        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
-        FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        FieldMapper.Builder builder = mapper.getMergeBuilder();
+        MappingBuilder rootBuilder = parseMappings(fieldMapping(this::minimalMapping));
+        FieldMapper.Builder builder = findChildBuilder("field", rootBuilder);
         assumeTrue("mapper does not provide a merge builder", builder != null);
         checker.ensureAllParametersAreCovered(builder);
         assertParseMinimalWarnings();
@@ -862,6 +909,52 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             );
         }
         assertParseMaximalWarnings();
+    }
+
+    public void testParameterSerialization() throws IOException {
+        ParameterChecker checker = new ParameterChecker();
+        registerParameters(checker);
+
+        for (UpdateCheck updateCheck : checker.updateChecks) {
+            String initSerialized = serializeMapping(createMapperService(updateCheck.init));
+            String updateSerialized = serializeMapping(createMapperService(updateCheck.update));
+            assertTrue(
+                "serialized mapping for update check on ["
+                    + updateCheck.paramName
+                    + "] should contain the parameter name"
+                    + " in either init or update mapping. Init: "
+                    + initSerialized
+                    + "; Update: "
+                    + updateSerialized,
+                initSerialized.contains(updateCheck.paramName) || updateSerialized.contains(updateCheck.paramName)
+            );
+        }
+
+        for (Map.Entry<String, ConflictCheck> entry : checker.conflictChecks.entrySet()) {
+            String param = entry.getKey();
+            ConflictCheck conflictCheck = entry.getValue();
+            String initSerialized = serializeMapping(createMapperService(conflictCheck.init));
+            String updateSerialized = serializeMapping(createMapperService(conflictCheck.update));
+            assertTrue(
+                "serialized mapping for conflict check on ["
+                    + param
+                    + "] should contain the parameter name"
+                    + " in either init or update mapping. Init: "
+                    + initSerialized
+                    + "; Update: "
+                    + updateSerialized,
+                initSerialized.contains(param) || updateSerialized.contains(param)
+            );
+        }
+
+        assertParseMaximalWarnings();
+    }
+
+    private static String serializeMapping(MapperService mapperService) throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        mapperService.documentMapper().mapping().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        return Strings.toString(builder);
     }
 
     public final void testTextSearchInfoConsistency() throws IOException {
@@ -1747,6 +1840,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     var doc = mapper.parse(source(b -> b.field("@timestamp", 1L).field("field", "" + value))).rootDoc();
                     iw.addDocument(doc);
                 }
+                iw.forceMerge(1);
             };
             CheckedConsumer<DirectoryReader, IOException> test = reader -> {
                 assertThat(reader.leaves(), hasSize(1));
@@ -1778,6 +1872,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 iw.addDocument(doc);
                 doc = mapper.parse(source(b -> b.field("@timestamp", 1L).field("field", "" + sampleValuesForIndexing[2]))).rootDoc();
                 iw.addDocument(doc);
+                iw.forceMerge(1);
             };
             CheckedConsumer<DirectoryReader, IOException> test = reader -> {
                 assertThat(reader.leaves(), hasSize(1));
@@ -1822,6 +1917,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 iw.addDocument(doc);
                 doc = mapper.parse(source(b -> b.field("@timestamp", 1L).field("field", "" + sampleValuesForIndexing[2]))).rootDoc();
                 iw.addDocument(doc);
+                iw.forceMerge(1);
             };
             CheckedConsumer<DirectoryReader, IOException> test = reader -> {
                 assertThat(reader.leaves(), hasSize(1));
@@ -1969,6 +2065,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                         mapperService.getIndexSettings(),
                         () -> null,
                         Set::of,
+                        () -> false,
                         MappedFieldType.FielddataOperation.SEARCH
                     )
                 ).build(null, null).sortField(false, IndexVersion.current(), null, MultiValueMode.MIN, null, false);
@@ -1997,7 +2094,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     MappedFieldType ft = mapperService.fieldType(sortShortcutSupport.fieldname);
                     SortField sortField = ft.fielddataBuilder(new FieldDataContext("", mapperService.getIndexSettings(), () -> {
                         throw new UnsupportedOperationException();
-                    }, Set::of, MappedFieldType.FielddataOperation.SEARCH))
+                    }, Set::of, () -> false, MappedFieldType.FielddataOperation.SEARCH))
                         .build(null, null)
                         .sortField(false, getVersion(), null, MultiValueMode.MIN, null, false);
                     var comparator = sortField.getComparator(1, Pruning.GREATER_THAN_OR_EQUAL_TO);
@@ -2091,5 +2188,73 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             }));
             assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.skippers()));
         }
+    }
+
+    /**
+     * Whether this mapper exposes the {@code doc_values.multi_value} sub-parameter. Override and return {@code true} for mappers that
+     * participate in single-value enforcement; also override {@link #expectedSingleValuedDocValuesType()} to declare the Lucene doc-values
+     * type produced when {@code multi_value=false}.
+     */
+    protected boolean supportsMultiValueParameter() {
+        return false;
+    }
+
+    /**
+     * The Lucene {@link DocValuesType} produced for a single-valued field (i.e. {@code multi_value=false}). Override when
+     * {@link #supportsMultiValueParameter()} returns {@code true}.
+     */
+    protected DocValuesType expectedSingleValuedDocValuesType() {
+        throw new UnsupportedOperationException(
+            "Override expectedSingleValuedDocValuesType() when supportsMultiValueParameter() returns true"
+        );
+    }
+
+    public void testMultiValueFalseAcceptsSingleValue() throws Exception {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", false).endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", getSampleValueForDocument())));
+        assertEquals(1, doc.rootDoc().getFields("field").stream().filter(f -> f.fieldType().docValuesType() != DocValuesType.NONE).count());
+    }
+
+    public void testMultiValueFalseRejectsArray() throws Exception {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", false).endObject();
+        }));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", getSampleValueForDocument(), getSampleValueForDocument())))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
+        );
+    }
+
+    public void testMultiValueFalseUsesSingleValuedDocValues() throws Exception {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", false).endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", getSampleValueForDocument())));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertFalse("expected at least one indexable field for [field]", fields.isEmpty());
+        boolean hasDocValuesField = false;
+        for (IndexableField f : fields) {
+            DocValuesType dvType = f.fieldType().docValuesType();
+            if (dvType != DocValuesType.NONE) {
+                hasDocValuesField = true;
+                assertEquals("multi_value=false must use single-valued doc values type", expectedSingleValuedDocValuesType(), dvType);
+            }
+        }
+        assertTrue("expected a doc values field for [field]", hasDocValuesField);
     }
 }

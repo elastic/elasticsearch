@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.SequencedSet;
+import java.util.function.Predicate;
 
 /**
  * A {@link UnionAll} produced by view resolution, as opposed to user-written subqueries.
@@ -57,7 +58,9 @@ public class ViewUnionAll extends UnionAll {
 
     private LinkedHashMap<String, LogicalPlan> asSubqueryMap(List<LogicalPlan> children) {
         SequencedSet<String> names = namedSubqueries.sequencedKeySet();
-        assert children.size() == names.size();
+        assert children.size() == names.size()
+            : "ViewUnionAll.replaceChildren expects a 1:1 positional replacement; use pruneEmptyBranches"
+                + " to drop branches and preserve the named-subqueries invariant.";
         LinkedHashMap<String, LogicalPlan> newSubqueries = new LinkedHashMap<>();
         for (LogicalPlan child : children) {
             newSubqueries.put(names.removeFirst(), child);
@@ -65,9 +68,29 @@ public class ViewUnionAll extends UnionAll {
         return newSubqueries;
     }
 
+    /**
+     * Name-aware override of {@link UnionAll#pruneEmptyBranches(Predicate)}: filters the
+     * named-subqueries map directly so the surviving children keep their original names. Like
+     * the base, single-survivor wrappers are preserved — callers that want to collapse to the
+     * lone child do so explicitly.
+     */
     @Override
-    public String nodeString(NodeStringFormat format) {
-        return nodeName() + "[" + namedSubqueries.keySet() + "]";
+    public LogicalPlan pruneEmptyBranches(Predicate<LogicalPlan> isEmpty) {
+        LinkedHashMap<String, LogicalPlan> kept = new LinkedHashMap<>();
+        for (Map.Entry<String, LogicalPlan> entry : namedSubqueries.entrySet()) {
+            if (isEmpty.test(entry.getValue()) == false) {
+                kept.put(entry.getKey(), entry.getValue());
+            }
+        }
+        if (kept.size() == namedSubqueries.size()) {
+            return this;
+        }
+        return new ViewUnionAll(source(), kept, output());
+    }
+
+    @Override
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(nodeName()).append("[").append(namedSubqueries.keySet()).append("]");
     }
 
     @Override

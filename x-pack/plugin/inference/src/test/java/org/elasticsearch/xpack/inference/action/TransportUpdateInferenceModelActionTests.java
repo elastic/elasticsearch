@@ -68,6 +68,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -86,6 +87,12 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     private static final int MAX_BATCH_SIZE_INITIAL_VALUE = 2;
     private static final InputType INPUT_TYPE_INITIAL_VALUE = InputType.SEARCH;
     private static final Boolean AUTO_TRUNCATE_INITIAL_VALUE = Boolean.FALSE;
+    private static final String SERVICE_SETTINGS_KEY = "some_service_key";
+    private static final String SERVICE_SETTINGS_VALUE = "some_service_value";
+    private static final String TASK_SETTINGS_KEY = "some_task_key";
+    private static final String TASK_SETTINGS_VALUE = "some_task_value";
+    private static final String SECRET_SETTINGS_KEY = "some_secret_key";
+    private static final String SECRET_SETTINGS_VALUE = "some_secret_value";
 
     private MockLicenseState licenseState;
     private TransportUpdateInferenceModelAction action;
@@ -505,11 +512,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         var taskSettings = mock(TaskSettings.class);
 
         var model = createMockedModel(serviceSettings, taskSettings, mock(SecretSettings.class));
-        var resultModelConfigurations = action.combineExistingModelConfigurationsWithNewSettings(
-            model,
-            new UpdateInferenceModelAction.Settings(null, null, TaskType.TEXT_EMBEDDING),
-            SERVICE_NAME_VALUE
-        );
+        var resultModelConfigurations = action.combineExistingModelConfigurationsWithNewSettings(model, null, null, SERVICE_NAME_VALUE);
         verifyNoInteractions(serviceSettings);
         verifyNoInteractions(taskSettings);
 
@@ -522,12 +525,12 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     }
 
     public void testCombineExistingModelConfigurationsWithNewSettings_NewServiceAndTaskSettings_UpdatesConfig() {
-        Map<String, Object> newServiceSettingsMap = Map.of("some_service_key", "some_service_value");
+        Map<String, Object> newServiceSettingsMap = Map.of(SERVICE_SETTINGS_KEY, SERVICE_SETTINGS_VALUE);
         var originalServiceSettings = mock(ServiceSettings.class);
         var updatedServiceSettings = mock(ServiceSettings.class);
         when(originalServiceSettings.updateServiceSettings(newServiceSettingsMap)).thenReturn(updatedServiceSettings);
 
-        Map<String, Object> newTaskSettingsMap = Map.of("some_task_key", "some_task_value");
+        Map<String, Object> newTaskSettingsMap = Map.of(TASK_SETTINGS_KEY, TASK_SETTINGS_VALUE);
         var originalTaskSettings = mock(TaskSettings.class);
         var updatedTaskSettings = mock(TaskSettings.class);
         when(originalTaskSettings.updatedTaskSettings(newTaskSettingsMap)).thenReturn(updatedTaskSettings);
@@ -535,7 +538,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         var model = createMockedModel(originalServiceSettings, originalTaskSettings, mock(SecretSettings.class));
         var resultModelConfigurations = action.combineExistingModelConfigurationsWithNewSettings(
             model,
-            new UpdateInferenceModelAction.Settings(newServiceSettingsMap, newTaskSettingsMap, TaskType.TEXT_EMBEDDING),
+            newServiceSettingsMap,
+            newTaskSettingsMap,
             SERVICE_NAME_VALUE
         );
 
@@ -550,6 +554,34 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         assertThat(resultModelConfigurations.getChunkingSettings(), sameInstance(model.getConfigurations().getChunkingSettings()));
     }
 
+    public void testCombineExistingModelConfigurationsWithNewSettings_PassesNewSettingsMapsThroughDirectlyToParsers() {
+        // Request#getServiceSettings / #getTaskSettings already return freshly deep-copied maps,
+        // so this consumer must pass them straight through without re-copying.
+        Map<String, Object> newServiceSettingsMap = Map.of(SERVICE_SETTINGS_KEY, SERVICE_SETTINGS_VALUE);
+        var originalServiceSettings = mock(ServiceSettings.class);
+        var updatedServiceSettings = mock(ServiceSettings.class);
+        when(originalServiceSettings.updateServiceSettings(newServiceSettingsMap)).thenReturn(updatedServiceSettings);
+
+        Map<String, Object> newTaskSettingsMap = Map.of(TASK_SETTINGS_KEY, TASK_SETTINGS_VALUE);
+        var originalTaskSettings = mock(TaskSettings.class);
+        var updatedTaskSettings = mock(TaskSettings.class);
+        when(originalTaskSettings.updatedTaskSettings(newTaskSettingsMap)).thenReturn(updatedTaskSettings);
+
+        var model = createMockedModel(originalServiceSettings, originalTaskSettings, mock(SecretSettings.class));
+        var resultModelConfigurations = action.combineExistingModelConfigurationsWithNewSettings(
+            model,
+            newServiceSettingsMap,
+            newTaskSettingsMap,
+            SERVICE_NAME_VALUE
+        );
+
+        verify(originalServiceSettings).updateServiceSettings(same(newServiceSettingsMap));
+        verify(originalTaskSettings).updatedTaskSettings(same(newTaskSettingsMap));
+
+        assertThat(resultModelConfigurations.getServiceSettings(), sameInstance(updatedServiceSettings));
+        assertThat(resultModelConfigurations.getTaskSettings(), sameInstance(updatedTaskSettings));
+    }
+
     public void testCombineExistingSecretsWithNewSecrets_NewSecretsMapIsNull_ReturnsExistingSecrets() {
         var secretSettings = mock(SecretSettings.class);
 
@@ -561,7 +593,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     }
 
     public void testCombineExistingSecretsWithNewSecrets_ExistingSecretSettingsAreNull_ReturnsNull() {
-        Map<String, Object> newSecretsMap = Map.of("some_secret_key", "some_secret_value");
+        Map<String, Object> newSecretsMap = Map.of(SECRET_SETTINGS_KEY, SECRET_SETTINGS_VALUE);
 
         var model = createMockedModel(mock(ServiceSettings.class), mock(TaskSettings.class), null);
         var modelSecrets = action.combineExistingSecretsWithNewSecrets(model, newSecretsMap);
@@ -570,7 +602,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     }
 
     public void testCombineExistingSecretsWithNewSecrets_NewSecretSettings_UpdatesSecrets() {
-        Map<String, Object> newSecretsMap = Map.of("some_secret_key", "some_secret_value");
+        Map<String, Object> newSecretsMap = Map.of(SECRET_SETTINGS_KEY, SECRET_SETTINGS_VALUE);
         var originalSecretSettings = mock(SecretSettings.class);
         var updatedSecretSettings = mock(SecretSettings.class);
         when(originalSecretSettings.newSecretSettings(newSecretsMap)).thenReturn(updatedSecretSettings);
@@ -580,6 +612,21 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
         assertThat(modelSecrets.getSecretSettings(), sameInstance(updatedSecretSettings));
         verify(originalSecretSettings).newSecretSettings(newSecretsMap);
+    }
+
+    public void testCombineExistingSecretsWithNewSecrets_PassesNewSecretsMapThroughDirectlyToParser() {
+        // Request#getServiceSettings already returns a freshly deep-copied map, so this
+        // consumer must pass it straight through without re-copying.
+        Map<String, Object> newSecretsMap = Map.of(SECRET_SETTINGS_KEY, SECRET_SETTINGS_VALUE);
+        var originalSecretSettings = mock(SecretSettings.class);
+        var updatedSecretSettings = mock(SecretSettings.class);
+        when(originalSecretSettings.newSecretSettings(newSecretsMap)).thenReturn(updatedSecretSettings);
+
+        var model = createMockedModel(mock(ServiceSettings.class), mock(TaskSettings.class), originalSecretSettings);
+        var modelSecrets = action.combineExistingSecretsWithNewSecrets(model, newSecretsMap);
+
+        assertThat(modelSecrets.getSecretSettings(), sameInstance(updatedSecretSettings));
+        verify(originalSecretSettings).newSecretSettings(same(newSecretsMap));
     }
 
     private static Model createMockedModel(

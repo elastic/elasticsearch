@@ -8,10 +8,11 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -51,8 +52,13 @@ public class GroupedLimitOperator implements Operator, Accountable {
         @Override
         public GroupedLimitOperator get(DriverContext driverContext) {
             BlockFactory blockFactory = driverContext.blockFactory();
-            var scratch = new BreakingBytesRefBuilder(blockFactory.breaker(), "group-key-encoder");
-            return new GroupedLimitOperator(limitPerGroup, new GroupKeyEncoder(groupChannels, elementTypes, scratch), blockFactory);
+            PagedBytesBuilder row = new PagedBytesBuilder(
+                blockFactory.bigArrays().recycler(),
+                blockFactory.breaker(),
+                "group-key-encoder",
+                64
+            );
+            return new GroupedLimitOperator(limitPerGroup, new GroupKeyEncoder(groupChannels, elementTypes, row), blockFactory);
         }
 
         @Override
@@ -111,21 +117,21 @@ public class GroupedLimitOperator implements Operator, Accountable {
 
     @Override
     public void addInput(Page page) {
-        assert lastOutput == null : "has pending output page";
-        int positionCount = page.getPositionCount();
-        rowsReceived += positionCount;
-
-        if (limitPerGroup == 0) {
-            page.releaseBlocks();
-            return;
-        }
-
-        int acceptedCount = 0;
-        int[] accepted = new int[positionCount];
-
         try {
+            assert lastOutput == null : "has pending output page";
+            int positionCount = page.getPositionCount();
+            rowsReceived += positionCount;
+
+            if (limitPerGroup == 0) {
+                page.releaseBlocks();
+                return;
+            }
+
+            int acceptedCount = 0;
+            int[] accepted = new int[positionCount];
+
             for (int pos = 0; pos < positionCount; pos++) {
-                BytesRef key = keyEncoder.encode(page, pos);
+                PagedBytesCursor key = keyEncoder.encode(page, pos);
                 long hashOrd = seenKeys.add(key);
                 int count;
                 long ord;
@@ -143,26 +149,24 @@ public class GroupedLimitOperator implements Operator, Accountable {
                     accepted[acceptedCount++] = pos;
                 }
             }
-        } catch (Exception e) {
-            page.releaseBlocks();
-            throw e;
-        }
 
-        if (acceptedCount == 0) {
-            page.releaseBlocks();
-            return;
-        }
+            if (acceptedCount == 0) {
+                return;
+            }
 
-        /*
-         * When all rows in a page are accepted the operator returns the
-         * original page instance rather than a filtered copy.
-         */
-        if (acceptedCount == positionCount) {
-            lastOutput = page;
-        } else {
-            int[] positions = new int[acceptedCount];
-            System.arraycopy(accepted, 0, positions, 0, acceptedCount);
-            lastOutput = page.filter(false, positions);
+            /*
+             * When all rows in a page are accepted the operator returns the
+             * original page instance rather than a filtered copy.
+             */
+            if (acceptedCount == positionCount) {
+                lastOutput = page.shallowCopy();
+            } else {
+                int[] positions = new int[acceptedCount];
+                System.arraycopy(accepted, 0, positions, 0, acceptedCount);
+                lastOutput = page.filter(false, positions);
+            }
+        } finally {
+            page.releaseBlocks();
         }
     }
 

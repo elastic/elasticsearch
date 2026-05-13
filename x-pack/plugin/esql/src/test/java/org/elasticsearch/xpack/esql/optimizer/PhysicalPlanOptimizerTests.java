@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -90,6 +91,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistanc
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplify;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.TopSnippets;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.vector.DotProduct;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -143,6 +145,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -385,6 +388,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             builder.addIndex(lookupIndex);
             builder.addLookupIndex(lookupIndex);
         }
+        builder.addNoFieldsIndex();
         Analyzer analyzer = builder.buildAnalyzer();
         return new TestDataSource(mapping, index, analyzer, stats);
     }
@@ -437,9 +441,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             new ResolvedEnrichPolicy(
                 "employee_id",
                 EnrichPolicy.MATCH_TYPE,
-                List.of("department"),
+                List.of("department", "description"),
                 Map.of("", ".enrich-departments-1", "cluster_1", ".enrich-departments-2"),
-                Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+                Map.of(
+                    "department",
+                    new EsField("department", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+                    "description",
+                    new EsField("description", DataType.TEXT, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+                )
             )
         );
         builder.addEnrichPolicy(
@@ -694,6 +703,79 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(eval.child(), FieldExtractExec.class);
         var query = source(extract.child());
         assertThat(query.limit(), is(l(42)));
+    }
+
+    /**
+     * Asserts that {@code EVAL TOP_SNIPPETS(...)} is placed on the coordinator side of the
+     * coordinator/data-node split (i.e. <em>above</em> the remote {@link ExchangeExec}).
+     *
+     * Unlike {@link Score} in {@link #testEvalWithScoreImplicitLimit()}, which is pushed down
+     * into the data-node fragment (it needs per-shard Lucene scoring), {@code TOP_SNIPPETS}
+     * has no rule to push it past the exchange and is therefore evaluated on the coordinator
+     * after field values have been streamed up from the shards. Any analyzer resolution that
+     * depends on per-index mappings must happen either (a) pre-planning via the coordinator's
+     * {@code AnalysisRegistry} or (b) by a future rule that pushes {@code TOP_SNIPPETS} into
+     * the fragment; this test guards against accidental silent changes to that placement.
+     *
+     * Expected shape:
+     * EvalExec[[TOP_SNIPPETS(gender{f}#..,foo[KEYWORD]) AS s#..]]
+     * \_LimitExec[1000[INTEGER], ...]
+     *   \_ExchangeExec[...,false]
+     *     \_ProjectExec[...]
+     *       \_FieldExtractExec[...]
+     *         \_EsQueryExec[test], ...
+     */
+    public void testEvalWithTopSnippetsRunsOnCoordinator() {
+        var plan = physicalPlan("""
+            FROM test
+            | EVAL s = TOP_SNIPPETS(gender, "foo")
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var eval = as(optimized, EvalExec.class);
+        assertThat(eval.fields(), hasSize(1));
+        assertThat(eval.fields().get(0).child(), isA(TopSnippets.class));
+        var limit = as(eval.child(), LimitExec.class);
+        assertThat(limit.limit(), is(l(1000)));
+        var exchange = asRemoteExchange(limit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var query = source(fieldExtract.child());
+        assertThat(query.limit(), is(l(1000)));
+    }
+
+    /**
+     * Sibling of {@link #testEvalWithTopSnippetsRunsOnCoordinator()} for the filter path.
+     * Unlike the EVAL case, {@code WHERE mv_count(TOP_SNIPPETS(...)) > 0} is pushed
+     * <em>below</em> the remote {@link ExchangeExec} into the data-node fragment: the
+     * filter predicate references only {@code gender}, so the optimizer treats it like any
+     * other scalar filter and evaluates it on the data node. This means the runtime site
+     * that must resolve {@code TOP_SNIPPETS}' analyzer is
+     * {@code LocalExecutionPlanner.planFilter} on the <em>data node</em>, whose
+     * {@code physicalOperationProviders} carries the node-level {@code AnalysisRegistry}
+     * wired in {@code ComputeService} from {@code searchService.getIndicesService().getAnalysis()}.
+     * This test guards the placement so any future change that moves {@code TOP_SNIPPETS}
+     * through a different planner path is flagged.
+     */
+    public void testWhereWithTopSnippetsPushedToDataNode() {
+        var plan = physicalPlan("""
+            FROM test
+            | WHERE mv_count(TOP_SNIPPETS(gender, "foo")) > 0
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        assertThat(topLimit.limit(), is(l(1000)));
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtractOuter = as(project.child(), FieldExtractExec.class);
+        var innerLimit = as(fieldExtractOuter.child(), LimitExec.class);
+        assertThat(innerLimit.limit(), is(l(1000)));
+        var filter = as(innerLimit.child(), FilterExec.class);
+        assertThat(filter.condition().anyMatch(TopSnippets.class::isInstance), is(true));
+        var fieldExtractInner = as(filter.child(), FieldExtractExec.class);
+        var query = source(fieldExtractInner.child());
+        assertNull(query.limit());
     }
 
     /**
@@ -1553,7 +1635,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByNotPushedToSource() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | limit 10 by emp_no
@@ -1578,7 +1659,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByMultipleKeys() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | limit 5 by first_name, last_name
@@ -1613,7 +1693,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByAfterStats() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | stats avg_salary = avg(salary) by first_name
@@ -1652,7 +1731,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByAfterEval() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | eval x = salary + 1
@@ -1689,7 +1767,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByWithFilter() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | where emp_no > 0
@@ -1722,7 +1799,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByExpressionWithEval() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | where emp_no > 0
@@ -1759,7 +1835,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByZero() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var plan = optimizedPlan(physicalPlan("""
             FROM test
             | LIMIT 0 BY emp_no
@@ -2988,6 +3063,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES * 2 + Long.BYTES));
     }
 
+    public void testEnrichEstimateRowSize() {
+        var plan = physicalPlan("""
+                FROM test
+                | ENRICH departments ON emp_no
+                | KEEP emp_no, department, description
+            """);
+        var optimized = optimizedPlan(plan);
+        var source = (EsQueryExec) optimized.collectFirstChildren(e -> e instanceof EsQueryExec).getFirst();
+        assertThat(source.estimatedRowSize(), equalTo(108));
+    }
+
     /**
      * Expects the filter to transform the source into a local relationship
      * LimitExec[10000[INTEGER]]
@@ -3796,6 +3882,45 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * {@snippet lang="text":
+     * LimitExec[1000[INTEGER],8]
+     * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count()#3],SINGLE,[$$count()$count{r}#4, $$count()$
+     * seen{r}#5],8]
+     *   \_MergeExec[[]]
+     *     |_ExchangeExec[[],false]
+     *     | \_ProjectExec[[]]
+     *     |   \_EsQueryExec[no_fields_index], ...]
+     *     \_ExchangeExec[[],false]
+     *       \_ProjectExec[[]]
+     *         \_EsQueryExec[no_fields_index], ...]
+     * }
+     */
+    public void testProjectAwayColumnsWithSubqueryCount() {
+        for (String count : List.of("count()", "count(*)", "count(1)")) {
+            String query = LoggerMessageFormat.format(null, """
+                FROM no_fields_index, (FROM no_fields_index)
+                | STATS {}
+                """, count);
+            var plan = optimizedPlan(physicalPlan(query, testData, false));
+
+            LimitExec limit = as(plan, LimitExec.class);
+            AggregateExec agg = as(limit.child(), AggregateExec.class);
+            MergeExec merge = as(agg.child(), MergeExec.class);
+            assertEquals(0, merge.output().size());
+            assertEquals(2, merge.children().size());
+
+            for (PhysicalPlan child : merge.children()) {
+                ExchangeExec exchange = as(child, ExchangeExec.class);
+                assertEquals(0, exchange.output().size());
+                ProjectExec project = as(exchange.child(), ProjectExec.class);
+                assertEquals(0, project.projections().size());
+                EsQueryExec esQuery = as(project.child(), EsQueryExec.class);
+                assertEquals("no_fields_index", esQuery.indexPattern());
+            }
+        }
+    }
+
+    /**
      * LimitExec[1000[INTEGER],336]
      * \_MvExpandExec[foo_1{r}#4236,foo_1{r}#4253]
      *   \_TopNExec[[Order[emp_no{f}#4242,ASC,LAST]],1000[INTEGER],336]
@@ -4336,6 +4461,40 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             FROM airports
             | EVAL simplified = ST_SIMPLIFY(location, 0.05)
             | STATS extent = ST_EXTENT_AGG(location) BY simplified""";
+        for (boolean withDocValues : new boolean[] { false, true }) {
+            var fieldExtractPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
+            var testData = withDocValues ? airports : airportsNoDocValues;
+            var plan = physicalPlan(query.replace("airports", testData.index.name()), testData);
+            var optimized = optimizedPlan(plan, testData.stats);
+            var limit = as(optimized, LimitExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            // Above the exchange (in coordinator) the aggregation is not using doc-values
+            assertAggregation(agg, "extent", SpatialExtent.class, GEO_POINT, FieldExtractPreference.NONE);
+            assertThat(agg.groupings().size(), equalTo(1));
+            var exchange = as(agg.child(), ExchangeExec.class);
+            agg = as(exchange.child(), AggregateExec.class);
+            // below the exchange (in data node) the aggregation is using doc-values.
+            assertAggregation(agg, "extent", SpatialExtent.class, GEO_POINT, fieldExtractPreference);
+            var evalExec = as(agg.child(), EvalExec.class);
+            var alias = as(evalExec.fields().getFirst(), Alias.class);
+            var spatialFunction = as(alias.child(), SpatialDocValuesFunction.class);
+            assertThat(
+                "Expected spatial doc values to be used for spatial function",
+                spatialFunction.spatialDocValues(),
+                equalTo(withDocValues)
+            );
+            assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
+        }
+    }
+
+    /**
+     * Test that ST_BUFFER uses doc values, similarly to ST_SIMPLIFY above
+     */
+    public void testSpatialBufferAndStatsExtentUseDocValues() {
+        String query = """
+            FROM airports
+            | EVAL buffered = ST_BUFFER(location, 0.05)
+            | STATS extent = ST_EXTENT_AGG(location) BY buffered""";
         for (boolean withDocValues : new boolean[] { false, true }) {
             var fieldExtractPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
             var testData = withDocValues ? airports : airportsNoDocValues;
@@ -9096,13 +9255,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects optimized data node plan of
-     * <pre>{@code
+     * {@snippet lang="text":
      * TopN[[Order[name{r}#25,ASC,LAST], Order[emp_no{f}#14,ASC,LAST]],1000[INTEGER]]
      * \_Join[JoinConfig[type=LEFT OUTER, unionFields=[int{r}#4]]]
      *   |_Project[[..., long_noidx{f}#23, salary{f}#19]]
      *   | \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
      *   \_LocalRelation[[int{f}#24, name{f}#25],[...]]
-     * }</pre>
+     * }
      */
     @AwaitsFix(bugUrl = "lookup functionality is not yet implemented")
     public void testLookupThenTopN() {
@@ -9467,6 +9626,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             config,
             new ExchangeSourceHandler(10, null)::createExchangeSource,
             () -> exchangeSinkHandler.createExchangeSink(() -> {}),
+            null,
             null,
             null,
             null,
@@ -10136,7 +10296,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * ProjectExec[[c{r}#4, n{r}#6]]
      * \_LimitExec[3[INTEGER],null]
      *   \_ExchangeExec[[c{r}#4, n{r}#6],false]
@@ -10149,7 +10309,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *     \_Aggregate[[n{r}#6],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#4, n{r}#6]]
      *       \_StubRelation[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, gender{f}#11, hire_date{f}#16, job{f}#17, job.raw{f}#18, la
      * nguages{f}#12, last_name{f}#13, long_noidx{f}#19, salary{f}#14, n{r}#6]]<>]]
-     * }</pre>
+     * }
      */
     public void testInlineStatsGroupByNullFromEmployees() {
         assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());

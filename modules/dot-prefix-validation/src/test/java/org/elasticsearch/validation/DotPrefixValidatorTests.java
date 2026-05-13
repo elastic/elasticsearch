@@ -17,6 +17,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.BeforeClass;
@@ -26,12 +28,14 @@ import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class DotPrefixValidatorTests extends ESTestCase {
     private static ClusterService statefulClusterService;
     private static ClusterService statelessClusterService;
+    private static SystemIndices systemIndices;
 
     private final OperatorValidator<?> statefulOpV = new OperatorValidator<>(statefulClusterService, true);
     private final NonOperatorValidator<?> statefulNonOpV = new NonOperatorValidator<>(statefulClusterService, true);
@@ -67,6 +71,23 @@ public class DotPrefixValidatorTests extends ESTestCase {
         when(statelessClusterService.getClusterSettings()).thenReturn(statelessClusterSettings);
         when(statelessClusterService.getSettings()).thenReturn(statelessSettings);
         when(statelessClusterService.threadPool()).thenReturn(mock(ThreadPool.class));
+
+        systemIndices = new SystemIndices(
+            List.of(
+                new SystemIndices.Feature(
+                    "test",
+                    "test system indices",
+                    List.of(
+                        SystemIndexDescriptor.builder()
+                            .setIndexPattern(".test-system-index*")
+                            .setDescription("test system index")
+                            .setType(SystemIndexDescriptor.Type.INTERNAL_UNMANAGED)
+                            .setOrigin("test")
+                            .build()
+                    )
+                )
+            )
+        );
     }
 
     public void testValidation() {
@@ -121,6 +142,16 @@ public class DotPrefixValidatorTests extends ESTestCase {
         // Test pattern added to the settings
         assertIgnored(Set.of(".potato5"));
         assertIgnored(Set.of("<.potato5>"));
+
+        // Test system indices are ignored
+        assertIgnored(Set.of(".test-system-index"));
+        assertIgnored(Set.of(".test-system-index-other"));
+        assertIgnored(Set.of(".test-system-index", ".test-system-index-other"));
+        assertIgnored(Set.of("<.test-system-index>"));
+        // Indices that don't match the system index pattern should still fail
+        assertFails(Set.of(".not-a-system-index"));
+        // If we have a mix of system and non-system, we still expect a warning
+        assertSecondIndexFails(List.of(".test-system-index", ".not-a-system-index"));
     }
 
     private void assertFails(Set<String> indices) {
@@ -141,6 +172,31 @@ public class DotPrefixValidatorTests extends ESTestCase {
         assertThat(error.getMessage(), containsString("name beginning with a dot (.) is not allowed"));
     }
 
+    /*
+     * This method asserts that the second index in the list is the one that triggers the warning/error.
+     */
+    private void assertSecondIndexFails(List<String> indices) {
+        assertThat(indices.size(), equalTo(2));
+        /*
+         * This method asserts the key difference between stateful and stateless mode -- stateful just logs a deprecation warning, while
+         * stateless throws an exception.
+         */
+        var statefulValidator = new NonOperatorValidator<>(statefulClusterService, false);
+        statefulValidator.validateIndices(Set.copyOf(indices));
+        assertWarnings(
+            "Index ["
+                + indices.get(1)
+                + "] name begins with a dot (.), which is deprecated, and will not be allowed in a future Elasticsearch version."
+        );
+
+        var statelessValidator = new NonOperatorValidator<>(statelessClusterService, false);
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> statelessValidator.validateIndices(Set.copyOf(indices))
+        );
+        assertThat(error.getMessage(), containsString("name beginning with a dot (.) is not allowed"));
+    }
+
     private void assertIgnored(Set<String> indices) {
         statefulNonOpV.validateIndices(indices);
         statefulOpV.validateIndices(indices);
@@ -153,7 +209,7 @@ public class DotPrefixValidatorTests extends ESTestCase {
         private final boolean assertNoWarnings;
 
         private NonOperatorValidator(ClusterService clusterService, boolean assertNoWarnings) {
-            super(new ThreadContext(Settings.EMPTY), clusterService);
+            super(new ThreadContext(Settings.EMPTY), clusterService, systemIndices);
             this.assertNoWarnings = assertNoWarnings;
         }
 

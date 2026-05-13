@@ -49,13 +49,7 @@ public class AzureOpenAiOAuth2Settings implements ToXContentFragment, Writeable 
 
     private static final String TENANT_ID_CONFIG_DESCRIPTION = "The directory tenant that you want to request permission from.";
 
-    private record UpdateSettings(ValidationResult<OAuth2Settings> oauth2Settings, @Nullable String tenantId) {
-        UpdateSettings {
-            Objects.requireNonNull(oauth2Settings);
-        }
-    }
-
-    private final OAuth2Settings oauth2Settings;
+    private final OAuth2Settings oAuth2Settings;
     private final String tenantId;
 
     public static AzureOpenAiOAuth2Settings fromMap(Map<String, Object> map, ValidationException validationException) {
@@ -112,64 +106,66 @@ public class AzureOpenAiOAuth2Settings implements ToXContentFragment, Writeable 
         );
     }
 
-    public AzureOpenAiOAuth2Settings(OAuth2Settings oauth2Settings, String tenantId) {
-        this.oauth2Settings = Objects.requireNonNull(oauth2Settings);
+    public AzureOpenAiOAuth2Settings(OAuth2Settings oAuth2Settings, String tenantId) {
+        this.oAuth2Settings = Objects.requireNonNull(oAuth2Settings);
         this.tenantId = Objects.requireNonNull(tenantId);
     }
 
     public AzureOpenAiOAuth2Settings(StreamInput in) throws IOException {
-        this.oauth2Settings = new OAuth2Settings(in);
+        this.oAuth2Settings = new OAuth2Settings(in);
         this.tenantId = in.readString();
     }
 
     public String clientId() {
-        return oauth2Settings.clientId();
+        return oAuth2Settings.clientId();
+    }
+
+    public List<String> scopes() {
+        return oAuth2Settings.scopes();
     }
 
     public String tenantId() {
         return tenantId;
     }
 
-    public List<String> scopes() {
-        return oauth2Settings.scopes();
-    }
-
-    public AzureOpenAiOAuth2Settings updateServiceSettings(Map<String, Object> serviceSettings, ValidationException validationException) {
-        var updated = fromMapForUpdate(serviceSettings, oauth2Settings, validationException);
-
-        var tenantIdToUpdate = updated.tenantId() != null ? updated.tenantId() : this.tenantId;
-
-        var hasAllFields = validateFields(updated.oauth2Settings(), tenantIdToUpdate, validationException);
-
-        if (hasAllFields == false) {
-            return this;
-        }
-
-        return new AzureOpenAiOAuth2Settings(updated.oauth2Settings().result(), tenantIdToUpdate);
-    }
-
-    private static UpdateSettings fromMapForUpdate(
-        Map<String, Object> map,
-        OAuth2Settings oAuth2Settings,
+    /**
+     * Updates the current settings with any new values provided in the map.
+     * If a field is not present in the map, the existing value is retained.
+     * @param serviceSettingsMap the map containing the new settings values
+     * @param validationException the validation exception to which any validation errors will be added
+     * @return a new {@link AzureOpenAiOAuth2Settings} object with the updated values from the map, or existing values if not updated
+     */
+    public AzureOpenAiOAuth2Settings updateServiceSettings(
+        Map<String, Object> serviceSettingsMap,
         ValidationException validationException
     ) {
-        var oauth2ServiceSettings = oAuth2Settings.updateServiceSettings(map, validationException);
-        var tenantId = extractOptionalString(map, TENANT_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var updatedOauth2ServiceSettings = oAuth2Settings.updateServiceSettings(serviceSettingsMap, validationException);
+        var extractedTenantId = extractOptionalString(
+            serviceSettingsMap,
+            TENANT_ID_FIELD,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
 
-        return new UpdateSettings(oauth2ServiceSettings, tenantId);
+        return new AzureOpenAiOAuth2Settings(updatedOauth2ServiceSettings, extractedTenantId != null ? extractedTenantId : this.tenantId);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        oauth2Settings.writeTo(out);
+        oAuth2Settings.writeTo(out);
         out.writeString(tenantId);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        oauth2Settings.toXContent(builder, params);
+        oAuth2Settings.toXContent(builder, params);
         builder.field(TENANT_ID_FIELD, tenantId);
         return builder;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
     @Override
@@ -177,12 +173,12 @@ public class AzureOpenAiOAuth2Settings implements ToXContentFragment, Writeable 
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AzureOpenAiOAuth2Settings that = (AzureOpenAiOAuth2Settings) o;
-        return Objects.equals(oauth2Settings, that.oauth2Settings) && Objects.equals(tenantId, that.tenantId);
+        return Objects.equals(oAuth2Settings, that.oAuth2Settings) && Objects.equals(tenantId, that.tenantId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(oauth2Settings, tenantId);
+        return Objects.hash(oAuth2Settings, tenantId);
     }
 
     public static Map<String, SettingsConfiguration> configurations(EnumSet<TaskType> supportedTaskTypes) {

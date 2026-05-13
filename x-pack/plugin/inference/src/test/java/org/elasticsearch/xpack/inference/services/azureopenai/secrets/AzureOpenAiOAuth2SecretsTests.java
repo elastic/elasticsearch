@@ -23,14 +23,15 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIENT_SECRET_FIELD;
-import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2SecretsTests.CLIENT_SECRET_VALUE;
+import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2SecretsTests.TEST_CLIENT_SECRET;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class AzureOpenAiOAuth2SecretsTests extends AbstractBWCWireSerializationTestCase<AzureOpenAiOAuth2Secrets> {
 
     public static AzureOpenAiOAuth2Secrets createRandom() {
-        return new AzureOpenAiOAuth2Secrets(randomSecureStringOfLength(15));
+        var clientSecret = randomSecureStringOfLength(15);
+        return new AzureOpenAiOAuth2Secrets(clientSecret);
     }
 
     public void testNewSecretSettings_ClientSecret() {
@@ -38,22 +39,23 @@ public class AzureOpenAiOAuth2SecretsTests extends AbstractBWCWireSerializationT
         var clientSecret = randomSecureStringOfLength(15);
         var expectedSettings = new AzureOpenAiOAuth2Secrets(clientSecret);
         var newSettings = (AzureOpenAiOAuth2Secrets) initialSettings.newSecretSettings(
-            Map.of(CLIENT_SECRET_FIELD, clientSecret.toString())
+            new HashMap<>(Map.of(CLIENT_SECRET_FIELD, clientSecret.toString()))
         );
 
         assertThat(newSettings, is(expectedSettings));
     }
 
     public void testToXContent_WritesClientSecretWhenSet() throws IOException {
-        var testSettings = new AzureOpenAiOAuth2Secrets(new SecureString(CLIENT_SECRET_VALUE.toCharArray()));
+        var testSettings = new AzureOpenAiOAuth2Secrets(new SecureString(TEST_CLIENT_SECRET.toCharArray()));
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         testSettings.toXContent(builder, null);
         var xContentResult = Strings.toString(builder);
 
         var expectedResult = XContentHelper.stripWhitespace(Strings.format("""
             {
-                "%s":"%s"
-            }""", CLIENT_SECRET_FIELD, CLIENT_SECRET_VALUE));
+                "%s": "%s"
+            }
+            """, CLIENT_SECRET_FIELD, TEST_CLIENT_SECRET));
         assertThat(xContentResult, is(expectedResult));
     }
 

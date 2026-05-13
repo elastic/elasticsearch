@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.logging.activity.ActivityLogger;
+import org.elasticsearch.common.logging.activity.QueryLogger;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -45,6 +46,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -58,14 +60,13 @@ import org.elasticsearch.xpack.esql.action.EsqlResponseListener;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
-import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
+import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.enrich.AbstractLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
-import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
@@ -133,6 +134,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         NamedWriteableRegistry registry,
         IndexNameExpressionResolver indexNameExpressionResolver,
         UsageService usageService,
+        UserAgentParserRegistry userAgentParserRegistry,
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider,
         CrossProjectModeDecider crossProjectModeDecider
@@ -204,14 +206,17 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             indexNameExpressionResolver,
             usageService,
             new InferenceService(client, clusterService),
+            userAgentParserRegistry,
             blockFactoryProvider,
             new PlannerSettings.Holder(clusterService),
             crossProjectModeDecider
         );
 
         var dataSourceModule = planExecutor.dataSourceModule();
-        OperatorFactoryRegistry operatorFactoryRegistry = dataSourceModule.createOperatorFactoryRegistry(externalSourceExecutor());
-        FilterPushdownRegistry filterPushdownRegistry = dataSourceModule.filterPushdownRegistry();
+        OperatorFactoryRegistry operatorFactoryRegistry = dataSourceModule.createOperatorFactoryRegistry(
+            externalSourceExecutor(),
+            threadPool.executor(ThreadPool.Names.GENERIC)
+        );
         this.computeService = new ComputeService(
             services,
             enrichLookupService,
@@ -220,15 +225,15 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             bigArrays,
             blockFactoryProvider.blockFactory(),
             operatorFactoryRegistry,
-            filterPushdownRegistry,
             dataSourceModule.formatReaderRegistry()
         );
 
-        this.activityLogger = new ActivityLogger<>(
+        this.activityLogger = new QueryLogger<>(
             clusterService.getClusterSettings(),
             new EsqlLogProducer(),
             logWriterProvider,
-            fieldProvider
+            fieldProvider,
+            indexNameExpressionResolver.getSystemNamePredicate()
         );
 
         defaultAllowPartialResults = EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.get(clusterService.getSettings());
@@ -256,9 +261,10 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     /**
-     * Returns the executor used for external source I/O (e.g. {@code EXTERNAL/FROM external_source} operators).
+     * Returns the executor used for external source coordination (e.g. connector handshakes and registry wiring).
+     * File-based async reads and slice-queue drain use {@link ThreadPool.Names#GENERIC} via
+     * {@link OperatorFactoryRegistry#fileReadExecutor} so they do not share the same pool as compute drivers.
      * Isolated from {@link ThreadPool.Names#SEARCH} to prevent heavy external queries from starving regular ES operations.
-     * Currently shares {@code esql_worker} with compute drivers; override this method when a dedicated I/O pool is introduced.
      */
     protected Executor externalSourceExecutor() {
         return threadPool.executor(ESQL_WORKER_THREAD_POOL_NAME);

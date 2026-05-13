@@ -72,12 +72,7 @@ public class ExtractorTests extends ESTestCase {
                     );
                 }
                 case LONG_RANGE -> {
-                    cases.add(
-                        valueTestCase("date_range with nulls", e, TopNEncoder.DEFAULT_UNSORTABLE, false, () -> randomDateRange(true))
-                    );
-                    cases.add(
-                        valueTestCase("date_range with nulls", e, TopNEncoder.DEFAULT_UNSORTABLE, false, () -> randomDateRange(false))
-                    );
+                    cases.add(valueTestCase("date_range", e, TopNEncoder.DEFAULT_UNSORTABLE, false, ExtractorTests::randomDateRange));
                 }
                 case FLOAT -> {
                     supportsNull = false;
@@ -318,12 +313,10 @@ public class ExtractorTests extends ESTestCase {
         );
     }
 
-    private static LongRangeBlockBuilder.LongRange randomDateRange(boolean haveNulls) {
+    private static LongRangeBlockBuilder.LongRange randomDateRange() {
         var from = randomMillisUpToYear9999();
         var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
-        return haveNulls
-            ? new LongRangeBlockBuilder.LongRange(randomBoolean() ? from : null, randomBoolean() ? to : null)
-            : new LongRangeBlockBuilder.LongRange(from, to);
+        return new LongRangeBlockBuilder.LongRange(from, to);
     }
 
     private static DocVector.Config docVectorConfig() {

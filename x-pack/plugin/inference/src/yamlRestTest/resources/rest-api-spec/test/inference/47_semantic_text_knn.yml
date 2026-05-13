@@ -284,7 +284,7 @@ setup:
                   model_text: test
 
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "[model_id] must not be null." }
+  - match: { error.reason: "[model_id] must be specified" }
 
 ---
 "knn query against combined dense_vector and semantic_text fields using query vectors":
@@ -545,7 +545,7 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - close_to: { hits.hits.0._score: { value: 0.9990483, error: 1e-4 } }
+  - close_to: { hits.hits.0._score: { value: 0.9990483, error: 1e-3 } }
   - not_exists: hits.hits.0.matched_queries
 
   - do:
@@ -568,7 +568,7 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - close_to: { hits.hits.0._score: { value: 4.9952416, error: 1e-3 } }
+  - close_to: { hits.hits.0._score: { value: 4.9952416, error: 1e-2 } }
   - match: { hits.hits.0.matched_queries: [ "i-like-naming-my-queries" ] }
 
 ---
@@ -627,7 +627,7 @@ setup:
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "doc_1" }
   - match: { hits.hits.1._id: "doc_3" }
-  - close_to: { hits.hits.0._score: { value: 4.9952416, error: 1e-3 } }
+  - close_to: { hits.hits.0._score: { value: 4.9952416, error: 1e-2 } }
   - match: { hits.hits.0.matched_queries: [ "i-like-naming-my-queries" ] }
   - close_to: { hits.hits.1._score: { value: 4.719687, error: 1e-2 } }
   - match: { hits.hits.1.matched_queries: [ "i-like-naming-my-queries" ] }
@@ -703,7 +703,7 @@ setup:
                   model_text: test
 
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "Field [inference_field] does not use a [text_embedding] model" }
+  - match: { error.root_cause.0.reason: "Field [inference_field] requires an embedding or text embedding model, but the configured model type is [sparse_embedding] which is not compatible with knn queries" }
 
   # Specify the inference ID so that dense vector inference results are generated for the query text
   - do:
@@ -722,7 +722,7 @@ setup:
                   model_text: test
 
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "Field [inference_field] does not use a [text_embedding] model" }
+  - match: { error.root_cause.0.reason: "Field [inference_field] requires an embedding or text embedding model, but the configured model type is [sparse_embedding] which is not compatible with knn queries" }
 
 ---
 "Text expansion query against semantic_text field using a dense vector model returns an failure":

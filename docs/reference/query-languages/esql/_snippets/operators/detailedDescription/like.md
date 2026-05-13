@@ -4,9 +4,16 @@ When used on `text` fields, `LIKE` treats the field as a `keyword` and does not 
 This means the pattern matching is case-sensitive and must match the exact string indexed.
 To perform full-text search, use the `MATCH` or `QSTR` functions.
 
-Matching the exact characters `*` and `.` will require escaping.
-The escape character is backslash `\`. Since also backslash is a special character in string literals,
-it will require further escaping.
+Matching the exact characters `*` and `?` will require escaping.
+The escape character is backslash `\`. Since backslash is also special in string literals,
+it will require further escaping. To match a literal backslash in the data, write `\\`
+in the pattern (escape plus backslash). Windows-style paths such as `C:\Windows\System32`
+are much easier with triple-quoted string literals (three consecutive `"` characters as delimiters):
+the value can contain single backslashes as in `C:\Windows\...`, and a pattern that matches
+`C:\Windows` followed by anything uses `\\` before `Windows` inside that literal (see the example below).
+When you send ES|QL inside a JSON request body (for example with cURL), JSON string escaping
+adds another layer: each backslash in the ES|QL text is often written as `\\` in JSON, so a
+single literal backslash in the pattern can require many backslashes by the time it reaches the parser.
 
 ```esql
 ROW message = "foo * bar"
@@ -19,6 +26,12 @@ To reduce the overhead of escaping, we suggest using triple quotes strings `"""`
 ```esql
 ROW message = "foo * bar"
 | WHERE message LIKE """foo \* bar"""
+```
+
+
+```esql
+ROW path = """C:\Windows\System32\foo.txt"""
+| WHERE path LIKE """C:\\Windows*"""
 ```
 
 

@@ -11,12 +11,15 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.datasources.FileSet;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -40,7 +43,7 @@ import java.util.Objects;
  *       {@link #sourceMetadata()} and passed through without core understanding it</li>
  *   <li><b>Opaque pushed filter</b>: The {@link #pushedFilter()} is an opaque Object that only
  *       the source-specific operator factory interprets. It is NOT serialized; it is created
- *       locally on each data node by the LocalPhysicalPlanOptimizer via FilterPushdownRegistry</li>
+ *       locally on each data node by the LocalPhysicalPlanOptimizer via FormatReader.filterPushdownSupport()</li>
  *   <li><b>Data node execution</b>: Created on data nodes by LocalMapper from
  *       {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation} inside FragmentExec</li>
  * </ul>
@@ -61,9 +64,17 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     private final Map<String, Object> config;
     private final Map<String, Object> sourceMetadata;
     private final Object pushedFilter; // Opaque filter - NOT serialized, created locally on data nodes
+    private final List<Expression> pushedExpressions; // NOT serialized - ESQL expressions for per-file re-translation
     private final int pushedLimit; // NOT serialized, set locally on data nodes
+    /**
+     * Transient hint that the data above this source is a STATS aggregation followed by a TopN over a single
+     * grouping key. When present, the {@link BlockHash} can prune non-competitive groups during aggregation.
+     * NOT serialized; set locally on each node by {@code PushTopNIntoExternalSource}.
+     */
+    @Nullable
+    private final BlockHash.TopNDef pushedTopN;
     private final Integer estimatedRowSize;
-    private final FileSet fileSet; // NOT serialized - resolved on coordinator, null on data nodes
+    private final FileList fileList; // NOT serialized - resolved on coordinator, null on data nodes
     private final List<ExternalSplit> splits;
 
     public ExternalSourceExec(
@@ -75,7 +86,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         Map<String, Object> sourceMetadata,
         Object pushedFilter,
         Integer estimatedRowSize,
-        FileSet fileSet
+        FileList fileList
     ) {
         this(
             source,
@@ -87,7 +98,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedFilter,
             FormatReader.NO_LIMIT,
             estimatedRowSize,
-            fileSet,
+            fileList,
             List.of()
         );
     }
@@ -102,7 +113,74 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         Object pushedFilter,
         int pushedLimit,
         Integer estimatedRowSize,
-        FileSet fileSet,
+        FileList fileList,
+        List<ExternalSplit> splits
+    ) {
+        this(
+            source,
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            List.of(),
+            pushedLimit,
+            estimatedRowSize,
+            fileList,
+            splits
+        );
+    }
+
+    public ExternalSourceExec(
+        Source source,
+        String sourcePath,
+        String sourceType,
+        List<Attribute> attributes,
+        Map<String, Object> config,
+        Map<String, Object> sourceMetadata,
+        Object pushedFilter,
+        List<Expression> pushedExpressions,
+        int pushedLimit,
+        Integer estimatedRowSize,
+        FileList fileList,
+        List<ExternalSplit> splits
+    ) {
+        this(
+            source,
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            pushedExpressions,
+            pushedLimit,
+            null,
+            estimatedRowSize,
+            fileList,
+            splits
+        );
+    }
+
+    /**
+     * Primary constructor that also accepts a transient {@link BlockHash.TopNDef} hint for in-hash TopN pruning.
+     * Package-private on purpose so the public, longest constructor (used by tooling and tree tests) remains
+     * the twelve-arg one above. Use {@link #withPushedTopN(BlockHash.TopNDef)} from optimizer rules.
+     */
+    ExternalSourceExec(
+        Source source,
+        String sourcePath,
+        String sourceType,
+        List<Attribute> attributes,
+        Map<String, Object> config,
+        Map<String, Object> sourceMetadata,
+        Object pushedFilter,
+        List<Expression> pushedExpressions,
+        int pushedLimit,
+        @Nullable BlockHash.TopNDef pushedTopN,
+        Integer estimatedRowSize,
+        FileList fileList,
         List<ExternalSplit> splits
     ) {
         super(source);
@@ -121,9 +199,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         this.config = config != null ? Map.copyOf(config) : Map.of();
         this.sourceMetadata = sourceMetadata != null ? Map.copyOf(sourceMetadata) : Map.of();
         this.pushedFilter = pushedFilter;
+        this.pushedExpressions = pushedExpressions != null ? List.copyOf(pushedExpressions) : List.of();
         this.pushedLimit = pushedLimit;
+        this.pushedTopN = pushedTopN;
         this.estimatedRowSize = estimatedRowSize;
-        this.fileSet = fileSet;
+        this.fileList = fileList;
         this.splits = splits != null ? List.copyOf(splits) : List.of();
     }
 
@@ -249,6 +329,10 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         return pushedFilter;
     }
 
+    public List<Expression> pushedExpressions() {
+        return pushedExpressions;
+    }
+
     public int pushedLimit() {
         return pushedLimit;
     }
@@ -257,8 +341,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         return estimatedRowSize;
     }
 
-    public FileSet fileSet() {
-        return fileSet;
+    public FileList fileList() {
+        return fileList;
     }
 
     public List<ExternalSplit> splits() {
@@ -274,9 +358,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             pushedFilter,
+            pushedExpressions,
             pushedLimit,
+            pushedTopN,
             estimatedRowSize,
-            fileSet,
+            fileList,
             newSplits
         );
     }
@@ -290,9 +376,29 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             newFilter,
+            pushedExpressions,
             pushedLimit,
+            pushedTopN,
             estimatedRowSize,
-            fileSet,
+            fileList,
+            splits
+        );
+    }
+
+    public ExternalSourceExec withPushedFilterAndExpressions(Object newFilter, List<Expression> newPushedExpressions) {
+        return new ExternalSourceExec(
+            source(),
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            newFilter,
+            newPushedExpressions,
+            pushedLimit,
+            pushedTopN,
+            estimatedRowSize,
+            fileList,
             splits
         );
     }
@@ -306,11 +412,44 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             pushedFilter,
+            pushedExpressions,
             newLimit,
+            pushedTopN,
             estimatedRowSize,
-            fileSet,
+            fileList,
             splits
         );
+    }
+
+    /**
+     * Returns a copy of this source annotated with the given Top-N grouping hint. See {@link #pushedTopN()}.
+     */
+    public ExternalSourceExec withPushedTopN(@Nullable BlockHash.TopNDef newPushedTopN) {
+        return new ExternalSourceExec(
+            source(),
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            pushedExpressions,
+            pushedLimit,
+            newPushedTopN,
+            estimatedRowSize,
+            fileList,
+            splits
+        );
+    }
+
+    /**
+     * The Top-N grouping hint set by {@code PushTopNIntoExternalSource}, or {@code null} if no Top-N pruning
+     * should be performed during hash aggregation. This is a transient local-execution hint; it is never
+     * serialized and is re-derived independently on each node.
+     */
+    @Nullable
+    public BlockHash.TopNDef pushedTopN() {
+        return pushedTopN;
     }
 
     @Override
@@ -329,15 +468,22 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             pushedFilter,
+            pushedExpressions,
             pushedLimit,
+            pushedTopN,
             newEstimatedRowSize,
-            fileSet,
+            fileList,
             splits
         );
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
+        // pushedTopN is intentionally excluded from info(): it is a transient local-execution hint set after the
+        // plan has been distributed, and including it here would (a) require a public 13-arg ctor that breaks the
+        // node-reflection invariant in EsqlNodeSubclassTests#testInfoParameters and (b) leak the hint into any
+        // generic transform-based plan rewrite. The hint is preserved by the explicit with* methods that need it
+        // and is rendered in nodeString() for debuggability.
         return NodeInfo.create(
             this,
             ExternalSourceExec::new,
@@ -347,9 +493,10 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             pushedFilter,
+            pushedExpressions,
             pushedLimit,
             estimatedRowSize,
-            fileSet,
+            fileList,
             splits
         );
     }
@@ -363,9 +510,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             pushedFilter,
+            pushedExpressions,
             pushedLimit,
+            pushedTopN,
             estimatedRowSize,
-            fileSet,
+            fileList,
             splits
         );
     }
@@ -387,26 +536,37 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             && Objects.equals(config, other.config)
             && Objects.equals(sourceMetadata, other.sourceMetadata)
             && Objects.equals(pushedFilter, other.pushedFilter)
+            && Objects.equals(pushedExpressions, other.pushedExpressions)
             && pushedLimit == other.pushedLimit
+            && Objects.equals(pushedTopN, other.pushedTopN)
             && Objects.equals(estimatedRowSize, other.estimatedRowSize)
-            && Objects.equals(fileSet, other.fileSet)
+            && Objects.equals(fileList, other.fileList)
             && Objects.equals(splits, other.splits);
     }
 
     @Override
-    public String nodeString(NodeStringFormat format) {
-        String filterStr = pushedFilter != null ? "[filter=" + pushedFilter + "]" : "";
-        String limitStr = pushedLimit != FormatReader.NO_LIMIT ? "[limit=" + pushedLimit + "]" : "";
-        String splitsStr = splits.isEmpty() == false ? "[splits=" + splits.size() + "]" : "";
-        return nodeName()
-            + "["
-            + sourcePath
-            + "]["
-            + sourceType
-            + "]"
-            + filterStr
-            + limitStr
-            + splitsStr
-            + NodeUtils.toString(attributes, format);
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(nodeName()).append("[").append(sourcePath).append("][").append(sourceType).append("]");
+        if (pushedFilter != null) {
+            sb.append("[filter=").append(pushedFilter).append("]");
+        }
+        if (pushedLimit != FormatReader.NO_LIMIT) {
+            sb.append("[limit=").append(pushedLimit).append("]");
+        }
+        if (pushedTopN != null) {
+            sb.append("[topN=order:")
+                .append(pushedTopN.order())
+                .append(",asc:")
+                .append(pushedTopN.asc())
+                .append(",nullsFirst:")
+                .append(pushedTopN.nullsFirst())
+                .append(",limit:")
+                .append(pushedTopN.limit())
+                .append("]");
+        }
+        if (splits.isEmpty() == false) {
+            sb.append("[splits=").append(splits.size()).append("]");
+        }
+        NodeUtils.toString(sb, attributes, format);
     }
 }

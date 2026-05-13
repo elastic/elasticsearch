@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.esql.datasources;
 import com.github.luben.zstd.ZstdOutputStream;
 
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -48,7 +50,7 @@ public class DecompressingStorageObjectTests extends ESTestCase {
         byte[] compressed = bzip2(original);
 
         StorageObject rawObject = new BytesStorageObject(compressed, StoragePath.of("file:///data.csv.bz2"));
-        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DecompressionCodec();
+        DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
         try (InputStream stream = decompressing.newStream()) {
@@ -76,7 +78,7 @@ public class DecompressingStorageObjectTests extends ESTestCase {
         byte[] compressed = bzip2(original);
 
         StorageObject rawObject = new BytesStorageObject(compressed, StoragePath.of("file:///data.csv.bz2"));
-        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DecompressionCodec();
+        DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
 
         try (InputStream stream = decompressing.newStream(0, compressed.length)) {

@@ -1103,7 +1103,6 @@ public class GetActionIT extends ESIntegTestCase {
     }
 
     public void testGetWithSequenceNumbersDisabled() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         String index = "test-seq-no-disabled";
         assertAcked(
             prepareCreate(index).setSettings(

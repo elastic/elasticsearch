@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.FilteredGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
@@ -23,6 +24,7 @@ import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -39,6 +41,126 @@ import java.util.function.Supplier;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
+/**
+ * Aggregates input {@link Page}s into many output rows, grouping by some values.
+ * <p>
+ *     Receives input pages until we call {@link #finish()}, telling it
+ *     there are no more pages. Each aggregation is an instance
+ *     of {@link GroupingAggregatorFunction}.
+ * </p>
+ * <p>
+ *     For
+ *     {@snippet lang="esql" :
+ *     | STATS MIN(discovered), MAX(discovered) BY class
+ *     }
+ *     this'd look like:
+ * </p>
+ * {@snippet lang="txt" :
+ * Before first page:
+ *                                     ┌─────────────────┬─────────────────┬──────────┐
+ *                                     │ MIN(discovered) │ MAX(discovered) │ class    │
+ *                                     ├─────────────────┼─────────────────┼──────────┤
+ *                                     └─────────────────┴─────────────────┴──────────┘
+ *
+ * First page:
+ * ┌──────┬──────────┬────────────┐    ┌─────────────────┬─────────────────┬──────────┐
+ * │  ref │ class    │ discovered │    │ MIN(discovered) │ MAX(discovered) │ class    │
+ * ├──────┼──────────┼────────────┤    ├─────────────────┼─────────────────┼──────────┤
+ * │  079 │ Euclid   │ 1988-01-01 │ -> │ 1988-01-01      │ 1993-01-01      │ Euclid   │
+ * │  173 │ Euclid   │ 1993-01-01 │    │ 1967-01-01      │ 1967-01-01      │ Keter    │
+ * │ 1313 │ Keter    │ 1967-01-01 │    │ 1991-01-01      │ 1991-01-01      │ Safe     │
+ * │ 1981 │ Safe     │ 1991-01-01 │    └─────────────────┴─────────────────┴──────────┘
+ * └──────┴──────────┴────────────┘
+ *
+ * Second page:
+ * ┌──────┬──────────┬────────────┐    ┌─────────────────┬─────────────────┬──────────┐
+ * │  ref │ class    │ discovered │    │ MIN(discovered) │ MAX(discovered) │ class    │
+ * ├──────┼──────────┼────────────┤    ├─────────────────┼─────────────────┼──────────┤
+ * │ 2317 │ Keter    │ 1922-01-01 │ -> │ 1988-01-01      │ 2010-01-01      │ Euclid   │
+ * │ 2639 │ Euclid   │ 2010-01-01 │    │ 1922-01-01      │ 2016-04-28      │ Keter    │
+ * │ 2935 │ Keter    │ 2016-04-28 │    │ 1991-01-01      │ 1991-01-01      │ Safe     │
+ * │ 3000 │ Thaumiel │ 1971-01-01 │    │ 1971-01-01      │ 1971-01-01      │ Thaumiel │
+ * └──────┴──────────┴────────────┘    └─────────────────┴─────────────────┴──────────┘
+ *
+ * Third page:
+ * ┌──────┬──────────┬────────────┐    ┌─────────────────┬─────────────────┬──────────┐
+ * │  ref │ class    │ discovered │    │ MIN(discovered) │ MAX(discovered) │ class    │
+ * ├──────┼──────────┼────────────┤    ├─────────────────┼─────────────────┼──────────┤
+ * │ 3001 │ Euclid   │ 2000-01-02 │ -> │ 1988-01-01      │ 2010-01-01      │ Euclid   │
+ * │ 4999 │ Keter    │ 1998-11-27 │    │ 1922-01-01      │ 2016-04-28      │ Keter    │
+ * │ 5000 │ Safe     │ 2020-12-04 │    │ 1991-01-01      │ 2020-12-04      │ Safe     │
+ * └──────┴──────────┴────────────┘    │ 1971-01-01      │ 1971-01-01      │ Thaumiel │
+ *                                     └─────────────────┴─────────────────┴──────────┘
+ *
+ * finish():
+ *                                     ┌─────────────────┬─────────────────┬──────────┐
+ *                                     │ MIN(discovered) │ MAX(discovered) │ class    │
+ *                                     ├─────────────────┼─────────────────┼──────────┤
+ *                                     │ 1988-01-01      │ 2010-01-01      │ Euclid   │
+ *                                     │ 1922-01-01      │ 2016-04-28      │ Keter    │
+ *                                     │ 1991-01-01      │ 2020-12-04      │ Safe     │
+ *                                     │ 1971-01-01      │ 1971-01-01      │ Thaumiel │
+ *                                     └─────────────────┴─────────────────┴──────────┘
+ * }
+ * <p>
+ *     Aggregations can also filter which rows they receive using
+ *     {@link FilteredGroupingAggregatorFunction}. In ESQL that looks like:
+ *     {@snippet lang="esql" :
+ *     | STATS min3 = MIN(discovered) WHERE LENGTH(ref) == 3,
+ *             max3 = MAX(discovered) WHERE LENGTH(ref) == 3,
+ *             min4 = MIN(discovered) WHERE LENGTH(ref) == 4
+ *          BY class
+ *     }
+ *     this'd look like:
+ * </p>
+ * {@snippet lang="txt" :
+ * Before first page:
+ *                                     ┌────────────┬────────────┬────────────┬──────────┐
+ *                                     │ min3       │ max3       │ min4       │ class    │
+ *                                     ├────────────┼────────────┼────────────┼──────────┤
+ *                                     └────────────┴────────────┴────────────┴──────────┘
+ *
+ * First page:
+ * ┌──────┬──────────┬────────────┐    ┌────────────┬────────────┬────────────┬──────────┐
+ * │  ref │ class    │ discovered │    │ min3       │ max3       │ min4       │ class    │
+ * ├──────┼──────────┼────────────┤    ├────────────┼────────────┼────────────┼──────────┤
+ * │  079 │ Euclid   │ 1988-01-01 │ -> │ 1988-01-01 │ 1993-01-01 │ null       │ Euclid   │
+ * │  173 │ Euclid   │ 1993-01-01 │    │ null       │ null       │ 1967-01-01 │ Keter    │
+ * │ 1313 │ Keter    │ 1967-01-01 │    │ null       │ null       │ 1991-01-01 │ Safe     │
+ * │ 1981 │ Safe     │ 1991-01-01 │    └────────────┴────────────┴────────────┴──────────┘
+ * └──────┴──────────┴────────────┘
+ *
+ * Second page:
+ * ┌──────┬──────────┬────────────┐    ┌────────────┬────────────┬────────────┬──────────┐
+ * │  ref │ class    │ discovered │    │ min3       │ max3       │ min4       │ class    │
+ * ├──────┼──────────┼────────────┤    ├────────────┼────────────┼────────────┼──────────┤
+ * │ 2317 │ Keter    │ 1922-01-01 │ -> │ 1988-01-01 │ 1993-01-01 │ 2010-01-01 │ Euclid   │
+ * │ 2639 │ Euclid   │ 2010-01-01 │    │ null       │ null       │ 1922-01-01 │ Keter    │
+ * │ 2935 │ Keter    │ 2016-04-28 │    │ null       │ null       │ 1991-01-01 │ Safe     │
+ * │ 3000 │ Thaumiel │ 1971-01-01 │    │ null       │ null       │ 1971-01-01 │ Thaumiel │
+ * └──────┴──────────┴────────────┘    └────────────┴────────────┴────────────┴──────────┘
+ *
+ * Third page:
+ * ┌──────┬──────────┬────────────┐    ┌────────────┬────────────┬────────────┬──────────┐
+ * │  ref │ class    │ discovered │    │ min3       │ max3       │ min4       │ class    │
+ * ├──────┼──────────┼────────────┤    ├────────────┼────────────┼────────────┼──────────┤
+ * │ 3001 │ Euclid   │ 2000-01-02 │ -> │ 1988-01-01 │ 1993-01-01 │ 2000-01-02 │ Euclid   │
+ * │ 4999 │ Keter    │ 1998-11-27 │    │ null       │ null       │ 1922-01-01 │ Keter    │
+ * │ 5000 │ Safe     │ 2020-12-04 │    │ null       │ null       │ 1991-01-01 │ Safe     │
+ * └──────┴──────────┴────────────┘    │ null       │ null       │ 1971-01-01 │ Thaumiel │
+ *                                     └────────────┴────────────┴────────────┴──────────┘
+ *
+ * finish():
+ *                                     ┌────────────┬────────────┬────────────┬──────────┐
+ *                                     │ min3       │ max3       │ min4       │ class    │
+ *                                     ├────────────┼────────────┼────────────┼──────────┤
+ *                                     │ 1988-01-01 │ 1993-01-01 │ 2000-01-02 │ Euclid   │
+ *                                     │ null       │ null       │ 1922-01-01 │ Keter    │
+ *                                     │ null       │ null       │ 1991-01-01 │ Safe     │
+ *                                     │ null       │ null       │ 1971-01-01 │ Thaumiel │
+ *                                     └────────────┴────────────┴────────────┴──────────┘
+ * }
+ */
 public class HashAggregationOperator implements Operator {
 
     public static final int DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD = 100_000;
@@ -180,7 +302,7 @@ public class HashAggregationOperator implements Operator {
     // The blockHash and aggregators can be re-initialized when partial results are emitted periodically
     protected BlockHash blockHash;
     private boolean finished;
-    private ReleasableIterator<Page> output;
+    protected ReleasableIterator<Page> output;
 
     /**
      * Maximum number of rows per output page.
@@ -267,7 +389,7 @@ public class HashAggregationOperator implements Operator {
     public void addInput(Page page) {
         try {
             maybeReinitializeAfterPeriodicallyEmitted();
-            GroupingAggregatorFunction.AddInput[] prepared = new GroupingAggregatorFunction.AddInput[aggregators.size()];
+            List<GroupingAggregatorFunction.AddInput> prepared = new ArrayList<>(aggregators.size());
             class AddInput implements GroupingAggregatorFunction.AddInput {
                 long hashStart = System.nanoTime();
                 long aggStart;
@@ -311,17 +433,21 @@ public class HashAggregationOperator implements Operator {
 
                 @Override
                 public void close() {
-                    Releasables.closeExpectNoException(prepared);
+                    Releasables.closeExpectNoException(Releasables.wrap(prepared));
                 }
             }
             try (AddInput add = new AddInput()) {
                 checkState(needsInput(), "Operator is already finishing");
                 requireNonNull(page, "page is null");
 
-                for (int i = 0; i < prepared.length; i++) {
-                    prepared[i] = aggregators.get(i).prepareProcessPage(blockHash, page);
+                for (GroupingAggregator aggregator : aggregators) {
+                    GroupingAggregatorFunction.AddInput p = aggregator.prepareProcessPage(blockHash, page);
+                    if (p != null) {
+                        prepared.add(p);
+                    }
                 }
 
+                // TODO we can skip the page *entirely* if we know we don't need "empty" results.
                 blockHash.add(page, add);
                 hashNanos += System.nanoTime() - add.hashStart;
             }
@@ -376,22 +502,32 @@ public class HashAggregationOperator implements Operator {
             return;
         }
         int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
-        IntVector selected = null;
         long startInNanos = System.nanoTime();
+        PreparedForEvaluation prepared = new PreparedForEvaluation();
         try {
-            selected = blockHash.nonEmpty();
-            if (selected.getPositionCount() <= maxPageSize) {
-                output = ReleasableIterator.single(addAggResults(selected, aggBlockCounts));
+            if (prepared.selected.keys.getPositionCount() <= maxPageSize) {
+                output = ReleasableIterator.single(prepared.buildPage(prepared.selected, aggBlockCounts));
             } else {
-                output = new MultiPageResult(selected, aggBlockCounts);
-                selected = null; // Selected has moved into the output
+                output = new MultiPageResult(prepared, aggBlockCounts);
+                prepared = null; // Prepared has moved into the output
             }
         } finally {
             rowsAddedInCurrentBatch = 0;
-            Releasables.close(selected);
+            Releasables.close(prepared);
             emitNanos += System.nanoTime() - startInNanos;
             emitCount++;
         }
+    }
+
+    /**
+     * Customize the {@code selected} groupIds that are sent to the agg's
+     * {@link GroupingAggregatorFunction#prepareEvaluateIntermediate} and
+     * {@link GroupingAggregatorFunction#prepareEvaluateFinal}. TSDB uses
+     * this to do less work later on.
+     */
+    protected IntVector customizeSelected(GroupingAggregator aggregator, IntVector selected) {
+        selected.incRef();
+        return selected;
     }
 
     protected boolean shouldEmitPartialResultsPeriodically() {
@@ -408,17 +544,7 @@ public class HashAggregationOperator implements Operator {
         return rowsAddedInCurrentBatch * partialEmitUniquenessThreshold <= numKeys;
     }
 
-    protected void evaluateAggregator(
-        GroupingAggregator aggregator,
-        Block[] blocks,
-        int offset,
-        IntVector selected,
-        GroupingAggregatorEvaluationContext evaluationContext
-    ) {
-        aggregator.evaluate(blocks, offset, selected, evaluationContext);
-    }
-
-    protected GroupingAggregatorEvaluationContext evaluationContext(BlockHash blockHash, Block[] keys) {
+    protected GroupingAggregatorEvaluationContext evaluationContext(BlockHash blockHash) {
         return new GroupingAggregatorEvaluationContext(driverContext);
     }
 
@@ -680,27 +806,27 @@ public class HashAggregationOperator implements Operator {
      * </p>
      */
     class MultiPageResult implements ReleasableIterator<Page> {
-        private final IntVector selected;
+        private final PreparedForEvaluation prepared;
         private final int[] aggBlockCounts;
 
         private int rowOffset = 0;
 
-        MultiPageResult(IntVector selected, int[] aggBlockCounts) {
-            this.selected = selected;
+        MultiPageResult(PreparedForEvaluation prepared, int[] aggBlockCounts) {
+            this.prepared = prepared;
             this.aggBlockCounts = aggBlockCounts;
         }
 
         @Override
         public boolean hasNext() {
-            return rowOffset < selected.getPositionCount();
+            return rowOffset < prepared.selected.keys.getPositionCount();
         }
 
         @Override
         public Page next() {
             long startInNanos = System.nanoTime();
-            int endOffset = Math.min(maxPageSize + rowOffset, selected.getPositionCount());
-            try (IntVector selectedInThisPage = selected.slice(rowOffset, endOffset)) {
-                Page output = addAggResults(selectedInThisPage, aggBlockCounts);
+            int endOffset = Math.min(maxPageSize + rowOffset, prepared.selected.keys.getPositionCount());
+            try (Selected selectedInThisPage = prepared.selected.slice(rowOffset, endOffset)) {
+                Page output = prepared.buildPage(selectedInThisPage, aggBlockCounts);
                 rowOffset = endOffset;
                 return output;
             } finally {
@@ -710,30 +836,89 @@ public class HashAggregationOperator implements Operator {
 
         @Override
         public void close() {
-            Releasables.close(selected);
+            prepared.close();
         }
     }
 
-    private Page addAggResults(IntVector selected, int[] aggBlockCounts) {
-        Block[] keys = blockHash.getKeys(selected);
-        Block[] blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
-        System.arraycopy(keys, 0, blocks, 0, keys.length);
-        try {
-            int blockOffset = keys.length;
-            try (GroupingAggregatorEvaluationContext evaluationContext = evaluationContext(blockHash, keys)) {
-                for (int i = 0; i < aggregators.size(); i++) {
-                    var aggregator = aggregators.get(i);
-                    evaluateAggregator(aggregator, blocks, blockOffset, selected, evaluationContext);
-                    blockOffset += aggBlockCounts[i];
+    private class PreparedForEvaluation implements Releasable {
+        private final GroupingAggregatorEvaluationContext ctx;
+        private final Selected selected;
+        private final List<GroupingAggregatorFunction.PreparedForEvaluation> preparedAggregators;
+
+        private PreparedForEvaluation() {
+            int count = aggregators.size();
+            GroupingAggregatorEvaluationContext ctx = evaluationContext(blockHash);
+            Selected selected = null;
+            List<GroupingAggregatorFunction.PreparedForEvaluation> preparedAggregators = new ArrayList<>(count);
+            boolean success = false;
+            try {
+                selected = new Selected(blockHash.nonEmpty(), new IntVector[count]);
+                for (int a = 0; a < count; a++) {
+                    selected.aggs[a] = customizeSelected(aggregators.get(a), selected.keys);
+                    preparedAggregators.add(aggregators.get(a).prepareForEvaluate(selected.aggs[a], ctx));
+                }
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.close(ctx, selected, Releasables.wrap(preparedAggregators));
                 }
             }
-            Page result = new Page(blocks);
-            blocks = null;
-            return result;
-        } finally {
-            if (blocks != null) {
-                Releasables.close(blocks);
+            this.ctx = ctx;
+            this.selected = selected;
+            this.preparedAggregators = preparedAggregators;
+        }
+
+        /**
+         * Build a page or results.
+         * @param selectedInPage The subset of {@link #selected} for this page. If we're
+         *                       emitting a single page then this is {@code ==} to {@link #selected}.
+         */
+        Page buildPage(Selected selectedInPage, int[] aggBlockCounts) {
+            Block[] keys = blockHash.getKeys(selectedInPage.keys);
+            Block[] blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
+            System.arraycopy(keys, 0, blocks, 0, keys.length);
+            try {
+                int blockOffset = keys.length;
+                for (int i = 0; i < preparedAggregators.size(); i++) {
+                    var aggregator = preparedAggregators.get(i);
+                    aggregator.evaluate(blocks, blockOffset, selectedInPage.aggs[i]);
+                    blockOffset += aggBlockCounts[i];
+                }
+                Page result = new Page(blocks);
+                blocks = null;
+                return result;
+            } finally {
+                if (blocks != null) {
+                    Releasables.close(blocks);
+                }
             }
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(ctx, selected, Releasables.wrap(preparedAggregators));
+        }
+    }
+
+    private record Selected(IntVector keys, IntVector[] aggs) implements Releasable {
+        public Selected slice(int beginInclude, int endExclusive) {
+            Selected result = new Selected(keys.slice(beginInclude, endExclusive), new IntVector[aggs.length]);
+            try {
+                for (int a = 0; a < aggs.length; a++) {
+                    result.aggs[a] = aggs[a].slice(beginInclude, endExclusive);
+                }
+                Selected r = result;
+                result = null;
+                return r;
+            } finally {
+                Releasables.close(result);
+            }
+
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(keys, Releasables.wrap(aggs));
         }
     }
 }

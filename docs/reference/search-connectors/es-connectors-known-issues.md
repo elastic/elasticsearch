@@ -132,6 +132,15 @@ The connector service has the following known issues:
     **Fix**: Tracked in [elastic/connectors#4005](https://github.com/elastic/connectors/issues/4005). After the fix is deployed, re-run an **access control sync** so the corrected query template is written to the `.search-acl-filter-*` documents.
 
 
+* **Generic database connectors fail to sync with `ModuleNotFoundError: No module named 'pkg_resources'`**
+
+    The pinned `python-tds` 1.12.0 dependency, loaded transitively by the generic database connectors through `sqlalchemy_pytds`, imports `pkg_resources` at module load time. Starting in 8.17.2, the official `elastic-connectors` Docker image switched its base image to `cgr.dev/chainguard/wolfi-base`, which no longer ships `setuptools` (and therefore does not provide `pkg_resources`). As a result, the connectors fail with `ModuleNotFoundError: No module named 'pkg_resources'` when attempting to connect to the data source, and syncs cannot start.
+
+    **Affected versions**: `docker.elastic.co/integrations/elastic-connectors` images 8.17.2 – 8.19.x and 9.0.0 – 9.4.x. Versions ≤ 8.17.1 (based on `python:3.11-slim-bookworm`) are not affected because that base image still ships `setuptools`. Self-managed deployments that install `setuptools` into their Python environment are also unaffected.
+
+    **Fix**: Tracked in [elastic/connectors#4014](https://github.com/elastic/connectors/issues/4014). The fix is to bump `python-tds` to `>=1.15.0`, where the `pkg_resources` import was removed.
+
+
 ## Individual connector known issues [es-connectors-known-issues-specific]
 
 Individual connectors may have additional known issues. Refer to [each connector’s reference documentation](/reference/search-connectors/index.md) for connector-specific known issues.

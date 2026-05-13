@@ -105,7 +105,7 @@ public class BulkByScrollTask extends CancellableTask {
     public TaskResult result(DiscoveryNode node, Exception error) throws IOException {
         var cause = error instanceof ElasticsearchException elasticsearchException ?
                 elasticsearchException.getCause() : ExceptionsHelper.unwrapCause(error);
-        if (cause instanceof TaskCancelledException taskCancelledException) {
+        if (cause instanceof TaskCancelledException) {
             TaskInfo taskInfo = taskInfo(node.getId(), true);
             // task might not actually be cancelled at this point, but rather be in the process of cancelling
             // make sure the task result is indeed serialized as cancelled
@@ -123,7 +123,7 @@ public class BulkByScrollTask extends CancellableTask {
                 status.searchRetries,
                 status.throttled,
                 status.requestsPerSecond,
-                taskCancelledException.getMessage(),
+                "by user request",
                 status.throttledUntil
             );
             TaskInfo cancelledTaskInfo = new TaskInfo(

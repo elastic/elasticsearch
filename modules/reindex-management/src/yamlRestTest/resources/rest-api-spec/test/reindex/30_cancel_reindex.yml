@@ -52,7 +52,7 @@ setup:
   - exists: running_time
   - gte: { running_time_in_nanos: 0 }
   - match: { cancelled: true }
-  - match: { status.canceled: "/by\\suser\\srequest/" }
+  - match: { status.canceled: "by user request" }
   - gte: { status.total: 0 }
   # depending on how quickly we cancel, we might either get an error (shard failure) or response, so not asserting
 
@@ -64,7 +64,7 @@ setup:
   - match: { id: $taskId }
   # cancelled is not serialized to tasks index, so returns default boolean value (yes, confusing.)
   - match: { cancelled: false }
-  - match: { status.canceled: "/by\\suser\\srequest/"  }
+  - match: { status.canceled: "by user request" }
 
 
 ---

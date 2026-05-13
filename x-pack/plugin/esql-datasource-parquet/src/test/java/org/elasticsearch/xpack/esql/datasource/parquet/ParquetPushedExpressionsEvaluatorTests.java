@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -423,6 +424,326 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         Expression inner = new Equals(Source.EMPTY, attr("x", DataType.LONG), lit(30L, DataType.LONG), null);
         Expression not = new Not(Source.EMPTY, inner);
         assertSurvivors(new ParquetPushedExpressions(List.of(not)), blocks, 5, reusable, new int[] { 0, 1, 3, 4 });
+    }
+
+    // ---- Test 6c: dictionary-match shape classifier and fast-path semantics ----
+
+    public void testDictionaryMatchShapeClassifier() {
+        // Pins the gating logic that drives the bulk fast path in applyDictionaryMatches.
+        // The behavioural tests below exercise the integrated path; this one isolates the
+        // tiny scanner so a regression in either branch (NONE/ALL/MIXED) localizes here.
+        assertEquals(
+            "empty dictionary maps to NONE (no row can pass)",
+            ParquetPushedExpressions.DictionaryMatchShape.NONE,
+            ParquetPushedExpressions.classifyDictionaryMatches(new boolean[0])
+        );
+        assertEquals(
+            "all-false maps to NONE",
+            ParquetPushedExpressions.DictionaryMatchShape.NONE,
+            ParquetPushedExpressions.classifyDictionaryMatches(new boolean[] { false, false, false })
+        );
+        assertEquals(
+            "all-true maps to ALL",
+            ParquetPushedExpressions.DictionaryMatchShape.ALL,
+            ParquetPushedExpressions.classifyDictionaryMatches(new boolean[] { true, true, true })
+        );
+        assertEquals(
+            "mixed maps to MIXED (early exit after both polarities seen)",
+            ParquetPushedExpressions.DictionaryMatchShape.MIXED,
+            ParquetPushedExpressions.classifyDictionaryMatches(new boolean[] { true, false, true })
+        );
+        assertEquals(
+            "mixed maps to MIXED regardless of position of the second polarity",
+            ParquetPushedExpressions.DictionaryMatchShape.MIXED,
+            ParquetPushedExpressions.classifyDictionaryMatches(new boolean[] { false, false, false, true })
+        );
+    }
+
+    public void testDictionaryFastPathNoMatchProducesEmptyMask() {
+        // Equals against a literal absent from the dictionary => dict bitmap is all-false =>
+        // applyDictionaryMatches takes the NONE branch and returns the zero-initialized mask
+        // without touching the per-row ordinals loop. The mask must be empty (zero survivors),
+        // which is the same outcome the per-row loop would produce — so this test is a sound
+        // regression guard if the NONE fast path is ever broken.
+        String[] dict = { "alpha", "beta", "gamma", "delta" };
+        int[] pattern = { 0, 2, 1, 0, 3, 2, 0 };
+        int[] ordinals = repeatPattern(pattern, 21);
+        Block block = ordinalBlock(dict, ordinals, null);
+        try (block) {
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+            // "never_in_dict" appears nowhere in the dictionary -> dict bitmap is all-false.
+            Expression expr = new Equals(
+                Source.EMPTY,
+                attr("s", DataType.KEYWORD),
+                lit(new BytesRef("never_in_dict"), DataType.KEYWORD),
+                null
+            );
+            ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+            WordMask result = pushed.evaluateFilter(blocks, ordinals.length, reusable);
+            assertNotNull(result);
+            assertTrue("expected zero survivors for absent literal", result.isEmpty());
+        }
+    }
+
+    public void testDictionaryFastPathAllMatchReturnsAllSurvivors() {
+        // NotEquals against a literal absent from the dictionary => dict bitmap is all-true =>
+        // applyDictionaryMatches takes the ALL branch. Every non-null row survives. With the
+        // ordinal block built without nulls, evaluateFilter returns null (the all-survive
+        // sentinel) — the strongest signal that the bulk shortcut worked end-to-end.
+        String[] dict = { "alpha", "beta", "gamma", "delta" };
+        int[] pattern = { 0, 2, 1, 0, 3, 2, 0 };
+        int[] ordinals = repeatPattern(pattern, 21);
+        Block block = ordinalBlock(dict, ordinals, null);
+        try (block) {
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+            Expression expr = new NotEquals(
+                Source.EMPTY,
+                attr("s", DataType.KEYWORD),
+                lit(new BytesRef("never_in_dict"), DataType.KEYWORD),
+                null
+            );
+            assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, ordinals.length, reusable, allPositions(ordinals.length));
+        }
+    }
+
+    public void testDictionaryFastPathAllMatchWithNullsExcludesNullRows() {
+        // Dictionary all-true, but the ordinal block has nulls => the ALL branch must still
+        // exclude null rows (SQL three-valued logic). Pins the non-null sweep inside the
+        // ALL branch against the inverse mistake of bulk-setting every position regardless
+        // of the null bitset.
+        String[] dict = { "X", "Y" };
+        int[] pattern = { 0, 0, 1, 0 };
+        boolean[] nullPattern = { false, true, false, false };
+        int[] ordinals = repeatPattern(pattern, 25);
+        boolean[] nulls = repeatBoolPattern(nullPattern, 25);
+        Block block = ordinalBlock(dict, ordinals, nulls);
+        try (block) {
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+            // "Z" is absent from the dictionary -> NotEquals dict bitmap is all-true.
+            Expression expr = new NotEquals(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("Z"), DataType.KEYWORD), null);
+            int[] expected = positionsWhere(ordinals, nulls, ord -> true);
+            assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, ordinals.length, reusable, expected);
+        }
+    }
+
+    public void testDictionaryFastPathEmptyStringNotEquals() {
+        // The motivating ClickBench case for the ALL branch: WHERE col != "" on a column whose
+        // dictionary contains no empty strings. Without the fast path this still requires an
+        // O(rowCount) ordinal-to-boolean mapping despite every row trivially passing the
+        // dictionary check; with the fast path it collapses to the null sweep (or setAll for
+        // no-nulls). Cross-validates against the per-row path for invariant correctness.
+        String[] dict = { "https://elastic.co", "https://kibana.dev", "https://lucene.apache.org" };
+        int[] pattern = { 0, 1, 2, 0, 1 };
+        int[] ordinals = repeatPattern(pattern, 25);
+        Block ordinalsBlock = ordinalBlock(dict, ordinals, null);
+        Block plainBlock = plainBytesRefBlock(dict, ordinals);
+        try (ordinalsBlock; plainBlock) {
+            Expression expr = new NotEquals(Source.EMPTY, attr("url", DataType.KEYWORD), lit(new BytesRef(""), DataType.KEYWORD), null);
+            WordMask ordinalMask = new ParquetPushedExpressions(List.of(expr)).evaluateFilter(
+                Map.of("url", ordinalsBlock),
+                ordinals.length,
+                new WordMask()
+            );
+            WordMask plainMask = new ParquetPushedExpressions(List.of(expr)).evaluateFilter(
+                Map.of("url", plainBlock),
+                ordinals.length,
+                new WordMask()
+            );
+            // Both paths must produce the same survivor set; nulls in the dictionary fast
+            // path get there via maskNonNullRows / the no-null setAll shortcut.
+            if (ordinalMask == null) {
+                assertNull("dictionary path returned null (all survive); per-row must agree", plainMask);
+            } else {
+                assertNotNull(plainMask);
+                assertArrayEquals(plainMask.survivingPositions(), ordinalMask.survivingPositions());
+            }
+        }
+    }
+
+    public void testIsNotNullFastPathOnBlockWithoutNulls() {
+        // Block with no nulls at all => IsNotNull should return a full mask without scanning
+        // every position. The mayHaveNulls() gate is what makes this an O(1) decision plus a
+        // word-level setAll; without the gate the loop runs rowCount times for the same
+        // outcome. Test asserts the survivor set is the full range — semantically what the
+        // per-row loop would compute, but the new path is the path under test.
+        long[] values = { 1L, 2L, 3L, 4L, 5L };
+        Block block = blockFactory.newLongArrayVector(values, values.length).asBlock();
+        Map<String, Block> blocks = Map.of("x", block);
+        WordMask reusable = new WordMask();
+
+        Expression expr = new IsNotNull(Source.EMPTY, attr("x", DataType.LONG));
+        assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, 5, reusable, allPositions(5));
+    }
+
+    public void testIsNullFastPathOnBlockWithoutNulls() {
+        // Mirror of the IsNotNull case: no nulls => IsNull's survivor set is empty. The fast
+        // path returns the zero-initialized mask without iterating; the integration assert is
+        // that the result is an empty (non-null) WordMask.
+        long[] values = { 1L, 2L, 3L };
+        Block block = blockFactory.newLongArrayVector(values, values.length).asBlock();
+        Map<String, Block> blocks = Map.of("x", block);
+
+        Expression expr = new IsNull(Source.EMPTY, attr("x", DataType.LONG));
+        WordMask result = new ParquetPushedExpressions(List.of(expr)).evaluateFilter(blocks, 3, new WordMask());
+        assertNotNull(result);
+        assertTrue("IsNull on a no-null block must yield an empty mask", result.isEmpty());
+    }
+
+    private static int[] allPositions(int rowCount) {
+        int[] out = new int[rowCount];
+        for (int i = 0; i < rowCount; i++) {
+            out[i] = i;
+        }
+        return out;
+    }
+
+    // ---- Test 6a: dictionary match memoization reuse across batches within a row group ----
+
+    public void testDictionaryBitmapPopulatedOnFirstUseAndReusedAcrossBatches() {
+        // The cache is the iterator's per-row-group memo passed straight into evaluateFilter
+        // as a plain map. The first call populates exactly one entry (one pushed predicate);
+        // subsequent calls within the same "row group" hit the entry. Observing the map's
+        // size after each batch is the cheapest way to assert that the memoization plumbing
+        // actually puts (and never re-puts) the bitmap.
+        String[] dict = { "apple", "application", "banana", "pineapple" };
+        int[] pattern = { 0, 1, 2, 3, 0, 2 };
+        int[] ordinals = repeatPattern(pattern, 24);
+        Block block = ordinalBlock(dict, ordinals, null);
+        try (block) {
+            Map<String, Block> blocks = Map.of("s", block);
+            Expression like = new WildcardLike(Source.EMPTY, attr("s", DataType.KEYWORD), new WildcardPattern("*app*"));
+            ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(like));
+            Map<Expression, boolean[]> cache = new IdentityHashMap<>();
+
+            int[] expected = positionsWithOrdinalIn(ordinals, 0, 1, 3);
+            for (int batch = 0; batch < 5; batch++) {
+                WordMask mask = pushed.evaluateFilter(blocks, ordinals.length, new WordMask(), cache);
+                assertNotNull("batch " + batch + " returned null", mask);
+                assertArrayEquals("batch " + batch + " survivors changed", expected, mask.survivingPositions());
+                assertEquals("cache should hold exactly one entry after batch " + batch, 1, cache.size());
+            }
+        }
+    }
+
+    public void testDictionaryBitmapClearBetweenRowGroupsProducesCorrectResults() {
+        // Regression guard for the row-group lifecycle: two consecutive row groups whose
+        // dictionaries differ in content but happen to be referenced by the same Expression
+        // identity must not share a memoized bitmap. The iterator's responsibility is to
+        // pass a different (or cleared) map at the row-group boundary; here we simulate that
+        // by clearing the map between calls. Without the clear, the second row group would
+        // reuse the first row group's bitmap and return incorrect survivors. With the clear,
+        // it recomputes from the second dictionary and produces an empty survivor set.
+        String[] firstDict = { "apple", "banana", "cherry", "date" };
+        String[] secondDict = { "elderberry", "fig", "grape", "honeydew" };
+        int[] ordinals = { 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3 };
+
+        Map<Expression, boolean[]> cache = new IdentityHashMap<>();
+        Expression expr = new Equals(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("apple"), DataType.KEYWORD), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        Block firstBlock = ordinalBlock(firstDict, ordinals, null);
+        try (firstBlock) {
+            WordMask firstMask = pushed.evaluateFilter(Map.of("s", firstBlock), ordinals.length, new WordMask(), cache);
+            assertNotNull(firstMask);
+            // "apple" is ordinal 0 in the first dictionary -> positions 0, 4, 8 survive.
+            assertArrayEquals(new int[] { 0, 4, 8 }, firstMask.survivingPositions());
+            assertEquals("cache populated for first row group", 1, cache.size());
+        }
+
+        // Row-group boundary: the iterator's accessor wipes the map when rowGroupOrdinal
+        // changes. Simulate that here. Without this clear the next evaluateFilter would
+        // return wrong survivors because the bitmap was computed against the first dictionary.
+        cache.clear();
+
+        Block secondBlock = ordinalBlock(secondDict, ordinals, null);
+        try (secondBlock) {
+            WordMask secondMask = pushed.evaluateFilter(Map.of("s", secondBlock), ordinals.length, new WordMask(), cache);
+            assertNotNull(secondMask);
+            // "apple" is absent from the second dictionary -> no rows survive.
+            assertTrue("expected zero survivors for absent literal in second row group", secondMask.isEmpty());
+        }
+    }
+
+    public void testDictionaryBitmapCachedAndUncachedAgreeAcrossBatches() {
+        // Behavioural cross-check: with and without the cache, every batch must produce the
+        // same survivor set. The cache is a pure performance optimization — any divergence
+        // means a correctness regression. This is the test most likely to fail if the cache
+        // plumbing accidentally serves the wrong bitmap (e.g. identity collision, missed
+        // clear, or a wrong key in memoizedDictionaryMatches).
+        String[] dict = { "the", "quick", "brown", "fox", "jumps" };
+        int rowCount = 200;
+        int[] randomOrdinals = new int[rowCount];
+        for (int i = 0; i < rowCount; i++) {
+            randomOrdinals[i] = randomIntBetween(0, dict.length - 1);
+        }
+        Block block = ordinalBlock(dict, randomOrdinals, null);
+        try (block) {
+            Expression like = new WildcardLike(Source.EMPTY, attr("s", DataType.KEYWORD), new WildcardPattern("*o*"));
+            ParquetPushedExpressions cached = new ParquetPushedExpressions(List.of(like));
+            ParquetPushedExpressions uncached = new ParquetPushedExpressions(List.of(like));
+            Map<Expression, boolean[]> cache = new IdentityHashMap<>();
+
+            for (int batch = 0; batch < 3; batch++) {
+                WordMask cachedMask = cached.evaluateFilter(Map.of("s", block), rowCount, new WordMask(), cache);
+                WordMask uncachedMask = uncached.evaluateFilter(Map.of("s", block), rowCount, new WordMask());
+                if (cachedMask == null) {
+                    assertNull("batch " + batch + ": cached null implies uncached null", uncachedMask);
+                } else {
+                    assertNotNull("batch " + batch + ": cached non-null, uncached must agree", uncachedMask);
+                    assertArrayEquals(
+                        "batch " + batch + " survivors diverged between cached and uncached paths",
+                        uncachedMask.survivingPositions(),
+                        cachedMask.survivingPositions()
+                    );
+                }
+            }
+        }
+    }
+
+    // ---- Test 6b: empty-mask early exit in evaluateFilter ----
+
+    public void testEvaluateFilterEarlyExitsWhenMaskBecomesEmpty() {
+        // Two top-level expressions; the first eliminates every row (no Long equals 999).
+        // After the first AND, the survivor mask is empty: any subsequent expression's evaluation
+        // is pure waste (notably the per-batch dictionary scan that does not consult the
+        // intermediate mask). The early exit short-circuits evaluation of the remainder.
+        //
+        // Asserted via the lastExpressionsEvaluatedForTesting() hook: only the first expression
+        // is evaluated, even though the filter holds two. The mask returned is empty (zero
+        // survivors), matching the non-early-exit semantics so behavior is preserved.
+        long[] values = { 10L, 20L, 30L };
+        Block block = blockFactory.newLongArrayVector(values, values.length).asBlock();
+        Map<String, Block> blocks = Map.of("x", block);
+
+        Expression first = new Equals(Source.EMPTY, attr("x", DataType.LONG), lit(999L, DataType.LONG), null);
+        Expression second = new Equals(Source.EMPTY, attr("x", DataType.LONG), lit(20L, DataType.LONG), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(first, second));
+
+        WordMask result = pushed.evaluateFilter(blocks, 3, new WordMask());
+        assertNotNull("expected an empty mask, not null", result);
+        assertTrue("expected empty mask after first predicate eliminates all rows", result.isEmpty());
+        assertEquals("only first expression should have been evaluated", 1, pushed.lastExpressionsEvaluatedForTesting());
+    }
+
+    public void testEvaluateFilterEvaluatesAllExpressionsWhenSurvivorsRemain() {
+        // Companion test to the early-exit case: when each predicate leaves at least one
+        // survivor, the loop must evaluate every expression. Pins the contract that 6b only
+        // skips work when the cumulative mask is fully empty — never when it is just sparse.
+        long[] values = { 10L, 20L, 30L, 40L };
+        Block block = blockFactory.newLongArrayVector(values, values.length).asBlock();
+        Map<String, Block> blocks = Map.of("x", block);
+
+        Expression first = new GreaterThan(Source.EMPTY, attr("x", DataType.LONG), lit(10L, DataType.LONG), null);
+        Expression second = new LessThan(Source.EMPTY, attr("x", DataType.LONG), lit(40L, DataType.LONG), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(first, second));
+
+        WordMask result = pushed.evaluateFilter(blocks, 4, new WordMask());
+        assertNotNull(result);
+        assertArrayEquals(new int[] { 1, 2 }, result.survivingPositions());
+        assertEquals("both expressions should have been evaluated", 2, pushed.lastExpressionsEvaluatedForTesting());
     }
 
     // ---- Test 7: StartsWith ----

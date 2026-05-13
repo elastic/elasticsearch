@@ -19,6 +19,7 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.plugins.Plugin;
@@ -83,6 +84,33 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
 
         DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
         assertNotNull(mapper);
+        assertThat(mapper.fieldType().getIndexOptions(), instanceOf(DenseVectorFieldMapper.BBQIVFIndexOptions.class));
+        assertEquals(DenseVectorFieldMapper.VectorIndexType.BBQ_DISK, mapper.fieldType().getIndexOptions().getType());
+    }
+
+    public void testDefaultsToBBQDiskInVectordbDocumentIndexMode() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vectordb_document").build();
+        MapperService mapperService = createMapperService(
+            getVersion(),
+            settings,
+            () -> true,
+            fieldMapping(b -> b.field("type", "dense_vector"))
+        );
+
+        // Index the first document so dims gets set via dynamic mapping update;
+        // default index_options selection is deferred until dims is configured.
+        final int dims = randomIntBetween(1, 4096);
+        final float[] vector = new float[dims];
+        for (int i = 0; i < dims; i++) {
+            vector[i] = randomFloat();
+        }
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", vector)));
+        mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
+
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
+        assertNotNull(mapper);
+        assertEquals(DenseVectorFieldMapper.ElementType.BFLOAT16, mapper.fieldType().getElementType());
+        assertEquals(dims, mapper.fieldType().getVectorDimensions());
         assertThat(mapper.fieldType().getIndexOptions(), instanceOf(DenseVectorFieldMapper.BBQIVFIndexOptions.class));
         assertEquals(DenseVectorFieldMapper.VectorIndexType.BBQ_DISK, mapper.fieldType().getIndexOptions().getType());
     }

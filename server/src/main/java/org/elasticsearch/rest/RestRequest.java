@@ -414,6 +414,32 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     /**
+     * Decodes an {@code application/x-www-form-urlencoded} request body and adds
+     * the resulting parameters to this request.
+     * <p>
+     * Form-body parameters must not use the same names as existing URI or path parameters.
+     * Repeated parameters are supported within the form body itself. This consumes
+     * the request body so handlers can treat the decoded values like ordinary
+     * request parameters.
+     */
+    public void consumeFormEncodedBodyParameters() {
+        if (hasContent() == false) {
+            return;
+        }
+        final RequestParams formParams = RequestParams.fromQueryString(content().utf8ToString());
+        for (String key : formParams.keySet()) {
+            if (params.containsKey(key)) {
+                throw new IllegalArgumentException("form parameter [" + key + "] conflicts with an existing request parameter");
+            }
+        }
+        for (String key : formParams.keySet()) {
+            for (String value : formParams.getAll(key)) {
+                params.addValue(key, value);
+            }
+        }
+    }
+
+    /**
      * Returns all values for the given query parameter, preserving the order in which they appeared in the URL.
      * This is useful for parameters that may be repeated (e.g. {@code match[]=foo&match[]=bar}).
      * Unlike {@link #param(String)}, path parameters are not visible through this method.

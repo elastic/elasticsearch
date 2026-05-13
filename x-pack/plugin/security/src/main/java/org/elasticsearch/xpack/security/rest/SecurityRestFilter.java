@@ -17,11 +17,14 @@ import org.elasticsearch.rest.RestInterceptor;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestRequestFilter;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 
+import java.io.IOException;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
@@ -36,6 +39,7 @@ public class SecurityRestFilter implements RestInterceptor {
     private final boolean enabled;
     private final ThreadContext threadContext;
     private final OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService;
+    private final AuthenticationContextSerializer authenticationSerializer = new AuthenticationContextSerializer();
 
     public SecurityRestFilter(
         boolean enabled,
@@ -96,6 +100,20 @@ public class SecurityRestFilter implements RestInterceptor {
             aggregationCallback.accept(request);
         }
 
+    }
+
+    @Override
+    public boolean allowsBrowserSafelistedContentType(RestRequest request) {
+        if (enabled == false) {
+            return false;
+        }
+        try {
+            final Authentication authentication = authenticationSerializer.readFromContext(threadContext);
+            return authentication != null && authentication.getAuthenticationType() != Authentication.AuthenticationType.ANONYMOUS;
+        } catch (IOException e) {
+            logger.debug(() -> format("failed to read authentication for REST request [%s]", request.uri()), e);
+            return false;
+        }
     }
 
     private void doHandleRequest(RestRequest request, RestChannel channel, RestHandler targetHandler, ActionListener<Boolean> listener) {

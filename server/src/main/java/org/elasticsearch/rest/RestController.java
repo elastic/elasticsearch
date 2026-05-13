@@ -86,7 +86,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * list of browser safelisted media types - not allowed on Content-Type header
      * https://fetch.spec.whatwg.org/#cors-safelisted-request-header
      */
-    static final Set<String> SAFELISTED_MEDIA_TYPES = Set.of("application/x-www-form-urlencoded", "multipart/form-data", "text/plain");
+    static final String FORM_URLENCODED_MEDIA_TYPE = "application/x-www-form-urlencoded";
+    static final Set<String> SAFELISTED_MEDIA_TYPES = Set.of(FORM_URLENCODED_MEDIA_TYPE, "multipart/form-data", "text/plain");
 
     static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
     static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
@@ -416,11 +417,19 @@ public class RestController implements HttpServerTransport.Dispatcher {
         MethodHandlers methodHandlers,
         ThreadContext threadContext
     ) throws Exception {
+        final boolean consumeFormEncodedBodyParameters;
         if (request.hasContent()) {
-            if (isContentTypeDisallowed(request) || handler.mediaTypesValid(request) == false) {
+            final boolean isBrowserSafelistedContentType = isBrowserSafelistedContentType(request);
+            final boolean browserSafelistedContentTypeAllowed = isBrowserSafelistedContentType
+                && interceptor.allowsBrowserSafelistedContentType(request);
+            consumeFormEncodedBodyParameters = browserSafelistedContentTypeAllowed && isFormEncodedBody(request);
+            if ((isBrowserSafelistedContentType && browserSafelistedContentTypeAllowed == false)
+                || (consumeFormEncodedBodyParameters == false && handler.mediaTypesValid(request) == false)) {
                 sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), channel);
                 return;
             }
+        } else {
+            consumeFormEncodedBodyParameters = false;
         }
         RestChannel responseChannel = channel;
         if (apiProtections.isEnabled()) {
@@ -460,6 +469,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 // request as a serverless mode request here, so downstream handlers can use the marker
                 request.markAsServerlessRequest();
                 logger.trace("Marked request for uri [{}] as serverless request", request.uri());
+            }
+
+            if (consumeFormEncodedBodyParameters) {
+                request.consumeFormEncodedBodyParameters();
             }
 
             final var finalChannel = responseChannel;
@@ -503,14 +516,17 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     /**
-     * in order to prevent CSRF we have to reject all media types that are from a browser safelist
-     * see https://fetch.spec.whatwg.org/#cors-safelisted-request-header
-     * see https://www.elastic.co/blog/strict-content-type-checking-for-elasticsearch-rest-requests
-     * @param request
+     * Browser-safelisted content types can be submitted cross-origin without a CORS preflight.
+     * See https://fetch.spec.whatwg.org/#cors-safelisted-request-header.
      */
-    private static boolean isContentTypeDisallowed(RestRequest request) {
+    private static boolean isBrowserSafelistedContentType(RestRequest request) {
         return request.getParsedContentType() != null
             && SAFELISTED_MEDIA_TYPES.contains(request.getParsedContentType().mediaTypeWithoutParameters());
+    }
+
+    private static boolean isFormEncodedBody(RestRequest request) {
+        return request.getParsedContentType() != null
+            && FORM_URLENCODED_MEDIA_TYPE.equals(request.getParsedContentType().mediaTypeWithoutParameters());
     }
 
     private boolean handleNoHandlerFound(

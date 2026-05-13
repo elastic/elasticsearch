@@ -11,6 +11,7 @@ package org.elasticsearch.rest;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -76,6 +77,7 @@ import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER_
 import static org.elasticsearch.rest.RestController.HANDLER_NAME_KEY;
 import static org.elasticsearch.rest.RestController.REQUEST_METHOD_KEY;
 import static org.elasticsearch.rest.RestController.STATUS_CODE_KEY;
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.OPTIONS;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -1098,6 +1100,115 @@ public class RestControllerTests extends ESTestCase {
         );
     }
 
+    public void testDispatchAllowsFormEncodedBodyWhenInterceptorAllowsSafelistedContentType() {
+        final RestController restController = restControllerAllowingSafelistedContentTypes();
+        final RestHandler handler = new FormEncodedHandler(request -> {
+            assertThat(request.param("query"), equalTo("from_body"));
+            assertThat(request.repeatedParamAsList("match[]"), equalTo(List.of("from_body_one", "from_body_two")));
+        });
+        restController.registerHandler(new Route(POST, "/form"), handler);
+
+        final RestRequest request = formRequest(
+            POST,
+            "/form",
+            "query=from_body&match%5B%5D=from_body_one&match%5B%5D=from_body_two",
+            RestController.FORM_URLENCODED_MEDIA_TYPE
+        );
+
+        final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.OK);
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+        assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testDispatchAllowsFormEncodedBodyForAnyMethodWhenInterceptorAllowsSafelistedContentType() {
+        final RestController restController = restControllerAllowingSafelistedContentTypes();
+        restController.registerHandler(
+            new Route(DELETE, "/form"),
+            new FormEncodedHandler(request -> assertThat(request.param("query"), equalTo("from_body")))
+        );
+
+        final RestRequest request = formRequest(DELETE, "/form", "query=from_body", RestController.FORM_URLENCODED_MEDIA_TYPE);
+        final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.OK);
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+        assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testDispatchRejectsFormEncodedBodyWhenInterceptorRejectsSafelistedContentType() {
+        final RestController restController = new RestController(null, client, circuitBreakerService, usageService, telemetryProvider);
+        restController.registerHandler(new Route(POST, "/form"), (request, channel, client) -> fail("handler should not be called"));
+
+        final RestRequest request = formRequest(POST, "/form", "query=from_body", RestController.FORM_URLENCODED_MEDIA_TYPE);
+        final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.NOT_ACCEPTABLE);
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+        assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testDispatchRejectsOtherSafelistedBodyTypesWhenHandlerDoesNotAcceptThem() {
+        final RestController restController = restControllerAllowingSafelistedContentTypes();
+        restController.registerHandler(
+            new Route(POST, "/form"),
+            new FormEncodedHandler(request -> fail("handler should not receive non-form safelisted content"))
+        );
+
+        for (String mediaType : List.of("multipart/form-data", "text/plain")) {
+            final RestRequest request = formRequest(POST, "/form", "query=from_body", mediaType);
+            final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.NOT_ACCEPTABLE);
+            restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+            assertTrue(channel.getSendResponseCalled());
+        }
+    }
+
+    public void testDispatchAllowsSafelistedBodyTypesWhenHandlerAcceptsThem() {
+        final RestController restController = restControllerAllowingSafelistedContentTypes();
+        restController.registerHandler(new Route(POST, "/plain"), new RestHandler() {
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
+                channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            }
+
+            @Override
+            public boolean mediaTypesValid(RestRequest request) {
+                return request.getParsedContentType() != null
+                    && request.getParsedContentType().mediaTypeWithoutParameters().equals("text/plain");
+            }
+        });
+
+        final RestRequest request = formRequest(POST, "/plain", "plain text", "text/plain");
+        final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.OK);
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+        assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testDispatchRejectsDuplicateFormEncodedBodyParameters() {
+        final RestController restController = restControllerAllowingSafelistedContentTypes();
+        restController.registerHandler(
+            new Route(POST, "/form"),
+            new FormEncodedHandler(request -> fail("duplicate form-encoded parameter should be rejected before the handler is called"))
+        );
+
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/form")
+            .withMethod(POST)
+            .withMultiParams(RequestParams.fromQueryString("query=from_uri"))
+            .withContent(new BytesArray("query=from_body"), null)
+            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList(RestController.FORM_URLENCODED_MEDIA_TYPE)))
+            .build();
+
+        final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.BAD_REQUEST);
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+        assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testDispatchRejectsMalformedFormEncodedBody() {
+        final RestController restController = restControllerAllowingSafelistedContentTypes();
+        restController.registerHandler(new Route(POST, "/form"), new FormEncodedHandler(request -> {}));
+
+        final RestRequest request = formRequest(POST, "/form", "query=%", RestController.FORM_URLENCODED_MEDIA_TYPE);
+
+        final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.BAD_REQUEST);
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+        assertTrue(channel.getSendResponseCalled());
+    }
+
     public void testRegisterWithReservedPath() {
         final RestController restController = new RestController(null, client, circuitBreakerService, usageService, telemetryProvider);
         for (String path : RestController.RESERVED_PATHS) {
@@ -1199,6 +1310,57 @@ public class RestControllerTests extends ESTestCase {
 
         // Multi-values must survive the per-iteration reset that PathTrie triggers
         assertThat(params.getAll("format"), equalTo(List.of("json", "yaml")));
+    }
+
+    private RestController restControllerAllowingSafelistedContentTypes() {
+        return new RestController(new RestInterceptor() {
+            @Override
+            public void intercept(RestRequest request, RestChannel channel, RestHandler targetHandler, ActionListener<Boolean> listener) {
+                listener.onResponse(Boolean.TRUE);
+            }
+
+            @Override
+            public boolean allowsBrowserSafelistedContentType(RestRequest request) {
+                return true;
+            }
+        }, client, circuitBreakerService, usageService, telemetryProvider);
+    }
+
+    private RestRequest formRequest(RestRequest.Method method, String path, String body, String contentType) {
+        return new FakeRestRequest.Builder(xContentRegistry()).withPath(path)
+            .withMethod(method)
+            .withContent(new BytesArray(body), null)
+            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList(contentType)))
+            .build();
+    }
+
+    private static final class FormEncodedHandler extends BaseRestHandler {
+        private final Consumer<RestRequest> requestAssertions;
+
+        private FormEncodedHandler(Consumer<RestRequest> requestAssertions) {
+            this.requestAssertions = requestAssertions;
+        }
+
+        @Override
+        public String getName() {
+            return "formEncodedHandler";
+        }
+
+        @Override
+        public List<Route> routes() {
+            return List.of();
+        }
+
+        @Override
+        public boolean canTripCircuitBreaker() {
+            return false;
+        }
+
+        @Override
+        protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+            requestAssertions.accept(request);
+            return channel -> channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+        }
     }
 
     @ServerlessScope(Scope.PUBLIC)

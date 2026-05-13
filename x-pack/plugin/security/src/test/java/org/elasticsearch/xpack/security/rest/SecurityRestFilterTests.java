@@ -195,6 +195,30 @@ public class SecurityRestFilterTests extends ESTestCase {
         verifyNoMoreInteractions(channel, authcService);
     }
 
+    public void testAllowsBrowserSafelistedContentTypeRequiresSecurityEnabled() throws Exception {
+        Authentication authentication = AuthenticationTestHelper.builder().realm().build(false);
+        authentication.writeToContext(threadContext);
+        RestRequest request = mock(RestRequest.class);
+
+        assertThat(filter.allowsBrowserSafelistedContentType(request), is(true));
+
+        filter = new SecurityRestFilter(false, threadContext, secondaryAuthenticator, mock(AuditTrailService.class), null);
+        assertThat(filter.allowsBrowserSafelistedContentType(request), is(false));
+    }
+
+    public void testAllowsBrowserSafelistedContentTypeRequiresAuthenticatedUser() {
+        RestRequest request = mock(RestRequest.class);
+        assertThat(filter.allowsBrowserSafelistedContentType(request), is(false));
+    }
+
+    public void testAllowsBrowserSafelistedContentTypeRejectsAnonymousAuthentication() throws Exception {
+        Authentication authentication = AuthenticationTestHelper.builder().anonymous().build(false);
+        authentication.writeToContext(threadContext);
+        RestRequest request = mock(RestRequest.class);
+
+        assertThat(filter.allowsBrowserSafelistedContentType(request), is(false));
+    }
+
     public void testProcessOptionsMethod() throws Exception {
         FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(RestRequest.Method.OPTIONS).build();
         when(channel.request()).thenReturn(request);

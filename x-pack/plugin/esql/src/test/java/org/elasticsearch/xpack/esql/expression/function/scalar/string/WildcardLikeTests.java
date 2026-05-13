@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.hamcrest.Matcher;
 import org.junit.AfterClass;
 
 import java.util.ArrayList;
@@ -30,6 +31,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.expression.function.DocsV3Support.renderNegatedOperator;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -47,7 +49,15 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
             }
             return str;
         };
-        List<Object[]> cases = (List<Object[]>) RLikeTests.parameters(escapeString, () -> "*");
+        // The shared suppliers in RLikeTests only emit `<text>*` prefix shapes via the `optionalPattern=() -> "*"` argument,
+        // so the WildcardLike fast paths visible here are StartsWith and (for the empty optional) AutomataMatch. Contains
+        // is not reachable from these suppliers and so is not in the matcher.
+        Matcher<String> evaluatorMatcher = anyOf(
+            startsWith("AutomataMatchEvaluator[input=Attribute[channel=0], pattern=digraph Automaton {\n"),
+            startsWith("StartsWithEvaluator[str=Attribute[channel=0], prefix="),
+            startsWith("EndsWithEvaluator[str=Attribute[channel=0], suffix=")
+        );
+        List<Object[]> cases = (List<Object[]>) RLikeTests.parameters(escapeString, () -> "*", evaluatorMatcher);
 
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         addCases(suppliers);

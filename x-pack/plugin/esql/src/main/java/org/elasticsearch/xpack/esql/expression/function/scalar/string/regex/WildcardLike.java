@@ -186,11 +186,12 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
     /**
      * Byte-level substring search emulating {@code LIKE "*literal*"}. Naive
      * scan: at each candidate starting position, compare against the pattern
-     * bytes until a mismatch or full match. For short literals the cost is
-     * dominated by the outer loop over input bytes — which is also what
-     * {@code RunAutomaton.step} pays, minus the automaton state-machine
-     * overhead and the UTF-8&rarr;UTF-16 decode that {@code AutomataMatch}
-     * performs per row.
+     * bytes until a mismatch or full match. Both this path and
+     * {@code AutomataMatch} walk UTF-8 input bytes directly (UTF-8 is
+     * self-synchronizing, so a byte-level substring search is correct), so
+     * the fast path's saving comes from replacing the per-byte
+     * {@code RunAutomaton.step} state-machine walk with a JIT-friendly
+     * first-byte filter and tight inner compare.
      */
     @Evaluator(extraName = "Contains")
     static boolean processContains(BytesRef str, @Fixed BytesRef pattern) {

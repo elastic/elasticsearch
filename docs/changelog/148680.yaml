@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 148680
+summary: Byte-scan fast paths for prefix/suffix/contains `LIKE` patterns
+type: enhancement

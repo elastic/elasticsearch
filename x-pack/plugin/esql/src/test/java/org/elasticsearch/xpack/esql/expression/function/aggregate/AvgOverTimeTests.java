@@ -28,6 +28,9 @@ public class AvgOverTimeTests extends AbstractAggregationTestCase {
 
     public AvgOverTimeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
+        if (testCase.getData().getFirst().type().isHistogram()) {
+            testCase = testCase.withInjectNullTemporality();
+        }
     }
 
     @ParametersFactory

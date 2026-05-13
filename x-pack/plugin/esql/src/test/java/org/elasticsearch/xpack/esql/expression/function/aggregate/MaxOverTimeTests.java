@@ -25,6 +25,9 @@ import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.
 public class MaxOverTimeTests extends AbstractAggregationTestCase {
     public MaxOverTimeTests(Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         testCase = testCaseSupplier.get();
+        if (testCase.getData().getFirst().type().isHistogram()) {
+            testCase = testCase.withInjectNullTemporality();
+        }
     }
 
     @ParametersFactory

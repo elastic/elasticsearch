@@ -87,6 +87,8 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         return parameterSuppliersFromTypedData(withNoRowsExpectingNull(randomizeBytesRefsOffset(suppliers)));
     }
 
+
+
     protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(List<TestCaseSupplier> suppliers) {
         return parameterSuppliersFromTypedData(withNoRowsExpectingNull(randomizeBytesRefsOffset(suppliers)));
     }
@@ -358,6 +360,20 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             return;
         }
 
+        // Inject a constant-null temporality into TemporalityAware aggregations, simulating InjectTemporality.
+        // TemporalityAware aggs may be introduced during surrogate replacement (e.g. DeltaOnlyHistogramMergeOverTime).
+        Expression temporalityField = null;
+        if (testCase.injectNullTemporality()) {
+            temporalityField = AbstractFunctionTestCase.field("_temporality", DataType.KEYWORD);
+            Expression tf = temporalityField;
+            expression = expression.transformUp(AggregateFunction.class, agg -> {
+                if (agg instanceof TemporalityAware ta && ta.temporality() == null) {
+                    return ta.withTemporality(tf);
+                }
+                return agg;
+            });
+        }
+
         boolean isExecutableAgg = expression instanceof AggregateFunction
             && expression.children()
                 .stream()
@@ -397,6 +413,12 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                 } else {
                     literalsByField.put(field, data.asLiteral());
                 }
+            }
+
+            // Provide a constant-null block for the injected temporality field if required
+            if (temporalityField != null) {
+                int rowCount = testCase.getMultiRowFields().getFirst().multiRowData().size();
+                blocksByField.put(temporalityField, driverContext().blockFactory().newConstantNullBlock(rowCount));
             }
 
             // Resolve agg children and store their results in the literal/blocks maps
@@ -595,7 +617,11 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
 
     private List<Integer> initialInputChannels() {
         // TODO: Randomize channels. If surrogated, channels may change
-        return IntStream.range(0, testCase.getMultiRowFields().size()).boxed().toList();
+        int count = testCase.getMultiRowFields().size();
+        if (testCase.injectNullTemporality()) {
+            count++;
+        }
+        return IntStream.range(0, count).boxed().toList();
     }
 
     private List<Integer> intermediaryInputChannels(int intermediaryStates, int offset) {

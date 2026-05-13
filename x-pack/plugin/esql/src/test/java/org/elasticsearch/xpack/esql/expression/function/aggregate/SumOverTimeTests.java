@@ -37,6 +37,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class SumOverTimeTests extends AbstractAggregationTestCase {
     public SumOverTimeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
+        if (testCase.getData().getFirst().type().isHistogram()) {
+            testCase = testCase.withInjectNullTemporality();
+        }
     }
 
     @ParametersFactory

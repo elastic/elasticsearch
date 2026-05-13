@@ -21,6 +21,9 @@ import java.util.function.Supplier;
 public class PercentileOverTimeTests extends AbstractAggregationTestCase {
     public PercentileOverTimeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
+        if (testCase.getData().getFirst().type().isHistogram()) {
+            testCase = testCase.withInjectNullTemporality();
+        }
     }
 
     @Override

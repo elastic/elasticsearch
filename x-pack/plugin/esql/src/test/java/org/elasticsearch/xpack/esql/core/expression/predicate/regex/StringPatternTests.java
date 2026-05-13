@@ -131,6 +131,57 @@ public class StringPatternTests extends ESTestCase {
         assertEquals("*", like("\\*").extractSuffix());
     }
 
+    public void testMatchesPrefix() {
+        assertEquals("foo", like("foo*").matchesPrefix());
+        assertEquals("", like("*").matchesPrefix());
+        assertEquals("foo*", like("foo\\**").matchesPrefix());
+        assertEquals("foo?", like("foo\\?*").matchesPrefix());
+        assertEquals("café", like("café*").matchesPrefix());
+
+        assertNull(like("").matchesPrefix());
+        assertNull(like("foo").matchesPrefix());
+        assertNull(like("*foo").matchesPrefix());
+        assertNull(like("foo*bar").matchesPrefix());
+        assertNull(like("*foo*").matchesPrefix());
+        assertNull(like("foo?*").matchesPrefix());
+        assertNull(like("foo*bar*").matchesPrefix());
+        assertNull(like("foo\\*").matchesPrefix());
+    }
+
+    public void testMatchesSuffix() {
+        assertEquals("bar", like("*bar").matchesSuffix());
+        assertEquals("", like("*").matchesSuffix());
+        assertEquals("*bar", like("*\\*bar").matchesSuffix());
+        assertEquals("?bar", like("*\\?bar").matchesSuffix());
+        assertEquals("café", like("*café").matchesSuffix());
+
+        assertNull(like("").matchesSuffix());
+        assertNull(like("bar").matchesSuffix());
+        assertNull(like("foo*").matchesSuffix());
+        assertNull(like("foo*bar").matchesSuffix());
+        assertNull(like("*foo*").matchesSuffix());
+        assertNull(like("*foo?").matchesSuffix());
+        assertNull(like("*foo*bar").matchesSuffix());
+    }
+
+    public void testMatchesContains() {
+        assertEquals("foo", like("*foo*").matchesContains());
+        assertEquals("", like("**").matchesContains());
+        assertEquals("*", like("*\\**").matchesContains());
+        assertEquals("?", like("*\\?*").matchesContains());
+        assertEquals("\\", like("*\\\\*").matchesContains());
+        assertEquals("café", like("*café*").matchesContains());
+
+        assertNull(like("").matchesContains());
+        assertNull(like("*").matchesContains());
+        assertNull(like("foo").matchesContains());
+        assertNull(like("foo*").matchesContains());
+        assertNull(like("*foo").matchesContains());
+        assertNull(like("*foo*bar*").matchesContains());
+        assertNull(like("*foo?bar*").matchesContains());
+        assertNull(like("*foo\\*").matchesContains());
+    }
+
     public void testTooComplexPattern() {
         var e = expectThrows(IllegalArgumentException.class, () -> rlike("(a|b)*a(a|b){13}").createAutomaton(false));
         assertEquals("Pattern was too complex to determinize", e.getMessage());

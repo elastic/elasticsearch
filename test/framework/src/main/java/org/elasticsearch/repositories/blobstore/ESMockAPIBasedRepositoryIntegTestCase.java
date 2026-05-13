@@ -83,8 +83,6 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     private static ExecutorService executorService;
     protected Map<String, HttpHandler> handlers;
 
-    protected boolean applyErroneousHttpHandler = randomBoolean();
-
     private static final Logger log = LogManager.getLogger(ESMockAPIBasedRepositoryIntegTestCase.class);
 
     @BeforeClass
@@ -120,7 +118,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     @Before
     public void setUpHttpServer() {
         handlers = new HashMap<>(createHttpHandlers());
-        handlers.replaceAll((k, h) -> wrap(applyErroneousHttpHandler ? createErroneousHttpHandler(h) : h, logger));
+        handlers.replaceAll((k, h) -> wrap(randomBoolean() ? createErroneousHttpHandler(h) : h, logger));
         handlers.forEach(httpServer::createContext);
     }
 
@@ -320,7 +318,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
 
                 final boolean canFailRequest = canFailRequest(exchange);
                 final int count = requests.computeIfAbsent(requestId, req -> new AtomicInteger(0)).incrementAndGet();
-                if (applyMaxErrorsPerRequest() && count >= maxErrorsPerRequest || canFailRequest == false) {
+                if (count >= maxErrorsPerRequest || canFailRequest == false) {
                     requests.remove(requestId);
                     delegate.handle(exchange);
                 } else {
@@ -349,10 +347,6 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         protected abstract String requestUniqueId(HttpExchange exchange);
 
         protected boolean canFailRequest(final HttpExchange exchange) {
-            return true;
-        }
-
-        protected boolean applyMaxErrorsPerRequest() {
             return true;
         }
 

@@ -36,6 +36,13 @@ dependencies {
   runtimeOnly "io.opentelemetry:opentelemetry-exporter-sender-jdk:${otelVersion}"
   runtimeOnly "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure-spi:${otelVersion}"
   runtimeOnly "co.elastic.apm:elastic-apm-agent-java8:1.55.0"
+  // OTel's okhttp-based sender — provides both HttpSenderProvider and GrpcSenderProvider
+  // (the latter implements OTLP/gRPC framing directly on okhttp's HTTP/2 transport, with no
+  // dependency on grpc-java). This is what OtlpGrpcLogRecordExporter uses at runtime.
+  runtimeOnly "io.opentelemetry:opentelemetry-exporter-sender-okhttp:${otelVersion}"
+  // okhttp 5.x ships as Kotlin multiplatform; the JVM-specific jar is okhttp-jvm.
+  runtimeOnly "com.squareup.okhttp3:okhttp-jvm:5.3.2"
+  runtimeOnly "com.squareup.okio:okio-jvm:3.16.4"
 
   testImplementation "io.opentelemetry:opentelemetry-sdk-testing:${otelVersion}"
 
@@ -51,10 +58,27 @@ tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
     'com.fasterxml.jackson.core.JsonFactory',
     'com.fasterxml.jackson.core.JsonGenerator',
+    // Optional Guava class referenced by some OTel marshal code paths we don't exercise.
     'com.google.common.io.ByteStreams',
+    // OTel sender has a code path that handles io.grpc.* types if grpc-java is on the
+    // classpath. We use okhttp instead, so these aren't present.
     'io.grpc.Drainable',
     'io.grpc.KnownLength',
-    'io.grpc.ManagedChannel'
+    'io.grpc.ManagedChannel',
+    // okio.Socket is a JVM-21-specific okio class; only loaded conditionally.
+    'okio.Socket',
+    // okhttp's TLS provider integrations — only used if these providers are on the
+    // classpath, which they aren't in our deployment (we use the JDK's default SSL).
+    'org.bouncycastle.jsse.BCSSLParameters',
+    'org.bouncycastle.jsse.BCSSLSocket',
+    'org.conscrypt.Conscrypt',
+    'org.conscrypt.Conscrypt$Version',
+    'org.conscrypt.ConscryptHostnameVerifier',
+    'org.openjsse.javax.net.ssl.SSLParameters',
+    'org.openjsse.javax.net.ssl.SSLSocket',
+    // okhttp's GraalVM native-image hooks; not relevant on the JVM.
+    'org.graalvm.nativeimage.hosted.Feature',
+    'org.graalvm.nativeimage.hosted.Feature$BeforeAnalysisAccess'
   )
 }
 

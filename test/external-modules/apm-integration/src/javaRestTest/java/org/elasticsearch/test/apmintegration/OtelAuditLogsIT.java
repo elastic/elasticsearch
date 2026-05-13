@@ -59,7 +59,8 @@ public class OtelAuditLogsIT extends AbstractTelemetryIT {
         .setting("xpack.security.audit.logfile.emit_cluster_name", "false")
         .setting("xpack.security.audit.logfile.emit_cluster_uuid", "false")
         .setting("telemetry.otel.logs.enabled", "true")
-        .setting("telemetry.otel.logs.endpoint", () -> "http://" + recordingApmServer.getHttpAddress() + "/v1/logs")
+        // OTLP/gRPC endpoint: scheme http, no path (different shape than HTTP-protobuf endpoint).
+        .setting("telemetry.otel.logs.endpoint", () -> recordingApmServer.getGrpcEndpoint())
         .user(API_USER, "api-password", "superuser", false)
         .build();
 

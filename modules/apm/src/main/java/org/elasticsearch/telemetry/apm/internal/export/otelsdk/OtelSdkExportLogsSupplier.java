@@ -9,8 +9,8 @@
 
 package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
-import io.opentelemetry.exporter.otlp.http.logs.OtlpHttpLogRecordExporter;
-import io.opentelemetry.exporter.otlp.http.logs.OtlpHttpLogRecordExporterBuilder;
+import io.opentelemetry.exporter.otlp.logs.OtlpGrpcLogRecordExporter;
+import io.opentelemetry.exporter.otlp.logs.OtlpGrpcLogRecordExporterBuilder;
 import io.opentelemetry.instrumentation.log4j.appender.v2_17.OpenTelemetryAppender;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.logs.SdkLoggerProvider;
@@ -38,7 +38,10 @@ import java.util.concurrent.TimeUnit;
  * resolve it from a config file. Doing it programmatically here means the appender is created
  * after this module's classloader is in scope, sidestepping the discovery issue.
  *
- * <p>POC scope: HTTP transport only, no mTLS, default {@link BatchLogRecordProcessor} settings.
+ * <p>POC scope: gRPC transport, no mTLS, default {@link BatchLogRecordProcessor} settings.
+ * gRPC (not HTTP) is required by the otel-delivery-gateway: HTTP clients reuse long-lived
+ * connections, leading to uneven load distribution behind Kubernetes services. See §2.5 and
+ * §4.16 of {@code docs/internal/otel-audit-logging-poc.md}.
  */
 public class OtelSdkExportLogsSupplier implements Closeable {
 
@@ -74,7 +77,7 @@ public class OtelSdkExportLogsSupplier implements Closeable {
             throw new IllegalStateException("telemetry.otel.logs.enabled=true requires telemetry.otel.logs.endpoint to be configured");
         }
 
-        OtlpHttpLogRecordExporterBuilder exporterBuilder = OtlpHttpLogRecordExporter.builder().setEndpoint(endpoint);
+        OtlpGrpcLogRecordExporterBuilder exporterBuilder = OtlpGrpcLogRecordExporter.builder().setEndpoint(endpoint);
         String authHeader = OtelSdkExportMeterSupplier.buildOtlpAuthorizationHeader(settings);
         if (authHeader != null) {
             exporterBuilder.addHeader("Authorization", authHeader);

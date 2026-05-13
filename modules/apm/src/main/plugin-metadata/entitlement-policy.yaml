@@ -1,4 +1,4 @@
-# These can be removed once the APM Agent is fully deprecated
+# These can be removed once the APM Agent is removed
 org.elasticsearch.telemetry.apm:
   - create_class_loader
   - write_system_properties:
@@ -97,4 +97,11 @@ io.opentelemetry.instrumentation.runtime_telemetry:
   - manage_threads
 
 io.opentelemetry.sdk.common:
+  - manage_threads
+
+okhttp3:
+  - manage_threads
+  - outbound_network
+
+okio:
   - manage_threads

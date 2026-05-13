@@ -64,13 +64,17 @@ The application identifies itself to the `otel-delivery-gateway` with a client c
 
 Source: Gateway TDD §"OTel log delivery pipeline on ECP", subsection "Authentication & authorization".
 
-### <a id="sec-2-5"></a>2.5 R5: Transport over OTLP
+### <a id="sec-2-5"></a>2.5 R5: Transport over OTLP/gRPC
 
-*Satisfied ([§3.5](#sec-3-5)).*
+*Partially satisfied: wire format is OTLP (PoC uses HTTP-protobuf today); switching the transport to gRPC is open work ([§4.16](#sec-4-16)).*
 
-Wire transport is OTLP. The PoC already uses OTLP/HTTP-protobuf, the planned production target. The Gateway TDD parenthetically writes "via the otlp protocol (grpc)"; the project's stance is to push back on gRPC and stay on HTTP unless a concrete reason for gRPC surfaces.
+Wire transport is OTLP. The PoC currently uses OTLP/HTTP-protobuf; production requires **gRPC**, per Julio Camarero ([#log-delivery-project-team, 2026-05-13](https://elastic.slack.com/archives/C09PANY7FFS/p1778657565867949)):
 
-Sources: Gateway TDD §"How services emit (audit) log records": *"Must emit logs through the otlp protocol, on the network, towards the local otel-delivery-gateway service"*; §"OTel log delivery pipeline on ECP": *"via the otlp protocol (grpc)"* (parenthetical, not load-bearing).
+> Hey Patrick, it was HTTP initially, but we had to change it to gRPC. When testing autoscaling of the gateway, we realized that HTTP clients often reused long-lived connections, which lead to uneven distribution of the load behind kubernetes services, and even after adding more replicas to the gateway, all the HTTP Clients kept making requests to the first one. (This is a [known issue](https://github.com/open-telemetry/opentelemetry-collector/issues/9211) of the opentelemetry-collector). There are more details [here](https://github.com/elastic/otel-delivery-gateway/pull/133).
+
+So gRPC is a load-balancing-correctness requirement for the gateway behind k8s services, not a protocol-feature preference. Earlier framing in this doc ("push back on gRPC unless a concrete reason surfaces") is superseded.
+
+Sources: Gateway TDD §"How services emit (audit) log records": *"Must emit logs through the otlp protocol, on the network, towards the local otel-delivery-gateway service"*; §"OTel log delivery pipeline on ECP": *"via the otlp protocol (grpc)"*; Julio Camarero's 2026-05-13 message above.
 
 ### <a id="sec-2-6"></a>2.6 R6: Strip cluster identity fields on serverless
 
@@ -227,7 +231,7 @@ This is a property we *inherit* from the OTel SDK, not one we engineered into ES
 ### <a id="sec-3-5"></a>3.5 Other tests (no regressions)
 
 - `:modules:apm:thirdPartyAudit` runs clean: no jar-hell or banned-API regression from the new `opentelemetry-sdk-logs` and `opentelemetry-log4j-appender-2.17` dependencies. (See [Appendix A.3](#sec-a-3) for the jar-hell episode that drove the module placement.)
-- **OTLP/HTTP-protobuf wire encoding** is what the PoC actually uses, matching the planned production target. Exporter: `OtlpHttpLogRecordExporter.builder().setEndpoint(endpoint)` in `OtelSdkExportLogsSupplier`; the default encoding for that class is protobuf, not JSON. Confirmed on the receiving side by `OtlpLogsParser.parse(...)` which deserializes via `ExportLogsServiceRequest.parseFrom(InputStream)` (protobuf).
+- **OTLP/HTTP-protobuf wire encoding** is what the PoC uses today. Exporter: `OtlpHttpLogRecordExporter.builder().setEndpoint(endpoint)` in `OtelSdkExportLogsSupplier`; the default encoding for that class is protobuf, not JSON. Confirmed on the receiving side by `OtlpLogsParser.parse(...)` which deserializes via `ExportLogsServiceRequest.parseFrom(InputStream)` (protobuf). Production now requires gRPC instead of HTTP-protobuf; switching the exporter is open work ([§4.16](#sec-4-16)).
 - `OtelSdkExportLogsSupplierTests` 7/7 passing; covers install/uninstall lifecycle of the supplier (idempotent install, detach on close, behavior when audit logger config is absent).
 - ES boots cleanly under `./gradlew run` with audit and OTel logs enabled. The supplier emits `OTel SDK logs export installed; endpoint=...`, and the node reaches `started`.
 - `manage_threads` entitlement registered in `modules/apm/src/main/plugin-metadata/entitlement-policy.yaml` for `io.opentelemetry.sdk.logs`. Without this, `BatchLogRecordProcessor`'s worker thread fails to start with `NotEntitledException`. (See [Appendix B](#sec-appendix-b).)
@@ -361,6 +365,17 @@ Audit logging in ES already has the relevant knobs: `xpack.security.audit.enable
 
 This is significant structural work relative to the apparent ask ("let the customer turn audit logging on or off per project"). R8 ([§4.8](#sec-4-8)) and R12 ([§4.9](#sec-4-9)) both inherit this cost. Worth surfacing to stakeholders before the work starts so they can weigh it against alternatives: e.g., cluster-wide audit configuration in serverless (which constrains the UX but avoids the per-project plumbing entirely), or scoping R8 narrowly to delivery-side filtering (drop on emit based on `project.id`) without exposing customer-facing per-project toggles in this round.
 
+### <a id="sec-4-16"></a>4.16 Switch transport from HTTP-protobuf to gRPC
+
+The PoC's `OtelSdkExportLogsSupplier` uses `OtlpHttpLogRecordExporter`, configured against an in-process recording server that decodes OTLP/HTTP-protobuf. Production requires **gRPC** for the ES → gateway hop, per Julio Camarero ([#log-delivery-project-team, 2026-05-13](https://elastic.slack.com/archives/C09PANY7FFS/p1778657565867949)): the gateway sits behind a Kubernetes service, and HTTP clients reuse long-lived connections, so even after the gateway scales horizontally all HTTP clients keep hitting the first replica. This is the upstream [opentelemetry-collector#9211](https://github.com/open-telemetry/opentelemetry-collector/issues/9211); the gateway-side fix is captured in [otel-delivery-gateway#133](https://github.com/elastic/otel-delivery-gateway/pull/133). So gRPC is required for load-balancing correctness, not protocol-feature preference.
+
+Implementation: swap `OtlpHttpLogRecordExporter` for `OtlpGrpcLogRecordExporter` (OTel-Java SDK has both). The change is small on its face — different builder, same `LogRecordExporter` interface, same `BatchLogRecordProcessor` wiring downstream.
+
+Open considerations for the switch:
+
+- **The recording-server testing question.** The PoC's `RecordingAPMServer` decodes HTTP-protobuf. Switching the production exporter to gRPC raises a question about whether the in-process test server needs to accept gRPC too, or whether HTTP-protobuf in tests + gRPC in production is acceptable since the HTTP/gRPC choice lives entirely inside the OTel SDK exporter (a component we don't own and don't need to test). Open; to be decided separately.
+- **Dependencies and entitlements.** gRPC pulls in `io.grpc` libraries; needs entitlement check (analogous to the `manage_threads` finding in Appendix B for `io.opentelemetry.sdk.logs`).
+
 **Customer-facing chain** (confirmed in [#log-delivery-project-team thread 2026-05-12](https://elastic.slack.com/archives/C8UUBNASY/p1778614283945929) and [its sub-thread](https://elastic.slack.com/archives/C8UUBNASY/p1778614459655819)): the customer's entry point is the Control Plane's Project API — specifically the public `PATCH /api/v1/serverless/projects/<type>/{id}` endpoint, already used today to enable audit logging at the project level. The API persists configuration in CosmosDB and propagates it via `elasticsearchappconfig` / `kibanaappconfig` Kubernetes resources to the regional `elasticsearch-controller` / `kibana-controller`, which renders per-project file settings into the cluster. ES reads via reserved-state handlers.
 
 **Two important constraints from that thread:**
@@ -453,7 +468,7 @@ Decisions that need to be made before further implementation work begins. Each i
 4. <a id="sec-6-1-4"></a>**R6 strip-fields placement ([§4.6](#sec-4-6)).** Use the existing `xpack.security.audit.logfile.emit_*` settings on serverless vs branch in `LoggingAuditTrail.EntryCommonFields` vs attribute filter on the OTel emit path. Doc leans toward the existing-settings option, which is already in place via `serverless-default-settings.yml` — ratify or revisit. *[Decided by: Core/Infra + serverless platform.]*
 5. <a id="sec-6-1-5"></a>**Where the SDK setup lives ([§5.3](#sec-5-3)).** Keep in `modules/apm/` or carve out a new `modules/customer-telemetry/`. Worth deciding before more audit-log code accumulates here. *[Decided by: Core/Infra.]*
 6. <a id="sec-6-1-6"></a>**`request.body` PII story ([§4.11](#sec-4-11)).** Default-off vs redaction vs sampling. Needs security review before the field can leave the cluster. *[Decided by: ES Security team. Discussion with: Core/Infra, otel-delivery-gateway team (storage and handling expectations downstream).]*
-7. <a id="sec-6-1-7"></a>**gRPC vs HTTP ([§2.5](#sec-2-5)).** Confirm with the gateway team that OTLP/HTTP-protobuf is acceptable; the gateway TDD parenthetically says gRPC. *[Decided by: otel-delivery-gateway team.]*
+7. <a id="sec-6-1-7"></a>**gRPC vs HTTP ([§2.5](#sec-2-5)).** ~~Confirm with the gateway team that OTLP/HTTP-protobuf is acceptable~~ **Resolved 2026-05-13**: gRPC is required for load-balancing correctness behind k8s services ([§4.16](#sec-4-16)). Implementation in [§6.2.13](#sec-6-2-13).
 8. <a id="sec-6-1-8"></a>**`LoggingAuditTrail` constructor ([§5.4](#sec-5-4)).** Inject `ProjectResolver` vs use the Audit TDD's `CustomAuditLoggingMetadataProvider` extension point vs keep the direct `ThreadContext` read. Doc recommends the extension point: it resolves the [§4.14](#sec-4-14) audit-auth divergence, the [§4.4](#sec-4-4) linked-side gap, and the [§4.13](#sec-4-13) ingress fragility uniformly. Effectively merges with [§6.1.10](#sec-6-1-10) if the extension point is chosen. *[Decided by: Core/Infra. Discussion with: Ankit Sethi (extension-point ownership).]*
 9. <a id="sec-6-1-9"></a>**Cloud API key audit shape ([§4.13](#sec-4-13)).** Decide what the `api_key.*` namespace should hold for Cloud-API-key-authenticated audit events, given the source values live in Cloud API key metadata (UIAM) rather than the regular API key store. Mostly an alignment conversation with the UIAM team; gates [6.2.12](#sec-6-2-12). *[Decided by: Slobodan Adamović / UIAM team. Discussion with: ES Security, Ankit Sethi.]*
 10. <a id="sec-6-1-10"></a>**Linked-side `project.id` mechanism ([§4.4](#sec-4-4)).** Pick the mechanism by which a CPS-linked cluster derives `project.id` on inbound cross-cluster traffic: cluster-config-derived from the linked cluster's `serverless.project_id` setting; cross-cluster transport propagation of the originator's ID as `originating_project.id`; or via `CustomAuditLoggingMetadataProvider`. The three options mirror those in [§6.1.8](#sec-6-1-8); resolving §6.1.8 in favor of the extension point collapses this decision into "implement the linked-side provider." Implementation follows in [6.2.11](#sec-6-2-11); gates [6.1.3](#sec-6-1-3). *[Decided by: CPS team. Discussion with: Ankit Sethi (if via the extension point), serverless platform.]*
@@ -473,6 +488,7 @@ Decisions that need to be made before further implementation work begins. Each i
 10. <a id="sec-6-2-10"></a>**Integration test against the real gateway ([§4.12](#sec-4-12)).** Add an IT that runs against the real `otel-delivery-gateway` component, alongside (not replacing) the existing in-process recording-server IT. Test-environment shape, what the IT validates, and ownership need alignment with the gateway team.
 11. <a id="sec-6-2-11"></a>**Populate `project.id` on linked-cluster audit events ([§4.4](#sec-4-4)).** Implementation follows from [6.1.10](#sec-6-1-10). Without this, [6.1.3](#sec-6-1-3) cannot be discussed concretely.
 12. <a id="sec-6-2-12"></a>**Decouple R3 chokepoint from the platform ingress ([§4.13](#sec-4-13)).** Source `project.id` from the UIAM auth context (`CloudAuthenticateProjectContext`) or from a per-node setting, in addition to or instead of the `X-Elastic-Project-Id` header. Implementation follows [6.1.9](#sec-6-1-9). Removes the assert in `LoggingAuditTrail.addAuthenticationFieldsToLogEntry` once the Cloud API key audit shape is finalized, and populates `api_key.id`/`api_key.name` on those events.
+13. <a id="sec-6-2-13"></a>**Switch the OTLP exporter from HTTP-protobuf to gRPC ([§4.16](#sec-4-16)).** Replace `OtlpHttpLogRecordExporter` with `OtlpGrpcLogRecordExporter` in `OtelSdkExportLogsSupplier`. Small mechanical change at the exporter; dependent considerations: the recording-server testing question (HTTP-protobuf in tests vs gRPC in tests) and any entitlement changes for the `io.grpc` libraries.
 
 ### <a id="sec-6-3"></a>6.3 Questions by audience
 
@@ -482,8 +498,8 @@ A routing view of [§6.1](#sec-6-1) and [§6.2](#sec-6-2): each subsection lists
 
 Largest set of asks — most are contract/coordination questions tied to specific work items.
 
-1. **OTLP/HTTP-protobuf vs gRPC.** Confirm HTTP-protobuf is acceptable for ES → gateway; the gateway TDD parenthetically says gRPC. ([§2.5](#sec-2-5), [§6.1.7](#sec-6-1-7))
-2. **mTLS contract.** What identity does the gateway expect on the client cert, and does our OTel-Java `OtlpHttpLogRecordExporterBuilder` expose client TLS directly or do we wrap the underlying HTTP client? ([§4.5](#sec-4-5), [§6.2.2](#sec-6-2-2))
+1. ~~**OTLP/HTTP-protobuf vs gRPC.**~~ **Resolved 2026-05-13:** gRPC required for load-balancing correctness behind k8s services. ([§2.5](#sec-2-5), [§4.16](#sec-4-16), [§6.2.13](#sec-6-2-13))
+2. **mTLS contract.** What identity does the gateway expect on the client cert, and does our OTel-Java exporter (now gRPC, [§6.2.13](#sec-6-2-13)) expose client TLS directly or do we wrap the underlying transport? ([§4.5](#sec-4-5), [§6.2.2](#sec-6-2-2))
 3. **Stdout fallback format.** What recognizable format should ES write to stdout when retries are exhausted? Format and the ingestion contract need agreement with the replay-service team below. ([§4.7](#sec-4-7), [§6.2.4](#sec-6-2-4))
 4. **Retry and buffer-size targets.** Confirm or revise the ~2 min retry / ~30–50 MB buffer values from the TDD. ([§4.10](#sec-4-10), [§6.2.7](#sec-6-2-7))
 5. **Real-gateway IT contract.** Test-environment shape, what the IT validates, ownership. ([§4.12](#sec-4-12), [§6.2.10](#sec-6-2-10))

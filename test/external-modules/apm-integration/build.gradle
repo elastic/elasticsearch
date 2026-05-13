@@ -35,4 +35,15 @@ dependencies {
   clusterModules project(':modules:apm')
   implementation project(':libs:logging')
   javaRestTestImplementation "io.opentelemetry.proto:opentelemetry-proto:1.7.0-alpha"
+  // gRPC server-side libraries for RecordingApmServer to accept OTLP/gRPC log exports.
+  // Version aligned with x-pack:plugin:esql-datasource-grpc and apm module's gRPC client.
+  javaRestTestImplementation "io.grpc:grpc-api:1.78.0"
+  javaRestTestImplementation "io.grpc:grpc-protobuf:1.78.0"
+  javaRestTestImplementation "io.grpc:grpc-stub:1.78.0"
+  javaRestTestRuntimeOnly "io.grpc:grpc-netty:1.78.0"
+  javaRestTestRuntimeOnly "io.grpc:grpc-core:1.78.0"
+  javaRestTestRuntimeOnly "io.netty:netty-codec-http2:${versions.netty}"
+  // gRPC pulls guava+failureaccess at runtime; needed for ThreadFactoryBuilder etc.
+  javaRestTestRuntimeOnly "com.google.guava:guava:33.4.0-jre"
+  javaRestTestRuntimeOnly "com.google.guava:failureaccess:1.0.2"
 }

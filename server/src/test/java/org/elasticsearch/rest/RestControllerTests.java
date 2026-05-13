@@ -76,6 +76,7 @@ import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER_
 import static org.elasticsearch.rest.RestController.HANDLER_NAME_KEY;
 import static org.elasticsearch.rest.RestController.REQUEST_METHOD_KEY;
 import static org.elasticsearch.rest.RestController.STATUS_CODE_KEY;
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.OPTIONS;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -1098,6 +1099,167 @@ public class RestControllerTests extends ESTestCase {
         );
     }
 
+    public void testFormEncodedBodySupportRequiresMatchingGetRoute() {
+        final RestController restController = new RestController(null, client, circuitBreakerService, usageService, telemetryProvider);
+        final RestHandler handler = new FormEncodedHandler(List.of(new Route(POST, "/form-only")));
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> restController.registerHandler(handler));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "handler [org.elasticsearch.rest.RestControllerTests$FormEncodedHandler] supports read-only form-encoded POST bodies "
+                    + "but route [POST /form-only] does not have a matching GET route"
+            )
+        );
+    }
+
+    public void testFormEncodedBodySupportRequiresMatchingGetRouteForReplacedRoutes() {
+        final RestController restController = new RestController(null, client, circuitBreakerService, usageService, telemetryProvider);
+        final RestHandler handler = new FormEncodedHandler(
+            List.of(
+                new Route(GET, "/form"),
+                Route.builder(POST, "/form").replaces(POST, "/old-form", RestApiVersion.minimumSupported()).build()
+            )
+        );
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> restController.registerHandler(handler));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "handler [org.elasticsearch.rest.RestControllerTests$FormEncodedHandler] supports read-only form-encoded POST bodies "
+                    + "but route [POST /old-form] does not have a matching GET route"
+            )
+        );
+    }
+
+    public void testFormEncodedBodySupportRejectsNonGetPostRoutes() {
+        final RestController restController = new RestController(null, client, circuitBreakerService, usageService, telemetryProvider);
+        final RestHandler handler = new FormEncodedHandler(
+            List.of(new Route(GET, "/form"), new Route(POST, "/form"), new Route(DELETE, "/form"))
+        );
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> restController.registerHandler(handler));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "handler [org.elasticsearch.rest.RestControllerTests$FormEncodedHandler] supports read-only form-encoded POST bodies "
+                    + "but route [DELETE /form] is not a GET or POST route"
+            )
+        );
+    }
+
+    public void testDispatchAllowsFormEncodedBodyForOptedInHandler() {
+        final RestController restController = new RestController(null, client, circuitBreakerService, usageService, telemetryProvider);
+        final RestHandler handler = new FormEncodedHandler(List.of(new Route(GET, "/form"), new Route(POST, "/form")), request -> {
+            assertThat(request.param("query"), equalTo("from_body"));
+            assertThat(request.repeatedParamAsList("match[]"), equalTo(List.of("from_body_one", "from_body_two")));
+        });
+        restController.registerHandler(handler);
+
+        final RestRequest request = formPostRequest(
+            "/form",
+            "query=from_body&match%5B%5D=from_body_one&match%5B%5D=from_body_two",
+            RestController.FORM_URLENCODED_MEDIA_TYPE
+        );
+
+        final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.OK);
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+        assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testDispatchRejectsFormEncodedBodyForNonOptedInHandler() {
+        final RestController restController = new RestController(null, client, circuitBreakerService, usageService, telemetryProvider);
+        restController.registerHandler(new Route(POST, "/form"), (request, channel, client) -> fail("handler should not be called"));
+
+        final RestRequest request = formPostRequest("/form", "query=from_body", RestController.FORM_URLENCODED_MEDIA_TYPE);
+        final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.NOT_ACCEPTABLE);
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+        assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testDispatchRejectsOtherSafelistedBodyTypesForOptedInHandler() {
+        final RestController restController = new RestController(null, client, circuitBreakerService, usageService, telemetryProvider);
+        restController.registerHandler(
+            new FormEncodedHandler(
+                List.of(new Route(GET, "/form"), new Route(POST, "/form")),
+                request -> fail("handler should not receive non-form safelisted content")
+            )
+        );
+
+        for (String mediaType : List.of("multipart/form-data", "text/plain")) {
+            final RestRequest request = formPostRequest("/form", "query=from_body", mediaType);
+            final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.NOT_ACCEPTABLE);
+            restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+            assertTrue(channel.getSendResponseCalled());
+        }
+    }
+
+    public void testDispatchRejectsDuplicateFormEncodedBodyParametersForOptedInHandler() {
+        final RestController restController = new RestController(null, client, circuitBreakerService, usageService, telemetryProvider);
+        restController.registerHandler(
+            new FormEncodedHandler(
+                List.of(new Route(GET, "/form"), new Route(POST, "/form")),
+                request -> fail("duplicate form-encoded parameter should be rejected before the handler is called")
+            )
+        );
+
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/form")
+            .withMethod(POST)
+            .withMultiParams(RequestParams.fromQueryString("query=from_uri"))
+            .withContent(new BytesArray("query=from_body"), null)
+            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList(RestController.FORM_URLENCODED_MEDIA_TYPE)))
+            .build();
+
+        final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.BAD_REQUEST);
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+        assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testDirectRegistrationRejectsReadOnlyFormEncodedBodySupportWithoutDeclaredPostRoute() {
+        final RestController restController = new RestController(null, client, circuitBreakerService, usageService, telemetryProvider);
+        final RestHandler handler = new DirectlyRegisteredFormEncodedHandler();
+
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> restController.registerHandler(POST, "/form", RestApiVersion.current(), handler)
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "handler [org.elasticsearch.rest.RestControllerTests$DirectlyRegisteredFormEncodedHandler] supports read-only "
+                    + "form-encoded POST bodies but does not define any POST routes"
+            )
+        );
+    }
+
+    public void testDirectRegistrationRejectsUndeclaredReadOnlyFormEncodedRoute() {
+        final RestController restController = new RestController(null, client, circuitBreakerService, usageService, telemetryProvider);
+        final RestHandler handler = new FormEncodedHandler(List.of(new Route(GET, "/declared"), new Route(POST, "/declared")));
+
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> restController.registerHandler(POST, "/undeclared", RestApiVersion.current(), handler)
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "handler [org.elasticsearch.rest.RestControllerTests$FormEncodedHandler] supports read-only form-encoded POST bodies "
+                    + "but registered route [POST /undeclared] is not declared by the handler"
+            )
+        );
+    }
+
+    public void testDispatchRejectsMalformedFormEncodedBodyForOptedInHandler() {
+        final RestController restController = new RestController(null, client, circuitBreakerService, usageService, telemetryProvider);
+        restController.registerHandler(new FormEncodedHandler(List.of(new Route(GET, "/form"), new Route(POST, "/form"))));
+
+        final RestRequest request = formPostRequest("/form", "query=%", RestController.FORM_URLENCODED_MEDIA_TYPE);
+
+        final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.BAD_REQUEST);
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+        assertTrue(channel.getSendResponseCalled());
+    }
+
     public void testRegisterWithReservedPath() {
         final RestController restController = new RestController(null, client, circuitBreakerService, usageService, telemetryProvider);
         for (String path : RestController.RESERVED_PATHS) {
@@ -1199,6 +1361,66 @@ public class RestControllerTests extends ESTestCase {
 
         // Multi-values must survive the per-iteration reset that PathTrie triggers
         assertThat(params.getAll("format"), equalTo(List.of("json", "yaml")));
+    }
+
+    private RestRequest formPostRequest(String path, String body, String contentType) {
+        return new FakeRestRequest.Builder(xContentRegistry()).withPath(path)
+            .withMethod(POST)
+            .withContent(new BytesArray(body), null)
+            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList(contentType)))
+            .build();
+    }
+
+    private static final class FormEncodedHandler extends BaseRestHandler {
+        private final List<Route> routes;
+        private final Consumer<RestRequest> requestAssertions;
+
+        private FormEncodedHandler(List<Route> routes) {
+            this(routes, request -> {});
+        }
+
+        private FormEncodedHandler(List<Route> routes, Consumer<RestRequest> requestAssertions) {
+            this.routes = routes;
+            this.requestAssertions = requestAssertions;
+        }
+
+        @Override
+        public String getName() {
+            return "formEncodedHandler";
+        }
+
+        @Override
+        public List<Route> routes() {
+            return routes;
+        }
+
+        @Override
+        public boolean supportsReadOnlyFormEncodedPostBody() {
+            return true;
+        }
+
+        @Override
+        public boolean canTripCircuitBreaker() {
+            return false;
+        }
+
+        @Override
+        protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+            requestAssertions.accept(request);
+            return channel -> channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+        }
+    }
+
+    private static final class DirectlyRegisteredFormEncodedHandler implements RestHandler {
+        @Override
+        public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
+            throw new AssertionError("directly registered form-encoded POST handler should be rejected during registration");
+        }
+
+        @Override
+        public boolean supportsReadOnlyFormEncodedPostBody() {
+            return true;
+        }
     }
 
     @ServerlessScope(Scope.PUBLIC)

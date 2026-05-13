@@ -173,7 +173,6 @@ public class AnalysisTests extends ESTestCase {
         assertThat(exc.getMessage(), containsString("[最終契約] in user dictionary at line [5]"));
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetReaderFromIndexMultipleSynsets() throws IOException {
         SynonymsManagementAPIService service = mock(SynonymsManagementAPIService.class);
 
@@ -199,7 +198,6 @@ public class AnalysisTests extends ESTestCase {
         assertThat(content, containsString("jumps, leaps"));
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetReaderFromIndexMissingSetIgnoredWhenLenient() throws IOException {
         SynonymsManagementAPIService service = mock(SynonymsManagementAPIService.class);
         // Service handles missing-set detection and returns only the rules it found
@@ -221,7 +219,6 @@ public class AnalysisTests extends ESTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetReaderFromIndexMissingSetFailsWhenNotLenient() {
         SynonymsManagementAPIService service = mock(SynonymsManagementAPIService.class);
         ResourceNotFoundException cause = new ResourceNotFoundException("synonym set [set-missing] not found");
@@ -236,7 +233,6 @@ public class AnalysisTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("set-missing"));
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetReaderFromIndexTransientErrorIgnoredWhenLenient() throws IOException {
         SynonymsManagementAPIService service = mock(SynonymsManagementAPIService.class);
         RuntimeException cause = new RuntimeException("transient error loading synonyms");
@@ -254,7 +250,6 @@ public class AnalysisTests extends ESTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetReaderFromIndexTransientErrorPropagatesWhenNotLenient() {
         SynonymsManagementAPIService service = mock(SynonymsManagementAPIService.class);
         RuntimeException cause = new RuntimeException("transient error loading synonyms");

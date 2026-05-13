@@ -17,7 +17,7 @@ import java.util.Set;
 public class SynonymFeatures implements FeatureSpecification {
     private static final NodeFeature RETURN_EMPTY_SYNONYM_SETS = new NodeFeature("synonyms_set.get.return_empty_synonym_sets");
     private static final NodeFeature MAX_SYNONYM_RULES_SETTING = new NodeFeature("synonyms.max_synonym_rules");
-    public static final NodeFeature MULTIPLE_SYNONYM_SETS_PER_FILTER = new NodeFeature("synonyms.multiple_sets_per_filter");
+    static final NodeFeature MULTIPLE_SYNONYM_SETS_PER_FILTER = new NodeFeature("synonyms.multiple_sets_per_filter");
     private static final NodeFeature SYNONYMS_GET_SEARCH_AFTER = new NodeFeature("synonyms.get.search_after");
 
     @Override

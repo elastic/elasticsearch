@@ -15,6 +15,7 @@ import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.Property;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 
@@ -446,14 +447,22 @@ public class MockLog implements Releasable {
     /**
      * Executes an action and verifies expectations against the provided logger
      */
-    public static void assertThatLogger(Runnable action, Class<?> loggerOwner, MockLog.LoggingExpectation... expectations) {
+    public static <T extends Exception> void assertThatLogger(
+        CheckedRunnable<T> action,
+        Class<?> loggerOwner,
+        MockLog.LoggingExpectation... expectations
+    ) throws T {
         assertThatLogger(action, loggerOwner.getCanonicalName(), expectations);
     }
 
     /**
      * Executes an action and verifies expectations against the provided logger
      */
-    public static void assertThatLogger(Runnable action, String loggerOwner, MockLog.LoggingExpectation... expectations) {
+    public static <T extends Exception> void assertThatLogger(
+        CheckedRunnable<T> action,
+        String loggerOwner,
+        LoggingExpectation... expectations
+    ) throws T {
         try (var mockLog = MockLog.capture(loggerOwner)) {
             for (var expectation : expectations) {
                 mockLog.addExpectation(expectation);

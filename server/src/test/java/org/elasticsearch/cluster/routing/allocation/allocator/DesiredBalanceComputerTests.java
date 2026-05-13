@@ -1510,7 +1510,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     }
 
     private void assertLoggerExpectationsFor(Runnable action, MockLog.LoggingExpectation... expectations) {
-        assertThatLogger(action, DesiredBalanceComputer.class, expectations);
+        assertThatLogger(action::run, DesiredBalanceComputer.class, expectations);
     }
 
     public void testLoggingOfComputeCallsAndIterationsSinceConvergence() {

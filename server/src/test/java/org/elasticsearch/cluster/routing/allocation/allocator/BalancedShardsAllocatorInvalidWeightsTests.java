@@ -221,7 +221,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
 
     private void assertInvalidWeightsMessageIsLogged(Runnable runnable) {
         assertThatLogger(
-            runnable,
+            runnable::run,
             BalancedShardsAllocator.class,
             new MockLog.SeenEventExpectation(
                 "invalid weights returned",

@@ -39,7 +39,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -591,13 +590,8 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .putList("index.analysis.filter.my_synonyms.synonyms_set", "set-a", "set-a")
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        MockLog.assertThatLogger(() -> {
-            try {
-                createTestAnalysis(idxSettings, settings, commonAnalysisPlugin);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        },
+        MockLog.assertThatLogger(
+            () -> createTestAnalysis(idxSettings, settings, commonAnalysisPlugin),
             SynonymTokenFilterFactory.class,
             new MockLog.SeenEventExpectation(
                 "duplicate warning",

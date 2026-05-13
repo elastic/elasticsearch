@@ -373,7 +373,6 @@ public class ExternalSourceResolver {
                 perFileInfo.put(listing.path(i), new SchemaReconciliation.FileSchemaInfo(anchorSchema, identityMapping, null));
             }
             schemaMap = Map.copyOf(perFileInfo);
-            listing = GlobExpander.withSchemaInfo(listing, schemaMap);
         } else {
             schemaMap = Map.of();
         }
@@ -495,8 +494,7 @@ public class ExternalSourceResolver {
         }
 
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = result.perFileInfo();
-        FileList enriched = GlobExpander.withSchemaInfo(fileList, schemaMap);
-        return new ExternalSourceResolution.ResolvedSource(extMetadata, enriched, schemaMap);
+        return new ExternalSourceResolution.ResolvedSource(extMetadata, fileList, schemaMap);
     }
 
     /**

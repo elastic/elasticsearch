@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
 import org.elasticsearch.xpack.esql.datasources.PartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
-import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector;
@@ -57,19 +56,6 @@ public final class GlobExpander {
             return FileListCompactor.compact(basePath, generic);
         }
         return raw;
-    }
-
-    /**
-     * Returns a copy of the file list with per-file schema reconciliation info attached.
-     * For {@link GenericFileList}, returns a new instance with the schema info baked in. For
-     * compacted lists ({@code DictionaryFileList}, {@code HiveFileList}), returns a thin
-     * {@link SchemaInfoFileList} wrapper that overlays the schema info on the existing instance.
-     */
-    public static FileList withSchemaInfo(FileList fileList, Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo) {
-        if (fileList instanceof GenericFileList generic) {
-            return generic.withSchemaInfo(schemaInfo);
-        }
-        return new SchemaInfoFileList(fileList, schemaInfo);
     }
 
     /**

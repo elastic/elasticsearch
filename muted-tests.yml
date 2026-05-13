@@ -542,33 +542,9 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
   method: testSearchShardRecoveryAddsTrackingToLatestShardCommit
   issue: https://github.com/elastic/elasticsearch/issues/148883
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:exponential_histogram.timseriesAllAggsGroupedFiltered}
-  issue: https://github.com/elastic/elasticsearch/issues/148887
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:exponential_histogram.median for exponential histogram docs}
-  issue: https://github.com/elastic/elasticsearch/issues/148888
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:exponential_histogram.avg for exponential histogram docs}
-  issue: https://github.com/elastic/elasticsearch/issues/148889
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:exponential_histogram.max for exponential histogram docs}
-  issue: https://github.com/elastic/elasticsearch/issues/148890
 - class: org.elasticsearch.reindex.management.ReindexRethrottleRelocationIT
   method: testRethrottleByOriginalTaskIdAfterRelocation
   issue: https://github.com/elastic/elasticsearch/issues/148893
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:exponential_histogram.sum for exponential histogram docs}
-  issue: https://github.com/elastic/elasticsearch/issues/148896
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:exponential_histogram.percentile for exponential histogram docs}
-  issue: https://github.com/elastic/elasticsearch/issues/148897
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:exponential_histogram.timeseriesAllAggsNoBucket}
-  issue: https://github.com/elastic/elasticsearch/issues/148898
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:exponential_histogram.min for exponential histogram docs}
-  issue: https://github.com/elastic/elasticsearch/issues/148899
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {yaml=snapshot/10_basic/Create a source only snapshot and then restore it}
   issue: https://github.com/elastic/elasticsearch/issues/148917

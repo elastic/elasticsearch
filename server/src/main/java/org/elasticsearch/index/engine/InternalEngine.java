@@ -1176,6 +1176,14 @@ public class InternalEngine extends Engine {
         return true;
     }
 
+    private boolean assertUniformOrigin(Index[] ops) {
+        final var origin = ops[0].origin();
+        for (Index op : ops) {
+            assert origin == op.origin() : "mixed origins in sub-batch: " + origin + " vs " + op.origin();
+        }
+        return true;
+    }
+
     private boolean assertIncomingSequenceNumber(final Operation.Origin origin, final long seqNo) {
         if (origin == Operation.Origin.PRIMARY) {
             assert assertPrimaryIncomingSequenceNumber(origin, seqNo);
@@ -1451,6 +1459,7 @@ public class InternalEngine extends Engine {
         }
         lastWriteNanos = maxStartNanos;
 
+        assert assertUniformOrigin(subBatchOps);
         if (subBatchOps[0].origin() == Operation.Origin.PRIMARY) {
             // Primary: resolve all version IDs in a single Lucene reader acquisition, then plan.
             final IndexingStrategy[] batchPlans = planPrimarySubBatch(subBatchOps, subBatchSize);

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
@@ -46,7 +48,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -102,13 +103,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper idFieldMapperWithoutFieldData() {
-            return ProvidedIdFieldMapper.NO_FIELD_DATA;
-        }
-
-        @Override
-        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-            return new ProvidedIdFieldMapper(fieldDataEnabled);
+        public IdFieldMapper idFieldMapperForReindex() {
+            return ProvidedIdFieldMapper.INSTANCE;
         }
 
         @Override
@@ -214,13 +210,7 @@ public enum IndexMode {
             return TimeSeriesRoutingHashFieldMapper.INSTANCE;
         }
 
-        public IdFieldMapper idFieldMapperWithoutFieldData() {
-            return TsidExtractingIdFieldMapper.INSTANCE;
-        }
-
-        @Override
-        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-            // We don't support field data on TSDB's _id
+        public IdFieldMapper idFieldMapperForReindex() {
             return TsidExtractingIdFieldMapper.INSTANCE;
         }
 
@@ -290,13 +280,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-            return new ProvidedIdFieldMapper(fieldDataEnabled);
-        }
-
-        @Override
-        public IdFieldMapper idFieldMapperWithoutFieldData() {
-            return ProvidedIdFieldMapper.NO_FIELD_DATA;
+        public IdFieldMapper idFieldMapperForReindex() {
+            return ProvidedIdFieldMapper.INSTANCE;
         }
 
         @Override
@@ -348,6 +333,73 @@ public enum IndexMode {
             return true;
         }
     },
+    LOOKUP("lookup") {
+        @Override
+        void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
+            final Integer providedNumberOfShards = (Integer) settings.get(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING);
+            if (providedNumberOfShards != null && providedNumberOfShards != 1) {
+                throw new IllegalArgumentException(
+                    "index with [lookup] mode must have [index.number_of_shards] set to 1 or unset; provided " + providedNumberOfShards
+                );
+            }
+        }
+
+        @Override
+        public void validateMapping(MappingLookup lookup) {};
+
+        @Override
+        public void validateAlias(@Nullable String indexRouting, @Nullable String searchRouting) {}
+
+        @Override
+        public void validateTimestampFieldMapping(boolean isDataStream, MappingLookup mappingLookup) {
+
+        }
+
+        @Override
+        public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
+            return null;
+        }
+
+        @Override
+        public TimestampBounds getTimestampBound(IndexMetadata indexMetadata) {
+            return null;
+        }
+
+        @Override
+        public MetadataFieldMapper timeSeriesIdFieldMapper(MappingParserContext c) {
+            // non time-series indices must not have a TimeSeriesIdFieldMapper
+            return null;
+        }
+
+        @Override
+        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
+            // non time-series indices must not have a TimeSeriesRoutingIdFieldMapper
+            return null;
+        }
+
+        @Override
+        public IdFieldMapper idFieldMapperForReindex() {
+            return ProvidedIdFieldMapper.INSTANCE;
+        }
+
+        @Override
+        public RoutingFields buildRoutingFields(IndexSettings settings) {
+            return RoutingFields.Noop.INSTANCE;
+        }
+
+        @Override
+        public boolean shouldValidateTimestamp() {
+            return false;
+        }
+
+        @Override
+        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {}
+
+        @Override
+        public SourceFieldMapper.Mode defaultSourceMode() {
+            return SourceFieldMapper.Mode.STORED;
+        }
+    },
     COLUMNAR("columnar") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
@@ -375,13 +427,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-            return new ProvidedIdFieldMapper(fieldDataEnabled);
-        }
-
-        @Override
-        public IdFieldMapper idFieldMapperWithoutFieldData() {
-            return ProvidedIdFieldMapper.NO_FIELD_DATA;
+        public IdFieldMapper idFieldMapperForReindex() {
+            return ProvidedIdFieldMapper.INSTANCE;
         }
 
         @Override
@@ -465,13 +512,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-            return new ProvidedIdFieldMapper(fieldDataEnabled);
-        }
-
-        @Override
-        public IdFieldMapper idFieldMapperWithoutFieldData() {
-            return ProvidedIdFieldMapper.NO_FIELD_DATA;
+        public IdFieldMapper idFieldMapperForReindex() {
+            return ProvidedIdFieldMapper.INSTANCE;
         }
 
         @Override
@@ -525,31 +567,34 @@ public enum IndexMode {
             return true;
         }
     },
-    LOOKUP("lookup") {
+    /**
+     * Index mode optimized for indexing and searching {@code dense_vector} fields.
+     */
+    VECTORDB_DOCUMENT("vectordb_document") {
         @Override
-        void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
-            final Integer providedNumberOfShards = (Integer) settings.get(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING);
-            if (providedNumberOfShards != null && providedNumberOfShards != 1) {
-                throw new IllegalArgumentException(
-                    "index with [lookup] mode must have [index.number_of_shards] set to 1 or unset; provided " + providedNumberOfShards
-                );
+        void validateWithOtherSettings(Map<Setting<?>, Object> settings) {}
+
+        @Override
+        public void validateMapping(MappingLookup lookup) {}
+
+        @Override
+        public void validateAlias(String indexRouting, String searchRouting) {}
+
+        @Override
+        public void validateTimestampFieldMapping(boolean isDataStream, MappingLookup mappingLookup) throws IOException {
+            if (isDataStream) {
+                MetadataCreateDataStreamService.validateTimestampFieldMapping(mappingLookup);
             }
-        }
-
-        @Override
-        public void validateMapping(MappingLookup lookup) {};
-
-        @Override
-        public void validateAlias(@Nullable String indexRouting, @Nullable String searchRouting) {}
-
-        @Override
-        public void validateTimestampFieldMapping(boolean isDataStream, MappingLookup mappingLookup) {
-
         }
 
         @Override
         public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
             return null;
+        }
+
+        @Override
+        public IdFieldMapper idFieldMapperForReindex() {
+            return ProvidedIdFieldMapper.INSTANCE;
         }
 
         @Override
@@ -559,24 +604,12 @@ public enum IndexMode {
 
         @Override
         public MetadataFieldMapper timeSeriesIdFieldMapper(MappingParserContext c) {
-            // non time-series indices must not have a TimeSeriesIdFieldMapper
             return null;
         }
 
         @Override
         public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
-            // non time-series indices must not have a TimeSeriesRoutingIdFieldMapper
             return null;
-        }
-
-        @Override
-        public IdFieldMapper idFieldMapperWithoutFieldData() {
-            return ProvidedIdFieldMapper.NO_FIELD_DATA;
-        }
-
-        @Override
-        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-            return new ProvidedIdFieldMapper(fieldDataEnabled);
         }
 
         @Override
@@ -670,16 +703,18 @@ public enum IndexMode {
     );
 
     public static final FeatureFlag COLUMNAR_FEATURE_FLAG = new FeatureFlag("columnar_index_mode");
+    public static final TransportVersion COLUMNAR_INDEX_MODES_ADDED = TransportVersion.fromName("columnar_index_modes_added");
+    public static final FeatureFlag VECTORDB_FEATURE_FLAG = new FeatureFlag("vectordb_document_index_mode");
 
     /**
      * Returns only the index modes that are available in the current build.
-     * Columnar modes are excluded in non-snapshot builds where the feature flag is disabled.
+     * Columnar and vectordb_document modes are excluded in non-snapshot builds where their feature flag is disabled.
      */
     public static IndexMode[] availableModes() {
-        if (COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            return values();
-        }
-        return Arrays.stream(values()).filter(m -> m != COLUMNAR && m != COLUMNAR_LOGSDB).toArray(IndexMode[]::new);
+        return Arrays.stream(values())
+            .filter(m -> COLUMNAR_FEATURE_FLAG.isEnabled() || (m != COLUMNAR && m != COLUMNAR_LOGSDB))
+            .filter(m -> VECTORDB_FEATURE_FLAG.isEnabled() || m != VECTORDB_DOCUMENT)
+            .toArray(IndexMode[]::new);
     }
 
     private final String name;
@@ -716,15 +751,10 @@ public enum IndexMode {
     public abstract CompressedXContent getDefaultMapping(IndexSettings indexSettings);
 
     /**
-     * Build the {@link FieldMapper} for {@code _id}.
+     * Get the singleton {@link FieldMapper} for reindex to correctly reindex the id into the destination index.
+     * It can never support field data.
      */
-    public abstract IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled);
-
-    /**
-     * Get the singleton {@link FieldMapper} for {@code _id}. It can never support
-     * field data.
-     */
-    public abstract IdFieldMapper idFieldMapperWithoutFieldData();
+    public abstract IdFieldMapper idFieldMapperForReindex();
 
     /**
      * @return the time range based on the provided index metadata and index mode implementation.
@@ -790,6 +820,7 @@ public enum IndexMode {
             case "columnar" -> IndexMode.COLUMNAR;
             case "columnar_logsdb" -> IndexMode.COLUMNAR_LOGSDB;
             case "lookup" -> IndexMode.LOOKUP;
+            case "vectordb_document" -> IndexMode.VECTORDB_DOCUMENT;
             default -> throw new IllegalArgumentException(
                 "["
                     + value
@@ -800,6 +831,9 @@ public enum IndexMode {
         };
 
         if ((mode == IndexMode.COLUMNAR || mode == IndexMode.COLUMNAR_LOGSDB) && COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
+            throw new IllegalArgumentException("[" + value + "] index mode is only available in snapshot builds.");
+        }
+        if (mode == IndexMode.VECTORDB_DOCUMENT && VECTORDB_FEATURE_FLAG.isEnabled() == false) {
             throw new IllegalArgumentException("[" + value + "] index mode is only available in snapshot builds.");
         }
         return mode;
@@ -814,6 +848,8 @@ public enum IndexMode {
         return indexModeLabel == null ? IndexMode.STANDARD : IndexMode.fromString(indexModeLabel);
     }
 
+    public static final TransportVersion VECTORDB_DOCUMENT_INDEX_MODE = TransportVersion.fromName("vectordb_document_index_mode");
+
     public static IndexMode readFrom(StreamInput in) throws IOException {
         int mode = in.readByte();
         return switch (mode) {
@@ -823,11 +859,27 @@ public enum IndexMode {
             case 3 -> LOOKUP;
             case 4 -> COLUMNAR;
             case 5 -> COLUMNAR_LOGSDB;
+            case 6 -> VECTORDB_DOCUMENT;
             default -> throw new IllegalStateException("unexpected index mode [" + mode + "]");
         };
     }
 
     public static void writeTo(IndexMode indexMode, StreamOutput out) throws IOException {
+        if ((indexMode == COLUMNAR || indexMode == COLUMNAR_LOGSDB)
+            && out.getTransportVersion().supports(COLUMNAR_INDEX_MODES_ADDED) == false) {
+            throw new IOException(
+                "cannot serialize index mode ["
+                    + indexMode
+                    + "] to node on transport version ["
+                    + out.getTransportVersion()
+                    + "] that does not support it"
+            );
+        }
+        if (indexMode == VECTORDB_DOCUMENT && out.getTransportVersion().supports(VECTORDB_DOCUMENT_INDEX_MODE) == false) {
+            throw new IllegalArgumentException(
+                "cannot send index mode [" + VECTORDB_DOCUMENT.getName() + "] to a node that does not support it"
+            );
+        }
         final int code = switch (indexMode) {
             case STANDARD -> 0;
             case TIME_SERIES -> 1;
@@ -835,6 +887,7 @@ public enum IndexMode {
             case LOOKUP -> 3;
             case COLUMNAR -> 4;
             case COLUMNAR_LOGSDB -> 5;
+            case VECTORDB_DOCUMENT -> 6;
         };
         out.writeByte((byte) code);
     }
@@ -871,6 +924,47 @@ public enum IndexMode {
             if (indexMode == LOOKUP) {
                 additionalSettings.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
             }
+            if (indexMode == VECTORDB_DOCUMENT) {
+                // Force index.mapping.exclude_source_vectors to true
+                String excludeSourceVectorsKey = IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey();
+                String userValue = indexTemplateAndCreateRequestSettings.get(excludeSourceVectorsKey);
+                if (userValue != null && Booleans.parseBoolean(userValue) == false) {
+                    throw new IllegalArgumentException(
+                        "["
+                            + excludeSourceVectorsKey
+                            + "] cannot be set to [false] when ["
+                            + IndexSettings.MODE.getKey()
+                            + "=vectordb_document]"
+                    );
+                }
+                additionalSettings.put(excludeSourceVectorsKey, true);
+
+                // Preload relevant vector index files into the file system cache.
+                // Only applied when the user has not explicitly configured [index.store.preload].
+                String preloadKey = IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey();
+                if (IndexModule.INDEX_STORE_PRE_LOAD_SETTING.exists(indexTemplateAndCreateRequestSettings) == false) {
+                    additionalSettings.putList(preloadKey, VECTORDB_DOCUMENT_MODE_PRELOAD_EXTENSIONS);
+                }
+
+                // Enable intra-merge parallelism so dense_vector merges can run in parallel within a single merge.
+                // Only applied when the user has not set it explicitly.
+                String intraMergeKey = IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING.getKey();
+                if (IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING.exists(indexTemplateAndCreateRequestSettings) == false) {
+                    additionalSettings.put(intraMergeKey, true);
+                }
+            }
         }
+
+        // Vector file extensions preloaded into the file system cache by default for [index.mode=vectordb_document].
+        // Excludes:
+        // - "vec" (raw vector data) and "clivf" (IVF cluster posting lists): large, streamed from disk on demand
+        // - "vem", "vemf", "vemq", "vemb", "vfi", "mivf" (metadata): tiny and already fully read when directory
+        // is opened
+        static final List<String> VECTORDB_DOCUMENT_MODE_PRELOAD_EXTENSIONS = List.of(
+            "vex",    // HNSW graph
+            "veq",    // scalar-quantized vector data
+            "veb",    // binary-quantized vector data
+            "cenivf"  // IVF centroid data
+        );
     }
 }

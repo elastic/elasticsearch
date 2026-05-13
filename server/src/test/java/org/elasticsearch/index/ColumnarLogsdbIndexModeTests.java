@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
@@ -41,6 +42,14 @@ public class ColumnarLogsdbIndexModeTests extends ESTestCase {
             try (var in = out.bytes().streamInput()) {
                 assertThat(IndexMode.readFrom(in), equalTo(IndexMode.COLUMNAR_LOGSDB));
             }
+        }
+    }
+
+    public void testColumnarLogsdbSerializationFailsOnOlderTransportVersion() throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(TransportVersionUtils.getPreviousVersion(IndexMode.COLUMNAR_INDEX_MODES_ADDED));
+            IOException e = expectThrows(IOException.class, () -> IndexMode.writeTo(IndexMode.COLUMNAR_LOGSDB, out));
+            assertThat(e.getMessage(), containsString("cannot serialize index mode [columnar_logsdb]"));
         }
     }
 

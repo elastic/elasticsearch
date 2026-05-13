@@ -17,6 +17,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -38,6 +39,22 @@ public class RecoveryMetricsCollector implements IndexEventListener {
     public static final String RECOVERY_BYTES_WARMED_FROM_INDEXING_METRIC = "es.recovery.shard.indexing_node.bytes_warmed.total";
     public static final String RECOVERY_BYTES_WARMED_FROM_OBJECT_STORE_METRIC = "es.recovery.shard.object_store.bytes_warmed.total";
 
+    // The total relocation duration is already covered by es.recovery.shard.total.time (target-side recovery timer);
+    // these phases break it down further.
+    public static final String RELOCATION_INITIAL_FLUSH_TIME_METRIC_IN_SECONDS = "es.recovery.shard.primary.relocation.initial_flush.time";
+    public static final String RELOCATION_ACQUIRE_PERMITS_TIME_METRIC_IN_SECONDS =
+        "es.recovery.shard.primary.relocation.acquire_permits.time";
+    public static final String RELOCATION_SECOND_FLUSH_TIME_METRIC_IN_SECONDS = "es.recovery.shard.primary.relocation.second_flush.time";
+    public static final String RELOCATION_HANDOFF_TIME_METRIC_IN_SECONDS = "es.recovery.shard.primary.relocation.handoff.time";
+    public static final String RELOCATION_TARGET_PRE_RECOVERY_TIME_METRIC_IN_SECONDS =
+        "es.recovery.shard.primary.relocation.target.pre_recovery.time";
+    public static final String RELOCATION_TARGET_READ_INDEXING_SHARD_STATE_TIME_METRIC_IN_SECONDS =
+        "es.recovery.shard.primary.relocation.target.read_indexing_shard_state.time";
+    public static final String RELOCATION_TARGET_OPEN_ENGINE_TIME_METRIC_IN_SECONDS =
+        "es.recovery.shard.primary.relocation.target.open_engine.time";
+
+    public static final RecoveryMetricsCollector NOOP = new RecoveryMetricsCollector(TelemetryProvider.NOOP);
+
     private final LongCounter shardRecoveryTotalMetric;
     private final LongHistogram shardRecoveryTotalTimeMetric;
     private final LongHistogram shardRecoveryIndexTimeMetric;
@@ -46,6 +63,13 @@ public class RecoveryMetricsCollector implements IndexEventListener {
     private final LongCounter shardRecoveryTotalBytesReadFromObjectStoreMetric;
     private final LongCounter shardRecoveryTotalBytesWarmedFromIndexingMetric;
     private final LongCounter shardRecoveryTotalBytesWarmedFromObjectStoreMetric;
+    private final DoubleHistogram relocationInitialFlushDurationMetric;
+    private final DoubleHistogram relocationAcquirePermitsDurationMetric;
+    private final DoubleHistogram relocationSecondFlushDurationMetric;
+    private final DoubleHistogram relocationHandoffDurationMetric;
+    private final DoubleHistogram relocationTargetPreRecoveryDurationMetric;
+    private final DoubleHistogram relocationTargetReadIndexingShardStateDurationMetric;
+    private final DoubleHistogram relocationTargetOpenEngineDurationMetric;
 
     public RecoveryMetricsCollector(TelemetryProvider telemetryProvider) {
         final MeterRegistry meterRegistry = telemetryProvider.getMeterRegistry();
@@ -89,6 +113,69 @@ public class RecoveryMetricsCollector implements IndexEventListener {
             "Bytes warmed from object store during the shard recovery",
             "bytes"
         );
+        relocationInitialFlushDurationMetric = meterRegistry.registerDoubleHistogram(
+            RELOCATION_INITIAL_FLUSH_TIME_METRIC_IN_SECONDS,
+            "Time spent in the initial flush before acquiring all primary operation permits, measured on the source",
+            "seconds"
+        );
+        relocationAcquirePermitsDurationMetric = meterRegistry.registerDoubleHistogram(
+            RELOCATION_ACQUIRE_PERMITS_TIME_METRIC_IN_SECONDS,
+            "Time spent acquiring all primary operation permits during relocation, measured on the source",
+            "seconds"
+        );
+        relocationSecondFlushDurationMetric = meterRegistry.registerDoubleHistogram(
+            RELOCATION_SECOND_FLUSH_TIME_METRIC_IN_SECONDS,
+            "Time spent in the second flush after acquiring permits, measured on the source",
+            "seconds"
+        );
+        relocationHandoffDurationMetric = meterRegistry.registerDoubleHistogram(
+            RELOCATION_HANDOFF_TIME_METRIC_IN_SECONDS,
+            "Round-trip duration of the primary relocation handoff context phase, measured on the source",
+            "seconds"
+        );
+        relocationTargetPreRecoveryDurationMetric = meterRegistry.registerDoubleHistogram(
+            RELOCATION_TARGET_PRE_RECOVERY_TIME_METRIC_IN_SECONDS,
+            "Time spent in IndexShard#preRecovery during primary relocation handoff on the target",
+            "seconds"
+        );
+        relocationTargetReadIndexingShardStateDurationMetric = meterRegistry.registerDoubleHistogram(
+            RELOCATION_TARGET_READ_INDEXING_SHARD_STATE_TIME_METRIC_IN_SECONDS,
+            "Time spent in ObjectStoreService#readIndexingShardState (BCC chain walk) during primary relocation handoff on the target",
+            "seconds"
+        );
+        relocationTargetOpenEngineDurationMetric = meterRegistry.registerDoubleHistogram(
+            RELOCATION_TARGET_OPEN_ENGINE_TIME_METRIC_IN_SECONDS,
+            "Time spent opening the engine (and activating with primary context) during primary relocation handoff on the target",
+            "seconds"
+        );
+    }
+
+    public void recordRelocationInitialFlushDuration(long durationInMillis) {
+        relocationInitialFlushDurationMetric.record(durationInMillis / 1000.0);
+    }
+
+    public void recordRelocationAcquirePermitsDuration(long durationInMillis) {
+        relocationAcquirePermitsDurationMetric.record(durationInMillis / 1000.0);
+    }
+
+    public void recordRelocationSecondFlushDuration(long durationInMillis) {
+        relocationSecondFlushDurationMetric.record(durationInMillis / 1000.0);
+    }
+
+    public void recordRelocationHandoffDuration(long durationInMillis) {
+        relocationHandoffDurationMetric.record(durationInMillis / 1000.0);
+    }
+
+    public void recordRelocationTargetPreRecoveryDuration(long durationInMillis) {
+        relocationTargetPreRecoveryDurationMetric.record(durationInMillis / 1000.0);
+    }
+
+    public void recordRelocationTargetReadIndexingShardStateDuration(long durationInMillis) {
+        relocationTargetReadIndexingShardStateDurationMetric.record(durationInMillis / 1000.0);
+    }
+
+    public void recordRelocationTargetOpenEngineDuration(long durationInMillis) {
+        relocationTargetOpenEngineDurationMetric.record(durationInMillis / 1000.0);
     }
 
     @Override

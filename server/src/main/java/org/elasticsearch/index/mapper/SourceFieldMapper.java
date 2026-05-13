@@ -422,9 +422,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(DocumentParserContext context) throws IOException {
-        XContentType contentType = context.sourceToParse().getXContentType();
-
-        final var originalSource = context.sourceToParse().source();
+        SourceToParse.Source sourceObject = context.sourceToParse().source();
+        XContentType contentType = sourceObject.xContentType();
+        // TODO: Optimize if source not materialized
+        final var originalSource = sourceObject.originalBytes();
         final var storedSource = stored() ? removeSyntheticVectorFields(context.mappingLookup(), originalSource, contentType) : null;
         final var adaptedStoredSource = applyFilters(context.mappingLookup(), storedSource, contentType, false);
 

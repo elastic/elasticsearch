@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.IndexedDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -107,6 +108,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final FilterPushdownSupport pushdownSupport;
     private final Closeable onClose;
     private final AtomicInteger operatorRefCount = new AtomicInteger(0);
+    /** Number of driver instances created for this factory. Used for batch-size heuristics. */
+    private final int parallelism;
+    /**
+     * True when the reader supports multi-file batch reads and there are no partition columns
+     * that require per-split injection. When set, {@link #openNextSliceQueueLeaf} claims batches
+     * of splits and calls {@link RangeAwareFormatReader#readAll} instead of individual
+     * {@link RangeAwareFormatReader#readRange} calls.
+     */
+    private final boolean batchReadCapable;
 
     private AsyncExternalSourceOperatorFactory(
         StorageProvider storageProvider,
@@ -125,7 +135,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         int parsingParallelism,
         @Nullable List<Expression> pushedExpressions,
         @Nullable FilterPushdownSupport pushdownSupport,
-        @Nullable Closeable onClose
+        @Nullable Closeable onClose,
+        int parallelism
     ) {
         if (storageProvider == null) {
             throw new IllegalArgumentException("storageProvider cannot be null");
@@ -166,6 +177,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.pushedExpressions = pushedExpressions != null ? pushedExpressions : List.of();
         this.pushdownSupport = pushdownSupport;
         this.onClose = onClose;
+        this.parallelism = Math.max(1, parallelism);
+        this.batchReadCapable = formatReader instanceof RangeAwareFormatReader rr
+            && rr.supportsBatchRead()
+            && this.partitionColumnNames.isEmpty();
     }
 
     public static Builder builder(
@@ -206,6 +221,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private List<Expression> pushedExpressions;
         private FilterPushdownSupport pushdownSupport;
         private Closeable onClose;
+        private int parallelism = 1;
 
         private Builder(
             StorageProvider storageProvider,
@@ -283,6 +299,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return this;
         }
 
+        public Builder parallelism(int parallelism) {
+            this.parallelism = parallelism;
+            return this;
+        }
+
         public AsyncExternalSourceOperatorFactory build() {
             return new AsyncExternalSourceOperatorFactory(
                 storageProvider,
@@ -301,7 +322,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 parsingParallelism,
                 pushedExpressions,
                 pushdownSupport,
-                onClose
+                onClose,
+                parallelism
             );
         }
     }
@@ -500,6 +522,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         StoragePath lastRangeFilePath;
         @Nullable
         Object lastFileContext;
+        @Nullable
+        StoragePath lastSchemaPath;
+        @Nullable
+        List<Attribute> lastBoundSchema;
 
         ProducerState(
             @Nullable ExternalSliceQueue queue,
@@ -587,8 +613,57 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             if (rowLimit != FormatReader.NO_LIMIT && state.rowsRemaining <= 0) {
                 return DrainResult.DONE;
             }
+            // Yield on upstream-blocked (e.g. streaming-parallel iterator waiting on parser threads)
+            // — symmetric to the downstream-buffer-full yield below. Without this the producer-loop
+            // would spin inside {@code hasNext()} holding its executor slot while the iterator's
+            // segmenter/parser sub-tasks compete for slots on the same pool: with default
+            // {@code parsing_parallelism = cores} and F concurrent file readers we'd need
+            // F + F + F×cores slots, exhausting the generic pool on multi-file gzip globs.
+            // Synchronous iterators ({@code CloseableIterator}'s default) return an
+            // immediately-completed listener and fall straight through.
+            SubscribableListener<Void> ready = pages.waitForReady();
+            if (ready.isDone() == false) {
+                ready.addListener(ActionListener.wrap(v -> {
+                    try {
+                        executor.execute(() -> runProducerLoop(state, completionListener));
+                    } catch (Exception e) {
+                        closeQuietly(state.pages);
+                        state.pages = null;
+                        completionListener.onFailure(e);
+                    }
+                }, e -> {
+                    closeQuietly(state.pages);
+                    state.pages = null;
+                    completionListener.onFailure(e);
+                }));
+                return DrainResult.BLOCKED;
+            }
             if (pages.hasNext() == false) {
-                return DrainResult.EOF;
+                // Race: waitForReady reported done (page available or EOF), but by the time we
+                // called hasNext the state advanced (e.g. another consumer drained, or POISON
+                // got handled inside hasNext and the next slot is not yet populated). For
+                // synchronous iterators where the default waitForReady returns immediately-done,
+                // hasNext=false truly means EOF and the recheck remains done. For async iterators
+                // like {@code StreamingParallelIterator}, a non-done recheck means the iterator
+                // is still producing — yield and let the parser-side {@code signalReady()} wake us.
+                SubscribableListener<Void> recheck = pages.waitForReady();
+                if (recheck.isDone()) {
+                    return DrainResult.EOF;
+                }
+                recheck.addListener(ActionListener.wrap(v -> {
+                    try {
+                        executor.execute(() -> runProducerLoop(state, completionListener));
+                    } catch (Exception e) {
+                        closeQuietly(state.pages);
+                        state.pages = null;
+                        completionListener.onFailure(e);
+                    }
+                }, e -> {
+                    closeQuietly(state.pages);
+                    state.pages = null;
+                    completionListener.onFailure(e);
+                }));
+                return DrainResult.BLOCKED;
             }
             SubscribableListener<Void> space = buffer.waitForSpace();
             if (space.isDone() == false) {
@@ -656,8 +731,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     /**
      * Open the next leaf iterator in the slice-queue path. Pulls a new split from the queue when
      * the current split's leaves are exhausted. Returns {@code false} if the queue is exhausted.
+     * <p>
+     * When {@link #batchReadCapable} is set, delegates to {@link #openNextBatch} to claim and
+     * process multiple splits at once via {@link RangeAwareFormatReader#readAll}.
      */
     private boolean openNextSliceQueueLeaf(ProducerState state) throws IOException {
+        if (batchReadCapable && state.leaves == null) {
+            return openNextBatch(state);
+        }
         if (state.leaves == null || state.leafIndex >= state.leaves.size()) {
             ExternalSplit split = state.queue.nextSplit();
             if (split == null) {
@@ -703,10 +784,26 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             } else {
                 StorageObject obj = FileSplitProvider.storageObjectForSplit(storageProvider, fileSplit);
                 boolean recordAlignedMacro = FileSplitProvider.isRecordAlignedMacroSplit(fileSplit);
-                pages = openWithParallelism(fileReader, obj, cols, errorPolicy, recordAlignedMacro);
+                boolean firstSplit = fileSplit.offset() == 0 || "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
+                if (cols.isEmpty() && recordAlignedMacro && firstSplit == false) {
+                    // COUNT(*)/empty-projection path on a non-leading record-aligned macro-split:
+                    // bind schema from the full file (header-bearing formats like CSV need file-leading bytes).
+                    // Cache per file path to avoid redundant metadata fetches across splits of the same file.
+                    List<Attribute> cachedSchema = fileSplit.path().equals(state.lastSchemaPath) ? state.lastBoundSchema : null;
+                    if (cachedSchema == null) {
+                        SourceMetadata meta = fileReader.metadata(storageProvider.newObject(fileSplit.path()));
+                        if (meta != null && meta.schema() != null && meta.schema().isEmpty() == false) {
+                            cachedSchema = meta.schema();
+                        }
+                    }
+                    if (cachedSchema != null) {
+                        fileReader = fileReader.withSchema(cachedSchema);
+                        state.lastSchemaPath = fileSplit.path();
+                        state.lastBoundSchema = cachedSchema;
+                    }
+                }
+                pages = openWithParallelism(fileReader, obj, cols, errorPolicy, recordAlignedMacro, firstSplit);
                 if (pages == null) {
-                    boolean firstSplit = fileSplit.offset() == 0
-                        || "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
                     boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
                     FormatReadContext ctx = FormatReadContext.builder()
                         .projectedColumns(cols)
@@ -732,6 +829,58 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     /**
+     * Batch-read path: claims {@code max(1, ceil(remaining / (parallelism * 2)))} splits from the
+     * queue at once and opens a single {@link RangeAwareFormatReader#readAll} iterator over all of
+     * them. This allows the reader (e.g. parquet-rs) to process the files concurrently in a single
+     * async call rather than paying one sequential S3 round-trip per file.
+     * <p>
+     * Only called when {@link #batchReadCapable} is {@code true}, which requires no partition-column
+     * injection (incompatible with a unified batch iterator).
+     */
+    private boolean openNextBatch(ProducerState state) throws IOException {
+        int remaining = state.queue.remaining();
+        if (remaining == 0) {
+            return false;
+        }
+        int claimSize = Math.max(1, Math.ceilDiv(remaining, parallelism * 2));
+        List<ExternalSplit> claims = state.queue.nextSplits(claimSize);
+        if (claims.isEmpty()) {
+            return false;
+        }
+
+        List<RangeAwareFormatReader.SplitRef> splitRefs = new ArrayList<>(claims.size());
+        for (ExternalSplit claim : claims) {
+            for (ExternalSplit leaf : flattenToLeaves(claim)) {
+                if (leaf instanceof FileSplit fs) {
+                    String fileLengthStr = (String) fs.config().get(FileSplitProvider.FILE_LENGTH_KEY);
+                    StorageObject obj = fileLengthStr != null
+                        ? storageProvider.newObject(fs.path(), Long.parseLong(fileLengthStr))
+                        : storageProvider.newObject(fs.path());
+                    splitRefs.add(new RangeAwareFormatReader.SplitRef(obj, fs.offset(), fs.length()));
+                }
+            }
+        }
+
+        if (splitRefs.isEmpty()) {
+            return false;
+        }
+
+        List<String> cols = projectedColumns(null);
+        RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) formatReader;
+        CloseableIterator<Page> pages = null;
+        try {
+            pages = rangeReader.readAll(splitRefs, cols, batchSize);
+            state.pages = pages;
+            return true;
+        } catch (Exception e) {
+            closeQuietly(pages);
+            if (e instanceof IOException io) throw io;
+            if (e instanceof RuntimeException re) throw re;
+            throw new IOException(e);
+        }
+    }
+
+    /**
      * Open the next file iterator in the multi-file path. Returns {@code false} if all files
      * have been processed.
      */
@@ -747,7 +896,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         CloseableIterator<Page> pages = null;
         try {
             StorageObject obj = storageProvider.newObject(files.path(fileIndex));
-            pages = openWithParallelism(formatReader, obj, cols, errorPolicy, false);
+            pages = openWithParallelism(formatReader, obj, cols, errorPolicy, false, true);
             if (pages == null) {
                 int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining;
                 FormatReadContext ctx = FormatReadContext.builder()
@@ -807,7 +956,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     ) {
         ActionListener<Void> failureListener = failureListener(buffer, driverContext);
         executor.execute(ActionRunnable.run(failureListener, () -> {
-            CloseableIterator<Page> pages = openWithParallelism(formatReader, storageObject, projectedColumns, errorPolicy, false);
+            CloseableIterator<Page> pages = openWithParallelism(formatReader, storageObject, projectedColumns, errorPolicy, false, true);
             if (pages == null) {
                 FormatReadContext ctx = FormatReadContext.builder()
                     .projectedColumns(projectedColumns)
@@ -998,7 +1147,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         StorageObject obj,
         List<String> cols,
         ErrorPolicy policy,
-        boolean recordAlignedMacroSplit
+        boolean recordAlignedMacroSplit,
+        boolean splitIncludesFileLeader
     ) throws IOException {
         if (rowLimit != FormatReader.NO_LIMIT || parsingParallelism <= 1) {
             return null;
@@ -1018,7 +1168,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     parsingParallelism,
                     executor,
                     policy,
-                    recordAlignedMacroSplit
+                    recordAlignedMacroSplit,
+                    splitIncludesFileLeader
                 );
             }
             case STREAM_ONLY_COMPRESSED -> {

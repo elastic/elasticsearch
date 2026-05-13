@@ -17,21 +17,31 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public sealed interface UnionTypeEsField permits MultiTypeEsField, CompactMultiTypeEsField {
+public abstract sealed class UnionTypeEsField extends EsField permits MultiTypeEsField, CompactMultiTypeEsField {
+    public UnionTypeEsField(
+        String name,
+        DataType esDataType,
+        Map<String, EsField> properties,
+        boolean aggregatable,
+        TimeSeriesFieldType timeSeriesFieldType
+    ) {
+        super(name, esDataType, properties, aggregatable, timeSeriesFieldType);
+    }
+
     /**
      * Conversion expression to apply when the field is unmapped in the index (treating it as {@link DataType#KEYWORD}) or {@code null} if
      * there is no such conversion (i.e., unmapped indices should produce {@code null}).
      */
     @Nullable
-    Expression getUnmappedConversionExpression();
+    public abstract Expression getUnmappedConversionExpression();
 
-    Collection<Expression> getConversionExpressions();
+    public abstract Collection<Expression> getConversionExpressions();
 
     /**
      * Wraps an existing union-type field's per-(index|type) conversions with another conversion expression on top, so the
      * composite expression first does the original cast then the additional cast.
      */
-    EsField rewrapWithCast(Expression convertExpression);
+    public abstract EsField rewrapWithCast(Expression convertExpression);
 
     // Utility functions used by implementors.
     static <K> Map<K, Expression> replaceChildrenWithExpressionField(Map<K, Expression> map, Expression expression) {

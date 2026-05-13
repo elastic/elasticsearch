@@ -1269,7 +1269,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             // Partially unmapped fields are already wrapped during index resolution:
-            // keyword → PotentiallyUnmappedKeywordEsField, non-keyword → InvalidMappedField.potentiallyUnmapped.
+            // keyword → PotentiallyUnmappedKeywordEsField, non-keyword → TypeConflictedField.potentiallyUnmapped.
             return resolvedCol;
         }
 
@@ -1658,7 +1658,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return enrich;
                 }
                 // For type-conflicted fields, defer to ResolveUnionTypes and ultimately UnionTypesCleanup (which produces the "Cannot use
-                // field ... due to ambiguities" error for incompatible ones). Reading dataType() off an InvalidMappedField returns
+                // field ... due to ambiguities" error for incompatible ones). Reading dataType() off an TypeConflictedField returns
                 // UNSUPPORTED, which would otherwise produce a misleading error here.
                 boolean deferToUnionTypes = resolved instanceof FieldAttribute fa && fa.hasTypeConflicts();
                 if (deferToUnionTypes == false && resolved.resolved() && resolved.dataType() != NULL && enrich.policy() != null) {
@@ -2299,10 +2299,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * The EsqlIndexResolver will create InvalidMappedField instances for fields that are ambiguous (i.e. have multiple mappings).
+     * The EsqlIndexResolver will create TypeConflictedField instances for fields that are ambiguous (i.e. have multiple mappings).
      * During {@link ResolveRefs} we do not convert these to UnresolvedAttribute instances, as we want to first determine if they can
      * instead be handled by conversion functions within the query. This rule looks for matching conversion functions and converts
-     * those fields into MultiTypeEsField, which encapsulates the knowledge of how to convert these into a single type.
+     * those fields into UnionTypeEsField, which encapsulates the knowledge of how to convert these into a single type.
      * This knowledge will be used later in generating the FieldExtractExec with built-in type conversion.
      * Any fields which could not be resolved by conversion functions will be converted to UnresolvedAttribute instances in a later rule
      * (See {@link UnionTypesCleanup} below).
@@ -2333,7 +2333,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
 
-            // See if the eval function has an unresolved MultiTypeEsField field
+            // See if the eval function has an unresolved UnionTypeEsField field
             // Replace the entire convert function with a new FieldAttribute (containing type conversion knowledge)
             plan = plan.transformExpressionsOnly(e -> {
                 if (e instanceof ConvertFunction convert) {
@@ -2415,7 +2415,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 });
 
-                // If all mapped types were resolved, create a new FieldAttribute with the resolved MultiTypeEsField
+                // If all mapped types were resolved, create a new FieldAttribute with the resolved UnionTypeEsField
                 if (typeResolutions.size() == tcf.getTypesToIndices().size()) {
                     boolean loadUnmappedFields = context.unmappedResolution() == UnmappedResolution.LOAD;
                     if (skipMultiTypeForPotentiallyUnmappedKeyword(loadUnmappedFields, tcf, supportedTypes)) {
@@ -2425,13 +2425,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     Expression potentiallyUnmappedConversion = tcf.isPotentiallyUnmapped()
                         ? ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), KEYWORD, tcf)
                         : null;
-                    EsField resolvedField = resolvedMultiTypeEsField(fa, typeResolutions, potentiallyUnmappedConversion, context);
+                    EsField resolvedField = resolvedUnionTypeFields(fa, tcf, typeResolutions, potentiallyUnmappedConversion, context);
                     return createIfDoesNotAlreadyExist(fa, resolvedField, unionFieldAttributes);
                 }
             } else if (convert.field() instanceof FieldAttribute fa
-                && fa.synthetic() == false // MultiTypeEsField in EsRelation created by DateMillisToNanosInEsRelation has synthetic = false
+                && fa.synthetic() == false // UnionTypeEsField in EsRelation created by DateMillisToNanosInEsRelation has synthetic = false
                 && fa.field() instanceof UnionTypeEsField unionTypeEsField) {
-                    // This is an explicit casting of a union typed field that has been converted to MultiTypeEsField in EsRelation by
+                    // This is an explicit casting of a union typed field that has been converted to UnionTypeEsField in EsRelation by
                     // DateMillisToNanosInEsRelation, it is not necessary to cast it again to the same type, replace the implicit casting
                     // with explicit casting. However, it is useful to differentiate implicit and explicit casting in some cases, for
                     // example, an expression like multiTypeEsField(synthetic=false, date_nanos)::date_nanos::datetime is rewritten to
@@ -2442,10 +2442,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
 
                     // Data type is different between implicit(date_nanos) and explicit casting, if the conversion is supported, create a
-                    // new MultiTypeEsField with explicit casting type, and add it to unionFieldAttributes.
+                    // new UnionTypeEsField with explicit casting type, and add it to unionFieldAttributes.
                     Set<DataType> supportedTypes = convert.supportedTypes();
                     if (supportedTypes.contains(fa.dataType()) && canConvertOriginalTypes(unionTypeEsField, supportedTypes)) {
-                        // The only code that creates MultiTypeEsField with synthetic=false (reaching this branch) is
+                        // The only code that creates UnionTypeEsField with synthetic=false (reaching this branch) is
                         // DateMillisToNanosInEsRelation, which runs in the "Initialize" batch before ResolveUnmapped. At that point,
                         // unmapped fields haven't been detected yet, so potentiallyUnmappedExpression is always null.
                         if (((UnionTypeEsField) fa.field()).getUnmappedConversionExpression() != null) {
@@ -2498,14 +2498,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
         }
 
-        private static EsField resolvedMultiTypeEsField(
+        private static EsField resolvedUnionTypeFields(
             FieldAttribute fa,
+            TypeConflictedField tcf,
             Map<TypeResolutionKey, Expression> typeResolutions,
             @Nullable Expression potentiallyUnmappedConversion,
             AnalyzerContext context
         ) {
             Map<String, Expression> typesToConversionExpressions = new HashMap<>();
-            TypeConflictedField tcf = (TypeConflictedField) fa.field();
             tcf.getTypesToIndices().forEach((typeName, indexNames) -> {
                 DataType type = DataType.fromTypeName(typeName);
                 TypeResolutionKey key = new TypeResolutionKey(fa.name(), type);
@@ -2513,10 +2513,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     typesToConversionExpressions.put(typeName, typeResolutions.get(key));
                 }
             });
-            return buildMultiTypeEsField(tcf, typesToConversionExpressions, potentiallyUnmappedConversion, context);
+            return buildUnionTypeField(tcf, typesToConversionExpressions, potentiallyUnmappedConversion, context);
         }
 
-        private static EsField buildMultiTypeEsField(
+        private static UnionTypeEsField buildUnionTypeField(
             TypeConflictedField tcf,
             Map<String, Expression> typesToConversionExpressions,
             @Nullable Expression unmappedConversionExpression,
@@ -2566,7 +2566,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     /**
      * {@link ResolveUnionTypes} creates new, synthetic attributes for union types:
      * If there was no {@code AbstractConvertFunction} that resolved multi-type fields in the {@link ResolveUnionTypes} rule,
-     * then there could still be some {@code FieldAttribute}s that contain unresolved {@link MultiTypeEsField}s.
+     * then there could still be some {@code FieldAttribute}s that contain unresolved {@link UnionTypeEsField}s.
      * These need to be converted back to actual {@code UnresolvedAttribute} in order for validation to generate appropriate failures.
      * <p>
      * Finally, if {@code client_ip} is present in 2 indices, once with type {@code ip} and once with type {@code keyword},
@@ -2651,7 +2651,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         // potentiallyUnmapped fields. This assertion guards against future changes breaking that invariant.
                         assert tcf.isPotentiallyUnmapped() == false
                             : "Unexpected potentially unmapped field [" + tcf.name() + "] in DateMillisToNanosInEsRelation";
-                        var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(f, typeResolutions, null, context);
+                        var resolvedField = ResolveUnionTypes.resolvedUnionTypeFields(f, tcf, typeResolutions, null, context);
                         return new FieldAttribute(
                             f.source(),
                             f.parentName(),
@@ -2673,7 +2673,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return false;
             }
             // If the field is potentially unmapped (i.e. not mapped in all indices), we treat it as a keyword (not all dates),
-            // so that it can be resolved via the union types / MultiTypeEsField mechanism instead.
+            // so that it can be resolved via the union types / UnionTypeEsField mechanism instead.
             if (context.unmappedResolution() == UnmappedResolution.LOAD && tcf.isPotentiallyUnmapped()) {
                 return false;
             }
@@ -2694,7 +2694,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * Take InvalidMappedFields in specific aggregations (min, max, sum, count, and avg) and if all original data types
+     * Take TypeConflictedFields in specific aggregations (min, max, sum, count, and avg) and if all original data types
      * are aggregate metric double + any combination of numerics, implicitly cast them to the same type: aggregate metric
      * double for count, and double for min, max, and sum. Avg gets replaced with its surrogate (Div(Sum, Count))
      */
@@ -2764,7 +2764,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         fa.parentName(),
                         fa.qualifier(),
                         newName,
-                        ResolveUnionTypes.buildMultiTypeEsField(tcf, typeConverters, null, context),
+                        ResolveUnionTypes.buildUnionTypeField(tcf, typeConverters, null, context),
                         fa.nullable(),
                         null,
                         true
@@ -2818,7 +2818,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         fa.parentName(),
                         fa.qualifier(),
                         newName,
-                        ResolveUnionTypes.buildMultiTypeEsField(tcf, typeConverters, null, context),
+                        ResolveUnionTypes.buildUnionTypeField(tcf, typeConverters, null, context),
                         fa.nullable(),
                         null,
                         true

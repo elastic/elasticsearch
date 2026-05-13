@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /** Memory-efficient variant of {@link MultiTypeEsField} that stores the per-source-type conversion instead of per-index. */
-public final class CompactMultiTypeEsField extends EsField implements UnionTypeEsField {
+public final class CompactMultiTypeEsField extends UnionTypeEsField {
     public static final TransportVersion CompactMultiTypeEsField = TransportVersion.fromName("compact_multi_type_es_field");
 
     // TODO these Expressions should be an AbstractConvertFunction.

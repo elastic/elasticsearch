@@ -94,7 +94,6 @@ public class ParallelTopNOperatorTests extends ComputeTestCase {
         Collections.shuffle(values, random());
 
         List<Page> results = new ArrayList<>();
-        boolean success = false;
         try {
             TopNOperator topN = new TopNOperator(
                 blockFactory,
@@ -134,13 +133,8 @@ public class ParallelTopNOperatorTests extends ComputeTestCase {
                 expected.add(v);
             }
             assertThat(actual, equalTo(expected));
-            success = true;
         } finally {
-            if (success) {
-                Releasables.close(() -> results.forEach(Page::releaseBlocks));
-            } else {
-                Releasables.closeExpectNoException(() -> results.forEach(Page::releaseBlocks));
-            }
+            results.forEach(Page::releaseBlocks);
         }
     }
 }

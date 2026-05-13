@@ -183,8 +183,11 @@ public class WorkerFanOutTests extends ComputeTestCase {
         }, "fanout-closer");
         closer.start();
 
-        // ~200ms is enough for the closer to park in ReentrantLock.lock(); we can't observe that directly.
-        Thread.sleep(200);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (closer.getState() != Thread.State.WAITING && System.nanoTime() < deadline) {
+            Thread.onSpinWait();
+        }
+        assertThat("closer thread never blocked on lock", closer.getState(), equalTo(Thread.State.WAITING));
         assertThat("close returned before drain completed", closeReturned.get(), equalTo(0));
 
         releaseProcess.countDown();
@@ -237,9 +240,9 @@ public class WorkerFanOutTests extends ComputeTestCase {
             assertNotSame("expected a blocked result", Operator.NOT_BLOCKED, blocked);
             assertFalse("blocked future should not be done while workers are blocked", blocked.listener().isDone());
 
-            releaseProcess.countDown();
             CountDownLatch done = new CountDownLatch(1);
             blocked.listener().addListener(org.elasticsearch.action.ActionListener.running(done::countDown));
+            releaseProcess.countDown();
             assertTrue("blocked future was not signalled", done.await(30, TimeUnit.SECONDS));
 
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
@@ -331,7 +334,7 @@ public class WorkerFanOutTests extends ComputeTestCase {
                 }
             }
         }
-        assertThat(signalled, greaterThanOrEqualTo(iterations));
+        assertThat(signalled, equalTo(iterations));
     }
 
     public void testMapStates() throws Exception {

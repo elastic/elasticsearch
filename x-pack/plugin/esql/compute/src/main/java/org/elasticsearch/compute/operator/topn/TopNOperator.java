@@ -350,6 +350,7 @@ public class TopNOperator implements Operator, Accountable {
             channelInKey[so.channel] = true;
         }
         // SORTED input or non-null minCompetitive rules out promotion at construction time.
+        // TODO: workers could offer local heap-tops to minCompetitive allowing promotion under non-null minCompetitive.
         boolean canPromote = workerConfig != null && inputOrdering != InputOrdering.SORTED && minCompetitive == null;
         this.parallel = canPromote ? new ParallelState(driverContext, workerConfig) : null;
     }
@@ -363,13 +364,14 @@ public class TopNOperator implements Operator, Accountable {
     @Override
     public void addInput(Page page) {
         if (parallel != null && parallel.workers != null) {
+            parallel.workers.addInput(page);
             pagesReceived++;
             rowsReceived += page.getPositionCount();
-            parallel.workers.addInput(page);
             return;
         }
         long start = System.nanoTime();
         try {
+            assert sequentialState != null : "sequentialState should not be null until we are doing parallel processing";
             if (mergePageIntoQueue(page, sequentialState)) {
                 updateMinCompetitive();
             }
@@ -384,11 +386,8 @@ public class TopNOperator implements Operator, Accountable {
         }
     }
 
-    // TODO: workers could offer local heap-tops to minCompetitive (max as a looser-but-correct bound),
-    // which would let promotion fire under non-null minCompetitive.
     private boolean shouldPromoteToParallel() {
         return parallel != null
-            && parallel.promotionAttempted == false
             && parallel.workers == null
             && output == null
             && rowsReceived > parallel.config.promotionThresholdRows();
@@ -408,21 +407,32 @@ public class TopNOperator implements Operator, Accountable {
                 state.spare.clear();
             }
             rowFiller.writeKey(i, state.spare);
-            // Write values before mutating the queue so a writeValues throw can't leave spare in both
-            // the queue and state.spare (would double-close).
+
+            // This is `queue.insertWithOverflow` followed by filling in the value only if we inserted.
+            // We must write values BEFORE modifying the queue so that if writeValues throws (e.g. circuit
+            // breaker), spare is not left in both the queue and the spare field (which would double-close).
             if (state.queue.size() < state.queue.topCount) {
+                // Heap not yet full, just add elements
                 rowFiller.writeValues(i, state.spare);
                 state.queue.add(state.spare);
                 state.spare = null;
                 modified = true;
             } else if (state.queue.lessThan(state.queue.top(), state.spare)) {
+                // Heap full AND this node fits in it.
                 TopNRow nextSpare = state.queue.top();
                 rowFiller.writeValues(i, state.spare);
                 state.queue.updateTop(state.spare);
                 state.spare = nextSpare;
                 modified = true;
             } else if (inputOrdering == InputOrdering.SORTED) {
-                // Only meaningful in sequential mode; parallel dispatch shuffles page order across workers.
+                /*
+                 The queue (min-heap) is full and we have sorted input for the input page. Any other element that comes after the one
+                 we just compared will be greater or equal than any other one in the queue, so we can short circuit the execution here.
+
+                 Note we always need to check whether the min-heap top's is greater or equal than the current element. For example: we
+                 could have processed all the data from a first data node, have a full queue (a partial result), but a page from a
+                 second data node could interleave with our partial result in arbitrary ways.
+                 */
                 break;
             }
         }
@@ -453,7 +463,7 @@ public class TopNOperator implements Operator, Accountable {
         }
         if (output == null) {
             long start = System.nanoTime();
-            output = buildResult();
+            output = buildSequentialResult();
             emitNanos += System.nanoTime() - start;
         }
     }
@@ -500,7 +510,24 @@ public class TopNOperator implements Operator, Accountable {
     @Override
     public void close() {
         WorkerFanOut<TopNWorkerState> workers = parallel == null ? null : parallel.workers;
-        Releasables.closeExpectNoException(workers, sequentialState, output, minCompetitive);
+
+        Releasables.closeExpectNoException(
+            /* Either sequentialState or workers will be null, both contain spare(s) and queue(s).
+             * The queue(s) are min heaps of all live rows. Closing them will close all
+             * the rows they contain and decrement the breaker for the size of
+             * the heap itself.
+             */
+            sequentialState,
+            workers,
+            /*
+             * If we're in the process of outputting pages then output will contain all
+             * allocated but un-emitted rows.
+             */
+            output,
+            minCompetitive
+        );
+
+        // Aggressively null these so they can be GCed more quickly.
         sequentialState = null;
         output = null;
         if (parallel != null) {
@@ -531,20 +558,22 @@ public class TopNOperator implements Operator, Accountable {
         return size;
     }
 
+    private int occupiedRows() {
+        if (sequentialState != null) {
+            return sequentialState.queue.size();
+        } else if (parallel != null && parallel.workers != null) {
+            return Math.toIntExact(parallel.workers.mapStates(s -> s.occupiedRows).stream().mapToLong(Long::longValue).sum());
+        }
+        return 0;
+    }
+
     @Override
     public Status status() {
-        int occupiedCount;
-        if (sequentialState != null) {
-            occupiedCount = sequentialState.queue.size();
-        } else if (parallel != null && parallel.workers != null) {
-            occupiedCount = Math.toIntExact(parallel.workers.mapStates(s -> s.occupiedRows).stream().mapToLong(Long::longValue).sum());
-        } else {
-            occupiedCount = 0;
-        }
+
         return new TopNOperatorStatus(
             receiveNanos.get(),
             emitNanos,
-            occupiedCount,
+            occupiedRows(),
             ramBytesUsed(),
             pagesReceived,
             pagesEmitted,
@@ -571,10 +600,6 @@ public class TopNOperator implements Operator, Accountable {
 
     private void promoteToParallel() {
         assert parallel != null : "promoteToParallel() called without parallel config";
-        // Latch before construction: if WorkerFanOut throws partway, its cleanup closes the seeded
-        // state from sequentialState. Latching here prevents a re-entry from dispatching to slot 0
-        // with no state.
-        parallel.promotionAttempted = true;
         final int workerCount = parallel.config.workerCount();
         parallel.workers = new WorkerFanOut<>(
             parallel.driverContext,
@@ -655,14 +680,11 @@ public class TopNOperator implements Operator, Accountable {
     }
 
     /**
-     * Parallel-mode state: immutable wiring plus runtime fields populated at promotion. The
-     * {@code promotionAttempted} flag latches even if {@link #promoteToParallel()} throws partway,
-     * preventing a re-entry from dispatching to a slot whose state was already consumed.
+     * Parallel-mode state: immutable wiring plus runtime fields populated at promotion.
      */
     private static final class ParallelState {
         final DriverContext driverContext;
         final ParallelWorkerConfig config;
-        boolean promotionAttempted;
         @Nullable
         WorkerFanOut<TopNWorkerState> workers;
 
@@ -699,21 +721,21 @@ public class TopNOperator implements Operator, Accountable {
     /**
      * Build the result iterator. Moves all rows from the {@link #sequentialState} queue and closes it.
      */
-    private ReleasableIterator<Page> buildResult() {
-        TopNWorkerState s = sequentialState;
+    private ReleasableIterator<Page> buildSequentialResult() {
+        var spare = sequentialState.spare;
+        var inputQueue = sequentialState.queue;
         sequentialState = null;
-        if (s.spare != null) {
-            s.spare.close();
-            s.spare = null;
+        if (spare != null) {
+            spare.close();
         }
-        if (s.queue.size() == 0) {
-            s.queue.close();
+        if (inputQueue.size() == 0) {
+            inputQueue.close();
             return ReleasableIterator.empty();
         }
-        List<TopNRow> rows = new ArrayList<>(s.queue.size());
-        s.queue.popAllInto(rows);
+        List<TopNRow> rows = new ArrayList<>(inputQueue.size());
+        inputQueue.popAllInto(rows);
         Collections.reverse(rows);
-        s.queue.close();
+        inputQueue.close();
         return new Result(rows);
     }
 

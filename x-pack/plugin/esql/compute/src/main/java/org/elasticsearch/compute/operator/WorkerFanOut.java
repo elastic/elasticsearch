@@ -31,7 +31,7 @@ import java.util.function.Function;
  * Composed into an owning {@link Operator} which forwards lifecycle calls; not itself an Operator.
  *
  * <p>Per slot: one inbox + at-most-one drain task. Producers CAS-claim the running flag and the winner
- * submits a single drain task that processes the inbox to empty, giving soft thread affinity.
+ * submits a single drain task that processes the inbox to empty.
  *
  * <p>Threading: {@link #chooseWorker}, {@link #mergeAndBuildResult}, and lifecycle methods run on the
  * Driver thread; {@link #processPage} runs on a worker thread. The per-slot lock exists only so
@@ -136,6 +136,7 @@ public abstract class WorkerFanOut<W extends Releasable & Accountable> implement
         page.allowPassingToDifferentDriver();
         slot.inbox.add(page);
         if (slot.running.compareAndSet(false, true)) {
+            // a thread is not yet running for the worker, so start one
             scheduleDrain(slot);
         }
     }
@@ -180,9 +181,7 @@ public abstract class WorkerFanOut<W extends Releasable & Accountable> implement
                 } catch (Exception e) {
                     failureCollector.unwrapAndCollect(e);
                 } finally {
-                    page.releaseBlocks();
-                    inFlight.decrementAndGet();
-                    driverContext.removeAsyncAction();
+                    releasePage(page);
                     notifyIfBlocked();
                 }
             }
@@ -192,8 +191,12 @@ public abstract class WorkerFanOut<W extends Releasable & Accountable> implement
         } finally {
             slot.lock.unlock();
         }
-        // Re-check for the producer-add race after clearing running.
+
+        // no longer running
         slot.running.set(false);
+
+        // Driver thread may have added a page to inbox before worker thread stopped running.
+        // Check if there is more work and start a new thread if needed.
         if (slot.inbox.peek() != null && slot.running.compareAndSet(false, true)) {
             scheduleDrain(slot);
         }
@@ -204,9 +207,7 @@ public abstract class WorkerFanOut<W extends Releasable & Accountable> implement
         try {
             Page page;
             while ((page = slot.inbox.poll()) != null) {
-                page.releaseBlocks();
-                inFlight.decrementAndGet();
-                driverContext.removeAsyncAction();
+                releasePage(page);
             }
         } finally {
             slot.running.set(false);
@@ -216,13 +217,13 @@ public abstract class WorkerFanOut<W extends Releasable & Accountable> implement
 
     private void notifyIfBlocked() {
         if (blockedFuture != null) {
-            SubscribableListener<Void> f;
+            final SubscribableListener<Void> future;
             synchronized (this) {
-                f = blockedFuture;
-                blockedFuture = null;
+                future = blockedFuture;
+                this.blockedFuture = null;
             }
-            if (f != null) {
-                f.onResponse(null);
+            if (future != null) {
+                future.onResponse(null);
             }
         }
     }
@@ -324,16 +325,16 @@ public abstract class WorkerFanOut<W extends Releasable & Accountable> implement
     }
 
     private void checkFailure() {
-        if (failureCollector.hasFailure()) {
-            throw ExceptionsHelper.convertToRuntime(failureCollector.getFailure());
+        Exception e = failureCollector.getFailure();
+        if (e != null) {
+            throw ExceptionsHelper.convertToRuntime(e);
         }
     }
 
     @Override
     public final void close() {
+        finish();
         closed = true;
-        finished = true;
-        notifyIfBlocked();
         Releasables.closeExpectNoException(output);
         output = null;
         for (WorkerSlot<W> slot : workers) {
@@ -342,9 +343,7 @@ public abstract class WorkerFanOut<W extends Releasable & Accountable> implement
             try {
                 Page page;
                 while ((page = slot.inbox.poll()) != null) {
-                    page.releaseBlocks();
-                    inFlight.decrementAndGet();
-                    driverContext.removeAsyncAction();
+                    releasePage(page);
                 }
                 Releasables.closeExpectNoException(slot.state);
                 slot.state = null;
@@ -353,6 +352,12 @@ public abstract class WorkerFanOut<W extends Releasable & Accountable> implement
                 slot.lock.unlock();
             }
         }
+    }
+
+    private void releasePage(Page page) {
+        page.releaseBlocks();
+        inFlight.decrementAndGet();
+        driverContext.removeAsyncAction();
     }
 
     private static final class WorkerSlot<W extends Releasable & Accountable> {

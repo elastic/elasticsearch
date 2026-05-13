@@ -1626,7 +1626,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         Function<BytesRef, Object> expectedValue,
         List<String> warnings
     ) {
-        unary(suppliers, expectedEvaluatorToString, flattenedCases(), expectedType, v -> expectedValue.apply((BytesRef) v), warnings);
+        if (DataType.FLATTENED.supportedVersion().supportedLocally()) {
+            unary(suppliers, expectedEvaluatorToString, flattenedCases(), expectedType, v -> expectedValue.apply((BytesRef) v), warnings);
+        }
     }
 
     /**

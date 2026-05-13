@@ -20,6 +20,54 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
+## 9.4.1 [elasticsearch-9.4.1-release-notes]
+```{applies_to}
+stack: ga 9.4.1
+```
+
+### Features and enhancements [elasticsearch-9.4.1-features-enhancements]
+
+Machine Learning:
+* Add EuroBERT and Jina v5 ops to graph validation allowlist [#3015](https://github.com/elastic/ml-cpp/pull/3015)
+* Better error handling regarding quantiles state documents [#2894](https://github.com/elastic/ml-cpp/pull/2894)
+* Better handling of invalid JSON state documents [#2895](https://github.com/elastic/ml-cpp/pull/2895)
+* Better messaging regarding OOM process termination [#2841](https://github.com/elastic/ml-cpp/pull/2841)
+* Downgrade log severity for a batch of recoverable errors [#2889](https://github.com/elastic/ml-cpp/pull/2889)
+* Harden pytorch_inference with TorchScript model graph validation [#3008](https://github.com/elastic/ml-cpp/pull/3008) (issue: [#2890](https://github.com/elastic/ml-cpp/issues/2890))
+* Improve adherence to memory limits for the bucket gatherer [#2848](https://github.com/elastic/ml-cpp/pull/2848)
+* Report the actual memory usage of the autodetect process [#2846](https://github.com/elastic/ml-cpp/pull/2846)
+* Restrict file system access for pytorch models [#2851](https://github.com/elastic/ml-cpp/pull/2851)
+* Update the PyTorch library to version 2.7.1 [#2863](https://github.com/elastic/ml-cpp/pull/2863)
+
+Security:
+* Update elastic-apm-agent-java8 to 1.55.6 [#148271](https://github.com/elastic/elasticsearch/pull/148271)
+
+
+### Fixes [elasticsearch-9.4.1-fixes]
+
+Data streams:
+* Update failure store redirect logic to exclude backpressure exceptions [#148154](https://github.com/elastic/elasticsearch/pull/148154)
+
+ES|QL:
+* Bugfix - Block Loader Pushdown + Union Types [#147940](https://github.com/elastic/elasticsearch/pull/147940)
+* Disallow empty lists in named params, only [#147748](https://github.com/elastic/elasticsearch/pull/147748) (issue: [#147448](https://github.com/elastic/elasticsearch/issues/147448))
+* ES|QL query approximation: enforce minimum number of sampled source rows [#147886](https://github.com/elastic/elasticsearch/pull/147886)
+
+Inference:
+* Implement `RerankingInferenceService` for Elastic service [#148365](https://github.com/elastic/elasticsearch/pull/148365)
+* [Inference API] Fix inference initialization thread exhaustion [#147063](https://github.com/elastic/elasticsearch/pull/147063)
+
+Machine Learning:
+* Fix flaky CIoManagerTest/testFileIoGood test [#3017](https://github.com/elastic/ml-cpp/pull/3017)
+
+Vector Search:
+* [DiskBBQ] Check that precondition should not be overwritten on update [#148111](https://github.com/elastic/elasticsearch/pull/148111) (issue: [#148004](https://github.com/elastic/elasticsearch/issues/148004))
+
+Watcher:
+* Fix race in `TickerScheduleTriggerEngine` by checking watcher to node allocation [#147678](https://github.com/elastic/elasticsearch/pull/147678) (issue: [#146874](https://github.com/elastic/elasticsearch/issues/146874))
+
+
+
 ## 9.4.0 [elasticsearch-9.4.0-release-notes]
 
 ### Highlights [elasticsearch-9.4.0-highlights]
@@ -182,18 +230,18 @@ The average was selected because in most cases it is a more representative signa
 operations such as `max`, `min`, `sum`, `avg`, and `count` will be supported natively by the respective sub-fields.
 
 For example, the following query is now supported where `network.eth0.tx` is a an `aggregate_metric_double`:
-
 ```esql
-  FROM k8s-downsampled
-  | STATS max = max(network.eth0.tx), std_dev = STD_DEV(network.eth0.tx) by pod
-  | sort pod
+FROM k8s-downsampled
+| STATS max = max(network.eth0.tx), std_dev = STD_DEV(network.eth0.tx) by pod
+| sort pod
 ```
 Response:
+
 ```
-  max:double | std_dev:double | pod:keyword
-  1060.0     | 275.6970067    | one
-  824.0      | 184.1213952    | three
-  1419.0     | 356.9865993    | two
+max:double | std_dev:double | pod:keyword
+1060.0     | 275.6970067    | one
+824.0      | 184.1213952    | three
+1419.0     | 356.9865993    | two
 ```
 ::::
 

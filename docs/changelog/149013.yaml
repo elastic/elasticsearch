@@ -1,0 +1,11 @@
+area: ES|QL
+deprecation:
+  area: ES|QL
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  title: Add deprecation message for ESQL log
+issues: []
+pr: 149013
+summary: Add deprecation message for ESQL log
+type: deprecation

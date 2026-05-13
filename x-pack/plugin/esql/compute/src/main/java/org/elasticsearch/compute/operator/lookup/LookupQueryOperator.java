@@ -154,11 +154,11 @@ public final class LookupQueryOperator implements Operator {
                 segmentsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
             }
 
-	        // Read matches for current position
+            // Read matches for current position
             BulkKeywordLookup bulk = queryList.getBulkKeywordLookup();
             int totalMatches = switch (bulk) {
                 case null -> getMatches(docsBuilder, segmentsBuilder, positionsBuilder, positionCount);
-                default   -> getBulkMatches(bulk, docsBuilder, segmentsBuilder, positionsBuilder, positionCount);
+                default -> getBulkMatches(bulk, docsBuilder, segmentsBuilder, positionsBuilder, positionCount);
             };
 
             if (totalMatches > 0) {

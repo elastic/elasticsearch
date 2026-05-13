@@ -330,15 +330,13 @@ public class LookupExecutionPlanner {
         Source lookupSource
     ) {
         Attribute rightAttribute = bulkFilterExec.field();
-        int       channelOffset  = source.layout().get(rightAttribute.id()).channel();
+        int channelOffset = source.layout().get(rightAttribute.id()).channel();
 
         OperatorFactory mvBulkLookupMvFilterOperatorFactory = new OperatorFactory() {
             @Override
             public Operator get(DriverContext driverContext) {
                 Warnings warnings = Warnings.createWarnings(driverContext.warningsMode(), lookupSource);
-                return new FilterOperator(
-                    new BulkLookupSingleValued(driverContext, channelOffset, warnings)
-                );
+                return new FilterOperator(new BulkLookupSingleValued(driverContext, channelOffset, warnings));
             }
 
             @Override
@@ -353,8 +351,6 @@ public class LookupExecutionPlanner {
 
         return source.with(mvBulkLookupMvFilterOperatorFactory, source.layout());
     }
-
-
 
     private PhysicalOperation planFieldExtractExec(
         PlannerSettings plannerSettings,
@@ -547,11 +543,7 @@ public class LookupExecutionPlanner {
                     }
                 }
                 if (matchChannelOffset != -1) {
-                    return new BulkLookupQueryGenerator(
-                        bulkLookupRight.name(),
-                        matchChannelOffset,
-                        warnings
-                    );
+                    return new BulkLookupQueryGenerator(bulkLookupRight.name(), matchChannelOffset, warnings);
                 }
             }
             return null;
@@ -571,15 +563,12 @@ public class LookupExecutionPlanner {
         }
     }
 
-
     /**
      * LookupEnrichQueryGenerator used when BulkKeywordLookup optimization applies.
      */
-    private record BulkLookupQueryGenerator(
-        String rightFieldName,
-        int matchChannelOffset,
-        Warnings warnings
-    ) implements LookupEnrichQueryGenerator {
+    private record BulkLookupQueryGenerator(String rightFieldName, int matchChannelOffset, Warnings warnings)
+        implements
+            LookupEnrichQueryGenerator {
         @Override
         public Query getQuery(int position, Page inputPage, SearchExecutionContext searchExecutionContext) {
             throw new UnsupportedOperationException("BulkLookupQueryGenerator does not support getQuery");
@@ -595,7 +584,6 @@ public class LookupExecutionPlanner {
             return new BulkKeywordLookup(rightFieldName, matchChannelOffset, -1, warnings);
         }
     }
-
 
     private static QueryBuilder rewriteQuery(@Nullable QueryBuilder query, SearchExecutionContext searchExecutionContext) {
         if (query == null) {

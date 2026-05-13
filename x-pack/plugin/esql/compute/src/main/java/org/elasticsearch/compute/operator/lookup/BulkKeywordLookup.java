@@ -19,7 +19,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
-import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 

@@ -51,14 +51,16 @@ public class ParameterizedQuery extends LeafPlan {
      * holding the left attribute of the lookup join when the join may make use of the bulk keyword lookup optimization.
      * Not serialized — it is computed locally on the lookup node after deserialization.
      */
-    @Nullable private final Attribute bulkLookupLeft;
+    @Nullable
+    private final Attribute bulkLookupLeft;
 
     /**
      * Runtime-only value set by the {@link org.elasticsearch.xpack.esql.optimizer.LookupPhysicalPlanOptimizer}
      * holding the right attribute of the lookup join when the join may make use of the bulk keyword lookup optimization.
      * Not serialized — it is computed locally on the lookup node after deserialization.
      */
-    @Nullable private final Attribute bulkLookupRight;
+    @Nullable
+    private final Attribute bulkLookupRight;
 
     public ParameterizedQuery(Source source, List<Attribute> output, List<MatchConfig> matchFields, @Nullable Expression joinOnConditions) {
         this(source, output, matchFields, joinOnConditions, false, null, null);
@@ -138,14 +140,16 @@ public class ParameterizedQuery extends LeafPlan {
 
     @Override
     protected NodeInfo<ParameterizedQuery> info() {
-        return NodeInfo.create(this,
+        return NodeInfo.create(
+            this,
             ParameterizedQuery::new,
             output,
             matchFields,
             joinOnConditions,
             emptyResult,
             bulkLookupLeft,
-            bulkLookupRight);
+            bulkLookupRight
+        );
     }
 
     @Override

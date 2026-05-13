@@ -12,15 +12,12 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.BulkLookupMvFilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LeafExec;
 import org.elasticsearch.xpack.esql.plan.physical.ParameterizedQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-
-import java.util.List;
 
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.UP;
 
@@ -49,7 +46,7 @@ public class LuceneBulkLookup extends PhysicalOptimizerRules.OptimizerRule<LeafE
 
             Expression expr = plan.joinOnConditions();
 
-/*
+            /*
             List<MatchConfig> matchFields = plan.matchFields();
             if (expr == null && matchFields != null && matchFields.size() == 1) {
                 MatchConfig matchField = plan.matchFields().get(0);
@@ -70,7 +67,7 @@ public class LuceneBulkLookup extends PhysicalOptimizerRules.OptimizerRule<LeafE
                     );
                 }
             }
-*/
+            */
 
             if (expr instanceof EsqlBinaryComparison binaryComparison
                 && binaryComparison.left() instanceof Attribute leftAttribute
@@ -88,7 +85,7 @@ public class LuceneBulkLookup extends PhysicalOptimizerRules.OptimizerRule<LeafE
                         plan.joinOnConditions(),
                         plan.query(),
                         plan.emptyResult(),
-			            leftAttribute,
+                        leftAttribute,
                         rightAttribute
                     ),
                     rightAttribute

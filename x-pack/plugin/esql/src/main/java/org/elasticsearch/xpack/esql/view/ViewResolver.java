@@ -43,6 +43,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
@@ -294,15 +295,7 @@ public class ViewResolver {
         // non-CPS mode the shadow has no consumer, so we skip the bookkeeping entirely; the rest of
         // the resolver behaves as if shadows are simply not part of the tree.
         boolean cpsEnabled = crossProjectModeDecider.crossProjectEnabled();
-
-        // For each position in the parent UnresolvedRelation's pattern list, the exclusions that
-        // appear strictly after it. Used to attach position-aware exclusions to each
-        // {@link ViewShadowRelation} so the lenient field-caps target mirrors the local exclusion
-        // scope exactly. Index resolution is left-to-right: an exclusion only narrows what's
-        // already been accumulated, so a view referenced at position i is only affected by
-        // exclusions at positions > i. See esql-planning #543.
         String[] urPatterns = unresolvedRelation.indexPattern().indexPattern().split(",");
-        List<List<String>> exclusionsAfter = cpsEnabled ? computeExclusionsAfterByPosition(urPatterns) : List.of();
 
         var req = new EsqlResolveViewAction.Request(REST_MASTER_TIMEOUT_DEFAULT);
         req.indices(patterns);
@@ -312,12 +305,6 @@ public class ViewResolver {
                 listener.onResponse(stripValidConcreteViewExclusions(unresolvedRelation, patterns));
                 return;
             }
-
-            // Map each resolved view name to the earliest position in urPatterns at which it was
-            // matched (broadest applicable-exclusion set). Earliest-position wins so we don't drop
-            // exclusions that the user wrote after a wildcard match of the same view. Only used
-            // for shadow exclusion attribution, so we skip the work entirely outside CPS.
-            Map<String, Integer> viewToEarliestPosition = cpsEnabled ? computeViewToEarliestPosition(urPatterns, response) : Map.of();
 
             final HashMap<String, ViewPlan> resolvedViews = new HashMap<>();
             final HashMap<String, ViewShadowRelation> viewShadows = new HashMap<>();
@@ -329,15 +316,19 @@ public class ViewResolver {
                     LinkedHashSet<String> branchSeenViews = new LinkedHashSet<>(ancestorViews);
                     validateViewReferenceAndMarkSeen(view.name(), branchSeenViews);
                     if (cpsEnabled) {
-                        // Build the per-view {@link ViewShadowRelation} once, alongside the resolved
-                        // body. Lives at the same plan-tree level as the strict resolution so the
-                        // post-resolution rule can find the pair structurally.
-                        Integer pos = viewToEarliestPosition.get(view.name());
-                        List<String> applicableExclusions = (pos != null) ? exclusionsAfter.get(pos) : List.of();
-                        viewShadows.putIfAbsent(
-                            view.name(),
-                            new ViewShadowRelation(unresolvedRelation.source(), view.name(), applicableExclusions)
-                        );
+                        // find pattern referencing current view
+                        var patternPosition = findMatchingPattern(view.name(), urPatterns, response);
+                        // patterns do not need to be shadowed as they are retained in original expressions
+                        if (patternIsWildcard(urPatterns[patternPosition]) == false) {
+                            viewShadows.putIfAbsent(
+                                view.name(),
+                                new ViewShadowRelation(
+                                    unresolvedRelation.source(),
+                                    view.name(),
+                                    collectExclusionsAfterPosition(patternPosition, urPatterns)
+                                )
+                            );
+                        }
                     }
                     replaceViews(
                         resolve(view, parser, viewQueries),
@@ -375,53 +366,30 @@ public class ViewResolver {
     }
 
     /**
-     * For each position {@code i} in {@code urPatterns}, computes the list of exclusion patterns at
-     * positions {@code j > i}, preserving original order. Used to attach position-aware exclusions
-     * to each {@link ViewShadowRelation}.
+     * Finds a position of the pattern that resolved to the given view.
      */
-    private static List<List<String>> computeExclusionsAfterByPosition(String[] urPatterns) {
-        List<List<String>> exclusionsAfter = new ArrayList<>(urPatterns.length);
-        List<String> later = new ArrayList<>();
-        for (int i = urPatterns.length - 1; i >= 0; i--) {
-            // Snapshot what's accumulated so far before potentially adding the current pattern.
-            exclusionsAfter.add(0, List.copyOf(later));
-            if (patternIsExclusion(urPatterns[i])) {
-                later.add(0, urPatterns[i]);
+    private static int findMatchingPattern(String viewName, String[] patterns, EsqlResolveViewAction.Response response) {
+        for (int p = 0; p < patterns.length; p++) {
+            String pattern = patterns[p];
+            for (var expression : response.getResolvedIndexExpressions().expressions()) {
+                // find resolved expression for the current pattern that resolves to the given view name
+                if (Objects.equals(pattern, expression.original()) && expression.localExpressions().indices().contains(viewName)) {
+                    return p;
+                }
             }
         }
-        return exclusionsAfter;
+        return -1;
     }
 
-    /**
-     * Maps each resolved view name to the earliest position in {@code urPatterns} at which it was
-     * matched. When a view appears at multiple positions (e.g. matched both by a wildcard pattern
-     * earlier in the list and by an explicit name later), earliest wins, giving the broadest set of
-     * later exclusions — the most conservative reading for the lenient lookup.
-     */
-    private static Map<String, Integer> computeViewToEarliestPosition(String[] urPatterns, EsqlResolveViewAction.Response response) {
-        Set<String> resolvedViewNames = new HashSet<>();
-        for (var view : response.views()) {
-            resolvedViewNames.add(view.name());
-        }
-        Map<String, Integer> viewToEarliestPosition = new HashMap<>();
-        for (var expr : response.getResolvedIndexExpressions().expressions()) {
-            int position = -1;
-            for (int i = 0; i < urPatterns.length; i++) {
-                if (urPatterns[i].equals(expr.original())) {
-                    position = i;
-                    break;
-                }
-            }
-            if (position < 0) {
-                continue;
-            }
-            for (String index : expr.localExpressions().indices()) {
-                if (resolvedViewNames.contains(index)) {
-                    viewToEarliestPosition.merge(index, position, Math::min);
-                }
+    private static List<String> collectExclusionsAfterPosition(int position, String[] patterns) {
+        var exclusions = new ArrayList<String>();
+        for (int p = position + 1; p < patterns.length; p++) {
+            String pattern = patterns[p];
+            if (patternIsExclusion(pattern)) {
+                exclusions.add(pattern);
             }
         }
-        return viewToEarliestPosition;
+        return exclusions;
     }
 
     /**
@@ -565,6 +533,13 @@ public class ViewResolver {
         }
         String[] split = RemoteClusterAware.splitIndexName(pattern);
         return split[0] != null && split[1].startsWith("-");
+    }
+
+    /**
+     * @return {@code true} if the pattern is a wildcard (one containing *)
+     */
+    private static boolean patternIsWildcard(String pattern) {
+        return RemoteClusterAware.parseLocalIndexName(pattern).contains("*");
     }
 
     /**

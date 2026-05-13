@@ -25,10 +25,23 @@ import java.io.IOException;
 public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted implements BytesRefBlock {
     private final IntBlock ordinals;
     private final BytesRefVector bytes;
+    /**
+     * When {@code true}, {@link #bytes} may contain entries that are not referenced by any ordinal
+     * ("phantom" entries) introduced by ops that share the dictionary across blocks (e.g. {@link #filter},
+     * {@link #keepMask}, {@link #slice}). Consumers that walk the dictionary directly should call
+     * {@link #compact()} first; ordinal-driven consumers naturally ignore phantoms. Always {@code false}
+     * for blocks built fresh from a builder or read from the wire.
+     */
+    private final boolean needsCompaction;
 
     public OrdinalBytesRefBlock(IntBlock ordinals, BytesRefVector bytes) {
+        this(ordinals, bytes, false);
+    }
+
+    public OrdinalBytesRefBlock(IntBlock ordinals, BytesRefVector bytes, boolean needsCompaction) {
         this.ordinals = ordinals;
         this.bytes = bytes;
+        this.needsCompaction = needsCompaction;
     }
 
     static OrdinalBytesRefBlock readOrdinalBlock(BlockFactory blockFactory, BlockStreamInput in) throws IOException {
@@ -47,8 +60,101 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     }
 
     void writeOrdinalBlock(StreamOutput out) throws IOException {
-        ordinals.writeTo(out);
-        bytes.writeTo(out);
+        // Always serialize a phantom-free dictionary: the wire format is unchanged, but receivers
+        // (including older versions) walk the dictionary directly and would observe phantoms if we
+        // shipped them. compact() is a no-op when no phantoms are present.
+        try (OrdinalBytesRefBlock c = compact()) {
+            c.ordinals.writeTo(out);
+            c.bytes.writeTo(out);
+        }
+    }
+
+    /**
+     * Returns {@code true} if this block's dictionary may contain entries that are not referenced by any
+     * ordinal. Such phantom entries arise when ops like {@link #filter}, {@link #keepMask}, or {@link #slice}
+     * share the dictionary with the source block.
+     */
+    public boolean needsCompaction() {
+        return needsCompaction;
+    }
+
+    /**
+     * Returns a block whose dictionary is guaranteed to contain only entries referenced by at least one
+     * ordinal. If {@link #needsCompaction()} is {@code false}, returns {@code this} (with an extra ref).
+     * If a walk of the ordinals discovers every dictionary entry is referenced, returns a wrapper around
+     * the same children with the flag cleared (no copy). Otherwise builds a compact dictionary and a
+     * remapped ordinals block. The returned block must be closed by the caller.
+     */
+    public OrdinalBytesRefBlock compact() {
+        if (needsCompaction == false) {
+            incRef();
+            return this;
+        }
+        int dictSize = bytes.getPositionCount();
+        boolean[] referenced = new boolean[dictSize];
+        int referencedCount = 0;
+        int positionCount = ordinals.getPositionCount();
+        for (int p = 0; p < positionCount; p++) {
+            if (ordinals.isNull(p)) {
+                continue;
+            }
+            int start = ordinals.getFirstValueIndex(p);
+            int end = start + ordinals.getValueCount(p);
+            for (int i = start; i < end; i++) {
+                int ord = ordinals.getInt(i);
+                if (referenced[ord] == false) {
+                    referenced[ord] = true;
+                    referencedCount++;
+                }
+            }
+        }
+        if (referencedCount == dictSize) {
+            ordinals.incRef();
+            bytes.incRef();
+            return new OrdinalBytesRefBlock(ordinals, bytes, false);
+        }
+        int[] remap = new int[dictSize];
+        BytesRefVector compactBytes = null;
+        IntBlock remappedOrds = null;
+        try (BytesRefVector.Builder dictBuilder = blockFactory().newBytesRefVectorBuilder(referencedCount)) {
+            BytesRef scratch = new BytesRef();
+            int newOrd = 0;
+            for (int oldOrd = 0; oldOrd < dictSize; oldOrd++) {
+                if (referenced[oldOrd]) {
+                    dictBuilder.appendBytesRef(bytes.getBytesRef(oldOrd, scratch));
+                    remap[oldOrd] = newOrd++;
+                } else {
+                    remap[oldOrd] = -1;
+                }
+            }
+            compactBytes = dictBuilder.build();
+            try (IntBlock.Builder ordsBuilder = blockFactory().newIntBlockBuilder(positionCount)) {
+                for (int p = 0; p < positionCount; p++) {
+                    if (ordinals.isNull(p)) {
+                        ordsBuilder.appendNull();
+                        continue;
+                    }
+                    int valueCount = ordinals.getValueCount(p);
+                    int start = ordinals.getFirstValueIndex(p);
+                    if (valueCount == 1) {
+                        ordsBuilder.appendInt(remap[ordinals.getInt(start)]);
+                    } else {
+                        ordsBuilder.beginPositionEntry();
+                        for (int i = start; i < start + valueCount; i++) {
+                            ordsBuilder.appendInt(remap[ordinals.getInt(i)]);
+                        }
+                        ordsBuilder.endPositionEntry();
+                    }
+                }
+                remappedOrds = ordsBuilder.mvOrdering(ordinals.mvOrdering()).build();
+            }
+            OrdinalBytesRefBlock result = new OrdinalBytesRefBlock(remappedOrds, compactBytes, false);
+            remappedOrds = null;
+            compactBytes = null;
+            return result;
+        } finally {
+            Releasables.closeExpectNoException(remappedOrds, compactBytes);
+        }
     }
 
     /**
@@ -66,6 +172,11 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
         return ordinals;
     }
 
+    /**
+     * Returns the underlying dictionary vector. When {@link #needsCompaction()} is {@code true} the
+     * dictionary may contain phantom entries that are not referenced by any ordinal; callers that walk
+     * the dictionary directly should call {@link #compact()} first.
+     */
     public BytesRefVector getDictionaryVector() {
         return bytes;
     }
@@ -84,7 +195,7 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     public OrdinalBytesRefVector asVector() {
         IntVector vector = ordinals.asVector();
         if (vector != null) {
-            return new OrdinalBytesRefVector(vector, bytes);
+            return new OrdinalBytesRefVector(vector, bytes, needsCompaction);
         } else {
             return null;
         }
@@ -103,19 +214,17 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
         }
         IntBlock slicedOrdinals = ordinals.slice(beginInclusive, endExclusive);
         bytes.incRef();
-        return new OrdinalBytesRefBlock(slicedOrdinals, bytes);
+        return new OrdinalBytesRefBlock(slicedOrdinals, bytes, true);
     }
 
     @Override
     public BytesRefBlock filter(boolean mayContainDuplicates, int... positions) {
-        // Share the dictionary with the filtered block. Dictionary entries that are no longer referenced
-        // by any ordinal must be ignored by consumers; the consumer-side fast paths (e.g.
-        // BytesRefBlockHash#addOrdinals*, DistinctByOperator, BytesRefTopNBlockHash) drive their work off
-        // the ordinals and never iterate the dictionary, so phantom entries are never observed.
+        // Share the dictionary with the filtered block; the result is flagged needsCompaction so the wire
+        // boundary (and any consumer that walks the dictionary directly) can compact away phantoms.
         OrdinalBytesRefBlock result = null;
         IntBlock filteredOrdinals = ordinals.filter(mayContainDuplicates, positions);
         try {
-            result = new OrdinalBytesRefBlock(filteredOrdinals, bytes);
+            result = new OrdinalBytesRefBlock(filteredOrdinals, bytes, true);
             bytes.incRef();
         } finally {
             if (result == null) {
@@ -138,10 +247,12 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
             }
             return (BytesRefBlock) blockFactory().newConstantNullBlock(getPositionCount());
         }
+        // Same shared-dictionary contract as filter(): mark needsCompaction so phantoms are stripped at
+        // the wire boundary or by downstream callers that walk the dictionary directly.
         OrdinalBytesRefBlock result = null;
         IntBlock filteredOrdinals = ordinals.keepMask(mask);
         try {
-            result = new OrdinalBytesRefBlock(filteredOrdinals, bytes);
+            result = new OrdinalBytesRefBlock(filteredOrdinals, bytes, true);
             bytes.incRef();
         } finally {
             if (result == null) {
@@ -163,7 +274,7 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
         try {
             copiedOrdinals = ordinals.deepCopy(blockFactory);
             copiedBytes = bytes.deepCopy(blockFactory);
-            OrdinalBytesRefBlock result = new OrdinalBytesRefBlock(copiedOrdinals, copiedBytes);
+            OrdinalBytesRefBlock result = new OrdinalBytesRefBlock(copiedOrdinals, copiedBytes, needsCompaction);
             copiedOrdinals = null;
             copiedBytes = null;
             return result;
@@ -253,7 +364,7 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
         OrdinalBytesRefBlock result = null;
         IntBlock expandedOrdinals = ordinals.expand();
         try {
-            result = new OrdinalBytesRefBlock(expandedOrdinals, bytes);
+            result = new OrdinalBytesRefBlock(expandedOrdinals, bytes, needsCompaction);
             bytes.incRef();
         } finally {
             if (result == null) {

@@ -1729,7 +1729,26 @@ public class BasicBlockTests extends ESTestCase {
                 }
                 try (var filtered = block.filter(true, masks)) {
                     assertThat(filtered, instanceOf(OrdinalBytesRefBlock.class));
-                    assertThat(((OrdinalBytesRefBlock) filtered).getDictionaryVector(), sameInstance(block.getDictionaryVector()));
+                    OrdinalBytesRefBlock filteredOrdinal = (OrdinalBytesRefBlock) filtered;
+                    assertThat(filteredOrdinal.needsCompaction(), is(true));
+                    BytesRef expected = new BytesRef();
+                    BytesRef actual = new BytesRef();
+                    for (int i = 0; i < masks.length; i++) {
+                        if (block.isNull(masks[i])) {
+                            assertThat(filteredOrdinal.isNull(i), is(true));
+                            continue;
+                        }
+                        assertThat(filteredOrdinal.isNull(i), is(false));
+                        assertThat(filteredOrdinal.getValueCount(i), equalTo(block.getValueCount(masks[i])));
+                        int srcStart = block.getFirstValueIndex(masks[i]);
+                        int dstStart = filteredOrdinal.getFirstValueIndex(i);
+                        for (int v = 0; v < block.getValueCount(masks[i]); v++) {
+                            assertThat(
+                                filteredOrdinal.getBytesRef(dstStart + v, actual),
+                                equalTo(block.getBytesRef(srcStart + v, expected))
+                            );
+                        }
+                    }
                 }
                 assertSliceFullRange(block);
                 assertSliceOrdinalBytesRefBlock(block, 0, 0);
@@ -1768,7 +1787,13 @@ public class BasicBlockTests extends ESTestCase {
                 }
                 try (var filtered = vector.filter(true, masks)) {
                     assertThat(filtered, instanceOf(OrdinalBytesRefVector.class));
-                    assertThat(((OrdinalBytesRefVector) filtered).getDictionaryVector(), sameInstance(vector.getDictionaryVector()));
+                    OrdinalBytesRefVector filteredOrdinal = (OrdinalBytesRefVector) filtered;
+                    assertThat(filteredOrdinal.needsCompaction(), is(true));
+                    BytesRef expected = new BytesRef();
+                    BytesRef actual = new BytesRef();
+                    for (int i = 0; i < masks.length; i++) {
+                        assertThat(filteredOrdinal.getBytesRef(i, actual), equalTo(vector.getBytesRef(masks[i], expected)));
+                    }
                 }
                 assertSliceFullRange(vector);
                 assertSliceOrdinalBytesRefVector(vector, 0, 0);

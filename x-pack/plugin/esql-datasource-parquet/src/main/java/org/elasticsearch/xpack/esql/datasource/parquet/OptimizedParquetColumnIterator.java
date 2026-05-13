@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
@@ -694,7 +695,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         if (survivingRowGroups == null) {
             return null;
         }
-        int[] next = new int[survivingRowGroups.length];
+        int[] next = UninitializedArrays.newIntArray(survivingRowGroups.length);
         int last = survivingRowGroups.length;
         for (int i = survivingRowGroups.length - 1; i >= 0; i--) {
             next[i] = survivingRowGroups[i] ? i : last;
@@ -1355,7 +1356,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
                 } else {
                     // All rows in this batch survived; the projection reader will read sourceRows
                     // and we'll filter to the first newCount via a synthesized positions array.
-                    truncated = new int[newCount];
+                    truncated = UninitializedArrays.newIntArray(newCount);
                     for (int i = 0; i < newCount; i++) {
                         truncated[i] = i;
                     }
@@ -1490,7 +1491,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         if (newCount == source.getPositionCount()) {
             return source;
         }
-        int[] head = new int[newCount];
+        int[] head = UninitializedArrays.newIntArray(newCount);
         for (int i = 0; i < newCount; i++) {
             head[i] = i;
         }
@@ -1505,7 +1506,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     }
 
     private static int[] toIntArray(List<Integer> values) {
-        int[] out = new int[values.size()];
+        int[] out = UninitializedArrays.newIntArray(values.size());
         for (int i = 0; i < values.size(); i++) {
             out[i] = values.get(i);
         }

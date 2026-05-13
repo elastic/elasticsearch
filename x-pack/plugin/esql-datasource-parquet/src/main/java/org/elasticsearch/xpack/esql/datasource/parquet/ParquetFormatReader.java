@@ -36,7 +36,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.UninitializedArrayAllocator;
+import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
@@ -119,7 +118,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
 
     static {
         // Don't allow slow path.
-        UninitializedArrayAllocator.ensureUnsafeEnabled();
+        UninitializedArrays.ensureUnsafeEnabled();
     }
 
     public ParquetFormatReader(BlockFactory blockFactory) {
@@ -1387,7 +1386,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         }
 
         private Block readBooleanColumn(ColumnReader cr, int maxDef, int rows) {
-            boolean[] values = UninitializedArrayAllocator.newBooleanArray(rows);
+            boolean[] values = UninitializedArrays.newBooleanArray(rows);
             BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
@@ -1406,7 +1405,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         }
 
         private Block readIntColumn(ColumnReader cr, int maxDef, int rows) {
-            int[] values = UninitializedArrayAllocator.newIntArray(rows);
+            int[] values = UninitializedArrays.newIntArray(rows);
             BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
@@ -1428,7 +1427,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
          * Parquet INT32 columns do not support {@link ColumnReader#getLong()}; widen safely to long for planner LONG.
          */
         private Block readInt32WidenedToLongColumn(ColumnReader cr, int maxDef, int rows) {
-            long[] values = UninitializedArrayAllocator.newLongArray(rows);
+            long[] values = UninitializedArrays.newLongArray(rows);
             BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
@@ -1444,7 +1443,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         }
 
         private Block readLongColumn(ColumnReader cr, int maxDef, int rows) {
-            long[] values = UninitializedArrayAllocator.newLongArray(rows);
+            long[] values = UninitializedArrays.newLongArray(rows);
             BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
@@ -1467,7 +1466,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             if (logical instanceof LogicalTypeAnnotation.Float16LogicalTypeAnnotation) {
                 return readFloat16Column(cr, info.maxDefLevel(), rows);
             }
-            double[] values = UninitializedArrayAllocator.newDoubleArray(rows);
+            double[] values = UninitializedArrays.newDoubleArray(rows);
             BitSet isNull = info.maxDefLevel() > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
             boolean isFloat = info.parquetType() == PrimitiveType.PrimitiveTypeName.FLOAT;
@@ -1484,7 +1483,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         }
 
         private Block readDecimalAsDoubleColumn(ColumnReader cr, ColumnInfo info, int scale, int rows) {
-            double[] values = UninitializedArrayAllocator.newDoubleArray(rows);
+            double[] values = UninitializedArrays.newDoubleArray(rows);
             BitSet isNull = info.maxDefLevel() > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
@@ -1506,7 +1505,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         }
 
         private Block readFloat16Column(ColumnReader cr, int maxDef, int rows) {
-            double[] values = UninitializedArrayAllocator.newDoubleArray(rows);
+            double[] values = UninitializedArrays.newDoubleArray(rows);
             BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
@@ -1548,7 +1547,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT96) {
                 return readInt96TimestampColumn(cr, info.maxDefLevel(), rows);
             }
-            long[] values = UninitializedArrayAllocator.newLongArray(rows);
+            long[] values = UninitializedArrays.newLongArray(rows);
             BitSet isNull = info.maxDefLevel() > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
             boolean isDate = info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32;
@@ -1572,7 +1571,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
          * to epoch milliseconds.
          */
         private Block readInt96TimestampColumn(ColumnReader cr, int maxDef, int rows) {
-            long[] values = UninitializedArrayAllocator.newLongArray(rows);
+            long[] values = UninitializedArrays.newLongArray(rows);
             BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {

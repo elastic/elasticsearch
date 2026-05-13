@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.UninitializedArrays;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -37,7 +38,7 @@ final class PlainValueDecoder {
 
     // TODO: consider adding a reusable float[] to DecodeBuffers to avoid per-batch allocation
     void readFloats(double[] values, int offset, int count) {
-        float[] tmp = new float[count];
+        float[] tmp = UninitializedArrays.newFloatArray(count);
         buffer.asFloatBuffer().get(tmp, 0, count);
         buffer.position(buffer.position() + (count << 2));
         for (int i = 0; i < count; i++) {
@@ -73,7 +74,7 @@ final class PlainValueDecoder {
         } else {
             for (int i = 0; i < count; i++) {
                 int length = buffer.getInt();
-                byte[] copy = new byte[length];
+                byte[] copy = UninitializedArrays.newByteArray(length);
                 buffer.get(copy);
                 values[offset + i] = new BytesRef(copy);
             }
@@ -92,7 +93,7 @@ final class PlainValueDecoder {
             }
         } else {
             for (int i = 0; i < count; i++) {
-                byte[] copy = new byte[fixedLength];
+                byte[] copy = UninitializedArrays.newByteArray(fixedLength);
                 buffer.get(copy);
                 values[offset + i] = new BytesRef(copy);
             }

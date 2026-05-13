@@ -8,6 +8,12 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.parquet.io.SeekableInputStream;
+import org.elasticsearch.common.recycler.AbstractRecyclerC;
+import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.recycler.Recyclers;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -153,11 +159,49 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         /** Caps each {@link InputStream#read(byte[], int, int)} to limit JDK thread-local direct buffer use. */
         private static final int STREAM_READ_CHUNK_SIZE = 256 * 1024;
 
+        /**
+         * Cross-thread pool of window buffers. Each entry is sized at {@link #MAX_WINDOW_SIZE}
+         * (16 MB) so any {@code windowSize} request — clamped by {@link #forRange} to
+         * [{@link #DEFAULT_WINDOW_SIZE}, {@link #MAX_WINDOW_SIZE}] — fits a single bucket.
+         * Streams use only the first {@code windowSize} bytes; the rest is treated as
+         * uninitialized scratch and never observed because reads are bounded by
+         * {@code windowLength}.
+         * <p>
+         * Buffers this large bypass the {@code Unsafe.allocateUninitializedArray} intrinsic
+         * (HotSpot only skips zeroing on the inline TLAB fast path; multi-MB allocations go
+         * through the runtime slow path which always zeros). Pooling sidesteps the zeroing
+         * entirely and drops the G1 copy/trim pressure from churning MB-scale arrays.
+         * <p>
+         * Recycled buffers are NOT zeroed on release — the next acquire will overwrite only
+         * the prefix it needs, and stale bytes past {@code windowLength} are unreachable.
+         */
+        private static final Recycler<byte[]> WINDOW_BUFFER_POOL = Recyclers.concurrentDeque(new AbstractRecyclerC<>() {
+            @Override
+            public byte[] newInstance() {
+                return new byte[MAX_WINDOW_SIZE];
+            }
+
+            @Override
+            public void recycle(byte[] value) {
+                // Intentionally not zeroing: callers only read up to windowLength, which is
+                // re-established by every fetchWindowAt before being read.
+            }
+
+            @Override
+            public int pageSize() {
+                return MAX_WINDOW_SIZE;
+            }
+            // Peak concurrency: MAX_PARALLEL_SPLIT_DISCOVERY (16) tasks each holding one stream,
+            // plus producer threads each holding one data-reading stream. 2×processors as a floor
+            // covers both phases; total cached memory is bounded to 2×processors×MAX_WINDOW_SIZE.
+        }, Math.max(32, 2 * EsExecutors.allocatedProcessors(Settings.EMPTY)));
+
         private final StorageObject storageObject;
         private final FooterByteCache.Key cacheKey;
         private final long length;
         private final int windowSize;
-        private final byte[] window;
+        private final Recycler.V<byte[]> windowSlot;
+        private byte[] window;
 
         /**
          * Supplier that returns the adapter's current pre-warmed chunks map (or {@code null}).
@@ -184,7 +228,8 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             this.cacheKey = cacheKey;
             this.length = length;
             this.windowSize = windowSize;
-            this.window = new byte[windowSize];
+            this.windowSlot = WINDOW_BUFFER_POOL.obtain();
+            this.window = windowSlot.v();
             this.preWarmedChunksSupplier = preWarmedChunksSupplier;
             this.windowStart = -1;
             this.windowLength = 0;
@@ -272,14 +317,14 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             }
 
             if (windowLength > 0 && windowStart + windowLength == length) {
-                byte[] tailBytes = new byte[windowLength];
+                byte[] tailBytes = UninitializedArrays.newByteArray(windowLength);
                 System.arraycopy(window, 0, tailBytes, 0, windowLength);
                 tailCache.put(cacheKey, tailBytes);
             }
         }
 
         private byte[] readTailBytes(long pos, int toRead) throws IOException {
-            byte[] buf = new byte[toRead];
+            byte[] buf = UninitializedArrays.newByteArray(toRead);
             try (InputStream in = storageObject.newStream(pos, toRead)) {
                 int totalRead = 0;
                 while (totalRead < toRead) {
@@ -296,7 +341,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 if (totalRead == toRead) {
                     return buf;
                 }
-                byte[] result = new byte[totalRead];
+                byte[] result = UninitializedArrays.newByteArray(totalRead);
                 System.arraycopy(buf, 0, result, 0, totalRead);
                 return result;
             }
@@ -446,9 +491,14 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
         @Override
         public void close() throws IOException {
+            if (closed) {
+                return;
+            }
             closed = true;
             windowStart = -1;
             windowLength = 0;
+            window = null;
+            windowSlot.close();
         }
 
         @Override
@@ -483,7 +533,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 }
                 return bytesRead;
             }
-            byte[] transfer = new byte[Math.min(buf.remaining(), StorageObject.TRANSFER_BUFFER_SIZE)];
+            byte[] transfer = UninitializedArrays.newByteArray(Math.min(buf.remaining(), StorageObject.TRANSFER_BUFFER_SIZE));
             int totalRead = 0;
             while (buf.hasRemaining()) {
                 int toRead = Math.min(transfer.length, buf.remaining());
@@ -505,7 +555,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 buf.position(buf.limit());
                 return;
             }
-            byte[] transfer = new byte[Math.min(buf.remaining(), StorageObject.TRANSFER_BUFFER_SIZE)];
+            byte[] transfer = UninitializedArrays.newByteArray(Math.min(buf.remaining(), StorageObject.TRANSFER_BUFFER_SIZE));
             while (buf.hasRemaining()) {
                 int toRead = Math.min(transfer.length, buf.remaining());
                 readFully(transfer, 0, toRead);

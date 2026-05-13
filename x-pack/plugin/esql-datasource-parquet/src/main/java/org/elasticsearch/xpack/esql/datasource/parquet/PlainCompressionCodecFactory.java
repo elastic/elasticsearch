@@ -17,6 +17,7 @@ import org.apache.parquet.compression.CompressionCodecFactory;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.util.LazyInitializable;
+import org.elasticsearch.compute.data.UninitializedArrays;
 import org.xerial.snappy.Snappy;
 
 import java.io.ByteArrayOutputStream;
@@ -163,7 +164,7 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
     private static class SnappyBytesDecompressor implements BytesInputDecompressor {
         @Override
         public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
-            byte[] out = new byte[decompressedSize];
+            byte[] out = UninitializedArrays.newByteArray(decompressedSize);
             Snappy.uncompress(bytes.toByteArray(), 0, (int) bytes.size(), out, 0);
             return BytesInput.from(out);
         }
@@ -190,7 +191,7 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
     private static class GzipBytesDecompressor implements BytesInputDecompressor {
         @Override
         public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
-            byte[] out = new byte[decompressedSize];
+            byte[] out = UninitializedArrays.newByteArray(decompressedSize);
             try (GZIPInputStream gis = new GZIPInputStream(bytes.toInputStream())) {
                 int off = 0;
                 while (off < decompressedSize) {
@@ -221,7 +222,7 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
     private static class ZstdBytesDecompressor implements BytesInputDecompressor {
         @Override
         public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
-            byte[] out = new byte[decompressedSize];
+            byte[] out = UninitializedArrays.newByteArray(decompressedSize);
             try {
                 Zstd.decompress(out, bytes.toByteArray());
             } catch (RuntimeException e) {
@@ -260,7 +261,7 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
         @Override
         public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
             byte[] in = bytes.toByteArray();
-            byte[] out = new byte[decompressedSize];
+            byte[] out = UninitializedArrays.newByteArray(decompressedSize);
             lz4.decompress(in, 0, in.length, out, 0, decompressedSize);
             return BytesInput.from(out);
         }
@@ -353,7 +354,7 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
         @Override
         public BytesInput compress(BytesInput bytes) throws IOException {
             byte[] in = bytes.toByteArray();
-            byte[] out = new byte[lz4.maxCompressedLength(in.length)];
+            byte[] out = UninitializedArrays.newByteArray(lz4.maxCompressedLength(in.length));
             int compressedLen = lz4.compress(in, 0, in.length, out, 0, out.length);
             return BytesInput.from(out, 0, compressedLen);
         }

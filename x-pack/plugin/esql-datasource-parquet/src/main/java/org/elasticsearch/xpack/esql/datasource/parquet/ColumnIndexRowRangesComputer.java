@@ -13,6 +13,7 @@ import org.apache.parquet.filter2.predicate.UserDefinedPredicate;
 import org.apache.parquet.internal.column.columnindex.ColumnIndex;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.io.api.Binary;
+import org.elasticsearch.compute.data.UninitializedArrays;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -257,7 +258,7 @@ final class ColumnIndexRowRangesComputer implements FilterPredicate.Visitor<RowR
         } else if (type == Boolean.class) {
             return (T) Boolean.valueOf(ordered.get() != 0);
         } else if (type == Binary.class) {
-            byte[] bytes = new byte[buf.remaining()];
+            byte[] bytes = UninitializedArrays.newByteArray(buf.remaining());
             buf.duplicate().get(bytes);
             return (T) Binary.fromConstantByteArray(bytes);
         }

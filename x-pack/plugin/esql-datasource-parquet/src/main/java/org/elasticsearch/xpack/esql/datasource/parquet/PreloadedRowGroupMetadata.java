@@ -16,6 +16,7 @@ import org.apache.parquet.internal.column.columnindex.ColumnIndex;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.internal.hadoop.metadata.IndexReference;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -315,7 +316,7 @@ final class PreloadedRowGroupMetadata {
     }
 
     private static byte[] toByteArray(ByteBuffer buf) {
-        byte[] bytes = new byte[buf.remaining()];
+        byte[] bytes = UninitializedArrays.newByteArray(buf.remaining());
         // Use a duplicate so the caller's buffer position is untouched — important for ranges we
         // also keep in the pre-warm cache.
         buf.duplicate().get(bytes);

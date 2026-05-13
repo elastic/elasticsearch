@@ -25,6 +25,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -283,8 +284,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
                                 array[k] = vector.get(k).floatValue();
                             }
                             byte[] buffer = new byte[BFloat16.BYTES * numDims];
-                            BFloat16.floatToBFloat16(array, buffer);
-                            BFloat16.swapByteOrder(buffer);
+                            BFloat16.floatToBFloat16(array, 0, buffer, 0, numDims, ByteOrder.BIG_ENDIAN);
                             yield Base64.getEncoder().encodeToString(buffer);
                         }
                         case BYTE, BIT -> {

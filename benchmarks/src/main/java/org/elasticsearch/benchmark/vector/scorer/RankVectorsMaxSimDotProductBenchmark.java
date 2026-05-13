@@ -163,7 +163,7 @@ public class RankVectorsMaxSimDotProductBenchmark {
         int dims = vectors[0].length;
         byte[] buffer = new byte[vectors.length * dims * BFloat16.BYTES];
         for (int i = 0; i < vectors.length; i++) {
-            BFloat16.floatToBFloat16(vectors[i], 0, buffer, i * dims * BFloat16.BYTES, dims);
+            BFloat16.floatToBFloat16(vectors[i], 0, buffer, i * dims * BFloat16.BYTES, dims, ByteOrder.LITTLE_ENDIAN);
         }
         return new BytesRef(buffer);
     }

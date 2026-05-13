@@ -80,39 +80,42 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
     public void testBFloat16ToFloat() {
         Random r = random();
         int dims = r.nextInt(1025);
+        ByteOrder bo = randomFrom(ByteOrder.LITTLE_ENDIAN, ByteOrder.LITTLE_ENDIAN);
         float[] floats = new float[dims];
-        short[] bFloats = new short[dims];
-        for (int i = 0; i < bFloats.length; i++) {
+        byte[] bFloats = new byte[dims * BFloat16.BYTES];
+        ShortBuffer bfloatShorts = ByteBuffer.wrap(bFloats).order(bo).asShortBuffer();
+        for (int i = 0; i < dims; i++) {
             floats[i] = BFloat16.truncateToBFloat16(r.nextFloat());
-            bFloats[i] = BFloat16.floatToBFloat16(floats[i]);
+            bfloatShorts.put(BFloat16.floatToBFloat16(floats[i]));
         }
 
         float[] defaultFloats = new float[dims];
-        defaultedProvider.getVectorUtilSupport().bFloat16ToFloat(ShortBuffer.wrap(bFloats), defaultFloats);
+        defaultedProvider.getVectorUtilSupport().bFloat16ToFloat(bFloats, 0, defaultFloats, 0, dims, bo);
         assertArrayEquals(floats, defaultFloats, 0f);
 
         float[] panamaFloats = new float[dims];
-        defOrPanamaProvider.getVectorUtilSupport().bFloat16ToFloat(ShortBuffer.wrap(bFloats), panamaFloats);
+        defOrPanamaProvider.getVectorUtilSupport().bFloat16ToFloat(bFloats, 0, panamaFloats, 0, dims, bo);
         assertArrayEquals(floats, panamaFloats, 0f);
     }
 
     public void testFloatToBFloat16() {
         Random r = random();
         int dims = r.nextInt(1025);
+        ByteOrder bo = randomFrom(ByteOrder.LITTLE_ENDIAN, ByteOrder.LITTLE_ENDIAN);
         float[] floats = new float[dims];
         byte[] bFloats = new byte[dims * BFloat16.BYTES];
-        ShortBuffer bfloatShorts = ByteBuffer.wrap(bFloats).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer();
+        ShortBuffer bfloatShorts = ByteBuffer.wrap(bFloats).order(bo).asShortBuffer();
         for (int i = 0; i < dims; i++) {
             floats[i] = r.nextFloat();
             bfloatShorts.put(BFloat16.floatToBFloat16(floats[i]));
         }
 
         byte[] defaultBFloats = new byte[bFloats.length];
-        defaultedProvider.getVectorUtilSupport().floatToBFloat16(floats, 0, defaultBFloats, 0, dims);
+        defaultedProvider.getVectorUtilSupport().floatToBFloat16(floats, 0, defaultBFloats, 0, dims, bo);
         assertArrayEquals(bFloats, defaultBFloats);
 
         byte[] panamaBFloats = new byte[bFloats.length];
-        defOrPanamaProvider.getVectorUtilSupport().floatToBFloat16(floats, 0, panamaBFloats, 0, dims);
+        defOrPanamaProvider.getVectorUtilSupport().floatToBFloat16(floats, 0, panamaBFloats, 0, dims, bo);
         assertArrayEquals(bFloats, panamaBFloats);
     }
 
@@ -652,7 +655,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         int dims = vectors[0].length;
         byte[] buffer = new byte[vectors.length * dims * BFloat16.BYTES];
         for (int i = 0; i < vectors.length; i++) {
-            ESVectorUtil.floatToBFloat16(vectors[i], 0, buffer, i * dims * BFloat16.BYTES, dims);
+            ESVectorUtil.floatToBFloat16(vectors[i], 0, buffer, i * dims * BFloat16.BYTES, dims, ByteOrder.LITTLE_ENDIAN);
         }
         return new BytesRef(buffer);
     }

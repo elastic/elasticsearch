@@ -80,6 +80,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             TransportSearchAction.TYPE,
+            true,
             buildSearchRequestForValidation("preview", sourceConfig, timeout, numberOfBuckets),
             listener.delegateFailureAndWrap((l, r) -> {
                 try {
@@ -129,6 +130,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             TransportSearchAction.TYPE,
+            true,
             searchRequest,
             ActionListener.wrap(response -> {
                 if (response == null) {

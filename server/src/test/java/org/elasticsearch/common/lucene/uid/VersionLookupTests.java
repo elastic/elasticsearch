@@ -315,6 +315,30 @@ public class VersionLookupTests extends ESTestCase {
         dir.close();
     }
 
+    public void testBatchLookupSkipPathReusesSeek() throws Exception {
+        // Segment has "b" and "c" but not "a". The sorted lookup order is ["a", "b", "c"].
+        // seekCeil("a") lands on "b" (NOT_FOUND) and sets currentTerm="b".
+        // The next uid "b" matches currentTerm (cmp==0) and falls through directly to
+        // scanLiveDoc without issuing a second seek, exercising the skip path.
+        Directory dir = newDirectory();
+        IndexWriter writer = newNoMergeWriter(dir);
+        writer.addDocument(makeDoc("b", 2L, 20L, 1L));
+        writer.addDocument(makeDoc("c", 3L, 30L, 1L));
+        DirectoryReader reader = DirectoryReader.open(writer);
+
+        DocIdAndVersion[] results = batchLookup(reader, "a", "b", "c");
+
+        assertNull(results[0]);
+        assertNotNull(results[1]);
+        assertEquals(2L, results[1].version);
+        assertNotNull(results[2]);
+        assertEquals(3L, results[2].version);
+
+        reader.close();
+        writer.close();
+        dir.close();
+    }
+
     public void testLoadTimestampRangeWithDeleteTombstone() throws Exception {
         Directory dir = newDirectory();
         IndexWriter writer = newNoMergeWriter(dir);

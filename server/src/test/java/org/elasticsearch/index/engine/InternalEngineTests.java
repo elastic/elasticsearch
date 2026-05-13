@@ -68,6 +68,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -92,12 +93,14 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqN
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -150,6 +153,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -8304,6 +8308,104 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(results, hasSize(1));
         assertThat(results.getFirst().getResultType(), equalTo(Engine.Result.Type.SUCCESS));
         assertThat(results.getFirst().isCreated(), equalTo(true));
+    }
+
+    public void testIndexBatchFastPathOnly() throws IOException {
+        // appendOnlyPrimary ops with a timestamp > maxUnsafeAutoIdTimestamp (-1 at startup) hit
+        // onFastPath=true in planPrimarySubBatch, skipping the version-map and Lucene phases entirely.
+        long timestamp = System.currentTimeMillis();
+        int count = randomIntBetween(2, 10);
+        List<Engine.Index> ops = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            ops.add(appendOnlyPrimary(createParsedDoc(Integer.toString(i), null), false, timestamp + i));
+        }
+        List<Engine.IndexResult> results = engine.indexBatch(ops);
+        assertThat(results, hasSize(count));
+        for (Engine.IndexResult result : results) {
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertThat(result.isCreated(), equalTo(true));
+        }
+    }
+
+    public void testIndexBatchTimeSeriesPhase2() throws IOException {
+        // planPrimarySubBatch Phase 2 uses a per-UID timeSeriesLoadDocIdAndVersion call
+        // instead of the batch scan when the index mode is TIME_SERIES.
+        IndexSettings tsSettings = IndexSettingsModule.newIndexSettings(
+            "test",
+            Settings.builder()
+                .put(defaultSettings.getSettings())
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+                .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+                .build()
+        );
+        Path translogPath = createTempDir();
+        try (Store store = createStore()) {
+            // Build an EngineConfig with the TIMESERIES_LEAF_READERS_SORTER, which is required
+            // by the assert inside InternalEngine.resolveDocVersion for TIME_SERIES mode.
+            EngineConfig baseConfig = config(tsSettings, store, translogPath, NoMergePolicy.INSTANCE, null);
+            EngineConfig tsConfig = new EngineConfig(
+                baseConfig.getShardId(),
+                baseConfig.getThreadPool(),
+                baseConfig.getThreadPoolMergeExecutorService(),
+                tsSettings,
+                baseConfig.getWarmer(),
+                store,
+                NoMergePolicy.INSTANCE,
+                baseConfig.getAnalyzer(),
+                baseConfig.getSimilarity(),
+                baseConfig.getCodecProvider(),
+                baseConfig.getEventListener(),
+                baseConfig.getQueryCache(),
+                baseConfig.getQueryCachingPolicy(),
+                baseConfig.getTranslogConfig(),
+                baseConfig.getFlushMergesAfter(),
+                baseConfig.getExternalRefreshListener(),
+                baseConfig.getInternalRefreshListener(),
+                baseConfig.getIndexSort(),
+                baseConfig.getCircuitBreakerService(),
+                baseConfig.getGlobalCheckpointSupplier(),
+                baseConfig.retentionLeasesSupplier(),
+                baseConfig.getPrimaryTermSupplier(),
+                baseConfig.getSnapshotCommitSupplier(),
+                DataStream.TIMESERIES_LEAF_READERS_SORTER,
+                baseConfig.getRelativeTimeInNanosSupplier(),
+                baseConfig.getIndexCommitListener(),
+                baseConfig.isPromotableToPrimary(),
+                baseConfig.getMapperService(),
+                baseConfig.getEngineResetLock(),
+                baseConfig.getMergeMetrics(),
+                baseConfig.getIndexDeletionPolicyWrapper()
+            );
+            try (InternalEngine tsEngine = createEngine(tsConfig)) {
+                // Non-synthetic TSDB IDs are base64-URL-encoded 20-byte arrays with the
+                // @timestamp value stored big-endian at bytes 12–19.
+                long timestamp = System.currentTimeMillis();
+                int count = randomIntBetween(2, 5);
+                List<ParsedDocument> docs = new ArrayList<>();
+                for (int i = 0; i < count; i++) {
+                    byte[] idBytes = new byte[20];
+                    idBytes[0] = (byte) i;
+                    ByteUtils.writeLongBE(timestamp, idBytes, 12);
+                    docs.add(createParsedDoc(Base64.getUrlEncoder().withoutPadding().encodeToString(idBytes), null));
+                }
+
+                for (ParsedDocument doc : docs) {
+                    indexDoc(tsEngine, indexForDoc(doc));
+                }
+                tsEngine.refresh("test");
+                tsEngine.refresh("test"); // evict from version map
+
+                List<Engine.Index> updates = new ArrayList<>();
+                for (ParsedDocument doc : docs) {
+                    updates.add(indexForDoc(doc));
+                }
+                List<Engine.IndexResult> results = tsEngine.indexBatch(updates);
+                assertThat(results, hasSize(count));
+                for (Engine.IndexResult result : results) {
+                    assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+                }
+            }
+        }
     }
 
     private static void releaseCommitRef(Map<IndexCommit, Engine.IndexCommitRef> commits, long generation) {

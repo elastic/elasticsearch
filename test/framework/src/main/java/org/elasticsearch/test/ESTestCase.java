@@ -820,8 +820,8 @@ public abstract class ESTestCase extends LuceneTestCase {
                     }
                     return new DeprecationWarning(level, warningText);
                 }).collect(Collectors.toSet());
-                final Set<String> unexpectedWarnings = actualWarningStrings.stream()
-                    .map(warningString -> HeaderWarning.extractWarningValueFromWarningHeader(warningString, stripXContentPosition))
+                final Set<String> unexpectedWarnings = actualDeprecationWarnings.stream()
+                    .map(warning -> warning.message)
                     .collect(Collectors.toCollection(HashSet::new));
 
                 for (DeprecationWarning expectedWarning : expectedWarnings) {
@@ -830,14 +830,10 @@ public abstract class ESTestCase extends LuceneTestCase {
                         HeaderWarning.escapeAndEncode(expectedWarning.message)
                     );
                     assertThat(actualDeprecationWarnings, hasItem(escapedExpectedWarning));
-                    unexpectedWarnings.remove(expectedWarning.message);
+                    unexpectedWarnings.remove(escapedExpectedWarning.message);
                 }
                 // Do not alert on filtered warnings in addition to expected ones.
-                filteredWarnings().forEach(filtered -> unexpectedWarnings.forEach(warning -> {
-                    if (warning.contains(filtered)) {
-                        unexpectedWarnings.remove(warning);
-                    }
-                }));
+                filteredWarnings().forEach(filtered -> unexpectedWarnings.removeIf(warning -> warning.contains(filtered)));
                 assertThat("Unexpected warnings found: " + unexpectedWarnings, unexpectedWarnings, empty());
             }
         } finally {

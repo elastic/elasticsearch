@@ -86,7 +86,14 @@ public class InferenceStats {
                 "Inference API time spent waiting for Trained Model Deployments",
                 "ms"
             ),
-            Map.of(STACK_VERSION_ATTRIBUTE, stackVersion, PRODUCTION_RELEASE_ATTRIBUTE, isProductionRelease, MetricAttributes.ES_PLUGIN, ES_PLUGIN_VALUE)
+            Map.of(
+                STACK_VERSION_ATTRIBUTE,
+                stackVersion,
+                PRODUCTION_RELEASE_ATTRIBUTE,
+                isProductionRelease,
+                MetricAttributes.ES_PLUGIN,
+                ES_PLUGIN_VALUE
+            )
         );
     }
 

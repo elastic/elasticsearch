@@ -22,10 +22,10 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 
+import static org.elasticsearch.inference.telemetry.InferenceStats.ES_PLUGIN_VALUE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_DEPLOYMENT_DURATION;
 import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_REQUEST_COUNT_TOTAL;
 import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_REQUEST_DURATION;
-import static org.elasticsearch.inference.telemetry.InferenceStats.ES_PLUGIN_VALUE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.PRODUCTION_RELEASE_ATTRIBUTE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.SERVICE_ATTRIBUTE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.STACK_VERSION_ATTRIBUTE;
@@ -127,7 +127,14 @@ public class InferenceStatsTests extends ESTestCase {
             longCounter,
             mock(),
             mock(),
-            Map.of(STACK_VERSION_ATTRIBUTE, TEST_STACK_VERSION, PRODUCTION_RELEASE_ATTRIBUTE, TEST_IS_PRODUCTION_RELEASE, ES_PLUGIN, ES_PLUGIN_VALUE)
+            Map.of(
+                STACK_VERSION_ATTRIBUTE,
+                TEST_STACK_VERSION,
+                PRODUCTION_RELEASE_ATTRIBUTE,
+                TEST_IS_PRODUCTION_RELEASE,
+                ES_PLUGIN,
+                ES_PLUGIN_VALUE
+            )
         );
 
         stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withSuccess().incrementBy(1);
@@ -343,7 +350,14 @@ public class InferenceStatsTests extends ESTestCase {
             mock(),
             longHistogram,
             mock(),
-            Map.of(STACK_VERSION_ATTRIBUTE, TEST_STACK_VERSION, PRODUCTION_RELEASE_ATTRIBUTE, TEST_IS_PRODUCTION_RELEASE, ES_PLUGIN, ES_PLUGIN_VALUE)
+            Map.of(
+                STACK_VERSION_ATTRIBUTE,
+                TEST_STACK_VERSION,
+                PRODUCTION_RELEASE_ATTRIBUTE,
+                TEST_IS_PRODUCTION_RELEASE,
+                ES_PLUGIN,
+                ES_PLUGIN_VALUE
+            )
         );
 
         stats.inferenceDuration().withModel(model(TEST_SERVICE, TaskType.ANY)).withSuccess().record(expectedDuration);

@@ -9,6 +9,10 @@ package org.elasticsearch.xpack.oteldata.otlp.docbuilder;
 
 public enum HistogramMapping {
     TDIGEST,
+    /**
+     * Indexes histograms using raw bucket boundaries rather than midpoint approximation.
+     * Set via the {@code histogram:raw} mapping hint. See {@link MappingHints#HISTOGRAM_RAW}.
+     */
     HISTOGRAM_RAW,
     EXPONENTIAL_HISTOGRAM,
     AGGREGATE_METRIC_DOUBLE

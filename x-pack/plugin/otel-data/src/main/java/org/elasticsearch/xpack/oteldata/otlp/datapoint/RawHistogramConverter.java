@@ -14,6 +14,19 @@ import org.elasticsearch.exponentialhistogram.ExponentialScaleUtils;
 
 /**
  * Converts OpenTelemetry histograms into Elasticsearch {@code histogram} values without midpoint approximation.
+ *
+ * <p>The default conversion path (TDigest) maps each explicit-bounds bucket to its arithmetic midpoint. That works
+ * well for generic histograms, but produces a double approximation for histograms whose bucket boundaries already
+ * encode the approximation — for example, HDR histograms sent by Elastic APM agents as OTLP explicit-bounds
+ * histograms. Applying midpoint interpolation on top of boundaries that are themselves already approximations
+ * degrades percentile accuracy unnecessarily.
+ *
+ * <p>This converter instead uses the <em>upper bucket boundary</em> as the representative value for each bucket,
+ * which matches the semantics used by APM Server (MIS) and the EDOT Elasticsearch exporter when the
+ * {@code histogram:raw} mapping hint is set. The overflow bucket (values greater than the last explicit bound) is
+ * dropped because no upper boundary exists for it.
+ *
+ * <p>For exponential histograms the upper bucket boundary is used as the representative value in the same way.
  */
 class RawHistogramConverter {
 

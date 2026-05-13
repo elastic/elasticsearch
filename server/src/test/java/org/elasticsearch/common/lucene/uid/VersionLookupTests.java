@@ -31,6 +31,8 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+
 /**
  * test per-segment lookup of version-related data structures
  */
@@ -41,12 +43,7 @@ public class VersionLookupTests extends ESTestCase {
      */
     public void testSimple() throws Exception {
         Directory dir = newDirectory();
-        IndexWriter writer = new IndexWriter(
-            dir,
-            new IndexWriterConfig(Lucene.STANDARD_ANALYZER)
-                // to have deleted docs
-                .setMergePolicy(NoMergePolicy.INSTANCE)
-        );
+        IndexWriter writer = newNoMergeWriter(dir);
         Document doc = new Document();
         doc.add(new StringField(IdFieldMapper.NAME, "6", Field.Store.YES));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 87));
@@ -81,7 +78,7 @@ public class VersionLookupTests extends ESTestCase {
      */
     public void testTwoDocuments() throws Exception {
         Directory dir = newDirectory();
-        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setMergePolicy(NoMergePolicy.INSTANCE));
+        IndexWriter writer = newNoMergeWriter(dir);
         Document doc = new Document();
         doc.add(new StringField(IdFieldMapper.NAME, "6", Field.Store.YES));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 87));
@@ -122,7 +119,7 @@ public class VersionLookupTests extends ESTestCase {
 
     public void testLoadTimestampRange() throws Exception {
         Directory dir = newDirectory();
-        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setMergePolicy(NoMergePolicy.INSTANCE));
+        IndexWriter writer = newNoMergeWriter(dir);
         Document doc = new Document();
         doc.add(new StringField(IdFieldMapper.NAME, "6", Field.Store.YES));
         doc.add(new LongPoint(DataStream.TIMESTAMP_FIELD_NAME, 1_000));
@@ -157,7 +154,7 @@ public class VersionLookupTests extends ESTestCase {
 
     public void testLoadTimestampRangeWithDeleteTombstone() throws Exception {
         Directory dir = newDirectory();
-        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setMergePolicy(NoMergePolicy.INSTANCE));
+        IndexWriter writer = newNoMergeWriter(dir);
         var randomSeqNoIndexOptions = randomFrom(SeqNoFieldMapper.SeqNoIndexOptions.values());
         writer.addDocument(ParsedDocument.deleteTombstone(randomSeqNoIndexOptions, "_id").docs().getFirst());
         DirectoryReader reader = DirectoryReader.open(writer);
@@ -169,5 +166,9 @@ public class VersionLookupTests extends ESTestCase {
         reader.close();
         writer.close();
         dir.close();
+    }
+
+    private static IndexWriter newNoMergeWriter(Directory dir) throws IOException {
+        return new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setMergePolicy(NoMergePolicy.INSTANCE));
     }
 }

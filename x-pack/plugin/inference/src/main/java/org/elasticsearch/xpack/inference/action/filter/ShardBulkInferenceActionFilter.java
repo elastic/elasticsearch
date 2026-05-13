@@ -453,7 +453,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             final List<InferenceStringFieldInferenceRequest> requests,
             final Releasable onFinish
         ) {
-            final List<InferenceStringGroup> inputs = requests.stream().map(r -> new InferenceStringGroup(List.of(r.input()))).toList();
+            final List<InferenceStringGroup> inputs = requests.stream().map(r -> new InferenceStringGroup(r.input())).toList();
 
             ActionListener<InferenceServiceResults> completionListener = ActionListener.wrap(results -> {
                 try (onFinish) {

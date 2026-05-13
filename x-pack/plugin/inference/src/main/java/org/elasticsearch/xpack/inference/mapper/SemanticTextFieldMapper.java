@@ -555,7 +555,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
             // Non-null input index means a non-text value, which in turn means an object value
             throw new DocumentParsingException(
                 xContentLocation,
-                "[" + CONTENT_TYPE + "] field [" + fullPath() + "] does not support object values"
+                "[" + CONTENT_TYPE + "] field [" + fullPath() + "] does not support multimodal values"
             );
         }
 

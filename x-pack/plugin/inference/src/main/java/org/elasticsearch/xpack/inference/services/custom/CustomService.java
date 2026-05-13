@@ -144,18 +144,17 @@ public class CustomService extends SenderService<CustomModel> implements Reranki
 
     @Override
     protected void doRerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
-        if (model instanceof CustomModel customModel) {
-            var overriddenModel = CustomModel.of(customModel, request.taskSettings());
-
-            var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(SERVICE_NAME);
-            var manager = CustomRequestManager.of(overriddenModel, getServiceComponents().threadPool());
-            var action = new SenderExecutableAction(getSender(), manager, failedToSendRequestErrorMessage);
-
-            action.execute(fromRerankRequest(request), timeout, listener);
-        } else {
+        if (!(model instanceof CustomModel customModel)) {
             listener.onFailure(createInvalidModelException(model));
+            return;
         }
+        var overriddenModel = CustomModel.of(customModel, request.taskSettings());
 
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(SERVICE_NAME);
+        var manager = CustomRequestManager.of(overriddenModel, getServiceComponents().threadPool());
+        var action = new SenderExecutableAction(getSender(), manager, failedToSendRequestErrorMessage);
+
+        action.execute(fromRerankRequest(request), timeout, listener);
     }
 
     @Override

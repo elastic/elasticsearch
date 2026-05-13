@@ -228,10 +228,9 @@ FROM flattened_otel_logs
 2020-01-01T11:43:13.255Z | filebeat-6t7v6        | low
 ;
 
-// When field_extract fuses into the keyed sub-field
-// loader, multi-valued sub-keys come back as a real multi-value keyword block
-// rather than a JSON-array string. MV_COUNT distinguishes the two: pushdown gives
-// 2, the per-row JSON evaluator gives 1 (a single string holding "[a,b]").
+// host.ip stores multiple values for this @timestamp. The block-loader fusion reads them
+// directly out of the keyed sub-field doc values, so the result is a real multi-value
+// keyword block and MV_COUNT reports the number of values rather than a single value.
 multiValuedSubkeyAsMultiValue
 required_capability: fn_field_extract
 required_capability: flattened_datatype

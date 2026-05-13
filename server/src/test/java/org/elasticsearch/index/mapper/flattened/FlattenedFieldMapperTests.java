@@ -38,6 +38,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.DummyBlockLoaderContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -2006,7 +2007,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
 
         MappedFieldType unmappedKeyType = mapperService.fieldType("field.unmapped_key");
         assertThat(unmappedKeyType, instanceOf(KeyedFlattenedFieldType.class));
-        BlockLoader unmappedBlockLoader = unmappedKeyType.blockLoader(null);
+        BlockLoader unmappedBlockLoader = unmappedKeyType.blockLoader(new DummyBlockLoaderContext("test-index"));
         assertThat(unmappedBlockLoader, instanceOf(KeyedFlattenedDocValuesBlockLoader.class));
 
         MappedFieldType.BlockLoaderContext blContext = mock(MappedFieldType.BlockLoaderContext.class);
@@ -2091,7 +2092,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
 
         MappedFieldType fieldType = mapperService.fieldType("field");
         assertThat(fieldType, instanceOf(RootFlattenedFieldType.class));
-        BlockLoader blockLoader = fieldType.blockLoader(null);
+        BlockLoader blockLoader = fieldType.blockLoader(new DummyBlockLoaderContext("test-index"));
         assertThat(blockLoader, instanceOf(RootFlattenedDocValuesBlockLoader.class));
 
         withLuceneIndex(mapperService, iw -> {
@@ -2141,7 +2142,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
-        BlockLoader blockLoader = mapperService.fieldType("field").blockLoader(null);
+        BlockLoader blockLoader = mapperService.fieldType("field").blockLoader(new DummyBlockLoaderContext("test-index"));
 
         withLuceneIndex(mapperService, iw -> {
             iw.addDocument(

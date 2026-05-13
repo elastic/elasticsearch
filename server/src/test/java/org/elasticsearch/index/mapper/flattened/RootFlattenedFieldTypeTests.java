@@ -38,6 +38,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
@@ -254,15 +255,16 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
     }
 
     /**
-     * {@code RootFlattenedFieldType} advertises support for the {@code ExtractFlattenedSubfield} loader config when doc
-     * values are present, so the optimizer may rewrite {@code field_extract(root, "<key>")} into a fused load.
+     * {@code RootFlattenedFieldType} advertises support for the {@code ExtractFlattenedSubfieldConfig}
+     * loader config when doc values are present, so the optimizer may rewrite
+     * {@code field_extract(root, "<key>")} into a fused load.
      */
     public void testSupportsBlockLoaderConfigAcceptsExtractFlattenedSubfieldWhenDocValuesPresent() {
         RootFlattenedFieldType withDv = createDefaultFieldType(Integer.MAX_VALUE);
         assertTrue(
-            "with doc values, ExtractFlattenedSubfield must be advertised as supported",
+            "with doc values, ExtractFlattenedSubfieldConfig must be advertised as supported",
             withDv.supportsBlockLoaderConfig(
-                new BlockLoaderFunctionConfig.ExtractFlattenedSubfield("host.name"),
+                new ExtractFlattenedSubfieldConfig(randomAlphaOfLengthBetween(3, 32)),
                 MappedFieldType.FieldExtractPreference.NONE
             )
         );
@@ -275,9 +277,9 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
     public void testSupportsBlockLoaderConfigRejectsExtractFlattenedSubfieldWhenDocValuesAbsent() {
         RootFlattenedFieldType noDv = noDocValuesFieldType();
         assertFalse(
-            "without doc values the field type must reject the ExtractFlattenedSubfield config",
+            "without doc values the field type must reject the ExtractFlattenedSubfieldConfig",
             noDv.supportsBlockLoaderConfig(
-                new BlockLoaderFunctionConfig.ExtractFlattenedSubfield("host.name"),
+                new ExtractFlattenedSubfieldConfig(randomAlphaOfLengthBetween(3, 32)),
                 MappedFieldType.FieldExtractPreference.NONE
             )
         );
@@ -287,24 +289,39 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
         RootFlattenedFieldType withDv = createDefaultFieldType(Integer.MAX_VALUE);
         BlockLoaderFunctionConfig unrelated = new BlockLoaderFunctionConfig.JustFunction(BlockLoaderFunctionConfig.Function.LENGTH);
         assertFalse(
-            "the flattened root only supports the ExtractFlattenedSubfield fusion. Other configs must be rejected",
+            "the flattened root only supports the ExtractFlattenedSubfieldConfig fusion. Other configs must be rejected",
             withDv.supportsBlockLoaderConfig(unrelated, MappedFieldType.FieldExtractPreference.NONE)
         );
     }
 
     public void testBlockLoaderReturnsKeyedFlattenedLoaderForExtractFlattenedSubfield() {
         RootFlattenedFieldType withDv = createDefaultFieldType(Integer.MAX_VALUE);
+        String key = randomAlphaOfLengthBetween(3, 32);
         BlockLoader loader = withDv.blockLoader(new DummyBlockLoaderContext("test-index") {
             @Override
             public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
-                return new BlockLoaderFunctionConfig.ExtractFlattenedSubfield("host.name");
+                return new ExtractFlattenedSubfieldConfig(key);
             }
         });
         assertThat(
-            "with an ExtractFlattenedSubfield config, the field type must dispatch to the keyed sub-field loader",
+            "with an ExtractFlattenedSubfieldConfig, the field type must dispatch to the keyed sub-field loader",
             loader,
             instanceOf(KeyedFlattenedDocValuesBlockLoader.class)
         );
+    }
+
+    public void testBlockLoaderThrowsForExtractFlattenedSubfieldWithoutDocValues() {
+        RootFlattenedFieldType noDv = noDocValuesFieldType();
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> noDv.blockLoader(new DummyBlockLoaderContext("test-index") {
+                @Override
+                public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
+                    return new ExtractFlattenedSubfieldConfig(randomAlphaOfLengthBetween(3, 32));
+                }
+            })
+        );
+        assertThat(e.getMessage(), containsString("requires doc values"));
     }
 
     public void testBlockLoaderFallsBackToRootLoaderWithoutExtractConfig() {

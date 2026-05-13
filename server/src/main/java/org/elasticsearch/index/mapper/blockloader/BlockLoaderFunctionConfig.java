@@ -60,20 +60,6 @@ public interface BlockLoaderFunctionConfig {
         }
     }
 
-    /**
-     * Configuration for extracting a single sub-key from a {@code flattened} field root,
-     * enabling {@code field_extract(root, "host.name")} to fuse into the keyed sub-field
-     * doc-values block loader instead of materializing the whole flattened JSON per row.
-     * The {@code key} is the literal flattened-storage key, exactly the dotted name as it
-     * appears in doc values for the flattened root (e.g. {@code "host.name"}).
-     */
-    record ExtractFlattenedSubfield(String key) implements BlockLoaderFunctionConfig {
-        @Override
-        public Function function() {
-            return Function.EXTRACT_FLATTENED_SUBFIELD;
-        }
-    }
-
     enum Function {
         AMD_COUNT,
         AMD_DEFAULT,

@@ -36,12 +36,10 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
-import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
@@ -53,7 +51,6 @@ import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -377,11 +374,6 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
             if (LucenePushdownPredicates.isPushableMetadataAttribute(left())) {
                 return this instanceof Equals || this instanceof NotEquals ? Translatable.YES : Translatable.NO;
             }
-            if ((this instanceof Equals || this instanceof NotEquals)
-                && left() instanceof FieldExtract fe
-                && fe.tryAsKeyedSubfieldName(pushdownPredicates).isPresent()) {
-                return Translatable.YES;
-            }
         }
         return Translatable.NO;
     }
@@ -412,43 +404,8 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
             symbol()
         );
 
-        if (left() instanceof FieldExtract fe && (this instanceof Equals || this instanceof NotEquals)) {
-            Optional<String> keyedName = fe.tryAsKeyedSubfieldName(pushdownPredicates);
-            if (keyedName.isPresent()) {
-                return translateFieldExtractEquality(keyedName.get());
-            }
-        }
-
         Query translated = translateOutOfRangeComparisons();
         return translated != null ? translated : translate(handler);
-    }
-
-    /**
-     * Translate {@code field_extract(<flattened root>, "<key>") == <literal>} (or {@code !=}) into a
-     * Lucene {@link TermQuery} against the keyed sub-field name. The data node's
-     * {@code FieldTypeLookup} resolves {@code <root>.<key>} to a
-     * {@code KeyedFlattenedFieldType}, whose {@code indexedValueForSearch} prefixes the value with
-     * the key separator at search time.
-     * <p>
-     *     The result is wrapped in {@link SingleValueQuery} so multi-valued sub-keys are excluded
-     *     from the match, mirroring ES|QL's per-row comparison semantics. Wrapping is done here
-     *     because {@link TranslatorHandler#wrapFunctionQuery} only supports
-     *     {@link org.elasticsearch.xpack.esql.core.expression.FieldAttribute}/
-     *     {@link org.elasticsearch.xpack.esql.core.expression.MetadataAttribute} on
-     *     {@link TranslationAware.SingleValueTranslationAware#singleValueField}, which is not the
-     *     {@code FieldExtract} expression.
-     * </p>
-     */
-    private Query translateFieldExtractEquality(String keyedName) {
-        Object value = literalValueOf(right());
-        if (value instanceof BytesRef br) {
-            value = br.utf8ToString();
-        }
-        Query query = new TermQuery(source(), keyedName, value);
-        if (this instanceof NotEquals) {
-            query = new NotQuery(source(), query);
-        }
-        return new SingleValueQuery(query, keyedName, false);
     }
 
     @Override

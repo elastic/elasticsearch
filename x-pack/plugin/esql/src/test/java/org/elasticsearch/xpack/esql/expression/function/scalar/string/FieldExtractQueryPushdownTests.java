@@ -42,14 +42,11 @@ import static org.hamcrest.Matchers.equalTo;
  * or {@code IN} with a constant right-hand side, the predicate is translated into a Lucene
  * {@code TermQuery}/{@code TermsQuery} against the synthetic keyed sub-field name
  * ({@code <root>.<key>}) and wrapped in {@code SingleValueQuery}.
-
- * The {@link FieldExtract#tryAsKeyedSubfieldName(LucenePushdownPredicates)}
- * helper drives the recognition. The translation lives inside
- * {@code EsqlBinaryComparison.asQuery} (for {@code ==}, {@code !=}) and
- * {@code In.asQuery} (for {@code IN}). Range comparisons ({@code >}, {@code >=}, {@code <},
- * {@code <=}) intentionally do not push because {@code KeyedFlattenedFieldType.rangeQuery}
- * requires both bounds to avoid leaking values across keys.
-
+ * <p>
+ *     The {@link FieldExtract#tryAsKeyedSubfieldName(LucenePushdownPredicates)} helper drives the
+ *     recognition. The translation lives inside {@code EsqlBinaryComparison.asQuery} (for
+ *     {@code ==}, {@code !=}) and {@code In.asQuery} (for {@code IN}).
+ * </p>
  */
 public class FieldExtractQueryPushdownTests extends ESTestCase {
 
@@ -97,47 +94,6 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
 
         assertThat(
             "query pushdown must require a foldable (constant) path. The keyed sub-field name can't be built per row",
-            fn.tryAsKeyedSubfieldName(LucenePushdownPredicates.DEFAULT),
-            equalTo(Optional.empty())
-        );
-    }
-
-    public void testTryAsKeyedSubfieldNameReturnsEmptyForBracketedPath() {
-        assumeQueryPushdownEnabled();
-        // Brackets are JSONPath syntax. The verifier rejects them at type-resolution time, but
-        // tryAsKeyedSubfieldName defends in depth via validateFieldExtractPath and returns empty
-        // if a bracketed path somehow reaches it.
-        FieldExtract fn = new FieldExtract(
-            Source.EMPTY,
-            flattenedField(FLATTENED_ROOT_NAME),
-            Literal.keyword(Source.EMPTY, "['host.name']")
-        );
-
-        assertThat(
-            "query pushdown must reject bracketed paths, those are JSONPath syntax",
-            fn.tryAsKeyedSubfieldName(LucenePushdownPredicates.DEFAULT),
-            equalTo(Optional.empty())
-        );
-    }
-
-    public void testTryAsKeyedSubfieldNameReturnsEmptyForArrayIndexPath() {
-        assumeQueryPushdownEnabled();
-        // Array indices are JSONPath syntax and the validator rejects them too.
-        FieldExtract fn = new FieldExtract(Source.EMPTY, flattenedField(FLATTENED_ROOT_NAME), Literal.keyword(Source.EMPTY, "tags[0]"));
-
-        assertThat(
-            "query pushdown must reject paths that include array indices",
-            fn.tryAsKeyedSubfieldName(LucenePushdownPredicates.DEFAULT),
-            equalTo(Optional.empty())
-        );
-    }
-
-    public void testTryAsKeyedSubfieldNameReturnsEmptyForEmptyPath() {
-        assumeQueryPushdownEnabled();
-        FieldExtract fn = new FieldExtract(Source.EMPTY, flattenedField(FLATTENED_ROOT_NAME), Literal.keyword(Source.EMPTY, ""));
-
-        assertThat(
-            "query pushdown must reject empty paths, the validator rejects them",
             fn.tryAsKeyedSubfieldName(LucenePushdownPredicates.DEFAULT),
             equalTo(Optional.empty())
         );
@@ -284,20 +240,6 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
         expectedTerms.add("node-a");
         expectedTerms.add("node-b");
         assertThat(query, equalTo(new SingleValueQuery(new TermsQuery(Source.EMPTY, keyedName, expectedTerms), keyedName, false)));
-    }
-
-    public void testEqualsAsQueryFallsBackToFunctionEvaluatorWhenPathIsBracketed() {
-        assumeQueryPushdownEnabled();
-        // A bracketed path makes tryAsKeyedSubfieldName return empty, which makes Equals.translatable
-        // return NO. The optimizer therefore keeps the FilterExec around and the per-row function
-        // evaluator handles the comparison.
-        Equals eq = new Equals(
-            Source.EMPTY,
-            new FieldExtract(Source.EMPTY, flattenedField(FLATTENED_ROOT_NAME), Literal.keyword(Source.EMPTY, "['host.name']")),
-            Literal.keyword(Source.EMPTY, "node-a")
-        );
-
-        assertThat(eq.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.NO));
     }
 
     public void testInAsQueryThrowsForAllNullList() {

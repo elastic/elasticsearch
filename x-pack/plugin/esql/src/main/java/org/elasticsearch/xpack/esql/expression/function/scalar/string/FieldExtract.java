@@ -16,7 +16,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
-import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.flattened.ExtractFlattenedSubfieldConfig;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -280,10 +280,7 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
         // path argument is already the flat storage key (verifier rejects brackets and indices),
         // so we hand it to the keyed sub-field loader as is.
         return foldedKeyForFlattenedRoot().map(
-            keyForRoot -> new PushedBlockLoaderExpression(
-                keyForRoot.root(),
-                new BlockLoaderFunctionConfig.ExtractFlattenedSubfield(keyForRoot.key())
-            )
+            keyForRoot -> new PushedBlockLoaderExpression(keyForRoot.root(), new ExtractFlattenedSubfieldConfig(keyForRoot.key()))
         ).orElse(null);
     }
 
@@ -303,20 +300,16 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
     /**
      * Common precondition check for both block-loader and query pushdown: the field must be a real
      * {@link FieldAttribute} of {@link DataType#FLATTENED} type, and the path must fold to a literal
-     * flat key that passes {@link #validateFieldExtractPath}.
+     * flat key. {@link #resolveType} has already validated the key shape via
+     * {@link #validateFieldExtractPath} for any foldable path, so by the time we reach pushdown the
+     * key is guaranteed to be a non-empty literal sub-field name (no brackets, no array indices).
      */
     private Optional<RootAndKey> foldedKeyForFlattenedRoot() {
         if (field instanceof FieldAttribute fa
             && fa.dataType() == DataType.FLATTENED
             && path.foldable()
             && path.fold(FoldContext.small()) instanceof BytesRef foldedPath) {
-            String key = foldedPath.utf8ToString();
-            try {
-                validateFieldExtractPath(key);
-            } catch (IllegalArgumentException e) {
-                return Optional.empty();
-            }
-            return Optional.of(new RootAndKey(fa, key));
+            return Optional.of(new RootAndKey(fa, foldedPath.utf8ToString()));
         }
         return Optional.empty();
     }

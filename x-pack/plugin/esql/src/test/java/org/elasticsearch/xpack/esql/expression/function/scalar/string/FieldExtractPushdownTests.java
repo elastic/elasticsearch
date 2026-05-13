@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.flattened.ExtractFlattenedSubfieldConfig;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -25,11 +25,11 @@ import java.util.Collections;
 /**
  * Unit tests for {@link FieldExtract#tryPushToFieldLoading} (block-loader pushdown).
  * Pushdown happens when the first argument is a {@link FieldAttribute} of type
- * {@link DataType#FLATTENED} and the path argument folds to a literal flat sub-field name
- * that passes {@link FieldExtract#validateFieldExtractPath(String)}. The function then fuses
- * into the keyed sub-field doc-values loader on the data node, skipping per-row JSON
- * materialization. The path is the literal storage key (no JSONPath), so brackets and array
- * indices are rejected by the validator and pushdown returns {@code null} for them.
+ * {@link DataType#FLATTENED} and the path argument folds to a literal flat sub-field name.
+ * The function then fuses into the keyed sub-field doc-values loader on the data node,
+ * skipping per-row JSON materialization. The path shape (no brackets, non-empty, etc.) is
+ * validated at type-resolution time by {@link FieldExtract#resolveType}; {@code FieldExtractTests}
+ * covers those rejections.
  */
 public class FieldExtractPushdownTests extends ESTestCase {
 
@@ -37,13 +37,14 @@ public class FieldExtractPushdownTests extends ESTestCase {
 
     public void testPushdownReturnsExtractFlattenedSubfieldForLiteralKey() {
         assumeTrue("fn_field_extract must be enabled for the happy path", FieldExtract.isFnFieldExtractCapabilityMet());
-        FieldExtract fn = new FieldExtract(Source.EMPTY, FLATTENED_ROOT, keywordLiteral("host.name"));
+        String fieldName = randomAlphaOfLengthBetween(3, 32);
+        FieldExtract fn = new FieldExtract(Source.EMPTY, FLATTENED_ROOT, keywordLiteral(fieldName));
 
         PushedBlockLoaderExpression pushed = fn.tryPushToFieldLoading(SearchStats.EMPTY);
 
         assertNotNull("expected pushdown to fire for a literal flat key", pushed);
         assertSame(FLATTENED_ROOT, pushed.field());
-        assertEquals(new BlockLoaderFunctionConfig.ExtractFlattenedSubfield("host.name"), pushed.config());
+        assertEquals(new ExtractFlattenedSubfieldConfig(fieldName), pushed.config());
     }
 
     public void testPushdownReturnsNullWhenCapabilityDisabled() {
@@ -53,7 +54,7 @@ public class FieldExtractPushdownTests extends ESTestCase {
             "This test verifies the disabled branch. Only meaningful when fn_field_extract is off",
             FieldExtract.isFnFieldExtractCapabilityMet()
         );
-        FieldExtract fn = new FieldExtract(Source.EMPTY, FLATTENED_ROOT, keywordLiteral("host.name"));
+        FieldExtract fn = new FieldExtract(Source.EMPTY, FLATTENED_ROOT, keywordLiteral(randomAlphaOfLengthBetween(3, 32)));
 
         assertNull(
             "with fn_field_extract disabled the function must keep its per-row evaluator",
@@ -64,7 +65,7 @@ public class FieldExtractPushdownTests extends ESTestCase {
     public void testPushdownReturnsNullWhenFieldIsNotFieldAttribute() {
         assumeTrue("fn_field_extract must be enabled", FieldExtract.isFnFieldExtractCapabilityMet());
         Expression nonFieldAttr = new ReferenceAttribute(Source.EMPTY, "synthetic_root", DataType.FLATTENED);
-        FieldExtract fn = new FieldExtract(Source.EMPTY, nonFieldAttr, keywordLiteral("host.name"));
+        FieldExtract fn = new FieldExtract(Source.EMPTY, nonFieldAttr, keywordLiteral(randomAlphaOfLengthBetween(3, 32)));
 
         assertNull(
             "pushdown must require a real FieldAttribute, not a ReferenceAttribute or other expression",
@@ -74,12 +75,13 @@ public class FieldExtractPushdownTests extends ESTestCase {
 
     public void testPushdownReturnsNullWhenFieldTypeIsNotFlattened() {
         assumeTrue("fn_field_extract must be enabled", FieldExtract.isFnFieldExtractCapabilityMet());
+        String fieldName = randomAlphaOfLengthBetween(3, 32);
         FieldAttribute keywordRoot = new FieldAttribute(
             Source.EMPTY,
-            "host.name",
-            new EsField("host.name", DataType.KEYWORD, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+            fieldName,
+            new EsField(fieldName, DataType.KEYWORD, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
         );
-        FieldExtract fn = new FieldExtract(Source.EMPTY, keywordRoot, keywordLiteral("host.name"));
+        FieldExtract fn = new FieldExtract(Source.EMPTY, keywordRoot, keywordLiteral(fieldName));
 
         assertNull("pushdown must require FLATTENED type on the field argument", fn.tryPushToFieldLoading(SearchStats.EMPTY));
     }
@@ -95,31 +97,6 @@ public class FieldExtractPushdownTests extends ESTestCase {
         );
     }
 
-    public void testPushdownReturnsNullWhenPathIsBracketed() {
-        assumeTrue("fn_field_extract must be enabled", FieldExtract.isFnFieldExtractCapabilityMet());
-        // Brackets are JSONPath syntax. The verifier rejects them at type-resolution time, but
-        // tryPushToFieldLoading defends in depth via validateFieldExtractPath and returns null
-        // if a bracketed path somehow reaches it.
-        FieldExtract fn = new FieldExtract(Source.EMPTY, FLATTENED_ROOT, keywordLiteral("['host.name']"));
-
-        assertNull("pushdown must reject bracketed paths, those are JSONPath syntax", fn.tryPushToFieldLoading(SearchStats.EMPTY));
-    }
-
-    public void testPushdownReturnsNullWhenPathContainsArrayIndex() {
-        assumeTrue("fn_field_extract must be enabled", FieldExtract.isFnFieldExtractCapabilityMet());
-        // Array indices are JSONPath syntax and the validator rejects them too.
-        FieldExtract fn = new FieldExtract(Source.EMPTY, FLATTENED_ROOT, keywordLiteral("tags[0]"));
-
-        assertNull("pushdown must reject paths that include array indices", fn.tryPushToFieldLoading(SearchStats.EMPTY));
-    }
-
-    public void testPushdownReturnsNullWhenPathIsEmpty() {
-        assumeTrue("fn_field_extract must be enabled", FieldExtract.isFnFieldExtractCapabilityMet());
-        FieldExtract fn = new FieldExtract(Source.EMPTY, FLATTENED_ROOT, keywordLiteral(""));
-
-        assertNull("pushdown must reject empty paths, the validator rejects them", fn.tryPushToFieldLoading(SearchStats.EMPTY));
-    }
-
     public void testPushdownPreservesDottedKeyVerbatim() {
         assumeTrue("fn_field_extract must be enabled", FieldExtract.isFnFieldExtractCapabilityMet());
         // A dotted key like "service.attributes.host.name" is a single literal storage key for the
@@ -131,7 +108,7 @@ public class FieldExtractPushdownTests extends ESTestCase {
         PushedBlockLoaderExpression pushed = fn.tryPushToFieldLoading(SearchStats.EMPTY);
 
         assertNotNull(pushed);
-        assertEquals(new BlockLoaderFunctionConfig.ExtractFlattenedSubfield(dottedKey), pushed.config());
+        assertEquals(new ExtractFlattenedSubfieldConfig(dottedKey), pushed.config());
     }
 
     private static FieldAttribute flattenedField(String name) {

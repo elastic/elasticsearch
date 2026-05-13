@@ -16,6 +16,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.mapper.flattened.KeyedFlattenedDocValuesBlockLoader;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -80,10 +81,10 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
 
     /**
      * {@code field_extract(<flattened>, "<key>")} must fuse into a per-key doc-values
-     * load via {@link org.elasticsearch.index.mapper.flattened.KeyedFlattenedDocValuesBlockLoader}
-     * (its {@code SortedSetKeyedBlockDocValuesReader} for non-time-series indices). The profile
-     * signature {@code test:column_at_a_time:SortedSetKeyedBlockDocValuesReader} is the proof that
-     * the rewrite reached the data node and the keyed loader was actually used to read values.
+     * load via {@link KeyedFlattenedDocValuesBlockLoader} (its {@code SortedSetKeyedBlockDocValuesReader}
+     * for non-time-series indices). The profile signature
+     * {@code test:column_at_a_time:SortedSetKeyedBlockDocValuesReader} is the proof that the rewrite
+     * reached the data node and the keyed loader was actually used to read values.
      */
     public void testFieldExtractFusesToKeyedFlattenedLoader() throws IOException {
         assumeTrue(
@@ -98,6 +99,97 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             matchesList().item(hostName),
             matchesMap().entry("test:column_at_a_time:SortedSetKeyedBlockDocValuesReader", 1)
         );
+    }
+
+    /**
+     * In time-series mode the flattened field uses binary doc values, so the keyed loader returns its
+     * {@code BinaryKeyedBlockDocValuesReader} variant. The test guards against silently regressing
+     * pushdown for TSDB indices, which is the dominant deployment for OpenTelemetry / metrics flows
+     * that motivated this fusion.
+     */
+    public void testFieldExtractFusesToKeyedFlattenedLoaderInTimeSeriesMode() throws IOException {
+        assumeTrue("fn_field_extract must be enabled", FieldExtract.isFnFieldExtractCapabilityMet());
+        deleteIndexIfExists("test");
+
+        String hostName = "host-" + randomAlphaOfLength(8);
+        createTimeSeriesIndexWithFlattenedField();
+        bulkIndexTimeSeries(
+            List.of(
+                Map.of("@timestamp", "2024-04-15T00:00:00Z", "dim", "d-" + randomAlphaOfLength(4), "test", Map.of("host.name", hostName))
+            )
+        );
+
+        Map<String, Object> result = runEsql(requestObjectBuilder().query("""
+            FROM test
+            | EVAL test = field_extract(test, "host.name")
+            | STATS test = MV_SORT(VALUES(test))
+            """).profile(true), new AssertWarnings.NoWarnings(), profileLogger, RestEsqlTestCase.Mode.SYNC);
+
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) result.get("values");
+        assertEquals(List.of(List.of(hostName)), values);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
+        boolean assertedDataDriver = false;
+        for (Map<String, Object> p : profiles) {
+            if ("data".equals(p.get("description")) == false) {
+                continue;
+            }
+            assertedDataDriver = true;
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
+            checkOperatorProfile(
+                "data",
+                operators,
+                List.of(matchesMap().entry("test:column_at_a_time:BinaryKeyedBlockDocValuesReader", 1))
+            );
+        }
+        assertTrue("expected the data driver profile to assert the keyed loader signature", assertedDataDriver);
+    }
+
+    private void createTimeSeriesIndexWithFlattenedField() throws IOException {
+        Request createIndex = new Request("PUT", "test");
+        createIndex.setJsonEntity("""
+            {
+              "settings": {
+                "index": {
+                  "mode": "time_series",
+                  "routing_path": ["dim"],
+                  "number_of_shards": 1,
+                  "time_series": {
+                    "start_time": "2024-04-14T00:00:00Z",
+                    "end_time": "2024-04-16T00:00:00Z"
+                  }
+                }
+              },
+              "mappings": {
+                "properties": {
+                  "@timestamp": { "type": "date" },
+                  "dim": { "type": "keyword", "time_series_dimension": true },
+                  "test": { "type": "flattened" }
+                }
+              }
+            }
+            """);
+        Response response = client().performRequest(createIndex);
+        assertThat(
+            entityToMap(response.getEntity(), XContentType.JSON),
+            matchesMap().entry("shards_acknowledged", true).entry("index", "test").entry("acknowledged", true)
+        );
+    }
+
+    private void bulkIndexTimeSeries(List<Map<String, Object>> docs) throws IOException {
+        Request bulk = new Request("POST", "/_bulk");
+        bulk.addParameter("refresh", "");
+        StringBuilder body = new StringBuilder();
+        for (Map<String, Object> doc : docs) {
+            body.append("{\"create\":{\"_index\":\"test\"}}\n");
+            body.append(Strings.toString(JsonXContent.contentBuilder().map(doc))).append("\n");
+        }
+        bulk.setJsonEntity(body.toString());
+        Response response = client().performRequest(bulk);
+        assertThat(entityToMap(response.getEntity(), XContentType.JSON), matchesMap().entry("errors", false).extraOk());
     }
 
     /**

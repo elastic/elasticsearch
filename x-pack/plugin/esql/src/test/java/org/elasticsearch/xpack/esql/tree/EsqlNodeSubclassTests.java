@@ -48,6 +48,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.predicate.fulltext.FullTextPredicate;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunctionDefinitions;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -568,6 +570,10 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return Rounding.builder(TimeValue.timeValueHours(1)).build().prepareForUnknown();
         }
 
+        if (argClass == PromqlFunctionDefinition.class) {
+            return PromqlBuiltinFunctionDefinitions.VECTOR;
+        }
+
         try {
             return mock(argClass);
         } catch (MockitoException e) {
@@ -820,7 +826,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         return new EsRelation(
             SourceTests.randomSource(),
             randomIdentifier(),
-            randomFrom(IndexMode.values()),
+            randomFrom(IndexMode.availableModes()),
             randomRemotesWithIndices(),
             randomRemotesWithIndices(),
             randomIndexNameWithModes(),

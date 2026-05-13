@@ -126,6 +126,12 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
     @Override
     IntBlock expand();
 
+    /**
+     * The maximum size in bytes of any single value stored in this block, or {@code 0} if there are no values.
+     * Always {@code Integer.BYTES} since all int values encode to the same number of bytes.
+     */
+    int valueMaxByteSize();
+
     static IntBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();
         return switch (serializationType) {

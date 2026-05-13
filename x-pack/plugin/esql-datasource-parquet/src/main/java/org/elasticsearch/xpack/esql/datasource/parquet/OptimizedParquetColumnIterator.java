@@ -12,12 +12,15 @@ import org.apache.parquet.column.ColumnReader;
 import org.apache.parquet.column.impl.ColumnReadStoreImpl;
 import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.compression.CompressionCodecFactory;
+import org.apache.parquet.filter2.predicate.FilterPredicate;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.schema.MessageType;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -26,15 +29,23 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -57,6 +68,13 @@ import java.util.concurrent.CompletableFuture;
  * {@link BlockFactory#breaker()}) before async I/O starts. The reservation is released
  * when prefetched data is consumed and cleared. If the breaker would trip, prefetch is
  * skipped and the query falls back to synchronous I/O for that row group.
+ *
+ * <p><b>Trivially-passes guard:</b> when late materialization is enabled and row-group
+ * statistics prove every row satisfies the pushed filter ({@link TriviallyPassesChecker}),
+ * the iterator routes that row group through {@code nextStandard} for the remainder of the
+ * row group, skipping per-row filter evaluation and survivor compaction. This benefits queries
+ * that mix selective and non-selective row groups (e.g., time-bucketed data with skewed
+ * filter selectivity).
  */
 final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
 
@@ -73,6 +91,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     private final PreloadedRowGroupMetadata preloadedMetadata;
     private final StorageObject storageObject;
     private final Set<String> projectedColumnPaths;
+    private final Set<String> predicateColumnPaths;
+    private final Set<String> projectionOnlyColumnPaths;
     private final CircuitBreaker breaker;
     private final RowRanges[] allRowRanges;
     /**
@@ -89,12 +109,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     private final int[] nextSurvivor;
     private final CompressionCodecFactory codecFactory;
     private int rowBudget;
-    /**
-     * Bytes reserved on the breaker for the pending (in-flight) prefetch. Only mutated from the
-     * iterator thread (the prefetch I/O thread populates the {@link CompletableFuture} but never
-     * touches this field), so a plain {@code long} is sufficient.
-     */
-    private long pendingReservedBytes = 0;
+    /** Async prefetches allowed ahead of the consumed row group (1-3 based on projected column size). */
+    private final int prefetchDepth;
+    private final ArrayDeque<PendingPrefetch> pendingPrefetches = new ArrayDeque<>();
     /** Bytes reserved on the breaker for the chunks currently in use by {@link #rowGroup}. */
     private long currentReservedBytes = 0;
 
@@ -105,9 +122,96 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     private boolean exhausted = false;
     private int rowGroupOrdinal = -1;
     private int pageBatchIndexInRowGroup = 0;
-    private CompletableFuture<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> pendingPrefetch;
-    /** Ordinal of the row group whose chunks are pending prefetch; -1 when no prefetch is in flight. */
-    private int pendingPrefetchOrdinal = -1;
+
+    private final boolean lateMaterialization;
+    /**
+     * When {@code true}, switches the prefetch + decode pipeline to a per-row-group two-phase
+     * I/O flow: Phase 1 fetches only predicate column chunks, the iterator fully decodes them
+     * to evaluate the filter and accumulate a global survivor mask, and Phase 2 then fetches
+     * only the projection column pages that contain at least one survivor. On remote storage
+     * with a selective filter this avoids the dominant cost of transferring projection-only
+     * column data (typically large strings) for rows that are immediately filtered out.
+     *
+     * <p>Disabled when:
+     * <ul>
+     *   <li>Late materialization is off ({@link #lateMaterialization} is false).</li>
+     *   <li>The storage object is local (non-async) — the extra Phase-1 → Phase-2 sequencing
+     *       adds latency without saving meaningful I/O on a memory-mapped file.</li>
+     *   <li>Predicate columns are themselves a large fraction of projected bytes — the savings
+     *       on projection columns no longer justify the per-row-group sequential dependency
+     *       (see {@link #TWO_PHASE_PREDICATE_BYTE_RATIO_THRESHOLD}).</li>
+     *   <li>Any projected column is a list column — list decoding goes through
+     *       {@code ColumnReadStoreImpl} which expects a single combined {@link PageReader}
+     *       store; supporting it under two-phase is left for follow-up work.</li>
+     *   <li>There are no projection-only columns (every projected column is also a predicate
+     *       column) — there is nothing for Phase 2 to save.</li>
+     * </ul>
+     */
+    private final boolean useTwoPhase;
+    private final boolean[] isPredicateColumn;
+    private final ParquetPushedExpressions pushedExpressions;
+    /**
+     * The parquet-mr {@link FilterPredicate} resolved by {@code ParquetFormatReader} for this scan,
+     * passed through unchanged so the trivially-passes check sees the same predicate that drove
+     * row-group pruning and ColumnIndex {@link RowRanges} computation. Translating again here
+     * would be wasted work and could subtly diverge if the caller's schema differs from
+     * {@link #projectedSchema}.
+     *
+     * <p>{@code null} when the trivially-passes guard is inactive: late materialization is off,
+     * the reader did not resolve a file-level predicate, or predicate resolution failed earlier
+     * (in which case the reader logged a warning and passed {@code null} through).
+     */
+    private final FilterPredicate triviallyPassesPredicate;
+    private final WordMask survivorMask;
+    /**
+     * Memoizes the dictionary-match bitmap computed by {@link ParquetPushedExpressions} for
+     * every pushed leaf predicate, so the predicate is evaluated against the dictionary
+     * once per row group rather than once per batch. The underlying {@code BytesRefArray}
+     * is fixed for the lifetime of a row group (see {@code PageColumnReader#ensureCachedDictArray}),
+     * which is what makes the entries valid across batches.
+     *
+     * <p>Lifecycle by stamp, not by callback: {@link #dictionaryBitmapsForCurrentRowGroup}
+     * compares the cached row-group ordinal with the current one and wipes the map on a
+     * mismatch. This makes the cache self-invalidating — a missed wipe in {@code advanceRowGroup}
+     * (e.g. on the two-phase "all rows filtered, try next row group" retry path) cannot
+     * leak entries into a different row group's evaluation.
+     *
+     * <p>{@code null} when late materialization is off; in that case no dictionary fast path
+     * runs and the map would be pure overhead.
+     */
+    private final Map<Expression, boolean[]> dictionaryBitmaps;
+    private int dictionaryBitmapsRowGroup = -1;
+    private long rowsEliminatedByLateMaterialization;
+    /**
+     * When {@code true}, row-group statistics prove every row in the current row group satisfies
+     * the pushed filter, so late materialization is bypassed for this row group: filter
+     * evaluation and survivor compaction are skipped, and the standard read path is used.
+     */
+    private boolean currentRowGroupTriviallyPasses;
+    /** Diagnostic counter: number of row groups for which the filter was proven to trivially pass. */
+    private long rowGroupsWithTrivialFilter;
+
+    /**
+     * Per-row-group two-phase decode state. Populated in {@link #advanceRowGroup()} when
+     * {@link #useTwoPhase} is active and the current row group survives Phase-1 filter
+     * evaluation; consumed batch-by-batch in {@link #nextTwoPhaseBatch()} and cleared in
+     * {@link #closeTwoPhaseState()} when the iterator advances to the next row group or is
+     * closed.
+     */
+    private TwoPhaseRowGroup twoPhase;
+    /**
+     * Diagnostic counter: number of row groups served via the two-phase Phase-2 page-skipping
+     * path (i.e., where Phase 2 fetched only surviving pages instead of full chunks).
+     */
+    private long twoPhaseRowGroupsWithPageSkipping;
+    /**
+     * Diagnostic counter: number of row groups where two-phase fell back to fetching whole
+     * projection chunks because the survivor RowRanges was too dense or fragmented to
+     * benefit from page skipping.
+     */
+    private long twoPhaseRowGroupsFullProjectionFetch;
+    /** Diagnostic counter: number of row groups skipped entirely because no row survived the filter. */
+    private long twoPhaseRowGroupsAllFiltered;
 
     OptimizedParquetColumnIterator(
         ParquetFileReader reader,
@@ -123,7 +227,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         StorageObject storageObject,
         RowRanges[] allRowRanges,
         boolean[] survivingRowGroups,
-        CompressionCodecFactory codecFactory
+        CompressionCodecFactory codecFactory,
+        ParquetPushedExpressions pushedExpressions,
+        FilterPredicate triviallyPassesPredicate
     ) {
         this.reader = reader;
         this.projectedSchema = projectedSchema;
@@ -141,10 +247,141 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         this.survivingRowGroups = survivingRowGroups;
         this.nextSurvivor = buildNextSurvivorLookup(survivingRowGroups);
         this.codecFactory = codecFactory;
+        this.pushedExpressions = pushedExpressions;
+        this.isPredicateColumn = classifyPredicateColumns(attributes, columnInfos, pushedExpressions);
+        this.lateMaterialization = pushedExpressions != null;
+        this.survivorMask = lateMaterialization ? new WordMask() : null;
+        this.dictionaryBitmaps = lateMaterialization ? new IdentityHashMap<>() : null;
+        // Caller supplies null when late materialization is off; defensively also drop it here so
+        // the trivially-passes check is gated by a single condition below.
+        this.triviallyPassesPredicate = lateMaterialization ? triviallyPassesPredicate : null;
 
         this.projectedColumnPaths = buildProjectedColumnPaths(columnInfos);
+        this.predicateColumnPaths = buildColumnPaths(columnInfos, isPredicateColumn, true);
+        this.projectionOnlyColumnPaths = buildColumnPaths(columnInfos, isPredicateColumn, false);
+        this.useTwoPhase = shouldUseTwoPhase(
+            lateMaterialization,
+            storageObject,
+            columnInfos,
+            reader.getRowGroups(),
+            projectedColumnPaths,
+            predicateColumnPaths,
+            projectionOnlyColumnPaths,
+            fileLocation
+        );
+        this.prefetchDepth = computePrefetchDepth(reader.getRowGroups(), this.projectedColumnPaths);
 
         reader.setRequestedSchema(projectedSchema);
+
+        prefetchFirstRowGroup();
+    }
+
+    /**
+     * Seeds the prefetch queue at construction time so that the first {@link #advanceRowGroup()}
+     * call finds ready data instead of falling through to synchronous I/O.
+     */
+    private void prefetchFirstRowGroup() {
+        if (storageObject == null) {
+            return;
+        }
+        int startOrdinal = nextSurvivingRowGroupOrdinal(0);
+        fillPrefetchQueue(startOrdinal);
+    }
+
+    /**
+     * Fills the prefetch queue up to {@link #prefetchDepth} entries, starting from ordinal
+     * {@code fromOrdinal}. Each entry reserves bytes on the circuit breaker before starting
+     * async I/O. Filling stops early if the breaker would trip or if no more surviving row
+     * groups remain.
+     */
+    private void fillPrefetchQueue(int fromOrdinal) {
+        List<BlockMetaData> rowGroups = reader.getRowGroups();
+        // Under two-phase, the queued (Phase 1) prefetch only covers predicate columns; the
+        // projection columns are fetched synchronously in advanceRowGroup once the survivor mask
+        // is known. We therefore size the breaker reservation, the I/O ranges, and the column
+        // set against the same, smaller column subset.
+        Set<String> phaseColumns = useTwoPhase ? predicateColumnPaths : projectedColumnPaths;
+        int nextOrdinal = fromOrdinal;
+        while (pendingPrefetches.size() < prefetchDepth && nextOrdinal < rowGroups.size()) {
+            BlockMetaData nextBlock = rowGroups.get(nextOrdinal);
+            long prefetchBytes = ColumnChunkPrefetcher.computePrefetchBytes(nextBlock, phaseColumns);
+            if (prefetchBytes <= 0) {
+                nextOrdinal = nextSurvivingRowGroupOrdinal(nextOrdinal + 1);
+                continue;
+            }
+            try {
+                breaker.addEstimateBytesAndMaybeBreak(prefetchBytes, "esql_parquet_prefetch");
+            } catch (CircuitBreakingException e) {
+                logger.debug(
+                    "Stopping prefetch queue fill at row group [{}] in [{}]: circuit breaker limit reached ({} bytes requested)",
+                    nextOrdinal,
+                    fileLocation,
+                    prefetchBytes
+                );
+                break;
+            }
+            try {
+                RowRanges nextRowRanges = allRowRanges != null && nextOrdinal < allRowRanges.length ? allRowRanges[nextOrdinal] : null;
+                if (lateMaterialization) {
+                    // Late-mat (single-phase or two-phase) handles row-level filtering itself via
+                    // the survivor mask and would double-filter if ColumnIndex RowRanges were
+                    // applied to the predicate-column prefetch here.
+                    nextRowRanges = null;
+                }
+                CompletableFuture<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> future;
+                if (nextRowRanges != null) {
+                    future = ColumnChunkPrefetcher.prefetchAsync(
+                        storageObject,
+                        nextBlock,
+                        phaseColumns,
+                        nextRowRanges,
+                        preloadedMetadata,
+                        nextOrdinal,
+                        nextBlock.getRowCount()
+                    );
+                } else {
+                    future = ColumnChunkPrefetcher.prefetchAsync(storageObject, nextBlock, phaseColumns);
+                }
+                pendingPrefetches.addLast(new PendingPrefetch(nextOrdinal, future, prefetchBytes));
+            } catch (Exception e) {
+                logger.debug("Failed to initiate prefetch for row group [{}] in [{}]: {}", nextOrdinal, fileLocation, e.getMessage());
+                breaker.addWithoutBreaking(-prefetchBytes);
+                break;
+            }
+            nextOrdinal = nextSurvivingRowGroupOrdinal(nextOrdinal + 1);
+        }
+    }
+
+    private static final long DEEPER_PREFETCH_BYTES = 32_000_000L;
+    private static final long SHALLOW_PREFETCH_BYTES = 8_000_000L;
+
+    private static int computePrefetchDepth(List<BlockMetaData> rowGroups, Set<String> projectedColumnPaths) {
+        if (rowGroups.isEmpty()) {
+            return 1;
+        }
+        BlockMetaData block = rowGroups.get(0);
+        long projectedBytes = 0;
+        for (ColumnChunkMetaData col : block.getColumns()) {
+            if (projectedColumnPaths.contains(col.getPath().toDotString())) {
+                projectedBytes += col.getTotalSize();
+            }
+        }
+        // Larger projected sizes need deeper prefetch: an S3 GET for a 20MB string column takes
+        // ~200ms while decode takes ~10ms, so single-ahead can't hide the latency. The circuit
+        // breaker caps actual memory regardless of depth.
+        //
+        // Two-phase note: under two-phase the queued prefetches carry only predicate columns, so
+        // the actual queued bytes are a fraction of {@code projectedBytes}. We intentionally keep
+        // the depth sized on the full projection footprint because the synchronous Phase-2 fetch
+        // we issue inside {@code advanceRowGroup} is what dominates per-row-group latency under
+        // two-phase, and a deeper queue lets Phase 1 of the next row group overlap that wait.
+        if (projectedBytes > DEEPER_PREFETCH_BYTES) {
+            return 3;
+        }
+        if (projectedBytes > SHALLOW_PREFETCH_BYTES) {
+            return 2;
+        }
+        return 1;
     }
 
     private static Set<String> buildProjectedColumnPaths(ColumnInfo[] columnInfos) {
@@ -157,6 +394,144 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         return paths;
     }
 
+    /**
+     * Builds an immutable subset of {@link #projectedColumnPaths}: when {@code wantPredicate} is
+     * {@code true} the result contains the dotted paths of predicate columns, otherwise it
+     * contains the projection-only columns (i.e., projected columns that are not predicate
+     * columns).
+     */
+    private static Set<String> buildColumnPaths(ColumnInfo[] columnInfos, boolean[] isPredicateColumn, boolean wantPredicate) {
+        Set<String> paths = new HashSet<>();
+        for (int i = 0; i < columnInfos.length; i++) {
+            if (columnInfos[i] != null && isPredicateColumn[i] == wantPredicate) {
+                paths.add(String.join(".", columnInfos[i].descriptor().getPath()));
+            }
+        }
+        return paths;
+    }
+
+    /**
+     * Predicate-byte ratio threshold above which two-phase I/O is disabled because the projection
+     * columns are not large enough relative to predicate columns to justify the extra round trip.
+     * The single-phase late-mat path remains in effect in that case — late-mat itself has no
+     * byte-ratio gate (it is enabled whenever the iterator has projection-only columns to defer
+     * decode for); only the more expensive two-phase prefetch is gated here. The threshold is
+     * deliberately conservative: two-phase amortizes a sequential predicate-then-projection
+     * dependency and only wins when the projection columns clearly dominate the byte footprint.
+     */
+    static final double TWO_PHASE_PREDICATE_BYTE_RATIO_THRESHOLD = 0.4;
+
+    /**
+     * Returns {@code true} when the iterator should run with two-phase I/O for the lifetime of
+     * this scan. The decision is fixed at construction time so the prefetch pipeline and the
+     * decode loop can specialize accordingly without per-row-group branching.
+     *
+     * <p>Two-phase requires (a) late materialization to be active, (b) at least one
+     * projection-only column (otherwise Phase 2 has nothing to fetch), (c) a storage object that
+     * benefits from skipping bytes (i.e., remote — proxied here via
+     * {@link StorageObject#supportsNativeAsync()}; today this is the de-facto remote signal,
+     * overridden by every cloud-backed {@code StorageObject} in the codebase — {@code S3StorageObject},
+     * {@code GcsStorageObject}, {@code AzureStorageObject}, and {@code HttpStorageObject} — and not
+     * by any local-only implementation. If a future {@code StorageObject} returns {@code true}
+     * without remote-like fetch cost, this gate may activate two-phase where it isn't profitable;
+     * the fallback is the single-phase late-mat path, so the worst case is wasted CPU on the
+     * unnecessary survivor-mask plumbing rather than incorrect results.), (d) no list columns
+     * (their decode path needs a unified {@code ColumnReadStoreImpl} that we don't split between
+     * predicate and projection stores), and (e) the projected bytes must be dominated by
+     * projection-only columns rather than predicate columns.
+     */
+    private static boolean shouldUseTwoPhase(
+        boolean lateMaterialization,
+        StorageObject storageObject,
+        ColumnInfo[] columnInfos,
+        List<BlockMetaData> rowGroups,
+        Set<String> projectedColumnPaths,
+        Set<String> predicateColumnPaths,
+        Set<String> projectionOnlyColumnPaths,
+        String fileLocation
+    ) {
+        if (lateMaterialization == false) {
+            return false;
+        }
+        if (projectionOnlyColumnPaths.isEmpty() || predicateColumnPaths.isEmpty()) {
+            return false;
+        }
+        if (storageObject == null || storageObject.supportsNativeAsync() == false) {
+            return false;
+        }
+        for (ColumnInfo info : columnInfos) {
+            if (info != null && info.maxRepLevel() > 0) {
+                // List columns need a single ColumnReadStoreImpl across all columns of a row
+                // group; we'd have to either build that store from a merged page-read store or
+                // teach two-phase about list decoding. Defer to follow-up work and stay on the
+                // single-phase path when any list column appears.
+                return false;
+            }
+        }
+        long predicateBytes = 0;
+        long totalBytes = 0;
+        for (BlockMetaData block : rowGroups) {
+            for (ColumnChunkMetaData col : block.getColumns()) {
+                String path = col.getPath().toDotString();
+                if (projectedColumnPaths.contains(path) == false) {
+                    continue;
+                }
+                long size = col.getTotalSize();
+                totalBytes += size;
+                if (predicateColumnPaths.contains(path)) {
+                    predicateBytes += size;
+                }
+            }
+        }
+        if (totalBytes <= 0) {
+            return false;
+        }
+        double ratio = (double) predicateBytes / totalBytes;
+        if (ratio >= TWO_PHASE_PREDICATE_BYTE_RATIO_THRESHOLD) {
+            logger.debug(
+                "Two-phase I/O disabled for [{}]: predicate columns occupy [{}%] of projected bytes (>= threshold [{}%])",
+                fileLocation,
+                (long) (ratio * 100),
+                (long) (TWO_PHASE_PREDICATE_BYTE_RATIO_THRESHOLD * 100)
+            );
+            return false;
+        }
+        logger.debug(
+            "Two-phase I/O enabled for [{}]: predicate columns occupy [{}%] of projected bytes, projection-only columns [{}]",
+            fileLocation,
+            (long) (ratio * 100),
+            projectionOnlyColumnPaths.size()
+        );
+        return true;
+    }
+
+    private static boolean[] classifyPredicateColumns(
+        List<Attribute> attributes,
+        ColumnInfo[] columnInfos,
+        ParquetPushedExpressions pushed
+    ) {
+        boolean[] predicate = new boolean[columnInfos.length];
+        if (pushed == null) {
+            return predicate;
+        }
+        Set<String> predicateNames = pushed.predicateColumnNames();
+        for (int i = 0; i < columnInfos.length; i++) {
+            if (columnInfos[i] != null && predicateNames.contains(attributes.get(i).name())) {
+                predicate[i] = true;
+            }
+        }
+        return predicate;
+    }
+
+    private static boolean hasProjectionOnlyColumns(boolean[] isPredicateColumn, ColumnInfo[] columnInfos) {
+        for (int i = 0; i < columnInfos.length; i++) {
+            if (columnInfos[i] != null && isPredicateColumn[i] == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public boolean hasNext() {
         if (exhausted) {
@@ -165,6 +540,14 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         if (rowBudget != FormatReader.NO_LIMIT && rowBudget <= 0) {
             exhausted = true;
             return false;
+        }
+        // Under two-phase, drain leading fully-filtered batches before deciding: the source-row
+        // counter would otherwise claim there is data when every remaining batch is empty.
+        if (twoPhase != null) {
+            drainEmptyTwoPhaseBatches();
+            if (twoPhase != null && twoPhase.hasMoreBatches() == false) {
+                rowsRemainingInGroup = 0;
+            }
         }
         if (rowsRemainingInGroup > 0) {
             return true;
@@ -180,49 +563,158 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     }
 
     /**
+     * Skips past any leading fully-filtered batches in the current two-phase row group, advancing
+     * the projection {@link PageColumnReader}s by the same number of source rows so subsequent
+     * survivor-bearing batches stay aligned with their internal row cursor.
+     */
+    private void drainEmptyTwoPhaseBatches() {
+        TwoPhaseRowGroup state = twoPhase;
+        while (state.hasMoreBatches() && state.currentSurvivorCount() == 0) {
+            int skippedSource = state.currentSourceRows();
+            advanceProjectionReadersBy(skippedSource);
+            Block[] empty = state.takeCurrentPredicateBlocks();
+            Releasables.closeExpectNoException(empty);
+            pageBatchIndexInRowGroup++;
+            rowsRemainingInGroup -= skippedSource;
+        }
+    }
+
+    /**
+     * Returns the per-row-group dictionary bitmap memo for the current {@link #rowGroupOrdinal},
+     * resetting it on a row-group transition. The memo is owned by the iterator and shared
+     * with {@link ParquetPushedExpressions#evaluateFilter}; the caller writes new bitmaps to
+     * it as predicates are evaluated and reads them on subsequent batches within the same
+     * row group. Returns {@code null} when late materialization is off.
+     */
+    private Map<Expression, boolean[]> dictionaryBitmapsForCurrentRowGroup() {
+        if (dictionaryBitmaps == null) {
+            return null;
+        }
+        if (dictionaryBitmapsRowGroup != rowGroupOrdinal) {
+            dictionaryBitmaps.clear();
+            dictionaryBitmapsRowGroup = rowGroupOrdinal;
+        }
+        return dictionaryBitmaps;
+    }
+
+    /**
      * Advances to the next surviving row group: applies the row-group statistics filter to skip
      * dropped row groups, then builds a {@link PrefetchedPageReadStore} from the prefetched
      * (or sync-fetched) bytes for the surviving row group. Triggers prefetch for the row group
      * after that.
      */
     private boolean advanceRowGroup() throws IOException {
+        closeTwoPhaseState();
         if (rowGroup != null) {
             rowGroup.close();
             rowGroup = null;
         }
 
-        int nextOrdinal = nextSurvivingRowGroupOrdinal(rowGroupOrdinal + 1);
-        if (nextOrdinal >= reader.getRowGroups().size()) {
-            exhausted = true;
-            cancelPendingPrefetch();
-            releaseCurrentReservation();
-            return false;
-        }
-        rowGroupOrdinal = nextOrdinal;
-        pageBatchIndexInRowGroup = 0;
+        // Loop is for the two-phase "all rows filtered out" case, where the current row group
+        // contributes zero rows and we must immediately attempt the next surviving ordinal.
+        // Single-phase always returns within the first iteration via the standard return below.
+        // No cache wipe needed here: dictionaryBitmapsForCurrentRowGroup() self-invalidates on
+        // a row-group ordinal mismatch, so any retry through this loop with a different
+        // rowGroupOrdinal will see a fresh map at the next evaluateFilter call.
+        while (true) {
+            int nextOrdinal = nextSurvivingRowGroupOrdinal(rowGroupOrdinal + 1);
+            if (nextOrdinal >= reader.getRowGroups().size()) {
+                exhausted = true;
+                cancelPendingPrefetch();
+                releaseCurrentReservation();
+                logIteratorDiagnostics();
+                return false;
+            }
+            rowGroupOrdinal = nextOrdinal;
+            pageBatchIndexInRowGroup = 0;
 
-        BlockMetaData block = reader.getRowGroups().get(rowGroupOrdinal);
-        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = takePendingPrefetch(rowGroupOrdinal);
-        RowRanges currentRowRanges = resolveCurrentRowRanges(block);
-        rowGroup = PrefetchedRowGroupBuilder.build(
-            block,
-            rowGroupOrdinal,
-            projectedSchema,
-            projectedColumnPaths,
-            currentRowRanges,
-            preloadedMetadata,
-            chunks,
-            storageObject,
-            codecFactory
-        );
-        // When RowRanges narrow the row group, only the surviving row count is consumed -
-        // mirrors parquet-mr's filtered PageReadStore.getRowCount(). The PageReader's per-page
-        // value count is unchanged; PageColumnReader caps at maxRows on each readBatch call so
-        // columns whose pages span more rows than the filtered count return aligned blocks.
-        rowsRemainingInGroup = currentRowRanges != null ? currentRowRanges.selectedRowCount() : rowGroup.getRowCount();
-        triggerNextRowGroupPrefetch();
-        initColumnReaders(currentRowRanges);
-        return rowsRemainingInGroup > 0;
+            BlockMetaData block = reader.getRowGroups().get(rowGroupOrdinal);
+            // Per-row-group trivially-passes check: when stats prove every row matches the
+            // filter, the late-materialization machinery (decode predicate columns → evaluate
+            // filter → compact survivors) is pure overhead. Switching to the standard path
+            // eliminates filter evaluation. Note: when the trivially-passes case applies we
+            // also force the single-phase code path even if useTwoPhase is enabled, since
+            // there are no survivors-only pages to skip in Phase 2.
+            currentRowGroupTriviallyPasses = triviallyPassesPredicate != null
+                && TriviallyPassesChecker.check(triviallyPassesPredicate, block);
+            if (currentRowGroupTriviallyPasses) {
+                rowGroupsWithTrivialFilter++;
+            }
+            NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = takePendingPrefetch(rowGroupOrdinal);
+            try {
+                if (useTwoPhase) {
+                    if (currentRowGroupTriviallyPasses) {
+                        // Phase-1 chunks contain only predicate columns; the trivially-passes path
+                        // bypasses late-mat entirely and decodes every projected column through
+                        // {@link #nextStandard}. Synchronously fetch the projection columns now so
+                        // the standard read path sees a complete row-group store.
+                        prepareTwoPhaseTriviallyPassesRowGroup(block, chunks);
+                        triggerNextRowGroupPrefetch();
+                        return rowsRemainingInGroup > 0;
+                    }
+                    // Two-phase decode: pre-decode predicate columns from chunks, accumulate the
+                    // global survivor mask, fetch projection columns for surviving pages only, and
+                    // emit per-batch results in nextTwoPhaseBatch. When all rows are filtered out
+                    // we drop the row group entirely and continue with the next survivor.
+                    boolean prepared = prepareTwoPhaseRowGroup(block, chunks);
+                    if (prepared == false) {
+                        // All rows filtered out; loop and try the next surviving row group.
+                        continue;
+                    }
+                    triggerNextRowGroupPrefetch();
+                    return rowsRemainingInGroup > 0;
+                }
+
+                RowRanges currentRowRanges = resolveCurrentRowRanges(block);
+                // When late materialization is active, skip ColumnIndex page filtering — late-mat
+                // handles row-level filtering itself via the survivor mask. Applying both
+                // ColumnIndex RowRanges AND late-mat evaluation causes double-filtering that
+                // drops rows incorrectly. The trivially-passes case is handled the same way:
+                // we already know all rows match, so leaving page filtering off is consistent and
+                // safe (RowRanges would be all() anyway).
+                RowRanges buildRowRanges = lateMaterialization ? null : currentRowRanges;
+                rowGroup = PrefetchedRowGroupBuilder.build(
+                    block,
+                    rowGroupOrdinal,
+                    projectedSchema,
+                    projectedColumnPaths,
+                    buildRowRanges,
+                    preloadedMetadata,
+                    chunks,
+                    storageObject,
+                    codecFactory
+                );
+                rowsRemainingInGroup = buildRowRanges != null ? buildRowRanges.selectedRowCount() : rowGroup.getRowCount();
+                triggerNextRowGroupPrefetch();
+                initColumnReaders(buildRowRanges);
+                return rowsRemainingInGroup > 0;
+            } catch (Exception e) {
+                releaseCurrentReservation();
+                throw e;
+            }
+        }
+    }
+
+    private void logIteratorDiagnostics() {
+        if (rowsEliminatedByLateMaterialization > 0) {
+            logger.debug("Late materialization eliminated [{}] rows in [{}]", rowsEliminatedByLateMaterialization, fileLocation);
+        }
+        if (rowGroupsWithTrivialFilter > 0) {
+            logger.debug(
+                "Trivially-passes guard skipped late-materialization for [{}] row groups in [{}]",
+                rowGroupsWithTrivialFilter,
+                fileLocation
+            );
+        }
+        if (twoPhaseRowGroupsWithPageSkipping > 0 || twoPhaseRowGroupsFullProjectionFetch > 0 || twoPhaseRowGroupsAllFiltered > 0) {
+            logger.debug(
+                "Two-phase I/O for [{}]: page-skipping [{}], full-projection-fetch [{}], all-filtered [{}]",
+                fileLocation,
+                twoPhaseRowGroupsWithPageSkipping,
+                twoPhaseRowGroupsFullProjectionFetch,
+                twoPhaseRowGroupsAllFiltered
+            );
+        }
     }
 
     /**
@@ -278,7 +770,439 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         return allRowRanges[rowGroupOrdinal];
     }
 
+    /**
+     * Phase 1 of the two-phase decode pipeline: decodes predicate columns, accumulates a
+     * row-group-wide survivor mask, then issues a synchronous Phase-2 prefetch for the
+     * projection columns and stitches the decoded predicate blocks together with projection
+     * {@link PageColumnReader}s ready to emit per-batch.
+     *
+     * @param block metadata for the row group being prepared
+     * @param phase1Chunks Phase-1 prefetched chunks (predicate columns only); may be {@code null}
+     *            when the prefetch failed and we need to fall back to a synchronous phase-1 build
+     * @return {@code true} if the row group has at least one surviving row and is ready to emit;
+     *         {@code false} when every row was filtered out and the iterator should advance to
+     *         the next surviving row group ordinal
+     */
+    private boolean prepareTwoPhaseRowGroup(BlockMetaData block, NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> phase1Chunks) {
+        long rowGroupRowCount = block.getRowCount();
+        if (rowGroupRowCount > Integer.MAX_VALUE) {
+            throw new IllegalStateException(
+                "Two-phase decode does not support row groups with more than Integer.MAX_VALUE rows; row group ["
+                    + rowGroupOrdinal
+                    + "] in ["
+                    + fileLocation
+                    + "] has ["
+                    + rowGroupRowCount
+                    + "] rows"
+            );
+        }
+        // Build predicate-only PageReadStore. We pass predicateColumnPaths so PrefetchedRowGroupBuilder
+        // skips projection columns entirely; phase1Chunks were prefetched for the same subset, so
+        // the storeObject fallback should not be needed except when prefetch failed (handled below
+        // via the standard PrefetchedRowGroupBuilder.build code path).
+        PrefetchedPageReadStore predicateStore = PrefetchedRowGroupBuilder.build(
+            block,
+            rowGroupOrdinal,
+            projectedSchema,
+            predicateColumnPaths,
+            null,
+            preloadedMetadata,
+            phase1Chunks,
+            storageObject,
+            codecFactory
+        );
+        rowGroup = predicateStore;
+        initPredicateColumnReaders();
+
+        // Pre-decode all predicate batches for this row group, accumulating the global survivor
+        // mask. Predicate compacted blocks stay live in TwoPhaseRowGroup; we re-emit them
+        // alongside fresh projection blocks during nextWithTwoPhase.
+        WordMask globalSurvivors = new WordMask();
+        globalSurvivors.reset((int) rowGroupRowCount);
+        List<Block[]> predicateBatches = new ArrayList<>();
+        List<int[]> survivorPositionsPerBatch = new ArrayList<>();
+        List<Integer> sourceRowsPerBatch = new ArrayList<>();
+        List<Integer> survivorCountsPerBatch = new ArrayList<>();
+        long totalSurvivors = 0;
+        long rowsConsumed = 0;
+        try {
+            while (rowsConsumed < rowGroupRowCount) {
+                int rowsToRead = (int) Math.min(batchSize, rowGroupRowCount - rowsConsumed);
+                BatchPredicateResult batch = decodePredicateBatch(rowsToRead, (int) rowsConsumed, globalSurvivors);
+                predicateBatches.add(batch.compactedPredicateBlocks);
+                survivorPositionsPerBatch.add(batch.survivorPositions);
+                survivorCountsPerBatch.add(batch.survivorCount);
+                sourceRowsPerBatch.add(rowsToRead);
+                totalSurvivors += batch.survivorCount;
+                rowsConsumed += rowsToRead;
+            }
+        } catch (Exception e) {
+            // Mirror the success path's cleanup so a partially-decoded row group doesn't leak the
+            // predicate PageReadStore / PageColumnReaders even if the caller forgets to close()
+            // the iterator. close() itself is still defensive against this state, so doing the
+            // teardown here just narrows the leak window to "exception propagated and iterator
+            // immediately discarded".
+            for (Block[] arr : predicateBatches) {
+                Releasables.closeExpectNoException(arr);
+            }
+            closePageColumnReaders();
+            if (rowGroup != null) {
+                try {
+                    rowGroup.close();
+                } catch (Exception closeEx) {
+                    e.addSuppressed(closeEx);
+                }
+                rowGroup = null;
+            }
+            throw e;
+        }
+
+        // Predicate readers are exhausted; their per-column dictionary caches are still useful
+        // only if we kept reading predicates, which we don't. Releasing them now frees the
+        // BytesRefArray refcounts before we hand the projection store to the same field.
+        closePageColumnReaders();
+        rowGroup.close();
+        rowGroup = null;
+        // Phase 1 chunks are no longer referenced by any reader: dictionary entries were
+        // deep-copied into their own BytesRefArray, plain values were copied into compacted
+        // predicate Blocks, and the page-column-readers themselves have been closed. Releasing
+        // the breaker reservation here halves the memory footprint during Phase 2 fetch +
+        // decode, which is the regime where the iterator typically holds the most memory.
+        releaseCurrentReservation();
+
+        if (totalSurvivors == 0) {
+            twoPhaseRowGroupsAllFiltered++;
+            rowsEliminatedByLateMaterialization += rowGroupRowCount;
+            for (Block[] arr : predicateBatches) {
+                Releasables.closeExpectNoException(arr);
+            }
+            return false;
+        }
+        rowsEliminatedByLateMaterialization += (rowGroupRowCount - totalSurvivors);
+
+        RowRanges survivorRanges = WordMaskRowRangesConverter.fromWordMask(globalSurvivors, rowGroupRowCount);
+        // Phase-2 fetch path:
+        // - If projection-only columns is empty (shouldn't happen because the gate excludes that
+        // case, but defend against it): no fetch needed, projection store is empty.
+        // - If survivorRanges.shouldDiscard(): the survivors are too dense or fragmented to
+        // benefit from page skipping; fetch full projection chunks instead.
+        // - Otherwise: fetch only pages that overlap survivor ranges.
+        boolean usePageFiltering = survivorRanges.shouldDiscard() == false;
+        PrefetchedPageReadStore projectionStore;
+        try {
+            projectionStore = fetchProjectionPhase(block, survivorRanges, usePageFiltering);
+        } catch (RuntimeException e) {
+            for (Block[] arr : predicateBatches) {
+                Releasables.closeExpectNoException(arr);
+            }
+            throw e;
+        }
+        if (usePageFiltering) {
+            twoPhaseRowGroupsWithPageSkipping++;
+        } else {
+            twoPhaseRowGroupsFullProjectionFetch++;
+        }
+
+        TwoPhaseRowGroup state = new TwoPhaseRowGroup(
+            predicateBatches,
+            survivorPositionsPerBatch,
+            toIntArray(survivorCountsPerBatch),
+            toIntArray(sourceRowsPerBatch),
+            totalSurvivors,
+            projectionStore,
+            // Pass the survivor RowRanges to the projection PageColumnReaders only when page
+            // filtering is actually in play; otherwise we have full chunks and the readers
+            // should not skip pages.
+            usePageFiltering ? survivorRanges : null
+        );
+        this.twoPhase = state;
+        // The iterator's row counter tracks source rows so existing per-batch bookkeeping
+        // (row budget, batch index, etc.) keeps working unchanged. Survivor count is
+        // applied per-batch via TwoPhaseRowGroup state.
+        rowsRemainingInGroup = rowGroupRowCount;
+        rowGroup = projectionStore;
+        initProjectionColumnReaders(state.survivorRowRanges());
+        return true;
+    }
+
+    /**
+     * Decodes one batch of predicate columns and updates {@code globalSurvivors} for the rows
+     * that survived. Returns the compacted predicate {@link Block}s for the batch alongside the
+     * per-batch survivor positions used to align projection column decoding.
+     *
+     * <p>The per-batch survivor mask is materialized inside {@code pushedExpressions.evaluateFilter}
+     * which reuses {@link #survivorMask}; we then OR-set the corresponding bits into
+     * {@code globalSurvivors} at offset {@code rowsConsumedSoFar}.
+     */
+    private BatchPredicateResult decodePredicateBatch(int rowsToRead, int rowsConsumedSoFar, WordMask globalSurvivors) {
+        Block[] predicateBlocks = new Block[attributes.size()];
+        Map<String, Block> predicateBlockMap = new HashMap<>();
+        try {
+            for (int col = 0; col < columnInfos.length; col++) {
+                if (isPredicateColumn[col] == false) {
+                    continue;
+                }
+                ColumnInfo info = columnInfos[col];
+                if (info == null) {
+                    predicateBlocks[col] = blockFactory.newConstantNullBlock(rowsToRead);
+                } else {
+                    predicateBlocks[col] = readColumnBlockWithAttribution(col, info, rowsToRead, predicateBlocks);
+                }
+                predicateBlockMap.put(attributes.get(col).name(), predicateBlocks[col]);
+            }
+            WordMask mask = pushedExpressions.evaluateFilter(
+                predicateBlockMap,
+                rowsToRead,
+                survivorMask,
+                dictionaryBitmapsForCurrentRowGroup()
+            );
+            int survivorCount;
+            int[] positions;
+            if (mask == null) {
+                // All rows survive in this batch.
+                survivorCount = rowsToRead;
+                positions = null;
+                // Mark all rowsToRead bits in the global mask.
+                globalSurvivors.setRange(rowsConsumedSoFar, rowsConsumedSoFar + rowsToRead);
+            } else {
+                survivorCount = mask.popCount();
+                positions = survivorCount == 0 || survivorCount == rowsToRead ? null : mask.survivingPositions();
+                if (survivorCount == rowsToRead) {
+                    globalSurvivors.setRange(rowsConsumedSoFar, rowsConsumedSoFar + rowsToRead);
+                } else if (survivorCount > 0) {
+                    int[] toMark = positions != null ? positions : mask.survivingPositions();
+                    for (int p : toMark) {
+                        globalSurvivors.set(rowsConsumedSoFar + p);
+                    }
+                }
+            }
+            // Compact predicate blocks to surviving rows. When all rows survive (positions==null
+            // and survivorCount==rowsToRead) we keep the full-size blocks as-is.
+            if (positions != null) {
+                for (int col = 0; col < columnInfos.length; col++) {
+                    if (isPredicateColumn[col] && predicateBlocks[col] != null) {
+                        predicateBlocks[col] = PageColumnReader.filterBlock(predicateBlocks[col], positions, survivorCount, blockFactory);
+                    }
+                }
+            } else if (survivorCount == 0) {
+                // Nothing survives: drop the predicate blocks; the batch contributes 0 rows.
+                for (int col = 0; col < columnInfos.length; col++) {
+                    if (predicateBlocks[col] != null) {
+                        predicateBlocks[col].close();
+                        predicateBlocks[col] = null;
+                    }
+                }
+            }
+            return new BatchPredicateResult(predicateBlocks, positions, survivorCount);
+        } catch (RuntimeException e) {
+            Releasables.closeExpectNoException(predicateBlocks);
+            throw e;
+        }
+    }
+
+    /** Result of decoding and filtering a single predicate-column batch under two-phase. */
+    private record BatchPredicateResult(Block[] compactedPredicateBlocks, int[] survivorPositions, int survivorCount) {}
+
+    /**
+     * Variant of {@link #prepareTwoPhaseRowGroup} for the trivially-passes case: every row matches
+     * the filter, so late-materialization is bypassed and the standard read path is used. The
+     * Phase-1 chunks already include the predicate columns; we synchronously fetch the projection
+     * columns and merge them into a unified row-group store so {@link #nextStandard} can read all
+     * columns from a single store.
+     */
+    private void prepareTwoPhaseTriviallyPassesRowGroup(
+        BlockMetaData block,
+        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> phase1Chunks
+    ) {
+        long projectionBytes = ColumnChunkPrefetcher.computePrefetchBytes(block, projectionOnlyColumnPaths);
+        long phase1Reserved = currentReservedBytes;
+        if (projectionBytes > 0) {
+            try {
+                breaker.addEstimateBytesAndMaybeBreak(projectionBytes, "esql_parquet_phase2");
+            } catch (CircuitBreakingException e) {
+                logger.debug(
+                    "Trivially-passes Phase-2 reservation failed for row group [{}] in [{}] ({} bytes): {}",
+                    rowGroupOrdinal,
+                    fileLocation,
+                    projectionBytes,
+                    e.getMessage()
+                );
+                throw e;
+            }
+        }
+        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> phase2Chunks;
+        try {
+            phase2Chunks = ColumnChunkPrefetcher.prefetchAsync(storageObject, block, projectionOnlyColumnPaths).join();
+        } catch (Exception e) {
+            if (projectionBytes > 0) {
+                breaker.addWithoutBreaking(-projectionBytes);
+            }
+            throw new ElasticsearchException(
+                "Trivially-passes Phase-2 fetch failed for row group ["
+                    + rowGroupOrdinal
+                    + "] in ["
+                    + fileLocation
+                    + "]: "
+                    + e.getMessage(),
+                e
+            );
+        }
+        // Merge the two chunk maps. Both phases prefetched disjoint columns (predicate vs.
+        // projection-only), so file offsets cannot collide.
+        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> merged = new TreeMap<>();
+        if (phase1Chunks != null) {
+            merged.putAll(phase1Chunks);
+        }
+        if (phase2Chunks != null) {
+            merged.putAll(phase2Chunks);
+        }
+        currentReservedBytes = phase1Reserved + projectionBytes;
+        rowGroup = PrefetchedRowGroupBuilder.build(
+            block,
+            rowGroupOrdinal,
+            projectedSchema,
+            projectedColumnPaths,
+            null,
+            preloadedMetadata,
+            merged,
+            storageObject,
+            codecFactory
+        );
+        rowsRemainingInGroup = rowGroup.getRowCount();
+        initColumnReaders(null);
+    }
+
+    /**
+     * Synchronously fetches the Phase-2 (projection-only) chunks for the current row group,
+     * reserves the appropriate amount on the circuit breaker, and builds the projection
+     * {@link PrefetchedPageReadStore}.
+     *
+     * @param block metadata for the row group
+     * @param survivorRanges row ranges of survivors as produced by {@link WordMaskRowRangesConverter}
+     * @param usePageFiltering when {@code true}, only pages overlapping {@code survivorRanges}
+     *            are fetched; when {@code false}, full column chunks are fetched (i.e., page
+     *            filtering would not pay off because survivors are too dense or fragmented)
+     */
+    private PrefetchedPageReadStore fetchProjectionPhase(BlockMetaData block, RowRanges survivorRanges, boolean usePageFiltering) {
+        long projectionBytes;
+        if (usePageFiltering) {
+            // Mirror what ColumnChunkPrefetcher.computeFilteredPageRanges will allocate, including
+            // the dictionary pages and merged adjacencies. Reusing the helper keeps the breaker
+            // estimate consistent with the actual coalesced fetch.
+            List<CoalescedRangeReader.ByteRange> ranges = ColumnChunkPrefetcher.computeFilteredPageRanges(
+                block,
+                survivorRanges,
+                preloadedMetadata,
+                rowGroupOrdinal,
+                projectionOnlyColumnPaths,
+                block.getRowCount()
+            );
+            long total = 0;
+            for (CoalescedRangeReader.ByteRange r : ranges) {
+                total += r.length();
+            }
+            projectionBytes = total;
+        } else {
+            projectionBytes = ColumnChunkPrefetcher.computePrefetchBytes(block, projectionOnlyColumnPaths);
+        }
+        if (projectionBytes > 0) {
+            try {
+                breaker.addEstimateBytesAndMaybeBreak(projectionBytes, "esql_parquet_phase2");
+            } catch (CircuitBreakingException e) {
+                logger.debug(
+                    "Phase 2 prefetch reservation failed for row group [{}] in [{}] ({} bytes): {}",
+                    rowGroupOrdinal,
+                    fileLocation,
+                    projectionBytes,
+                    e.getMessage()
+                );
+                throw e;
+            }
+        }
+
+        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks;
+        try {
+            CompletableFuture<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> future = usePageFiltering
+                ? ColumnChunkPrefetcher.prefetchAsync(
+                    storageObject,
+                    block,
+                    projectionOnlyColumnPaths,
+                    survivorRanges,
+                    preloadedMetadata,
+                    rowGroupOrdinal,
+                    block.getRowCount()
+                )
+                : ColumnChunkPrefetcher.prefetchAsync(storageObject, block, projectionOnlyColumnPaths);
+            chunks = future.join();
+        } catch (Exception e) {
+            // Release the reservation we just made; it isn't pinned to a row-group store yet.
+            if (projectionBytes > 0) {
+                breaker.addWithoutBreaking(-projectionBytes);
+            }
+            throw new ElasticsearchException(
+                "Phase 2 prefetch failed for row group [" + rowGroupOrdinal + "] in [" + fileLocation + "]: " + e.getMessage(),
+                e
+            );
+        }
+        // Pin the Phase-2 reservation to the standard `currentReservedBytes` field so the existing
+        // advance / close path releases it without special-casing two-phase. The Phase-1 reservation
+        // was already released by the caller after predicate decode.
+        currentReservedBytes = projectionBytes;
+        return PrefetchedRowGroupBuilder.build(
+            block,
+            rowGroupOrdinal,
+            projectedSchema,
+            projectionOnlyColumnPaths,
+            usePageFiltering ? survivorRanges : null,
+            preloadedMetadata,
+            chunks,
+            storageObject,
+            codecFactory
+        );
+    }
+
+    /**
+     * Initializes {@link #pageColumnReaders} for predicate columns only. Projection-only columns
+     * are intentionally left {@code null}; the iterator routes their decode through
+     * {@link #initProjectionColumnReaders} once Phase 2 has materialized.
+     */
+    private void initPredicateColumnReaders() {
+        closePageColumnReaders();
+        pageColumnReaders = new PageColumnReader[columnInfos.length];
+        columnReaders = null;
+        for (int i = 0; i < columnInfos.length; i++) {
+            if (columnInfos[i] != null && isPredicateColumn[i] && columnInfos[i].maxRepLevel() == 0) {
+                ColumnDescriptor desc = columnInfos[i].descriptor();
+                PageReader pr = rowGroup.getPageReader(desc);
+                pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], null);
+            }
+        }
+    }
+
+    /**
+     * Initializes {@link #pageColumnReaders} for projection-only columns under the projection
+     * {@link PrefetchedPageReadStore}. Predicate columns stay {@code null} because their decoded
+     * blocks are already cached inside {@link #twoPhase}.
+     */
+    private void initProjectionColumnReaders(RowRanges survivorRowRanges) {
+        closePageColumnReaders();
+        pageColumnReaders = new PageColumnReader[columnInfos.length];
+        columnReaders = null;
+        for (int i = 0; i < columnInfos.length; i++) {
+            if (columnInfos[i] != null && isPredicateColumn[i] == false && columnInfos[i].maxRepLevel() == 0) {
+                ColumnDescriptor desc = columnInfos[i].descriptor();
+                PageReader pr = rowGroup.getPageReader(desc);
+                pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], survivorRowRanges);
+            }
+        }
+    }
+
     private void initColumnReaders(RowRanges currentRowRanges) {
+        // Close any readers from the previous row group before discarding the array — each reader
+        // holds a ref-counted BytesRefArray (the cached dictionary) that must be released here.
+        // Pages already emitted are unaffected: they own their own BytesRefArrayVector wrappers,
+        // which hold independent refs to the underlying array.
+        closePageColumnReaders();
         pageColumnReaders = new PageColumnReader[columnInfos.length];
         columnReaders = null;
         for (int i = 0; i < columnInfos.length; i++) {
@@ -312,43 +1236,38 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     }
 
     /**
-     * Joins the pending prefetch and returns the prefetched chunks for the row group whose ordinal
-     * matches {@code expectedOrdinal}. Returns {@code null} when there is no usable prefetch (no
-     * future scheduled, future failed, future returned empty data, or the prefetched ordinal does
-     * not match the row group we're about to read because stats dropped intermediate row groups).
-     * The breaker reservation is released for any prefetch whose data is not handed back to the
-     * caller.
+     * Dequeues the head of the prefetch queue if it matches {@code expectedOrdinal}, joining its
+     * future and returning the prefetched chunks. Entries whose ordinals don't match (because
+     * the stats filter skipped intermediate row groups) are cancelled and their breaker
+     * reservations released. Returns {@code null} when there is no usable prefetch.
      */
     private NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> takePendingPrefetch(int expectedOrdinal) {
-        // The chunks from the previous row group are no longer referenced by anyone; release
-        // their reservation regardless of whether the new prefetch produces usable data.
         releaseCurrentReservation();
 
-        if (pendingPrefetch == null) {
+        while (pendingPrefetches.isEmpty() == false) {
+            PendingPrefetch head = pendingPrefetches.peekFirst();
+            if (head.ordinal() == expectedOrdinal) {
+                break;
+            }
+            assert head.ordinal() <= expectedOrdinal : "prefetch queue has ordinal " + head.ordinal() + " > expected " + expectedOrdinal;
+            pendingPrefetches.pollFirst();
+            FutureUtils.cancel(head.future());
+            head.release(breaker);
+        }
+
+        if (pendingPrefetches.isEmpty()) {
             return null;
         }
-        if (pendingPrefetchOrdinal != expectedOrdinal) {
-            // Stats filter advanced past the prefetched row group. The bytes we fetched are now
-            // useless; drop them and free the reservation so the next prefetch can run.
-            cancelPendingPrefetch();
-            return null;
-        }
-        long reserved = pendingReservedBytes;
-        pendingReservedBytes = 0;
-        CompletableFuture<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> future = pendingPrefetch;
-        pendingPrefetch = null;
-        pendingPrefetchOrdinal = -1;
+
+        PendingPrefetch head = pendingPrefetches.pollFirst();
         try {
-            NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> data = future.join();
+            NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> data = head.future().join();
             if (data != null && data.isEmpty() == false) {
                 logger.trace("Took [{}] prefetched column chunks for row group [{}] in [{}]", data.size(), expectedOrdinal, fileLocation);
-                // Hold on to the reservation while these chunks are in use by the row group.
-                currentReservedBytes = reserved;
+                currentReservedBytes = head.reservedBytes();
                 return data;
             }
-            if (reserved > 0) {
-                breaker.addWithoutBreaking(-reserved);
-            }
+            head.release(breaker);
             return null;
         } catch (Exception e) {
             logger.debug(
@@ -357,102 +1276,38 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
                 fileLocation,
                 e.getMessage()
             );
-            if (reserved > 0) {
-                breaker.addWithoutBreaking(-reserved);
-            }
+            head.release(breaker);
             return null;
         }
     }
 
     /**
-     * Triggers an async prefetch of column chunk data for the next surviving row group (skipping
-     * row groups dropped by the statistics filter so we never pay for I/O we won't use). Reserves
-     * the estimated bytes on the circuit breaker before starting I/O; if the breaker would trip,
-     * prefetch is skipped and the query falls back to synchronous I/O for that row group. The
-     * reservation is released when the prefetched data is taken in {@link #advanceRowGroup()} or
-     * on failure/cancel.
+     * Refills the prefetch queue after consuming an entry in {@link #advanceRowGroup()}.
+     * Starts from the ordinal after the last queued entry (or after the current row group
+     * if the queue is empty). Skips row groups dropped by the statistics filter.
      */
     private void triggerNextRowGroupPrefetch() {
         if (storageObject == null) {
             return;
         }
-        List<BlockMetaData> rowGroups = reader.getRowGroups();
-        int nextRgOrdinal = nextSurvivingRowGroupOrdinal(rowGroupOrdinal + 1);
-        if (nextRgOrdinal >= rowGroups.size()) {
-            return;
+        int startOrdinal;
+        if (pendingPrefetches.isEmpty()) {
+            startOrdinal = nextSurvivingRowGroupOrdinal(rowGroupOrdinal + 1);
+        } else {
+            startOrdinal = nextSurvivingRowGroupOrdinal(pendingPrefetches.peekLast().ordinal() + 1);
         }
-        BlockMetaData nextBlock = rowGroups.get(nextRgOrdinal);
-        long prefetchBytes = ColumnChunkPrefetcher.computePrefetchBytes(nextBlock, projectedColumnPaths);
-        if (prefetchBytes <= 0) {
-            // No data to prefetch (empty projection or zero-byte columns). This is safe because
-            // installPendingPrefetch tolerates pendingPrefetch == null — no invariant is broken.
-            return;
-        }
-        try {
-            breaker.addEstimateBytesAndMaybeBreak(prefetchBytes, "esql_parquet_prefetch");
-            pendingReservedBytes = prefetchBytes;
-        } catch (CircuitBreakingException e) {
-            logger.debug(
-                "Skipping prefetch for row group [{}] in [{}]: circuit breaker limit reached ({} bytes requested)",
-                nextRgOrdinal,
-                fileLocation,
-                prefetchBytes
-            );
-            return;
-        }
-        try {
-            // nextRgOrdinal is always a surviving ordinal (nextSurvivingRowGroupOrdinal skips
-            // dropped row groups), so allRowRanges[nextRgOrdinal] is non-null when allRowRanges
-            // itself is non-null. The explicit null guard makes the contract obvious.
-            RowRanges nextRowRanges = allRowRanges != null && nextRgOrdinal < allRowRanges.length ? allRowRanges[nextRgOrdinal] : null;
-            if (nextRowRanges != null) {
-                pendingPrefetch = ColumnChunkPrefetcher.prefetchAsync(
-                    storageObject,
-                    nextBlock,
-                    projectedColumnPaths,
-                    nextRowRanges,
-                    preloadedMetadata,
-                    nextRgOrdinal,
-                    nextBlock.getRowCount()
-                );
-            } else {
-                pendingPrefetch = ColumnChunkPrefetcher.prefetchAsync(storageObject, nextBlock, projectedColumnPaths);
-            }
-            pendingPrefetchOrdinal = nextRgOrdinal;
-        } catch (Exception e) {
-            logger.debug("Failed to initiate prefetch for row group [{}] in [{}]: {}", nextRgOrdinal, fileLocation, e.getMessage());
-            pendingPrefetch = null;
-            pendingPrefetchOrdinal = -1;
-            releasePendingReservation();
-        }
+        fillPrefetchQueue(startOrdinal);
     }
 
     /**
-     * Cancels the pending prefetch future and releases the breaker reservation. Note that
-     * {@link org.elasticsearch.common.util.concurrent.FutureUtils#cancel} only flips the
-     * future's cancelled state — it does not interrupt in-flight storage SDK reads. If the
-     * async read is already in progress, the SDK may still allocate a buffer that becomes
-     * untracked by the breaker until GC. Draining the future before releasing would risk
-     * blocking {@link #close()}, so we accept this brief discrepancy.
+     * Cancels all pending prefetches and releases their breaker reservations. Called when the
+     * iterator is exhausted or closed.
      */
     private void cancelPendingPrefetch() {
-        if (pendingPrefetch != null) {
-            org.elasticsearch.common.util.concurrent.FutureUtils.cancel(pendingPrefetch);
-            pendingPrefetch = null;
-        }
-        pendingPrefetchOrdinal = -1;
-        releasePendingReservation();
-    }
-
-    /**
-     * Releases the breaker reservation held for the in-flight (pending) prefetch. Idempotent —
-     * safe to call multiple times (subsequent calls are no-ops when reservation is zero).
-     */
-    private void releasePendingReservation() {
-        long reserved = pendingReservedBytes;
-        pendingReservedBytes = 0;
-        if (reserved > 0) {
-            breaker.addWithoutBreaking(-reserved);
+        while (pendingPrefetches.isEmpty() == false) {
+            PendingPrefetch entry = pendingPrefetches.pollFirst();
+            FutureUtils.cancel(entry.future());
+            entry.release(breaker);
         }
     }
 
@@ -472,20 +1327,236 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         if (hasNext() == false) {
             throw new NoSuchElementException();
         }
+        if (twoPhase != null) {
+            return nextTwoPhaseBatch();
+        }
         int effectiveBatch = batchSize;
         if (rowBudget != FormatReader.NO_LIMIT) {
             effectiveBatch = Math.min(effectiveBatch, rowBudget);
         }
         int rowsToRead = (int) Math.min(effectiveBatch, rowsRemainingInGroup);
 
-        Page result = nextStandard(rowsToRead);
+        boolean useLateMaterialization = lateMaterialization && currentRowGroupTriviallyPasses == false;
+        Page result = useLateMaterialization ? nextWithLateMaterialization(rowsToRead) : nextStandard(rowsToRead);
 
         pageBatchIndexInRowGroup++;
         rowsRemainingInGroup -= rowsToRead;
         if (rowBudget != FormatReader.NO_LIMIT) {
-            rowBudget -= rowsToRead;
+            rowBudget -= useLateMaterialization ? result.getPositionCount() : rowsToRead;
         }
         return result;
+    }
+
+    /**
+     * Emits the next batch under two-phase decoding. The predicate columns for the batch were
+     * already decoded and compacted in {@link #prepareTwoPhaseRowGroup}; this method only has
+     * to fetch the corresponding projection-column slice from the (already in-memory) projection
+     * store and combine the two halves into a {@link Page}.
+     *
+     * <p>The row budget is enforced on emitted (post-filter) rows since downstream operators
+     * see survivor counts and that's what {@code rowBudget} is meant to limit. We respect both
+     * the budget and the survivor count of the current batch by emitting the smaller of the
+     * two as the first row range; if a partial slice is needed, the remainder of this batch's
+     * survivors is dropped (its predicate blocks are released so we don't leak).
+     */
+    private Page nextTwoPhaseBatch() {
+        TwoPhaseRowGroup state = twoPhase;
+        // hasNext() drains any leading fully-filtered batches before returning true, so the
+        // current cursor must point at a batch with at least one survivor by the time we get
+        // here. An assertion guards against an unexpected entry from a buggy hasNext path.
+        assert state.hasMoreBatches() && state.currentSurvivorCount() > 0
+            : "nextTwoPhaseBatch invoked on empty/missing batch (hasNext should have advanced or returned false)";
+        int sourceRows = state.currentSourceRows();
+        int survivorCount = state.currentSurvivorCount();
+        int[] survivorPositions = state.currentSurvivorPositions();
+        Block[] predicateBlocks = state.takeCurrentPredicateBlocks();
+
+        // Ownership invariant for the rest of this method: every predicate Block lives in EXACTLY
+        // one of {predicateBlocks[col], blocks[col]} at any moment. We enforce this by nulling
+        // predicateBlocks[col] the instant we hand the reference off to blocks[col], so the catch
+        // below never double-closes a transferred Block — even when a downstream call (e.g.
+        // readColumnBlockWithAttribution) closes blocks itself before re-throwing.
+        //
+        // The earlier implementation copied the reference into blocks[col] and only nulled
+        // predicateBlocks[col] after the loop completed successfully. A mid-loop exception (e.g.
+        // CircuitBreakingException from a projection allocation) then triggered a double-release
+        // when the catch closed both arrays — observed as the production crash on q23 with a
+        // selective LIKE filter.
+        Block[] blocks = new Block[attributes.size()];
+        int emitCount = survivorCount;
+        boolean budgetExhaustsBatch = false;
+        try {
+            // Apply the row budget to survivor count: if the budget is smaller than the number of
+            // surviving rows in this batch, truncate predicate and projection blocks to the first
+            // {@code rowBudget} survivors and mark the iterator as exhausted after emission. We
+            // re-slice predicate blocks via {@link #sliceBlockHead} (cheap because they're already
+            // compacted) and pass {@code emitCount} to the projection read so it doesn't decode
+            // beyond the budget either. This must run inside the try so that a mid-iteration
+            // sliceBlockHead failure leaves cleanup to the catch rather than leaking the partially
+            // re-sliced predicate array.
+            if (rowBudget != FormatReader.NO_LIMIT && rowBudget < emitCount) {
+                int newCount = rowBudget;
+                int[] truncated;
+                if (survivorPositions != null) {
+                    truncated = Arrays.copyOf(survivorPositions, newCount);
+                } else {
+                    // All rows in this batch survived; the projection reader will read sourceRows
+                    // and we'll filter to the first newCount via a synthesized positions array.
+                    truncated = new int[newCount];
+                    for (int i = 0; i < newCount; i++) {
+                        truncated[i] = i;
+                    }
+                }
+                survivorPositions = truncated;
+                // sliceBlockHead either returns the same block (no slice needed) or closes the
+                // source on success. predicateBlocks[col] is reassigned to the result before any
+                // subsequent call so a failure on column N+1 leaves columns 0..N owned by
+                // predicateBlocks[] for the catch to release.
+                for (int col = 0; col < columnInfos.length; col++) {
+                    if (isPredicateColumn[col] && predicateBlocks[col] != null) {
+                        predicateBlocks[col] = sliceBlockHead(predicateBlocks[col], newCount);
+                    }
+                }
+                emitCount = newCount;
+                budgetExhaustsBatch = true;
+            }
+
+            for (int col = 0; col < columnInfos.length; col++) {
+                if (isPredicateColumn[col]) {
+                    // Transfer ownership: hand the reference to blocks[] and clear the
+                    // predicateBlocks[] slot so the catch closes each Block at most once.
+                    blocks[col] = predicateBlocks[col];
+                    predicateBlocks[col] = null;
+                    continue;
+                }
+                ColumnInfo info = columnInfos[col];
+                if (info == null) {
+                    blocks[col] = blockFactory.newConstantNullBlock(emitCount);
+                    continue;
+                }
+                if (survivorCount == 0) {
+                    // Should not happen — TwoPhaseRowGroup never queues a fully-empty batch
+                    // (those are dropped before reaching here). Defensive null block.
+                    blocks[col] = blockFactory.newConstantNullBlock(0);
+                    continue;
+                }
+                if (survivorPositions == null) {
+                    // All sourceRows survived this batch. Use the no-cleanup variant: our catch
+                    // owns both blocks[] and predicateBlocks[], and letting the helper close
+                    // blocks here would double-close every previously-assigned slot (including
+                    // transferred predicate Blocks) — that's the production crash signature.
+                    Block fullBlock = readColumnBlockNoCleanup(col, info, sourceRows);
+                    if (budgetExhaustsBatch) {
+                        // sliceBlockHead returns the same block when sizes match (no slice), or
+                        // closes source on success. On failure we own fullBlock and must close it.
+                        try {
+                            blocks[col] = sliceBlockHead(fullBlock, emitCount);
+                        } catch (RuntimeException sliceEx) {
+                            Releasables.closeExpectNoException(fullBlock);
+                            throw sliceEx;
+                        }
+                    } else {
+                        blocks[col] = fullBlock;
+                    }
+                } else if (pageColumnReaders != null && pageColumnReaders[col] != null) {
+                    blocks[col] = pageColumnReaders[col].readBatchSparse(sourceRows, blockFactory, survivorPositions, emitCount);
+                } else {
+                    // Read the full source-rows block and immediately filter to survivors.
+                    // We hand fullBlock to filterBlock which closes it on success; on failure
+                    // (e.g. a breaker trip during the new filtered allocation) filterBlock does
+                    // NOT close source, so we must close it explicitly to avoid a leak.
+                    Block fullBlock = readColumnBlockNoCleanup(col, info, sourceRows);
+                    try {
+                        blocks[col] = PageColumnReader.filterBlock(fullBlock, survivorPositions, emitCount, blockFactory);
+                    } catch (RuntimeException filterEx) {
+                        Releasables.closeExpectNoException(fullBlock);
+                        throw filterEx;
+                    }
+                }
+            }
+        } catch (CircuitBreakingException e) {
+            // Invariant: blocks[] and predicateBlocks[] hold disjoint references at every point
+            // in the loop above (eager null-on-transfer for predicate slots; readColumnBlockNoCleanup
+            // for projection slots leaves blocks[] alone on failure). Closing both arrays here
+            // therefore releases each Block exactly once. Surface the breaker exception unwrapped
+            // to match the sibling iterator paths so upstream operators (LIMIT, exchange, breaker
+            // telemetry) classify it correctly.
+            Releasables.closeExpectNoException(blocks);
+            Releasables.closeExpectNoException(predicateBlocks);
+            throw e;
+        } catch (RuntimeException e) {
+            Releasables.closeExpectNoException(blocks);
+            Releasables.closeExpectNoException(predicateBlocks);
+            throw new ElasticsearchException(
+                "Failed to emit two-phase Page at row group ["
+                    + (rowGroupOrdinal + 1)
+                    + "] batch ["
+                    + state.nextBatchIndex()
+                    + "] in file ["
+                    + fileLocation
+                    + "]: "
+                    + e.getMessage(),
+                e
+            );
+        }
+
+        pageBatchIndexInRowGroup++;
+        rowsRemainingInGroup -= sourceRows;
+        if (rowBudget != FormatReader.NO_LIMIT) {
+            rowBudget -= emitCount;
+        }
+        if (budgetExhaustsBatch) {
+            // Drop any remaining batches in this row group; the budget will short-circuit hasNext.
+            // Their predicate blocks will be closed via closeTwoPhaseState on next advanceRowGroup
+            // or close().
+            rowsRemainingInGroup = 0;
+        }
+        return new Page(blocks);
+    }
+
+    /**
+     * Advances every active projection {@link PageColumnReader} by {@code rows} source positions
+     * without producing blocks, so the readers stay aligned with the consumer's expected row
+     * coordinate after we discarded a fully-filtered batch.
+     */
+    private void advanceProjectionReadersBy(int rows) {
+        if (rows <= 0 || pageColumnReaders == null) {
+            return;
+        }
+        for (int col = 0; col < columnInfos.length; col++) {
+            if (isPredicateColumn[col]) {
+                continue;
+            }
+            if (pageColumnReaders[col] != null) {
+                pageColumnReaders[col].skipRows(rows);
+            }
+        }
+    }
+
+    private Block sliceBlockHead(Block source, int newCount) {
+        if (newCount == source.getPositionCount()) {
+            return source;
+        }
+        int[] head = new int[newCount];
+        for (int i = 0; i < newCount; i++) {
+            head[i] = i;
+        }
+        return PageColumnReader.filterBlock(source, head, newCount, blockFactory);
+    }
+
+    private void closeTwoPhaseState() {
+        if (twoPhase != null) {
+            twoPhase.close();
+            twoPhase = null;
+        }
+    }
+
+    private static int[] toIntArray(List<Integer> values) {
+        int[] out = new int[values.size()];
+        for (int i = 0; i < values.size(); i++) {
+            out[i] = values.get(i);
+        }
+        return out;
     }
 
     private Page nextStandard(int rowsToRead) {
@@ -555,6 +1626,150 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         return new Page(blocks);
     }
 
+    private Page nextWithLateMaterialization(int rowsToRead) {
+        Block[] blocks = new Block[attributes.size()];
+        try {
+            // Phase 1: decode predicate columns
+            Map<String, Block> predicateBlockMap = new HashMap<>();
+            for (int col = 0; col < columnInfos.length; col++) {
+                if (isPredicateColumn[col]) {
+                    ColumnInfo info = columnInfos[col];
+                    if (info == null) {
+                        blocks[col] = blockFactory.newConstantNullBlock(rowsToRead);
+                    } else {
+                        blocks[col] = readColumnBlockWithAttribution(col, info, rowsToRead, blocks);
+                    }
+                    predicateBlockMap.put(attributes.get(col).name(), blocks[col]);
+                }
+            }
+
+            // Phase 2: evaluate filter
+            WordMask mask = pushedExpressions.evaluateFilter(
+                predicateBlockMap,
+                rowsToRead,
+                survivorMask,
+                dictionaryBitmapsForCurrentRowGroup()
+            );
+
+            int survivorCount = rowsToRead;
+            int[] positions = null;
+            if (mask != null) {
+                survivorCount = mask.popCount();
+                rowsEliminatedByLateMaterialization += (rowsToRead - survivorCount);
+                if (survivorCount < rowsToRead) {
+                    positions = mask.survivingPositions();
+                    // Compact predicate blocks
+                    for (int col = 0; col < columnInfos.length; col++) {
+                        if (isPredicateColumn[col] && blocks[col] != null) {
+                            blocks[col] = PageColumnReader.filterBlock(blocks[col], positions, survivorCount, blockFactory);
+                        }
+                    }
+                }
+            }
+
+            // Phase 3: decode projection-only columns
+            for (int col = 0; col < columnInfos.length; col++) {
+                if (isPredicateColumn[col]) {
+                    continue;
+                }
+                ColumnInfo info = columnInfos[col];
+                if (info == null) {
+                    blocks[col] = blockFactory.newConstantNullBlock(survivorCount);
+                } else if (survivorCount == 0) {
+                    // Skip entirely
+                    if (pageColumnReaders != null && pageColumnReaders[col] != null) {
+                        pageColumnReaders[col].skipRows(rowsToRead);
+                    } else if (columnReaders != null && columnReaders[col] != null) {
+                        ParquetColumnDecoding.skipValues(columnReaders[col], rowsToRead);
+                    }
+                    blocks[col] = blockFactory.newConstantNullBlock(0);
+                } else if (positions == null) {
+                    blocks[col] = readColumnBlockWithAttribution(col, info, rowsToRead, blocks);
+                } else if (pageColumnReaders != null && pageColumnReaders[col] != null) {
+                    blocks[col] = pageColumnReaders[col].readBatchFiltered(rowsToRead, blockFactory, positions, survivorCount);
+                } else {
+                    Block fullBlock = readColumnBlockWithAttribution(col, info, rowsToRead, blocks);
+                    blocks[col] = PageColumnReader.filterBlock(fullBlock, positions, survivorCount, blockFactory);
+                }
+            }
+
+            // Fill any remaining null slots
+            for (int col = 0; col < columnInfos.length; col++) {
+                if (blocks[col] == null) {
+                    blocks[col] = blockFactory.newConstantNullBlock(survivorCount);
+                }
+            }
+
+            return new Page(blocks);
+        } catch (ElasticsearchException e) {
+            Releasables.closeExpectNoException(blocks);
+            throw e;
+        } catch (Exception e) {
+            Releasables.closeExpectNoException(blocks);
+            throw new ElasticsearchException(
+                "Failed to create late-materialized Page at row group ["
+                    + (rowGroupOrdinal + 1)
+                    + "] page batch ["
+                    + pageBatchIndexInRowGroup
+                    + "] in file ["
+                    + fileLocation
+                    + "]: "
+                    + e.getMessage(),
+                e
+            );
+        }
+    }
+
+    private Block readColumnBlockWithAttribution(int colIndex, ColumnInfo info, int rowsToRead, Block[] blocks) {
+        try {
+            return readColumnBlock(colIndex, info, rowsToRead);
+        } catch (CircuitBreakingException e) {
+            Releasables.closeExpectNoException(blocks);
+            throw e;
+        } catch (Exception e) {
+            Releasables.closeExpectNoException(blocks);
+            throw wrapColumnReadException(colIndex, e);
+        }
+    }
+
+    /**
+     * Variant of {@link #readColumnBlockWithAttribution} for callers that own their own
+     * cleanup loop and must not have {@code blocks} double-closed: the only failure-time work
+     * done here is exception attribution. Used by {@link #nextTwoPhaseBatch()} where the outer
+     * catch is the sole owner of {@code blocks[]} and {@code predicateBlocks[]} — letting the
+     * helper close {@code blocks} would double-close every slot already populated by previous
+     * loop iterations (including transferred predicate slots), which is exactly the production
+     * crash this method exists to avoid.
+     */
+    private Block readColumnBlockNoCleanup(int colIndex, ColumnInfo info, int rowsToRead) {
+        try {
+            return readColumnBlock(colIndex, info, rowsToRead);
+        } catch (CircuitBreakingException e) {
+            throw e;
+        } catch (Exception e) {
+            throw wrapColumnReadException(colIndex, e);
+        }
+    }
+
+    private ElasticsearchException wrapColumnReadException(int colIndex, Exception e) {
+        Attribute attr = attributes.get(colIndex);
+        return new ElasticsearchException(
+            "Failed to read Parquet column ["
+                + attr.name()
+                + "] (type "
+                + attr.dataType()
+                + ") at row group ["
+                + (rowGroupOrdinal + 1)
+                + "] page batch ["
+                + pageBatchIndexInRowGroup
+                + "] in file ["
+                + fileLocation
+                + "]: "
+                + e.getMessage(),
+            e
+        );
+    }
+
     private Block readColumnBlock(int colIndex, ColumnInfo info, int rowsToRead) {
         if (pageColumnReaders != null && pageColumnReaders[colIndex] != null) {
             return pageColumnReaders[colIndex].readBatch(rowsToRead, blockFactory);
@@ -574,6 +1789,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     public void close() throws IOException {
         cancelPendingPrefetch();
         try {
+            closeTwoPhaseState();
+            closePageColumnReaders();
             if (rowGroup != null) {
                 rowGroup.close();
                 rowGroup = null;
@@ -581,6 +1798,36 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         } finally {
             releaseCurrentReservation();
             reader.close();
+        }
+    }
+
+    /**
+     * Closes any non-null entries in {@link #pageColumnReaders}, releasing each reader's cached
+     * dictionary {@link org.elasticsearch.common.util.BytesRefArray}. Idempotent — null entries
+     * and a null array are both fine. The array is then discarded by the caller.
+     */
+    private void closePageColumnReaders() {
+        if (pageColumnReaders == null) {
+            return;
+        }
+        Releasables.close(pageColumnReaders);
+        pageColumnReaders = null;
+    }
+
+    /** Bundles an in-flight prefetch future with its breaker reservation for paired release. */
+    private record PendingPrefetch(
+        int ordinal,
+        CompletableFuture<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> future,
+        long reservedBytes
+    ) {
+        PendingPrefetch {
+            assert reservedBytes >= 0 : "reservedBytes must be non-negative: " + reservedBytes;
+        }
+
+        void release(CircuitBreaker breaker) {
+            if (reservedBytes > 0) {
+                breaker.addWithoutBreaking(-reservedBytes);
+            }
         }
     }
 

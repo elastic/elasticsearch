@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.license.XPackLicenseState;
@@ -31,6 +33,8 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
@@ -44,7 +48,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -58,6 +61,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
@@ -146,6 +150,7 @@ public class Verifier {
         }
 
         checkTStepIncompatibleWithTRange(plan, failures);
+        checkTimeSeriesCollapseSupported(plan, failures, context.minimumVersion());
 
         // collect plan checkers
         var planCheckers = planCheckers(plan);
@@ -183,6 +188,23 @@ public class Verifier {
         }
 
         return failures.failures();
+    }
+
+    /** Fails fast with a 4xx so older recipients never see the node and 5xx on deserialization. */
+    private static void checkTimeSeriesCollapseSupported(LogicalPlan plan, Failures failures, TransportVersion minimumVersion) {
+        if (minimumVersion.supports(TimeSeriesCollapse.TS_COLLAPSE)) {
+            return;
+        }
+        plan.forEachDown(
+            TimeSeriesCollapse.class,
+            tsc -> failures.add(
+                fail(
+                    tsc,
+                    "TS_COLLAPSE is not supported on every participating node; "
+                        + "rolling upgrade in progress, or a remote cluster is on an older version"
+                )
+            )
+        );
     }
 
     private static void checkTStepIncompatibleWithTRange(LogicalPlan plan, Failures failures) {
@@ -535,10 +557,12 @@ public class Verifier {
         Set<String> names = new HashSet<>();
 
         for (Attribute attribute : attributes) {
-            if (attribute instanceof FieldAttribute fa
-                && fa.field() instanceof UnsupportedEsField uef
-                && uef.getOriginalTypes().contains(FlattenedFieldMapper.CONTENT_TYPE)) {
-                names.add(fa.name());
+            if (attribute instanceof FieldAttribute fa) {
+                if (fa.field() instanceof UnsupportedEsField uef && uef.getOriginalTypes().contains(FlattenedFieldMapper.CONTENT_TYPE)) {
+                    names.add(fa.name());
+                } else if (fa.dataType() == DataType.FLATTENED) {
+                    names.add(fa.name());
+                }
             }
         }
 
@@ -612,13 +636,12 @@ public class Verifier {
 
         plan.forEachUp(EsRelation.class, relation -> {
             IndexResolution indexResolution = indexResolutions.get(new IndexPattern(relation.source(), relation.indexPattern()));
-            if (indexResolution != null && indexResolution.isValid()) {
-                EsIndex index = indexResolution.get();
+            if (indexResolution != null && indexResolution.isValid() && indexResolution.get().mapping().isEmpty() == false) {
+                Set<String> punkFieldNames = collectPotentiallyUnmappedNonKeywords(indexResolution.get().mapping());
                 for (Attribute attr : relation.output()) {
-                    if (attr instanceof FieldAttribute fa
-                        && index.isPartiallyUnmappedField(fa.fieldName().string())
-                        && fa.dataType() != DataType.KEYWORD
                     // punk_field::long is fine; in this case, the FieldAttribute contains a MultiTypeEsField with the conversions.
+                    if (attr instanceof FieldAttribute fa
+                        && punkFieldNames.contains(fa.fieldName().string())
                         && fa.field() instanceof MultiTypeEsField == false) {
                         punks.add(fa);
                     }
@@ -627,6 +650,29 @@ public class Verifier {
         });
 
         return punks.build();
+    }
+
+    private static Set<String> collectPotentiallyUnmappedNonKeywords(Map<String, EsField> mapping) {
+        HashSet<String> result = new HashSet<>();
+        collectPotentiallyUnmappedNonKeywords(mapping, null, result);
+        return result;
+    }
+
+    private static void collectPotentiallyUnmappedNonKeywords(
+        Map<String, EsField> mapping,
+        @Nullable String prefix,
+        Set<String> aggregator
+    ) {
+        for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
+            String name = prefix == null ? entry.getKey() : prefix + "." + entry.getKey();
+            EsField field = entry.getValue();
+            if (field instanceof InvalidMappedField imf && imf.isPotentiallyUnmapped()) {
+                aggregator.add(name);
+            }
+            if (field.getProperties() != null && field.getProperties().isEmpty() == false) {
+                collectPotentiallyUnmappedNonKeywords(field.getProperties(), name, aggregator);
+            }
+        }
     }
 
     private void licenseCheck(LogicalPlan plan, Failures failures) {

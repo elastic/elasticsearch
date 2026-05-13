@@ -83,8 +83,8 @@ import static org.hamcrest.Matchers.instanceOf;
 public class ParquetFormatReaderTests extends ESTestCase {
 
     @BeforeClass
-    public static void assertUninitializedArrayAllocatorFastPath() {
-        // The parquet read path relies on UninitializedArrayAllocator's Unsafe-backed allocation;
+    public static void assertUninitializedArraysFastPath() {
+        // The parquet read path relies on UninitializedArrays' Unsafe-backed allocation;
         // fail loudly rather than silently exercising the zero-initialized fallback.
         UninitializedArrays.ensureUnsafeEnabled();
     }

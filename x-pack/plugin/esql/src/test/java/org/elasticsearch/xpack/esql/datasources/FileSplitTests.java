@@ -211,4 +211,24 @@ public class FileSplitTests extends ESTestCase {
         assertEquals(fromMap, fromSplitStats);
         assertEquals(fromMap.hashCode(), fromSplitStats.hashCode());
     }
+
+    /**
+     * Null {@code readSchema} round-trips as null. This is the smoke test that the new wire-encoding
+     * branch on {@link FileSplit} doesn't accidentally invent a non-null value during deserialization.
+     * Non-null round-trip is covered by {@code ExternalRelationSerializationTests} (which exercises
+     * the same {@code writeNamedWriteableCollection(Attribute)} path).
+     */
+    public void testNamedWriteableRoundTripWithNullReadSchema() throws IOException {
+        StoragePath path = StoragePath.of("s3://bucket/file.csv");
+        FileSplit original = FileSplit.withReadSchema("file", path, 0, 1024, ".csv", Map.of(), Map.of(), null, null);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeNamedWriteable(original);
+
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
+        FileSplit deserialized = (FileSplit) in.readNamedWriteable(ExternalSplit.class);
+
+        assertEquals(original, deserialized);
+        assertNull(deserialized.readSchema());
+    }
 }

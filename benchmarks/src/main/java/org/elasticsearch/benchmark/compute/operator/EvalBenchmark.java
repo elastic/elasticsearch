@@ -55,6 +55,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.planner.Layout;
@@ -130,6 +132,10 @@ public class EvalBenchmark {
             "json_extract_object",
             "long_equal_to_long",
             "long_equal_to_int",
+            "mod_long_long",
+            "mod_long_const_60",
+            "div_long_long",
+            "div_long_const_60",
             "mv_min",
             "mv_min_ascending",
             "round_to_4_via_case",
@@ -259,6 +265,44 @@ public class EvalBenchmark {
                 FieldAttribute lhs = longField();
                 FieldAttribute rhs = intField();
                 yield EvalMapper.toEvaluator(FOLD_CONTEXT, new Equals(Source.EMPTY, lhs, rhs), layout(lhs, rhs)).get(driverContext);
+            }
+            case "mod_long_long" -> {
+                FieldAttribute lhs = longField();
+                FieldAttribute rhs = longField();
+                yield EvalMapper.toEvaluator(FOLD_CONTEXT, new Mod(Source.EMPTY, lhs, rhs), layout(lhs, rhs)).get(driverContext);
+            }
+            case "mod_long_const_60" -> {
+                FieldAttribute lhs = longField();
+                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+                    FOLD_CONTEXT,
+                    new Mod(Source.EMPTY, lhs, new Literal(Source.EMPTY, 60L, DataType.LONG)),
+                    layout(lhs)
+                ).get(driverContext);
+                if (evaluator.toString().contains("ModLongsByConstantEvaluator") == false) {
+                    throw new IllegalArgumentException(
+                        "Evaluator was [" + evaluator + "] but expected one containing [ModLongsByConstantEvaluator]"
+                    );
+                }
+                yield evaluator;
+            }
+            case "div_long_long" -> {
+                FieldAttribute lhs = longField();
+                FieldAttribute rhs = longField();
+                yield EvalMapper.toEvaluator(FOLD_CONTEXT, new Div(Source.EMPTY, lhs, rhs), layout(lhs, rhs)).get(driverContext);
+            }
+            case "div_long_const_60" -> {
+                FieldAttribute lhs = longField();
+                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+                    FOLD_CONTEXT,
+                    new Div(Source.EMPTY, lhs, new Literal(Source.EMPTY, 60L, DataType.LONG)),
+                    layout(lhs)
+                ).get(driverContext);
+                if (evaluator.toString().contains("DivLongsByConstantEvaluator") == false) {
+                    throw new IllegalArgumentException(
+                        "Evaluator was [" + evaluator + "] but expected one containing [DivLongsByConstantEvaluator]"
+                    );
+                }
+                yield evaluator;
             }
             case "mv_min", "mv_min_ascending" -> {
                 FieldAttribute longField = longField();
@@ -512,6 +556,42 @@ public class EvalBenchmark {
                     }
                 }
             }
+            case "mod_long_long" -> {
+                LongVector v = actual.<LongBlock>getBlock(2).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    long expected = (i * 100_000L) % ((i % 60) + 1);
+                    if (v.getLong(i) != expected) {
+                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getLong(i) + "]");
+                    }
+                }
+            }
+            case "mod_long_const_60" -> {
+                LongVector v = actual.<LongBlock>getBlock(1).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    long expected = (i * 100_000L) % 60L;
+                    if (v.getLong(i) != expected) {
+                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getLong(i) + "]");
+                    }
+                }
+            }
+            case "div_long_long" -> {
+                LongVector v = actual.<LongBlock>getBlock(2).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    long expected = (i * 100_000L) / ((i % 60) + 1);
+                    if (v.getLong(i) != expected) {
+                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getLong(i) + "]");
+                    }
+                }
+            }
+            case "div_long_const_60" -> {
+                LongVector v = actual.<LongBlock>getBlock(1).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    long expected = (i * 100_000L) / 60L;
+                    if (v.getLong(i) != expected) {
+                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getLong(i) + "]");
+                    }
+                }
+            }
             case "mv_min", "mv_min_ascending" -> {
                 LongVector v = actual.<LongBlock>getBlock(1).asVector();
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
@@ -631,7 +711,8 @@ public class EvalBenchmark {
 
     private static Page page(String operation) {
         return switch (operation) {
-            case "abs", "add", "date_trunc", "equal_to_const", "round_to_4_via_case", "round_to_2", "round_to_3", "round_to_4" -> {
+            case "abs", "add", "date_trunc", "equal_to_const", "mod_long_const_60", "div_long_const_60", "round_to_4_via_case",
+                "round_to_2", "round_to_3", "round_to_4" -> {
                 var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     builder.appendLong(i * 100_000);
@@ -681,6 +762,18 @@ public class EvalBenchmark {
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     lhs.appendLong(i * 100_000);
                     rhs.appendLong(i * 100_000);
+                }
+                yield new Page(lhs.build(), rhs.build());
+            }
+            case "mod_long_long", "div_long_long" -> {
+                // lhs varies widely; rhs is always 1..60 (never zero) and varies per row so HotSpot
+                // can't speculate it stable. This isolates the per-row IDIV cost from the constant
+                // fast path.
+                var lhs = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                var rhs = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    lhs.appendLong(i * 100_000);
+                    rhs.appendLong((i % 60) + 1);
                 }
                 yield new Page(lhs.build(), rhs.build());
             }

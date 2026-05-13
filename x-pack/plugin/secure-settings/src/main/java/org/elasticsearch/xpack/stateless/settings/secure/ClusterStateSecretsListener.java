@@ -10,21 +10,30 @@ package org.elasticsearch.xpack.stateless.settings.secure;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSecrets;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.ReloadablePlugin;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ClusterStateSecretsListener implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(ClusterStateSecretsListener.class);
+    private final ClusterService clusterService;
     private final Environment environment;
     private ReloadablePlugin reloadCallback;
 
+    private final AtomicBoolean requiresCleanup = new AtomicBoolean(true);
+
     public ClusterStateSecretsListener(ClusterService clusterService, Environment environment) {
+        this.clusterService = clusterService;
         this.environment = environment;
         clusterService.addListener(this);
     }
@@ -40,8 +49,18 @@ public class ClusterStateSecretsListener implements ClusterStateListener {
     public void clusterChanged(ClusterChangedEvent event) {
         assert reloadCallback != null : "Cluster state secrets listener has not been initialized";
 
+        ClusterState state = event.state();
+        if (state.clusterRecovered() && state.nodes().isLocalNodeElectedMaster() && requiresCleanup.compareAndSet(true, false)) {
+            ClusterStateSecretsMetadata legacyMetadata = state.custom(ClusterStateSecretsMetadata.TYPE);
+            if (legacyMetadata != null) {
+                removeClusterStateSecretsMetadata();
+            } else {
+                logger.info("Obsolete [{}] not found in cluster custom state, nothing to clean up", ClusterStateSecretsMetadata.TYPE);
+            }
+        }
+
         ClusterSecrets previousSecrets = event.previousState().custom(ClusterSecrets.TYPE);
-        ClusterSecrets currentSecrets = event.state().custom(ClusterSecrets.TYPE);
+        ClusterSecrets currentSecrets = state.custom(ClusterSecrets.TYPE);
 
         if (currentSecrets == null) {
             return;
@@ -54,6 +73,32 @@ public class ClusterStateSecretsListener implements ClusterStateListener {
             } catch (Exception e) {
                 logger.warn("Failed to reload secure settings from file", e);
             }
+        }
+    }
+
+    @SuppressForbidden(reason = "removing ClusterStateSecretsMetadata exactly once")
+    private void removeClusterStateSecretsMetadata() {
+        try {
+            clusterService.submitUnbatchedStateUpdateTask("removeClusterStateSecretsMetadata", new ClusterStateUpdateTask() {
+
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    if (currentState.custom(ClusterStateSecretsMetadata.TYPE) == null) {
+                        return currentState;
+                    }
+                    logger.info("Removing obsolete [{}] from cluster custom state", ClusterStateSecretsMetadata.TYPE);
+                    return ClusterState.builder(currentState).removeCustom(ClusterStateSecretsMetadata.TYPE).build();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn("Failed to remove obsolete [{}] from cluster custom state", ClusterStateSecretsMetadata.TYPE, e);
+                    requiresCleanup.set(true);
+                }
+            });
+        } catch (RuntimeException e) {
+            logger.warn("Failed to remove obsolete [{}] from cluster custom state", ClusterStateSecretsMetadata.TYPE, e);
+            requiresCleanup.set(true);
         }
     }
 }

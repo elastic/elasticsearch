@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.dataset;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -19,6 +20,7 @@ import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -83,6 +85,14 @@ public class DatasetService {
         final DataSource parent = DataSourceMetadata.get(projectMetadata).get(request.dataSource());
         if (parent == null) {
             throw new ResourceNotFoundException("data source [{}] not found", request.dataSource());
+        }
+        final IndexAbstraction existing = projectMetadata.getIndicesLookup().get(request.name());
+        if (existing != null && existing.getType() != IndexAbstraction.Type.DATASET) {
+            throw new ResourceAlreadyExistsException(
+                "dataset [{}] cannot be created, an existing {} with that name is present",
+                request.name(),
+                existing.getType().getDisplayName()
+            );
         }
         final DataSourceValidator validator = validatorsByType.get(parent.type());
         if (validator == null) {

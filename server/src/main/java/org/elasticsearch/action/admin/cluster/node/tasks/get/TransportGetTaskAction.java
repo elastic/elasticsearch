@@ -318,7 +318,8 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
      * <p>
      * The relocated task's response is merged with the original task's timing: the start time is taken from
      * the original task and the running time is adjusted to cover the full duration including the relocation gap.
-     * For multi-hop chains each merge step correctly chains the adjustments.
+     * For multi-hop chains each merge step correctly chains the adjustments. Failures while following the chain are
+     * surfaced to the caller.
      * <p>
      * Non-reindex tasks and reindex tasks without relocations pass through unchanged.
      */
@@ -345,13 +346,11 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(
-                    "failed to follow task [{}] to its relocated task [{}], returning original response",
-                    originalRequest.getTaskId(),
-                    relocatedTaskId,
-                    e
-                );
-                listener.onResponse(response);
+                logger.warn("failed to follow task [{}] to its relocated task [{}]", originalRequest.getTaskId(), relocatedTaskId, e);
+                if (e instanceof ElasticsearchException ese) {
+                    ese.addMetadata("es.following_relocation_from", response.getTask().getTask().taskId().toString());
+                }
+                listener.onFailure(e);
             }
         });
     }

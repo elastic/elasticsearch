@@ -27,11 +27,8 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_TRACES_ENABLED_SYSTEM_PROPERTY;
 
 /**
- * {@link TraceSupplier} that owns its own {@link SdkTracerProvider} and {@link OpenTelemetrySdk},
+ * {@link TraceSupplier} that exports spans via OTLP HTTP using its own {@link SdkTracerProvider},
  * used when {@code telemetry.otel.traces.enabled=true} is set as a JVM system property.
- * <p>
- * Created once at startup and held by {@code APMTracer}. {@link #attemptFlushTraces()} forces
- * immediate export of buffered spans; {@link #close()} shuts the provider down.
  */
 public class OtelSdkExportTracerSupplier implements TraceSupplier {
 

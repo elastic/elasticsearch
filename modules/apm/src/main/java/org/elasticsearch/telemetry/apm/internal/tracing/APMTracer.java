@@ -68,11 +68,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     private static final Logger logger = LogManager.getLogger(APMTracer.class);
 
-    /**
-     * Per-span local depth recorded on the {@link Context} stored in {@link #spans}. Children read the
-     * parent's value and increment by one; root spans are at depth {@code 0}. Used by the SDK-path
-     * filter to enforce {@link OtelSdkSettings#TELEMETRY_OTEL_TRACES_MAX_TRACE_DEPTH}.
-     */
+    /** Tracks per-span local depth in Context to enforce {@link OtelSdkSettings#TELEMETRY_OTEL_TRACES_MAX_TRACE_DEPTH}. */
     private static final ContextKey<Integer> SPAN_LOCAL_DEPTH_KEY = ContextKey.named("es.apm.span.local_depth");
 
     /** Holds in-flight span information. */
@@ -97,11 +93,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
      */
     private final boolean useOtelSdkTracesExport;
 
-    /**
-     * When {@link #useOtelSdkTracesExport} is {@code true}, sets the maximum local depth of exported
-     * spans. {@code 0} means root spans only; depth is measured within this JVM (remote
-     * traceparent ancestors are not counted).
-     */
+    /** Maximum local span depth on the OTel SDK path; see {@link OtelSdkSettings#TELEMETRY_OTEL_TRACES_MAX_TRACE_DEPTH}. */
     private volatile int maxTraceDepth;
 
     public void setClusterName(String clusterName) {
@@ -147,10 +139,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         return otelTracesEnabled() ? OtelSdkSettings.TELEMETRY_OTEL_TRACES_MAX_TRACE_DEPTH.get(settings) : 0;
     }
 
-    /**
-     * Ensures buffered traces are exported on a best-effort basis. When using the APM agent (no ES-owned
-     * tracer provider), this waits for 2× the agent export interval.
-     */
+    /** Best-effort flush of buffered spans. On the agent path, waits 2x the export interval. */
     public void attemptFlushTraces() {
         if (enabled == false) {
             return;
@@ -257,8 +246,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             // Attempt to fetch a local parent context first, otherwise look for a remote parent
             final Context localParentContext = traceContext.getTransient(Task.PARENT_APM_TRACE_CONTEXT);
 
-            // Local depth = parent's local depth + 1, or 0 for a JVM-local root. Remote traceparent
-            // ancestors do not contribute to local depth.
+            // Depth is parent's depth + 1, or 0 for a root span; remote traceparent doesn't count.
             final int localDepth;
             if (localParentContext != null) {
                 Integer parentDepth = localParentContext.get(SPAN_LOCAL_DEPTH_KEY);
@@ -267,8 +255,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                 localDepth = 0;
             }
 
-            // On the OTel SDK path, drop spans whose local depth exceeds the configured cap.
-            // The agent path enforces the equivalent via transaction_max_spans configured on the agent.
+            // On the OTel SDK path, drop spans exceeding max_trace_depth. The Agent path uses transaction_max_spans.
             if (useOtelSdkTracesExport && localDepth > maxTraceDepth) {
                 logger.trace("Skipping span [{}] [{}] at local depth {} (maxTraceDepth={})", spanId, spanName, localDepth, maxTraceDepth);
                 return null;

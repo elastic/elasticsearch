@@ -166,8 +166,7 @@ class APMJvmOptions {
         }
 
         if (agentTracesEnabled == false) {
-            // Sample rate 0 ensures any span that does reach the agent (e.g. via a dependency
-            // calling GlobalOpenTelemetry.get()) is dropped.
+            // Zero sample rate prevents the agent from exporting spans when the OTel SDK trace path is active.
             propertiesMap.put("transaction_sample_rate", "0");
         }
 

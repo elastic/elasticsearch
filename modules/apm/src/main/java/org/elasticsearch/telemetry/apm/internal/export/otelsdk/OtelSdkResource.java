@@ -16,14 +16,9 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
 
 /**
- * Shared OTel {@link Resource} for the metric and trace export paths so the same node emits
- * the same identity attributes regardless of telemetry type. {@link Resource#getDefault()}
- * contributes the SDK's auto-loaded {@code telemetry.sdk.{name,version,language}}. APM-intake
- * naming ({@code service.agent.{name,version}}, {@code service.language.name}) is emitted
- * alongside the OTel SemConv equivalents ({@code telemetry.distro.{name,version}}) so consumers
- * on either scheme see equivalent values during the agent-to-SDK migration. {@code service.instance.id}
- * is set to the {@code node.name} setting when available, mirroring the agent path's
- * {@code service_node_name}.
+ * Shared OTel {@link Resource} for metric and trace export paths so the same node both APM-intake
+ * ({@code service.agent.*}) and OTel SemConv ({@code telemetry.distro.*}) identity attributes
+ * alongside the SDK defaults from {@link Resource#getDefault()}.
  */
 final class OtelSdkResource {
 

@@ -57,11 +57,7 @@ public final class OtelSdkSettings {
         NodeScope
     );
 
-    /**
-     * Maximum local depth of exported spans, measured within this JVM. {@code 0} means only root spans
-     * are exported (no children). Depth is computed from the local parent chain, not from remote
-     * traceparent ancestors.
-     */
+    /** Maximum depth of child spans per request. {@code 0} exports only the root span. Spans from an upstream {@code traceparent} are not counted. */
     public static final Setting<Integer> TELEMETRY_OTEL_TRACES_MAX_TRACE_DEPTH = Setting.intSetting(
         "telemetry.otel.traces.max_trace_depth",
         0,

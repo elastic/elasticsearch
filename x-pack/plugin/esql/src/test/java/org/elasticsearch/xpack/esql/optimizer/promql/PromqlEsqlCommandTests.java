@@ -296,8 +296,8 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
                 rate_bytes_in=(avg by (cluster) (rate(network.total_bytes_in[2m])))
             """);
         TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
-        assertThat(tsAggregate.timeBucket().roundingConfiguration(), equalTo(Rounding.RoundingConfiguration.UPPER));
-        assertThat(tsAggregate.outputTimeBucket().roundingConfiguration(), equalTo(Rounding.RoundingConfiguration.UPPER));
+        assertThat(tsAggregate.timeBucket().roundingConfiguration(), equalTo(Rounding.RoundingConvention.UP));
+        assertThat(tsAggregate.outputTimeBucket().roundingConfiguration(), equalTo(Rounding.RoundingConvention.UP));
 
         Rounding timeBucketUnprepared = tsAggregate.timeBucket().getDateRoundingOrNull(FoldContext.small()).getUnprepared();
         Rounding outputTimeBucketUnprepared = tsAggregate.outputTimeBucket().getDateRoundingOrNull(FoldContext.small()).getUnprepared();

@@ -70,7 +70,7 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
             );
         } else if (e instanceof Bucket bucket) {
             // TODO(sidosera): https://github.com/elastic/elasticsearch/issues/148306
-            if (bucket.roundingConfiguration() == Rounding.RoundingConfiguration.UPPER) {
+            if (bucket.roundingConfiguration() == Rounding.RoundingConvention.UP) {
                 return e;
             }
             roundTo = maybeToRoundTo(

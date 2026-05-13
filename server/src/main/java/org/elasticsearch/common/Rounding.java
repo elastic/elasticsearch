@@ -55,12 +55,12 @@ import java.util.concurrent.TimeUnit;
 public abstract class Rounding implements Writeable {
     private static final Logger logger = LogManager.getLogger(Rounding.class);
 
-    public enum RoundingConfiguration {
+    public enum RoundingConvention {
         /* Round to the left edge of the interval */
-        LOWER,
+        DOWN,
 
         /* Round to the right edge of the interval */
-        UPPER
+        UP
     }
 
     public enum DateTimeUnit {
@@ -281,7 +281,7 @@ public abstract class Rounding implements Writeable {
 
     public abstract byte id();
 
-    public interface PreparedIterator {
+    public interface Iterator {
         /**
          * The rounded value following {@link #next()}.
          */
@@ -303,6 +303,42 @@ public abstract class Rounding implements Writeable {
          * Advances to the next value.
          */
         boolean next();
+    }
+
+    private static final class PreparedIterator implements Iterator {
+        private long curr;
+        private long next;
+        private final long limit;
+        private final Prepared prepared;
+
+        private PreparedIterator(long curr, long limit, Prepared prepared) {
+            this.curr = curr;
+            this.next = curr;
+            this.limit = limit;
+            this.prepared = prepared;
+        }
+
+        @Override
+        public long getRounded() {
+            return curr;
+        }
+
+        @Override
+        public long getRoundedFloor() {
+            return curr;
+        }
+
+        @Override
+        public long getRoundedCeiling() {
+            return next;
+        }
+
+        @Override
+        public boolean next() {
+            curr = next;
+            next = prepared.nextRoundingValue(next);
+            return next <= limit;
+        }
     }
 
     /**
@@ -327,7 +363,7 @@ public abstract class Rounding implements Writeable {
          * value that is itself an interval boundary, i.e., produced by {@link #round} or
          * {@link #nextRoundingValue} on this prepared rounding.
          */
-        default long floor(long utcMillis) {
+        default long roundingFloor(long utcMillis) {
             return utcMillis;
         }
 
@@ -335,38 +371,12 @@ public abstract class Rounding implements Writeable {
          * The ceiling of the interval denoted by {@code utcMillis}. Caller must pass a
          * value that is itself a bucket boundary.
          */
-        default long ceiling(long utcMillis) {
+        default long roundingCeiling(long utcMillis) {
             return nextRoundingValue(utcMillis);
         }
 
-        default PreparedIterator iterator(long startUtcMillis, long endUtcMillis) {
-            final long initial = round(startUtcMillis);
-            return new PreparedIterator() {
-                long lo = initial;
-                long hi = initial;
-
-                @Override
-                public long getRounded() {
-                    return lo;
-                }
-
-                @Override
-                public long getRoundedFloor() {
-                    return lo;
-                }
-
-                @Override
-                public long getRoundedCeiling() {
-                    return hi;
-                }
-
-                @Override
-                public boolean next() {
-                    lo = hi;
-                    hi = nextRoundingValue(hi);
-                    return hi <= endUtcMillis;
-                }
-            };
+        default Iterator iterator(long startUtcMillis, long endUtcMillis) {
+            return new PreparedIterator(round(startUtcMillis), endUtcMillis, this);
         }
 
         /**
@@ -465,7 +475,6 @@ public abstract class Rounding implements Writeable {
     }
 
     public static class Builder {
-
         private final DateTimeUnit unit;
         private final long interval;
         private final int multiplier;
@@ -523,19 +532,91 @@ public abstract class Rounding implements Writeable {
         }
     }
 
-    private static long withOffset(long utcMillis, long offset) {
-        if (offset < 0 && utcMillis == Long.MIN_VALUE) {
+    /**
+     * Greatest discrete value less than {@param utcMillis}
+     */
+    private static long prevLong(long utcMillis) {
+        if (utcMillis == Long.MIN_VALUE) {
             return Long.MIN_VALUE;
         }
 
-        if (offset > 0 && utcMillis == Long.MAX_VALUE) {
-            return Long.MAX_VALUE;
-        }
-
-        return utcMillis + offset;
+        return utcMillis - 1L;
     }
 
     public static final class ToUpperRounding extends Rounding {
+        private record Iterator(Rounding.Iterator delegate) implements Rounding.Iterator {
+            private Iterator(Rounding.Prepared p, long startUtcMillis, long endUtcMillis) {
+                this(p.iterator(prevLong(startUtcMillis), endUtcMillis));
+            }
+
+            @Override
+            public long getRounded() {
+                return delegate.getRoundedCeiling();
+            }
+
+            @Override
+            public long getRoundedFloor() {
+                return delegate.getRoundedFloor();
+            }
+
+            @Override
+            public long getRoundedCeiling() {
+                return delegate.getRoundedCeiling();
+            }
+
+            @Override
+            public boolean next() {
+                return delegate.next();
+            }
+        }
+
+        private record Prepared(Rounding.Prepared delegate) implements Rounding.Prepared {
+            @Override
+            public long round(long utcMillis) {
+                return delegate.nextRoundingValue(prevLong(utcMillis));
+            }
+
+            @Override
+            public long roundingFloor(long utcMillis) {
+                return delegate.round(prevLong(utcMillis));
+            }
+
+            @Override
+            public long roundingCeiling(long utcMillis) {
+                return utcMillis;
+            }
+
+            @Override
+            public long nextRoundingValue(long utcMillis) {
+                return delegate.nextRoundingValue(utcMillis);
+            }
+
+            @Override
+            public Rounding.Iterator iterator(long startUtcMillis, long endUtcMillis) {
+                return new ToUpperRounding.Iterator(delegate, startUtcMillis, endUtcMillis);
+            }
+
+            @Override
+            public double roundingSize(long utcMillis, DateTimeUnit timeUnit) {
+                return delegate.roundingSize(utcMillis, timeUnit);
+            }
+
+            @Override
+            public double roundingSize(DateTimeUnit timeUnit) {
+                return delegate.roundingSize(timeUnit);
+            }
+
+            @Override
+            public long[] fixedRoundingPoints() {
+                return delegate.fixedRoundingPoints();
+            }
+
+            @Override
+            public Rounding getUnprepared() {
+                return new ToUpperRounding(delegate.getUnprepared());
+            }
+        }
+
         private final Rounding next;
 
         public static Rounding createRounding(Rounding next) {
@@ -550,91 +631,18 @@ public abstract class Rounding implements Writeable {
         }
 
         @Override
-        public Prepared prepare(long minUtcMillis, long maxUtcMillis) {
-            final Prepared p = next.prepare(withOffset(minUtcMillis, -1), maxUtcMillis);
-            return wrapPrepared(p);
+        public Rounding.Prepared prepare(long minUtcMillis, long maxUtcMillis) {
+            return new ToUpperRounding.Prepared(next.prepare(prevLong(minUtcMillis), maxUtcMillis));
         }
 
         @Override
-        public Prepared prepareForUnknown() {
-            final Prepared p = next.prepareForUnknown();
-            return wrapPrepared(p);
+        public Rounding.Prepared prepareForUnknown() {
+            return new ToUpperRounding.Prepared(next.prepareForUnknown());
         }
 
         @Override
-        public Prepared prepareJavaTime() {
-            final Prepared p = next.prepareJavaTime();
-            return wrapPrepared(p);
-        }
-
-        private Rounding.Prepared wrapPrepared(Prepared p) {
-            return new Prepared() {
-                @Override
-                public long round(long utcMillis) {
-                    return p.nextRoundingValue(withOffset(utcMillis, -1));
-                }
-
-                @Override
-                public long floor(long utcMillis) {
-                    return p.round(withOffset(utcMillis, -1));
-                }
-
-                @Override
-                public long ceiling(long utcMillis) {
-                    return utcMillis;
-                }
-
-                @Override
-                public long nextRoundingValue(long utcMillis) {
-                    return p.nextRoundingValue(utcMillis);
-                }
-
-                @Override
-                public PreparedIterator iterator(long startUtcMillis, long endUtcMillis) {
-                    var inner = p.iterator(withOffset(startUtcMillis, -1), endUtcMillis);
-                    return new PreparedIterator() {
-                        @Override
-                        public long getRounded() {
-                            return inner.getRoundedCeiling();
-                        }
-
-                        @Override
-                        public long getRoundedFloor() {
-                            return inner.getRoundedFloor();
-                        }
-
-                        @Override
-                        public long getRoundedCeiling() {
-                            return inner.getRoundedCeiling();
-                        }
-
-                        @Override
-                        public boolean next() {
-                            return inner.next();
-                        }
-                    };
-                }
-
-                @Override
-                public double roundingSize(long utcMillis, DateTimeUnit timeUnit) {
-                    return p.roundingSize(utcMillis, timeUnit);
-                }
-
-                @Override
-                public double roundingSize(DateTimeUnit timeUnit) {
-                    return p.roundingSize(timeUnit);
-                }
-
-                @Override
-                public long[] fixedRoundingPoints() {
-                    return p.fixedRoundingPoints();
-                }
-
-                @Override
-                public Rounding getUnprepared() {
-                    return ToUpperRounding.this;
-                }
-            };
+        public Rounding.Prepared prepareJavaTime() {
+            return new ToUpperRounding.Prepared(next.prepareJavaTime());
         }
 
         @Override
@@ -668,12 +676,12 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public int hashCode() {
-            return Objects.hash(next, RoundingConfiguration.UPPER);
+            return Objects.hash(next, RoundingConvention.UP);
         }
 
         @Override
         public String toString() {
-            return next + "[" + RoundingConfiguration.UPPER + "]";
+            return "ToUpperRounding[" + next + "]";
         }
     }
 

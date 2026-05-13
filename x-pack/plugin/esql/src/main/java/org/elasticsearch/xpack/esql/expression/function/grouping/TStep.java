@@ -212,7 +212,7 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
             null,
             configuration.withZoneId(ZoneOffset.UTC),
             offsetToLong(ctx),
-            Rounding.RoundingConfiguration.UPPER
+            Rounding.RoundingConvention.UP
         );
     }
 

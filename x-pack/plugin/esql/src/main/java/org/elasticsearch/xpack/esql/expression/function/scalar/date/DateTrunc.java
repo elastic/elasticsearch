@@ -37,7 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.Rounding.RoundingConfiguration.UPPER;
+import static org.elasticsearch.common.Rounding.RoundingConvention.UP;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
@@ -183,12 +183,12 @@ public class DateTrunc extends EsqlConfigurationFunction {
         Long min,
         Long max,
         long offset,
-        Rounding.RoundingConfiguration roundingConfiguration
+        Rounding.RoundingConvention roundingConvention
     ) {
         if (interval instanceof Period period) {
-            return createRounding(period, timeZone, min, max, offset, roundingConfiguration);
+            return createRounding(period, timeZone, min, max, offset, roundingConvention);
         } else if (interval instanceof Duration duration) {
-            return createRounding(duration, timeZone, min, max, offset, roundingConfiguration);
+            return createRounding(duration, timeZone, min, max, offset, roundingConvention);
         }
         throw new IllegalArgumentException("Time interval is not supported");
     }
@@ -199,7 +199,7 @@ public class DateTrunc extends EsqlConfigurationFunction {
         Long min,
         Long max,
         long offset,
-        Rounding.RoundingConfiguration roundingConfiguration
+        Rounding.RoundingConvention roundingConvention
     ) {
         // Zero or negative intervals are not supported
         if (period == null || period.isNegative() || period.isZero()) {
@@ -244,7 +244,7 @@ public class DateTrunc extends EsqlConfigurationFunction {
         builder.offset(offset);
 
         Rounding rounding = builder.build();
-        if (UPPER.equals(roundingConfiguration)) {
+        if (UP.equals(roundingConvention)) {
             rounding = Rounding.ToUpperRounding.createRounding(rounding);
         }
 
@@ -262,7 +262,7 @@ public class DateTrunc extends EsqlConfigurationFunction {
         Long min,
         Long max,
         long offset,
-        Rounding.RoundingConfiguration roundingConfiguration
+        Rounding.RoundingConvention roundingConvention
     ) {
         // Zero or negative intervals are not supported
         if (duration == null || duration.isNegative() || duration.isZero()) {
@@ -275,7 +275,7 @@ public class DateTrunc extends EsqlConfigurationFunction {
         builder.offset(offset);
         rounding = builder.build();
 
-        if (UPPER.equals(roundingConfiguration)) {
+        if (UP.equals(roundingConvention)) {
             rounding = Rounding.ToUpperRounding.createRounding(rounding);
         }
 

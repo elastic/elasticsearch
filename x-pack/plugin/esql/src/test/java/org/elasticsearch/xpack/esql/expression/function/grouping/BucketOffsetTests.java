@@ -28,7 +28,7 @@ public class BucketOffsetTests extends ESTestCase {
             null,
             ConfigurationAware.CONFIGURATION_MARKER,
             Duration.ofMinutes(30).toMillis(),
-            Rounding.RoundingConfiguration.UPPER
+            Rounding.RoundingConvention.UP
         );
 
         long value = Instant.parse("2024-01-01T01:20:00Z").toEpochMilli();
@@ -47,7 +47,7 @@ public class BucketOffsetTests extends ESTestCase {
             Literal.dateTime(Source.EMPTY, Instant.parse("2024-01-01T04:00:00Z")),
             ConfigurationAware.CONFIGURATION_MARKER,
             Duration.ofMinutes(30).toMillis(),
-            Rounding.RoundingConfiguration.UPPER
+            Rounding.RoundingConvention.UP
         );
 
         long value = Instant.parse("2024-01-01T01:20:00Z").toEpochMilli();

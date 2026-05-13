@@ -1291,9 +1291,9 @@ public class RoundingTests extends ESTestCase {
         assertThat(upper.round(time("2020-01-01T00:00:01")), equalTo(time("2020-01-01T00:05:00")));
         assertThat(upper.round(time("2020-01-01T00:04:59")), equalTo(time("2020-01-01T00:05:00")));
         assertThat(upper.round(time("2020-01-01T00:05:00")), equalTo(time("2020-01-01T00:05:00")));
-        assertThat(upper.floor(time("2020-01-01T00:05:00")), equalTo(time("2020-01-01T00:00:00")));
-        assertThat(upper.floor(upper.round(time("2020-01-01T00:09:00"))), equalTo(time("2020-01-01T00:05:00")));
-        assertThat(upper.ceiling(upper.round(time("2020-01-01T00:09:00"))), equalTo(time("2020-01-01T00:10:00")));
+        assertThat(upper.roundingFloor(time("2020-01-01T00:05:00")), equalTo(time("2020-01-01T00:00:00")));
+        assertThat(upper.roundingFloor(upper.round(time("2020-01-01T00:09:00"))), equalTo(time("2020-01-01T00:05:00")));
+        assertThat(upper.roundingCeiling(upper.round(time("2020-01-01T00:09:00"))), equalTo(time("2020-01-01T00:10:00")));
         assertThat(upper.nextRoundingValue(time("2020-01-01T00:05:00")), equalTo(time("2020-01-01T00:10:00")));
         assertArrayEquals(lowerRounding.prepare(min - 1, max).fixedRoundingPoints(), upper.fixedRoundingPoints());
     }
@@ -1308,8 +1308,8 @@ public class RoundingTests extends ESTestCase {
 
         assertThat(reprepared.round(time("2020-01-01T00:00:31")), equalTo(time("2020-01-01T00:05:30")));
         assertThat(reprepared.round(time("2020-01-01T00:05:30")), equalTo(time("2020-01-01T00:05:30")));
-        assertThat(reprepared.floor(time("2020-01-01T00:05:30")), equalTo(time("2020-01-01T00:00:30")));
-        assertThat(reprepared.ceiling(reprepared.round(time("2020-01-01T00:06:00"))), equalTo(time("2020-01-01T00:10:30")));
+        assertThat(reprepared.roundingFloor(time("2020-01-01T00:05:30")), equalTo(time("2020-01-01T00:00:30")));
+        assertThat(reprepared.roundingCeiling(reprepared.round(time("2020-01-01T00:06:00"))), equalTo(time("2020-01-01T00:10:30")));
     }
 
     public void testUpperIntervalRoundingMatchesLowerDerivedFormulaAcrossDst() {
@@ -1330,8 +1330,8 @@ public class RoundingTests extends ESTestCase {
             long expectedRound = lower.nextRoundingValue(expectedFloor);
             long label = upper.round(value);
             assertThat(label, equalTo(expectedRound));
-            assertThat(upper.floor(label), equalTo(expectedFloor));
-            assertThat(upper.ceiling(label), equalTo(expectedRound));
+            assertThat(upper.roundingFloor(label), equalTo(expectedFloor));
+            assertThat(upper.roundingCeiling(label), equalTo(expectedRound));
         }
     }
 
@@ -1347,8 +1347,8 @@ public class RoundingTests extends ESTestCase {
             long expectedRound = lower.nextRoundingValue(expectedFloor);
             long label = upper.round(value);
             assertThat(label, equalTo(expectedRound));
-            assertThat(upper.floor(label), equalTo(expectedFloor));
-            assertThat(upper.ceiling(label), equalTo(expectedRound));
+            assertThat(upper.roundingFloor(label), equalTo(expectedFloor));
+            assertThat(upper.roundingCeiling(label), equalTo(expectedRound));
         }
     }
 
@@ -1365,8 +1365,8 @@ public class RoundingTests extends ESTestCase {
             long expectedRound = optimizedLower.nextRoundingValue(expectedFloor);
             long label = optimizedUpper.round(value);
             assertThat(label, equalTo(expectedRound));
-            assertThat(optimizedUpper.floor(label), equalTo(expectedFloor));
-            assertThat(optimizedUpper.ceiling(label), equalTo(expectedRound));
+            assertThat(optimizedUpper.roundingFloor(label), equalTo(expectedFloor));
+            assertThat(optimizedUpper.roundingCeiling(label), equalTo(expectedRound));
         }
     }
 

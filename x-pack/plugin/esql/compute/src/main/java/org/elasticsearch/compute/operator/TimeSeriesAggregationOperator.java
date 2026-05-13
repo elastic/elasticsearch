@@ -472,12 +472,12 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
             @Override
             public long rangeStartInMillis(int groupId) {
-                return fastRounding.floor(timeResolution.roundDownToMillis(tsBlockHash.timestampForGroup(groupId)));
+                return fastRounding.roundingFloor(timeResolution.roundDownToMillis(tsBlockHash.timestampForGroup(groupId)));
             }
 
             @Override
             public long rangeEndInMillis(int groupId) {
-                return fastRounding.ceiling(timeResolution.roundDownToMillis(tsBlockHash.timestampForGroup(groupId)));
+                return fastRounding.roundingCeiling(timeResolution.roundDownToMillis(tsBlockHash.timestampForGroup(groupId)));
             }
 
             @Override

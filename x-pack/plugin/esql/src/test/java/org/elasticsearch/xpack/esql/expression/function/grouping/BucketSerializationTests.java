@@ -35,7 +35,7 @@ public class BucketSerializationTests extends AbstractExpressionSerializationTes
         Expression from = randomChild();
         Expression to = randomChild();
         long offset = randomLongBetween(-Duration.ofDays(1).toMillis(), Duration.ofDays(1).toMillis());
-        return new Bucket(source, field, buckets, from, to, configuration, offset, Rounding.RoundingConfiguration.UPPER);
+        return new Bucket(source, field, buckets, from, to, configuration, offset, Rounding.RoundingConvention.UP);
     }
 
     @Override
@@ -56,7 +56,7 @@ public class BucketSerializationTests extends AbstractExpressionSerializationTes
                 () -> randomLongBetween(-Duration.ofDays(1).toMillis(), Duration.ofDays(1).toMillis())
             );
         }
-        return new Bucket(source, field, buckets, from, to, configuration(), offset, Rounding.RoundingConfiguration.UPPER);
+        return new Bucket(source, field, buckets, from, to, configuration(), offset, Rounding.RoundingConvention.UP);
     }
 
     public void testOffsetBackcompatSerialization() throws IOException {
@@ -69,7 +69,7 @@ public class BucketSerializationTests extends AbstractExpressionSerializationTes
             randomChildSupportedOn(oldVersion),
             configuration(),
             0L,
-            Rounding.RoundingConfiguration.LOWER
+            Rounding.RoundingConvention.DOWN
         );
         Bucket copy = copyInstance(instance, oldVersion);
         assertThat(copy.offset(), equalTo(0L));
@@ -85,7 +85,7 @@ public class BucketSerializationTests extends AbstractExpressionSerializationTes
             randomChildSupportedOn(oldVersion),
             configuration(),
             randomLongBetween(1, 1000),
-            Rounding.RoundingConfiguration.LOWER
+            Rounding.RoundingConvention.DOWN
         );
         EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> copyInstance(instance, oldVersion));
         assertThat(e.getMessage(), containsString("bucket with offset is not supported in peer node's version [" + oldVersion + "]"));

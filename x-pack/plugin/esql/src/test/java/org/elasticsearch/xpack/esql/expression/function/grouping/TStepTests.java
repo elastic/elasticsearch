@@ -346,7 +346,7 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
             null,
             ConfigurationAware.CONFIGURATION_MARKER,
             0L,
-            Rounding.RoundingConfiguration.LOWER
+            Rounding.RoundingConvention.DOWN
         );
         long tbucketBucket = tbucket.getDateRounding(FoldContext.small(), null, null).round(timestamp.toEpochMilli());
 

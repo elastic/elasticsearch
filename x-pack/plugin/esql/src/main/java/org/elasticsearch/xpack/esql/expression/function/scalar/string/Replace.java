@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunctio
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -130,10 +131,19 @@ public class Replace extends EsqlScalarFunction {
         return str.foldable() && regex.foldable() && newStr.foldable();
     }
 
+    /**
+     * Empty literal-prefix sentinel: when the regex has no extractable anchored literal prefix,
+     * the constant evaluator is built with this array and the byte-level fast-path check is skipped.
+     */
+    static final byte[] NO_LITERAL_PREFIX = new byte[0];
+
     @Evaluator(extraName = "Constant", warnExceptions = IllegalArgumentException.class)
-    static BytesRef process(BytesRef str, @Fixed Pattern regex, BytesRef newStr) {
+    static BytesRef process(BytesRef str, @Fixed Pattern regex, @Fixed(includeInToString = false) byte[] literalPrefix, BytesRef newStr) {
         if (str == null || regex == null || newStr == null) {
             return null;
+        }
+        if (literalPrefix.length > 0 && startsWith(str, literalPrefix) == false) {
+            return str;
         }
         return safeReplace(str, regex, newStr);
     }
@@ -147,6 +157,224 @@ public class Replace extends EsqlScalarFunction {
             return str;
         }
         return safeReplace(str, Pattern.compile(regex.utf8ToString()), newStr);
+    }
+
+    /**
+     * Byte-level prefix check on a {@link BytesRef}. Cheaper than {@link BytesRef#utf8ToString()}
+     * + {@link String#startsWith(String)} because it avoids the UTF-8 to UTF-16 conversion and
+     * the {@link String} allocation. Safe for UTF-8 because the prefix bytes are themselves a
+     * complete UTF-8 sequence (produced by {@link String#getBytes(java.nio.charset.Charset)}).
+     */
+    static boolean startsWith(BytesRef ref, byte[] prefix) {
+        if (ref.length < prefix.length) {
+            return false;
+        }
+        return Arrays.equals(ref.bytes, ref.offset, ref.offset + prefix.length, prefix, 0, prefix.length);
+    }
+
+    /**
+     * Extract a literal UTF-8 byte prefix from a constant regex pattern, when safe to do so.
+     * <p>
+     * Returns {@link #NO_LITERAL_PREFIX} unless the pattern is anchored at input start and begins
+     * with at least one literal character whose match position can be statically determined.
+     * Conservative by design: any construct that could shift the effective anchor (multiline mode,
+     * top-level alternation, look-arounds, etc.) results in no prefix. When a prefix is returned,
+     * any input that does not start with these bytes is guaranteed not to match the pattern, so the
+     * caller can short-circuit the row without invoking the regex engine.
+     * <p>
+     * Handled constructs:
+     * <ul>
+     *   <li>Anchors {@code ^} and {@code \A} at the start of the pattern.</li>
+     *   <li>Plain literal characters (ASCII and non-ASCII).</li>
+     *   <li>Escaped meta characters (e.g. {@code \.}, {@code \?}).</li>
+     *   <li>{@code \Q...\E} literal sections.</li>
+     * </ul>
+     * Walk semantics for quantifiers attached to a preceding literal:
+     * <ul>
+     *   <li>{@code ?}, {@code *}, {@code {n,m}}: drop the preceding literal (it could be absent) and stop.</li>
+     *   <li>{@code +}: keep the preceding literal but stop the walk (anything after it sits at an unknown offset).</li>
+     * </ul>
+     * Bails on top-level alternation, groups, character classes, anchors elsewhere, inline flags, and any other meta construct.
+     */
+    static byte[] extractLiteralPrefix(Pattern pattern) {
+        // Patterns compiled with these flags can match `^` after newlines, treat the input
+        // case-insensitively / loosely, or change which characters are literal in the pattern source,
+        // any of which would invalidate a byte-level prefix check on the raw input.
+        // - MULTILINE / inline (?m): `^` matches after newlines, not just input start.
+        // - CASE_INSENSITIVE / UNICODE_CASE / inline (?i): the prefix bytes need not equal the input bytes.
+        // - COMMENTS / inline (?x): whitespace and `#…` in the pattern are ignored, so our literal walk would
+        // include characters that the engine treats as comments / whitespace.
+        // - CANON_EQ: two distinct UTF-8 byte sequences can be considered equivalent by the matcher.
+        // - LITERAL: pattern source is treated as a literal string, not a regex (so leading `^` is not an anchor).
+        int flags = pattern.flags();
+        int disqualifying = Pattern.MULTILINE | Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE | Pattern.COMMENTS | Pattern.CANON_EQ
+            | Pattern.LITERAL;
+        if ((flags & disqualifying) != 0) {
+            return NO_LITERAL_PREFIX;
+        }
+        String regex = pattern.pattern();
+        int n = regex.length();
+        if (n == 0) {
+            return NO_LITERAL_PREFIX;
+        }
+
+        int i = 0;
+        if (regex.charAt(i) == '^') {
+            i++;
+        } else if (regex.startsWith("\\A", i)) {
+            i += 2;
+        } else {
+            return NO_LITERAL_PREFIX;
+        }
+
+        // Top-level alternation invalidates anchoring: `^a|b` is `(^a)|(b)`, so an input starting with `b`
+        // would still match. Java regex hex / unicode / control / octal escapes always produce literal
+        // characters (they cannot encode a meta `|`), so a simple literal-`|` scan outside `\Q...\E` is enough.
+        if (containsTopLevelAlternation(regex, i)) {
+            return NO_LITERAL_PREFIX;
+        }
+
+        StringBuilder prefix = new StringBuilder();
+        // Track the last position in `prefix` where a single literal code point was appended,
+        // so a following `?`, `*` or `{...}` quantifier can drop it.
+        int lastLiteralStart = -1;
+
+        while (i < n) {
+            char c = regex.charAt(i);
+
+            // \Q...\E quoted literal section.
+            if (c == '\\' && i + 1 < n && regex.charAt(i + 1) == 'Q') {
+                int end = regex.indexOf("\\E", i + 2);
+                int quoteEnd = (end < 0) ? n : end;
+                // The whole \Q...\E is one literal chunk; treat the last code point inside it
+                // as the "last literal" so a following quantifier (after \E) can drop just that char.
+                if (quoteEnd > i + 2) {
+                    int chunkStart = prefix.length();
+                    prefix.append(regex, i + 2, quoteEnd);
+                    // Set lastLiteralStart to the last code point of the chunk.
+                    lastLiteralStart = prefix.offsetByCodePoints(prefix.length(), -1);
+                    if (lastLiteralStart < chunkStart) {
+                        lastLiteralStart = chunkStart;
+                    }
+                }
+                if (end < 0) {
+                    // Unterminated \Q…; rest of the pattern is literal, we are done.
+                    break;
+                }
+                i = end + 2;
+                continue;
+            }
+
+            if (c == '\\') {
+                if (i + 1 >= n) {
+                    // Trailing backslash — malformed; stop conservatively.
+                    break;
+                }
+                char next = regex.charAt(i + 1);
+                if (isEscapedLiteral(next)) {
+                    lastLiteralStart = prefix.length();
+                    prefix.append(next);
+                    i += 2;
+                    continue;
+                }
+                // Backreferences (\1), character classes (\w, \d, \s, \b, \B, \A, \z, \Z), etc. — bail.
+                break;
+            }
+
+            // Quantifiers attaching to the last literal.
+            if (c == '?' || c == '*') {
+                if (lastLiteralStart < 0) {
+                    break;
+                }
+                prefix.setLength(lastLiteralStart);
+                break;
+            }
+            if (c == '{') {
+                // `{n,m}` — `{0,…}` makes the prior char optional; we conservatively drop it.
+                if (lastLiteralStart < 0) {
+                    break;
+                }
+                prefix.setLength(lastLiteralStart);
+                break;
+            }
+            if (c == '+') {
+                // One-or-more keeps the preceding literal at position `lastLiteralStart`, but anything
+                // after the quantifier sits at an unknown offset, so we stop the walk here without dropping.
+                break;
+            }
+
+            // Any other meta character terminates the literal prefix.
+            // This includes: `.` `(` `[` `|` `$` `)` `]` and the unused-here `^`.
+            if (isRegexMeta(c)) {
+                break;
+            }
+
+            // Plain literal code point (possibly a UTF-16 surrogate pair).
+            lastLiteralStart = prefix.length();
+            if (Character.isHighSurrogate(c) && i + 1 < n && Character.isLowSurrogate(regex.charAt(i + 1))) {
+                prefix.append(c);
+                prefix.append(regex.charAt(i + 1));
+                i += 2;
+            } else {
+                prefix.append(c);
+                i++;
+            }
+        }
+
+        if (prefix.isEmpty()) {
+            return NO_LITERAL_PREFIX;
+        }
+        return prefix.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static boolean isEscapedLiteral(char c) {
+        // Characters that, when preceded by `\`, denote themselves as a literal in Java regex syntax.
+        // We deliberately exclude letters/digits because those introduce special meaning
+        // (\d, \w, \s, \b, \A, \z, \Z, \n, \t, \r, \1, etc.).
+        return switch (c) {
+            case '.', '\\', '/', '(', ')', '[', ']', '{', '}', '*', '+', '?', '|', '^', '$', '-', '"', '\'', '#', ' ', ':', '=', '!', ',',
+                '@', '&', '~', '`', '<', '>', '%' -> true;
+            default -> false;
+        };
+    }
+
+    private static boolean isRegexMeta(char c) {
+        return switch (c) {
+            case '.', '(', ')', '[', ']', '{', '}', '|', '$', '^', '?', '*', '+', '\\' -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * Returns {@code true} if a literal {@code |} appears outside a {@code \Q...\E} block in the pattern
+     * starting at {@code from}. This is a deliberately coarse check: any {@code |} (including those nested
+     * in a group) disqualifies the pattern, which keeps the analysis simple at the cost of giving up on
+     * patterns like {@code ^a(b|c)} where a prefix could still be extracted.
+     * <p>
+     * Hex / unicode / control / octal escapes in Java regex always produce a literal character (never an
+     * unescaped meta), so they cannot smuggle in a hidden top-level alternation.
+     */
+    private static boolean containsTopLevelAlternation(String regex, int from) {
+        int n = regex.length();
+        for (int i = from; i < n; i++) {
+            char c = regex.charAt(i);
+            if (c == '\\') {
+                if (i + 1 >= n) {
+                    break;
+                }
+                if (regex.charAt(i + 1) == 'Q') {
+                    int end = regex.indexOf("\\E", i + 2);
+                    i = (end < 0) ? n - 1 : end + 1;
+                } else {
+                    i++;
+                }
+                continue;
+            }
+            if (c == '|') {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -214,7 +442,16 @@ public class Replace extends EsqlScalarFunction {
                 // but for the moment we let the exception through
                 throw pse;
             }
-            return new ReplaceConstantEvaluator.Factory(source(), strEval, regexPattern, newStrEval);
+            byte[] literalPrefix = extractLiteralPrefix(regexPattern);
+            if (newStr.foldable() && newStr.dataType() == DataType.KEYWORD) {
+                // Both regex and newStr are constants: use the dictionary-aware evaluator that applies
+                // REPLACE once per dictionary entry on OrdinalBytesRefBlock inputs.
+                BytesRef constantNewStr = BytesRefs.toBytesRef(newStr.fold(toEvaluator.foldCtx()));
+                if (constantNewStr != null) {
+                    return new ReplaceConstantOrdinalEvaluator.Factory(source(), strEval, regexPattern, literalPrefix, constantNewStr);
+                }
+            }
+            return new ReplaceConstantEvaluator.Factory(source(), strEval, regexPattern, literalPrefix, newStrEval);
         }
 
         var regexEval = toEvaluator.apply(regex);

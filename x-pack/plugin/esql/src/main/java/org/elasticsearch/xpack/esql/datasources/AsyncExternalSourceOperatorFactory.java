@@ -114,8 +114,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     /** Number of driver instances created for this factory. Used for batch-size heuristics. */
     private final int parallelism;
     /**
-     * Planner-resolved read schema threaded into every {@link FormatReadContext} this factory builds.
-    /**
      * True when the reader supports multi-file batch reads and there are no partition columns
      * that require per-split injection. When set, {@link #openNextSliceQueueLeaf} claims batches
      * of splits and calls {@link RangeAwareFormatReader#readAll} instead of individual

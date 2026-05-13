@@ -213,11 +213,7 @@ public class ExternalSourceResolver {
         if (schema == null || schema.isEmpty()) {
             return Map.of();
         }
-        int[] identity = new int[schema.size()];
-        for (int i = 0; i < identity.length; i++) {
-            identity[i] = i;
-        }
-        SchemaReconciliation.ColumnMapping identityMapping = new SchemaReconciliation.ColumnMapping(identity, null);
+        SchemaReconciliation.ColumnMapping identityMapping = new SchemaReconciliation.ColumnMapping(identityMapping(schema.size()), null);
         return Map.of(path, new SchemaReconciliation.FileSchemaInfo(schema, identityMapping, null));
     }
 
@@ -352,25 +348,28 @@ public class ExternalSourceResolver {
             }
         }
 
+        // FIRST_FILE_WINS contract: every file is read AS the anchor's data schema. Capture the
+        // pre-enrichment schema here so the per-file readSchema does NOT include partition columns;
+        // partition columns are injected by VirtualColumnInjector at read time, not by the format reader.
+        List<Attribute> dataOnlySchema = extMetadata.schema();
+
         PartitionMetadata partitionMetadata = listing.partitionMetadata();
         if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
         }
 
-        // FIRST_FILE_WINS contract: every file is read AS the anchor's schema. Replicate the anchor's
-        // schema into a per-file FileSchemaInfo entry for every file so FileSplitProvider populates
-        // each FileSplit.readSchema and the reader stays pinned to the planner's view, no re-inference.
-        List<Attribute> anchorSchema = extMetadata.schema();
+        // Replicate the (data-only) anchor schema into a per-file FileSchemaInfo entry for every file
+        // so FileSplitProvider populates each FileSplit.readSchema and the reader stays pinned to the
+        // planner's view, no re-inference.
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
-        if (anchorSchema != null && anchorSchema.isEmpty() == false) {
+        if (dataOnlySchema != null && dataOnlySchema.isEmpty() == false) {
             Map<StoragePath, SchemaReconciliation.FileSchemaInfo> perFileInfo = new LinkedHashMap<>();
-            int[] identity = new int[anchorSchema.size()];
-            for (int i = 0; i < identity.length; i++) {
-                identity[i] = i;
-            }
-            SchemaReconciliation.ColumnMapping identityMapping = new SchemaReconciliation.ColumnMapping(identity, null);
+            SchemaReconciliation.ColumnMapping identityMapping = new SchemaReconciliation.ColumnMapping(
+                identityMapping(dataOnlySchema.size()),
+                null
+            );
             for (int i = 0; i < listing.fileCount(); i++) {
-                perFileInfo.put(listing.path(i), new SchemaReconciliation.FileSchemaInfo(anchorSchema, identityMapping, null));
+                perFileInfo.put(listing.path(i), new SchemaReconciliation.FileSchemaInfo(dataOnlySchema, identityMapping, null));
             }
             schemaMap = Map.copyOf(perFileInfo);
         } else {
@@ -378,6 +377,14 @@ public class ExternalSourceResolver {
         }
 
         return new ExternalSourceResolution.ResolvedSource(extMetadata, listing, schemaMap);
+    }
+
+    private static int[] identityMapping(int n) {
+        int[] m = new int[n];
+        for (int i = 0; i < n; i++) {
+            m[i] = i;
+        }
+        return m;
     }
 
     private FileList expandAndCompact(

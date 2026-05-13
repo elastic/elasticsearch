@@ -294,7 +294,9 @@ public class FileSplit implements ExternalSplit {
                 List<Attribute> attrs = new ArrayList<>(count);
                 for (int i = 0; i < count; i++) {
                     String name = in.readString();
-                    DataType type = DataType.fromTypeName(in.readString());
+                    // DataType.readFrom throws IOException on unknown type names and handles the DOC
+                    // special case; DataType.fromTypeName would silently return null and NPE downstream.
+                    DataType type = DataType.readFrom(in.readString());
                     attrs.add(new ReferenceAttribute(Source.EMPTY, null, name, type, Nullability.TRUE, null, false));
                 }
                 this.readSchema = List.copyOf(attrs);

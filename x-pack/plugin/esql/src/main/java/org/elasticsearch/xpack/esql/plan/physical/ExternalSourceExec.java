@@ -143,11 +143,12 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     }
 
     /**
-     * Back-compat 12-arg overload (no schemaMap). Defaults schemaMap to an empty map so the
-     * coordinator-side ride-along is no-op for callers that have not been threaded yet (tests,
-     * tree reflection); the analyzer and
-     * {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec} use the longest
-     * 13-arg ctor below to deliver the real planner-resolved schema info.
+     * Convenience 12-arg overload for callers that do not have a planner-resolved per-file
+     * {@code schemaMap} — primarily plan-tree tests and optimizer-rule tests that construct
+     * synthetic execs. Defaults {@code schemaMap} to {@link Map#of()} so the runtime treats every
+     * file as if no per-file pin existed (reader self-infers). Production use goes through
+     * {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec()}, which
+     * always populates schemaMap via the 13-arg ctor.
      */
     public ExternalSourceExec(
         Source source,

@@ -53,12 +53,12 @@ dependencies {
 
 // Generate Parquet fixtures at build time from CSV.
 // Uses shared ParquetFixtureGenerator from esql:qa:server.
-def serverProject = project(xpackModule('esql:qa:server'))
-def parquetFixtureOutputDir = file("${buildDir}/parquet-fixtures/iceberg-fixtures")
-def parquetFixtureDir = file("${parquetFixtureOutputDir}/standalone")
-def testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
-def testFixturesDataDir = testFixturesProject.file('src/main/resources/data')
-def csvToParquetFixtures = ['employees', 'web_logs', 'books']
+ext.serverProject = project(xpackModule('esql:qa:server'))
+ext.parquetFixtureOutputDir = file("${buildDir}/parquet-fixtures/iceberg-fixtures")
+def parquetFixtureDir = file("${ext.parquetFixtureOutputDir}/standalone")
+ext.testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
+ext.testFixturesDataDir = ext.testFixturesProject.file('src/main/resources/data')
+ext.csvToParquetFixtures = ['employees', 'web_logs', 'books']
 
 tasks.register('syncIcebergFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')
@@ -69,7 +69,7 @@ tasks.register('syncIcebergFixtures', Sync) {
   into parquetFixtureDir
 }
 
-def generateParquetTasks = []
+ext.generateParquetTasks = []
 csvToParquetFixtures.each { baseName ->
   def taskName = "generateParquet_${baseName}"
   def csvInput = new File(testFixturesDataDir, "${baseName}.csv")
@@ -101,6 +101,10 @@ tasks.register('generateMultifileParquet_employees', JavaExec) {
   systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
 }
 generateParquetTasks.add(tasks.named('generateMultifileParquet_employees'))
+
+// Generate compressed Parquet fixtures for each supported internal codec.
+// Each codec gets its own directory: standalone-snappy/, standalone-gzip/, etc.
+apply from: serverProject.file('compressed-parquet-fixtures.gradle')
 
 tasks.register('generateParquetFixtures') {
   dependsOn generateParquetTasks

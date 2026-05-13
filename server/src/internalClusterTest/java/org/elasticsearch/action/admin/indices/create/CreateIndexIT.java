@@ -366,6 +366,12 @@ public class CreateIndexIT extends ESIntegTestCase {
         );
     }
 
+    @Override
+    protected boolean randomlyUseColumnarId() {
+        // Only for: testInvalidPartitionSize() because error message is slightly different
+        return false;
+    }
+
     public void testInvalidPartitionSize() {
         BiFunction<Integer, Integer, Boolean> createPartitionedIndex = (shards, partitionSize) -> {
             CreateIndexResponse response;

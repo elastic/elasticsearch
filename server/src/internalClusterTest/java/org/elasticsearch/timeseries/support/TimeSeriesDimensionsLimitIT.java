@@ -33,6 +33,12 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
 
+    @Override
+    protected boolean randomlyUseColumnarId() {
+        // because this test suite tests time series indices.
+        return false;
+    }
+
     public void testDimensionFieldNameLimit() throws IOException {
         int dimensionFieldLimit = 21;
         final String dimensionFieldName = randomAlphaOfLength(randomIntBetween(513, 1024));

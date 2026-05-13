@@ -402,6 +402,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     @Rule
     public final TestRule templateDecoratorRule = TemplateDecoratorRule.reset();
+    protected boolean useColumnarId;
 
     @BeforeClass
     public static void beforeClass() throws Exception {
@@ -483,7 +484,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 .setPatterns(Collections.singletonList("*"))
                 .setOrder(0)
                 .setSettings(randomSettingsBuilder);
-            if (ProvidedIdFieldMapper.ID_FIELD_MODE_FEATURE_FLAG.isEnabled() && randomlyUseColumnarId() && randomBoolean()) {
+            useColumnarId = ProvidedIdFieldMapper.ID_FIELD_MODE_FEATURE_FLAG.isEnabled() && randomlyUseColumnarId() && randomBoolean();
+            if (useColumnarId) {
                 putTemplate.setMapping("""
                      {
                         "_id": {

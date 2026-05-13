@@ -118,6 +118,12 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     }
 
     @Override
+    protected boolean randomlyUseColumnarId() {
+        // because a time series index in test setup
+        return false;
+    }
+
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();

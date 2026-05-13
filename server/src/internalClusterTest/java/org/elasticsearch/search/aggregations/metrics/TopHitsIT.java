@@ -104,6 +104,12 @@ public class TopHitsIT extends ESIntegTestCase {
         return List.of(CustomScriptPlugin.class, FetchPlugin.class);
     }
 
+    @Override
+    protected boolean randomlyUseColumnarId() {
+        // .storedFields("_none_") has no effect with columnar mode
+        return false;
+    }
+
     public static class CustomScriptPlugin extends MockScriptPlugin {
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {

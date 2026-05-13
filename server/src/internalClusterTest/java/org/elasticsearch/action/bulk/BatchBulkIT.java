@@ -53,6 +53,12 @@ public class BatchBulkIT extends ESIntegTestCase {
             .build();
     }
 
+    @Override
+    protected boolean randomlyUseColumnarId() {
+        // because of testBatchModeWithNamedDynamicTemplatesOtelStyle()
+        return false;
+    }
+
     private void createBatchIndex(String index, int shards, int replicas) throws IOException {
         XContentBuilder mapping = getMapping();
         assertAcked(

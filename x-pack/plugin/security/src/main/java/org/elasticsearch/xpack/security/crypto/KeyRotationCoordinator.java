@@ -20,7 +20,6 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.crypto.KeyRotationHandler;
 import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata;
-import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata.RotationState;
 
 import java.io.Closeable;
 import java.util.Collection;
@@ -38,6 +37,9 @@ import java.util.concurrent.atomic.AtomicLong;
 public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
 
     private static final Logger logger = LogManager.getLogger(KeyRotationCoordinator.class);
+
+    // Number of check_intervals a non-active key persists before being retired.
+    private static final int GRACE_TICKS = 10;
 
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
@@ -130,27 +132,23 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
             return;
         }
 
-        if (metadata.getRotationState() == RotationState.ROTATING) {
-            rotate(state, metadata);
-            return;
-        }
-
-        rotatingSince.set(0L);
-
         long now = threadPool.absoluteTimeInMillis();
-        if (now - metadata.getLastRotatedMillis() < rotationInterval.millis()) {
-            return;
+        long activeKeyAge = now - metadata.getGeneratedAt(metadata.getActiveKeyId());
+
+        rotate(metadata, now);
+
+        if (activeKeyAge >= rotationInterval.millis()) {
+            logger.info("primary encryption key due for rotation (active key generated {} ago)", TimeValue.timeValueMillis(activeKeyAge));
+            pekService.submitBeginRotation(state);
         }
-        logger.info(
-            "primary encryption key due for rotation (last rotated {} ago)",
-            TimeValue.timeValueMillis(now - metadata.getLastRotatedMillis())
-        );
-        pekService.submitBeginRotation(state);
+
+        long retireCutoff = now - GRACE_TICKS * checkInterval.millis();
+        if (metadata.findRetireableKeyIds(retireCutoff).isEmpty() == false) {
+            pekService.submitRetireKeys(state, retireCutoff);
+        }
     }
 
-    private void rotate(ClusterState state, PrimaryEncryptionKeyMetadata metadata) {
-        long now = threadPool.absoluteTimeInMillis();
-        rotatingSince.compareAndSet(0L, now);
+    private void rotate(PrimaryEncryptionKeyMetadata metadata, long now) {
         if (rotating.compareAndSet(false, true) == false) {
             logger.warn(
                 "rotation already in progress, skipping this tick (in progress for {})",
@@ -158,16 +156,17 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
             );
             return;
         }
+        rotatingSince.set(now);
         String activeKeyId = metadata.getActiveKeyId();
         Collection<KeyRotationHandler> handlers = pekService.getRegisteredHandlers();
         try (
             var listeners = new RefCountingListener(
                 ActionListener.runAfter(
-                    ActionListener.wrap(
-                        unused -> pekService.submitRetireKeys(state),
-                        e -> logger.warn("rotation handlers failed; will retry on next tick", e)
-                    ),
-                    () -> rotating.set(false)
+                    ActionListener.wrap(unused -> {}, e -> logger.warn("rotation handler failed; will retry on next tick", e)),
+                    () -> {
+                        rotatingSince.set(0L);
+                        rotating.set(false);
+                    }
                 )
             )
         ) {

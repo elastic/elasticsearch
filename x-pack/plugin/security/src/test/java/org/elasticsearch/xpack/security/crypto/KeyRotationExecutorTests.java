@@ -13,24 +13,40 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata;
-import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata.RotationState;
+import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata.KeyEntry;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 public class KeyRotationExecutorTests extends ESTestCase {
 
     private static final ClusterName CLUSTER_NAME = new ClusterName("test");
+    private final ThreadPool threadPool = mockThreadPool();
     private final PrimaryEncryptionKeyService.KeyRotationExecutor executor = new PrimaryEncryptionKeyService.KeyRotationExecutor(
-        DefaultProjectResolver.INSTANCE
+        DefaultProjectResolver.INSTANCE,
+        threadPool
     );
+
+    private static ThreadPool mockThreadPool() {
+        ThreadPool tp = mock(ThreadPool.class);
+        when(tp.absoluteTimeInMillis()).thenReturn(System.currentTimeMillis());
+        return tp;
+    }
 
     private static byte[] randomKey() {
         byte[] keyBytes = new byte[32];
         random().nextBytes(keyBytes);
         return keyBytes;
+    }
+
+    private static KeyEntry entry(long generatedAt) {
+        return new KeyEntry(randomKey(), generatedAt);
     }
 
     private static ClusterState stateWith(PrimaryEncryptionKeyMetadata metadata) {
@@ -51,54 +67,31 @@ public class KeyRotationExecutorTests extends ESTestCase {
 
         PrimaryEncryptionKeyMetadata metadata = metadataOf(result.v1());
         assertNotNull(metadata);
-        assertEquals(1, metadata.getKeys().size());
-        assertNotNull(metadata.getActiveKeyId());
-        assertEquals(RotationState.STABLE, metadata.getRotationState());
-        assertTrue(metadata.getLastRotatedMillis() > 0);
+        assertEquals(1, metadata.getEntries().size());
+        String activeKeyId = metadata.getActiveKeyId();
+        assertNotNull(activeKeyId);
+        assertTrue("generatedAt should be set on initial install", metadata.getGeneratedAt(activeKeyId) > 0);
     }
 
     public void testInstallInitialKeyIsNoopWhenKeyExists() {
-        PrimaryEncryptionKeyMetadata existing = new PrimaryEncryptionKeyMetadata(
-            Map.of("k1", randomKey()),
-            "k1",
-            42L,
-            RotationState.STABLE
-        );
+        PrimaryEncryptionKeyMetadata existing = new PrimaryEncryptionKeyMetadata(Map.of("k1", entry(42L)), "k1");
         ClusterState state = stateWith(existing);
         Tuple<ClusterState, Void> result = executor.executeTask(new PrimaryEncryptionKeyService.InstallKeyTask(), state);
         assertSame(state, result.v1());
     }
 
-    public void testBeginRotationAddsKeyAndFlipsState() {
-        byte[] originalKey = randomKey();
-        PrimaryEncryptionKeyMetadata existing = new PrimaryEncryptionKeyMetadata(
-            Map.of("k1", originalKey),
-            "k1",
-            100L,
-            RotationState.STABLE
-        );
+    public void testBeginRotationAddsKeyAndAdvancesActive() {
+        long activeBornAt = System.currentTimeMillis() - 60_000L;
+        PrimaryEncryptionKeyMetadata existing = new PrimaryEncryptionKeyMetadata(Map.of("k1", entry(activeBornAt)), "k1");
         ClusterState state = stateWith(existing);
         Tuple<ClusterState, Void> result = executor.executeTask(new PrimaryEncryptionKeyService.BeginRotationTask(), state);
 
         PrimaryEncryptionKeyMetadata metadata = metadataOf(result.v1());
-        assertEquals(2, metadata.getKeys().size());
+        assertEquals(2, metadata.getEntries().size());
         assertNotEquals("k1", metadata.getActiveKeyId());
-        assertTrue(metadata.getKeys().containsKey("k1"));
-        assertEquals(RotationState.ROTATING, metadata.getRotationState());
-        // lastRotatedMillis is preserved during rotation; only updated on retire.
-        assertEquals(100L, metadata.getLastRotatedMillis());
-    }
-
-    public void testBeginRotationIsNoopWhenAlreadyRotating() {
-        PrimaryEncryptionKeyMetadata existing = new PrimaryEncryptionKeyMetadata(
-            Map.of("k1", randomKey(), "k2", randomKey()),
-            "k2",
-            100L,
-            RotationState.ROTATING
-        );
-        ClusterState state = stateWith(existing);
-        Tuple<ClusterState, Void> result = executor.executeTask(new PrimaryEncryptionKeyService.BeginRotationTask(), state);
-        assertSame(state, result.v1());
+        assertTrue("k1 should remain in the map", metadata.getEntries().containsKey("k1"));
+        assertEquals(activeBornAt, metadata.getGeneratedAt("k1"));
+        assertTrue("new active key has fresh generatedAt", metadata.getGeneratedAt(metadata.getActiveKeyId()) > activeBornAt);
     }
 
     public void testBeginRotationIsNoopWhenNoMetadata() {
@@ -107,53 +100,49 @@ public class KeyRotationExecutorTests extends ESTestCase {
         assertSame(state, result.v1());
     }
 
-    public void testRetireKeysSucceeds() {
-        Map<String, byte[]> keys = new HashMap<>();
-        keys.put("k1", randomKey());
-        keys.put("k2", randomKey());
-        keys.put("k3", randomKey());
-        PrimaryEncryptionKeyMetadata existing = new PrimaryEncryptionKeyMetadata(keys, "k3", 100L, RotationState.ROTATING);
+    public void testRetireKeysDropsOnlyKeysBelowCutoff() {
+        // Retirement uses each key's deactivation time (= generatedAt of the next-newer key), not its own generatedAt.
+        Map<String, KeyEntry> entries = new HashMap<>();
+        entries.put("old", entry(100L));
+        entries.put("active", entry(500L));
+        entries.put("recent", entry(400L));
+        PrimaryEncryptionKeyMetadata existing = new PrimaryEncryptionKeyMetadata(entries, "active");
         ClusterState state = stateWith(existing);
-        Tuple<ClusterState, Void> result = executor.executeTask(new PrimaryEncryptionKeyService.RetireKeysTask(), state);
+
+        Tuple<ClusterState, Void> result = executor.executeTask(new PrimaryEncryptionKeyService.RetireKeysTask(450L), state);
+
         PrimaryEncryptionKeyMetadata metadata = metadataOf(result.v1());
-        assertEquals(Set.of("k3"), metadata.getKeys().keySet());
-        assertEquals("k3", metadata.getActiveKeyId());
-        assertEquals(RotationState.STABLE, metadata.getRotationState());
-        assertTrue(metadata.getLastRotatedMillis() >= 100L);
+        assertEquals("only 'old' should have been retired", Set.of("active", "recent"), metadata.getEntries().keySet());
+        assertEquals("active", metadata.getActiveKeyId());
     }
 
-    public void testRetireKeysIgnoredWhenStable() {
-        PrimaryEncryptionKeyMetadata existing = new PrimaryEncryptionKeyMetadata(
-            Map.of("k1", randomKey()),
-            "k1",
-            100L,
-            RotationState.STABLE
-        );
+    public void testRetireKeysNeverRetiresActiveKey() {
+        // Even if the active key's generatedAt is below the cutoff, it must not be retired.
+        Map<String, KeyEntry> entries = new HashMap<>();
+        entries.put("active", entry(100L));
+        entries.put("old", entry(50L));
+        PrimaryEncryptionKeyMetadata existing = new PrimaryEncryptionKeyMetadata(entries, "active");
         ClusterState state = stateWith(existing);
-        Tuple<ClusterState, Void> result = executor.executeTask(new PrimaryEncryptionKeyService.RetireKeysTask(), state);
+
+        long cutoff = 200L;
+        Tuple<ClusterState, Void> result = executor.executeTask(new PrimaryEncryptionKeyService.RetireKeysTask(cutoff), state);
+
+        PrimaryEncryptionKeyMetadata metadata = metadataOf(result.v1());
+        assertEquals(Set.of("active"), metadata.getEntries().keySet());
+        assertEquals("active", metadata.getActiveKeyId());
+    }
+
+    public void testRetireKeysIsNoopWhenNothingToRetire() {
+        PrimaryEncryptionKeyMetadata existing = new PrimaryEncryptionKeyMetadata(Map.of("active", entry(1000L)), "active");
+        ClusterState state = stateWith(existing);
+
+        Tuple<ClusterState, Void> result = executor.executeTask(new PrimaryEncryptionKeyService.RetireKeysTask(500L), state);
         assertSame(state, result.v1());
     }
 
-    public void testFullRotationCycleStateTransitions() {
-        // 1. Install initial key
+    public void testRetireKeysIsNoopWhenNoMetadata() {
         ClusterState state = stateWith(null);
-        state = executor.executeTask(new PrimaryEncryptionKeyService.InstallKeyTask(), state).v1();
-        PrimaryEncryptionKeyMetadata m = metadataOf(state);
-        String originalKeyId = m.getActiveKeyId();
-        assertEquals(RotationState.STABLE, m.getRotationState());
-
-        // 2. Begin rotation
-        state = executor.executeTask(new PrimaryEncryptionKeyService.BeginRotationTask(), state).v1();
-        m = metadataOf(state);
-        String newKeyId = m.getActiveKeyId();
-        assertNotEquals(originalKeyId, newKeyId);
-        assertEquals(RotationState.ROTATING, m.getRotationState());
-        assertEquals(2, m.getKeys().size());
-
-        // 3. Retire old keys (handlers complete outside cluster state now)
-        state = executor.executeTask(new PrimaryEncryptionKeyService.RetireKeysTask(), state).v1();
-        m = metadataOf(state);
-        assertEquals(Set.of(newKeyId), m.getKeys().keySet());
-        assertEquals(RotationState.STABLE, m.getRotationState());
+        Tuple<ClusterState, Void> result = executor.executeTask(new PrimaryEncryptionKeyService.RetireKeysTask(100L), state);
+        assertSame(state, result.v1());
     }
 }

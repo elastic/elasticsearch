@@ -13,24 +13,32 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumSet;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
-import java.util.Locale;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Stores the primary encryption keys in project metadata.
@@ -38,12 +46,9 @@ import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
  * <p>The primary encryption key (PEK) is a randomly generated AES-256 key used to encrypt secrets stored in cluster state. The plaintext
  * PEK is held in-memory and distributed to all nodes via cluster state updates over the transport layer.
  *
- * <p>Keys are identified by a randomly generated key ID. Multiple keys are retained to support key rotation. The active key (used for new
- * encrypt operations) is explicitly identified by {@link #getActiveKeyId()}. Previous keys are kept so that data encrypted with older keys
- * can still be decrypted, until rotation completes and they are retired.
- *
- * <p>Rotation tracking lives alongside the keys: {@link #getRotationState()} reflects whether a rotation is in progress, and
- * {@link #getLastRotatedMillis()} is the time of the most recent successful rotation (or initial install).
+ * <p>Keys are identified by a randomly generated key ID. Multiple keys are retained to support key rotation. The active key is explicitly
+ * identified by {@link #getActiveKeyId()}. Each key carries a {@link KeyEntry#generatedAt()} timestamp. The active key's age drives the
+ * next-rotation decision; non-active keys age out independently after a grace period before being retired.
  *
  * <p>This metadata is persisted to disk via the gateway ({@link Metadata.XContentContext#GATEWAY}) but is NOT exposed in REST APIs or
  * included in snapshots.
@@ -55,59 +60,75 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
     public static final TransportVersion PRIMARY_ENCRYPTION_KEY_VERSION = TransportVersion.fromName("primary_encryption_key");
     public static final TransportVersion PRIMARY_ENCRYPTION_KEY_ROTATION = TransportVersion.fromName("primary_encryption_key_rotation");
 
-    /**
-     * Lifecycle state of the keys held in this metadata.
-     */
-    public enum RotationState {
-        /** No rotation in progress: all data is encrypted under {@link #getActiveKeyId()}. */
-        STABLE,
-        /** A new active key has been published; registered handlers are re-encrypting their data. */
-        ROTATING
-    }
-
     private static final int KEY_LENGTH_BYTES = 32;
     private static final String KEY_ALGORITHM = "AES";
-    private static final ParseField KEYS_FIELD = new ParseField("keys");
+    private static final ParseField ENTRIES_FIELD = new ParseField("entries");
     private static final ParseField ACTIVE_KEY_ID_FIELD = new ParseField("active_key_id");
-    private static final ParseField LAST_ROTATED_MILLIS_FIELD = new ParseField("last_rotated_millis");
-    private static final ParseField ROTATION_STATE_FIELD = new ParseField("rotation_state");
+    private static final ParseField BYTES_FIELD = new ParseField("bytes");
+    private static final ParseField GENERATED_AT_FIELD = new ParseField("generated_at");
 
-    private final Map<String, byte[]> keys;
-    private final String activeKeyId;
-    private final long lastRotatedMillis;
-    private final RotationState rotationState;
+    /**
+     * A single key with its generation timestamp. Equality is by content (byte-array contents + timestamp), not array identity.
+     */
+    public record KeyEntry(byte[] bytes, long generatedAt) implements Writeable {
 
-    public PrimaryEncryptionKeyMetadata(Map<String, byte[]> keys, String activeKeyId) {
-        this(keys, activeKeyId, 0L, RotationState.STABLE);
-    }
-
-    public PrimaryEncryptionKeyMetadata(Map<String, byte[]> keys, String activeKeyId, long lastRotatedMillis, RotationState rotationState) {
-        if (keys.isEmpty()) {
-            throw new IllegalArgumentException("Keys map must not be empty");
-        }
-        if (keys.containsKey(activeKeyId) == false) {
-            throw new IllegalArgumentException("Active key ID [" + activeKeyId + "] not found in keys");
-        }
-        for (Map.Entry<String, byte[]> entry : keys.entrySet()) {
-            if (entry.getValue().length != KEY_LENGTH_BYTES) {
-                throw new IllegalArgumentException(
-                    "Key [" + entry.getKey() + "] must be " + KEY_LENGTH_BYTES + " bytes, got " + entry.getValue().length
-                );
+        public KeyEntry {
+            Objects.requireNonNull(bytes, "bytes");
+            if (bytes.length != KEY_LENGTH_BYTES) {
+                throw new IllegalArgumentException("Key bytes must be " + KEY_LENGTH_BYTES + " bytes, got " + bytes.length);
             }
         }
-        this.keys = keys;
+
+        public KeyEntry(StreamInput in) throws IOException {
+            this(in.readByteArray(), in.readVLong());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeByteArray(bytes);
+            out.writeVLong(generatedAt);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o instanceof KeyEntry(byte[] bytes1, long at)) {
+                return generatedAt == at && Arrays.equals(bytes, bytes1);
+            }
+            return false;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(Arrays.hashCode(bytes), generatedAt);
+        }
+    }
+
+    private final Map<String, KeyEntry> entries;
+    private final String activeKeyId;
+
+    public PrimaryEncryptionKeyMetadata(Map<String, KeyEntry> entries, String activeKeyId) {
+        if (entries.isEmpty()) {
+            throw new IllegalArgumentException("Entries map must not be empty");
+        }
+        if (entries.containsKey(activeKeyId) == false) {
+            throw new IllegalArgumentException("Active key ID [" + activeKeyId + "] not found in entries");
+        }
+        assert entries.values().stream().mapToLong(KeyEntry::generatedAt).max().orElse(Long.MIN_VALUE) == entries.get(activeKeyId)
+            .generatedAt() : "active key [" + activeKeyId + "] must be the newest entry by generatedAt in " + entries;
+        this.entries = Map.copyOf(entries);
         this.activeKeyId = activeKeyId;
-        this.lastRotatedMillis = lastRotatedMillis;
-        this.rotationState = Objects.requireNonNull(rotationState, "rotationState");
     }
 
     public PrimaryEncryptionKeyMetadata(StreamInput in) throws IOException {
-        this(
-            in.readImmutableMap(StreamInput::readString, StreamInput::readByteArray),
-            in.readString(),
-            in.getTransportVersion().supports(PRIMARY_ENCRYPTION_KEY_ROTATION) ? in.readVLong() : 0L,
-            in.getTransportVersion().supports(PRIMARY_ENCRYPTION_KEY_ROTATION) ? in.readEnum(RotationState.class) : RotationState.STABLE
-        );
+        this(readEntriesFrom(in), in.readString());
+    }
+
+    private static Map<String, KeyEntry> readEntriesFrom(StreamInput in) throws IOException {
+        if (in.getTransportVersion().supports(PRIMARY_ENCRYPTION_KEY_ROTATION)) {
+            return in.readImmutableMap(StreamInput::readString, KeyEntry::new);
+        }
+        return in.readImmutableMap(StreamInput::readString, streamInput -> new KeyEntry(streamInput.readByteArray(), 0L));
     }
 
     /**
@@ -125,49 +146,70 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
     }
 
     /**
-     * Returns a defensive copy of the raw key bytes for the specified key ID,
-     * or {@code null} if the key ID is not present.
+     * Returns a defensive copy of the raw key bytes for the specified key ID, or {@code null} if the key ID is not present.
      */
     public byte[] getKeyBytes(String keyId) {
-        byte[] keyBytes = keys.get(keyId);
-        return keyBytes != null ? keyBytes.clone() : null;
+        KeyEntry entry = entries.get(keyId);
+        return entry != null ? entry.bytes().clone() : null;
     }
 
     /**
      * Returns the active key as a {@link SecretKey} suitable for use with AES cryptographic operations.
      */
     public SecretKey toSecretKey() {
-        return new SecretKeySpec(keys.get(activeKeyId), KEY_ALGORITHM);
+        return new SecretKeySpec(entries.get(activeKeyId).bytes(), KEY_ALGORITHM);
     }
 
     /**
-     * Returns the key for the specified key ID as a {@link SecretKey},
-     * or {@code null} if the key ID is not present.
+     * Returns the key for the specified key ID as a {@link SecretKey}, or {@code null} if the key ID is not present.
      */
     public SecretKey toSecretKey(String keyId) {
-        byte[] keyBytes = keys.get(keyId);
-        return keyBytes != null ? new SecretKeySpec(keyBytes, KEY_ALGORITHM) : null;
+        KeyEntry entry = entries.get(keyId);
+        return entry != null ? new SecretKeySpec(entry.bytes(), KEY_ALGORITHM) : null;
     }
 
     /**
-     * Returns an unmodifiable view of the keys in this metadata.
+     * Returns an unmodifiable view of the entries (key bytes + generation timestamps) keyed by key ID.
      */
-    public Map<String, byte[]> getKeys() {
-        return Collections.unmodifiableMap(keys);
+    public Map<String, KeyEntry> getEntries() {
+        return entries;
     }
 
     /**
-     * Time of the most recent successful rotation, or of initial install if no rotation has completed yet.
+     * Returns the time at which the specified key was generated, or {@code 0L} if the key ID is not present.
      */
-    public long getLastRotatedMillis() {
-        return lastRotatedMillis;
+    public long getGeneratedAt(String keyId) {
+        KeyEntry entry = entries.get(keyId);
+        return entry != null ? entry.generatedAt() : 0L;
     }
 
     /**
-     * Returns the current rotation lifecycle state.
+     * Returns the IDs of non-active keys that have been deactivated for long enough to retire.
+     *
+     * <p>A non-active key's "deactivation time" is the {@code generatedAt} of the next-newer key in the map (the key that replaced it).
+     * The grace period is measured from that deactivation time.
+     *
+     * <p>A key is retire-eligible iff its deactivation time is strictly less than {@code cutoffDeactivationMillis}
      */
-    public RotationState getRotationState() {
-        return rotationState;
+    public Set<String> findRetireableKeyIds(long cutoffDeactivationMillis) {
+        // Sort by generatedAt ascending so each entry's deactivation time is the next entry's generatedAt.
+        // The active key is always the newest entry, so it lands last and never has its successor inspected.
+        List<Map.Entry<String, KeyEntry>> sorted = entries.entrySet()
+            .stream()
+            .sorted(Comparator.comparingLong(e -> e.getValue().generatedAt()))
+            .toList();
+        Set<String> retireable = new HashSet<>();
+        for (int i = 0; i < sorted.size() - 1; i++) {
+            String id = sorted.get(i).getKey();
+            if (id.equals(activeKeyId)) {
+                continue;
+            }
+            long deactivatedAt = sorted.get(i + 1).getValue().generatedAt();
+            if (deactivatedAt < cutoffDeactivationMillis) {
+                retireable.add(id);
+            }
+        }
+        return retireable;
     }
 
     @Override
@@ -187,12 +229,12 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(keys, StreamOutput::writeString, StreamOutput::writeByteArray);
-        out.writeString(activeKeyId);
         if (out.getTransportVersion().supports(PRIMARY_ENCRYPTION_KEY_ROTATION)) {
-            out.writeVLong(lastRotatedMillis);
-            out.writeEnum(rotationState);
+            out.writeMap(entries, StreamOutput::writeString, (o, e) -> e.writeTo(o));
+        } else {
+            out.writeMap(entries, StreamOutput::writeString, (o, e) -> o.writeByteArray(e.bytes()));
         }
+        out.writeString(activeKeyId);
     }
 
     public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
@@ -203,66 +245,63 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
         return chunk((builder, params) -> {
             builder.field(ACTIVE_KEY_ID_FIELD.getPreferredName(), activeKeyId);
-            builder.field(LAST_ROTATED_MILLIS_FIELD.getPreferredName(), lastRotatedMillis);
-            builder.field(ROTATION_STATE_FIELD.getPreferredName(), rotationState.name());
-            builder.startObject(KEYS_FIELD.getPreferredName());
-            for (Map.Entry<String, byte[]> entry : keys.entrySet()) {
-                builder.field(entry.getKey(), entry.getValue());
+            builder.startObject(ENTRIES_FIELD.getPreferredName());
+            for (Map.Entry<String, KeyEntry> entry : entries.entrySet()) {
+                builder.startObject(entry.getKey());
+                builder.field(BYTES_FIELD.getPreferredName(), entry.getValue().bytes());
+                builder.field(GENERATED_AT_FIELD.getPreferredName(), entry.getValue().generatedAt());
+                builder.endObject();
             }
             builder.endObject();
             return builder;
         });
     }
 
+    private static final ConstructingObjectParser<KeyEntry, String> KEY_ENTRY_PARSER = new ConstructingObjectParser<>(
+        "key_entry",
+        false,
+        (args, name) -> new KeyEntry((byte[]) args[0], (long) args[1])
+    );
+    static {
+        KEY_ENTRY_PARSER.declareField(constructorArg(), XContentParser::binaryValue, BYTES_FIELD, ValueType.VALUE);
+        KEY_ENTRY_PARSER.declareLong(constructorArg(), GENERATED_AT_FIELD);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<PrimaryEncryptionKeyMetadata, Void> PARSER = new ConstructingObjectParser<>(
+        TYPE,
+        false,
+        args -> {
+            String activeKeyId = (String) args[0];
+            List<Tuple<String, KeyEntry>> list = (List<Tuple<String, KeyEntry>>) args[1];
+            Map<String, KeyEntry> entries = list.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2));
+            return new PrimaryEncryptionKeyMetadata(entries, activeKeyId);
+        }
+    );
+    static {
+        PARSER.declareString(constructorArg(), ACTIVE_KEY_ID_FIELD);
+        PARSER.declareNamedObjects(constructorArg(), (p, c, name) -> Tuple.tuple(name, KEY_ENTRY_PARSER.apply(p, name)), ENTRIES_FIELD);
+    }
+
     public static Metadata.ProjectCustom fromXContent(XContentParser parser) throws IOException {
-        String activeKeyId = null;
-        Map<String, byte[]> keys = Map.of();
-        long lastRotatedMillis = 0L;
-        RotationState rotationState = RotationState.STABLE;
-        String currentFieldName;
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-                if (ACTIVE_KEY_ID_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    parser.nextToken();
-                    activeKeyId = parser.text();
-                } else if (LAST_ROTATED_MILLIS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    parser.nextToken();
-                    lastRotatedMillis = parser.longValue();
-                } else if (ROTATION_STATE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    parser.nextToken();
-                    rotationState = RotationState.valueOf(parser.text().toUpperCase(Locale.ROOT));
-                } else if (KEYS_FIELD.match(currentFieldName, parser.getDeprecationHandler())
-                    && parser.nextToken() == XContentParser.Token.START_OBJECT) {
-                        keys = new HashMap<>();
-                        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                            String keyId = parser.currentName();
-                            parser.nextToken();
-                            keys.put(keyId, parser.binaryValue());
-                        }
-                    }
-            }
-        }
-        if (activeKeyId == null) {
-            throw new IllegalArgumentException("Missing required field [" + ACTIVE_KEY_ID_FIELD.getPreferredName() + "]");
-        }
-        if (keys.isEmpty()) {
-            throw new IllegalArgumentException("Missing required field [" + KEYS_FIELD.getPreferredName() + "]");
-        }
-        return new PrimaryEncryptionKeyMetadata(keys, activeKeyId, lastRotatedMillis, rotationState);
+        return PARSER.parse(parser, null);
     }
 
     @Override
     public String toString() {
+        StringBuilder ts = new StringBuilder();
+        for (String id : new TreeSet<>(entries.keySet())) {
+            if (!ts.isEmpty()) {
+                ts.append(", ");
+            }
+            ts.append(id).append('=').append(entries.get(id).generatedAt());
+        }
         return "PrimaryEncryptionKeyMetadata{activeKeyId="
             + activeKeyId
             + ", keyCount="
-            + keys.size()
-            + ", lastRotatedMillis="
-            + lastRotatedMillis
-            + ", rotationState="
-            + rotationState
+            + entries.size()
+            + ", generatedAt="
+            + ts
             + ", [keys secret]}";
     }
 
@@ -271,26 +310,11 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PrimaryEncryptionKeyMetadata that = (PrimaryEncryptionKeyMetadata) o;
-        if (Objects.equals(activeKeyId, that.activeKeyId) == false) return false;
-        if (lastRotatedMillis != that.lastRotatedMillis) return false;
-        if (rotationState != that.rotationState) return false;
-        if (keys.size() != that.keys.size()) return false;
-        for (Map.Entry<String, byte[]> entry : keys.entrySet()) {
-            if (Arrays.equals(entry.getValue(), that.keys.get(entry.getKey())) == false) {
-                return false;
-            }
-        }
-        return true;
+        return Objects.equals(activeKeyId, that.activeKeyId) && Objects.equals(entries, that.entries);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            activeKeyId,
-            lastRotatedMillis,
-            rotationState,
-            keys.keySet(),
-            keys.values().stream().mapToInt(Arrays::hashCode).sum()
-        );
+        return Objects.hash(activeKeyId, entries);
     }
 }

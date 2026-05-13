@@ -22,16 +22,16 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.crypto.KeyRotationHandler;
 import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata;
-import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata.RotationState;
+import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata.KeyEntry;
 
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -43,6 +43,10 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         byte[] keyBytes = new byte[32];
         random().nextBytes(keyBytes);
         return keyBytes;
+    }
+
+    private static KeyEntry entry(long generatedAt) {
+        return new KeyEntry(randomKey(), generatedAt);
     }
 
     private static DiscoveryNodes nodes(boolean isLocalMaster) {
@@ -68,13 +72,23 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         PrimaryEncryptionKeyService pekService,
         ClusterState state,
         long now,
-        TimeValue rotationInterval
+        TimeValue rotationInterval,
+        TimeValue checkInterval
     ) {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(state);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.absoluteTimeInMillis()).thenReturn(now);
-        return new KeyRotationCoordinator(clusterService, threadPool, pekService, rotationInterval, TimeValue.timeValueMinutes(1));
+        return new KeyRotationCoordinator(clusterService, threadPool, pekService, rotationInterval, checkInterval);
+    }
+
+    private KeyRotationCoordinator newCoordinator(
+        PrimaryEncryptionKeyService pekService,
+        ClusterState state,
+        long now,
+        TimeValue rotationInterval
+    ) {
+        return newCoordinator(pekService, state, now, rotationInterval, TimeValue.timeValueMinutes(1));
     }
 
     public void testTickIsNoopWhenRotationDisabled() {
@@ -84,7 +98,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
 
         coordinator.tick();
         verify(pekService, never()).submitBeginRotation(state);
-        verify(pekService, never()).submitRetireKeys(state);
+        verify(pekService, never()).submitRetireKeys(any(), anyLong());
     }
 
     public void testTickIsNoopWhenNotMaster() {
@@ -106,16 +120,11 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         verify(pekService, never()).submitBeginRotation(state);
     }
 
-    public void testTickBeginsRotationWhenDue() {
+    public void testTickBeginsRotationWhenActiveKeyIsOldEnough() {
         PrimaryEncryptionKeyService pekService = mock(PrimaryEncryptionKeyService.class);
-        long lastRotated = 1_000_000_000L;
-        long now = lastRotated + TimeValue.timeValueDays(30).millis() + 1;
-        PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(
-            Map.of("k1", randomKey()),
-            "k1",
-            lastRotated,
-            RotationState.STABLE
-        );
+        long generatedAt = 1_000_000_000L;
+        long now = generatedAt + TimeValue.timeValueDays(30).millis() + 1;
+        PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(Map.of("k1", entry(generatedAt)), "k1");
         ClusterState state = clusterStateWith(metadata, true);
         when(pekService.getCurrentMetadata(any())).thenReturn(metadata);
 
@@ -125,16 +134,11 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         verify(pekService).submitBeginRotation(state);
     }
 
-    public void testTickDoesNotBeginRotationWhenNotDue() {
+    public void testTickDoesNotBeginRotationWhenActiveKeyIsYoung() {
         PrimaryEncryptionKeyService pekService = mock(PrimaryEncryptionKeyService.class);
-        long lastRotated = 1_000_000_000L;
-        long now = lastRotated + 1; // tiny elapsed time
-        PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(
-            Map.of("k1", randomKey()),
-            "k1",
-            lastRotated,
-            RotationState.STABLE
-        );
+        long generatedAt = 1_000_000_000L;
+        long now = generatedAt + 1;  // tiny elapsed time
+        PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(Map.of("k1", entry(generatedAt)), "k1");
         ClusterState state = clusterStateWith(metadata, true);
         when(pekService.getCurrentMetadata(any())).thenReturn(metadata);
 
@@ -144,138 +148,98 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         verify(pekService, never()).submitBeginRotation(state);
     }
 
-    public void testTickInvokesAllHandlersAndRetiresOnSuccess() {
+    public void testTickInvokesAllHandlersOnEveryTick() {
+        // Continuous scrub: handlers run every tick regardless of "state".
         PrimaryEncryptionKeyService pekService = mock(PrimaryEncryptionKeyService.class);
-        PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(
-            Map.of("k1", randomKey(), "k2", randomKey()),
-            "k2",
-            0L,
-            RotationState.ROTATING
-        );
+        long generatedAt = 100L;
+        long now = 200L;
+        PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(Map.of("k1", entry(generatedAt)), "k1");
         ClusterState state = clusterStateWith(metadata, true);
 
         AtomicInteger alphaCalls = new AtomicInteger();
         AtomicInteger betaCalls = new AtomicInteger();
-        AtomicInteger gammaCalls = new AtomicInteger();
         KeyRotationHandler alpha = handler("alpha", alphaCalls, true);
         KeyRotationHandler beta = handler("beta", betaCalls, true);
-        KeyRotationHandler gamma = handler("gamma", gammaCalls, true);
 
         when(pekService.getCurrentMetadata(any())).thenReturn(metadata);
-        when(pekService.getRegisteredHandlers()).thenReturn(List.<KeyRotationHandler>of(alpha, beta, gamma));
+        when(pekService.getRegisteredHandlers()).thenReturn(List.of(alpha, beta));
 
-        KeyRotationCoordinator coordinator = newCoordinator(pekService, state, 0L, TimeValue.timeValueDays(30));
+        KeyRotationCoordinator coordinator = newCoordinator(pekService, state, now, TimeValue.timeValueDays(30));
         coordinator.tick();
 
         assertEquals(1, alphaCalls.get());
         assertEquals(1, betaCalls.get());
-        assertEquals(1, gammaCalls.get());
-
-        verify(pekService).submitRetireKeys(state);
     }
 
-    public void testTickRetiresImmediatelyWhenNoHandlersRegistered() {
+    public void testTickSubmitsRetireForKeysOlderThanGrace() {
+        // Grace = 10 * checkInterval = 10m. A key is retire-eligible when its deactivation time (= the next-newer key's generatedAt)
+        // is older than `now - grace`. Active key is 15m old, so the previous key was deactivated 15m ago — past the 10m grace.
+        TimeValue checkInterval = TimeValue.timeValueMinutes(1);
+        long now = 1_000_000L;
+        long graceMillis = 10 * checkInterval.millis();
+        long activeGeneratedAt = now - 15 * 60 * 1000L;
+        long oldGeneratedAt = now - 30 * 60 * 1000L;
         PrimaryEncryptionKeyService pekService = mock(PrimaryEncryptionKeyService.class);
         PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(
-            Map.of("k1", randomKey(), "k2", randomKey()),
-            "k2",
-            0L,
-            RotationState.ROTATING
+            Map.of("old", entry(oldGeneratedAt), "active", entry(activeGeneratedAt)),
+            "active"
         );
         ClusterState state = clusterStateWith(metadata, true);
         when(pekService.getCurrentMetadata(any())).thenReturn(metadata);
         when(pekService.getRegisteredHandlers()).thenReturn(List.of());
 
-        KeyRotationCoordinator coordinator = newCoordinator(pekService, state, 0L, TimeValue.timeValueDays(30));
+        KeyRotationCoordinator coordinator = newCoordinator(pekService, state, now, TimeValue.timeValueDays(30), checkInterval);
         coordinator.tick();
 
-        verify(pekService).submitRetireKeys(state);
+        verify(pekService).submitRetireKeys(state, now - graceMillis);
     }
 
-    public void testHandlerFailureDoesNotRetire() {
+    public void testTickDoesNotSubmitRetireWhenAllKeysWithinGrace() {
+        // The non-active key was deactivated 1m ago (when the active key was generated) — well within the 10m grace.
+        TimeValue checkInterval = TimeValue.timeValueMinutes(1);
+        long now = 1_000_000L;
+        long activeGeneratedAt = now - 60 * 1000L;
+        long oldGeneratedAt = now - 5 * 60 * 1000L;
+
         PrimaryEncryptionKeyService pekService = mock(PrimaryEncryptionKeyService.class);
         PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(
-            Map.of("k1", randomKey(), "k2", randomKey()),
-            "k2",
-            0L,
-            RotationState.ROTATING
+            Map.of("old", entry(oldGeneratedAt), "active", entry(activeGeneratedAt)),
+            "active"
         );
+        ClusterState state = clusterStateWith(metadata, true);
+        when(pekService.getCurrentMetadata(any())).thenReturn(metadata);
+        when(pekService.getRegisteredHandlers()).thenReturn(List.of());
+
+        KeyRotationCoordinator coordinator = newCoordinator(pekService, state, now, TimeValue.timeValueDays(30), checkInterval);
+        coordinator.tick();
+
+        verify(pekService, never()).submitRetireKeys(any(), anyLong());
+    }
+
+    public void testTickBeginsRotationAndAlsoInvokesHandlers() {
+        // When active key is old enough, the tick should BOTH invoke handlers AND submit BeginRotation.
+        PrimaryEncryptionKeyService pekService = mock(PrimaryEncryptionKeyService.class);
+        long generatedAt = 1_000_000_000L;
+        long now = generatedAt + TimeValue.timeValueDays(30).millis() + 1;
+        PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(Map.of("k1", entry(generatedAt)), "k1");
         ClusterState state = clusterStateWith(metadata, true);
 
         AtomicInteger calls = new AtomicInteger();
-        KeyRotationHandler failing = handler("alpha", calls, false);
-
+        KeyRotationHandler h = handler("alpha", calls, true);
         when(pekService.getCurrentMetadata(any())).thenReturn(metadata);
-        when(pekService.getRegisteredHandlers()).thenReturn(List.<KeyRotationHandler>of(failing));
+        when(pekService.getRegisteredHandlers()).thenReturn(List.of(h));
 
-        KeyRotationCoordinator coordinator = newCoordinator(pekService, state, 0L, TimeValue.timeValueDays(30));
+        KeyRotationCoordinator coordinator = newCoordinator(pekService, state, now, TimeValue.timeValueDays(30));
         coordinator.tick();
 
         assertEquals(1, calls.get());
-        verify(pekService, never()).submitRetireKeys(state);
-    }
-
-    public void testPartialFailurePreventsRetire() {
-        PrimaryEncryptionKeyService pekService = mock(PrimaryEncryptionKeyService.class);
-        PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(
-            Map.of("k1", randomKey(), "k2", randomKey()),
-            "k2",
-            0L,
-            RotationState.ROTATING
-        );
-        ClusterState state = clusterStateWith(metadata, true);
-
-        AtomicInteger successCalls = new AtomicInteger();
-        AtomicInteger failCalls = new AtomicInteger();
-        KeyRotationHandler succeeding = handler("alpha", successCalls, true);
-        KeyRotationHandler failing = handler("beta", failCalls, false);
-
-        when(pekService.getCurrentMetadata(any())).thenReturn(metadata);
-        when(pekService.getRegisteredHandlers()).thenReturn(List.<KeyRotationHandler>of(succeeding, failing));
-
-        KeyRotationCoordinator coordinator = newCoordinator(pekService, state, 0L, TimeValue.timeValueDays(30));
-        coordinator.tick();
-
-        assertEquals(1, successCalls.get());
-        assertEquals(1, failCalls.get());
-        verify(pekService, never()).submitRetireKeys(state);
-    }
-
-    public void testNextTickRetriesAllHandlers() {
-        PrimaryEncryptionKeyService pekService = mock(PrimaryEncryptionKeyService.class);
-        PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(
-            Map.of("k1", randomKey(), "k2", randomKey()),
-            "k2",
-            0L,
-            RotationState.ROTATING
-        );
-        ClusterState state = clusterStateWith(metadata, true);
-
-        AtomicInteger calls = new AtomicInteger();
-        KeyRotationHandler failing = handler("alpha", calls, false);
-
-        when(pekService.getCurrentMetadata(any())).thenReturn(metadata);
-        when(pekService.getRegisteredHandlers()).thenReturn(List.<KeyRotationHandler>of(failing));
-
-        KeyRotationCoordinator coordinator = newCoordinator(pekService, state, 0L, TimeValue.timeValueDays(30));
-        coordinator.tick();
-        coordinator.tick();
-        coordinator.tick();
-
-        assertEquals(3, calls.get());
-        verify(pekService, times(0)).submitRetireKeys(state);
+        verify(pekService).submitBeginRotation(state);
     }
 
     public void testStuckRotationLogsWarnWithDuration() throws Exception {
-        // A handler that never completes its listener stalls rotation. The coordinator should keep
-        // ticking and emit a WARN log with the elapsed duration so an operator can notice.
+        // A handler that never completes its listener stalls rotation. The next tick should emit a WARN log with the elapsed duration.
         PrimaryEncryptionKeyService pekService = mock(PrimaryEncryptionKeyService.class);
-        PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(
-            Map.of("k1", randomKey(), "k2", randomKey()),
-            "k2",
-            0L,
-            RotationState.ROTATING
-        );
+        PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(Map.of("k1", entry(0L)), "k1");
         ClusterState state = clusterStateWith(metadata, true);
         AtomicInteger calls = new AtomicInteger();
         KeyRotationHandler hanging = new KeyRotationHandler() {
@@ -308,11 +272,9 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
             TimeValue.timeValueMinutes(1)
         );
 
-        // First tick: enters rotate(), invokes the hanging handler (reads time = t0)
         coordinator.tick();
         assertEquals(1, calls.get());
 
-        // Second tick reads time = t1; rotating is still true so it short-circuits and WARNs with the elapsed duration.
         try (var mockLog = MockLog.capture(KeyRotationCoordinator.class)) {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
@@ -327,7 +289,6 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         }
         // Second tick must not invoke the handler again (rotating flag prevents re-entry).
         assertEquals(1, calls.get());
-        verify(pekService, never()).submitRetireKeys(state);
     }
 
     private static KeyRotationHandler handler(String name, AtomicInteger callCount, boolean succeed) {

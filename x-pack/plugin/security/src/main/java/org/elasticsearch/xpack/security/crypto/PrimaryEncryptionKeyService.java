@@ -28,9 +28,9 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.crypto.KeyRotationHandler;
 import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata;
-import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata.RotationState;
 
 import java.security.SecureRandom;
 import java.util.Collection;
@@ -49,10 +49,9 @@ import javax.crypto.SecretKey;
  * Generates and distributes the primary encryption key via cluster state. Owns the key material in project metadata and publishes the
  * cluster-state transitions that install, rotate, and retire it.
  *
- * <p>On master election, generates an AES-256 key if none exists. Subsequent rotation cycles, driven by {@link KeyRotationCoordinator},
- * flow through the same {@link MasterServiceTaskQueue}: {@link BeginRotationTask} adds a new active key, {@link RetireKeysTask} removes
- * the old keys once registered {@link KeyRotationHandler}s have re-encrypted their data. Old keys stay available for decryption
- * throughout the {@link RotationState#ROTATING} window.
+ * <p>On master election, generates an AES-256 key if none exists. Subsequent rotations, driven by {@link KeyRotationCoordinator}, flow
+ * through the same {@link MasterServiceTaskQueue}: {@link BeginRotationTask} adds a fresh active key alongside any existing keys;
+ * {@link RetireKeysTask} drops non-active keys older than a caller-supplied cutoff.
  */
 public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyProvider {
 
@@ -139,7 +138,11 @@ public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyP
         FeatureService featureService
     ) {
         PrimaryEncryptionKeyService service = new PrimaryEncryptionKeyService(
-            clusterService.createTaskQueue("primary-encryption-key", Priority.NORMAL, new KeyRotationExecutor(projectResolver)),
+            clusterService.createTaskQueue(
+                "primary-encryption-key",
+                Priority.NORMAL,
+                new KeyRotationExecutor(projectResolver, clusterService.threadPool())
+            ),
             projectResolver,
             featureService
         );
@@ -165,11 +168,11 @@ public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyP
             }
 
             if (metadata != null) {
-                Map<String, SecretKey> keysByKeyId = HashMap.newHashMap(metadata.getKeys().size());
-                for (Map.Entry<String, byte[]> entry : metadata.getKeys().entrySet()) {
-                    SecretKey secretKey = metadata.toSecretKey(entry.getKey());
-                    assert secretKey != null : "key [" + entry.getKey() + "] present in metadata but toSecretKey returned null";
-                    keysByKeyId.put(entry.getKey(), secretKey);
+                Map<String, SecretKey> keysByKeyId = HashMap.newHashMap(metadata.getEntries().size());
+                for (String keyId : metadata.getEntries().keySet()) {
+                    SecretKey secretKey = metadata.toSecretKey(keyId);
+                    assert secretKey != null : "key [" + keyId + "] present in metadata but toSecretKey returned null";
+                    keysByKeyId.put(keyId, secretKey);
                 }
                 this.cache = new KeyCache(metadata.getActiveKeyId(), keysByKeyId);
                 logger.debug("primary encryption key cache updated: activeKeyId={}", metadata.getActiveKeyId());
@@ -259,11 +262,12 @@ public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyP
     }
 
     /**
-     * Submits a {@link RetireKeysTask} that removes non-active keys and transitions to {@link RotationState#STABLE}.
+     * Submits a {@link RetireKeysTask} that drops any non-active key whose deactivation time is strictly less than
+     * {@code cutoffDeactivationMillis}.
      */
-    public void submitRetireKeys(ClusterState state) {
+    public void submitRetireKeys(ClusterState state, long cutoffDeactivationMillis) {
         if (checkPekFeatureAvailable(state)) {
-            taskQueue.submitTask("retire-primary-encryption-keys", new RetireKeysTask(), null);
+            taskQueue.submitTask("retire-primary-encryption-keys", new RetireKeysTask(cutoffDeactivationMillis), null);
         }
     }
 
@@ -307,10 +311,10 @@ public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyP
         }
     }
 
-    static final class RetireKeysTask implements KeyRotationTask {
+    record RetireKeysTask(long cutoffDeactivationMillis) implements KeyRotationTask {
         @Override
         public String description() {
-            return "primary encryption key retire";
+            return "primary encryption key retire (cutoff=" + cutoffDeactivationMillis + ")";
         }
     }
 
@@ -318,9 +322,11 @@ public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyP
         private static final SecureRandom RANDOM = new SecureRandom();
 
         private final ProjectResolver projectResolver;
+        private final ThreadPool threadPool;
 
-        KeyRotationExecutor(ProjectResolver projectResolver) {
+        KeyRotationExecutor(ProjectResolver projectResolver, ThreadPool threadPool) {
             this.projectResolver = projectResolver;
+            this.threadPool = threadPool;
         }
 
         @Override
@@ -331,7 +337,12 @@ public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyP
             return switch (task) {
                 case InstallKeyTask ignored -> executeInstallInitial(clusterState, projectState, existing);
                 case BeginRotationTask ignored -> executeBeginRotation(clusterState, projectState, existing);
-                case RetireKeysTask ignored -> executeRetireKeys(clusterState, projectState, existing);
+                case RetireKeysTask retireKeysTask -> executeRetireKeys(
+                    clusterState,
+                    projectState,
+                    existing,
+                    retireKeysTask.cutoffDeactivationMillis()
+                );
             };
         }
 
@@ -348,10 +359,8 @@ public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyP
             byte[] keyBytes = randomKey();
             String keyId = PrimaryEncryptionKeyMetadata.generateKeyId();
             PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(
-                Map.of(keyId, keyBytes),
-                keyId,
-                System.currentTimeMillis(),
-                RotationState.STABLE
+                Map.of(keyId, new PrimaryEncryptionKeyMetadata.KeyEntry(keyBytes, threadPool.absoluteTimeInMillis())),
+                keyId
             );
             logger.info("installing primary encryption key [{}]", keyId);
             return Tuple.tuple(putMetadata(clusterState, projectState, metadata), null);
@@ -366,21 +375,11 @@ public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyP
                 logger.warn("ignoring begin-rotation task because no primary encryption key is installed");
                 return Tuple.tuple(clusterState, null);
             }
-            if (existing.getRotationState() == RotationState.ROTATING) {
-                // Already rotating; nothing to do.
-                return Tuple.tuple(clusterState, null);
-            }
-
             byte[] keyBytes = randomKey();
             String newKeyId = PrimaryEncryptionKeyMetadata.generateKeyId();
-            Map<String, byte[]> newKeys = new HashMap<>(existing.getKeys());
-            newKeys.put(newKeyId, keyBytes);
-            PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(
-                newKeys,
-                newKeyId,
-                existing.getLastRotatedMillis(),
-                RotationState.ROTATING
-            );
+            Map<String, PrimaryEncryptionKeyMetadata.KeyEntry> newEntries = new HashMap<>(existing.getEntries());
+            newEntries.put(newKeyId, new PrimaryEncryptionKeyMetadata.KeyEntry(keyBytes, threadPool.absoluteTimeInMillis()));
+            PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(newEntries, newKeyId);
             logger.info("beginning primary encryption key rotation: new active key [{}]", newKeyId);
             return Tuple.tuple(putMetadata(clusterState, projectState, metadata), null);
         }
@@ -388,28 +387,21 @@ public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyP
         private Tuple<ClusterState, Void> executeRetireKeys(
             ClusterState clusterState,
             ProjectState projectState,
-            PrimaryEncryptionKeyMetadata existing
+            PrimaryEncryptionKeyMetadata existing,
+            long cutoffDeactivationMillis
         ) {
-            if (existing == null || existing.getRotationState() != RotationState.ROTATING) {
+            if (existing == null) {
                 return Tuple.tuple(clusterState, null);
             }
-            Map<String, byte[]> retained = Map.of(existing.getActiveKeyId(), existing.getKeys().get(existing.getActiveKeyId()));
-            PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(
-                retained,
-                existing.getActiveKeyId(),
-                System.currentTimeMillis(),
-                RotationState.STABLE
-            );
-            Set<String> retiredIds = existing.getKeys()
-                .keySet()
-                .stream()
-                .filter(id -> id.equals(existing.getActiveKeyId()) == false)
-                .collect(Collectors.toCollection(TreeSet::new));
-            logger.info(
-                "primary encryption key rotation complete: retained active key [{}], retired keys {}",
-                existing.getActiveKeyId(),
-                retiredIds
-            );
+            Set<String> retiredIds = existing.findRetireableKeyIds(cutoffDeactivationMillis);
+            if (retiredIds.isEmpty()) {
+                return Tuple.tuple(clusterState, null);
+            }
+            String activeKeyId = existing.getActiveKeyId();
+            Map<String, PrimaryEncryptionKeyMetadata.KeyEntry> retained = new HashMap<>(existing.getEntries());
+            retained.keySet().removeAll(retiredIds);
+            PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(retained, activeKeyId);
+            logger.info("primary encryption key retire: retained active key [{}], retired keys {}", activeKeyId, new TreeSet<>(retiredIds));
             return Tuple.tuple(putMetadata(clusterState, projectState, metadata), null);
         }
 

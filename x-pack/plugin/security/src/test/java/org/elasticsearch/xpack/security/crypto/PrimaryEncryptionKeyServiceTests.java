@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.crypto.KeyRotationHandler;
 import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata;
 import org.mockito.ArgumentCaptor;
@@ -50,6 +51,7 @@ public class PrimaryEncryptionKeyServiceTests extends ESTestCase {
     private ClusterService mockClusterService(MasterServiceTaskQueue<ClusterStateTaskListener> taskQueue) {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.createTaskQueue(anyString(), any(), any())).thenReturn(taskQueue);
+        when(clusterService.threadPool()).thenReturn(mock(ThreadPool.class));
         return clusterService;
     }
 
@@ -63,7 +65,7 @@ public class PrimaryEncryptionKeyServiceTests extends ESTestCase {
         byte[] keyBytes = new byte[32];
         random().nextBytes(keyBytes);
         String keyId = PrimaryEncryptionKeyMetadata.generateKeyId();
-        return new PrimaryEncryptionKeyMetadata(Map.of(keyId, keyBytes), keyId);
+        return new PrimaryEncryptionKeyMetadata(Map.of(keyId, new PrimaryEncryptionKeyMetadata.KeyEntry(keyBytes, 0L)), keyId);
     }
 
     private static DiscoveryNodes masterNodes(boolean isLocalMaster) {

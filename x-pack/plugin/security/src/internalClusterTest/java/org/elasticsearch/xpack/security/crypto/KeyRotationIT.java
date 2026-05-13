@@ -12,15 +12,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.crypto.EncryptedData;
 import org.elasticsearch.xpack.core.crypto.EncryptionService;
 import org.elasticsearch.xpack.core.crypto.KeyRotationHandler;
 import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata;
-import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata.RotationState;
 import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -73,14 +72,15 @@ public class KeyRotationIT extends SecurityIntegTestCase {
     }
 
     /**
-     * Registers a {@link TestHandler} on every node, sharing a single {@link TestControlState} across them, so the
-     * handler that runs on whichever node is currently master observes/mutates the same state from the test thread.
+     * Registers a {@link TestHandler} on every node, sharing a single {@link TestControlState} across them, so the handler that runs on
+     * whichever node is currently master observes/mutates the same state from the test thread.
      */
     private TestControlState registerHandlerOnAllNodes(String name) {
         final TestControlState state = new TestControlState();
         for (String nodeName : internalCluster().getNodeNames()) {
             EncryptionService service = internalCluster().getInstance(EncryptionService.class, nodeName);
-            service.registerKeyRotationHandler(new TestHandler(name, service, state));
+            ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
+            service.registerKeyRotationHandler(new TestHandler(name, service, threadPool, state));
         }
         return state;
     }
@@ -92,125 +92,45 @@ public class KeyRotationIT extends SecurityIntegTestCase {
 
     public void testRotationCycleWithNoHandlers() throws Exception {
         String originalKeyId = metadataOnMaster().getActiveKeyId();
-
+        // With no handlers registered, ticks rotate the active key on each rotation_interval and retire any non-active key
+        // older than the grace window (10 * check_interval). The original install key eventually ages past grace and is dropped.
         assertBusy(() -> {
             PrimaryEncryptionKeyMetadata m = metadataOnMaster();
             assertThat(m, notNullValue());
             assertThat("active key id should rotate", m.getActiveKeyId(), not(equalTo(originalKeyId)));
-            assertThat("rotation should complete", m.getRotationState(), equalTo(RotationState.STABLE));
-            assertThat("only the active key should remain after retire", m.getKeys().keySet(), equalTo(Set.of(m.getActiveKeyId())));
         }, 30, TimeUnit.SECONDS);
-    }
-
-    public void testHandlerIsInvokedAndDataIsReEncrypted() throws Exception {
-        TestControlState state = registerHandlerOnAllNodes("peart");
-        seedBlob(state, "2112");
-        String initialKeyId = state.blob.get().keyId();
-
         assertBusy(() -> {
             PrimaryEncryptionKeyMetadata m = metadataOnMaster();
-            assertThat(m, notNullValue());
-            assertThat(m.getRotationState(), equalTo(RotationState.STABLE));
-            assertThat("only the active key should remain", m.getKeys().keySet(), equalTo(Set.of(m.getActiveKeyId())));
-            assertThat("blob should be re-encrypted under the new key", state.blob.get().keyId(), not(equalTo(initialKeyId)));
-            assertThat(
-                "handler observed the active key id matching metadata",
-                state.observedActiveKeyId.get(),
-                equalTo(m.getActiveKeyId())
-            );
-        }, 30, TimeUnit.SECONDS);
-
-        byte[] decrypted = masterEncryptionService().decrypt(state.blob.get());
-        assertEquals("2112", new String(decrypted, StandardCharsets.UTF_8));
-    }
-
-    public void testRotationStallsWhenHandlerReportsFailure() throws Exception {
-        TestControlState state = registerHandlerOnAllNodes("geddy");
-        state.failMode = TestFailModeTest.ON_FAILURE;
-        seedBlob(state, "moving pictures");
-
-        // A failing handler is invoked at least twice (proving the coordinator retries) and rotation does not retire.
-        assertBusy(() -> {
-            assertThat(metadataOnMaster().getRotationState(), equalTo(RotationState.ROTATING));
-            assertThat(state.callCount.get(), greaterThanOrEqualTo(2));
-        }, 30, TimeUnit.SECONDS);
-        // Old key is still present because retire is gated on handler success.
-        assertThat(metadataOnMaster().getKeys().size(), greaterThanOrEqualTo(2));
-
-        state.failMode = TestFailModeTest.OK;
-        assertBusy(() -> {
-            PrimaryEncryptionKeyMetadata m = metadataOnMaster();
-            assertThat(m.getRotationState(), equalTo(RotationState.STABLE));
-            assertThat(m.getKeys().keySet(), equalTo(Set.of(m.getActiveKeyId())));
-            assertThat(state.blob.get().keyId(), equalTo(m.getActiveKeyId()));
-        }, 30, TimeUnit.SECONDS);
-    }
-
-    public void testRotationContinuesWhenHandlerThrowsSynchronously() throws Exception {
-        TestControlState state = registerHandlerOnAllNodes("lifeson");
-        state.failMode = TestFailModeTest.THROW;
-        seedBlob(state, "clockwork angels");
-
-        assertBusy(() -> {
-            assertThat(metadataOnMaster().getRotationState(), equalTo(RotationState.ROTATING));
-            // Keep failing on every tick, should reach call count 2 after a couple of seconds
-            assertThat(state.callCount.get(), greaterThanOrEqualTo(2));
-        }, 30, TimeUnit.SECONDS);
-
-        state.failMode = TestFailModeTest.OK;
-        assertBusy(() -> {
-            PrimaryEncryptionKeyMetadata m = metadataOnMaster();
-            assertThat(m.getRotationState(), equalTo(RotationState.STABLE));
-            assertThat(m.getKeys().keySet(), equalTo(Set.of(m.getActiveKeyId())));
-            assertThat(state.blob.get().keyId(), equalTo(m.getActiveKeyId()));
-        }, 30, TimeUnit.SECONDS);
+            assertThat("the original install key should eventually be retired", m.getEntries().keySet(), not(hasItem(originalKeyId)));
+        }, 60, TimeUnit.SECONDS);
     }
 
     public void testRotationCompletesWithMultipleHandlers() throws Exception {
-        TestControlState controlState1 = registerHandlerOnAllNodes("alex");
-        TestControlState controlState2 = registerHandlerOnAllNodes("limelight");
-        seedBlob(controlState1, "alex-data");
-        seedBlob(controlState2, "limelight-data");
+        TestControlState alpha = registerHandlerOnAllNodes("alex");
+        TestControlState beta = registerHandlerOnAllNodes("limelight");
+        seedBlob(alpha, "alex-data");
+        seedBlob(beta, "limelight-data");
         String initialKeyId = metadataOnMaster().getActiveKeyId();
 
+        // Both handlers' data eventually moves off the initial key and onto a still-live key in metadata.
         assertBusy(() -> {
             PrimaryEncryptionKeyMetadata m = metadataOnMaster();
-            assertThat(m.getRotationState(), equalTo(RotationState.STABLE));
             assertThat("active key should have rotated", m.getActiveKeyId(), not(equalTo(initialKeyId)));
-            assertThat("the previous active key should be retired", m.getKeys().keySet(), not(hasItem(initialKeyId)));
-            assertThat("only the new active key should remain", m.getKeys().keySet(), equalTo(Set.of(m.getActiveKeyId())));
-            assertThat("controlState1 was invoked", controlState1.callCount.get(), greaterThanOrEqualTo(1));
-            assertThat("controlState2 was invoked", controlState2.callCount.get(), greaterThanOrEqualTo(1));
-            assertThat(controlState1.blob.get().keyId(), equalTo(m.getActiveKeyId()));
-            assertThat(controlState2.blob.get().keyId(), equalTo(m.getActiveKeyId()));
+            assertThat("alpha handler invoked", alpha.callCount.get(), greaterThanOrEqualTo(1));
+            assertThat("beta handler invoked", beta.callCount.get(), greaterThanOrEqualTo(1));
+            assertThat("alpha blob re-encrypted off initial", alpha.blob.get().keyId(), not(equalTo(initialKeyId)));
+            assertThat("beta blob re-encrypted off initial", beta.blob.get().keyId(), not(equalTo(initialKeyId)));
+            assertThat("alpha blob key still present", m.getEntries().keySet(), hasItem(alpha.blob.get().keyId()));
+            assertThat("beta blob key still present", m.getEntries().keySet(), hasItem(beta.blob.get().keyId()));
         }, 30, TimeUnit.SECONDS);
-    }
 
-    public void testMultipleHandlersOneFailureStallsRotation() throws Exception {
-        TestControlState controlState1 = registerHandlerOnAllNodes("neil");
-        TestControlState controlState2 = registerHandlerOnAllNodes("lee");
-        controlState2.failMode = TestFailModeTest.ON_FAILURE;
-        seedBlob(controlState1, "neil-data");
-        seedBlob(controlState2, "lee-data");
-
-        assertBusy(() -> {
-            assertThat(metadataOnMaster().getRotationState(), equalTo(RotationState.ROTATING));
-            assertThat(controlState2.callCount.get(), greaterThanOrEqualTo(2));
-        }, 30, TimeUnit.SECONDS);
-        assertThat(metadataOnMaster().getKeys().size(), equalTo(2));
-
-        controlState2.failMode = TestFailModeTest.OK;
-        assertBusy(() -> {
-            PrimaryEncryptionKeyMetadata m = metadataOnMaster();
-            assertThat(m.getRotationState(), equalTo(RotationState.STABLE));
-            assertThat(m.getKeys().keySet(), equalTo(Set.of(m.getActiveKeyId())));
-            assertThat(controlState1.blob.get().keyId(), equalTo(m.getActiveKeyId()));
-            assertThat(controlState2.blob.get().keyId(), equalTo(m.getActiveKeyId()));
-            assertThat(metadataOnMaster().getKeys().size(), equalTo(1));
-        }, 30, TimeUnit.SECONDS);
+        // End-to-end round-trip: re-encrypted blobs still decrypt back to the original plaintext.
+        assertEquals("alex-data", new String(masterEncryptionService().decrypt(alpha.blob.get()), StandardCharsets.UTF_8));
+        assertEquals("limelight-data", new String(masterEncryptionService().decrypt(beta.blob.get()), StandardCharsets.UTF_8));
     }
 
     public void testConsecutiveRotations() throws Exception {
+        // Rotation cadence honors rotation_interval exactly; the grace window for retire does NOT block the next rotation.
         TestControlState state = registerHandlerOnAllNodes("pert");
         seedBlob(state, "freewill");
         String initialKeyId = metadataOnMaster().getActiveKeyId();
@@ -222,7 +142,6 @@ public class KeyRotationIT extends SecurityIntegTestCase {
             firstRotatedKeyId.set(activeKeyId);
         }, 30, TimeUnit.SECONDS);
 
-        // A second rotation cycle must produce yet another distinct active key id.
         assertBusy(() -> {
             String activeKeyId = metadataOnMaster().getActiveKeyId();
             assertThat("second rotation should advance active key id beyond initial", activeKeyId, not(equalTo(initialKeyId)));
@@ -240,38 +159,30 @@ public class KeyRotationIT extends SecurityIntegTestCase {
         seedBlob(state, "tom sawyer");
         String preRotationKeyId = state.blob.get().keyId();
 
-        // Wait for rotation to begin and the original master's handler to be invoked at least once
-        // (it is now blocked on the release latch, pinning the cluster in ROTATING).
+        // Wait for rotation to begin and the original master's handler to be invoked at least once (it is now blocked on the latch).
         assertBusy(() -> {
-            assertThat(metadataOnMaster().getRotationState(), equalTo(RotationState.ROTATING));
+            assertThat("multiple keys should be present mid-rotation", metadataOnMaster().getEntries().size(), greaterThanOrEqualTo(2));
             assertThat(state.callCount.get(), greaterThanOrEqualTo(1));
         }, 30, TimeUnit.SECONDS);
 
-        // The mid-rotation active key id was chosen by the original master's BeginRotation. The cycle
-        // must complete with this same key id even after the master changes.
         String midRotationKeyId = metadataOnMaster().getActiveKeyId();
         assertThat(midRotationKeyId, not(equalTo(preRotationKeyId)));
 
         internalCluster().stopCurrentMasterNode();
         ensureGreen();
 
-        // The new master's coordinator picks up the ROTATING state and invokes the handler on its first tick.
+        // The new master's coordinator continues the scrub on its first tick.
         assertBusy(() -> assertThat(state.callCount.get(), greaterThanOrEqualTo(2)), 30, TimeUnit.SECONDS);
-        // Cluster state is still ROTATING — the (now new) handler invocation is blocked on the latch.
-        assertThat(metadataOnMaster().getRotationState(), equalTo(RotationState.ROTATING));
-        assertThat(metadataOnMaster().getActiveKeyId(), equalTo(midRotationKeyId));
 
-        // Release the handler. Rotation retires and returns to STABLE retaining the mid-rotation key.
+        // Release the handler. Eventually the blob is re-encrypted off the original pre-rotation key onto some live key.
         state.releaseLatch.countDown();
         assertBusy(() -> {
-            PrimaryEncryptionKeyMetadata m = metadataOnMaster();
-            assertThat(m.getRotationState(), equalTo(RotationState.STABLE));
-            assertThat(m.getActiveKeyId(), equalTo(midRotationKeyId));
-            assertThat(m.getKeys().keySet(), equalTo(Set.of(m.getActiveKeyId())));
+            assertThat("blob re-encrypted off pre-rotation key", state.blob.get().keyId(), not(equalTo(preRotationKeyId)));
+            assertThat("blob's key still present in metadata", metadataOnMaster().getEntries().keySet(), hasItem(state.blob.get().keyId()));
         }, 30, TimeUnit.SECONDS);
     }
 
-    private enum TestFailModeTest {
+    private enum TestFailMode {
         OK,
         ON_FAILURE,
         THROW
@@ -282,13 +193,14 @@ public class KeyRotationIT extends SecurityIntegTestCase {
         final AtomicReference<EncryptedData> blob = new AtomicReference<>();
         final AtomicReference<String> observedActiveKeyId = new AtomicReference<>();
         final CountDownLatch releaseLatch = new CountDownLatch(1);
-        volatile TestFailModeTest failMode = TestFailModeTest.OK;
+        volatile TestFailMode failMode = TestFailMode.OK;
         // When true, the OK arm of the handler awaits releaseLatch before completing the listener.
-        // Used by the master-failover test to pin the cluster in ROTATING.
         volatile boolean blockUntilReleased = false;
     }
 
-    private record TestHandler(String name, EncryptionService service, TestControlState state) implements KeyRotationHandler {
+    private record TestHandler(String name, EncryptionService service, ThreadPool threadPool, TestControlState state)
+        implements
+            KeyRotationHandler {
 
         @Override
         public void reEncrypt(String activeKeyId, ActionListener<Void> listener) {
@@ -304,18 +216,22 @@ public class KeyRotationIT extends SecurityIntegTestCase {
                         state.blob.set(service.encrypt(plaintext));
                     }
                     if (state.blockUntilReleased) {
-                        try {
-                            if (state.releaseLatch.await(60, TimeUnit.SECONDS) == false) {
-                                listener.onFailure(new RuntimeException("release latch timed out"));
-                                return;
+                        // Complete the listener async, after the latch is released
+                        threadPool.generic().execute(() -> {
+                            try {
+                                if (state.releaseLatch.await(60, TimeUnit.SECONDS) == false) {
+                                    listener.onFailure(new RuntimeException("release latch timed out"));
+                                } else {
+                                    listener.onResponse(null);
+                                }
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                                listener.onFailure(e);
                             }
-                        } catch (InterruptedException e) {
-                            Thread.currentThread().interrupt();
-                            listener.onFailure(e);
-                            return;
-                        }
+                        });
+                    } else {
+                        listener.onResponse(null);
                     }
-                    listener.onResponse(null);
                 }
             }
         }

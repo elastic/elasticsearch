@@ -83,8 +83,10 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.codec.TrackingPostingsInMemoryBytesCodec;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -106,6 +108,7 @@ import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -328,10 +331,12 @@ public class InternalEngine extends Engine {
             this.internalReaderManager.addListener(lastRefreshedCheckpointListener);
             maxSeqNoOfUpdatesOrDeletes = new AtomicLong(SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translog.getMaxSeqNo()));
             if (localCheckpointTracker.getPersistedCheckpoint() < localCheckpointTracker.getMaxSeqNo()) {
+                IdLoader idLoader = IdLoader.create(engineConfig.getIndexSettings(), engineConfig.getMapperService().mappingLookup());
                 try (Searcher searcher = acquireSearcher("restore_version_map_and_checkpoint_tracker", SearcherScope.INTERNAL)) {
                     restoreVersionMapAndCheckpointTracker(
                         Lucene.wrapAllDocsLive(searcher.getDirectoryReader()),
-                        engineConfig.getIndexSettings().getIndexVersionCreated()
+                        engineConfig.getIndexSettings().getIndexVersionCreated(),
+                        idLoader
                     );
                 } catch (IOException e) {
                     throw new EngineCreationFailureException(
@@ -3874,7 +3879,7 @@ public class InternalEngine extends Engine {
      * after the local checkpoint in the safe commit. This step ensures the live version map and checkpoint tracker
      * are in sync with the Lucene commit.
      */
-    private void restoreVersionMapAndCheckpointTracker(DirectoryReader directoryReader, IndexVersion indexVersionCreated)
+    private void restoreVersionMapAndCheckpointTracker(DirectoryReader directoryReader, IndexVersion indexVersionCreated, IdLoader idLoader)
         throws IOException {
         final IndexSearcher searcher = new IndexSearcher(directoryReader);
         searcher.setQueryCache(null);
@@ -3889,13 +3894,15 @@ public class InternalEngine extends Engine {
             .add(Queries.newNonNestedFilter(indexVersionCreated), BooleanClause.Occur.MUST) // exclude non-root nested documents
             .build();
         final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+        final StoredFieldLoader storedFieldLoader = StoredFieldLoader.fromSpecSequential(new StoredFieldsSpec(false, true, Set.of("_id")));
         for (LeafReaderContext leaf : directoryReader.leaves()) {
             final Scorer scorer = weight.scorer(leaf);
             if (scorer == null) {
                 continue;
             }
             final CombinedDocValues dv = new CombinedDocValues(leaf.reader());
-            final IdStoredFieldLoader idFieldLoader = new IdStoredFieldLoader(leaf.reader());
+            var leafStoredFieldLoader = storedFieldLoader.getLoader(leaf, null);
+            IdLoader.Leaf leafIdLoader = idLoader.leaf(leafStoredFieldLoader, leaf.reader(), null);
             final DocIdSetIterator iterator = scorer.iterator();
             int docId;
             while ((docId = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
@@ -3903,7 +3910,7 @@ public class InternalEngine extends Engine {
                 final long seqNo = dv.docSeqNo(docId);
                 localCheckpointTracker.markSeqNoAsProcessed(seqNo);
                 localCheckpointTracker.markSeqNoAsPersisted(seqNo);
-                String id = idFieldLoader.id(docId);
+                String id = leafIdLoader.getId(docId);
                 if (id == null) {
                     assert dv.isTombstone(docId);
                     continue;

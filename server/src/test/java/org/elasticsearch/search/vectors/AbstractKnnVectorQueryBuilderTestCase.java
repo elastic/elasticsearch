@@ -17,6 +17,7 @@ import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
@@ -24,6 +25,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitsRewriteContext;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -649,6 +651,49 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         List<QueryBuilder> newFilters = randomList(5, () -> RandomQueryBuilder.createQuery(random()));
         knnQueryBuilder.setFilterQueries(newFilters);
         assertThat(knnQueryBuilder.filterQueries(), equalTo(newFilters));
+    }
+
+    /**
+     * KNN clauses have no field-type-side circuit-breaker accounting today; the only request-breaker
+     * charge they incur is the per-leaf cost recorded by {@link LeafQueryBuilder} (which falls back
+     * to a shallow size plus a constant floor for non-{@link org.apache.lucene.util.Accountable}
+     * Lucene queries — KNN queries are in that category). This test pins down two invariants that
+     * jointly prove the leaf path is the source of the charge: the breaker delta is positive, and
+     * it matches the value accumulated in {@code SearchExecutionContext#getQueryConstructionMemoryUsed}.
+     */
+    public void testKnnClauseChargesPerClauseConstant() throws IOException {
+        CircuitBreaker cb = createCircuitBreakerService();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
+        try {
+            long before = cb.getUsed();
+            createKnnVectorQueryBuilder(VECTOR_FIELD, 5, 50, null, null, null).toQuery(context);
+            long delta = cb.getUsed() - before;
+
+            assertTrue("knn clause must charge a non-zero per-leaf cost", delta > 0L);
+            assertEquals(
+                "knn clauses charge only via LeafQueryBuilder — no field-type-side dynamic estimate exists for KNN today",
+                delta,
+                context.getQueryConstructionMemoryUsed()
+            );
+        } finally {
+            context.releaseQueryConstructionMemory();
+        }
+    }
+
+    /**
+     * Stacking many KNN clauses inside a {@code bool} fan-out cumulatively trips the request
+     * circuit breaker before {@link org.apache.lucene.search.IndexSearcher#getMaxClauseCount()}
+     * would. This is precisely the protection the per-leaf charge in {@link LeafQueryBuilder}
+     * provides for query types that have no field-type-side accounting.
+     */
+    public void testManyKnnClausesTripBreakerBeforeMaxClauseCap() {
+        assertCircuitBreakerTripsOnQueryConstruction("1kb", () -> {
+            BoolQueryBuilder boolQuery = new BoolQueryBuilder();
+            for (int i = 0; i < 50; i++) {
+                boolQuery.should(createKnnVectorQueryBuilder(VECTOR_FIELD, 5, 50, null, null, null));
+            }
+            return boolQuery;
+        });
     }
 
     protected String encodeToBase64(float[] vector) {

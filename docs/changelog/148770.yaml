@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 148770
+summary: Default Prometheus discovery APIs to metrics-*
+type: bug

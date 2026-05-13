@@ -750,7 +750,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
      * The latter is a way to do only a can-match rather than all search phases.
      */
     public void testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode() throws Exception {
-        testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode(false);
+        testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode(IndexMode.STANDARD);
     }
 
     /**
@@ -759,10 +759,23 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
      * enabled and therefore the timestamp field is stored with a sparse index.
      */
     public void testLogsDBSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode() throws Exception {
-        testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode(true);
+        testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode(IndexMode.LOGSDB);
     }
 
-    public void testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode(boolean logsMode) throws Exception {
+    /**
+     * Can match against searchable snapshots is tested via both the Search API and the SearchShards (transport-only) API.
+     * The latter is a way to do only a can-match rather than all search phases.  Tests the case where columnar_logsdb mode is
+     * enabled and therefore the timestamp field is stored with a sparse index.
+     */
+    public void testColumnarLogsDBSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode() throws Exception {
+        // When the columnar feature flag is enabled, randomly exercise COLUMNAR_LOGSDB; fall back to LOGSDB otherwise.
+        // assumeTrue cannot be used here because the cluster is started before the test body runs, and a mid-test skip
+        // leaves the cluster in a state where @After cleanup cannot obtain a client.
+        IndexMode mode = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean() ? IndexMode.COLUMNAR_LOGSDB : IndexMode.LOGSDB;
+        testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode(mode);
+    }
+
+    public void testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode(IndexMode indexMode) throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         final String dataNodeHoldingRegularIndex = internalCluster().startDataOnlyNode();
@@ -775,7 +788,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             indexWithinSearchRange,
             indexWithinSearchRangeShardCount,
             Settings.builder()
-                .put(IndexSettings.MODE.getKey(), logsMode ? IndexMode.LOGSDB.getName() : IndexMode.STANDARD.getName())
+                .put(IndexSettings.MODE.getKey(), indexMode.getName())
                 .put(INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), dataNodeHoldingRegularIndex)
                 .build()
         );

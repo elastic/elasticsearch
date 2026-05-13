@@ -43,10 +43,12 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.plan.physical.BulkLookupMvFilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -272,6 +274,8 @@ public class LookupExecutionPlanner {
                 queryListFromPlanFactory,
                 lookupSource
             );
+        } else if (node instanceof BulkLookupMvFilterExec bulkFilterExec) {
+            return planBulkLookupMvFilterExec(bulkFilterExec, source, foldCtx);
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
             return planFieldExtractExec(plannerSettings, fieldExtractExec, source);
         } else if (node instanceof EvalExec evalExec) {
@@ -427,6 +431,14 @@ public class LookupExecutionPlanner {
     private PhysicalOperation planFilterExec(FilterExec filterExec, PhysicalOperation source, FoldContext foldCtx) {
         return source.with(
             new FilterOperator.FilterOperatorFactory(EvalMapper.toEvaluator(foldCtx, filterExec.condition(), source.layout())),
+            source.layout()
+        );
+    }
+
+    private PhysicalOperation planBulkLookupMvFilterExec(BulkLookupMvFilterExec bulkfilterExec, PhysicalOperation source, FoldContext foldCtx) {
+        // XXX bulk lookup mv filter operator factory
+        return source.with(
+            new FilterOperator.FilterOperatorFactory(EvalMapper.toEvaluator(foldCtx, Literal.TRUE, source.layout())),
             source.layout()
         );
     }

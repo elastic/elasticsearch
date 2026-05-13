@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
+import org.elasticsearch.xpack.esql.plan.physical.BulkLookupMvFilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LeafExec;
 import org.elasticsearch.xpack.esql.plan.physical.ParameterizedQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -48,24 +49,28 @@ public class LuceneBulkLookup extends PhysicalOptimizerRules.OptimizerRule<LeafE
 
             Expression expr = plan.joinOnConditions();
 
-	    /*
+/*
             List<MatchConfig> matchFields = plan.matchFields();
             if (expr == null && matchFields != null && matchFields.size() == 1) {
                 MatchConfig matchField = plan.matchFields().get(0);
                 if (matchField.type() == DataType.KEYWORD) {
                     logger.debug("Bulk lookup on KEYWORD field {}", matchField.fieldName());
-                    return new ParameterizedQueryExec(
+                    return new BulkLookupMvFilterExec(
                         plan.source(),
-                        plan.output(),
-                        plan.matchFields(),
-                        plan.joinOnConditions(),
-                        plan.query(),
-                        plan.emptyResult(),
+                        new ParameterizedQueryExec(
+                            plan.source(),
+                            plan.output(),
+                            plan.matchFields(),
+                            plan.joinOnConditions(),
+                            plan.query(),
+                            plan.emptyResult(),
+                            matchField.fieldName()
+                        ),
                         matchField.fieldName()
                     );
                 }
             }
-	    */
+*/
 
             if (expr instanceof EsqlBinaryComparison binaryComparison
                 && binaryComparison.left() instanceof Attribute leftAttribute
@@ -73,14 +78,19 @@ public class LuceneBulkLookup extends PhysicalOptimizerRules.OptimizerRule<LeafE
                 && leftAttribute.dataType() == DataType.KEYWORD
                 && rightAttribute.dataType() == DataType.KEYWORD) {
                 logger.debug("Bulk lookup on KEYWORD expression {} == {}", leftAttribute.name(), rightAttribute.name());
-                return new ParameterizedQueryExec(
+
+                return new BulkLookupMvFilterExec(
                     plan.source(),
-                    plan.output(),
-                    plan.matchFields(),
-                    plan.joinOnConditions(),
-                    plan.query(),
-                    plan.emptyResult(),
-                    leftAttribute,
+                    new ParameterizedQueryExec(
+                        plan.source(),
+                        plan.output(),
+                        plan.matchFields(),
+                        plan.joinOnConditions(),
+                        plan.query(),
+                        plan.emptyResult(),
+			            leftAttribute,
+                        rightAttribute
+                    ),
                     rightAttribute
                 );
             }

@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.physical.BulkLookupMvFilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
@@ -140,6 +141,11 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         ProjectExec resultProject = as(plan, ProjectExec.class);
         EvalExec evalExec = as(resultProject.child(), EvalExec.class);
         FieldExtractExec extract = as(evalExec.child(), FieldExtractExec.class);
+        /*
+after 'LOOKUP JOIN ON field' is ready
+        BulkLookupMvFilterExec bulkExec = as(extract.child(), BulkLookupMvFilterExec.class);
+        FieldExtractExec extract2 = as(bulkExec.child(), FieldExtractExec.class);
+        */
         ParameterizedQueryExec paramQuery = as(extract.child(), ParameterizedQueryExec.class);
 
         assertNotNull("Expected filter pushed through EvalExec to ParameterizedQueryExec", paramQuery.query());

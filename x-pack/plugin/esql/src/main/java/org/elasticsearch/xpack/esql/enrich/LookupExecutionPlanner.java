@@ -8,14 +8,12 @@
 package org.elasticsearch.xpack.esql.enrich;
 
 import org.apache.lucene.search.Query;
-import org.checkerframework.checker.nullness.qual.NonNull;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.ShardContext;
@@ -318,7 +316,9 @@ public class LookupExecutionPlanner {
             parameterizedQueryExec.query(),
             lookupSource,
             queryListFromPlanFactory,
-            parameterizedQueryExec.emptyResult()
+            parameterizedQueryExec.emptyResult(),
+            parameterizedQueryExec.bulkLookupLeft(),
+            parameterizedQueryExec.bulkLookupRight()
         );
 
         return PhysicalOperation.fromSource(sourceFactory, layout).with(enrichQueryFactory, layout);
@@ -498,7 +498,9 @@ public class LookupExecutionPlanner {
         @Nullable QueryBuilder query,
         Source planSource,
         QueryListFromPlanFactory queryListFromPlanFactory,
-        boolean emptyResult
+        boolean emptyResult,
+        Attribute bulkLookupLeft,
+        Attribute bulkLookupRight
     ) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
@@ -509,14 +511,18 @@ public class LookupExecutionPlanner {
 
             Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, planSource);
             QueryBuilder rewrittenQuery = rewriteQuery(query, searchExecutionContext);
-            LookupEnrichQueryGenerator queryList = queryListFromPlanFactory.create(
-                matchFields,
-                joinOnConditions,
-                rewrittenQuery,
-                searchExecutionContext,
-                lookupDriverContext.aliasFilter(),
-                warnings
-            );
+
+            LookupEnrichQueryGenerator queryList = getBulkKeywordQueryGenerator(warnings);
+            if (queryList == null) {
+                queryList = queryListFromPlanFactory.create(
+                    matchFields,
+                    joinOnConditions,
+                    rewrittenQuery,
+                    searchExecutionContext,
+                    lookupDriverContext.aliasFilter(),
+                    warnings
+                );
+            }
 
             return new LookupQueryOperator(
                 driverContext.blockFactory(),
@@ -530,11 +536,66 @@ public class LookupExecutionPlanner {
             );
         }
 
+        @Nullable
+        private LookupEnrichQueryGenerator getBulkKeywordQueryGenerator(Warnings warnings) {
+            if (bulkLookupLeft != null) {
+                int matchChannelOffset = -1;
+                for (int i = 0; i < matchFields.size(); i++) {
+                    if (matchFields.get(i).fieldName().equals(bulkLookupLeft.name())) {
+                        matchChannelOffset = i;
+                        break;
+                    }
+                }
+                if (matchChannelOffset != -1) {
+                    return new BulkLookupQueryGenerator(
+                        bulkLookupRight.name(),
+                        matchChannelOffset,
+                        warnings
+                    );
+                }
+            }
+            return null;
+        }
+
         @Override
         public String describe() {
-            return "LookupQueryOperator[maxPageSize=" + maxPageSize + ", emptyResult=" + emptyResult + "]";
+            return "LookupQueryOperator[maxPageSize="
+                + maxPageSize
+                + ", emptyResult="
+                + emptyResult
+                + ", bulkLookupLeft="
+                + bulkLookupLeft
+                + ", bulkLookupRight="
+                + bulkLookupRight
+                + "]";
         }
     }
+
+
+    /**
+     * LookupEnrichQueryGenerator used when BulkKeywordLookup optimization applies.
+     */
+    private record BulkLookupQueryGenerator(
+        String rightFieldName,
+        int matchChannelOffset,
+        Warnings warnings
+    ) implements LookupEnrichQueryGenerator {
+        @Override
+        public Query getQuery(int position, Page inputPage, SearchExecutionContext searchExecutionContext) {
+            throw new UnsupportedOperationException("BulkLookupQueryGenerator does not support getQuery");
+        }
+
+        @Override
+        public int getPositionCount(Page inputPage) {
+            return inputPage.getPositionCount();
+        }
+
+        @Override
+        public BulkKeywordLookup getBulkKeywordLookup() {
+            return new BulkKeywordLookup(rightFieldName, matchChannelOffset, -1, warnings);
+        }
+    }
+
 
     private static QueryBuilder rewriteQuery(@Nullable QueryBuilder query, SearchExecutionContext searchExecutionContext) {
         if (query == null) {

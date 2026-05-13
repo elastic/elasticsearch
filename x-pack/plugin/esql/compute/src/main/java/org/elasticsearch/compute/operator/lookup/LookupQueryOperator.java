@@ -153,44 +153,13 @@ public final class LookupQueryOperator implements Operator {
             if (indexReader.leaves().size() > 1) {
                 segmentsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
             }
-            int totalMatches = 0;
-            do {
-                Query query;
-                try {
-                    query = nextQuery();
-                    if (query == null) {
-                        break;
-                    }
-                    query = searcher.rewrite(new ConstantScoreQuery(query));
-                } catch (Exception e) {
-                    warnings.registerException(e);
-                    continue;
-                }
-                final var weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
-                if (weight == null) {
-                    continue;
-                }
-                for (LeafReaderContext leaf : indexReader.leaves()) {
-                    var scorer = weight.bulkScorer(leaf);
-                    if (scorer == null) {
-                        continue;
-                    }
-                    final DocCollector collector = new DocCollector(docsBuilder);
-                    scorer.score(collector, leaf.reader().getLiveDocs(), 0, DocIdSetIterator.NO_MORE_DOCS);
-                    int matches = collector.matches;
 
-                    if (segmentsBuilder != null) {
-                        for (int i = 0; i < matches; i++) {
-                            segmentsBuilder.appendInt(leaf.ord);
-                        }
-                    }
-                    // Use current queryPosition (nextQuery increments it before returning query)
-                    for (int i = 0; i < matches; i++) {
-                        positionsBuilder.appendInt(queryPosition);
-                    }
-                    totalMatches += matches;
-                }
-            } while (totalMatches < maxPageSize && queryPosition < positionCount);
+	        // Read matches for current position
+            BulkKeywordLookup bulk = queryList.getBulkKeywordLookup();
+            int totalMatches = switch (bulk) {
+                case null -> getMatches(docsBuilder, segmentsBuilder, positionsBuilder, positionCount);
+                default   -> getBulkMatches(bulk, docsBuilder, segmentsBuilder, positionsBuilder, positionCount);
+            };
 
             if (totalMatches > 0) {
                 return buildPage(totalMatches, positionsBuilder, segmentsBuilder, docsBuilder);
@@ -209,6 +178,84 @@ public final class LookupQueryOperator implements Operator {
         } finally {
             Releasables.close(docsBuilder, segmentsBuilder, positionsBuilder);
         }
+    }
+
+    private int getMatches(
+        IntVector.Builder docsBuilder,
+        IntVector.Builder segmentsBuilder,
+        IntVector.Builder positionsBuilder,
+        int positionCount
+    ) throws IOException {
+        int totalMatches = 0;
+        do {
+            Query query;
+            try {
+                query = nextQuery();
+                if (query == null) {
+                    break;
+                }
+                query = searcher.rewrite(new ConstantScoreQuery(query));
+            } catch (Exception e) {
+                warnings.registerException(e);
+                continue;
+            }
+            final var weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+            if (weight == null) {
+                continue;
+            }
+            for (LeafReaderContext leaf : indexReader.leaves()) {
+                var scorer = weight.bulkScorer(leaf);
+                if (scorer == null) {
+                    continue;
+                }
+                final DocCollector collector = new DocCollector(docsBuilder);
+                scorer.score(collector, leaf.reader().getLiveDocs(), 0, DocIdSetIterator.NO_MORE_DOCS);
+                int matches = collector.matches;
+
+                if (segmentsBuilder != null) {
+                    for (int i = 0; i < matches; i++) {
+                        segmentsBuilder.appendInt(leaf.ord);
+                    }
+                }
+                // Use current queryPosition (nextQuery increments it before returning query)
+                for (int i = 0; i < matches; i++) {
+                    positionsBuilder.appendInt(queryPosition);
+                }
+                totalMatches += matches;
+            }
+        } while (totalMatches < maxPageSize && queryPosition < positionCount);
+        return totalMatches;
+    }
+
+    private int getBulkMatches(
+        BulkKeywordLookup bulkKeywordLookup,
+        IntVector.Builder docsBuilder,
+        IntVector.Builder segmentsBuilder,
+        IntVector.Builder positionsBuilder,
+        int positionCount
+    ) throws IOException {
+
+        if (queryPosition < 0) {
+            queryPosition = 0;
+            bulkKeywordLookup.initializeCaches(indexReader);
+        }
+
+        int totalMatches = 0;
+        do {
+            if (queryPosition >= positionCount) break;
+            final int matches = bulkKeywordLookup.processQuery(
+                currentInputPage,
+                queryPosition,
+                indexReader,
+                docsBuilder,
+                segmentsBuilder,
+                positionsBuilder
+            );
+            totalMatches += matches;
+            queryPosition++;
+
+        } while (totalMatches < maxPageSize);
+        return totalMatches;
     }
 
     Page buildPage(int positions, IntVector.Builder positionsBuilder, IntVector.Builder segmentsBuilder, IntVector.Builder docsBuilder) {

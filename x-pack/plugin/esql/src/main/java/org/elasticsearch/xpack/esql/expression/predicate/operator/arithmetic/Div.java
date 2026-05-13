@@ -19,13 +19,9 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.DIV;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 
@@ -60,7 +56,11 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
             DivLongsEvaluator.Factory::new,
             DivUnsignedLongsEvaluator.Factory::new,
             DivDoublesEvaluator.Factory::new,
-            DIV_DENSE_VECTOR_EVALUATOR
+            DIV_DENSE_VECTOR_EVALUATOR,
+            DivIntsByConstantEvaluator.Factory::new,
+            DivLongsByConstantEvaluator.Factory::new,
+            DivDoublesByConstantEvaluator.Factory::new,
+            /* excludeZeroRhs */ true
         );
         this.type = type;
     }
@@ -73,7 +73,11 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
             DivLongsEvaluator.Factory::new,
             DivUnsignedLongsEvaluator.Factory::new,
             DivDoublesEvaluator.Factory::new,
-            DIV_DENSE_VECTOR_EVALUATOR
+            DIV_DENSE_VECTOR_EVALUATOR,
+            DivIntsByConstantEvaluator.Factory::new,
+            DivLongsByConstantEvaluator.Factory::new,
+            DivDoublesByConstantEvaluator.Factory::new,
+            /* excludeZeroRhs */ true
         );
     }
 
@@ -102,66 +106,6 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
     @Override
     public ArithmeticOperationFactory binaryComparisonInverse() {
         return Mul::new;
-    }
-
-    /**
-     * Fast path for a foldable scalar divisor: skip the per-row block fetch
-     * for the right-hand side and bake the divisor into the evaluator via {@code @Fixed}.
-     * This lets the JIT replace the per-row {@code IDIV} with a Granlund-Montgomery
-     * shift+multiply sequence — the same instruction-level win that motivates the
-     * matching fast path in {@link Mod}. Example: {@code EVAL kb = bytes / 1024}.
-     * Falls back to the column-vs-column path for non-foldable, unsigned_long,
-     * zero-valued, or non-numeric divisors — the zero case is kept on the slow path
-     * so that the existing per-row warning / null behavior is preserved instead of
-     * failing the query at plan time.
-     */
-    @Override
-    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        Expression right = right();
-        if (right.foldable() == false) {
-            return super.toEvaluator(toEvaluator);
-        }
-        Object folded = right.fold(toEvaluator.foldCtx());
-        if (folded instanceof Number == false) {
-            return super.toEvaluator(toEvaluator);
-        }
-        Number divisor = (Number) folded;
-        DataType commonType = dataType();
-        if (commonType == INTEGER) {
-            int d = divisor.intValue();
-            if (d == 0) {
-                return super.toEvaluator(toEvaluator);
-            }
-            return new DivIntsByConstantEvaluator.Factory(
-                source(),
-                Cast.cast(source(), left().dataType(), commonType, toEvaluator.apply(left())),
-                d
-            );
-        }
-        if (commonType == LONG) {
-            long d = divisor.longValue();
-            if (d == 0L) {
-                return super.toEvaluator(toEvaluator);
-            }
-            return new DivLongsByConstantEvaluator.Factory(
-                source(),
-                Cast.cast(source(), left().dataType(), commonType, toEvaluator.apply(left())),
-                d
-            );
-        }
-        if (commonType == DOUBLE) {
-            double d = divisor.doubleValue();
-            if (d == 0.0d) {
-                return super.toEvaluator(toEvaluator);
-            }
-            return new DivDoublesByConstantEvaluator.Factory(
-                source(),
-                Cast.cast(source(), left().dataType(), commonType, toEvaluator.apply(left())),
-                d
-            );
-        }
-        // unsigned_long or anything else: stick with the binary evaluator
-        return super.toEvaluator(toEvaluator);
     }
 
     @Evaluator(extraName = "Ints", warnExceptions = { ArithmeticException.class })

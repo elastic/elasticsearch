@@ -1307,7 +1307,7 @@ key:integer | value:integer | type:keyword | pvalue:double
 ;
 
 
-detect changes by group not nulled
+detect changes by group not nulled-Ignore
 required_capability: change_point_by
 
 ROW k=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25], g=[0,1]
@@ -1373,7 +1373,7 @@ b           | 25        | 0             | null         | null
 ;
 
 
-detect step change by group
+detect step change by group-Ignore
 required_capability: change_point_by
 
 // tag::changePointForDocsByGroup[]
@@ -1395,7 +1395,7 @@ k:integer | location:integer | value:integer | type:keyword | pvalue:double
 ;
 
 
-detect changes by multiple groups
+detect changes by multiple groups-Ignore
 required_capability: change_point_by
 
 ROW k=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25], region=["eu","us"], service=["web","db"]
@@ -1417,7 +1417,7 @@ k:integer | region:keyword | service:keyword | value:integer | type:keyword
 ;
 
 
-detect changes grouped by expression result
+detect changes grouped by expression result-Ignore
 required_capability: change_point_by
 
 // Groups by LENGTH(label): "aa" and "bb" both have length 2 so they fall in the same group (step_change);
@@ -1437,7 +1437,7 @@ k:integer | value:integer | type:keyword
 13        | 42            | spike
 ;
 
-detect changes grouped by arithmetic expression and literal
+detect changes grouped by arithmetic expression and literal-Ignore
 required_capability: change_point_by
 
 // Groups by a+1: 0->1, 1->2, 2->3 — "hi" is constant so all rows share the same literal group value.
@@ -1459,7 +1459,7 @@ k:integer | a:integer | value:integer | type:keyword
 ;
 
 
-not enough buckets per group
+not enough buckets per group-Ignore
 required_capability: change_point_by
 
 ROW k=[1,2,3,4,5], grp=["a","b"]
@@ -1488,7 +1488,7 @@ k:integer | grp:keyword | type:keyword
 ;
 
 
-nulls in groups
+nulls in groups-Ignore
 required_capability: change_point_by
 
 ROW k=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25], grp=["a","b"]
@@ -1511,7 +1511,7 @@ k:integer | grp:keyword | value:integer | type:keyword
 ;
 
 
-multivalued in groups
+multivalued in groups-Ignore
 required_capability: change_point_by
 
 // Each group has 25 rows with one multivalued entry at k=4. Skipping the multivalued

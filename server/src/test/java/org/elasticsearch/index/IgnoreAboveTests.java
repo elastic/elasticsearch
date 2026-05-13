@@ -132,6 +132,14 @@ public class IgnoreAboveTests extends ESTestCase {
             Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE,
             Mapper.IgnoreAbove.getIgnoreAboveDefaultValue(IndexMode.LOGSDB, IndexVersions.ENABLE_IGNORE_MALFORMED_LOGSDB)
         );
+        assertEquals(
+            Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE_FOR_LOGSDB_INDICES,
+            Mapper.IgnoreAbove.getIgnoreAboveDefaultValue(IndexMode.COLUMNAR_LOGSDB, IndexVersion.current())
+        );
+        assertEquals(
+            Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE,
+            Mapper.IgnoreAbove.getIgnoreAboveDefaultValue(IndexMode.COLUMNAR_LOGSDB, IndexVersions.ENABLE_IGNORE_MALFORMED_LOGSDB)
+        );
     }
 
 }

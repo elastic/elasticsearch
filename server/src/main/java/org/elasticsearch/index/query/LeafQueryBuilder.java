@@ -11,6 +11,8 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 
@@ -24,9 +26,13 @@ import java.io.IOException;
  */
 public abstract class LeafQueryBuilder<QB extends LeafQueryBuilder<QB>> extends AbstractQueryBuilder<QB> {
 
-    protected LeafQueryBuilder() {
+    /**
+     * Per-clause floor charged to the request circuit breaker for leaf queries that don't
+     * implement {@link Accountable}.
+     */
+    static final long LEAF_BASE_BYTES = 256L;
 
-    }
+    protected LeafQueryBuilder() {}
 
     protected LeafQueryBuilder(StreamInput in) throws IOException {
         super(in);
@@ -36,9 +42,17 @@ public abstract class LeafQueryBuilder<QB extends LeafQueryBuilder<QB>> extends 
     protected final Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor queryVisitor) throws IOException {
         Query query = doToQuery(context);
         if (query != null) {
+            context.addCircuitBreakerMemory(estimateRamBytes(query), "clause:" + getName());
             query.visit(queryVisitor);
         }
         return query;
+    }
+
+    static long estimateRamBytes(Query query) {
+        if (query instanceof Accountable a) {
+            return a.ramBytesUsed();
+        }
+        return RamUsageEstimator.shallowSizeOf(query) + LEAF_BASE_BYTES;
     }
 
     protected abstract Query doToQuery(SearchExecutionContext context) throws IOException;

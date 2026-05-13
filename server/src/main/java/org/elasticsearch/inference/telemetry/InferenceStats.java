@@ -40,13 +40,7 @@ public class InferenceStats {
     public static final String INFERENCE_REQUEST_DURATION = "es.inference.requests.time";
     public static final String INFERENCE_DEPLOYMENT_DURATION = "es.inference.trained_model.deployment.time";
 
-    public static final String SEMANTIC_TEXT_INFERENCE_SOURCE = "semantic_text_bulk";
-
-    // Attribute keys must start with "es_" prefix see org.elasticsearch.telemetry.apm.internal.MetricValidator#validateAttributeKey
-    static final String STACK_VERSION_ATTRIBUTE = "es_stack_version";
-    // Indicates whether the node is a production release (i.e. not a snapshot, alpha, etc.)
-    static final String PRODUCTION_RELEASE_ATTRIBUTE = "es_production_release";
-    static final String ES_PRODUCT_ORIGIN_ATTRIBUTE = "es_product_origin";
+    public static final String SEMANTIC_TEXT_USE_CASE = "semantic_text_bulk";
 
     /**
      * Kibana constructs use-case strings like {@code siem_migrations_<migrationType>} where {@code migrationType} is a free-form
@@ -57,7 +51,7 @@ public class InferenceStats {
     static final String SIEM_MIGRATIONS = "siem_migrations";
 
     /**
-     * Sentinel value recorded for {@link #INFERENCE_SOURCE_ATTRIBUTE} and {@link #ES_PRODUCT_ORIGIN_ATTRIBUTE} when the supplied value is
+     * Sentinel value recorded for {@link #INFERENCE_SOURCE_ATTRIBUTE} and {@link MetricAttributes#ES_PRODUCT_ORIGIN} when the supplied value is
      * not in the corresponding allowlist. Bounds APM attribute cardinality.
      */
     static final String OTHER_VALUE = "other";
@@ -67,7 +61,7 @@ public class InferenceStats {
     /**
      * Allowlist of values recorded for {@link #INFERENCE_SOURCE_ATTRIBUTE}. Any value not in this set (after lowercasing and the
      * {@link #SIEM_MIGRATIONS_PREFIX} collapse) is recorded as {@link #OTHER_VALUE}. Entries are sourced from Elasticsearch's own
-     * callers (e.g. {@link #SEMANTIC_TEXT_INFERENCE_SOURCE}) and from Kibana plugin IDs that travel in
+     * callers (e.g. {@link #SEMANTIC_TEXT_USE_CASE}) and from Kibana plugin IDs that travel in
      * the {@code X-Elastic-Product-Use-Case} header.
      * <b>Internal callers must add their constant here and to the enforcement test. Entries must be lowercase.</b>
      * <p>
@@ -78,7 +72,7 @@ public class InferenceStats {
      */
     @SuppressWarnings("checkstyle:LineLength")
     public static final Set<String> KNOWN_PRODUCT_USE_CASES = Set.of(
-        SEMANTIC_TEXT_INFERENCE_SOURCE,
+        SEMANTIC_TEXT_USE_CASE,
         // Default if no id is specified
         // https://github.com/elastic/kibana/blob/main/x-pack/platform/plugins/shared/inference/server/chat_complete/utils/inference_endpoint_executor.ts#L47
         "inference",
@@ -90,28 +84,6 @@ public class InferenceStats {
         SIEM_MIGRATIONS,
         // https://github.com/elastic/kibana/blob/main/.buildkite/scripts/steps/evals/run_suite.sh#L17C31-L19
         "kbn_evals"
-    );
-
-    /**
-     * Allowlist of values recorded for {@link #ES_PRODUCT_ORIGIN_ATTRIBUTE}. Any value not in this set (after lowercasing) is
-     * recorded as {@link #OTHER_VALUE}. Entries reflect known producers of the {@code X-Elastic-Product-Origin} header across the
-     * elastic org (Kibana, Logstash, Fleet, Beats, Connectors, etc.).
-     * <p>
-     * <b>Entries must be lowercase.</b>
-     */
-    public static final Set<String> KNOWN_PRODUCT_ORIGINS = Set.of(
-        // https://github.com/elastic/kibana/blob/main/src/platform/packages/shared/kbn-telemetry/src/init_autoinstrumentations.ts#L33
-        "kibana",
-        // https://github.com/elastic/fleet-server/blob/main/internal/pkg/config/output.go#L161
-        "fleet",
-        // https://github.com/elastic/logstash/blob/main/x-pack/lib/template.cfg.erb#L70
-        "logstash",
-        // https://github.com/elastic/apm-server/blob/main/internal/kibana/client.go#L47
-        "observability",
-        // https://github.com/elastic/connectors/blob/main/app/connectors_service/connectors/es/client.py#L112
-        "connectors",
-        // Elastic Inference Service synthetics tests
-        "elastic-synthetics"
     );
 
     private static final Logger logger = LogManager.getLogger(InferenceStats.class);
@@ -159,7 +131,7 @@ public class InferenceStats {
                 "Inference API time spent waiting for Trained Model Deployments",
                 "ms"
             ),
-            Map.of(STACK_VERSION_ATTRIBUTE, stackVersion, PRODUCTION_RELEASE_ATTRIBUTE, isProductionRelease)
+            Map.of(MetricAttributes.ES_STACK_VERSION, stackVersion, MetricAttributes.ES_PRODUCTION_RELEASE, isProductionRelease)
         );
     }
 
@@ -239,7 +211,7 @@ public class InferenceStats {
 
         /**
          * Adds product attribution attributes from the given context. Values are normalized against
-         * {@link #KNOWN_PRODUCT_USE_CASES} and {@link #KNOWN_PRODUCT_ORIGINS}; anything not in the allowlist is recorded as
+         * {@link #KNOWN_PRODUCT_USE_CASES} and {@link MetricAttributes#KNOWN_PRODUCT_ORIGINS}; anything not in the allowlist is recorded as
          * {@link #OTHER_VALUE} to bound APM attribute cardinality. Either field may be absent; they are recorded independently.
          */
         public B withProductContext(@Nullable InferenceProductContext ctx) {
@@ -250,7 +222,7 @@ public class InferenceStats {
                 attributes.put(INFERENCE_SOURCE_ATTRIBUTE, normalizeProductUseCase(ctx.productUseCase()));
             }
             if (Strings.isNullOrEmpty(ctx.productOrigin()) == false) {
-                attributes.put(ES_PRODUCT_ORIGIN_ATTRIBUTE, normalizeProductOrigin(ctx.productOrigin()));
+                attributes.put(MetricAttributes.ES_PRODUCT_ORIGIN, normalizeProductOrigin(ctx.productOrigin()));
             }
 
             return cast();
@@ -279,7 +251,7 @@ public class InferenceStats {
 
         private static String normalizeProductOrigin(String value) {
             var lowered = value.toLowerCase(Locale.ROOT);
-            return KNOWN_PRODUCT_ORIGINS.contains(lowered) ? lowered : OTHER_VALUE;
+            return MetricAttributes.KNOWN_PRODUCT_ORIGINS.contains(lowered) ? lowered : OTHER_VALUE;
         }
     }
 

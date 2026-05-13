@@ -18,26 +18,27 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.telemetry.metric.MetricAttributes;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 
-import static org.elasticsearch.inference.telemetry.InferenceStats.ES_PRODUCT_ORIGIN_ATTRIBUTE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_DEPLOYMENT_DURATION;
 import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_REQUEST_COUNT_TOTAL;
 import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_REQUEST_DURATION;
 import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_SOURCE_ATTRIBUTE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.OTHER_VALUE;
-import static org.elasticsearch.inference.telemetry.InferenceStats.PRODUCTION_RELEASE_ATTRIBUTE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.SECURITY_AI_ASSISTANT_USE_CASE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.SERVICE_ATTRIBUTE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.SIEM_MIGRATIONS;
 import static org.elasticsearch.inference.telemetry.InferenceStats.SIEM_MIGRATIONS_PREFIX;
-import static org.elasticsearch.inference.telemetry.InferenceStats.STACK_VERSION_ATTRIBUTE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.STATUS_CODE_ATTRIBUTE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.TASK_TYPE_ATTRIBUTE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.create;
 import static org.elasticsearch.telemetry.metric.MetricAttributes.ERROR_TYPE;
+import static org.elasticsearch.telemetry.metric.MetricAttributes.ES_PRODUCTION_RELEASE;
+import static org.elasticsearch.telemetry.metric.MetricAttributes.ES_PRODUCT_ORIGIN;
+import static org.elasticsearch.telemetry.metric.MetricAttributes.ES_STACK_VERSION;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -132,7 +133,7 @@ public class InferenceStatsTests extends ESTestCase {
             longCounter,
             mock(),
             mock(),
-            Map.of(STACK_VERSION_ATTRIBUTE, TEST_STACK_VERSION, PRODUCTION_RELEASE_ATTRIBUTE, TEST_IS_PRODUCTION_RELEASE)
+            Map.of(ES_STACK_VERSION, TEST_STACK_VERSION, ES_PRODUCTION_RELEASE, TEST_IS_PRODUCTION_RELEASE)
         );
 
         stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withSuccess().incrementBy(1);
@@ -145,9 +146,9 @@ public class InferenceStatsTests extends ESTestCase {
                     TEST_SERVICE,
                     TASK_TYPE_ATTRIBUTE,
                     TaskType.ANY.toString(),
-                    STACK_VERSION_ATTRIBUTE,
+                    ES_STACK_VERSION,
                     TEST_STACK_VERSION,
-                    PRODUCTION_RELEASE_ATTRIBUTE,
+                    ES_PRODUCTION_RELEASE,
                     TEST_IS_PRODUCTION_RELEASE,
                     STATUS_CODE_ATTRIBUTE,
                     200
@@ -349,7 +350,7 @@ public class InferenceStatsTests extends ESTestCase {
             mock(),
             longHistogram,
             mock(),
-            Map.of(STACK_VERSION_ATTRIBUTE, TEST_STACK_VERSION, PRODUCTION_RELEASE_ATTRIBUTE, TEST_IS_PRODUCTION_RELEASE)
+            Map.of(ES_STACK_VERSION, TEST_STACK_VERSION, ES_PRODUCTION_RELEASE, TEST_IS_PRODUCTION_RELEASE)
         );
 
         stats.inferenceDuration().withModel(model(TEST_SERVICE, TaskType.ANY)).withSuccess().record(expectedDuration);
@@ -362,9 +363,9 @@ public class InferenceStatsTests extends ESTestCase {
                     TEST_SERVICE,
                     TASK_TYPE_ATTRIBUTE,
                     TaskType.ANY.toString(),
-                    STACK_VERSION_ATTRIBUTE,
+                    ES_STACK_VERSION,
                     TEST_STACK_VERSION,
-                    PRODUCTION_RELEASE_ATTRIBUTE,
+                    ES_PRODUCTION_RELEASE,
                     TEST_IS_PRODUCTION_RELEASE,
                     STATUS_CODE_ATTRIBUTE,
                     200
@@ -403,7 +404,7 @@ public class InferenceStatsTests extends ESTestCase {
                     TaskType.ANY.toString(),
                     INFERENCE_SOURCE_ATTRIBUTE,
                     SECURITY_AI_ASSISTANT_USE_CASE,
-                    ES_PRODUCT_ORIGIN_ATTRIBUTE,
+                    ES_PRODUCT_ORIGIN,
                     TEST_PRODUCT_ORIGIN
                 )
             )
@@ -447,7 +448,7 @@ public class InferenceStatsTests extends ESTestCase {
                     TEST_SERVICE,
                     TASK_TYPE_ATTRIBUTE,
                     TaskType.ANY.toString(),
-                    ES_PRODUCT_ORIGIN_ATTRIBUTE,
+                    ES_PRODUCT_ORIGIN,
                     TEST_PRODUCT_ORIGIN
                 )
             )
@@ -493,7 +494,7 @@ public class InferenceStatsTests extends ESTestCase {
                     TaskType.ANY.toString(),
                     INFERENCE_SOURCE_ATTRIBUTE,
                     OTHER_VALUE,
-                    ES_PRODUCT_ORIGIN_ATTRIBUTE,
+                    ES_PRODUCT_ORIGIN,
                     TEST_PRODUCT_ORIGIN
                 )
             )
@@ -517,7 +518,7 @@ public class InferenceStatsTests extends ESTestCase {
                     TaskType.ANY.toString(),
                     INFERENCE_SOURCE_ATTRIBUTE,
                     SECURITY_AI_ASSISTANT_USE_CASE,
-                    ES_PRODUCT_ORIGIN_ATTRIBUTE,
+                    ES_PRODUCT_ORIGIN,
                     OTHER_VALUE
                 )
             )
@@ -562,7 +563,7 @@ public class InferenceStatsTests extends ESTestCase {
                     TaskType.ANY.toString(),
                     INFERENCE_SOURCE_ATTRIBUTE,
                     SECURITY_AI_ASSISTANT_USE_CASE,
-                    ES_PRODUCT_ORIGIN_ATTRIBUTE,
+                    ES_PRODUCT_ORIGIN,
                     TEST_PRODUCT_ORIGIN
                 )
             )
@@ -586,7 +587,7 @@ public class InferenceStatsTests extends ESTestCase {
                     TaskType.ANY.toString(),
                     INFERENCE_SOURCE_ATTRIBUTE,
                     SIEM_MIGRATIONS,
-                    ES_PRODUCT_ORIGIN_ATTRIBUTE,
+                    ES_PRODUCT_ORIGIN,
                     TEST_PRODUCT_ORIGIN
                 )
             )
@@ -597,7 +598,7 @@ public class InferenceStatsTests extends ESTestCase {
         for (var value : InferenceStats.KNOWN_PRODUCT_USE_CASES) {
             assertEquals("KNOWN_INFERENCE_SOURCES entry must be lowercase: " + value, value.toLowerCase(java.util.Locale.ROOT), value);
         }
-        for (var value : InferenceStats.KNOWN_PRODUCT_ORIGINS) {
+        for (var value : MetricAttributes.KNOWN_PRODUCT_ORIGINS) {
             assertEquals("KNOWN_PRODUCT_ORIGINS entry must be lowercase: " + value, value.toLowerCase(java.util.Locale.ROOT), value);
         }
     }

@@ -26,12 +26,16 @@ import java.util.List;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 
 public class InferenceActionRequestTests extends AbstractBWCWireSerializationTestCase<InferenceAction.Request> {
 
     private static final TransportVersion INFERENCE_CONTEXT = TransportVersion.fromName("inference_context");
     private static final TransportVersion RERANK_COMMON_OPTIONS_ADDED = TransportVersion.fromName("rerank_common_options_added");
+
+    private static final String TEST_INFERENCE_ENDPOINT = "test_endpoint";
+    private static final List<String> TEST_INPUT = List.of("test input");
 
     @Override
     protected Writeable.Reader<InferenceAction.Request> instanceReader() {
@@ -124,7 +128,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             null,
             null,
             null,
-            List.of("input"),
+            TEST_INPUT,
             null,
             null,
             null,
@@ -141,7 +145,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             "query",
             Boolean.TRUE,
             34,
-            List.of("input"),
+            TEST_INPUT,
             null,
             null,
             null,
@@ -194,7 +198,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             null,
             Boolean.TRUE,
             null,
-            List.of("input"),
+            TEST_INPUT,
             null,
             null,
             null,
@@ -215,7 +219,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             null,
             null,
             12,
-            List.of("input"),
+            TEST_INPUT,
             null,
             null,
             null,
@@ -233,7 +237,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             "query",
             null,
             null,
-            List.of("input"),
+            TEST_INPUT,
             null,
             null,
             null,
@@ -251,7 +255,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             null,
             null,
             null,
-            List.of("input"),
+            TEST_INPUT,
             null,
             null,
             null,
@@ -269,7 +273,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             "",
             null,
             null,
-            List.of("input"),
+            TEST_INPUT,
             null,
             null,
             null,
@@ -287,7 +291,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             "query",
             null,
             null,
-            List.of("input"),
+            TEST_INPUT,
             null,
             InputType.SEARCH,
             null,
@@ -305,7 +309,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             null,
             null,
             null,
-            List.of("input"),
+            TEST_INPUT,
             null,
             InputType.SEARCH,
             null,
@@ -326,7 +330,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             "",
             Boolean.FALSE,
             null,
-            List.of("input"),
+            TEST_INPUT,
             null,
             null,
             null,
@@ -348,7 +352,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             "",
             null,
             22,
-            List.of("input"),
+            TEST_INPUT,
             null,
             null,
             null,
@@ -369,7 +373,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             "query",
             null,
             null,
-            List.of("input"),
+            TEST_INPUT,
             null,
             null,
             null,
@@ -390,7 +394,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             "",
             null,
             null,
-            List.of("input"),
+            TEST_INPUT,
             null,
             InputType.SEARCH,
             null,
@@ -408,7 +412,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             "",
             Boolean.TRUE,
             null,
-            List.of("input"),
+            TEST_INPUT,
             null,
             null,
             null,
@@ -429,7 +433,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             "",
             null,
             77,
-            List.of("input"),
+            TEST_INPUT,
             null,
             null,
             null,
@@ -447,7 +451,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             "",
             null,
             null,
-            List.of("input"),
+            TEST_INPUT,
             null,
             InputType.SEARCH,
             null,
@@ -468,7 +472,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             "",
             Boolean.TRUE,
             null,
-            List.of("input"),
+            TEST_INPUT,
             null,
             null,
             null,
@@ -489,7 +493,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             "",
             null,
             11,
-            List.of("input"),
+            TEST_INPUT,
             null,
             InputType.SEARCH,
             null,
@@ -498,6 +502,34 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         ActionRequestValidationException queryError = queryRequest.validate();
         assertNotNull(queryError);
         assertThat(queryError.getMessage(), is("Validation Failed: 1: Field [top_n] cannot be specified for task type [chat_completion];"));
+    }
+
+    public void testBuilder_DefaultContextIsEmptyInstance() {
+        var request = InferenceAction.Request.builder(TEST_INFERENCE_ENDPOINT, TaskType.TEXT_EMBEDDING).setInput(TEST_INPUT).build();
+        assertThat(request.getContext(), sameInstance(InferenceContext.EMPTY_INSTANCE));
+    }
+
+    public void testBuilder_SetContextNull_UsesEmptyContext() {
+        var request = InferenceAction.Request.builder(TEST_INFERENCE_ENDPOINT, TaskType.TEXT_EMBEDDING).setContext(null).build();
+        assertThat(request.getContext(), sameInstance(InferenceContext.EMPTY_INSTANCE));
+    }
+
+    public void testConstructor_NullContext_UsesEmptyContext() {
+        var request = new InferenceAction.Request(
+            TaskType.TEXT_EMBEDDING,
+            TEST_INFERENCE_ENDPOINT,
+            null,
+            null,
+            null,
+            TEST_INPUT,
+            null,
+            null,
+            null,
+            false,
+            null
+        );
+
+        assertThat(request.getContext(), sameInstance(InferenceContext.EMPTY_INSTANCE));
     }
 
     public void testParseRequest_DefaultsInputTypeToIngest() throws IOException {

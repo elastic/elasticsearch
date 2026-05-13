@@ -74,7 +74,6 @@ public class LoggingFeatureSetUsage extends XPackFeatureUsage {
         this.esqlConfig = esqlConfig;
     }
 
-
     EsqlLoggingConfig esqlConfig() {
         return esqlConfig;
     }

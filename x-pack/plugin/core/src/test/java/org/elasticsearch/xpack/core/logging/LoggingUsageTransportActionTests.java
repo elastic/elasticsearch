@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.core.logging;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.activity.QueryLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -26,7 +25,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -42,11 +40,7 @@ public class LoggingUsageTransportActionTests extends ESTestCase {
         Setting.Property.Dynamic
     );
 
-    private static final Set<Setting<?>> ALL_SETTINGS = new HashSet<>(
-        Set.of(
-            ESQL_QUERYLOG_INCLUDE_USER
-        )
-    );
+    private static final Set<Setting<?>> ALL_SETTINGS = new HashSet<>(Set.of(ESQL_QUERYLOG_INCLUDE_USER));
 
     private static final Map<String, Setting<TimeValue>> ESQL_SETTINGS = new HashMap<>();
 

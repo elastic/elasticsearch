@@ -107,7 +107,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         }
 
         // Resume reindexing from the manual scroll search
-        BulkByScrollTask.Status randomStats = randomStats();
+        BulkByPaginatedSearchTask.Status randomStats = randomStats();
         // random start time in the past to ensure that "took" is updated
         long startTime = timeAgo(randomTimeValue(2, 10, TimeUnit.HOURS));
         ReindexRequest request = new ReindexRequest().setSourceIndices(sourceIndex)
@@ -173,7 +173,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
 
         // Resume reindexing
         int remainingDocs = totalDocs - batchSize;
-        BulkByScrollTask.Status randomStats = randomStats();
+        BulkByPaginatedSearchTask.Status randomStats = randomStats();
         // Random start time in the past to ensure that "took" is updated
         long startTime = timeAgo(randomTimeValue(2, 10, TimeUnit.HOURS));
         ReindexRequest request = new ReindexRequest().setShouldStoreResult(true)
@@ -239,7 +239,11 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
                 long firstBatchDocs = searchResponse.getHits().getHits().length;
                 assertTrue(firstBatchDocs <= batchSize);
                 sliceFirstBatchDocs.put(sliceId, firstBatchDocs);
-                BulkByScrollTask.Status sliceStats = randomStats(sliceId, searchResponse.getHits().getTotalHits().value(), perSliceRPS);
+                BulkByPaginatedSearchTask.Status sliceStats = randomStats(
+                    sliceId,
+                    searchResponse.getHits().getTotalHits().value(),
+                    perSliceRPS
+                );
                 sliceStatus.put(sliceId, new SliceStatus(sliceId, new ScrollWorkerResumeInfo(scrollId, startTime, sliceStats, null), null));
             } finally {
                 searchResponse.decRef();
@@ -317,7 +321,11 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
                 } else {
                     searchAfterValues = new Object[0];
                 }
-                BulkByScrollTask.Status sliceStats = randomStats(sliceId, searchResponse.getHits().getTotalHits().value(), perSliceRPS);
+                BulkByPaginatedSearchTask.Status sliceStats = randomStats(
+                    sliceId,
+                    searchResponse.getHits().getTotalHits().value(),
+                    perSliceRPS
+                );
                 sliceStatus.put(
                     sliceId,
                     new SliceStatus(sliceId, new PitWorkerResumeInfo(pitId, searchAfterValues, startTime, sliceStats, null), null)
@@ -403,7 +411,11 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
                 long firstBatchDocs = searchResponse.getHits().getHits().length;
                 assertTrue(firstBatchDocs <= batchSize);
                 sliceFirstBatchDocs.put(sliceId, firstBatchDocs);
-                BulkByScrollTask.Status sliceStats = randomStats(sliceId, searchResponse.getHits().getTotalHits().value(), perSliceRPS);
+                BulkByPaginatedSearchTask.Status sliceStats = randomStats(
+                    sliceId,
+                    searchResponse.getHits().getTotalHits().value(),
+                    perSliceRPS
+                );
                 sliceStatus.put(sliceId, new SliceStatus(sliceId, new ScrollWorkerResumeInfo(scrollId, startTime, sliceStats, null), null));
             } finally {
                 searchResponse.decRef();
@@ -496,7 +508,11 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
                 } else {
                     searchAfterValues = new Object[0];
                 }
-                BulkByScrollTask.Status sliceStats = randomStats(sliceId, searchResponse.getHits().getTotalHits().value(), perSliceRPS);
+                BulkByPaginatedSearchTask.Status sliceStats = randomStats(
+                    sliceId,
+                    searchResponse.getHits().getTotalHits().value(),
+                    perSliceRPS
+                );
                 sliceStatus.put(
                     sliceId,
                     new SliceStatus(sliceId, new PitWorkerResumeInfo(pitId, searchAfterValues, startTime, sliceStats, null), null)
@@ -570,7 +586,11 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
                 long firstBatchDocs = searchResponse.getHits().getHits().length;
                 assertTrue(firstBatchDocs <= batchSize);
                 sliceFirstBatchDocs.put(sliceId, firstBatchDocs);
-                BulkByScrollTask.Status sliceStats = randomStats(sliceId, searchResponse.getHits().getTotalHits().value(), perSliceRPS);
+                BulkByPaginatedSearchTask.Status sliceStats = randomStats(
+                    sliceId,
+                    searchResponse.getHits().getTotalHits().value(),
+                    perSliceRPS
+                );
                 sliceStatus.put(sliceId, new SliceStatus(sliceId, new ScrollWorkerResumeInfo(scrollId, startTime, sliceStats, null), null));
             } finally {
                 searchResponse.decRef();
@@ -658,7 +678,11 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
                 } else {
                     searchAfterValues = new Object[0];
                 }
-                BulkByScrollTask.Status sliceStats = randomStats(sliceId, searchResponse.getHits().getTotalHits().value(), perSliceRPS);
+                BulkByPaginatedSearchTask.Status sliceStats = randomStats(
+                    sliceId,
+                    searchResponse.getHits().getTotalHits().value(),
+                    perSliceRPS
+                );
                 sliceStatus.put(
                     sliceId,
                     new SliceStatus(sliceId, new PitWorkerResumeInfo(pitId, searchAfterValues, startTime, sliceStats, null), null)
@@ -727,7 +751,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
             ).scroll(DEFAULT_SCROLL_TIMEOUT);
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             final String scrollId;
-            final BulkByScrollTask.Status sliceStats;
+            final BulkByPaginatedSearchTask.Status sliceStats;
             final long totalHits;
             try {
                 scrollId = searchResponse.getScrollId();
@@ -804,7 +828,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
             );
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             final Object[] searchAfterValues;
-            final BulkByScrollTask.Status sliceStats;
+            final BulkByPaginatedSearchTask.Status sliceStats;
             final long totalHits;
             try {
                 // The actual search hits may be less than batch size if the slice has few docs, since docs are randomly sliced
@@ -1074,16 +1098,16 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         assertTrue(e.getMessage().contains("Resumed task should be eligible for relocation on shutdown"));
     }
 
-    private BulkByScrollTask.Status randomStats() {
+    private BulkByPaginatedSearchTask.Status randomStats() {
         return randomStats(null, randomNonNegativeLong());
     }
 
-    private BulkByScrollTask.Status randomStats(Integer sliceId, long total) {
+    private BulkByPaginatedSearchTask.Status randomStats(Integer sliceId, long total) {
         return randomStats(sliceId, total, randomFloatBetween(1000, 10000, true));
     }
 
-    private BulkByScrollTask.Status randomStats(Integer sliceId, long total, float requestsPerSecond) {
-        return new BulkByScrollTask.Status(
+    private BulkByPaginatedSearchTask.Status randomStats(Integer sliceId, long total, float requestsPerSecond) {
+        return new BulkByPaginatedSearchTask.Status(
             sliceId,
             total,
             randomNonNegativeLong(),
@@ -1131,7 +1155,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
             int sliceId = intFromMap(slice, "slice_id");
             SliceStatus sliceStatus = resumeStatus.get(sliceId);
             assertNotNull(sliceStatus);
-            BulkByScrollTask.Status status;
+            BulkByPaginatedSearchTask.Status status;
             if (sliceStatus.resumeInfo() != null) {
                 status = sliceStatus.resumeInfo().status();
                 // ensure each resumed slice's status is updated compared to the resume info
@@ -1176,7 +1200,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
 
     private static void assertStatus(
         TaskResult task,
-        BulkByScrollTask.Status resumeStatus,
+        BulkByPaginatedSearchTask.Status resumeStatus,
         long totalDocs,
         int batchSize,
         long remainingDocs
@@ -1207,7 +1231,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
 
     private static void assertSliceStatus(
         Map<String, Object> response,
-        BulkByScrollTask.Status resumeStatus,
+        BulkByPaginatedSearchTask.Status resumeStatus,
         int batchSize,
         long firstBatchDocs
     ) {

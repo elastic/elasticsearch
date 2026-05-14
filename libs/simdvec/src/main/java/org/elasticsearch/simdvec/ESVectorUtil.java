@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
-import java.nio.ShortBuffer;
+import java.nio.ByteOrder;
 import java.util.Objects;
 
 import static org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport.B_QUERY;
@@ -76,12 +76,14 @@ public class ESVectorUtil {
         return ESVectorizationProvider.getInstance().newES93BinaryQuantizedVectorScorer(input, dimension, vectorLengthInBytes);
     }
 
-    public static void bFloat16ToFloat(ShortBuffer bfloats, float[] floats) {
-        IMPL.bFloat16ToFloat(bfloats, floats);
+    public static void bFloat16ToFloat(byte[] bfBytes, int bfOffset, float[] floats, int floatOffset, int floatCount, ByteOrder byteOrder) {
+        IMPL.bFloat16ToFloat(bfBytes, bfOffset, floats, floatOffset, floatCount, byteOrder);
     }
 
-    public static void floatToBFloat16(float[] floats, ShortBuffer bfloats) {
-        IMPL.floatToBFloat16(floats, bfloats);
+    public static void floatToBFloat16(float[] floats, int floatOffset, byte[] bfBytes, int bfOffset, int floatCount, ByteOrder byteOrder) {
+        assert floats.length - floatOffset >= floatCount;
+        assert (bfBytes.length - bfOffset) >= floatCount * Short.BYTES;
+        IMPL.floatToBFloat16(floats, floatOffset, bfBytes, bfOffset, floatCount, byteOrder);
     }
 
     public static float dotProduct(float[] a, float[] b) {

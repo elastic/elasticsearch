@@ -69,6 +69,7 @@ import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -212,9 +213,9 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 }
                 case BFLOAT16 -> {
                     float[] array = randomNormalizedVector(this.dims);
-                    final ByteBuffer buffer = ByteBuffer.allocate(BFloat16.BYTES * array.length);
-                    BFloat16.floatToBFloat16(array, buffer.asShortBuffer());
-                    yield buffer.array();
+                    byte[] buffer = new byte[BFloat16.BYTES * array.length];
+                    BFloat16.floatToBFloat16(array, 0, buffer, 0, dims, ByteOrder.BIG_ENDIAN);
+                    yield buffer;
                 }
                 case BYTE -> randomByteArrayOfLength(dims);
                 case BIT -> randomByteArrayOfLength(this.dims / Byte.SIZE);

@@ -19,13 +19,13 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Wire serialization tests for {@link BulkByScrollTask.StatusOrException}.
+ * Wire serialization tests for {@link BulkByPaginatedSearchTask.StatusOrException}.
  * Uses a wrapper type so that equality after round-trip is semantic (e.g. exception
  * messages instead of instance identity), matching
- * {@link BulkByScrollTaskStatusOrExceptionTests#assertEqualStatusOrException}.
+ * {@link BulkByPaginatedSearchTaskStatusOrExceptionTests#assertEqualStatusOrException}.
  */
-public class BulkByScrollTaskStatusOrExceptionWireSerializingTests extends AbstractWireSerializingTestCase<
-    BulkByScrollTaskStatusOrExceptionWireSerializingTests.StatusOrExceptionWrapper> {
+public class BulkByPaginatedSearchTaskStatusOrExceptionWireSerializingTests extends AbstractWireSerializingTestCase<
+    BulkByPaginatedSearchTaskStatusOrExceptionWireSerializingTests.StatusOrExceptionWrapper> {
 
     @Override
     protected Writeable.Reader<StatusOrExceptionWrapper> instanceReader() {
@@ -34,23 +34,26 @@ public class BulkByScrollTaskStatusOrExceptionWireSerializingTests extends Abstr
 
     @Override
     protected StatusOrExceptionWrapper createTestInstance() {
-        BulkByScrollTask.StatusOrException statusOrException = BulkByScrollTaskStatusOrExceptionTests.createTestInstanceWithExceptions();
+        BulkByPaginatedSearchTask.StatusOrException statusOrException = BulkByPaginatedSearchTaskStatusOrExceptionTests
+            .createTestInstanceWithExceptions();
         return new StatusOrExceptionWrapper(statusOrException);
     }
 
     @Override
     protected StatusOrExceptionWrapper mutateInstance(StatusOrExceptionWrapper instance) throws IOException {
-        BulkByScrollTask.StatusOrException statusOrException = instance.statusOrException;
+        BulkByPaginatedSearchTask.StatusOrException statusOrException = instance.statusOrException;
         int field = between(0, 1);
         if (field == 0) {
             if (statusOrException.getStatus() != null) {
                 return new StatusOrExceptionWrapper(
-                    new BulkByScrollTask.StatusOrException(
-                        BulkByScrollTaskStatusWireSerializingTests.mutateStatus(statusOrException.getStatus())
+                    new BulkByPaginatedSearchTask.StatusOrException(
+                        BulkByPaginatedSearchTaskStatusWireSerializingTests.mutateStatus(statusOrException.getStatus())
                     )
                 );
             } else {
-                return new StatusOrExceptionWrapper(new BulkByScrollTask.StatusOrException(BulkByScrollTaskStatusTests.randomStatus()));
+                return new StatusOrExceptionWrapper(
+                    new BulkByPaginatedSearchTask.StatusOrException(BulkByPaginatedSearchTaskStatusTests.randomStatus())
+                );
             }
         } else {
             if (statusOrException.getException() != null) {
@@ -59,10 +62,10 @@ public class BulkByScrollTaskStatusOrExceptionWireSerializingTests extends Abstr
                     currentException,
                     () -> new ElasticsearchException(randomAlphaOfLengthBetween(5, 15))
                 );
-                return new StatusOrExceptionWrapper(new BulkByScrollTask.StatusOrException(differentException));
+                return new StatusOrExceptionWrapper(new BulkByPaginatedSearchTask.StatusOrException(differentException));
             } else {
                 return new StatusOrExceptionWrapper(
-                    new BulkByScrollTask.StatusOrException(new ElasticsearchException(randomAlphaOfLengthBetween(5, 15)))
+                    new BulkByPaginatedSearchTask.StatusOrException(new ElasticsearchException(randomAlphaOfLengthBetween(5, 15)))
                 );
             }
         }
@@ -71,7 +74,7 @@ public class BulkByScrollTaskStatusOrExceptionWireSerializingTests extends Abstr
     @Override
     protected void assertEqualInstances(StatusOrExceptionWrapper expectedInstance, StatusOrExceptionWrapper newInstance) {
         assertNotSame(expectedInstance, newInstance);
-        BulkByScrollTaskStatusOrExceptionTests.assertEqualStatusOrException(
+        BulkByPaginatedSearchTaskStatusOrExceptionTests.assertEqualStatusOrException(
             expectedInstance.statusOrException,
             newInstance.statusOrException,
             true,
@@ -80,18 +83,18 @@ public class BulkByScrollTaskStatusOrExceptionWireSerializingTests extends Abstr
     }
 
     /**
-     * Wrapper around {@link BulkByScrollTask.StatusOrException} that implements semantic equality and hashCode
+     * Wrapper around {@link BulkByPaginatedSearchTask.StatusOrException} that implements semantic equality and hashCode
      * so that round-trip serialization passes (e.g. exceptions are compared by message, not reference).
      */
     static class StatusOrExceptionWrapper implements Writeable {
-        private final BulkByScrollTask.StatusOrException statusOrException;
+        private final BulkByPaginatedSearchTask.StatusOrException statusOrException;
 
-        StatusOrExceptionWrapper(BulkByScrollTask.StatusOrException statusOrException) {
+        StatusOrExceptionWrapper(BulkByPaginatedSearchTask.StatusOrException statusOrException) {
             this.statusOrException = statusOrException;
         }
 
         StatusOrExceptionWrapper(StreamInput in) throws IOException {
-            this.statusOrException = new BulkByScrollTask.StatusOrException(in);
+            this.statusOrException = new BulkByPaginatedSearchTask.StatusOrException(in);
         }
 
         @Override
@@ -113,13 +116,16 @@ public class BulkByScrollTaskStatusOrExceptionWireSerializingTests extends Abstr
         }
 
         private static boolean statusOrExceptionEquals(
-            BulkByScrollTask.StatusOrException first,
-            BulkByScrollTask.StatusOrException second
+            BulkByPaginatedSearchTask.StatusOrException first,
+            BulkByPaginatedSearchTask.StatusOrException second
         ) {
             if (first == second) return true;
             if (first == null || second == null) return false;
             if (first.getStatus() != null && second.getStatus() != null) {
-                return BulkByScrollTaskStatusWireSerializingTests.StatusWrapper.statusEquals(first.getStatus(), second.getStatus());
+                return BulkByPaginatedSearchTaskStatusWireSerializingTests.StatusWrapper.statusEquals(
+                    first.getStatus(),
+                    second.getStatus()
+                );
             }
             if (first.getException() != null && second.getException() != null) {
                 return Objects.equals(first.getException().getMessage(), second.getException().getMessage());
@@ -127,10 +133,10 @@ public class BulkByScrollTaskStatusOrExceptionWireSerializingTests extends Abstr
             return false;
         }
 
-        private static int statusOrExceptionHashCode(BulkByScrollTask.StatusOrException statusOrException) {
+        private static int statusOrExceptionHashCode(BulkByPaginatedSearchTask.StatusOrException statusOrException) {
             if (statusOrException == null) return 0;
             if (statusOrException.getStatus() != null) {
-                return BulkByScrollTaskStatusWireSerializingTests.StatusWrapper.statusHashCode(statusOrException.getStatus());
+                return BulkByPaginatedSearchTaskStatusWireSerializingTests.StatusWrapper.statusHashCode(statusOrException.getStatus());
             }
             if (statusOrException.getException() != null) {
                 return Objects.hashCode(statusOrException.getException().getMessage());

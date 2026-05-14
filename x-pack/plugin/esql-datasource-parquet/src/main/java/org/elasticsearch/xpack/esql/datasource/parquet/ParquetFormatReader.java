@@ -32,7 +32,6 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -277,6 +276,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
      * Loads the parsed Parquet footer for {@code adapter} via the JVM-wide {@link #PARSED_FOOTERS}
      * cache, parsing on a cache miss. The loader explicitly uses unranged read options so the
      * cached value is the full file footer (all row groups) and can be reused across split readers.
+     *
+     * <p>This method is intentionally non-static: the loader lambda calls {@link #readOptionsBuilder()},
+     * which wires in this instance's {@link CircuitBreakerByteBufferAllocator}. Under cache miss,
+     * the parse is therefore charged to whichever reader instance won the load race. In practice
+     * all ESQL Parquet readers share a parent {@link org.elasticsearch.compute.data.BlockFactory}
+     * breaker, so the breaker that wins is equivalent to any other; the cached
+     * {@link ParquetMetadata} itself is independent of the allocator. If breakers ever become
+     * per-query, the parse-time allocation accounting would need to move off of this instance's
+     * builder.
      */
     private ParquetMetadata loadFooter(StorageObject object, ParquetStorageObjectAdapter adapter) throws IOException {
         try {
@@ -289,27 +297,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 return ParquetFileReader.readFooter(adapter, readOptionsBuilder().build(), adapter.newStream());
             });
         } catch (ExecutionException e) {
-            // The winning loader thread sees its exception propagate directly out of the cache;
-            // every other concurrently-waiting thread sees an ExecutionException whose cause is
-            // the original throwable. Re-shape the cause to match the prior in-line readFooter
-            // behaviour so callers observe identical exception types regardless of who won the
-            // load race. In particular Error/OOM must propagate as-is and never be reshaped into
-            // an invalid-file IOException.
-            Throwable cause = e.getCause();
-            ExceptionsHelper.maybeError(cause).ifPresent(error -> { throw error; });
-            if (cause instanceof IOException io) {
-                throw io;
-            }
-            if (cause instanceof CircuitBreakingException cbe) {
-                throw cbe;
-            }
-            if (cause instanceof ElasticsearchException ese) {
-                throw ese;
-            }
-            if (cause instanceof RuntimeException re) {
-                throw newInvalidParquetFileException(object.path().toString(), re);
-            }
-            throw newInvalidParquetFileException(object.path().toString(), e);
+            // rethrowStructural handles Error/IOException/CircuitBreakingException/
+            // ElasticsearchException; any other cause (typically a plain RuntimeException from
+            // parquet-mr signalling a malformed file) is returned here so we can apply the
+            // parquet-specific wrapping that the prior in-line readFooter path used. The returned
+            // throwable is never an Error (already rethrown) so the Exception cast is safe.
+            // Callers see the same exception shapes regardless of who won the load race.
+            throw newInvalidParquetFileException(object.path().toString(), (Exception) ParsedFooterCache.rethrowStructural(e));
         }
     }
 

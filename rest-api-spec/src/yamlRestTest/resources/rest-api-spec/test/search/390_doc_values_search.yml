@@ -48,6 +48,8 @@ setup:
               geo_point:
                 type: geo_point
                 index: false
+                
+  - match: { error: null }
 
   - do:
       index:

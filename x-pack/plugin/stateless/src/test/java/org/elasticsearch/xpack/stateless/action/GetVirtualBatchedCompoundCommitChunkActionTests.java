@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -51,6 +52,7 @@ public class GetVirtualBatchedCompoundCommitChunkActionTests extends ESTestCase 
         when(indexMetadata.getIndex()).thenReturn(shardId.getIndex());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build();
         when(indexMetadata.getSettings()).thenReturn(settings);
+        when(indexMetadata.getCreationVersion()).thenReturn(IndexVersion.current());
         final var indexSettings = new IndexSettings(indexMetadata, settings);
         when(shard.indexSettings()).thenReturn(indexSettings);
 

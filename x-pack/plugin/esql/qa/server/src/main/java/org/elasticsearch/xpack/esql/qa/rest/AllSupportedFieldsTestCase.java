@@ -483,7 +483,14 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             }
             expectedValues = expectedValues.entry(
                 fieldName(type),
-                expectedValue(type, coordinatorVersion, minimumVersionAcrossInvolvedNodes, indexMode, extractPreference, flattenedSortedKeys)
+                expectedValue(
+                    type,
+                    coordinatorVersion,
+                    minimumVersionAcrossInvolvedNodes,
+                    indexMode,
+                    extractPreference,
+                    flattenedSortedKeys
+                )
             );
         }
         if (expectMetadataFields) {

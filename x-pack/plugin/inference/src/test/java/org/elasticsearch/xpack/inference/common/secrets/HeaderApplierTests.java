@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.azureopenai.secrets;
+package org.elasticsearch.xpack.inference.common.secrets;
 
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpRequestBase;
@@ -16,14 +16,14 @@ import org.elasticsearch.test.ESTestCase;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class AzureOpenAiHeaderApplierTests extends ESTestCase {
+public class HeaderApplierTests extends ESTestCase {
 
     private static final String HEADER_NAME = "X-Test-Header";
     private static final String HEADER_VALUE = "test-value";
 
     public void testApplyTo_SetsHeaderOnRequest() {
         var header = new BasicHeader(HEADER_NAME, HEADER_VALUE);
-        var applier = new AzureOpenAiHeaderApplier(() -> header);
+        var applier = new HeaderApplier(() -> header);
         var request = new HttpPost();
 
         var listener = new TestPlainActionFuture<HttpRequestBase>();
@@ -35,7 +35,7 @@ public class AzureOpenAiHeaderApplierTests extends ESTestCase {
 
     public void testApplyTo_InvokesListenerWithSameRequest() {
         var header = new BasicHeader(HEADER_NAME, HEADER_VALUE);
-        var applier = new AzureOpenAiHeaderApplier(() -> header);
+        var applier = new HeaderApplier(() -> header);
         var request = new HttpPost();
 
         var listener = new TestPlainActionFuture<HttpRequestBase>();

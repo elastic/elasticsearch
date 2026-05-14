@@ -1,0 +1,5 @@
+area: CCR
+issues: []
+pr: 145304
+summary: Fix CCR follow to handle `indexing_complete` race
+type: bug

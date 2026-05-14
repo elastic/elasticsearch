@@ -12,11 +12,11 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 
 /**
  * Data source plugin providing S3 storage support for ESQL.
@@ -30,22 +30,12 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
     }
 
     @Override
-    public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
-        StorageProviderFactory s3Factory = new StorageProviderFactory() {
-            @Override
-            public StorageProvider create(Settings settings) {
-                return new S3StorageProvider(null);
-            }
-
-            @Override
-            public StorageProvider create(Settings settings, Map<String, Object> config) {
-                if (config == null || config.isEmpty()) {
-                    return create(settings);
-                }
-                S3Configuration s3Config = S3Configuration.fromMap(config);
-                return new S3StorageProvider(s3Config);
-            }
-        };
+    public Map<String, StorageProviderFactory> storageProviders(Settings settings, ExecutorService executor) {
+        StorageProviderFactory s3Factory = StorageProviderFactory.of(
+            () -> new S3StorageProvider(null),
+            S3Configuration::fromQueryConfig,
+            S3StorageProvider::new
+        );
         return Map.of("s3", s3Factory, "s3a", s3Factory, "s3n", s3Factory);
     }
 

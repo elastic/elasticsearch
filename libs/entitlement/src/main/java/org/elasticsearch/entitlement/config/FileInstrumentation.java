@@ -10,8 +10,6 @@
 package org.elasticsearch.entitlement.config;
 
 import jdk.nio.Channels;
-import sun.net.www.protocol.file.FileURLConnection;
-import sun.net.www.protocol.jar.JarURLConnection;
 
 import org.elasticsearch.entitlement.rules.EntitlementRulesBuilder;
 import org.elasticsearch.entitlement.rules.Policies;
@@ -32,6 +30,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.io.RandomAccessFile;
+import java.net.JarURLConnection;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.net.http.HttpResponse.BodySubscribers;
@@ -52,7 +51,6 @@ import java.nio.file.attribute.FileAttributeView;
 import java.nio.file.attribute.FileTime;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.UserPrincipal;
-import java.util.Collections;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -282,8 +280,8 @@ public class FileInstrumentation implements InstrumentationConfig {
             rule.callingStatic(Files::lines, Path.class).enforce(Policies::fileRead).elseThrow(IOException::new);
         });
 
-        builder.on(jdk.nio.Channels.class, rule -> {
-            rule.callingStatic(jdk.nio.Channels::readWriteSelectableChannel, FileDescriptor.class, Channels.SelectableChannelCloser.class)
+        builder.on(Channels.class, rule -> {
+            rule.callingStatic(Channels::readWriteSelectableChannel, FileDescriptor.class, Channels.SelectableChannelCloser.class)
                 .enforce(Policies::fileDescriptorWrite)
                 .elseThrow(IOException::new);
         });
@@ -514,40 +512,13 @@ public class FileInstrumentation implements InstrumentationConfig {
             rule.callingStatic(BodySubscribers::ofFile, Path.class, OpenOption[].class).enforce(Policies::fileWrite).elseThrowNotEntitled();
         });
 
-        builder.on(FileURLConnection.class, rule -> {
-            rule.callingVoid(FileURLConnection::connect).enforce(f -> Policies.urlFileRead(f.getURL())).elseThrow(IOException::new);
-            rule.calling(FileURLConnection::getHeaderFields)
-                .enforce(f -> Policies.urlFileRead(f.getURL()))
-                .elseReturn(Collections.emptyMap());
-            rule.calling(FileURLConnection::getHeaderField, String.class).enforce(f -> Policies.urlFileRead(f.getURL())).elseReturn(null);
-            rule.calling(FileURLConnection::getHeaderField, Integer.class).enforce(f -> Policies.urlFileRead(f.getURL())).elseReturn(null);
-            rule.calling(FileURLConnection::getContentLength).enforce(f -> Policies.urlFileRead(f.getURL())).elseReturn(-1);
-            rule.calling(FileURLConnection::getContentLengthLong).enforce(f -> Policies.urlFileRead(f.getURL())).elseReturn(-1L);
-            rule.calling(FileURLConnection::getHeaderFieldKey, Integer.class)
-                .enforce(f -> Policies.urlFileRead(f.getURL()))
-                .elseReturn(null);
-            rule.calling(FileURLConnection::getLastModified).enforce(f -> Policies.urlFileRead(f.getURL())).elseReturn(0L);
-            rule.calling(FileURLConnection::getInputStream).enforce(f -> Policies.urlFileRead(f.getURL())).elseThrow(IOException::new);
-        });
-
         builder.on(JarURLConnection.class, rule -> {
-            rule.callingVoid(JarURLConnection::connect).enforce(Policies::jarURLAccess).elseThrow(IOException::new);
-            rule.calling(JarURLConnection::getHeaderFields).enforce(Policies::jarURLAccess).elseReturn(Collections.emptyMap());
-            rule.calling(JarURLConnection::getHeaderField, String.class).enforce(Policies::jarURLAccess).elseReturn(null);
-            rule.calling(JarURLConnection::getHeaderField, Integer.class).enforce(Policies::jarURLAccess).elseReturn(null);
-            rule.calling(JarURLConnection::getContent).enforce(Policies::jarURLAccess).elseThrow(IOException::new);
-            rule.calling(JarURLConnection::getContentLength).enforce(Policies::jarURLAccess).elseReturn(-1);
-            rule.calling(JarURLConnection::getContentLengthLong).enforce(Policies::jarURLAccess).elseReturn(-1L);
-            rule.calling(JarURLConnection::getContentType).enforce(Policies::jarURLAccess).elseReturn(null);
-            rule.calling(JarURLConnection::getHeaderFieldKey, Integer.class).enforce(Policies::jarURLAccess).elseReturn(null);
-            rule.calling(JarURLConnection::getLastModified).enforce(Policies::jarURLAccess).elseReturn(0L);
-            rule.calling(JarURLConnection::getInputStream).enforce(Policies::jarURLAccess).elseThrow(IOException::new);
-            rule.calling(JarURLConnection::getManifest).enforce(Policies::jarURLAccess).elseThrow(IOException::new);
-            rule.calling(JarURLConnection::getJarEntry).enforce(Policies::jarURLAccess).elseThrow(IOException::new);
-            rule.calling(JarURLConnection::getAttributes).enforce(Policies::jarURLAccess).elseThrow(IOException::new);
-            rule.calling(JarURLConnection::getMainAttributes).enforce(Policies::jarURLAccess).elseThrow(IOException::new);
-            rule.calling(JarURLConnection::getCertificates).enforce(Policies::jarURLAccess).elseThrow(IOException::new);
-            rule.calling(JarURLConnection::getJarFile).enforce(Policies::jarURLAccess).elseThrow(IOException::new);
+            rule.calling(JarURLConnection::getManifest).enforce(Policies::entitlementForUrlConnection).elseThrow(IOException::new);
+            rule.calling(JarURLConnection::getJarEntry).enforce(Policies::entitlementForUrlConnection).elseThrow(IOException::new);
+            rule.calling(JarURLConnection::getAttributes).enforce(Policies::entitlementForUrlConnection).elseThrow(IOException::new);
+            rule.calling(JarURLConnection::getMainAttributes).enforce(Policies::entitlementForUrlConnection).elseThrow(IOException::new);
+            rule.calling(JarURLConnection::getCertificates).enforce(Policies::entitlementForUrlConnection).elseThrow(IOException::new);
+            rule.calling(JarURLConnection::getJarFile).enforce(Policies::entitlementForUrlConnection).elseThrow(IOException::new);
         });
     }
 }

@@ -141,8 +141,8 @@ import static org.mockito.Mockito.when;
 public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
     private static final Settings NO_GRACE_PERIOD_SETTINGS = Settings.builder()
-        .put(ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_BUFFER_TIME.getKey(), TimeValue.ZERO)
-        .put(ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME.getKey(), TimeValue.ZERO)
+        .put(ShardsAvailabilityHealthIndicatorService.PRIMARY_INACTIVE_BUFFER_TIME.getKey(), TimeValue.ZERO)
+        .put(ShardsAvailabilityHealthIndicatorService.REPLICA_INACTIVE_BUFFER_TIME.getKey(), TimeValue.ZERO)
         .build();
 
     public void testShouldBeGreenWhenAllPrimariesAndReplicasAreStarted() {
@@ -389,7 +389,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 timeValueSeconds(0),
                 timeValueSeconds(0)
             );
-            assertFalse(status.replicas.doAnyIndicesHaveAllUnavailable());
+            assertFalse(status.replicas.doAnyIndicesHaveAllUnassigned());
         }
         {
             ProjectId projectId = randomProjectIdOrDefault();
@@ -420,7 +420,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 timeValueSeconds(0),
                 timeValueSeconds(0)
             );
-            assertFalse(status.replicas.doAnyIndicesHaveAllUnavailable());
+            assertFalse(status.replicas.doAnyIndicesHaveAllUnassigned());
         }
         {
             ProjectId projectId = randomProjectIdOrDefault();
@@ -451,7 +451,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 timeValueSeconds(0),
                 timeValueSeconds(0)
             );
-            assertTrue(status.replicas.doAnyIndicesHaveAllUnavailable());
+            assertTrue(status.replicas.doAnyIndicesHaveAllUnassigned());
         }
         {
             ProjectId projectId = randomProjectIdOrDefault();
@@ -484,7 +484,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 timeValueSeconds(0),
                 timeValueSeconds(0)
             );
-            assertTrue(status.replicas.doAnyIndicesHaveAllUnavailable());
+            assertTrue(status.replicas.doAnyIndicesHaveAllUnassigned());
         }
         {
             ProjectId projectId = randomProjectIdOrDefault();
@@ -532,15 +532,11 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             // Here because the replica is unassigned due to the primary being created, it's treated as though the replica can be ignored.
             assertFalse(
                 "an unassigned replica from a newly created and initializing primary "
-                    + "should not be treated as an index with all replicas unavailable",
-                status.replicas.doAnyIndicesHaveAllUnavailable()
+                    + "should not be treated as an index with all replicas unassigned",
+                status.replicas.doAnyIndicesHaveAllUnassigned()
             );
         }
 
-        /*
-          A couple of tests for
-          {@link ShardsAvailabilityHealthIndicatorService#areAllShardsOfThisTypeUnavailable(ShardRouting, ClusterState)}
-         */
         {
             IndexRoutingTable routingTable = indexWithTwoPrimaryOneReplicaShard(
                 "myindex",
@@ -567,7 +563,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 timeValueSeconds(0)
             );
             var shardRouting = routingTable.shardsWithState(ShardRoutingState.UNASSIGNED).get(0);
-            assertTrue(service.areAllShardsOfThisTypeUnavailable(projectId, shardRouting, clusterState));
+            assertTrue(service.areAllShardsOfThisTypeUnassigned(projectId, shardRouting, clusterState));
         }
         {
             ProjectId projectId = randomProjectIdOrDefault();
@@ -599,7 +595,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 timeValueSeconds(0)
             );
             var shardRouting = clusterState.routingTable(projectId).index("myindex").shardsWithState(ShardRoutingState.UNASSIGNED).get(0);
-            assertFalse(service.areAllShardsOfThisTypeUnavailable(projectId, shardRouting, clusterState));
+            assertFalse(service.areAllShardsOfThisTypeUnassigned(projectId, shardRouting, clusterState));
         }
     }
 
@@ -908,44 +904,51 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         );
     }
 
-    public void testReplicaUnassignedWithinGracePeriod() {
+    public void testReplicaInactiveWithinGracePeriod() {
         final var projectId = randomProjectIdOrDefault();
         final var unassignedTimeWithinGracePeriod = new TimeValue(
             System.currentTimeMillis() + TimeValue.timeValueHours(1).getMillis(),
             TimeUnit.MILLISECONDS
         );
         final var reason = randomFrom(UnassignedInfo.Reason.values());
+        final var replicaInitializing = randomBoolean();
         final var clusterState = createClusterStateWith(
             projectId,
             List.of(
                 index(
                     "test-index",
                     new ShardAllocation(randomNodeId(), AVAILABLE),
-                    new ShardAllocation(randomNodeId(), UNAVAILABLE, unassignedInfo(reason, unassignedTimeWithinGracePeriod))
+                    new ShardAllocation(
+                        randomNodeId(),
+                        replicaInitializing ? INITIALIZING : UNAVAILABLE,
+                        unassignedInfo(reason, unassignedTimeWithinGracePeriod)
+                    )
                 )
             ),
             List.of()
         );
         final var service = createShardsAvailabilityIndicatorService(
             projectId,
-            Settings.builder().put(ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME.getKey(), "20s").build(),
+            Settings.builder().put(ShardsAvailabilityHealthIndicatorService.REPLICA_INACTIVE_BUFFER_TIME.getKey(), "20s").build(),
             clusterState,
             Collections.emptyMap()
         );
         final var result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         if (reason.isExpectedTransient()) {
             assertThat("expected GREEN for grace period reason " + reason, result.status(), equalTo(GREEN));
+            final var symptomKeyword = replicaInitializing ? "initializing" : "creating";
             assertThat(
-                "expected creating replica symptom for reason " + reason,
+                "expected replica inactive symptom for reason " + reason,
                 result.symptom(),
-                equalTo("This cluster has 1 creating replica shard.")
+                equalTo("This cluster has 1 " + symptomKeyword + " replica shard.")
             );
         } else {
             assertThat("expected YELLOW for grace period reason " + reason, result.status(), equalTo(YELLOW));
+            final var symptomKeyword = replicaInitializing ? "initializing" : "unavailable";
             assertThat(
-                "expected unavailable replica symptom for reason " + reason,
+                "expected replica inactive symptom for reason " + reason,
                 result.symptom(),
-                equalTo("This cluster has 1 unavailable replica shard.")
+                equalTo("This cluster has 1 " + symptomKeyword + " replica shard.")
             );
         }
     }
@@ -956,6 +959,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             System.currentTimeMillis() - TimeValue.timeValueSeconds(30).getMillis(),
             TimeUnit.MILLISECONDS
         );
+        final var replicaInitializing = randomBoolean();
         final var clusterState = createClusterStateWith(
             projectId,
             List.of(
@@ -964,7 +968,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                     new ShardAllocation(randomNodeId(), AVAILABLE),
                     new ShardAllocation(
                         randomNodeId(),
-                        UNAVAILABLE,
+                        replicaInitializing ? INITIALIZING : UNAVAILABLE,
                         unassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, expiredUnassignedTime)
                     )
                 )
@@ -973,52 +977,60 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         );
         final var service = createShardsAvailabilityIndicatorService(
             projectId,
-            Settings.builder().put(ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME.getKey(), "20s").build(),
+            Settings.builder().put(ShardsAvailabilityHealthIndicatorService.REPLICA_INACTIVE_BUFFER_TIME.getKey(), "20s").build(),
             clusterState,
             Collections.emptyMap()
         );
         final var result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         assertThat(result.status(), equalTo(YELLOW));
-        assertThat(result.symptom(), equalTo("This cluster has 1 unavailable replica shard."));
+        final var symptomKeyword = replicaInitializing ? "initializing" : "unavailable";
+        assertThat(result.symptom(), equalTo("This cluster has 1 " + symptomKeyword + " replica shard."));
     }
 
-    public void testPrimaryUnassignedWithinGracePeriod() {
+    public void testPrimaryInactiveWithinGracePeriod() {
         final var projectId = randomProjectIdOrDefault();
         final var unassignedTimeWithinGracePeriod = new TimeValue(
             System.currentTimeMillis() + TimeValue.timeValueHours(1).getMillis(),
             TimeUnit.MILLISECONDS
         );
         final var reason = randomFrom(UnassignedInfo.Reason.values());
+        final var primaryInitializing = randomBoolean();
         final var clusterState = createClusterStateWith(
             projectId,
             List.of(
                 index(
                     "test-index",
-                    new ShardAllocation(randomNodeId(), UNAVAILABLE, unassignedInfo(reason, unassignedTimeWithinGracePeriod))
+                    new ShardAllocation(
+                        randomNodeId(),
+                        primaryInitializing ? INITIALIZING : UNAVAILABLE,
+                        unassignedInfo(reason, unassignedTimeWithinGracePeriod)
+                    )
                 )
             ),
             List.of()
         );
         final var service = createShardsAvailabilityIndicatorService(
             projectId,
-            Settings.builder().put(ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_BUFFER_TIME.getKey(), "20s").build(),
+            Settings.builder().put(ShardsAvailabilityHealthIndicatorService.PRIMARY_INACTIVE_BUFFER_TIME.getKey(), "20s").build(),
             clusterState,
             Collections.emptyMap()
         );
         final var result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         if (reason.isExpectedTransient()) {
             assertThat("expected GREEN for grace period reason " + reason, result.status(), equalTo(GREEN));
+            final var symptomKeyword = primaryInitializing ? "initializing" : "creating";
             assertThat(
-                "expected creating primary symptom for reason " + reason,
+                "expected primary inactive symptom for reason " + reason,
                 result.symptom(),
-                equalTo("This cluster has 1 creating primary shard.")
+                equalTo("This cluster has 1 " + symptomKeyword + " primary shard.")
             );
         } else {
             assertThat("expected RED for non-grace period reason " + reason, result.status(), equalTo(RED));
+            final var symptomKeyword = primaryInitializing ? "initializing" : "unavailable";
             assertThat(
-                "expected unavailable primary symptom for reason " + reason,
+                "expected primary inactive symptom for reason " + reason,
                 result.symptom(),
-                equalTo("This cluster has 1 unavailable primary shard.")
+                equalTo("This cluster has 1 " + symptomKeyword + " primary shard.")
             );
         }
     }
@@ -1029,6 +1041,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             System.currentTimeMillis() - TimeValue.timeValueSeconds(30).getMillis(),
             TimeUnit.MILLISECONDS
         );
+        final var primaryInitializing = randomBoolean();
         final var clusterState = createClusterStateWith(
             projectId,
             List.of(
@@ -1036,7 +1049,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                     "test-index",
                     new ShardAllocation(
                         randomNodeId(),
-                        UNAVAILABLE,
+                        primaryInitializing ? INITIALIZING : UNAVAILABLE,
                         unassignedInfo(randomUnassignedInfoReason(true), expiredUnassignedTime)
                     )
                 )
@@ -1045,13 +1058,14 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         );
         final var service = createShardsAvailabilityIndicatorService(
             projectId,
-            Settings.builder().put(ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_BUFFER_TIME.getKey(), "20s").build(),
+            Settings.builder().put(ShardsAvailabilityHealthIndicatorService.PRIMARY_INACTIVE_BUFFER_TIME.getKey(), "20s").build(),
             clusterState,
             Collections.emptyMap()
         );
         final var result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         assertThat(result.status(), equalTo(RED));
-        assertThat(result.symptom(), equalTo("This cluster has 1 unavailable primary shard."));
+        final var symptomKeyword = primaryInitializing ? "initializing" : "unavailable";
+        assertThat(result.symptom(), equalTo("This cluster has 1 " + symptomKeyword + " primary shard."));
     }
 
     public void testMixedGraceAndNonGracePrimaryAndReplicaState() {
@@ -1121,26 +1135,37 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             final var service = createShardsAvailabilityIndicatorService(
                 projectId,
                 Settings.builder()
-                    .put(ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_BUFFER_TIME.getKey(), "20s")
-                    .put(ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME.getKey(), "20s")
+                    .put(ShardsAvailabilityHealthIndicatorService.PRIMARY_INACTIVE_BUFFER_TIME.getKey(), "20s")
+                    .put(ShardsAvailabilityHealthIndicatorService.REPLICA_INACTIVE_BUFFER_TIME.getKey(), "20s")
                     .build(),
                 clusterState,
                 Collections.emptyMap()
             );
 
-            final int unavailablePrimaryCount = (primaryReason2.isExpectedTransient() == false || primaryExpired2 ? 1 : 0) + (primaryReason3
-                .isExpectedTransient() == false
-                || primaryExpired3 ? 1 : 0);
+            int unavailablePrimaryCount = 0;
+            if (primaryReason2.isExpectedTransient() == false || primaryExpired2) {
+                unavailablePrimaryCount++;
+            }
+            if (primaryReason3.isExpectedTransient() == false || primaryExpired3) {
+                unavailablePrimaryCount++;
+            }
             final int creatingPrimaryCount = 2 - unavailablePrimaryCount;
-            final int unavailableReplicaCount = (replicaReason1a.isExpectedTransient() == false || replicaExpired1a ? 1 : 0)
-                + (replicaReason1b.isExpectedTransient() == false || replicaExpired1b ? 1 : 0) + (replicaReason1c
-                    .isExpectedTransient() == false
-                    || replicaExpired1c ? 1 : 0);
+            int unavailableReplicaCount = 0;
+            if (replicaReason1a.isExpectedTransient() == false || replicaExpired1a) {
+                unavailableReplicaCount++;
+            }
+            if (replicaReason1b.isExpectedTransient() == false || replicaExpired1b) {
+                unavailableReplicaCount++;
+            }
+            if (replicaReason1c.isExpectedTransient() == false || replicaExpired1c) {
+                unavailableReplicaCount++;
+            }
             final int creatingReplicaCount = 3 - unavailableReplicaCount;
             final var expectedHealth = unavailablePrimaryCount > 0 ? RED : unavailableReplicaCount > 0 ? YELLOW : GREEN;
 
             final var result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
             assertThat(result.status(), equalTo(expectedHealth));
+
             final var symptomParts = new ArrayList<String>();
             if (unavailablePrimaryCount > 0) {
                 symptomParts.add(unavailablePrimaryCount + " unavailable primary shard" + (unavailablePrimaryCount > 1 ? "s" : ""));
@@ -1148,11 +1173,11 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             if (creatingPrimaryCount > 0) {
                 symptomParts.add(creatingPrimaryCount + " creating primary shard" + (creatingPrimaryCount > 1 ? "s" : ""));
             }
-            if (creatingReplicaCount > 0) {
-                symptomParts.add(creatingReplicaCount + " creating replica shard" + (creatingReplicaCount > 1 ? "s" : ""));
-            }
             if (unavailableReplicaCount > 0) {
                 symptomParts.add(unavailableReplicaCount + " unavailable replica shard" + (unavailableReplicaCount > 1 ? "s" : ""));
+            }
+            if (creatingReplicaCount > 0) {
+                symptomParts.add(creatingReplicaCount + " creating replica shard" + (creatingReplicaCount > 1 ? "s" : ""));
             }
             assertThat(result.symptom(), equalTo("This cluster has " + String.join(", ", symptomParts) + "."));
         }

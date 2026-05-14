@@ -373,7 +373,7 @@ setup:
         index: myindex
 
   - do:
-      catch: /Invalid alias name \[myview\]. an index, data stream, or ESQL view exists with the same name as the alias|is not available when running in serverless mode/
+      catch: /Invalid alias name \[myview\]. an index, data stream, (ESQL view, or ESQL dataset|or ESQL view) exists with the same name as the alias|is not available when running in serverless mode/
       indices.put_alias:
         index: myindex
         name: myview
@@ -403,7 +403,7 @@ setup:
         name: myviewds
 
   - do:
-      catch: /Invalid alias name \[myview\]. an index, data stream, or ESQL view exists with the same name as the alias|is not available when running in serverless mode/
+      catch: /Invalid alias name \[myview\]. an index, data stream, (ESQL view, or ESQL dataset|or ESQL view) exists with the same name as the alias|is not available when running in serverless mode/
       indices.put_alias:
         index: myviewds
         name: myview

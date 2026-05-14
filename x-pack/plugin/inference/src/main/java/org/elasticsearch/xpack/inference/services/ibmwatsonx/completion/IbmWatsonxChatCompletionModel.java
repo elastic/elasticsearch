@@ -53,7 +53,7 @@ public class IbmWatsonxChatCompletionModel extends IbmWatsonxModel {
             taskType,
             service,
             IbmWatsonxChatCompletionServiceSettings.fromMap(serviceSettings, context),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

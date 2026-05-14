@@ -1865,7 +1865,7 @@ public class AnalyzerTests extends ESTestCase {
         // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
         final String supportedTypes =
             "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or date_range or datetime "
-                + "or dense_vector or exponential_histogram or geo_point "
+                + "or dense_vector or exponential_histogram or flattened or geo_point "
                 + "or geo_shape or geohash or geohex or geotile or histogram or ip or numeric or string or version";
         analyzer().error(
             "row period = 1 year | eval to_string(period)",
@@ -3543,6 +3543,8 @@ public class AnalyzerTests extends ESTestCase {
      * just like TS + STATS.
      */
     public void testPromqlQueryWithConflictingTsTypesMarksFieldUnsupported() {
+        assumeTrue("Requires PROMQL", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
+
         FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
         IndexResolution resolution = IndexResolver.mergedMappings(
             "test",
@@ -4092,7 +4094,29 @@ public class AnalyzerTests extends ESTestCase {
             """
                 FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe")""",
             ParsingException.class,
-            containsString("error building [text_embedding]: expects exactly two arguments")
+            containsString("error building [text_embedding]: expects two or three arguments")
+        );
+    }
+
+    public void testTextEmbeddingFunctionInvalidOptions() {
+        books().error(
+            String.format(
+                Locale.ROOT,
+                """
+                    FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s", {"invalid": "value"})""",
+                TEXT_EMBEDDING_INFERENCE_ID
+            ),
+            containsString("Invalid option [invalid]")
+        );
+
+        books().error(
+            String.format(
+                Locale.ROOT,
+                """
+                    FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s", {"timeout": "a long one"})""",
+                TEXT_EMBEDDING_INFERENCE_ID
+            ),
+            containsString("failed to parse setting [timeout]")
         );
     }
 
@@ -4671,7 +4695,6 @@ public class AnalyzerTests extends ESTestCase {
             Map.of("id", idField, "foo", fooField), // Updated mapping keys
             Map.of("union_index_1", IndexMode.STANDARD, "union_index_2", IndexMode.STANDARD),
             Map.of(),
-            Map.of(),
             Map.of()
         );
         IndexResolution resolution = IndexResolution.valid(index);
@@ -4713,7 +4736,6 @@ public class AnalyzerTests extends ESTestCase {
             "union_index*",
             Map.of("id", idField),
             Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
-            Map.of(),
             Map.of(),
             Map.of()
         );
@@ -4986,7 +5008,6 @@ public class AnalyzerTests extends ESTestCase {
             "k8s,k8s-downsampled",
             mapping,
             Map.of("k8s", IndexMode.TIME_SERIES, "k8s-downsampled", IndexMode.TIME_SERIES),
-            Map.of(),
             Map.of(),
             Map.of()
         );

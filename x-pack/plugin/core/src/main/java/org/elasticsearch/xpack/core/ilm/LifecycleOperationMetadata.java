@@ -166,7 +166,7 @@ public class LifecycleOperationMetadata implements Metadata.ProjectCustom {
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, true);
+        return Strings.toTruncatedString(this, true, true);
     }
 
     public static class LifecycleOperationMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {

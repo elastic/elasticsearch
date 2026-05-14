@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TemporalityAware;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
@@ -46,7 +47,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * It is similar to the {@code rate()} function, but instead of calculating the per-second average rate of increase,
  * it calculates the total increase over the time window.
  */
-public class Increase extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TemporalityAware {
+public class Increase extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware, TemporalityAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "Increase",
@@ -173,9 +174,9 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
         final DataType tsType = timestamp().dataType();
         final boolean isDateNanos = tsType == DataType.DATE_NANOS;
         return switch (type) {
-            case COUNTER_LONG -> new RateLongGroupingAggregatorFunction.FunctionSupplier(false, isDateNanos);
-            case COUNTER_INTEGER -> new RateIntGroupingAggregatorFunction.FunctionSupplier(false, isDateNanos);
-            case COUNTER_DOUBLE -> new RateDoubleGroupingAggregatorFunction.FunctionSupplier(false, isDateNanos);
+            case COUNTER_LONG -> new RateLongGroupingAggregatorFunction.FunctionSupplier(false, isDateNanos, source());
+            case COUNTER_INTEGER -> new RateIntGroupingAggregatorFunction.FunctionSupplier(false, isDateNanos, source());
+            case COUNTER_DOUBLE -> new RateDoubleGroupingAggregatorFunction.FunctionSupplier(false, isDateNanos, source());
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

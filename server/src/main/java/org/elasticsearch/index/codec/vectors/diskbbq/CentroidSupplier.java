@@ -28,6 +28,10 @@ public interface CentroidSupplier {
         return null;
     }
 
+    default CentroidSlices slices() throws IOException {
+        return null;
+    }
+
     KMeansFloatVectorValues asKmeansFloatVectorValues() throws IOException;
 
     static CentroidSupplier empty(int dims) {
@@ -57,4 +61,5 @@ public interface CentroidSupplier {
             }
         };
     }
+
 }

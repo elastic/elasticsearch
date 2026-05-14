@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -37,20 +36,16 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.test.http.MockResponse;
-import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.common.Truncator;
-import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -61,11 +56,8 @@ import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatso
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModelTests;
-import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.net.URI;
@@ -81,9 +73,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
-import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
@@ -98,7 +88,6 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -107,10 +96,6 @@ import static org.mockito.Mockito.when;
 
 public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
-    private final MockWebServer webServer = new MockWebServer();
-    private ThreadPool threadPool;
-
-    private HttpClientManager clientManager;
 
     private static final String API_KEY_VALUE = "apiKey";
     private static final String MODEL_ID_VALUE = "model";
@@ -118,22 +103,8 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
     private static final String URL_VALUE = "https://abc.com";
     private static final String API_VERSION_VALUE = "2023-04-03";
 
-    @Before
-    public void init() throws Exception {
-        webServer.start();
-        threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
-    }
-
-    @After
-    public void shutdown() throws IOException {
-        clientManager.close();
-        terminate(threadPool);
-        webServer.close();
-    }
-
     public void testParseRequestConfig_CreatesAIbmWatsonxEmbeddingsModel() throws IOException {
-        try (var service = createIbmWatsonxService()) {
+        try (var service = createInferenceService()) {
             ActionListener<Model> modelListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(IbmWatsonxEmbeddingsModel.class));
 
@@ -171,7 +142,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_CreatesAIbmWatsonxRerankModel() throws IOException {
-        try (var service = createIbmWatsonxService()) {
+        try (var service = createInferenceService()) {
             ActionListener<Model> modelListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(IbmWatsonxRerankModel.class));
 
@@ -207,7 +178,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_CreatesAIbmWatsonxEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
-        try (var service = createIbmWatsonxService()) {
+        try (var service = createInferenceService()) {
             ActionListener<Model> modelListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(IbmWatsonxEmbeddingsModel.class));
 
@@ -246,7 +217,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_ThrowsUnsupportedModelType() throws IOException {
-        try (var service = createIbmWatsonxService()) {
+        try (var service = createInferenceService()) {
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
                 "The [watsonxai] service does not support task type [sparse_embedding]"
@@ -266,7 +237,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInSecretSettingsMap() throws IOException {
-        try (var service = createIbmWatsonxService()) {
+        try (var service = createInferenceService()) {
             Map<String, Object> secretSettings = getSecretSettingsMap("secret");
             secretSettings.put("extra_key", "value");
 
@@ -296,7 +267,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_WithSecrets_CreatesAIbmWatsonxEmbeddingsModel() throws IOException {
-        try (var service = createIbmWatsonxService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 new HashMap<>(
                     Map.of(
@@ -338,7 +309,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_WithSecrets_CreatesAIbmWatsonxEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
-        try (var service = createIbmWatsonxService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 new HashMap<>(
                     Map.of(
@@ -381,7 +352,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
-        try (var service = createIbmWatsonxService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 new HashMap<>(
                     Map.of(
@@ -423,7 +394,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
-        try (var service = createIbmWatsonxService()) {
+        try (var service = createInferenceService()) {
             var secretSettingsMap = getSecretSettingsMap(API_KEY_VALUE);
             secretSettingsMap.put("extra_key", "value");
 
@@ -467,7 +438,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
-        try (var service = createIbmWatsonxService()) {
+        try (var service = createInferenceService()) {
             Map<String, Object> serviceSettingsMap = new HashMap<>(
                 Map.of(
                     ServiceFields.MODEL_ID,
@@ -510,7 +481,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
         var modelId = "model";
         var apiKey = "apiKey";
 
-        try (var service = createIbmWatsonxService()) {
+        try (var service = createInferenceService()) {
             Map<String, Object> taskSettings = getTaskSettingsMapEmpty();
             taskSettings.put("extra_key", "value");
 
@@ -554,7 +525,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_CreatesAIbmWatsonxEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
-        try (var service = createIbmWatsonxService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 new HashMap<>(
                     Map.of(
@@ -589,7 +560,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_CreatesAIbmWatsonxEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
-        try (var service = createIbmWatsonxService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 new HashMap<>(
                     Map.of(
@@ -624,44 +595,6 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testInfer_ThrowsErrorWhenModelIsNotIbmWatsonxModel() throws IOException {
-        var sender = createMockSender();
-
-        var factory = mock(HttpRequestSender.Factory.class);
-        when(factory.createSender()).thenReturn(sender);
-
-        var mockModel = getInvalidModel("model_id", "service_name");
-
-        try (var service = new IbmWatsonxService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                mockModel,
-                null,
-                null,
-                null,
-                List.of(""),
-                false,
-                new HashMap<>(),
-                InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
-
-            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-            MatcherAssert.assertThat(
-                thrownException.getMessage(),
-                is("The internal model was invalid, please delete the service [service_name] with id [model_id] and add it again.")
-            );
-
-            verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
-        }
-
-        verify(sender, times(1)).close();
-        verifyNoMoreInteractions(factory);
-        verifyNoMoreInteractions(sender);
-    }
-
     public void testInfer_ThrowsErrorWhenInputTypeIsSpecified() throws IOException {
         var sender = createMockSender();
 
@@ -680,18 +613,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
         try (var service = new IbmWatsonxService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of(""),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
             MatcherAssert.assertThat(
@@ -700,7 +622,6 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -739,18 +660,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 getUrl(webServer)
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of(input),
-                false,
-                new HashMap<>(),
-                InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of(input), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
             var result = listener.actionGet(TIMEOUT);
 
             assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
@@ -786,15 +696,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
         );
         try (var service = new IbmWatsonxServiceWithoutAuth(senderFactory, createWithEmptySettings(threadPool))) {
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(
-                model,
-                null,
-                List.of(),
-                new HashMap<>(),
-                InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, empty());
@@ -840,15 +742,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 getUrl(webServer)
             );
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(
-                model,
-                null,
-                input,
-                new HashMap<>(),
-                InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.chunkedInfer(model, null, input, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, hasSize(2));
@@ -915,18 +809,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 getUrl(webServer)
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("abc"),
-                false,
-                new HashMap<>(),
-                InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(error.getMessage(), containsString("Resource not found at "));
@@ -935,58 +818,8 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new IbmWatsonxServiceWithoutAuth(senderFactory, createWithEmptySettings(threadPool))) {
-            var model = OpenAiChatCompletionModelTests.createCompletionModel(
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10)
-            );
-            assertThrows(
-                ElasticsearchStatusException.class,
-                () -> { service.updateModelWithEmbeddingDetails(model, randomNonNegativeInt()); }
-            );
-        }
-    }
-
-    public void testUpdateModelWithEmbeddingDetails_NullSimilarityInOriginalModel() throws IOException {
-        testUpdateModelWithEmbeddingDetails_Successful(null);
-    }
-
-    public void testUpdateModelWithEmbeddingDetails_NonNullSimilarityInOriginalModel() throws IOException {
-        testUpdateModelWithEmbeddingDetails_Successful(randomFrom(SimilarityMeasure.values()));
-    }
-
-    private void testUpdateModelWithEmbeddingDetails_Successful(SimilarityMeasure similarityMeasure) throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new IbmWatsonxServiceWithoutAuth(senderFactory, createWithEmptySettings(threadPool))) {
-            var embeddingSize = randomNonNegativeInt();
-            var model = IbmWatsonxEmbeddingsModelTests.createModel(
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                URI.create(randomAlphaOfLength(10)),
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                randomNonNegativeInt(),
-                similarityMeasure
-            );
-
-            Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
-
-            SimilarityMeasure expectedSimilarityMeasure = similarityMeasure == null ? SimilarityMeasure.DOT_PRODUCT : similarityMeasure;
-            assertEquals(expectedSimilarityMeasure, updatedModel.getServiceSettings().similarity());
-            assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
-        }
-    }
-
     public void testGetConfiguration() throws Exception {
-        try (var service = createIbmWatsonxService()) {
+        try (var service = createInferenceService()) {
             String content = XContentHelper.stripWhitespace("""
                 {
                        "service": "watsonxai",
@@ -1089,13 +922,27 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
         );
     }
 
-    private IbmWatsonxService createIbmWatsonxService() {
-        return new IbmWatsonxService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), mockClusterServiceEmpty());
+    @Override
+    public InferenceService createInferenceService() {
+        return new IbmWatsonxService(
+            HttpRequestSenderTests.createSenderFactory(threadPool, clientManager),
+            createWithEmptySettings(threadPool),
+            mockClusterServiceEmpty()
+        );
     }
 
     @Override
-    public InferenceService createInferenceService() {
-        return createIbmWatsonxService();
+    public Model createEmbeddingModel(SimilarityMeasure similarity) {
+        return IbmWatsonxEmbeddingsModelTests.createModel(
+            randomAlphaOfLength(8),
+            randomAlphaOfLength(8),
+            randomAlphaOfLength(8),
+            null,
+            null,
+            randomAlphaOfLength(8),
+            null,
+            similarity
+        );
     }
 
     @Override
@@ -1158,7 +1005,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
         }
 
         @Override
-        public Request truncate() {
+        public OutboundRequest truncate() {
             IbmWatsonxEmbeddingsRequest embeddingsRequest = (IbmWatsonxEmbeddingsRequest) super.truncate();
             return new IbmWatsonxEmbeddingsWithoutAuthRequest(
                 embeddingsRequest.truncator(),
@@ -1202,17 +1049,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
             );
             assertThat(
                 thrownException.getMessage(),
-                is(
-                    Strings.format(
-                        """
-                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
-                            Please delete and add the service again""",
-                        "id",
-                        IbmWatsonxService.NAME,
-                        IbmWatsonxService.NAME,
-                        TaskType.SPARSE_EMBEDDING
-                    )
-                )
+                is(Strings.format("The [%s] service does not support task type [%s]", IbmWatsonxService.NAME, TaskType.SPARSE_EMBEDDING))
 
             );
         }

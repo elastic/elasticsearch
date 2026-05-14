@@ -7,6 +7,9 @@
 
 package org.elasticsearch.compute.operator;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
@@ -19,6 +22,11 @@ public class Warnings {
     public static final Warnings NOOP_WARNINGS = new Warnings(-1, -2, null, "", "") {
         @Override
         public void registerException(Exception exception) {
+            // this space intentionally left blank
+        }
+
+        @Override
+        public void registerWarning(String message) {
             // this space intentionally left blank
         }
     };
@@ -87,17 +95,28 @@ public class Warnings {
     }
 
     private final String location;
-    private final String first;
+    private final String firstExceptionWarning;
+    private final String nonExceptionWarningPrefix;
+    private final Set<String> emittedNonExceptionWarnings = new HashSet<>();
 
     private int addedWarnings;
+    private boolean exceptionWarningEmitted = false;
 
-    private Warnings(int lineNumber, int columnNumber, String viewName, String sourceText, String first) {
+    private Warnings(int lineNumber, int columnNumber, String viewName, String sourceText, String firstExceptionWarning) {
         if (viewName == null) {
             this.location = format("Line {}:{}: ", lineNumber, columnNumber);
+            this.nonExceptionWarningPrefix = format("Line {}:{} [{}]: ", lineNumber, columnNumber, sourceText);
         } else {
             this.location = format("Line {}:{} (in view [{}]): ", lineNumber, columnNumber, viewName);
+            this.nonExceptionWarningPrefix = format("Line {}:{} [{}] (in view [{}]): ", lineNumber, columnNumber, sourceText, viewName);
         }
-        this.first = format(null, "{}" + first + ". Only first {} failures recorded.", location, sourceText, MAX_ADDED_WARNINGS);
+        this.firstExceptionWarning = format(
+            null,
+            "{}" + firstExceptionWarning + ". Only first {} failures recorded.",
+            location,
+            sourceText,
+            MAX_ADDED_WARNINGS
+        );
     }
 
     public void registerException(Exception exception) {
@@ -113,11 +132,25 @@ public class Warnings {
      */
     public void registerException(Class<? extends Exception> exceptionClass, String message) {
         if (addedWarnings < MAX_ADDED_WARNINGS) {
-            if (addedWarnings == 0) {
-                addWarning(first);
+            if (exceptionWarningEmitted == false) {
+                exceptionWarningEmitted = true;
+                addWarning(firstExceptionWarning);
             }
             // location needs to be added to the exception too, since the headers are deduplicated
             addWarning(location + exceptionClass.getName() + ": " + message);
+            addedWarnings++;
+        }
+    }
+
+    /**
+     * Register a custom warning message (not tied to an exception).
+     * Even if the very same warning is registered multiple times, it will only be emitted once.
+     * This method therefore caches the emitted message and should not be called with non-constant messages!
+     */
+    public void registerWarning(String message) {
+        if (addedWarnings < MAX_ADDED_WARNINGS && !emittedNonExceptionWarnings.contains(message)) {
+            emittedNonExceptionWarnings.add(message);
+            addWarning(nonExceptionWarningPrefix + message);
             addedWarnings++;
         }
     }

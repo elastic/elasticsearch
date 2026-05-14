@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.bzip2;
 
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
@@ -15,6 +16,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+
+import static org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2BlockScanner.scanBlockOffsets;
+import static org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2TestHelpers.reassembleLineAligned;
+import static org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2TestHelpers.skipFirstLine;
 
 /**
  * Tests for the bzip2 splittable decompression codec, verifying both stream-only
@@ -27,7 +32,7 @@ public class Bzip2SplittableCodecTests extends ESTestCase {
         byte[] data = original.getBytes(StandardCharsets.UTF_8);
         byte[] compressed = bzip2(data, BZip2CompressorOutputStream.MIN_BLOCKSIZE);
 
-        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         try (InputStream stream = codec.decompress(new ByteArrayInputStream(compressed))) {
             byte[] result = stream.readAllBytes();
             assertEquals(original, new String(result, StandardCharsets.UTF_8));
@@ -38,7 +43,7 @@ public class Bzip2SplittableCodecTests extends ESTestCase {
         byte[] data = generateNdJsonData(5000);
         byte[] compressed = bzip2(data, BZip2CompressorOutputStream.MIN_BLOCKSIZE);
 
-        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         try (InputStream stream = codec.decompress(new ByteArrayInputStream(compressed))) {
             byte[] result = stream.readAllBytes();
             assertArrayEquals(data, result);
@@ -46,7 +51,7 @@ public class Bzip2SplittableCodecTests extends ESTestCase {
     }
 
     public void testCodecMetadata() {
-        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         assertEquals("bzip2", codec.name());
         assertTrue(codec.extensions().contains(".bz2"));
         assertTrue(codec.extensions().contains(".bz"));
@@ -57,7 +62,7 @@ public class Bzip2SplittableCodecTests extends ESTestCase {
         byte[] compressed = bzip2(data, BZip2CompressorOutputStream.MIN_BLOCKSIZE);
         ByteArrayStorageObject object = new ByteArrayStorageObject(compressed);
 
-        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         long[] boundaries = codec.findBlockBoundaries(object, 0, compressed.length);
 
         assertTrue("Should find at least one block boundary", boundaries.length >= 1);
@@ -69,25 +74,42 @@ public class Bzip2SplittableCodecTests extends ESTestCase {
         }
     }
 
+    /**
+     * When the compressed file is large enough, {@link Bzip2DecompressionCodec#findBlockBoundaries}
+     * uses overlapped parallel scans; results must match a single full-stream scan.
+     */
+    public void testParallelFindBlockBoundariesMatchesFullScan() throws IOException {
+        // Incompressible-ish payload; compressed size must exceed {@link Bzip2DecompressionCodec#MIN_PARALLEL_SCAN_BYTES}
+        // (currently multi-megabyte), so raw length is sized with margin above that threshold.
+        int rawLen = (int) Math.min(Integer.MAX_VALUE - 8, Bzip2DecompressionCodec.MIN_PARALLEL_SCAN_BYTES + 2 * 1024 * 1024);
+        byte[] uncompressed = randomByteArrayOfLength(rawLen);
+        byte[] compressed = bzip2(uncompressed, BZip2CompressorOutputStream.MIN_BLOCKSIZE);
+        assertTrue(
+            "Compressed fixture must exceed parallel threshold: " + compressed.length,
+            compressed.length >= Bzip2DecompressionCodec.MIN_PARALLEL_SCAN_BYTES
+        );
+
+        ByteArrayStorageObject object = new ByteArrayStorageObject(compressed);
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        long[] parallelBoundaries = codec.findBlockBoundaries(object, 0, compressed.length);
+
+        long[] expected;
+        try (InputStream in = new ByteArrayInputStream(compressed)) {
+            expected = scanBlockOffsets(in, compressed.length);
+        }
+        assertArrayEquals(expected, parallelBoundaries);
+    }
+
     public void testDecompressRangeUnionEqualsOriginalNdJson() throws IOException {
         byte[] data = generateNdJsonData(5000);
         byte[] compressed = bzip2(data, BZip2CompressorOutputStream.MIN_BLOCKSIZE);
         ByteArrayStorageObject object = new ByteArrayStorageObject(compressed);
 
-        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         long[] boundaries = codec.findBlockBoundaries(object, 0, compressed.length);
         assertTrue("Need multiple blocks for this test", boundaries.length >= 2);
 
-        ByteArrayOutputStream reassembled = new ByteArrayOutputStream();
-        for (int i = 0; i < boundaries.length; i++) {
-            long start = boundaries[i];
-            long end = (i + 1 < boundaries.length) ? boundaries[i + 1] : compressed.length;
-            try (InputStream stream = codec.decompressRange(object, start, end)) {
-                reassembled.write(stream.readAllBytes());
-            }
-        }
-
-        String result = reassembled.toString(StandardCharsets.UTF_8);
+        String result = reassembleLineAligned(codec, object, boundaries, compressed.length);
         String original = new String(data, StandardCharsets.UTF_8);
         assertEquals("Reassembled NDJSON should match original", original, result);
     }
@@ -97,20 +119,11 @@ public class Bzip2SplittableCodecTests extends ESTestCase {
         byte[] compressed = bzip2(data, BZip2CompressorOutputStream.MIN_BLOCKSIZE);
         ByteArrayStorageObject object = new ByteArrayStorageObject(compressed);
 
-        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         long[] boundaries = codec.findBlockBoundaries(object, 0, compressed.length);
         assertTrue("Need multiple blocks for this test", boundaries.length >= 2);
 
-        ByteArrayOutputStream reassembled = new ByteArrayOutputStream();
-        for (int i = 0; i < boundaries.length; i++) {
-            long start = boundaries[i];
-            long end = (i + 1 < boundaries.length) ? boundaries[i + 1] : compressed.length;
-            try (InputStream stream = codec.decompressRange(object, start, end)) {
-                reassembled.write(stream.readAllBytes());
-            }
-        }
-
-        String result = reassembled.toString(StandardCharsets.UTF_8);
+        String result = reassembleLineAligned(codec, object, boundaries, compressed.length);
         String original = new String(data, StandardCharsets.UTF_8);
         assertEquals("Reassembled CSV should match original", original, result);
     }
@@ -121,7 +134,7 @@ public class Bzip2SplittableCodecTests extends ESTestCase {
         byte[] compressed = bzip2(data, BZip2CompressorOutputStream.MIN_BLOCKSIZE);
         ByteArrayStorageObject object = new ByteArrayStorageObject(compressed);
 
-        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         long[] boundaries = codec.findBlockBoundaries(object, 0, compressed.length);
         assertEquals("Small data should have exactly one block", 1, boundaries.length);
 
@@ -138,19 +151,11 @@ public class Bzip2SplittableCodecTests extends ESTestCase {
             byte[] compressed = bzip2(data, blockSize);
             ByteArrayStorageObject object = new ByteArrayStorageObject(compressed);
 
-            Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+            Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
             long[] boundaries = codec.findBlockBoundaries(object, 0, compressed.length);
 
-            ByteArrayOutputStream reassembled = new ByteArrayOutputStream();
-            for (int i = 0; i < boundaries.length; i++) {
-                long start = boundaries[i];
-                long end = (i + 1 < boundaries.length) ? boundaries[i + 1] : compressed.length;
-                try (InputStream stream = codec.decompressRange(object, start, end)) {
-                    reassembled.write(stream.readAllBytes());
-                }
-            }
-
-            assertArrayEquals("Block size " + blockSize + " should reassemble correctly", data, reassembled.toByteArray());
+            String reassembled = reassembleLineAligned(codec, object, boundaries, compressed.length);
+            assertEquals("Block size " + blockSize + " should reassemble correctly", new String(data, StandardCharsets.UTF_8), reassembled);
         }
     }
 
@@ -159,7 +164,7 @@ public class Bzip2SplittableCodecTests extends ESTestCase {
         byte[] compressed = bzip2(data, BZip2CompressorOutputStream.MIN_BLOCKSIZE);
         ByteArrayStorageObject object = new ByteArrayStorageObject(compressed);
 
-        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         long[] boundaries = codec.findBlockBoundaries(object, 10, 10);
         assertEquals("Empty range should return no boundaries", 0, boundaries.length);
     }
@@ -169,8 +174,100 @@ public class Bzip2SplittableCodecTests extends ESTestCase {
         byte[] compressed = bzip2(data, BZip2CompressorOutputStream.MIN_BLOCKSIZE);
         ByteArrayStorageObject object = new ByteArrayStorageObject(compressed);
 
-        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         expectThrows(IllegalArgumentException.class, () -> codec.decompressRange(object, 10, 5));
+    }
+
+    /**
+     * Verifies the disjoint-macro-splits contract: consuming every boundary-to-boundary range with
+     * {@code skipFirstLine} on all non-first ranges yields the full original byte-for-byte. The
+     * codec's "finish-current-line" behavior is what makes this lossless — records straddling a
+     * block boundary are fully emitted by the split on the left and dropped by the split on the
+     * right's first-line skip, with no duplication.
+     */
+    public void testDisjointMacroSplitsReassembleExactly() throws IOException {
+        byte[] data = generateNdJsonData(10000);
+        byte[] compressed = bzip2(data, BZip2CompressorOutputStream.MIN_BLOCKSIZE);
+        ByteArrayStorageObject object = new ByteArrayStorageObject(compressed);
+
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        long[] boundaries = codec.findBlockBoundaries(object, 0, compressed.length);
+        assertTrue("Need multiple blocks to exercise macro-split boundaries", boundaries.length >= 3);
+
+        // Group pairs of blocks into disjoint macro-splits (start of next = end of previous).
+        // Neighboring ranges must NOT overlap by a full block.
+        ByteArrayOutputStream reassembled = new ByteArrayOutputStream();
+        for (int i = 0; i < boundaries.length; i += 2) {
+            long start = boundaries[i];
+            long end;
+            int next = i + 2;
+            if (next < boundaries.length) {
+                end = boundaries[next];
+            } else {
+                end = compressed.length;
+            }
+            try (InputStream stream = codec.decompressRange(object, start, end)) {
+                byte[] bytes = stream.readAllBytes();
+                byte[] aligned = i == 0 ? bytes : skipFirstLine(bytes);
+                reassembled.write(aligned);
+            }
+        }
+        String result = reassembled.toString(StandardCharsets.UTF_8);
+        String original = new String(data, StandardCharsets.UTF_8);
+        assertEquals("Disjoint macro-splits must reassemble to exact original", original, result);
+    }
+
+    /**
+     * Verifies the finish-current-line contract for a boundary that falls mid-record: the codec
+     * emits decompressed bytes up to (and including) the first {@code '\n'} beyond the
+     * compressed-split boundary.
+     */
+    public void testDecompressRangeFinishesCurrentLinePastBoundary() throws IOException {
+        byte[] data = generateNdJsonData(5000);
+        byte[] compressed = bzip2(data, BZip2CompressorOutputStream.MIN_BLOCKSIZE);
+        ByteArrayStorageObject object = new ByteArrayStorageObject(compressed);
+
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        long[] boundaries = codec.findBlockBoundaries(object, 0, compressed.length);
+        assertTrue("Need multiple blocks", boundaries.length >= 2);
+
+        try (InputStream stream = codec.decompressRange(object, boundaries[0], boundaries[1])) {
+            byte[] out = stream.readAllBytes();
+            assertTrue("Stream of a non-last range must end with '\\n' (finish-current-line)", out.length > 0);
+            assertEquals("Last byte must be newline", '\n', out[out.length - 1]);
+        }
+    }
+
+    /**
+     * Validates the {@code finishingLine} fallback path when a non-final split extends into
+     * content that contains no {@code '\n'} before true EOF. The wrapper must reach
+     * {@link BZip2Constants#END_OF_STREAM} and return {@code -1} cleanly rather than hanging
+     * or erroring — matching the "unterminated last line" convention.
+     */
+    public void testDecompressRangeFinishesAtEofWithoutTrailingNewline() throws IOException {
+        // Cycle the alphabet (no '\n', no '\r') to get enough entropy that MIN_BLOCKSIZE
+        // produces multiple compressed blocks. {@code 'a'}-fill would collapse to a single block.
+        byte[] data = new byte[1_200_000];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (byte) ('a' + (i % 26));
+        }
+        byte[] compressed = bzip2(data, BZip2CompressorOutputStream.MIN_BLOCKSIZE);
+        ByteArrayStorageObject object = new ByteArrayStorageObject(compressed);
+
+        Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        long[] boundaries = codec.findBlockBoundaries(object, 0, compressed.length);
+        assertTrue("Need at least two blocks to exercise a non-final split", boundaries.length >= 2);
+
+        long nonFinalLimit = boundaries[1];
+        assertTrue("compressedLimit must be strictly before EOF", nonFinalLimit < compressed.length);
+
+        try (InputStream stream = codec.decompressRange(object, boundaries[0], nonFinalLimit)) {
+            byte[] out = stream.readAllBytes();
+            assertTrue("Non-final split should emit at least the first block's bytes", out.length > 0);
+            for (byte b : out) {
+                assertTrue("No terminators should appear in the emitted bytes", b != '\n' && b != '\r');
+            }
+        }
     }
 
     private static byte[] generateNdJsonData(int lines) {

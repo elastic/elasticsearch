@@ -11,7 +11,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.index.reindex.BulkByScrollTask.StatusOrException;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask.StatusOrException;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
@@ -21,7 +21,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class BulkByScrollTaskStatusOrExceptionTests extends AbstractXContentTestCase<StatusOrException> {
+public class BulkByPaginatedSearchTaskStatusOrExceptionTests extends AbstractXContentTestCase<StatusOrException> {
     @Override
     protected StatusOrException createTestInstance() {
         // failures are tested separately, so we can test XContent equivalence at least when we have no failures
@@ -29,20 +29,20 @@ public class BulkByScrollTaskStatusOrExceptionTests extends AbstractXContentTest
     }
 
     static StatusOrException createTestInstanceWithoutExceptions() {
-        return new StatusOrException(BulkByScrollTaskStatusTests.randomStatusWithoutException());
+        return new StatusOrException(BulkByPaginatedSearchTaskStatusTests.randomStatusWithoutException());
     }
 
     static StatusOrException createTestInstanceWithExceptions() {
         if (randomBoolean()) {
             return new StatusOrException(new ElasticsearchException("test_exception"));
         } else {
-            return new StatusOrException(BulkByScrollTaskStatusTests.randomStatus());
+            return new StatusOrException(BulkByPaginatedSearchTaskStatusTests.randomStatus());
         }
     }
 
     @Override
     protected StatusOrException doParseInstance(XContentParser parser) throws IOException {
-        return BulkByScrollTaskStatusTests.parseStatusOrException(parser);
+        return BulkByPaginatedSearchTaskStatusTests.parseStatusOrException(parser);
     }
 
     public static void assertEqualStatusOrException(
@@ -54,7 +54,7 @@ public class BulkByScrollTaskStatusOrExceptionTests extends AbstractXContentTest
         if (expected != null && actual != null) {
             assertNotSame(expected, actual);
             if (expected.getException() == null) {
-                BulkByScrollTaskStatusTests
+                BulkByPaginatedSearchTaskStatusTests
                     // we test includeCreated params in the Status tests
                     .assertEqualStatus(expected.getStatus(), actual.getStatus(), includeUpdated, includeCreated);
             } else {
@@ -77,11 +77,11 @@ public class BulkByScrollTaskStatusOrExceptionTests extends AbstractXContentTest
     }
 
     /**
-     * Verifies that a {@link StatusOrException} constructed with a {@link BulkByScrollTask.Status} exposes it via
+     * Verifies that a {@link StatusOrException} constructed with a {@link BulkByPaginatedSearchTask.Status} exposes it via
      * {@link StatusOrException#getStatus()} and returns null from {@link StatusOrException#getException()}.
      */
     public void testStatusOrExceptionWithStatus() {
-        BulkByScrollTask.Status status = BulkByScrollTaskStatusTests.randomStatusWithoutException();
+        BulkByPaginatedSearchTask.Status status = BulkByPaginatedSearchTaskStatusTests.randomStatusWithoutException();
         StatusOrException statusOrException = new StatusOrException(status);
         assertNotNull(statusOrException.getStatus());
         assertSame(status, statusOrException.getStatus());
@@ -108,14 +108,14 @@ public class BulkByScrollTaskStatusOrExceptionTests extends AbstractXContentTest
     public void testEqualsReturnsFalseForNullAndWrongType() {
         StatusOrException statusOrException = createTestInstanceWithoutExceptions();
         assertFalse(statusOrException.equals(null));
-        assertFalse(statusOrException.equals(BulkByScrollTaskStatusTests.randomStatus()));
+        assertFalse(statusOrException.equals(BulkByPaginatedSearchTaskStatusTests.randomStatus()));
     }
 
     /**
      * Verifies that two {@link StatusOrException} instances with the same status are equal and have the same hashCode.
      */
     public void testEqualsAndHashCodeWhenHoldingSameStatus() {
-        BulkByScrollTask.Status status = BulkByScrollTaskStatusTests.randomStatusWithoutException();
+        BulkByPaginatedSearchTask.Status status = BulkByPaginatedSearchTaskStatusTests.randomStatusWithoutException();
         StatusOrException first = new StatusOrException(status);
         StatusOrException second = new StatusOrException(status);
         assertEquals(first, second);
@@ -128,7 +128,7 @@ public class BulkByScrollTaskStatusOrExceptionTests extends AbstractXContentTest
      * without failures, and this other test with failures where we disable asserting on xcontent equivalence at the end.
      */
     public void testFromXContentWithFailures() throws IOException {
-        Supplier<StatusOrException> instanceSupplier = BulkByScrollTaskStatusOrExceptionTests::createTestInstanceWithExceptions;
+        Supplier<StatusOrException> instanceSupplier = BulkByPaginatedSearchTaskStatusOrExceptionTests::createTestInstanceWithExceptions;
         // with random fields insertion in the inner exceptions, some random stuff may be parsed back as metadata,
         // but that does not bother our assertions, as we only want to test that we don't break.
         boolean supportsUnknownFields = true;

@@ -221,9 +221,9 @@ public class InferenceStats {
             if (ctx == null) {
                 return cast();
             }
-            if (Strings.isNullOrEmpty(ctx.productUseCase()) == false) {
-                attributes.put(INFERENCE_SOURCE_ATTRIBUTE, normalizeProductUseCase(ctx.productUseCase()));
-            }
+
+            withProductUseCase(ctx.productUseCase());
+
             if (Strings.isNullOrEmpty(ctx.productOrigin()) == false) {
                 attributes.put(MetricAttributes.ES_PRODUCT_ORIGIN, normalizeProductOrigin(ctx.productOrigin(), OTHER_VALUE));
             }

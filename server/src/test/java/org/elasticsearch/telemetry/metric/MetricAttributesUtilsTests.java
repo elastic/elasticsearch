@@ -34,7 +34,8 @@ public class MetricAttributesUtilsTests extends ESTestCase {
     }
 
     public void testUnknownOrigin_ReturnsDefaultValue() {
-        assertThat(normalizeProductOrigin("bogus-origin", DEFAULT_VALUE), equalTo(DEFAULT_VALUE));
+        var defaultValue = randomAlphaOfLength(10);
+        assertThat(normalizeProductOrigin("bogus-origin", defaultValue), equalTo(defaultValue));
     }
 
     public void testAllKnownOriginsAreRecognized() {

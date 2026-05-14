@@ -578,3 +578,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:fuse.fuseWithRowRRFAndMultiValueGroupColumn}
   issue: https://github.com/elastic/elasticsearch/issues/149046
+- class: org.elasticsearch.xpack.security.ReindexRelocationWithSecurityIT
+  method: testReindexRelocatesWhenCoordinatorShutsDown
+  issue: https://github.com/elastic/elasticsearch/issues/149055

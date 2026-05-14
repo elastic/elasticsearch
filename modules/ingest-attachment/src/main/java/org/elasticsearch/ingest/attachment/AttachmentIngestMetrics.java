@@ -22,12 +22,12 @@ public final class AttachmentIngestMetrics {
     /**
      * Raw size of the attachment source field (before base64 decode) observed before the max-field size check runs.
      */
-    public static final String RAW_FIELD_BYTES_RECEIVED = "es.ingest.attachment.raw_field_bytes.received";
+    public static final String RAW_FIELD_BYTES_RECEIVED = "es.ingest.attachment.raw_field_bytes.received.histogram";
 
     /**
      * Raw size of the attachment source field (before base64 decode) for attachments that were processed.
      */
-    public static final String RAW_FIELD_BYTES_PROCESSED = "es.ingest.attachment.raw_field_bytes.processed";
+    public static final String RAW_FIELD_BYTES_PROCESSED = "es.ingest.attachment.raw_field_bytes.processed.histogram";
 
     private final LongHistogram rawBytesReceived;
     private final LongHistogram rawBytesProcessed;

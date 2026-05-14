@@ -20,8 +20,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
@@ -77,11 +77,11 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
 
     @Override
     protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
-        BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
+        BulkByPaginatedSearchTask bulkByPaginatedSearchTask = (BulkByPaginatedSearchTask) task;
         long startTime = System.nanoTime();
         BulkByPaginatedSearchParallelizationHelper.startSlicedAction(
             request,
-            bulkByScrollTask,
+            bulkByPaginatedSearchTask,
             UpdateByQueryAction.INSTANCE,
             listener,
             client,
@@ -90,10 +90,10 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(
                     client,
                     clusterService.localNode(),
-                    bulkByScrollTask
+                    bulkByPaginatedSearchTask
                 );
                 new AsyncIndexBySearchAction(
-                    bulkByScrollTask,
+                    bulkByPaginatedSearchTask,
                     logger,
                     assigningClient,
                     threadPool,
@@ -118,7 +118,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<UpdateByQueryRequest, TransportUpdateByQueryAction> {
 
         AsyncIndexBySearchAction(
-            BulkByScrollTask task,
+            BulkByPaginatedSearchTask task,
             Logger logger,
             ParentTaskAssigningClient client,
             ThreadPool threadPool,

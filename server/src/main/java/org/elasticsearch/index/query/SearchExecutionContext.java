@@ -108,7 +108,9 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * the {@code reservation/actual} ratio in production and inform tuning of the automaton peak
      * multiplier used to size the reservation.
      */
-    private static final Logger CB_RESERVATION_LOGGER = LogManager.getLogger("org.elasticsearch.cb.automaton.reservation");
+    private static final Logger CB_RESERVATION_LOGGER = LogManager.getLogger(
+        SearchExecutionContext.class.getCanonicalName() + ".cb.automaton.reservation"
+    );
 
     private final SimilarityService similarityService;
     private final BitsetFilterCache bitsetFilterCache;

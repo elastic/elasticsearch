@@ -35,16 +35,16 @@ import static org.elasticsearch.search.vectors.KnnQueryUtils.mergeResults;
  * A query that wraps a {@link PostFilterableKnnQuery} and applies post-filtering with up to two
  * additional rounds when the initial pass yields fewer than k results.
  * <ol>
- *   <li>Post-filter retry — re-runs the post-filter delegate while avoiding previously visited
+ *   <li>Post-filter retry - re-runs the post-filter delegate while avoiding previously visited
  *       results (doc IDs for HNSW, centroid posting lists for IVF). Asks for the remainder.
  *       See {@link PostFilterableKnnQuery#createRetryQuery}.</li>
- *   <li>Augmented pre-filter fallback — switches modes from post-filter to pre-filter, applying
+ *   <li>Augmented pre-filter fallback - switches modes from post-filter to pre-filter, applying
  *       the original filter combined with an {@code ExcludeDocsQuery} over the already-collected
  *       docs and asking for the remaining {@code k - scoreDocs.length} only.
  *       See {@link PostFilterableKnnQuery#createFallbackQuery}.</li>
  * </ol>
  * If both extra rounds still leave the merged result short of k, the partial result is returned
- * as-is — the caller is expected to tolerate fewer than k hits when the filter genuinely admits
+ * as-is - the caller is expected to tolerate fewer than k hits when the filter genuinely admits
  * fewer matching docs. Only when no post-filter results were ever produced (round 0 found
  * nothing) does the outer rewrite fall through to the bare inner query.
  */
@@ -125,7 +125,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             return null;
         }
 
-        // retry round — single retry if round 0 came up short.
+        // retry round - single retry if round 0 came up short.
         if (scoreDocs.length < k) {
             logger.debug(
                 "post-filter retry firing for field=[{}], k=[{}], selectivity=[{}], scoreDocs so far=[{}] and visited=[{}]",
@@ -150,8 +150,8 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             }
         }
 
-        // Augmented pre-filter fallback. When the post-filter rounds yielded some — but fewer
-        // than k — results, switch from post-filter to pre-filter mode: ask the inner query to
+        // Augmented pre-filter fallback. When the post-filter rounds yielded some - but fewer
+        // than k - results, switch from post-filter to pre-filter mode: ask the inner query to
         // search again with the original filter combined with an ExcludeDocsQuery over the docs
         // we already collected, requesting only the remainder. The collected scoreDocs are kept
         // and merged with the new ones rather than discarded.
@@ -172,7 +172,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             Query fallback = innerQuery.createFallbackQuery(searcher.getIndexReader(), excludedDocs, remaining);
             TopDocs fallbackDocs = searcher.search(fallback, remaining);
             vectorOps += ((PostFilterableKnnQuery) fallback).totalVectorOps();
-            // No applyFilter() — the fallback already pre-filtered with the original filter.
+            // No applyFilter() - the fallback already pre-filtered with the original filter.
             ScoreDoc[] fallbackScoreDocs = fallbackDocs.scoreDocs;
             scoreDocs = mergeResults(scoreDocs, fallbackScoreDocs);
             if (parentsFilter != null) {
@@ -181,7 +181,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         }
 
         // Accumulate the post-filter attempt's vector ops regardless of outcome so the profile
-        // reflects the full cost — the outer rewrite() adds the bare innerQuery's own ops on top
+        // reflects the full cost - the outer rewrite() adds the bare innerQuery's own ops on top
         // only when we return null (zero-result case).
         this.totalVectorOps += vectorOps;
         if (scoreDocs.length < k) {
@@ -200,7 +200,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
     /**
      * Returns round-0's collected docs as a sorted docId array (used as both excludedDocs and
      * seedDocs source for the retry round). Prefers the per-leaf trackers exposed by
-     * {@link DocTrackingKnnQuery}; otherwise — and for non-tracked delegates such as IVF — falls
+     * {@link DocTrackingKnnQuery}; otherwise - and for non-tracked delegates such as IVF - falls
      * back to {@code topDocs.scoreDocs} (round-0's global top-K). The fallback gives IVF retry a
      * non-empty {@code excludedDocs} so the {@code ExcludeDocsQuery} branch in IVF
      * {@code createRetryQuery} actually fires.

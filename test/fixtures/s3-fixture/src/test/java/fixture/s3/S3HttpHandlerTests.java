@@ -246,9 +246,9 @@ public class S3HttpHandlerTests extends ESTestCase {
         assertEquals(RestStatus.OK, handleRequest(handler, "PUT", tieredPath, body, storageClassHeader(storageClass)).status());
 
         // GET: STANDARD objects do not carry the x-amz-storage-class header
-        assertNull(handleRequest(handler, "GET", standardPath).headers().getFirst("X-amz-storage-class"));
+        assertNull(handleRequest(handler, "GET", standardPath).headers().getFirst(S3HttpHandler.STORAGE_CLASS_HEADER));
         // GET: non-STANDARD objects carry the header
-        assertEquals(storageClass, handleRequest(handler, "GET", tieredPath).headers().getFirst("X-amz-storage-class"));
+        assertEquals(storageClass, handleRequest(handler, "GET", tieredPath).headers().getFirst(S3HttpHandler.STORAGE_CLASS_HEADER));
 
         // LIST: both objects appear with their correct StorageClass elements
         assertListObjectsResponse(handler, "path/", null, Strings.format("""
@@ -275,7 +275,7 @@ public class S3HttpHandlerTests extends ESTestCase {
             <CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
                <Part><ETag>%s</ETag><PartNumber>1</PartNumber></Part>
             </CompleteMultipartUpload>""", partEtag).getBytes(StandardCharsets.UTF_8)));
-        assertEquals(storageClass, handleRequest(handler, "GET", "/bucket/path/mp-blob").headers().getFirst("X-amz-storage-class"));
+        assertEquals(storageClass, handleRequest(handler, "GET", "/bucket/path/mp-blob").headers().getFirst(S3HttpHandler.STORAGE_CLASS_HEADER));
     }
 
     public void testSingleMultipartUpload() {
@@ -676,7 +676,7 @@ public class S3HttpHandlerTests extends ESTestCase {
         var responseHeaders = new Headers();
         httpExchange.getResponseHeaders().forEach((header, values) -> {
             // com.sun.net.httpserver.Headers.Headers() normalize keys
-            if ("Etag".equals(header) || "Content-range".equals(header) || "X-amz-storage-class".equals(header)) {
+            if ("Etag".equals(header) || "Content-range".equals(header) || S3HttpHandler.STORAGE_CLASS_HEADER.equals(header)) {
                 responseHeaders.put(header, List.copyOf(values));
             }
         });
@@ -719,7 +719,7 @@ public class S3HttpHandlerTests extends ESTestCase {
 
     private static Headers storageClassHeader(String storageClass) {
         var headers = new Headers();
-        headers.put("x-amz-storage-class", List.of(storageClass));
+        headers.put(S3HttpHandler.STORAGE_CLASS_HEADER, List.of(storageClass));
         return headers;
     }
 

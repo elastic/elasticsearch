@@ -70,6 +70,7 @@ import static org.w3c.dom.Node.ELEMENT_NODE;
 public class S3HttpHandler implements HttpHandler {
 
     private static final Logger logger = LogManager.getLogger(S3HttpHandler.class);
+    public static final String STORAGE_CLASS_HEADER = "x-amz-storage-class";
 
     private final String bucket;
     private final String basePath;
@@ -139,7 +140,7 @@ public class S3HttpHandler implements HttpHandler {
                     exchange.getResponseHeaders().add("Content-Length", String.valueOf(blobEntry.contents().length()));
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     if (!"STANDARD".equals(blobEntry.storageClass())) {
-                        exchange.getResponseHeaders().add("x-amz-storage-class", blobEntry.storageClass());
+                        exchange.getResponseHeaders().add(STORAGE_CLASS_HEADER, blobEntry.storageClass());
                     }
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                 }
@@ -409,7 +410,7 @@ public class S3HttpHandler implements HttpHandler {
 
                 exchange.getResponseHeaders().add("ETag", etagFromContents);
                 if (!"STANDARD".equals(blobEntry.storageClass())) {
-                    exchange.getResponseHeaders().add("x-amz-storage-class", blobEntry.storageClass());
+                    exchange.getResponseHeaders().add(STORAGE_CLASS_HEADER, blobEntry.storageClass());
                 }
                 final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
                 if (rangeHeader == null) {
@@ -676,7 +677,7 @@ public class S3HttpHandler implements HttpHandler {
     }
 
     private static String getRequestStorageClass(final HttpExchange exchange) {
-        final var storageClassHeader = exchange.getRequestHeaders().getFirst("x-amz-storage-class");
+        final var storageClassHeader = exchange.getRequestHeaders().getFirst(STORAGE_CLASS_HEADER);
         return storageClassHeader != null ? storageClassHeader : "STANDARD";
     }
 

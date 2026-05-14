@@ -297,7 +297,8 @@ public class FileSplit implements ExternalSplit {
                     // DataType.readFrom throws IOException on unknown type names and handles the DOC
                     // special case; DataType.fromTypeName would silently return null and NPE downstream.
                     DataType type = DataType.readFrom(in.readString());
-                    attrs.add(new ReferenceAttribute(Source.EMPTY, null, name, type, Nullability.TRUE, null, false));
+                    Nullability nullability = in.readBoolean() ? Nullability.TRUE : Nullability.FALSE;
+                    attrs.add(new ReferenceAttribute(Source.EMPTY, null, name, type, nullability, null, false));
                 }
                 // attrs is local to this scope and never escapes mutably; wrap rather than copy so we
                 // skip the redundant size-N array allocation that List.copyOf would perform.
@@ -354,15 +355,18 @@ public class FileSplit implements ExternalSplit {
         if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_READ_SCHEMA)) {
             if (readSchema != null) {
                 out.writeBoolean(true);
-                // Primitive serialization (name + typeName) — FileSplit crosses the wire via
+                // Primitive serialization (name + typeName + nullable) — FileSplit crosses the wire via
                 // DataNodeRequest, which uses RecyclerBytesStreamOutput (not PlanStreamOutput).
                 // Using writeNamedWriteableCollection(Attribute.class) would fail at ReferenceAttribute.writeTo
                 // because it casts the stream to PlanStreamOutput for the attribute-cache machinery.
-                // Readers only need (name, dataType); we don't carry Source/qualifier/etc. through FileSplit.
+                // Readers only need (name, dataType, nullable); we don't carry Source/qualifier/etc.
+                // through FileSplit. The Nullability.UNKNOWN tri-state is collapsed to TRUE on the wire
+                // because UNKNOWN is a "planner hasn't decided" marker and should not survive analysis.
                 out.writeVInt(readSchema.size());
                 for (Attribute attr : readSchema) {
                     out.writeString(attr.name());
                     out.writeString(attr.dataType().typeName());
+                    out.writeBoolean(attr.nullable() == Nullability.TRUE);
                 }
             } else {
                 out.writeBoolean(false);

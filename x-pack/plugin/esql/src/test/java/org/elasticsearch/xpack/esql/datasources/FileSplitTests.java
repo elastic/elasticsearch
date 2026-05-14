@@ -236,16 +236,17 @@ public class FileSplitTests extends ESTestCase {
     }
 
     /**
-     * Non-null {@code readSchema} round-trips via the primitive (count, name, typeName) wire encoding.
-     * Critical because {@code FileSplit} crosses the wire inside {@code DataNodeRequest} on a
+     * Non-null {@code readSchema} round-trips via the primitive (count, name, typeName, nullable) wire
+     * encoding. Critical because {@code FileSplit} crosses the wire inside {@code DataNodeRequest} on a
      * {@code RecyclerBytesStreamOutput} (not a {@code PlanStreamOutput}); the encoding therefore
      * cannot delegate to {@code writeNamedWriteableCollection(Attribute)}, which would cast.
+     * Mixes {@code Nullability.TRUE} and {@code FALSE} attributes to prove the bit round-trips faithfully.
      */
     public void testNamedWriteableRoundTripWithNonNullReadSchema() throws IOException {
         StoragePath path = StoragePath.of("s3://bucket/data.csv");
         List<Attribute> schema = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.KEYWORD, Nullability.TRUE, null, false),
-            new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.INTEGER, Nullability.TRUE, null, false),
+            new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.INTEGER, Nullability.FALSE, null, false),
             new ReferenceAttribute(Source.EMPTY, null, "col2", DataType.DOUBLE, Nullability.TRUE, null, false)
         );
         FileSplit original = FileSplit.withReadSchema("file", path, 0, 2048, ".csv", Map.of(), Map.of(), null, schema);
@@ -260,6 +261,11 @@ public class FileSplitTests extends ESTestCase {
         for (int i = 0; i < schema.size(); i++) {
             assertEquals(schema.get(i).name(), deserialized.readSchema().get(i).name());
             assertEquals(schema.get(i).dataType(), deserialized.readSchema().get(i).dataType());
+            assertEquals(
+                "Nullability of " + schema.get(i).name() + " must round-trip",
+                schema.get(i).nullable(),
+                deserialized.readSchema().get(i).nullable()
+            );
         }
     }
 }

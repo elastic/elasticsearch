@@ -35,22 +35,22 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class BulkByScrollTaskTests extends ESTestCase {
+public class BulkByPaginatedSearchTaskTests extends ESTestCase {
 
     /**
-     * Creates a minimal {@link BulkByScrollTask} with random id, type, action, description and optional relocation eligibility.
-     * The task is neither a leader nor a worker until {@link BulkByScrollTask#setWorkerCount(int, float)} or
-     * {@link BulkByScrollTask#setWorker(float, Integer)} is called.
+     * Creates a minimal {@link BulkByPaginatedSearchTask} with random id, type, action, description and optional relocation eligibility.
+     * The task is neither a leader nor a worker until {@link BulkByPaginatedSearchTask#setWorkerCount(int, float)} or
+     * {@link BulkByPaginatedSearchTask#setWorker(float, Integer)} is called.
      */
-    private static BulkByScrollTask createTask(boolean eligibleForRelocationOnShutdown) {
+    private static BulkByPaginatedSearchTask createTask(boolean eligibleForRelocationOnShutdown) {
         return createTask(eligibleForRelocationOnShutdown, randomBoolean());
     }
 
-    private static BulkByScrollTask createTask(boolean eligibleForRelocationOnShutdown, boolean isRelocated) {
+    private static BulkByPaginatedSearchTask createTask(boolean eligibleForRelocationOnShutdown, boolean isRelocated) {
         return createTask(eligibleForRelocationOnShutdown, isRelocated, randomTaskId());
     }
 
-    private static BulkByScrollTask createTask(boolean eligibleForRelocationOnShutdown, boolean isRelocated, TaskId parentTaskId) {
+    private static BulkByPaginatedSearchTask createTask(boolean eligibleForRelocationOnShutdown, boolean isRelocated, TaskId parentTaskId) {
         TaskId taskId = randomTaskId();
         String type = randomAlphaOfLengthBetween(1, 10);
         String action = randomAlphaOfLengthBetween(1, 10);
@@ -59,7 +59,16 @@ public class BulkByScrollTaskTests extends ESTestCase {
         ResumeInfo.RelocationOrigin origin = isRelocated
             ? new ResumeInfo.RelocationOrigin(new TaskId(randomAlphaOfLength(5), randomNonNegativeLong()), randomNonNegativeLong())
             : null;
-        return new BulkByScrollTask(taskId, type, action, description, parentTaskId, headers, eligibleForRelocationOnShutdown, origin);
+        return new BulkByPaginatedSearchTask(
+            taskId,
+            type,
+            action,
+            description,
+            parentTaskId,
+            headers,
+            eligibleForRelocationOnShutdown,
+            origin
+        );
     }
 
     public void testStatusHatesNegatives() {
@@ -96,7 +105,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new BulkByScrollTask.Status(
+            () -> new BulkByPaginatedSearchTask.Status(
                 sliceId,
                 total,
                 updated,
@@ -118,7 +127,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
 
     public void testXContentRepresentationOfUnlimitedRequestsPerSecond() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();
-        BulkByScrollTask.Status status = new BulkByScrollTask.Status(
+        BulkByPaginatedSearchTask.Status status = new BulkByPaginatedSearchTask.Status(
             null,
             0,
             0,
@@ -140,7 +149,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
 
     public void testXContentRepresentationOfUnfinishedSlices() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();
-        BulkByScrollTask.Status completedStatus = new BulkByScrollTask.Status(
+        BulkByPaginatedSearchTask.Status completedStatus = new BulkByPaginatedSearchTask.Status(
             2,
             0,
             0,
@@ -156,8 +165,8 @@ public class BulkByScrollTaskTests extends ESTestCase {
             null,
             timeValueMillis(0)
         );
-        BulkByScrollTask.Status status = new BulkByScrollTask.Status(
-            Arrays.asList(null, null, new BulkByScrollTask.StatusOrException(completedStatus)),
+        BulkByPaginatedSearchTask.Status status = new BulkByPaginatedSearchTask.Status(
+            Arrays.asList(null, null, new BulkByPaginatedSearchTask.StatusOrException(completedStatus)),
             null,
             0f
         );
@@ -168,8 +177,8 @@ public class BulkByScrollTaskTests extends ESTestCase {
     public void testXContentRepresentationOfSliceFailures() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();
         Exception e = new Exception();
-        BulkByScrollTask.Status status = new BulkByScrollTask.Status(
-            Arrays.asList(null, null, new BulkByScrollTask.StatusOrException(e)),
+        BulkByPaginatedSearchTask.Status status = new BulkByPaginatedSearchTask.Status(
+            Arrays.asList(null, null, new BulkByPaginatedSearchTask.StatusOrException(e)),
             null,
             0f
         );
@@ -178,7 +187,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
     }
 
     public void testMergeStatuses() {
-        BulkByScrollTask.StatusOrException[] statuses = new BulkByScrollTask.StatusOrException[between(2, 100)];
+        BulkByPaginatedSearchTask.StatusOrException[] statuses = new BulkByPaginatedSearchTask.StatusOrException[between(2, 100)];
         boolean containsNullStatuses = randomBoolean();
         int mergedTotal = 0;
         int mergedUpdated = 0;
@@ -209,8 +218,8 @@ public class BulkByScrollTaskTests extends ESTestCase {
             float requestsPerSecond = randomValueOtherThanMany(r -> r <= 0, () -> randomFloat());
             String reasonCancelled = randomBoolean() ? null : "test";
             TimeValue throttledUntil = timeValueNanos(between(0, 1000));
-            statuses[i] = new BulkByScrollTask.StatusOrException(
-                new BulkByScrollTask.Status(
+            statuses[i] = new BulkByPaginatedSearchTask.StatusOrException(
+                new BulkByPaginatedSearchTask.Status(
                     i,
                     total,
                     updated,
@@ -241,7 +250,11 @@ public class BulkByScrollTaskTests extends ESTestCase {
             mergedThrottledUntil = timeValueNanos(min(mergedThrottledUntil.nanos(), throttledUntil.nanos()));
         }
         String reasonCancelled = randomBoolean() ? randomAlphaOfLength(10) : null;
-        BulkByScrollTask.Status merged = new BulkByScrollTask.Status(Arrays.asList(statuses), reasonCancelled, mergedRequestsPerSecond);
+        BulkByPaginatedSearchTask.Status merged = new BulkByPaginatedSearchTask.Status(
+            Arrays.asList(statuses),
+            reasonCancelled,
+            mergedRequestsPerSecond
+        );
         assertEquals(mergedTotal, merged.getTotal());
         assertEquals(mergedUpdated, merged.getUpdated());
         assertEquals(mergedCreated, merged.getCreated());
@@ -258,14 +271,14 @@ public class BulkByScrollTaskTests extends ESTestCase {
     }
 
     /**
-     * Verifies that {@link BulkByScrollTask#getStatus()} returns an empty status (merged from empty slice list)
+     * Verifies that {@link BulkByPaginatedSearchTask#getStatus()} returns an empty status (merged from empty slice list)
      * when the task is neither a leader nor a worker.
      */
     public void testGetStatusReturnsEmptyStatusWhenNeitherLeaderNorWorker() {
-        BulkByScrollTask task = createTask(randomBoolean());
+        BulkByPaginatedSearchTask task = createTask(randomBoolean());
         assertFalse(task.isLeader());
         assertFalse(task.isWorker());
-        BulkByScrollTask.Status status = task.getStatus();
+        BulkByPaginatedSearchTask.Status status = task.getStatus();
         assertEquals(0, status.getTotal());
         assertEquals(0, status.getUpdated());
         assertEquals(0, status.getCreated());
@@ -275,11 +288,11 @@ public class BulkByScrollTaskTests extends ESTestCase {
     }
 
     /**
-     * Verifies that {@link BulkByScrollTask#isLeader()} returns false for a freshly created task and true after
-     * {@link BulkByScrollTask#setWorkerCount(int, float)} is called.
+     * Verifies that {@link BulkByPaginatedSearchTask#isLeader()} returns false for a freshly created task and true after
+     * {@link BulkByPaginatedSearchTask#setWorkerCount(int, float)} is called.
      */
     public void testIsLeader() {
-        BulkByScrollTask task = createTask(randomBoolean());
+        BulkByPaginatedSearchTask task = createTask(randomBoolean());
         assertFalse(task.isLeader());
         int slices = between(2, 20);
         task.setWorkerCount(slices, Float.POSITIVE_INFINITY);
@@ -287,11 +300,11 @@ public class BulkByScrollTaskTests extends ESTestCase {
     }
 
     /**
-     * Verifies that {@link BulkByScrollTask#isWorker()} returns false for a freshly created task and true after
-     * {@link BulkByScrollTask#setWorker(float, Integer)} is called.
+     * Verifies that {@link BulkByPaginatedSearchTask#isWorker()} returns false for a freshly created task and true after
+     * {@link BulkByPaginatedSearchTask#setWorker(float, Integer)} is called.
      */
     public void testIsWorker() {
-        BulkByScrollTask task = createTask(randomBoolean());
+        BulkByPaginatedSearchTask task = createTask(randomBoolean());
         assertFalse(task.isWorker());
         float requestsPerSecond = randomFloatBetween(0.1f, 1000f);
         Integer sliceId = randomBoolean() ? null : between(0, 10);
@@ -300,10 +313,10 @@ public class BulkByScrollTaskTests extends ESTestCase {
     }
 
     /**
-     * Verifies that {@link BulkByScrollTask#setWorkerCount(int, float)} throws when the task is already a leader.
+     * Verifies that {@link BulkByPaginatedSearchTask#setWorkerCount(int, float)} throws when the task is already a leader.
      */
     public void testSetWorkerCountThrowsWhenAlreadyLeader() {
-        BulkByScrollTask task = createTask(randomBoolean());
+        BulkByPaginatedSearchTask task = createTask(randomBoolean());
         task.setWorkerCount(between(2, 10), Float.POSITIVE_INFINITY);
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,
@@ -313,10 +326,10 @@ public class BulkByScrollTaskTests extends ESTestCase {
     }
 
     /**
-     * Verifies that {@link BulkByScrollTask#setWorkerCount(int, float)} throws when the task is already a worker.
+     * Verifies that {@link BulkByPaginatedSearchTask#setWorkerCount(int, float)} throws when the task is already a worker.
      */
     public void testSetWorkerCountThrowsWhenAlreadyWorker() {
-        BulkByScrollTask task = createTask(randomBoolean());
+        BulkByPaginatedSearchTask task = createTask(randomBoolean());
         task.setWorker(randomFloatBetween(0.1f, 100f), null);
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,
@@ -326,10 +339,10 @@ public class BulkByScrollTaskTests extends ESTestCase {
     }
 
     /**
-     * Verifies that {@link BulkByScrollTask#setWorker(float, Integer)} throws when the task is already a worker.
+     * Verifies that {@link BulkByPaginatedSearchTask#setWorker(float, Integer)} throws when the task is already a worker.
      */
     public void testSetWorkerThrowsWhenAlreadyWorker() {
-        BulkByScrollTask task = createTask(randomBoolean());
+        BulkByPaginatedSearchTask task = createTask(randomBoolean());
         task.setWorker(randomFloatBetween(0.1f, 100f), null);
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,
@@ -339,10 +352,10 @@ public class BulkByScrollTaskTests extends ESTestCase {
     }
 
     /**
-     * Verifies that {@link BulkByScrollTask#setWorker(float, Integer)} throws when the task is already a leader.
+     * Verifies that {@link BulkByPaginatedSearchTask#setWorker(float, Integer)} throws when the task is already a leader.
      */
     public void testSetWorkerThrowsWhenAlreadyLeader() {
-        BulkByScrollTask task = createTask(randomBoolean());
+        BulkByPaginatedSearchTask task = createTask(randomBoolean());
         task.setWorkerCount(between(2, 10), Float.POSITIVE_INFINITY);
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,
@@ -352,11 +365,11 @@ public class BulkByScrollTaskTests extends ESTestCase {
     }
 
     /**
-     * Verifies that {@link BulkByScrollTask#getLeaderState()} returns the leader state after
-     * {@link BulkByScrollTask#setWorkerCount(int, float)} and throws when the task is not a leader.
+     * Verifies that {@link BulkByPaginatedSearchTask#getLeaderState()} returns the leader state after
+     * {@link BulkByPaginatedSearchTask#setWorkerCount(int, float)} and throws when the task is not a leader.
      */
     public void testGetLeaderState() {
-        BulkByScrollTask task = createTask(randomBoolean());
+        BulkByPaginatedSearchTask task = createTask(randomBoolean());
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> task.getLeaderState());
         assertThat(exception.getMessage(), containsString("not set to be a leader"));
 
@@ -368,11 +381,11 @@ public class BulkByScrollTaskTests extends ESTestCase {
     }
 
     /**
-     * Verifies that {@link BulkByScrollTask#getWorkerState()} returns the worker state after
-     * {@link BulkByScrollTask#setWorker(float, Integer)} and throws when the task is not a worker.
+     * Verifies that {@link BulkByPaginatedSearchTask#getWorkerState()} returns the worker state after
+     * {@link BulkByPaginatedSearchTask#setWorker(float, Integer)} and throws when the task is not a worker.
      */
     public void testGetWorkerState() {
-        BulkByScrollTask task = createTask(randomBoolean());
+        BulkByPaginatedSearchTask task = createTask(randomBoolean());
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> task.getWorkerState());
         assertThat(exception.getMessage(), containsString("not set to be a worker"));
 
@@ -384,65 +397,65 @@ public class BulkByScrollTaskTests extends ESTestCase {
     }
 
     /**
-     * Verifies that {@link BulkByScrollTask#onCancelled()} does not throw when the task is a worker
+     * Verifies that {@link BulkByPaginatedSearchTask#onCancelled()} does not throw when the task is a worker
      * (it delegates to the worker state's handleCancel).
      */
     public void testOnCancelledWhenWorkerDoesNotThrow() {
-        BulkByScrollTask task = createTask(randomBoolean());
+        BulkByPaginatedSearchTask task = createTask(randomBoolean());
         task.setWorker(randomFloatBetween(0.1f, 100f), null);
         task.onCancelled();
     }
 
     /**
-     * Verifies that {@link BulkByScrollTask#onCancelled()} does not throw when the task is neither leader nor worker.
+     * Verifies that {@link BulkByPaginatedSearchTask#onCancelled()} does not throw when the task is neither leader nor worker.
      */
     public void testOnCancelledWhenNeitherLeaderNorWorkerDoesNotThrow() {
-        BulkByScrollTask task = createTask(randomBoolean());
+        BulkByPaginatedSearchTask task = createTask(randomBoolean());
         task.onCancelled();
     }
 
     /**
-     * Verifies that {@link BulkByScrollTask#isEligibleForRelocationOnShutdown()} returns the value passed to the constructor.
+     * Verifies that {@link BulkByPaginatedSearchTask#isEligibleForRelocationOnShutdown()} returns the value passed to the constructor.
      */
     public void testIsEligibleForRelocationOnShutdown() {
         boolean eligible = randomBoolean();
-        BulkByScrollTask task = createTask(eligible);
+        BulkByPaginatedSearchTask task = createTask(eligible);
         assertEquals(eligible, task.isEligibleForRelocationOnShutdown());
     }
 
     /**
-     * Verifies that {@link BulkByScrollTask#requestRelocation()} sets the relocation-requested flag when the task
-     * is eligible for relocation, and that {@link BulkByScrollTask#isRelocationRequested()} reflects it.
+     * Verifies that {@link BulkByPaginatedSearchTask#requestRelocation()} sets the relocation-requested flag when the task
+     * is eligible for relocation, and that {@link BulkByPaginatedSearchTask#isRelocationRequested()} reflects it.
      */
     public void testRequestRelocationWhenEligible() {
-        BulkByScrollTask task = createTask(true);
+        BulkByPaginatedSearchTask task = createTask(true);
         assertFalse(task.isRelocationRequested());
         task.requestRelocation();
         assertTrue(task.isRelocationRequested());
     }
 
     /**
-     * Verifies that {@link BulkByScrollTask#requestRelocation()} throws when the task is not eligible for relocation.
+     * Verifies that {@link BulkByPaginatedSearchTask#requestRelocation()} throws when the task is not eligible for relocation.
      */
     public void testRequestRelocationThrowsWhenNotEligible() {
-        BulkByScrollTask task = createTask(false);
+        BulkByPaginatedSearchTask task = createTask(false);
         IllegalStateException exception = expectThrows(IllegalStateException.class, task::requestRelocation);
         assertThat(exception.getMessage(), containsString("eligibleForRelocationOnShutdown is false"));
     }
 
     /**
-     * Verifies that {@link BulkByScrollTask#taskInfoGivenSubtaskInfo(String, List)} builds a combined
+     * Verifies that {@link BulkByPaginatedSearchTask#taskInfoGivenSubtaskInfo(String, List)} builds a combined
      * {@link TaskInfo} from the given slice task infos when the task is a leader.
      */
     public void testTaskInfoGivenSubtaskInfo() {
         int slices = between(2, 8);
-        BulkByScrollTask task = createTask(randomBoolean());
+        BulkByPaginatedSearchTask task = createTask(randomBoolean());
         task.setWorkerCount(slices, Float.POSITIVE_INFINITY);
 
         String localNodeId = randomAlphaOfLength(5);
         List<TaskInfo> sliceInfoList = Arrays.asList(new TaskInfo[slices]);
         for (int sliceIndex = 0; sliceIndex < slices; sliceIndex++) {
-            BulkByScrollTask.Status sliceStatus = new BulkByScrollTask.Status(
+            BulkByPaginatedSearchTask.Status sliceStatus = new BulkByPaginatedSearchTask.Status(
                 sliceIndex,
                 between(0, 100),
                 between(0, 50),
@@ -480,14 +493,14 @@ public class BulkByScrollTaskTests extends ESTestCase {
         assertNotNull(combinedTaskInfo);
         assertEquals(localNodeId, combinedTaskInfo.node());
         assertNotNull(combinedTaskInfo.status());
-        assertTrue(combinedTaskInfo.status() instanceof BulkByScrollTask.Status);
+        assertTrue(combinedTaskInfo.status() instanceof BulkByPaginatedSearchTask.Status);
     }
 
     /**
-     * Verifies that {@link BulkByScrollTask#taskInfoGivenSubtaskInfo(String, List)} throws when the task is not a leader.
+     * Verifies that {@link BulkByPaginatedSearchTask#taskInfoGivenSubtaskInfo(String, List)} throws when the task is not a leader.
      */
     public void testTaskInfoGivenSubtaskInfoThrowsWhenNotLeader() {
-        BulkByScrollTask task = createTask(randomBoolean());
+        BulkByPaginatedSearchTask task = createTask(randomBoolean());
         String localNodeId = randomAlphaOfLength(5);
         List<TaskInfo> sliceInfoList = Collections.emptyList();
         IllegalStateException exception = expectThrows(
@@ -499,12 +512,12 @@ public class BulkByScrollTaskTests extends ESTestCase {
 
     public void testTaskIsRelocatedIfRelocationOriginIsSet() {
         final boolean isRelocated = randomBoolean();
-        final BulkByScrollTask task = createTask(randomBoolean(), isRelocated);
+        final BulkByPaginatedSearchTask task = createTask(randomBoolean(), isRelocated);
         assertThat(task.isRelocatedTask(), equalTo(isRelocated));
     }
 
     public void testTaskInfo_notRelocated() {
-        BulkByScrollTask task = createTask(randomBoolean(), false);
+        BulkByPaginatedSearchTask task = createTask(randomBoolean(), false);
         String localNodeId = randomAlphaOfLength(5);
         TaskInfo info = task.taskInfo(localNodeId, true);
         assertThat(info.originalTaskId(), equalTo(new TaskId(localNodeId, task.getId())));
@@ -512,7 +525,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
     }
 
     public void testTaskInfo_relocatedParent() {
-        BulkByScrollTask task = createTask(true, true, TaskId.EMPTY_TASK_ID);
+        BulkByPaginatedSearchTask task = createTask(true, true, TaskId.EMPTY_TASK_ID);
         String localNodeId = randomAlphaOfLength(5);
         TaskInfo info = task.taskInfo(localNodeId, true);
         assertThat(info.originalTaskId(), equalTo(task.relocationOrigin().originalTaskId()));
@@ -521,7 +534,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
 
     public void testTaskInfo_relocatedSliceDoesNotExposeOriginalTaskInfo() {
         final TaskId parentTaskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
-        final BulkByScrollTask task = createTask(true, true, parentTaskId);
+        final BulkByPaginatedSearchTask task = createTask(true, true, parentTaskId);
         final String localNodeId = randomAlphaOfLength(5);
         final TaskInfo info = task.taskInfo(localNodeId, true);
         // Falls back to the task's own identity, not the parent's relocation origin
@@ -532,35 +545,35 @@ public class BulkByScrollTaskTests extends ESTestCase {
 
     /** A freshly created task's relocation progress is in the NOT_STARTED state. */
     public void testRelocationProgressStartsNotStarted() {
-        BulkByScrollTask task = createTask(true);
-        assertEquals(BulkByScrollTask.RelocationProgress.State.NOT_STARTED, task.getRelocationProgress().current());
+        BulkByPaginatedSearchTask task = createTask(true);
+        assertEquals(BulkByPaginatedSearchTask.RelocationProgress.State.NOT_STARTED, task.getRelocationProgress().current());
         assertFalse(task.useCreateSemanticsForResultStorage());
     }
 
     /**
-     * {@link BulkByScrollTask#tryInitiateRelocationHandoff()} transitions NOT_STARTED -> HANDOFF_INITIATED on first
-     * call, is idempotent on subsequent calls, and flips {@link BulkByScrollTask#useCreateSemanticsForResultStorage()}.
+     * {@link BulkByPaginatedSearchTask#tryInitiateRelocationHandoff()} transitions NOT_STARTED -> HANDOFF_INITIATED on first
+     * call, is idempotent on subsequent calls, and flips {@link BulkByPaginatedSearchTask#useCreateSemanticsForResultStorage()}.
      */
     public void testTryInitiateRelocationHandoff() {
-        BulkByScrollTask task = createTask(true);
+        BulkByPaginatedSearchTask task = createTask(true);
         assertTrue(task.tryInitiateRelocationHandoff());
-        assertEquals(BulkByScrollTask.RelocationProgress.State.HANDOFF_INITIATED, task.getRelocationProgress().current());
+        assertEquals(BulkByPaginatedSearchTask.RelocationProgress.State.HANDOFF_INITIATED, task.getRelocationProgress().current());
         assertTrue(task.useCreateSemanticsForResultStorage());
         // idempotent
         assertTrue(task.tryInitiateRelocationHandoff());
-        assertEquals(BulkByScrollTask.RelocationProgress.State.HANDOFF_INITIATED, task.getRelocationProgress().current());
+        assertEquals(BulkByPaginatedSearchTask.RelocationProgress.State.HANDOFF_INITIATED, task.getRelocationProgress().current());
     }
 
     /**
-     * {@link BulkByScrollTask#ensureCancellable()} transitions NOT_STARTED -> TASK_CANCELLED on first call and is idempotent.
+     * {@link BulkByPaginatedSearchTask#ensureCancellable()} transitions NOT_STARTED -> TASK_CANCELLED on first call and is idempotent.
      */
     public void testEnsureCancellable() {
-        BulkByScrollTask task = createTask(randomBoolean());
+        BulkByPaginatedSearchTask task = createTask(randomBoolean());
         task.ensureCancellable();
-        assertEquals(BulkByScrollTask.RelocationProgress.State.TASK_CANCELLED, task.getRelocationProgress().current());
+        assertEquals(BulkByPaginatedSearchTask.RelocationProgress.State.TASK_CANCELLED, task.getRelocationProgress().current());
         // idempotent
         task.ensureCancellable();
-        assertEquals(BulkByScrollTask.RelocationProgress.State.TASK_CANCELLED, task.getRelocationProgress().current());
+        assertEquals(BulkByPaginatedSearchTask.RelocationProgress.State.TASK_CANCELLED, task.getRelocationProgress().current());
     }
 
     /**
@@ -569,12 +582,12 @@ public class BulkByScrollTaskTests extends ESTestCase {
      * the resumed task running on the destination unaware.
      */
     public void testCancellationRejectedAfterHandoffInitiated() {
-        BulkByScrollTask task = createTask(true);
+        BulkByPaginatedSearchTask task = createTask(true);
         assertTrue(task.tryInitiateRelocationHandoff());
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, task::ensureCancellable);
         assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         assertThat(e.getMessage(), equalTo("cannot cancel task [" + task.getId() + "] because it is being relocated"));
-        assertEquals(BulkByScrollTask.RelocationProgress.State.HANDOFF_INITIATED, task.getRelocationProgress().current());
+        assertEquals(BulkByPaginatedSearchTask.RelocationProgress.State.HANDOFF_INITIATED, task.getRelocationProgress().current());
         assertTrue(task.useCreateSemanticsForResultStorage());
     }
 
@@ -583,10 +596,10 @@ public class BulkByScrollTaskTests extends ESTestCase {
      * destination node while the source is being cancelled.
      */
     public void testHandoffRejectedAfterCancellationBegan() {
-        BulkByScrollTask task = createTask(true);
+        BulkByPaginatedSearchTask task = createTask(true);
         task.ensureCancellable();
         assertFalse("relocation handoff must be rejected after cancellation began", task.tryInitiateRelocationHandoff());
-        assertEquals(BulkByScrollTask.RelocationProgress.State.TASK_CANCELLED, task.getRelocationProgress().current());
+        assertEquals(BulkByPaginatedSearchTask.RelocationProgress.State.TASK_CANCELLED, task.getRelocationProgress().current());
         assertFalse(task.useCreateSemanticsForResultStorage());
     }
 
@@ -595,7 +608,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
      * other observes a refusal, never both.
      */
     public void testConcurrentHandoffVsCancellationMutuallyExclusive() throws Exception {
-        final BulkByScrollTask task = createTask(true);
+        final BulkByPaginatedSearchTask task = createTask(true);
         final CountDownLatch start = new CountDownLatch(1);
         final AtomicBoolean handoffResult = new AtomicBoolean();
         final AtomicBoolean cancelResult = new AtomicBoolean();
@@ -629,7 +642,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
         t2.join();
         assertNotSame(
             "at least one side must win (state cannot remain NOT_STARTED)",
-            BulkByScrollTask.RelocationProgress.State.NOT_STARTED,
+            BulkByPaginatedSearchTask.RelocationProgress.State.NOT_STARTED,
             task.getRelocationProgress().current()
         );
         assertTrue("handoff and cancellation are mutually exclusive", handoffResult.get() ^ cancelResult.get());

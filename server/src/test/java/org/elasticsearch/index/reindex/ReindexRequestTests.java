@@ -692,14 +692,14 @@ public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTes
     public void testCreateTask_notEligibleForRelocationOnShutdown() throws IOException {
         ReindexRequest request = parseRequestWithSourceIndices("source");
         Task task = request.createTask(randomTaskId(), "transport", ReindexAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
-        assertThat(asInstanceOf(BulkByScrollTask.class, task).isEligibleForRelocationOnShutdown(), is(false));
+        assertThat(asInstanceOf(BulkByPaginatedSearchTask.class, task).isEligibleForRelocationOnShutdown(), is(false));
     }
 
     public void testCreateTask_eligibleForRelocationOnShutdown() throws IOException {
         ReindexRequest request = parseRequestWithSourceIndices("source");
         request.setEligibleForRelocationOnShutdown(true);
         Task task = request.createTask(randomTaskId(), "transport", ReindexAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
-        assertThat(asInstanceOf(BulkByScrollTask.class, task).isEligibleForRelocationOnShutdown(), is(true));
+        assertThat(asInstanceOf(BulkByPaginatedSearchTask.class, task).isEligibleForRelocationOnShutdown(), is(true));
     }
 
     public void testProjectRoutingParsing() throws IOException {

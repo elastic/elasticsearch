@@ -395,9 +395,6 @@ tests:
 - class: org.elasticsearch.search.aggregations.metrics.LargeTopHitsIT
   method: test500Queries
   issue: https://github.com/elastic/elasticsearch/issues/148056
-- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
-  method: testStressWithRelocationFailures
-  issue: https://github.com/elastic/elasticsearch/issues/148129
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeTermVectorsIT
   method: testDocsNotInLiveVersionMapDoNotRefresh
   issue: https://github.com/elastic/elasticsearch/issues/148138
@@ -452,9 +449,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
   method: testCloseWhileSegmentatorParkedOnDispatchPermit
   issue: https://github.com/elastic/elasticsearch/issues/148229
-- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
-  method: testStressWithoutFailures
-  issue: https://github.com/elastic/elasticsearch/issues/148310
 - class: org.elasticsearch.xpack.security.authc.esnative.ReservedRealmElasticAutoconfigIntegTests
   method: testAutoconfigFailedPasswordPromotion
   issue: https://github.com/elastic/elasticsearch/issues/122668

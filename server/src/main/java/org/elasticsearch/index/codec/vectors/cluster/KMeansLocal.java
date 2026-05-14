@@ -270,7 +270,7 @@ abstract class KMeansLocal {
         int[] assignments = kMeansIntermediate.assignments();
         int[] centroidVectorCount = kMeansIntermediate.clusterCounts();
 
-        for (int c = 0; c < centroids.length; c++) {
+Arrays.fill(centroidVectorCount, 0, centroids.length, 0)
             centroidVectorCount[c] = 0;
         }
 

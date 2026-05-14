@@ -35,12 +35,12 @@ public class PostFilterKnnQueryTests extends ESTestCase {
      * satisfy k without retry or fallback.
      */
     public void testRound0AloneSatisfiesK() throws IOException {
-        // 8 pass docs (vectors 0.0..7.0). Target=[0]. Euclidean distance = doc index.
+        // 8 pass docs (vectors 0.0..7.0)
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
             for (int i = 0; i < 8; i++) {
                 Document doc = new Document();
                 doc.add(new KnnFloatVectorField("vector", new float[] { (float) i }));
-                doc.add(new KeywordField("tag", "pass", Field.Store.NO));
+                doc.add(new KeywordField("tag", "pass", Field.Store.YES));
                 writer.addDocument(doc);
             }
             writer.forceMerge(1);
@@ -50,8 +50,7 @@ public class PostFilterKnnQueryTests extends ESTestCase {
                 IndexSearcher searcher = newSearcher(reader);
                 int k = 4;
                 Query userFilter = new TermQuery(new Term("tag", "pass"));
-                // numCands=8 == N → triggers exact search for determinism.
-                AssertingKnnQuery asserting = new AssertingKnnQuery("vector", new float[] { 0f }, k, 8, userFilter, 1.5f);
+                AssertingKnnQuery asserting = new AssertingKnnQuery("vector", new float[] { 0f }, k, 10, userFilter, 1.5f);
                 PostFilterKnnQuery pfq = new PostFilterKnnQuery(asserting, userFilter, k, "vector", null, 0f);
 
                 TopDocs td = searcher.search(pfq, k);
@@ -70,7 +69,7 @@ public class PostFilterKnnQueryTests extends ESTestCase {
 
     /**
      * 8 docs: docs 0-3 pass (vectors 0..3), docs 4-7 fail (vectors 10..13). With k=4 and scale=0.5,
-     * round 0's delegate asks for scaledK=2 — getting {0,1} (both pass, short by 2). The retry
+     * round 0's delegate asks for scaledK=2 and returns docs [0,1] (both pass, but still need 2 results). The retry
      * excludes {0,1} and, since all failing docs have large distances, returns {2,3} (both pass),
      * closing the gap. Fallback never fires.
      */
@@ -97,9 +96,8 @@ public class PostFilterKnnQueryTests extends ESTestCase {
                 IndexSearcher searcher = newSearcher(reader);
                 int k = 4;
                 Query userFilter = new TermQuery(new Term("tag", "pass"));
-                // numCands=8 == N → triggers exact search for determinism.
-                // scale=0.5 → scaledK=ceil(4*0.5)=2: round 0 finds top-2={0,1}, both pass, short by 2.
-                AssertingKnnQuery asserting = new AssertingKnnQuery("vector", new float[] { 0f }, k, 8, userFilter, 0.5f);
+                // scale=0.5 -> scaledK=ceil(4*0.5)=2: round 0 finds top-2={0,1}, both pass, short by 2.
+                AssertingKnnQuery asserting = new AssertingKnnQuery("vector", new float[] { 0f }, k, 10, userFilter, 0.5f);
                 PostFilterKnnQuery pfq = new PostFilterKnnQuery(asserting, userFilter, k, "vector", null, 0f);
 
                 TopDocs td = searcher.search(pfq, k);
@@ -124,7 +122,7 @@ public class PostFilterKnnQueryTests extends ESTestCase {
     /**
      * 8 docs: doc 0 passes (vector 0.0), docs 1-6 fail (vectors 1..6), doc 7 passes (vector 7.0).
      * With k=2 and scale=1.5 (scaledK=3), round 0 finds {0,1,2} — only doc 0 passes. The retry
-     * excludes {0} and finds doc 1 (fail); applyFilter returns nothing. The augmented pre-filter
+     * excludes {0} and returns nothing. The augmented pre-filter
      * fallback then ANDs the original filter with ExcludeDocsQuery({0}), pre-filters the KNN, and
      * returns doc 7 as the only remaining passing doc.
      */
@@ -144,9 +142,8 @@ public class PostFilterKnnQueryTests extends ESTestCase {
                 IndexSearcher searcher = newSearcher(reader);
                 int k = 2;
                 Query userFilter = new TermQuery(new Term("tag", "pass"));
-                // numCands=8 == N → triggers exact search for determinism.
-                // scale=1.5 → scaledK=ceil(2*1.5)=3: round 0 finds {0,1,2}, only {0} passes.
-                AssertingKnnQuery asserting = new AssertingKnnQuery("vector", new float[] { 0f }, k, 8, userFilter, 1.5f);
+                // scale=1.5 -> scaledK=ceil(2*1.5)=3: round 0 finds {0,1,2}, only {0} passes.
+                AssertingKnnQuery asserting = new AssertingKnnQuery("vector", new float[] { 0f }, k, 10, userFilter, 1.5f);
                 PostFilterKnnQuery pfq = new PostFilterKnnQuery(asserting, userFilter, k, "vector", null, 0f);
 
                 TopDocs td = searcher.search(pfq, k);
@@ -171,8 +168,8 @@ public class PostFilterKnnQueryTests extends ESTestCase {
 
     /**
      * 10 docs: docs 0-5 fail (vectors 0..5), docs 6-9 pass (vectors 10..13). With scale=1.5
-     * (scaledK=6), round 0's top-6 candidates are all fail docs → applyFilter returns an empty
-     * array → PostFilterKnnQuery returns null and falls through to the bare inner query. The bare
+     * (scaledK=6), round 0's top-6 candidates are all fail docs -> applyFilter returns an empty
+     * array -> PostFilterKnnQuery returns null and falls through to the bare inner query. The bare
      * inner carries the original user filter, so it returns the filtered top-k: the 4 closest
      * passing docs {6,7,8,9}.
      */
@@ -197,8 +194,7 @@ public class PostFilterKnnQueryTests extends ESTestCase {
                 IndexSearcher searcher = newSearcher(reader);
                 int k = 4;
                 Query userFilter = new TermQuery(new Term("tag", "pass"));
-                // numCands=10 == N → triggers exact search for determinism.
-                // scale=1.5 → scaledK=6: all top-6 docs fail the filter → falls through to bare inner.
+                // scale=1.5 -> scaledK=6: all top-6 docs fail the filter -> falls through to bare inner.
                 AssertingKnnQuery asserting = new AssertingKnnQuery("vector", new float[] { 0f }, k, 10, userFilter, 1.5f);
                 PostFilterKnnQuery pfq = new PostFilterKnnQuery(asserting, userFilter, k, "vector", null, 0f);
 
@@ -217,7 +213,7 @@ public class PostFilterKnnQueryTests extends ESTestCase {
     }
 
     /**
-     * 10 docs, selectivity=0.5 (5 even docs pass), threshold=0.9 → post-filter gated off; outer
+     * 10 docs, selectivity=0.5 (5 even docs pass), threshold=0.9 -> post-filter gated off; outer
      * rewrites straight to the bare inner query. Bare inner carries the original user filter and
      * returns the filtered top-k: the 4 closest passing docs {0,2,4,6}.
      */
@@ -236,7 +232,6 @@ public class PostFilterKnnQueryTests extends ESTestCase {
                 IndexSearcher searcher = newSearcher(reader);
                 int k = 4;
                 Query userFilter = new TermQuery(new Term("tag", "pass"));
-                // numCands=10 == N → triggers exact search for determinism.
                 AssertingKnnQuery asserting = new AssertingKnnQuery("vector", new float[] { 0f }, k, 10, userFilter, 1.5f);
                 PostFilterKnnQuery pfq = new PostFilterKnnQuery(asserting, userFilter, k, "vector", null, 0.9f);
 

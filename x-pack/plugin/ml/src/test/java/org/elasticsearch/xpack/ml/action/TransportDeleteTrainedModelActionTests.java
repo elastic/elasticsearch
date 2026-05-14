@@ -171,7 +171,7 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         action.modelExists("modelId", null, future);
 
-        assertTrue(future.get());
+        assertTrue(future.get(TIMEOUT.millis(), TimeUnit.MILLISECONDS));
     }
 
     public void testModelExistsIsFalseWhenModelIsNotFound() throws Exception {
@@ -189,7 +189,7 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         action.modelExists("modelId", null, future);
 
-        assertFalse(future.get());
+        assertFalse(future.get(TIMEOUT.millis(), TimeUnit.MILLISECONDS));
     }
 
     public void testDeleteModelThrowsExceptionWhenModelIsNotFound() throws Exception {
@@ -209,11 +209,61 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
 
         action.deleteModel(new DeleteTrainedModelAction.Request("modelId"), clusterState, null, future);
 
-        ExecutionException executionException = expectThrows(ExecutionException.class, future::get);
+        ExecutionException executionException = expectThrows(
+            ExecutionException.class,
+            () -> future.get(TIMEOUT.millis(), TimeUnit.MILLISECONDS)
+        );
         Throwable cause = executionException.getCause();
 
         assertThat(cause, instanceOf(ResourceNotFoundException.class));
         assertThat(cause.getMessage(), containsString("Could not find trained model"));
+    }
+
+    public void testModelExistsFailsOnGeneralException() {
+        TrainedModelProvider trainedModelProvider = mock(TrainedModelProvider.class);
+        Exception internalError = new IllegalStateException("disk failure");
+
+        doAnswer(invocation -> {
+            ActionListener<TrainedModelConfig> listener = invocation.getArgument(3);
+            listener.onFailure(internalError);
+            return null;
+        }).when(trainedModelProvider).getTrainedModel(any(), any(), any(), any());
+
+        TransportDeleteTrainedModelAction action = createTransportDeleteTrainedModelAction(trainedModelProvider);
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        action.modelExists("modelId", null, future);
+
+        ExecutionException ex = expectThrows(ExecutionException.class, () -> future.get(TIMEOUT.millis(), TimeUnit.MILLISECONDS));
+        assertThat(ex.getCause(), is(internalError));
+    }
+
+    public void testDeleteModelSucceeds() throws Exception {
+        TrainedModelProvider trainedModelProvider = mock(TrainedModelProvider.class);
+        TrainedModelConfig config = buildTrainedModelConfig("modelId");
+
+        // Mock model lookup
+        doAnswer(invocation -> {
+            ActionListener<TrainedModelConfig> listener = invocation.getArgument(3);
+            listener.onResponse(config);
+            return null;
+        }).when(trainedModelProvider).getTrainedModel(any(), any(), any(), any());
+
+        // Mock delete
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<Boolean> listener = invocation.getArgument(1);
+            listener.onResponse(Boolean.TRUE);
+            return null;
+        }).when(trainedModelProvider).deleteTrainedModel(any(), any());
+
+        TransportDeleteTrainedModelAction action = createTransportDeleteTrainedModelAction(trainedModelProvider);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).build();
+        PlainActionFuture<AcknowledgedResponse> future = new PlainActionFuture<>();
+        action.deleteModel(new DeleteTrainedModelAction.Request("modelId"), clusterState, null, future);
+
+        AcknowledgedResponse response = future.get(TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+
+        assertTrue(response.isAcknowledged());
     }
 
     private static void mockCancelTask(Client client) {

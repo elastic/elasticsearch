@@ -815,7 +815,6 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
     private void testRerankInfer_ThrowsError_WithNonTextInputOrQuery(List<InferenceString> inputs, InferenceString query)
         throws IOException {
         var model = mock(ElasticInferenceServiceRerankModel.class);
-        when(model.getTaskType()).thenReturn(TaskType.RERANK);
 
         try (var service = createInferenceService()) {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();

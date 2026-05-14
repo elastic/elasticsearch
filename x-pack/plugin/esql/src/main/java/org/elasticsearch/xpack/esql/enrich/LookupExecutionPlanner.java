@@ -567,9 +567,16 @@ public class LookupExecutionPlanner {
     /**
      * LookupEnrichQueryGenerator used when BulkKeywordLookup optimization applies.
      */
-    private record BulkLookupQueryGenerator(String rightFieldName, int matchChannelOffset, Warnings warnings)
-        implements
-            LookupEnrichQueryGenerator {
+    private record BulkLookupQueryGenerator(
+        String rightFieldName,
+        int matchChannelOffset,
+        Warnings warnings,
+        BulkKeywordLookup bulkKeywordLookup
+    ) implements LookupEnrichQueryGenerator {
+        BulkLookupQueryGenerator(String rightFieldName, int matchChannelOffset, Warnings warnings) {
+            this(rightFieldName, matchChannelOffset, warnings, new BulkKeywordLookup(rightFieldName, matchChannelOffset, -1, warnings));
+        }
+
         @Override
         public Query getQuery(int position, Page inputPage, SearchExecutionContext searchExecutionContext) {
             throw new UnsupportedOperationException("BulkLookupQueryGenerator does not support getQuery");
@@ -582,7 +589,7 @@ public class LookupExecutionPlanner {
 
         @Override
         public BulkKeywordLookup getBulkKeywordLookup() {
-            return new BulkKeywordLookup(rightFieldName, matchChannelOffset, -1, warnings);
+            return bulkKeywordLookup;
         }
     }
 

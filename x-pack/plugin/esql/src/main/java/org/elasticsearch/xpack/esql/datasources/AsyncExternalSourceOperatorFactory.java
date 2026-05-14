@@ -45,6 +45,7 @@ import java.io.InputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -387,6 +388,37 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             cols.add(attr.name());
         }
         return cols;
+    }
+
+    /**
+     * Translates the unified query projection (column names in unified-schema shape, identical for every
+     * file in the query) into a per-file query projection (the subset present in this file's schema,
+     * ordered to match the file's natural layout).
+     * <p>
+     * Under UBN the unified projection may name columns that are missing from a given file. Handing
+     * those names to the reader would throw "Column not found in schema"; the reader is the wrong
+     * place to handle missing columns. The {@link SchemaAdaptingIterator} wrapping the reader output
+     * does the null-filling via the per-file {@code ColumnMapping}. This narrowing matches the
+     * adapter's input contract: the reader produces only columns that exist in the file, in the
+     * file's natural order.
+     * <p>
+     * Under FFW and STRICT (and single-file), {@code perFileReadSchema} either equals or contains
+     * every name in {@code queryProjection}, so the result equals {@code queryProjection} (modulo
+     * order). When {@code perFileReadSchema} is null (no pin from the coordinator), the original
+     * projection passes through unchanged.
+     */
+    static List<String> perFileQueryProjection(List<String> queryProjection, @Nullable List<Attribute> perFileReadSchema) {
+        if (perFileReadSchema == null || perFileReadSchema.isEmpty() || queryProjection == null || queryProjection.isEmpty()) {
+            return queryProjection;
+        }
+        Set<String> wanted = new HashSet<>(queryProjection);
+        List<String> result = new ArrayList<>(Math.min(queryProjection.size(), perFileReadSchema.size()));
+        for (Attribute attr : perFileReadSchema) {
+            if (wanted.contains(attr.name())) {
+                result.add(attr.name());
+            }
+        }
+        return result;
     }
 
     private CloseableIterator<Page> adaptSchema(
@@ -815,11 +847,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // The reader is pinned to the per-file schema the coordinator inferred for this file.
                 // Sourced from FileSplit; null when no pin is set (reader falls back to per-file inference).
                 List<Attribute> perFileReadSchema = fileSplit.readSchema();
-                pages = openWithParallelism(fileReader, obj, cols, errorPolicy, recordAlignedMacro, firstSplit, perFileReadSchema);
+                // Narrow the unified query projection to this file's own columns before reaching the reader.
+                // Under UBN, the query projection may include columns missing from this file; the adapter
+                // (SchemaAdaptingIterator wrapping the reader output below) null-fills those.
+                List<String> perFileCols = perFileQueryProjection(cols, perFileReadSchema);
+                pages = openWithParallelism(fileReader, obj, perFileCols, errorPolicy, recordAlignedMacro, firstSplit, perFileReadSchema);
                 if (pages == null) {
                     boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
                     FormatReadContext ctx = FormatReadContext.builder()
-                        .projectedColumns(cols)
+                        .projectedColumns(perFileCols)
                         .batchSize(batchSize)
                         .rowLimit(FormatReader.NO_LIMIT)
                         .errorPolicy(errorPolicy)
@@ -921,11 +957,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     perFileReadSchema = info.fileSchema();
                 }
             }
-            pages = openWithParallelism(formatReader, obj, cols, errorPolicy, false, true, perFileReadSchema);
+            List<String> perFileCols = perFileQueryProjection(cols, perFileReadSchema);
+            pages = openWithParallelism(formatReader, obj, perFileCols, errorPolicy, false, true, perFileReadSchema);
             if (pages == null) {
                 int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining;
                 FormatReadContext ctx = FormatReadContext.builder()
-                    .projectedColumns(cols)
+                    .projectedColumns(perFileCols)
                     .batchSize(batchSize)
                     .rowLimit(fileBudget)
                     .errorPolicy(errorPolicy)

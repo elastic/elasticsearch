@@ -72,6 +72,8 @@ public class ExternalSourceResolver {
 
     static final String CONFIG_SCHEMA_RESOLUTION = "schema_resolution";
 
+    public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_SCHEMA_RESOLUTION);
+
     private static final int MAX_PARALLEL_METADATA_READS = 16;
 
     private final Executor executor;

@@ -1,6 +1,6 @@
 load
 required_capability: flattened_datatype
-request_stored: skip
+required_capability: flattened_datatype_sorted_keys
 
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:02:48.461Z"
@@ -12,7 +12,7 @@ FROM flattened_otel_logs
 
 sort
 required_capability: flattened_datatype
-request_stored: skip
+required_capability: flattened_datatype_sorted_keys
 
 FROM flattened_otel_logs
 | SORT @timestamp ASC
@@ -26,7 +26,7 @@ FROM flattened_otel_logs
 
 rename
 required_capability: flattened_datatype
-request_stored: skip
+required_capability: flattened_datatype_sorted_keys
 
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:02:48.461Z"
@@ -40,6 +40,7 @@ FROM flattened_otel_logs
 
 drop
 required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
 
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:02:48.461Z"

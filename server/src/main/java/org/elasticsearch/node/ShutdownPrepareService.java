@@ -231,12 +231,12 @@ public class ShutdownPrepareService {
                 }
                 if (bulkByPaginatedSearchTask.isLeader()) {
                     logger.info(
-                        "Requesting relocation task for leader bulk-by-scroll task {} and its workers",
+                        "Requesting relocation task for leader bulk-by-paginated-search task {} and its workers",
                         bulkByPaginatedSearchTask.getId()
                     );
                 } else {
                     logger.debug(
-                        "Requesting relocation task for worker bulk-by-scroll task {} (leader: {})",
+                        "Requesting relocation task for worker bulk-by-paginated-search task {} (leader: {})",
                         bulkByPaginatedSearchTask.getId(),
                         bulkByPaginatedSearchTask.getParentTaskId()
                     );
@@ -244,7 +244,7 @@ public class ShutdownPrepareService {
                 bulkByPaginatedSearchTask.requestRelocation();
             }
         } else {
-            logger.warn("Requested relocation task for non-bulk-by-scroll task {}", task);
+            logger.warn("Requested relocation task for non-bulk-by-paginated-search task {}", task);
         }
     }
 }

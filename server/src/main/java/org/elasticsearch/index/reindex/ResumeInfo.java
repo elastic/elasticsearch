@@ -107,7 +107,7 @@ public record ResumeInfo(
     }
 
     /**
-     * Resume information for a single worker of a BulkByScrollTask.
+     * Resume information for a single worker of a BulkByPaginatedSearchTask.
      */
     public interface WorkerResumeInfo extends NamedWriteable {
         long startTimeEpochMillis();
@@ -116,7 +116,7 @@ public record ResumeInfo(
     }
 
     /**
-     * Resume information for a scroll-based BulkByScrollTask worker.
+     * Resume information for a scroll-based BulkByPaginatedSearchTask worker.
      */
     public record ScrollWorkerResumeInfo(
         String scrollId,
@@ -152,7 +152,7 @@ public record ResumeInfo(
     }
 
     /**
-     * Resume information for a PIT-based BulkByScrollTask worker.
+     * Resume information for a PIT-based BulkByPaginatedSearchTask worker.
      */
     public record PitWorkerResumeInfo(
         BytesReference pitId,
@@ -228,7 +228,7 @@ public record ResumeInfo(
     }
 
     /**
-     * Information for a single slice of a BulkByScrollTask.
+     * Information for a single slice of a BulkByPaginatedSearchTask.
      * It contains either:
      * - the WorkerResumeInfo for the worker that processed the slice if the task was not completed
      * - or the final result of the slice if it has completed (successfully or erroneously).

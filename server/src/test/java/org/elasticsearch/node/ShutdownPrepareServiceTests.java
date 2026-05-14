@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.is;
 
 public class ShutdownPrepareServiceTests extends ESTestCase {
 
-    public void testmaybeRequestRelocationForBulkByPaginatedSearch_nonRelocatableLeader() {
+    public void testMaybeRequestRelocationForBulkByPaginatedSearch_nonRelocatableLeader() {
         BulkByPaginatedSearchTask task = new BulkByPaginatedSearchTask(
             randomTaskId(),
             "transport",
@@ -37,7 +37,7 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
         assertThat(task.isRelocationRequested(), is(false));
     }
 
-    public void testmaybeRequestRelocationForBulkByPaginatedSearch_relocatableLeader() {
+    public void testMaybeRequestRelocationForBulkByPaginatedSearch_relocatableLeader() {
         BulkByPaginatedSearchTask task = new BulkByPaginatedSearchTask(
             randomTaskId(),
             "transport",
@@ -53,7 +53,7 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
         assertThat(task.isRelocationRequested(), is(true));
     }
 
-    public void testmaybeRequestRelocationForBulkByPaginatedSearch_nonRelocatableWorker() {
+    public void testMaybeRequestRelocationForBulkByPaginatedSearch_nonRelocatableWorker() {
         BulkByPaginatedSearchTask task = new BulkByPaginatedSearchTask(
             randomTaskId(),
             "transport",
@@ -69,7 +69,7 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
         assertThat(task.isRelocationRequested(), is(false));
     }
 
-    public void testmaybeRequestRelocationForBulkByPaginatedSearch_relocatableWorker() {
+    public void testMaybeRequestRelocationForBulkByPaginatedSearch_relocatableWorker() {
         BulkByPaginatedSearchTask task = new BulkByPaginatedSearchTask(
             randomTaskId(),
             "transport",
@@ -85,7 +85,7 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
         assertThat(task.isRelocationRequested(), is(true));
     }
 
-    public void testmaybeRequestRelocationForBulkByPaginatedSearch_notBulkByScroll() {
+    public void testMaybeRequestRelocationForBulkByPaginatedSearch_notBulkByPaginatedSearch() {
         Task task = new Task(randomInt(), "transport", "test:action/name", "description", new TaskId("localNode", randomLong()), Map.of());
         ShutdownPrepareService.maybeRequestRelocationForBulkByPaginatedSearch(task);
         // No assertion, just check it doesn't blow up

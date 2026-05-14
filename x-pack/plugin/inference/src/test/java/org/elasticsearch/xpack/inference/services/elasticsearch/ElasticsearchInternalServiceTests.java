@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
@@ -31,16 +32,19 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -115,6 +119,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.inference.InferenceStringTests.createRandomUsingDataTypes;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction.Response.RESULTS_FIELD;
@@ -999,7 +1004,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         verifyNoMoreInteractions(model);
     }
 
-    public void testInfer_ElasticRerankerSucceedsWithoutChunkingConfiguration() {
+    public void testRerankInfer_ElasticRerankerSucceedsWithoutChunkingConfiguration() {
         var model = new ElasticRerankerModel(
             randomAlphaOfLength(10),
             TaskType.RERANK,
@@ -1008,10 +1013,10 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             new RerankTaskSettings(randomBoolean())
         );
 
-        testInfer_ElasticReranker(model, generateTestDocs(randomIntBetween(2, 10), randomIntBetween(50, 100)));
+        testRerankInfer_ElasticReranker(model, generateTestDocs(randomIntBetween(2, 10), randomIntBetween(50, 100)));
     }
 
-    public void testInfer_SucceedsWithTruncateLongDocumentStrategy() {
+    public void testRerankInfer_SucceedsWithTruncateLongDocumentStrategy() {
         var model = new ElasticRerankerModel(
             randomAlphaOfLength(10),
             TaskType.RERANK,
@@ -1023,10 +1028,10 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             new RerankTaskSettings(randomBoolean())
         );
 
-        testInfer_ElasticReranker(model, generateTestDocs(randomIntBetween(2, 10), randomIntBetween(50, 100)));
+        testRerankInfer_ElasticReranker(model, generateTestDocs(randomIntBetween(2, 10), randomIntBetween(50, 100)));
     }
 
-    public void testInfer_SucceedsWithChunkLongDocumentStrategy() {
+    public void testRerankInfer_SucceedsWithChunkLongDocumentStrategy() {
         var model = new ElasticRerankerModel(
             randomAlphaOfLength(10),
             TaskType.RERANK,
@@ -1038,11 +1043,11 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             new RerankTaskSettings(randomBoolean())
         );
 
-        testInfer_ElasticReranker(model, generateTestDocs(randomIntBetween(2, 10), randomIntBetween(50, 100)));
+        testRerankInfer_ElasticReranker(model, generateTestDocs(randomIntBetween(2, 10), randomIntBetween(50, 100)));
     }
 
     @SuppressWarnings("unchecked")
-    private void testInfer_ElasticReranker(ElasticRerankerModel model, List<String> inputs) {
+    private void testRerankInfer_ElasticReranker(ElasticRerankerModel model, List<String> inputs) {
         var query = randomAlphaOfLength(10);
         var mlTrainedModelResults = new ArrayList<InferenceResults>();
         var numResults = inputs.size();
@@ -1073,18 +1078,54 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
 
         }, ESTestCase::fail);
 
-        service.infer(
+        service.rerankInfer(
             model,
-            randomAlphaOfLength(10),
-            randomBoolean() ? null : randomBoolean(),
-            topN,
-            inputs,
-            false,
-            Map.of(),
-            InputType.INGEST,
+            new RerankRequest(
+                InferenceString.fromStringList(inputs),
+                new InferenceString(DataType.TEXT, randomAlphaOfLength(10)),
+                topN,
+                randomOptionalBoolean(),
+                Map.of()
+            ),
             null,
             listener
         );
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextQuery() throws IOException {
+        var textInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.of(DataType.TEXT)));
+        var nonTextQuery = createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT)));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(textInputs, nonTextQuery);
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextInputs() throws IOException {
+        var nonTextInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT))));
+        var textQuery = createRandomUsingDataTypes(EnumSet.of(DataType.TEXT));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(nonTextInputs, textQuery);
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextInputsAndQuery() throws IOException {
+        var nonTextInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT))));
+        var nonTextQuery = createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT)));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(nonTextInputs, nonTextQuery);
+    }
+
+    private void testRerankInfer_ThrowsError_WithNonTextInputOrQuery(List<InferenceString> inputs, InferenceString query)
+        throws IOException {
+        var model = mock(ElasticRerankerModel.class);
+
+        try (var service = createInferenceService()) {
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+
+            service.rerankInfer(model, new RerankRequest(inputs, query, null, null, new HashMap<>()), null, listener);
+
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
+            assertThat(
+                thrownException.getMessage(),
+                is("The elasticsearch service does not support rerank with non-text inputs or queries")
+            );
+        }
     }
 
     private List<String> generateTestDocs(int numDocs, int numSentencesPerDoc) {

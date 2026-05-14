@@ -760,21 +760,26 @@ public class CsvFormatReader implements SegmentableFormatReader {
         InputStream stream = object.newStream();
         BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE);
         List<Attribute> effectiveSchema;
-        if (context.firstSplit()) {
-            // First split carries the file's leading bytes, including the header (if any).
-            // The chunk-0 bound-schema fast path only applies when an upstream coordinator has
-            // pre-bound the FULL file schema — signalled by recordAligned=true. The streaming
-            // parallel coordinator infers the schema from chunk 0 on its own thread and calls
-            // withSchema(...) before any chunk is dispatched; binding is observed here so the
-            // iterator can skip its own per-chunk inference (which would otherwise re-sample on
-            // potentially malformed bytes and crash before any data is emitted).
-            //
-            // For single-shot reads (firstSplit=true, recordAligned=false), resolvedSchema may
-            // still be non-null because the planner calls withSchema(projectedAttributes) at
-            // operator-factory time; that list is the projected output, not the file's column
-            // layout, and using it as the iterator's positional schema would mis-align column
-            // indices and trigger spurious row-shape errors. Treat the whole-file read like
-            // main: ignore resolvedSchema and let the iterator parse the header itself.
+        List<Attribute> readSchema = context.readSchema();
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "CSV read [{}]: readSchema={}, firstSplit={}, recordAligned={}, projection={}",
+                object.path(),
+                readSchema == null ? "null" : "present(" + readSchema.size() + ")",
+                context.firstSplit(),
+                context.recordAligned(),
+                context.projectedColumns() == null ? "null" : context.projectedColumns().size()
+            );
+        }
+        if (readSchema != null) {
+            if (context.firstSplit() && options.headerRow()) {
+                skipHeaderLine(reader);
+            }
+            effectiveSchema = readSchema;
+        } else if (context.firstSplit()) {
+            // resolvedSchema from withSchema(...) is the projected output, not the file's column
+            // layout — using it as positional schema would mis-align columns. Only trust it when
+            // recordAligned=true (streaming-parallel pre-bound the FULL file schema from chunk 0).
             if (context.recordAligned() && resolvedSchema != null) {
                 if (options.headerRow()) {
                     skipHeaderLine(reader);
@@ -784,14 +789,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 effectiveSchema = null;
             }
         } else if (context.recordAligned()) {
-            // Non-first split that the caller guarantees starts on a record boundary
-            // (e.g. streaming-parallel chunks sliced on record boundaries). No partial line to
-            // drop, no header to parse — use the pre-bound schema directly.
+            // Streaming-parallel chunk sliced on a record boundary; no partial line, no header.
             effectiveSchema = resolvedSchema;
         } else {
-            // Non-first byte-range split (e.g. bzip2 / zstd-indexed macro-split). The leading
-            // bytes belong to the previous split's trailing record and have already been emitted
-            // there; drop them here.
+            // Byte-range macro-split (bzip2 / zstd-indexed); leading partial record was emitted by
+            // the prior split.
             reader.readLine();
             effectiveSchema = resolvedSchema;
         }

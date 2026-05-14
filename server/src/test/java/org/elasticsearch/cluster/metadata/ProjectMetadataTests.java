@@ -2255,9 +2255,9 @@ public class ProjectMetadataTests extends ESTestCase {
 
     public void testRetrieveIndexModeFromTemplateColumnarLogsdb() throws IOException {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        // columnar_logsdb:
+        // logsdb_columnar:
         var columnarLogsdbTemplate = new Template(
-            Settings.builder().put("index.mode", "columnar_logsdb").build(),
+            Settings.builder().put("index.mode", "logsdb_columnar").build(),
             new CompressedXContent("{}"),
             null
         );
@@ -2273,7 +2273,7 @@ public class ProjectMetadataTests extends ESTestCase {
                 .put("component_template_1", componentTemplate)
                 .put("index_template_1", indexTemplate)
                 .build();
-            assertThat(p.retrieveIndexModeFromTemplate(indexTemplate), is(IndexMode.COLUMNAR_LOGSDB));
+            assertThat(p.retrieveIndexModeFromTemplate(indexTemplate), is(IndexMode.LOGSDB_COLUMNAR));
         }
         // Settings in composable index template:
         {
@@ -2288,7 +2288,7 @@ public class ProjectMetadataTests extends ESTestCase {
                 .put("component_template_1", componentTemplate)
                 .put("index_template_1", indexTemplate)
                 .build();
-            assertThat(p.retrieveIndexModeFromTemplate(indexTemplate), is(IndexMode.COLUMNAR_LOGSDB));
+            assertThat(p.retrieveIndexModeFromTemplate(indexTemplate), is(IndexMode.LOGSDB_COLUMNAR));
         }
     }
 

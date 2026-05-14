@@ -13,10 +13,13 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.BFloat16Support;
 import org.elasticsearch.simdvec.MathUtils;
 import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
+
+import java.nio.ByteOrder;
 
 final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
@@ -26,6 +29,30 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         } else {
             return a * b + c;
         }
+    }
+
+    static void floatToBFloat16Impl(float[] floats, int floatOffset, byte[] bFloats, int bfloatOffset, int count, ByteOrder byteOrder) {
+        var arrayAccess = byteOrder == ByteOrder.BIG_ENDIAN ? BitUtil.VH_BE_SHORT : BitUtil.VH_LE_SHORT;
+        for (int i = 0; i < count; i++) {
+            arrayAccess.set(bFloats, i * Short.BYTES + bfloatOffset, BFloat16Support.floatToBFloat16(floats[i + floatOffset]));
+        }
+    }
+
+    static void bFloat16ToFloatImpl(byte[] bFloats, int bfOffset, float[] floats, int floatOffset, int count, ByteOrder byteOrder) {
+        var arrayAccess = byteOrder == ByteOrder.BIG_ENDIAN ? BitUtil.VH_BE_SHORT : BitUtil.VH_LE_SHORT;
+        for (int i = 0; i < count; i++) {
+            floats[i + floatOffset] = BFloat16Support.bFloat16ToFloat((short) arrayAccess.get(bFloats, i * Short.BYTES + bfOffset));
+        }
+    }
+
+    @Override
+    public void floatToBFloat16(float[] floats, int floatOffset, byte[] bfBytes, int bfOffset, int floatCount, ByteOrder byteOrder) {
+        floatToBFloat16Impl(floats, 0, bfBytes, 0, floatCount, byteOrder);
+    }
+
+    @Override
+    public void bFloat16ToFloat(byte[] bfBytes, int bfOffset, float[] floats, int floatOffset, int floatCount, ByteOrder byteOrder) {
+        bFloat16ToFloatImpl(bfBytes, bfOffset, floats, floatOffset, floatCount, byteOrder);
     }
 
     @Override
@@ -563,6 +590,17 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength) {
         return ByteArrayUtils.contains(value, valueOffset, valueLength, term, termOffset, termLength);
+    }
+
+    @Override
+    public void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
+        assert values.length % 8 == 0 && matches.length == values.length / 64;
+        for (int i = 0; i < values.length; i++) {
+            long v = values[i];
+            if (lowerValue <= v && v <= upperValue) {
+                matches[i >>> 6] |= 1L << (i & 0x3f);
+            }
+        }
     }
 
     @Override

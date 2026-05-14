@@ -41,6 +41,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -1398,7 +1400,9 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         // Start the second search shard and waits for recovery to start
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2), indexName);
         safeAwait(commitRegistrationStarted);
-        var blobsBeforeMerge = Sets.difference(listBlobsWithAbsolutePath(shardCommitsContainer), initialBlobs);
+        // Use listFinalisedBlobsWithAbsolutePath so we don't include any pending-stateless_commit_X...
+        // files present due to an ongoing atomic write (they will disappear)
+        var blobsBeforeMerge = Sets.difference(listFinalisedBlobsWithAbsolutePath(shardCommitsContainer), initialBlobs);
 
         // While search shard is recovering, create a new merged commit
         logger.debug("--> force merging");
@@ -1447,6 +1451,20 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
             var blobsAfterRecoveryAndRefresh = listBlobsWithAbsolutePath(shardCommitsContainer);
             assertThat(Sets.intersection(blobsAfterRecoveryAndRefresh, blobsBeforeMerge), is(empty()));
         });
+    }
+
+    /**
+     * List all finalized blobs in the blob container, exclude any temporary blobs present for in-progress
+     * atomic writes.
+     *
+     * @param blobContainer An instance of a {@link FsBlobContainer}
+     * @return The list of finalized blobs in that container
+     */
+    private Set<String> listFinalisedBlobsWithAbsolutePath(BlobContainer blobContainer) throws IOException {
+        assert blobContainer instanceof FsBlobContainer : "This logic is FsBlobContainer specific";
+        return listBlobsWithAbsolutePath(blobContainer).stream()
+            .filter(path -> FsBlobContainer.isTempBlobName(path.substring(path.lastIndexOf('/') + 1)) == false)
+            .collect(Collectors.toSet());
     }
 
     public void testStatelessCommitServiceClusterStateListenerHandlesNewShardAssignmentsCorrectly() {

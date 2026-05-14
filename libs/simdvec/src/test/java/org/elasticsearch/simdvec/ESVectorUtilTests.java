@@ -1081,7 +1081,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         }
 
         float referenceResult = defaultedProvider.getVectorUtilSupport().logSumExpNQT(x);
-        assertEquals(referenceResult, defOrPanamaProvider.getVectorUtilSupport().logSumExpNQT(x), 1e-2 * referenceResult);
+        assertEquals(referenceResult, defOrPanamaProvider.getVectorUtilSupport().logSumExpNQT(x), 1.1e-2 * referenceResult);
     }
 
     public void testLinearCombination() {

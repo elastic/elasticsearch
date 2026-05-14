@@ -120,10 +120,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             MappedFieldType.FieldExtractPreference.STORED
         )) {
             for (IndexMode indexMode : IndexMode.values()) {
-                // TODO: Support COLUMNAR and COLUMNAR_LOGSDB modes in BWC tests
+                // TODO: Support COLUMNAR and LOGSDB_COLUMNAR modes in BWC tests
                 // These modes are currently skipped to avoid "No enum constant" errors in mixed-version clusters
                 // where older nodes don't have these enum values yet.
-                if (indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.COLUMNAR_LOGSDB) {
+                if (indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.LOGSDB_COLUMNAR) {
                     continue;
                 }
                 args.add(new Object[] { extractPreference, indexMode });
@@ -1287,7 +1287,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     private boolean syntheticSourceByDefault() {
         return switch (indexMode) {
-            case TIME_SERIES, LOGSDB, COLUMNAR, COLUMNAR_LOGSDB -> true;
+            case TIME_SERIES, LOGSDB, COLUMNAR, LOGSDB_COLUMNAR -> true;
             case STANDARD, LOOKUP, VECTORDB_DOCUMENT -> false;
         };
     }
@@ -1418,7 +1418,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Doubles")
                 : matchesList().item("column_at_a_time:DoublesFromDocValues.Singleton");
             case EXPONENTIAL_HISTOGRAM -> matchesList().item("column_at_a_time:BlockDocValuesReader.ExponentialHistogram");
-            case FLATTENED -> matchesList().item("column_at_a_time:");
+            case FLATTENED -> useStoredLoader()
+                ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
+                : matchesList().item("column_at_a_time:");
             case DENSE_VECTOR -> matchesList().item("column_at_a_time:FloatDenseVectorFromDocValues.Normalized.Load");
             case GEO_POINT -> extractPreference == MappedFieldType.FieldExtractPreference.STORED || syntheticSourceByDefault() == false
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Geometries")

@@ -68,9 +68,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     private final List<Attribute> output;
     private final SourceMetadata metadata;
     private final FileList fileList;
-    // NOT serialized — coordinator-only per-file schema reconciliation, paired with fileList.
-    // null on data nodes; consumed by AsyncExternalSourceOperatorFactory / FileSplitProvider
-    // to bake FileSplit.readSchema and to drive the UBN SchemaAdaptingIterator.
+    // Coordinator-only — not serialized. Drives FileSplit.readSchema + UBN SchemaAdaptingIterator.
     private final Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
 
     public ExternalRelation(

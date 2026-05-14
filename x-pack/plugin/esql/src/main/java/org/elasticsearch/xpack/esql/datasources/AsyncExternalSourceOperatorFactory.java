@@ -99,8 +99,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final int rowLimit;
     private final Executor executor;
     private final FileList fileList;
-    // Per-file planner-resolved schemas; populated from SourceOperatorContext.schemaMap().
-    // Always non-null (empty for legacy/unresolved paths).
+    // Per-file planner-resolved schemas; always non-null (empty for unresolved paths).
     private final Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
     private final Set<String> partitionColumnNames;
     private final Map<String, Object> partitionValues;
@@ -485,10 +484,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         DriverContext driverContext,
         VirtualColumnInjector injector
     ) {
-        // Per-file schemas now travel as a dedicated SourceOperatorContext.schemaMap() field, populated
-        // from ExternalSourceExec.schemaMap. Always non-null (empty map for legacy paths). The previous
-        // FileList.fileSchemaInfo() asymmetry is removed.
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = schemaMap;
         ActionListener<Void> completionListener = ActionListener.assertOnce(ActionListener.wrap(v -> {
             buffer.finish(false);
             driverContext.removeAsyncAction();
@@ -499,7 +494,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             releaseOperator();
         }));
         ProducerState state = new ProducerState(null, fileList, projectedColumns, injector, buffer, driverContext, rowLimit);
-        state.schemaInfo = schemaInfo;
+        state.schemaInfo = schemaMap;
         try {
             executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
         } catch (Exception e) {

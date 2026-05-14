@@ -77,10 +77,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     private final BlockHash.TopNDef pushedTopN;
     private final Integer estimatedRowSize;
     private final FileList fileList; // NOT serialized - resolved on coordinator, null on data nodes
-    // NOT serialized - coordinator-only per-file schema reconciliation paired with fileList.
-    // Consumed by AsyncExternalSourceOperatorFactory / FileSplitProvider to bake
-    // FileSplit.readSchema and to drive the UBN SchemaAdaptingIterator. Empty (never null) on
-    // data nodes and for legacy paths.
+    // Coordinator-only — not serialized. Drives FileSplit.readSchema + UBN SchemaAdaptingIterator.
     private final Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
     private final List<ExternalSplit> splits;
 

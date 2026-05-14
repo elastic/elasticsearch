@@ -294,14 +294,12 @@ public class FileSplit implements ExternalSplit {
                 List<Attribute> attrs = new ArrayList<>(count);
                 for (int i = 0; i < count; i++) {
                     String name = in.readString();
-                    // DataType.readFrom throws IOException on unknown type names and handles the DOC
-                    // special case; DataType.fromTypeName would silently return null and NPE downstream.
+                    // DataType.readFrom throws IOException on unknown; DataType.fromTypeName returns null.
                     DataType type = DataType.readFrom(in.readString());
                     Nullability nullability = in.readBoolean() ? Nullability.TRUE : Nullability.FALSE;
                     attrs.add(new ReferenceAttribute(Source.EMPTY, null, name, type, nullability, null, false));
                 }
-                // attrs is local to this scope and never escapes mutably; wrap rather than copy so we
-                // skip the redundant size-N array allocation that List.copyOf would perform.
+                // Local list never escapes; wrap rather than copy.
                 this.readSchema = Collections.unmodifiableList(attrs);
             } else {
                 this.readSchema = null;
@@ -355,13 +353,9 @@ public class FileSplit implements ExternalSplit {
         if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_READ_SCHEMA)) {
             if (readSchema != null) {
                 out.writeBoolean(true);
-                // Primitive serialization (name + typeName + nullable) — FileSplit crosses the wire via
-                // DataNodeRequest, which uses RecyclerBytesStreamOutput (not PlanStreamOutput).
-                // Using writeNamedWriteableCollection(Attribute.class) would fail at ReferenceAttribute.writeTo
-                // because it casts the stream to PlanStreamOutput for the attribute-cache machinery.
-                // Readers only need (name, dataType, nullable); we don't carry Source/qualifier/etc.
-                // through FileSplit. The Nullability.UNKNOWN tri-state is collapsed to TRUE on the wire
-                // because UNKNOWN is a "planner hasn't decided" marker and should not survive analysis.
+                // Primitive (name, typeName, nullable). writeNamedWriteableCollection(Attribute) can't
+                // be used: FileSplit travels on RecyclerBytesStreamOutput, not PlanStreamOutput.
+                // UNKNOWN nullability collapses to TRUE (planner-internal marker, never survives analysis).
                 out.writeVInt(readSchema.size());
                 for (Attribute attr : readSchema) {
                     out.writeString(attr.name());

@@ -199,10 +199,7 @@ public class ExternalSourceResolver {
             List.of(new StorageEntry(storagePath, object.length(), object.lastModified())),
             path
         );
-        // Single-file resolution is the degenerate case of the general resolution flow: produce a
-        // one-entry schemaMap so downstream readers honor readSchema uniformly (no per-format
-        // self-inference fallback). The mapping is identity because there is no cross-file layout
-        // variance to translate.
+        // Single-file: degenerate case of the general flow — one-entry schemaMap, identity mapping.
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, extMetadata.schema());
         return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap);
     }
@@ -349,9 +346,8 @@ public class ExternalSourceResolver {
             }
         }
 
-        // FIRST_FILE_WINS contract: every file is read AS the anchor's data schema. Capture the
-        // pre-enrichment schema here so the per-file readSchema does NOT include partition columns;
-        // partition columns are injected by VirtualColumnInjector at read time, not by the format reader.
+        // Capture pre-enrichment schema: partition columns are injected by VirtualColumnInjector
+        // at read time, so per-file readSchema must NOT include them.
         List<Attribute> dataOnlySchema = extMetadata.schema();
 
         PartitionMetadata partitionMetadata = listing.partitionMetadata();
@@ -359,9 +355,7 @@ public class ExternalSourceResolver {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
         }
 
-        // Replicate the (data-only) anchor schema into a per-file FileSchemaInfo entry for every file
-        // so FileSplitProvider populates each FileSplit.readSchema and the reader stays pinned to the
-        // planner's view, no re-inference.
+        // FFW: every file's readSchema is the anchor's data-only schema, identity mapping.
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
         if (dataOnlySchema != null && dataOnlySchema.isEmpty() == false) {
             Map<StoragePath, SchemaReconciliation.FileSchemaInfo> perFileInfo = Maps.newHashMapWithExpectedSize(listing.fileCount());

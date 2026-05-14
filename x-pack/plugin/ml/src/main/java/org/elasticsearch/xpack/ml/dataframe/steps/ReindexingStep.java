@@ -27,8 +27,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.script.Script;
@@ -331,7 +331,7 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
         getTaskRequest.setTaskId(reindexTaskId);
         client.admin().cluster().getTask(getTaskRequest, ActionListener.wrap(taskResponse -> {
             TaskResult taskResult = taskResponse.getTask();
-            BulkByScrollTask.Status taskStatus = (BulkByScrollTask.Status) taskResult.getTask().status();
+            BulkByPaginatedSearchTask.Status taskStatus = (BulkByPaginatedSearchTask.Status) taskResult.getTask().status();
             int progress = (int) (taskStatus.getCreated() * 100.0 / taskStatus.getTotal());
             listener.onResponse(progress);
         }, error -> {

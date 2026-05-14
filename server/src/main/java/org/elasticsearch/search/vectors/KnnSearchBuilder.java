@@ -121,7 +121,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     final QueryVectorBuilder queryVectorBuilder;
     private final Supplier<float[]> querySupplier;
     final int k;
-    final Integer numCands;
+    final int numCands;
     final Float visitPercentage;
     final Float similarity;
     final List<QueryBuilder> filterQueries;
@@ -144,7 +144,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         String field,
         float[] queryVector,
         int k,
-        Integer numCands,
+        int numCands,
         Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity
@@ -174,7 +174,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         String field,
         VectorData queryVector,
         int k,
-        Integer numCands,
+        int numCands,
         Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity
@@ -195,7 +195,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         String field,
         QueryVectorBuilder queryVectorBuilder,
         int k,
-        Integer numCands,
+        int numCands,
         Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity
@@ -217,7 +217,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         VectorData queryVector,
         QueryVectorBuilder queryVectorBuilder,
         int k,
-        Integer numCands,
+        int numCands,
         Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity
@@ -266,7 +266,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         VectorData queryVector,
         List<QueryBuilder> filterQueries,
         int k,
-        Integer numCandidates,
+        int numCandidates,
         Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity,
@@ -277,12 +277,12 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (k < 1) {
             throw new IllegalArgumentException("[" + K_FIELD.getPreferredName() + "] must be greater than 0");
         }
-        if (numCandidates != null && numCandidates < k) {
+        if (numCandidates < k) {
             throw new IllegalArgumentException(
                 "[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot be less than " + "[" + K_FIELD.getPreferredName() + "]"
             );
         }
-        if (numCandidates != null && numCandidates > NUM_CANDS_LIMIT) {
+        if (numCandidates > NUM_CANDS_LIMIT) {
             throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + NUM_CANDS_LIMIT + "]");
         }
         if (visitPercentage != null && (visitPercentage < 0.0f || visitPercentage > 100.0f)) {
@@ -345,7 +345,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         return k;
     }
 
-    public Integer getNumCands() {
+    public int getNumCands() {
         return numCands;
     }
 
@@ -489,7 +489,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (o == null || getClass() != o.getClass()) return false;
         KnnSearchBuilder that = (KnnSearchBuilder) o;
         return k == that.k
-            && Objects.equals(numCands, that.numCands)
+            && numCands == that.numCands
             && Objects.equals(visitPercentage, that.visitPercentage)
             && Objects.equals(rescoreVectorBuilder, that.rescoreVectorBuilder)
             && Objects.equals(field, that.field)
@@ -526,9 +526,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(FIELD_FIELD.getPreferredName(), field);
         builder.field(K_FIELD.getPreferredName(), k);
-        if (numCands != null) {
-            builder.field(NUM_CANDS_FIELD.getPreferredName(), numCands);
-        }
+        builder.field(NUM_CANDS_FIELD.getPreferredName(), numCands);
 
         if (visitPercentage != null) {
             builder.field(VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentage);

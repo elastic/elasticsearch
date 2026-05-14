@@ -53,14 +53,6 @@ public class KnnRetrieverBuilderParsingTests extends AbstractXContentTestCase<Kn
         int k = randomIntBetween(1, 100);
         Integer numCands = randomBoolean() ? null : randomIntBetween(k + 20, 1000);
         Float visitPercentage = randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true);
-        // At least one of num_candidates or visit_percentage must be provided
-        if (numCands == null && visitPercentage == null) {
-            if (randomBoolean()) {
-                numCands = randomIntBetween(k + 20, 1000);
-            } else {
-                visitPercentage = randomFloatBetween(0.0f, 100.0f, true);
-            }
-        }
         Float similarity = randomBoolean() ? null : randomFloat();
         RescoreVectorBuilder rescoreVectorBuilder = randomBoolean()
             ? null
@@ -151,14 +143,6 @@ public class KnnRetrieverBuilderParsingTests extends AbstractXContentTestCase<Kn
                 assertThat(bq.filter().get(i), instanceOf(knnRetriever.preFilterQueryBuilders.get(i).getClass()));
             }
         }
-    }
-
-    public void testNumCandidatesAndVisitPercentageBothNull() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new KnnRetrieverBuilder("field", new float[] { 1.0f }, null, 10, null, null, null, null)
-        );
-        assertThat(e.getMessage(), equalTo("either [num_candidates] or [visit_percentage] must be provided"));
     }
 
     @Override

@@ -119,6 +119,16 @@ setup:
 
   - gt: { hits.total.value: 0 }
 
+---
+"kNN retriever with optional num_candidates":
+  - requires:
+      reason: "optional num_candidates in knn retriever"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ knn_retriever_optional_num_candidates ]
+
   # Test that visit_percentage is accepted by itself even though it is ignored, since the vector field uses int8_hnsw
   - do:
       search:
@@ -134,9 +144,8 @@ setup:
 
   - gt: { hits.total.value: 0 }
 
-  # Test that missing visit_percentage and num_candidates results in an error
+  # Test that omitting both num_candidates and visit_percentage uses defaults
   - do:
-      catch: bad_request
       search:
         index: index1
         body:
@@ -147,8 +156,7 @@ setup:
               query_vector: [2, 2, 2, 2, 3]
               k: 2
 
-  - match: { error.root_cause.0.type: "x_content_parse_exception" }
-  - match: { error.caused_by.reason: "either [num_candidates] or [visit_percentage] must be provided" }
+  - gt: { hits.total.value: 0 }
 
 ---
 "kNN retriever with filter":

@@ -148,15 +148,6 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
                 )
             );
         }
-        if (numCands == null && visitPercentage == null) {
-            throw new IllegalArgumentException(
-                format(
-                    "either [%s] or [%s] must be provided",
-                    NUM_CANDS_FIELD.getPreferredName(),
-                    VISIT_PERCENTAGE_FIELD.getPreferredName()
-                )
-            );
-        }
         this.field = field;
         this.queryVector = queryVector != null ? () -> queryVector : null;
         this.queryVectorBuilder = queryVectorBuilder;

@@ -96,14 +96,6 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         this.schemaMap = schemaMap != null ? schemaMap : Map.of();
     }
 
-    public ExternalRelation(Source source, String sourcePath, SourceMetadata metadata, List<Attribute> output, FileList fileList) {
-        this(source, sourcePath, metadata, output, fileList, Map.of());
-    }
-
-    public ExternalRelation(Source source, String sourcePath, SourceMetadata metadata, List<Attribute> output) {
-        this(source, sourcePath, metadata, output, FileList.UNRESOLVED, Map.of());
-    }
-
     private static ExternalRelation readFrom(StreamInput in) throws IOException {
         var source = Source.readFrom((PlanStreamInput) in);
         String sourcePath = in.readString();

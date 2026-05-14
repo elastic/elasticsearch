@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 
 import java.io.IOException;
@@ -24,7 +25,7 @@ public class ExternalRelationSerializationTests extends AbstractLogicalPlanSeria
         Map<String, Object> config = randomBoolean() ? Map.of() : Map.of("endpoint", "https://s3.example.com");
         Map<String, Object> sourceMetadata = randomBoolean() ? Map.of() : randomSourceMetadataWithStats();
         SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, sourceType, sourcePath, null, null, sourceMetadata, config);
-        return new ExternalRelation(randomSource(), sourcePath, metadata, output);
+        return new ExternalRelation(randomSource(), sourcePath, metadata, output, FileList.UNRESOLVED, Map.of());
     }
 
     private static Map<String, Object> randomSourceMetadataWithStats() {
@@ -65,7 +66,7 @@ public class ExternalRelationSerializationTests extends AbstractLogicalPlanSeria
             default -> throw new IllegalStateException();
         }
         SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, sourceType, sourcePath, null, null, sourceMetadata, config);
-        return new ExternalRelation(instance.source(), sourcePath, metadata, output);
+        return new ExternalRelation(instance.source(), sourcePath, metadata, output, FileList.UNRESOLVED, Map.of());
     }
 
     @Override
@@ -94,7 +95,14 @@ public class ExternalRelationSerializationTests extends AbstractLogicalPlanSeria
             Map.of(),
             Map.of()
         );
-        ExternalRelation original = new ExternalRelation(randomSource(), metadata.location(), metadata, narrowedOutput);
+        ExternalRelation original = new ExternalRelation(
+            randomSource(),
+            metadata.location(),
+            metadata,
+            narrowedOutput,
+            FileList.UNRESOLVED,
+            Map.of()
+        );
 
         ExternalRelation roundTripped = copyInstance(original);
 

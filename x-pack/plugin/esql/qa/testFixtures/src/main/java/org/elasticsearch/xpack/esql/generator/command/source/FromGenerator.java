@@ -119,13 +119,9 @@ public class FromGenerator implements CommandGenerator {
             if (context.isFeatureEnabled(GenerativeFeature.SUBQUERIES)
                 && context.isWithinASubquery() == false
                 && randomDouble() < SUBQUERY_PROBABILITY) {
-                SubqueryGenerator.SubqueryResult sub = SubqueryGenerator.build(context, schema, executor);
-                if (sub != null) {
-                    result.append(sub.queryText());
-                    hasSubquery = true;
-                    continue;
-                }
-                // Fall through to a plain index pattern if subquery generation failed.
+                result.append(SubqueryGenerator.build(context, schema, executor).queryText());
+                hasSubquery = true;
+                continue;
             }
             String pattern = EsqlQueryGenerator.indexPattern(availableIndices.get(randomIntBetween(0, availableIndices.size() - 1)));
             result.append(pattern);

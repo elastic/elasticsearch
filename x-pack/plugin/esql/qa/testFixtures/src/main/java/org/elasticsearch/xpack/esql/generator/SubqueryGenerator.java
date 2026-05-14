@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.generator;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 
@@ -14,14 +15,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Builds a parenthesized subquery suitable for embedding in another query, e.g. {@code (FROM idx)}
- * inside a {@code FROM (...)} source list. Designed to be reusable by future call-sites such as
- * {@code WHERE col IN (subquery)}.
- * <p>
- *     Generation is performed using an inner {@link EsqlQueryGenerator.Executor} that runs each
- *     generated command incrementally and rejects any addition that throws or yields no schema, so
- *     the returned query is guaranteed to execute successfully on its own.
- * </p>
+ * Builds a parenthesized subquery suitable for embedding in another query, e.g. {@code (FROM idx)}.
+ * Each command is run incrementally against the cluster; the pipeline stops appending once a result has an empty schema,
+ * but the empty-schema subquery is still returned. Inner exceptions propagate.
  */
 public final class SubqueryGenerator {
 
@@ -32,8 +28,7 @@ public final class SubqueryGenerator {
     public record SubqueryResult(String queryText, List<Column> outputSchema) {}
 
     /**
-     * Returns a parenthesized subquery and its output schema, or {@code null} if generation or
-     * validation failed (in which case the caller should fall back to a non-subquery alternative).
+     * Returns a parenthesized subquery and its output schema. Inner exceptions are rethrown.
      */
     public static SubqueryResult build(GenerationContext outerContext, CommandGenerator.QuerySchema schema, QueryExecutor queryExecutor) {
         GenerationContext innerContext = outerContext.withSubqueryDepth(outerContext.subqueryDepth() + 1);
@@ -42,8 +37,8 @@ public final class SubqueryGenerator {
         EsqlQueryGenerator.generatePipeline(INNER_PIPE_DEPTH, FromGenerator.INSTANCE, schema, inner, false, queryExecutor, innerContext);
 
         QueryExecuted last = inner.lastResult;
-        if (last == null || last.exception() != null || last.outputSchema() == null || last.outputSchema().isEmpty()) {
-            return null;
+        if (last.exception() != null) {
+            throw ExceptionsHelper.convertToRuntime(last.exception());
         }
         return new SubqueryResult("(" + last.query() + ")", last.outputSchema());
     }

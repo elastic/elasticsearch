@@ -76,16 +76,17 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     /**
      * Allowed error patterns that are tolerated only when the corresponding {@link GenerativeFeature} is in
-     * {@link #enabledFeatures()}. Layered onto the global {@link #ALLOWED_ERRORS} via {@link #getAllowedErrors()}
+     * {@link #enabledFeatures()}. Layered onto the global {@link #ALLOWED_ERRORS} via {@link #additionalAllowedErrors()}
      * so muting a feature-specific failure doesn't widen the surface for runs that don't enable the feature.
      */
     private static final Map<GenerativeFeature, Set<String>> FEATURE_ALLOWED_ERRORS = Map.of(
         GenerativeFeature.SUBQUERIES,
         Set.of(
-            // Mixing a subquery with plain index patterns in a multi-source FROM can surface fields whose types
-            // differ across branches. Plain FROM a, b would resolve these via union types, but the subquery-aware
-            // resolution (EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION) rejects
-            // them outright. The generator has no cheap way to predict these cross-branch collisions.
+            // Known generator limitation: when a multi-source FROM mixes a subquery branch with
+            // plain index patterns, the subquery-aware union-types resolution
+            // (EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION) treats cross-branch
+            // type differences as a hard error instead of merging them via union types like plain "FROM a, b" would.
+            // This message is "expected" here, as predicting type conflicts has to be implemented first
             "has conflicting data types in subqueries"
         )
     );
@@ -339,7 +340,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     StringBuilder message = new StringBuilder();
                     message.append("Generative tests, error generating new command \n");
                     message.append("Previous query: \n");
-                    message.append(exec.previousResult.query());
+                    message.append(exec.previousResult == null ? "<no previous query>" : exec.previousResult.query());
                     fail(e, message.toString());
                 }
             }
@@ -453,7 +454,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * source command). Returned strings are wrapped to {@code .*<pattern>.*} and OR-ed with the base
      * {@link #ALLOWED_ERRORS}.
      */
-    protected Set<String> getAllowedErrors() {
+    protected Set<String> additionalAllowedErrors() {
         Set<GenerativeFeature> features = enabledFeatures();
         if (features.isEmpty()) {
             return Set.of();
@@ -480,14 +481,14 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     private List<AllowedFailureRule> allowedFailureRules;
 
     /**
-     * Lazily merges {@link #ALLOWED_FAILURE_RULES} with the patterns supplied by {@link #getAllowedErrors()},
+     * Lazily merges {@link #ALLOWED_FAILURE_RULES} with the patterns supplied by {@link #additionalAllowedErrors()},
      * each wrapped as a rule that matches against the normalized error message.
      */
     private List<AllowedFailureRule> allowedFailureRules() {
         if (allowedFailureRules == null) {
             allowedFailureRules = Stream.concat(
                 Arrays.stream(ALLOWED_FAILURE_RULES),
-                getAllowedErrors().stream()
+                additionalAllowedErrors().stream()
                     .map(s -> Pattern.compile(".*" + s + ".*", Pattern.DOTALL))
                     .<AllowedFailureRule>map(p -> ctx -> p.matcher(ctx.normalizedErrorMessage).matches())
             ).toList();

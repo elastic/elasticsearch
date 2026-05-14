@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import fixture.s3.BlobEntry;
 import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 import fixture.s3.S3HttpHandler;
@@ -143,7 +144,7 @@ public class S3GlobDiscoveryTests extends ESTestCase {
     }
 
     private static void addBlob(String key, byte[] content) {
-        s3Fixture.handler().blobs().put("/" + BUCKET + "/" + key, new BytesArray(content));
+        s3Fixture.handler().blobs().put("/" + BUCKET + "/" + key, new BlobEntry(new BytesArray(content)));
     }
 
     private static List<StorageEntry> collectAll(StorageIterator iterator) throws IOException {

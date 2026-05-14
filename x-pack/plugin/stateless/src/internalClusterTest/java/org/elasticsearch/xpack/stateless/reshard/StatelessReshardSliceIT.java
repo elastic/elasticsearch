@@ -229,7 +229,6 @@ public class StatelessReshardSliceIT extends AbstractStatelessPluginIntegTestCas
             while (searchResponse.getHits().getHits().length > 0) {
                 searchResponse.decRef();
                 searchResponse = client().prepareSearchScroll("test")
-                    .setScrollId(scrollId)
                     .setScroll(TimeValue.timeValueSeconds(SAFE_AWAIT_TIMEOUT.seconds()))
                     .get();
                 scrollId = searchResponse.getScrollId();

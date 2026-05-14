@@ -195,7 +195,9 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         }
         builder.field(ID_FIELD.getPreferredName(), id);
         builder.field(MAX_FIELD.getPreferredName(), max);
-        builder.field(OPTIMIZE_BY_SHARD_FIELD.getPreferredName(), optimizeByShard);
+        if (optimizeByShard == false) {
+            builder.field(OPTIMIZE_BY_SHARD_FIELD.getPreferredName(), optimizeByShard);
+        }
     }
 
     public static SliceBuilder fromXContent(XContentParser parser) throws IOException {

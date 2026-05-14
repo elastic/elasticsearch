@@ -27,6 +27,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
@@ -47,6 +48,7 @@ import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotSettings.StatelessSnapshotEnabledStatus;
 
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
@@ -61,6 +63,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
@@ -479,6 +483,114 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         for (SnapshotsCommitService commitService : internalCluster().getInstances(SnapshotsCommitService.class)) {
             assertBusy(() -> assertFalse(commitService.hasTrackingForShard(indices.shardIdA())));
             assertBusy(() -> assertFalse(commitService.hasTrackingForShard(indices.shardIdB())));
+        }
+    }
+
+    public void testCommitReleasedPromptlyOnRelocation() throws Exception {
+        final var settings = Settings.builder()
+            .put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), StatelessSnapshotEnabledStatus.ENABLED)
+            .put(RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING.getKey(), true)
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+            .put("thread_pool.snapshot.max", 1) // single thread for controlled test
+            .build();
+        final var node0 = startMasterAndIndexNode(settings);
+        final var node1 = startMasterAndIndexNode(settings);
+        ensureStableCluster(2);
+
+        final var indexName = randomIndexName();
+        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.exclude._name", node1).build());
+        ensureGreen(indexName);
+
+        final var bufferSize = BlobStoreRepository.BUFFER_SIZE_SETTING.get(Settings.EMPTY);
+        // Create a large segment so that the file is large enough (> default 128KB buffer size) so that they require multiple reads
+        indexDocs(indexName, 500, UnaryOperator.identity(), null, () -> Map.of("field", randomUnicodeOfCodepointLength(1024)));
+        flush(indexName);
+
+        final var repoName = randomIdentifier();
+        createRepository(repoName, "fs");
+
+        final var shardId = new ShardId(resolveIndex(indexName), 0);
+
+        // Block snapshot data reads twice so that the 2nd one has a chance to release the commit
+        final var blockingCount = new AtomicInteger(2);
+        final var dataReadProceedBarrier = new CyclicBarrier(2);
+
+        setNodeRepositoryStrategy(node0, new AssertNoMissingBlobStrategy() {
+            @Override
+            public InputStream blobContainerReadBlob(
+                CheckedSupplier<InputStream, IOException> originalSupplier,
+                OperationPurpose purpose,
+                String blobName,
+                long position,
+                long length
+            ) throws IOException {
+                final var original = super.blobContainerReadBlob(originalSupplier, purpose, blobName, position, length);
+                if (purpose == OperationPurpose.SNAPSHOT_DATA && length > bufferSize.getBytes()) {
+                    return new FilterInputStream(original) {
+                        @Override
+                        public int read() throws IOException {
+                            maybeBlockRead();
+                            return super.read();
+                        }
+
+                        @Override
+                        public int read(byte[] b, int off, int len) throws IOException {
+                            maybeBlockRead();
+                            return super.read(b, off, len);
+                        }
+
+                        private void maybeBlockRead() {
+                            if (blockingCount.decrementAndGet() >= 0) {
+                                logger.info("--> blocking snapshot data read");
+                                safeAwait(dataReadProceedBarrier);
+                                safeAwait(dataReadProceedBarrier);
+                                logger.info("--> proceeding with snapshot data read");
+                            }
+                        }
+                    };
+                }
+                return original;
+            }
+        });
+
+        final var snapshotFuture = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, randomSnapshotName())
+            .setIndices(indexName)
+            .setWaitForCompletion(true)
+            .execute();
+
+        // Wait till the snapshot read is blocked the first time
+        safeAwait(dataReadProceedBarrier);
+
+        logger.info("--> relocating to [{}]", node1);
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", node0));
+        ensureGreen(indexName);
+        assertThat(internalCluster().nodesInclude(indexName), equalTo(Set.of(node1)));
+
+        // The tracked commit is released by SnapshotsCommitService due to relocation
+        final var snapshotCommitService = internalCluster().getInstance(SnapshotsCommitService.class, node0);
+        assertBusy(() -> assertFalse(snapshotCommitService.hasTrackingForShard(shardId)));
+
+        // Let the first snapshot data read proceed, it should release the commit on detecting relocation and keep reading.
+        safeAwait(dataReadProceedBarrier);
+        // Wait for it to block the 2nd time.
+        safeAwait(dataReadProceedBarrier);
+
+        // Verify the shard can relocate back, i.e. the store is closed because the commit is fully released
+        logger.info("--> relocating back to [{}]", node0);
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", node1));
+        ensureGreen(indexName);
+        assertThat(internalCluster().nodesInclude(indexName), equalTo(Set.of(node0)));
+
+        // Unblock data reads and let the snapshot complete
+        safeAwait(dataReadProceedBarrier);
+
+        final var snapshotInfo = safeGet(snapshotFuture).getSnapshotInfo();
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.successfulShards(), equalTo(1));
+        assertThat(snapshotInfo.failedShards(), equalTo(0));
+
+        for (SnapshotsCommitService commitService : internalCluster().getInstances(SnapshotsCommitService.class)) {
+            assertBusy(() -> assertFalse(commitService.hasTrackingForShard(shardId)));
         }
     }
 

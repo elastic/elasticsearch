@@ -53,6 +53,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -88,6 +90,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -104,6 +107,7 @@ import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
@@ -170,6 +174,8 @@ import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
 import org.elasticsearch.xpack.stateless.engine.RefreshManagerServiceFactory;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
+import org.elasticsearch.xpack.stateless.engine.StatelessReaderHeapBreaker;
+import org.elasticsearch.xpack.stateless.engine.StatelessReaderHeapMetrics;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogRecoveryMetrics;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
@@ -235,6 +241,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -257,6 +264,7 @@ public class StatelessPlugin extends Plugin
         ActionPlugin,
         ClusterPlugin,
         ClusterCoordinationPlugin,
+        CircuitBreakerPlugin,
         ExtensiblePlugin,
         HealthPlugin,
         PersistentTaskPlugin {
@@ -491,6 +499,7 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<TranslogReplicator> translogReplicator = new SetOnce<>();
     private final SetOnce<TranslogRecoveryMetrics> translogReplicatorMetrics = new SetOnce<>();
     private final SetOnce<HollowShardsMetrics> hollowShardMetrics = new SetOnce<>();
+    private final SetOnce<StatelessReaderHeapMetrics> readerHeapMetrics = new SetOnce<>();
     private final SetOnce<StatelessElectionStrategy> electionStrategy = new SetOnce<>();
     private final SetOnce<StoreHeartbeatService> storeHeartbeatService = new SetOnce<>();
     // protected for testing
@@ -526,6 +535,12 @@ public class StatelessPlugin extends Plugin
     private final boolean sharedCacheMmapExplicitlySet;
     private final boolean useRealMemoryCircuitBreakerExplicitlySet;
     private final boolean pageCacheReyclerLimitExplicitlySet;
+
+    // The reader-heap circuit breaker for search nodes. Resolved late by HierarchyCircuitBreakerService through
+    // CircuitBreakerPlugin#setCircuitBreaker before any shard engine is constructed; defaults to a noop for tests.
+    private final AtomicReference<CircuitBreaker> readerHeapBreaker = new AtomicReference<>(
+        new NoopCircuitBreaker(StatelessReaderHeapBreaker.NAME)
+    );
 
     private final boolean hasSearchRole;
     private final boolean hasIndexRole;
@@ -851,6 +866,10 @@ public class StatelessPlugin extends Plugin
         setAndGet(
             hollowShardMetrics,
             HollowShardsMetrics.from(services.telemetryProvider().getMeterRegistry(), this::amountOfHollowableShards)
+        );
+        setAndGet(
+            readerHeapMetrics,
+            StatelessReaderHeapMetrics.register(services.telemetryProvider().getMeterRegistry(), readerHeapBreaker.get())
         );
         components.add(hollowShardMetrics.get());
         components.add(new StatelessComponents(translogReplicator, objectStoreService));
@@ -1302,8 +1321,20 @@ public class StatelessPlugin extends Plugin
             ShardsMappingSizeCollector.CUT_OFF_TIMEOUT_SETTING,
             ShardsMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING,
             ShardsMappingSizeCollector.FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING,
-            ShardsMappingSizeCollector.HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING
+            ShardsMappingSizeCollector.HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING,
+            StatelessReaderHeapBreaker.LIMIT_SETTING
         );
+    }
+
+    @Override
+    public BreakerSettings getCircuitBreaker(Settings settings) {
+        return StatelessReaderHeapBreaker.breakerSettings(settings);
+    }
+
+    @Override
+    public void setCircuitBreaker(CircuitBreaker circuitBreaker) {
+        assert StatelessReaderHeapBreaker.NAME.equals(circuitBreaker.getName()) : "unexpected breaker [" + circuitBreaker.getName() + "]";
+        readerHeapBreaker.set(circuitBreaker);
     }
 
     @Override
@@ -1664,7 +1695,9 @@ public class StatelessPlugin extends Plugin
                     sharedBlobCacheService.get(),
                     clusterService.get().getClusterSettings(),
                     prefetchExecutor.get(),
-                    prefetchingDynamicSettings.get()
+                    prefetchingDynamicSettings.get(),
+                    readerHeapBreaker.get(),
+                    readerHeapMetrics.get()
                 );
             }
         });

@@ -26,6 +26,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -109,6 +110,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
@@ -172,6 +174,13 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         assert threadPools.isEmpty() : threadPools;
         IOUtils.rm(blobStorePath);
         nodeEnvironment.close();
+        for (CircuitBreaker breaker : readerHeapBreakers) {
+            assertEquals(
+                "reader-heap breaker leaked bytes after test — every reservation must be released by reader close",
+                0L,
+                breaker.getUsed()
+            );
+        }
         super.tearDown();
     }
 
@@ -399,6 +408,20 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         return newSearchEngineFromIndexEngine(searchConfig());
     }
 
+    /** Breakers handed out to engines built through this scaffold; checked for leaks in tearDown. */
+    private final CopyOnWriteArrayList<CircuitBreaker> readerHeapBreakers = new CopyOnWriteArrayList<>();
+
+    /**
+     * Default reader-heap breaker for engines built in tests: a tracking breaker with no limit, so reservations
+     * are recorded and the tearDown assertion verifies no bytes were leaked. Tests that need to exercise the
+     * breakable path override this to set a positive limit on the returned breaker.
+     */
+    protected CircuitBreaker newReaderHeapBreaker() {
+        var breaker = new TrackingCircuitBreaker(StatelessReaderHeapBreaker.NAME, -1L);
+        readerHeapBreakers.add(breaker);
+        return breaker;
+    }
+
     protected SearchEngine newSearchEngineFromIndexEngine(final EngineConfig searchConfig) {
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.EMPTY,
@@ -419,7 +442,9 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             sharedBlobCacheService,
             clusterSettings,
             DIRECT_EXECUTOR_SERVICE,
-            new SearchCommitPrefetcherDynamicSettings(clusterSettings)
+            new SearchCommitPrefetcherDynamicSettings(clusterSettings),
+            newReaderHeapBreaker(),
+            StatelessReaderHeapMetrics.NOOP
         ) {
             @Override
             public void close() throws IOException {
@@ -577,7 +602,9 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             sharedBlobCacheService,
             clusterSettings,
             DIRECT_EXECUTOR_SERVICE,
-            new SearchCommitPrefetcherDynamicSettings(clusterSettings)
+            new SearchCommitPrefetcherDynamicSettings(clusterSettings),
+            newReaderHeapBreaker(),
+            StatelessReaderHeapMetrics.NOOP
         ) {
             @Override
             public void close() throws IOException {

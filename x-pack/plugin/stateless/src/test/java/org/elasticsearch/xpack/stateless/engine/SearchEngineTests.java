@@ -822,9 +822,11 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             }; // no-op wrapper
 
             ActionListener<SearcherSupplier> listener = ActionListener.wrap(supplier -> {
-                try (Searcher searcher = supplier.acquireSearcher("test")) {
-                    assertEquals("my_wrapper", searcher.source());
-                    assertThat(searcher.getDirectoryReader().numDocs(), equalTo(numDocs));
+                try (supplier) {
+                    try (Searcher searcher = supplier.acquireSearcher("test")) {
+                        assertEquals("my_wrapper", searcher.source());
+                        assertThat(searcher.getDirectoryReader().numDocs(), equalTo(numDocs));
+                    }
                 }
             }, e -> { fail("listener should not have failed: " + e.getMessage()); });
 

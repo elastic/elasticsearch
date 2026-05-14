@@ -114,6 +114,93 @@ public class LazySoftDeletesDirectoryReaderWrapperTests extends LuceneTestCase {
         IOUtils.close(reader, dir);
     }
 
+    public void testReopenAfterNewCommit() throws IOException {
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
+        String softDeletesField = "soft_delete";
+        indexWriterConfig.setSoftDeletesField(softDeletesField);
+        indexWriterConfig.setMergePolicy(NoMergePolicy.INSTANCE);
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, indexWriterConfig)) {
+            // Three segments of two docs each so a single soft delete leaves the segment with one live doc.
+            for (int seg = 0; seg < 3; seg++) {
+                for (int d = 0; d < 2; d++) {
+                    Document doc = new Document();
+                    doc.add(new StringField("id", seg + "-" + d, Field.Store.YES));
+                    writer.addDocument(doc);
+                }
+                writer.commit();
+            }
+
+            DirectoryReader reader = new LazySoftDeletesDirectoryReaderWrapper(DirectoryReader.open(dir), softDeletesField);
+            try {
+                assertEquals(3, reader.leaves().size());
+                assertEquals(6, reader.numDocs());
+
+                writer.updateDocValues(new Term("id", "1-0"), new NumericDocValuesField(softDeletesField, 1));
+                writer.commit();
+
+                DirectoryReader reopened = DirectoryReader.openIfChanged(reader);
+                assertNotNull("openIfChanged should re-wrap with LazySoftDeletesDirectoryReaderWrapper", reopened);
+                try {
+                    assertTrue(reopened instanceof LazySoftDeletesDirectoryReaderWrapper);
+                    assertEquals(3, reopened.leaves().size());
+                    assertEquals(5, reopened.numDocs());
+                    assertEquals(1, reopened.numDeletedDocs());
+                } finally {
+                    reopened.close();
+                }
+            } finally {
+                reader.close();
+            }
+        }
+    }
+
+    public void testReopenSharesUnchangedLeaves() throws IOException {
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
+        String softDeletesField = "soft_delete";
+        indexWriterConfig.setSoftDeletesField(softDeletesField);
+        indexWriterConfig.setMergePolicy(NoMergePolicy.INSTANCE);
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, indexWriterConfig)) {
+            for (int seg = 0; seg < 3; seg++) {
+                for (int d = 0; d < 2; d++) {
+                    Document doc = new Document();
+                    doc.add(new StringField("id", seg + "-" + d, Field.Store.YES));
+                    writer.addDocument(doc);
+                }
+                writer.commit();
+            }
+
+            DirectoryReader reader = new LazySoftDeletesDirectoryReaderWrapper(DirectoryReader.open(dir), softDeletesField);
+            try {
+                // Touch only segment 1 with a soft delete. Segments 0 and 2 are unchanged and must share their reader cache key
+                // (i.e. the same wrapped LeafReader instance, which is what the future budget tracker relies on to identify
+                // shared bitsets across reader generations). Segment 1's reader cache key must differ because a new soft-delete
+                // generation produces a new SegmentReader with its own LazyBits / FixedBitSet.
+                writer.updateDocValues(new Term("id", "1-0"), new NumericDocValuesField(softDeletesField, 1));
+                writer.commit();
+
+                DirectoryReader reopened = DirectoryReader.openIfChanged(reader);
+                assertNotNull(reopened);
+                try {
+                    Set<IndexReader.CacheKey> originalReaderKeys = new HashSet<>();
+                    for (var ctx : reader.leaves()) {
+                        originalReaderKeys.add(ctx.reader().getReaderCacheHelper().getKey());
+                    }
+                    int shared = 0;
+                    for (var ctx : reopened.leaves()) {
+                        if (originalReaderKeys.contains(ctx.reader().getReaderCacheHelper().getKey())) {
+                            shared++;
+                        }
+                    }
+                    assertEquals("two unchanged segments must share their reader cache key across reopen", 2, shared);
+                } finally {
+                    reopened.close();
+                }
+            } finally {
+                reader.close();
+            }
+        }
+    }
+
     public void testReaderCacheKey() throws IOException {
         Directory dir = newDirectory();
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();

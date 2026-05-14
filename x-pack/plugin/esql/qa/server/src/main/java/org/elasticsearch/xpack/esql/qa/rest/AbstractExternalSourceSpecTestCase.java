@@ -430,16 +430,21 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     /** Suffix that triggers multi-file glob resolution */
     private static final String MULTIFILE_SUFFIX = "_multifile";
+    /** Suffix that triggers multi-file UBN glob resolution (divergent schemas across files) */
+    private static final String MULTIFILE_UBN_SUFFIX = "_multifile_ubn";
 
     /**
      * Resolve a template name to an actual path based on storage backend and format.
      *
-     * @param templateName the template name (e.g., "employees" or "employees_multifile")
+     * @param templateName the template name (e.g., "employees", "employees_multifile", or "employees_multifile_ubn")
      * @return the resolved path
      */
     private String resolveTemplatePath(String templateName) {
         String relativePath;
-        if (templateName.endsWith(MULTIFILE_SUFFIX)) {
+        if (templateName.endsWith(MULTIFILE_UBN_SUFFIX)) {
+            // UBN multi-file template: employees_multifile_ubn -> multifile_ubn/*.<format>
+            relativePath = "multifile_ubn/*." + format;
+        } else if (templateName.endsWith(MULTIFILE_SUFFIX)) {
             // Multi-file template: employees_multifile -> multifile/*.parquet
             relativePath = "multifile/*." + format;
         } else {

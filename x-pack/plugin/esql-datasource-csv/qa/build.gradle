@@ -74,6 +74,18 @@ tasks.register('syncCsvIcebergMultifileFixtures', Sync) {
   into file("${csvIcebergFixtureRoot}/iceberg-fixtures/multifile")
 }
 
+// UNION_BY_NAME fixture set with divergent schemas across files: a has [name, age:int],
+// b has [age:long, name, city]. Used by csv-headerless.csv-spec to prove the UBN recipe
+// (reorder + null-fill + widening cast) works end-to-end across the full pipeline.
+tasks.register('syncCsvIcebergMultifileUbnFixtures', Sync) {
+  dependsOn testFixturesProject.tasks.named('processResources')
+  duplicatesStrategy = DuplicatesStrategy.FAIL
+  from(testFixturesProject.file('src/main/resources/data')) {
+    include 'multifile_ubn_a.csv', 'multifile_ubn_b.csv'
+  }
+  into file("${csvIcebergFixtureRoot}/iceberg-fixtures/multifile_ubn")
+}
+
 // Same basenames as syncCsvIcebergFixtures — external-basic.csv-spec uses {{employees}}, {{web_logs}}, {{books}}.
 def csvBasenamesForTsv = ['employees', 'web_logs', 'books']
 
@@ -107,11 +119,11 @@ sourceSets.javaRestTest.resources {
 }
 
 tasks.named('processJavaRestTestResources').configure {
-  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'generateStandaloneTsvFixtures'
+  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'syncCsvIcebergMultifileUbnFixtures', 'generateStandaloneTsvFixtures'
 }
 
 tasks.named('javaRestTest') {
-  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'generateStandaloneTsvFixtures'
+  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'syncCsvIcebergMultifileUbnFixtures', 'generateStandaloneTsvFixtures'
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
   enabled = buildParams.snapshotBuild

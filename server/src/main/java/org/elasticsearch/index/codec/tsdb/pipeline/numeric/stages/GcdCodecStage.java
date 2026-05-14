@@ -64,6 +64,9 @@ public final class GcdCodecStage implements NumericCodecStage {
         long gcd = values[0];
         for (int i = 1; i < valueCount; i++) {
             gcd = MathUtil.gcd(gcd, values[i]);
+            if (Long.compareUnsigned(gcd, 1) <= 0) {
+                break;
+            }
         }
 
         if (Long.compareUnsigned(gcd, 1) <= 0) {

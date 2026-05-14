@@ -1700,8 +1700,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout, resultsType);
         resultsType.addResultsObject(context);
 
-        // Release the memory charged against the request circuit breaker (per-clause constants
-        // and parameter-driven cost estimates) once the search context is closed.
+        // Release the memory used for query construction once the search context is closed.
         context.addReleasable(context.getSearchExecutionContext()::releaseQueryConstructionMemory);
 
         try {

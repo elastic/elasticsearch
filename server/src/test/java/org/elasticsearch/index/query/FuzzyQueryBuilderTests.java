@@ -336,16 +336,14 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
             long delta = cb.getUsed() - before;
 
             long fieldTypeBytes = FuzzyQueries.queryRamBytes(query);
-            long leafBytes = LeafQueryBuilder.estimateRamBytes(query);
             long totalCharged = context.getQueryConstructionMemoryUsed();
-            long costEstimate = totalCharged - fieldTypeBytes - leafBytes;
+            long costEstimate = totalCharged - fieldTypeBytes;
 
             assertTrue("field-type fuzzy must charge the query object's retained heap", fieldTypeBytes > 0);
-            assertTrue("LeafQueryBuilder must add the per-type retained-heap charge for the produced clause", leafBytes > 0);
             assertTrue("breaker pool must be charged the parameter-driven cost estimate on top", costEstimate > 0);
             assertEquals(
-                "circuit breaker delta must equal the sum of field-type, leaf, and cost-estimate charges",
-                fieldTypeBytes + leafBytes + costEstimate,
+                "circuit breaker delta must equal the sum of field-type and cost-estimate charges",
+                fieldTypeBytes + costEstimate,
                 delta
             );
         } finally {
@@ -382,10 +380,10 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         assertTrue("construction-time charge should be recorded", afterConstruction > cbBaseline);
 
         long totalCharged = context.getQueryConstructionMemoryUsed();
-        long fieldAndLeaf = FuzzyQueries.queryRamBytes((FuzzyQuery) query) + LeafQueryBuilder.estimateRamBytes(query);
-        long costEstimate = totalCharged - fieldAndLeaf;
+        long fieldTypeBytes = FuzzyQueries.queryRamBytes((FuzzyQuery) query);
+        long costEstimate = totalCharged - fieldTypeBytes;
         assertTrue("breaker must be charged upfront for the estimated automata cost", costEstimate > 0);
-        assertEquals("circuit breaker total must equal field-type + leaf + cost-estimate charges", totalCharged, cb.getUsed() - cbBaseline);
+        assertEquals("circuit breaker total must equal field-type + cost-estimate charges", totalCharged, cb.getUsed() - cbBaseline);
 
         // Rewrite at search time must not add any further charges — all charging is upfront.
         try (Directory dir = new ByteBuffersDirectory()) {
@@ -416,8 +414,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
         try {
             FuzzyQuery query = (FuzzyQuery) new FuzzyQueryBuilder(TEXT_FIELD_NAME, "value").toQuery(context);
-            long fieldAndLeaf = FuzzyQueries.queryRamBytes(query) + LeafQueryBuilder.estimateRamBytes(query);
-            long costEstimate = context.getQueryConstructionMemoryUsed() - fieldAndLeaf;
+            long costEstimate = context.getQueryConstructionMemoryUsed() - FuzzyQueries.queryRamBytes(query);
             assertTrue("cost estimate must be positive for maxEdits >= 1", costEstimate > 0);
             assertTrue("cost estimate must scale with maxEdits", query.getMaxEdits() >= 1);
         } finally {

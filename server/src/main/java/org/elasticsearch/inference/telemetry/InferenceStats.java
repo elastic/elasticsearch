@@ -141,7 +141,7 @@ public class InferenceStats {
                 MetricAttributes.ES_PRODUCTION_RELEASE,
                 isProductionRelease,
                 MetricAttributes.ES_PLUGIN_NAME,
-                ES_PLUGIN_VALUE
+                ES_PLUGIN_NAME_VALUE
             )
         );
     }

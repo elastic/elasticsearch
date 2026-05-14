@@ -504,15 +504,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 long queryMemory = accountable.ramBytesUsed();
                 if (queryMemory > 0) {
                     assertTrue("Circuit breaker should account for query memory", after >= before);
-                    long delta = after - before;
-                    assertTrue(
-                        "Circuit breaker delta [" + delta + "] must include the field-type ramBytesUsed [" + queryMemory + "]",
-                        delta >= queryMemory
-                    );
-                    assertTrue(
-                        "Circuit breaker delta [" + delta + "] must not exceed twice the per-clause ramBytesUsed [" + queryMemory + "]",
-                        delta <= 2 * queryMemory
-                    );
+                    assertEquals("Circuit breaker delta should equal query ramBytesUsed", queryMemory, after - before);
                 }
             }
         } finally {

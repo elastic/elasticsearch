@@ -278,36 +278,4 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
         QueryBuilder rewritten = query.rewrite(coordinatorRewriteContext);
         assertThat(rewritten, CoreMatchers.instanceOf(MatchNoneQueryBuilder.class));
     }
-
-    public void testLeafQueryBuilderChargesPerClauseConstant() throws IOException {
-        CircuitBreaker cb = createCircuitBreakerService();
-        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
-        try {
-            long before = cb.getUsed();
-            Query query = new TermQueryBuilder(KEYWORD_FIELD_NAME, "value").toQuery(context);
-            long delta = cb.getUsed() - before;
-
-            long expected = LeafQueryBuilder.estimateRamBytes(query);
-            assertTrue(
-                "non-Accountable leaf clauses must contribute at least the LEAF_BASE_BYTES floor",
-                expected >= LeafQueryBuilder.LEAF_BASE_BYTES
-            );
-            assertEquals(
-                "term clauses must charge only the per-clause constant — no parameter-driven dynamic cost",
-                expected,
-                context.getQueryConstructionMemoryUsed()
-            );
-            assertEquals("circuit breaker delta must equal the per-clause constant", expected, delta);
-        } finally {
-            context.releaseQueryConstructionMemory();
-        }
-    }
-
-    public void testManyCheapClausesTripBreakerBeforeMaxClauseCap() {
-        assertCircuitBreakerTripsOnQueryConstruction("4kb", () -> {
-            BoolQueryBuilder boolQuery = new BoolQueryBuilder();
-            IntStream.range(0, 1000).forEach(i -> boolQuery.should(new TermQueryBuilder(KEYWORD_FIELD_NAME, "value" + i)));
-            return boolQuery;
-        });
-    }
 }

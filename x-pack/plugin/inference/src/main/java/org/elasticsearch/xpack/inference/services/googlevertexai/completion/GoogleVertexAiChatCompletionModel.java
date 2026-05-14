@@ -84,7 +84,9 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
 
     public GoogleVertexAiChatCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
         super(modelConfigurations, modelSecrets, (GoogleVertexAiRateLimitServiceSettings) modelConfigurations.getServiceSettings());
-        this.streamingURI = setUris(modelConfigurations);
+        var resolvedUris = resolveUris(modelConfigurations);
+        this.streamingURI = resolvedUris.streaming();
+        this.nonStreamingUri = resolvedUris.nonStreaming();
     }
 
     // Should only be used for testing
@@ -99,35 +101,40 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
             (GoogleVertexAiRateLimitServiceSettings) modelConfigurations.getServiceSettings(),
             authHeaderDecorator
         );
-        this.streamingURI = setUris(modelConfigurations);
+        var resolvedUris = resolveUris(modelConfigurations);
+        this.streamingURI = resolvedUris.streaming();
+        this.nonStreamingUri = resolvedUris.nonStreaming();
     }
 
-    private URI setUris(ModelConfigurations modelConfigurations) {
-        final URI streamingURI;
+    private record ResolvedUris(URI streaming, URI nonStreaming) {}
+
+    private ResolvedUris resolveUris(ModelConfigurations modelConfigurations) {
+        URI streamingUri;
+        URI nonStreamingUri;
         try {
             var serviceSettings = (GoogleVertexAiChatCompletionServiceSettings) modelConfigurations.getServiceSettings();
             var uri = serviceSettings.uri();
-            var streamingUri = serviceSettings.streamingUri();
+            streamingUri = serviceSettings.streamingUri();
             // For Google Model Garden uri or streamingUri must be set. If not - location, projectId and modelId must be set
             if (uri != null || streamingUri != null) {
                 // If both uris are provided, each will be used as-is (non-streaming vs. streaming).
                 // If only one is provided, it will be reused for both non-streaming and streaming requests.
                 // Some providers require both (e.g. Anthropic, Mistral, Ai21).
                 // Some providers work fine with a single URL (e.g. Meta, Hugging Face).
-                this.nonStreamingUri = Objects.requireNonNullElse(uri, streamingUri);
-                streamingURI = Objects.requireNonNullElse(streamingUri, uri);
+                nonStreamingUri = Objects.requireNonNullElse(uri, streamingUri);
+                streamingUri = Objects.requireNonNullElse(streamingUri, uri);
             } else {
                 // If neither uri nor streamingUri is provided, build them from location, projectId, and modelId.
                 var location = serviceSettings.location();
                 var projectId = serviceSettings.projectId();
                 var model = serviceSettings.modelId();
-                streamingURI = buildUriStreaming(location, projectId, model);
-                this.nonStreamingUri = buildUriNonStreaming(location, projectId, model);
+                streamingUri = buildUriStreaming(location, projectId, model);
+                nonStreamingUri = buildUriNonStreaming(location, projectId, model);
             }
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
-        return streamingURI;
+        return new ResolvedUris(streamingUri, nonStreamingUri);
     }
 
     private GoogleVertexAiChatCompletionModel(

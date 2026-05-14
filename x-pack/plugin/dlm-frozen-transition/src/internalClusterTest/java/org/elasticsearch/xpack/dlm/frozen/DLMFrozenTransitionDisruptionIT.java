@@ -485,7 +485,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * when the {@link TransportAddIndexBlockAction} is intercepted. The new master should resume
      * the frozen transition and complete it successfully.
      */
-    @AwaitsFix(bugUrl = "")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-team/issues/2815")
     public void testMasterFailoverDuringMarkReadOnly() throws Exception {
         assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
 
@@ -504,6 +504,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * {@link TransportResizeAction} is intercepted. The new master should detect any partial clone
      * and resume the frozen transition.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-team/issues/2815")
     public void testMasterFailoverDuringClone() throws Exception {
         assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
 
@@ -558,6 +559,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * Triggers a master failover during the "mount searchable snapshot" phase. The new master
      * should check if the mount already exists before retrying.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-team/issues/2815")
     public void testMasterFailoverDuringMountSnapshot() throws Exception {
         assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
 
@@ -576,6 +578,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * when the {@code indices:admin/data_stream/modify} action is intercepted. The new master
      * should detect the mounted frozen index and complete the swap.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-team/issues/2815")
     public void testMasterFailoverDuringCleanup() throws Exception {
         assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
 

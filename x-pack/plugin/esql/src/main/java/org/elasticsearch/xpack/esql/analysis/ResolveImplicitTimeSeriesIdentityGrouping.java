@@ -32,7 +32,7 @@ import java.util.List;
  * <p>
  * This rule will operate on "bare" over time aggregations.
  */
-public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
+public class ResolveImplicitTimeSeriesIdentityGrouping extends Rule<LogicalPlan, LogicalPlan> {
     @Override
     public LogicalPlan apply(LogicalPlan logicalPlan) {
         return logicalPlan.transformUp(node -> node instanceof TimeSeriesAggregate, this::rule);

@@ -1,5 +1,6 @@
 load
 required_capability: flattened_datatype
+request_stored: skip
 
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:02:48.461Z"
@@ -11,6 +12,7 @@ FROM flattened_otel_logs
 
 sort
 required_capability: flattened_datatype
+request_stored: skip
 
 FROM flattened_otel_logs
 | SORT @timestamp ASC
@@ -24,6 +26,7 @@ FROM flattened_otel_logs
 
 rename
 required_capability: flattened_datatype
+request_stored: skip
 
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:02:48.461Z"
@@ -62,6 +65,7 @@ count:long
 to_string
 required_capability: flattened_datatype
 required_capability: fn_to_string_flattened
+request_stored: skip
 
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:02:48.461Z"
@@ -76,6 +80,7 @@ FROM flattened_otel_logs
 coalesce
 required_capability: flattened_datatype
 required_capability: fn_coalesce_flattened
+request_stored: skip
 
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:02:48.461Z"
@@ -90,6 +95,7 @@ FROM flattened_otel_logs
 coalesceNullFirst
 required_capability: flattened_datatype
 required_capability: fn_coalesce_flattened
+request_stored: skip
 
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:02:48.461Z"

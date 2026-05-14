@@ -2726,6 +2726,14 @@ public class EsqlCapabilities {
         INFERENCE_ACCEPT_TIMEOUT,
 
         /**
+         * Fix on multi-values that were unrolled and were still producing warnings in expressions
+         * that do not accept multi-values
+         *
+         * See https://github.com/elastic/elasticsearch/issues/134706
+         */
+        FIX_UNROLLED_FOLDABLE_MV_WARNING,
+
+        /**
          * Fix for SET reporting wrong line/column number (-1:-1) in validation errors.
          * see <a href="https://github.com/elastic/elasticsearch/issues/145873">ES|QL: wrong line/column number #145873</a>
          */

@@ -36,6 +36,7 @@ import static org.elasticsearch.inference.telemetry.InferenceStats.STATUS_CODE_A
 import static org.elasticsearch.inference.telemetry.InferenceStats.TASK_TYPE_ATTRIBUTE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.create;
 import static org.elasticsearch.telemetry.metric.MetricAttributes.ERROR_TYPE;
+import static org.elasticsearch.telemetry.metric.MetricAttributes.ES_DEPLOYMENT_TYPE;
 import static org.elasticsearch.telemetry.metric.MetricAttributes.ES_PRODUCTION_RELEASE;
 import static org.elasticsearch.telemetry.metric.MetricAttributes.ES_PRODUCT_ORIGIN;
 import static org.elasticsearch.telemetry.metric.MetricAttributes.ES_STACK_VERSION;
@@ -50,6 +51,7 @@ public class InferenceStatsTests extends ESTestCase {
 
     private static final String TEST_STACK_VERSION = "8.99.0";
     private static final boolean TEST_IS_PRODUCTION_RELEASE = true;
+    private static final String TEST_DEPLOYMENT_TYPE = NodeTelemetryAttributes.HOSTED;
     private static final String TEST_SERVICE = "service";
     private static final String TEST_PRODUCT_ORIGIN = "kibana";
 
@@ -121,7 +123,7 @@ public class InferenceStatsTests extends ESTestCase {
         when(mockRegistry.registerLongCounter(any(), any(), any())).thenReturn(mock(LongCounter.class));
         when(mockRegistry.registerLongHistogram(any(), any(), any())).thenReturn(mock(LongHistogram.class));
 
-        create(mockRegistry, TEST_STACK_VERSION, TEST_IS_PRODUCTION_RELEASE);
+        create(mockRegistry, new NodeTelemetryAttributes(TEST_STACK_VERSION, TEST_IS_PRODUCTION_RELEASE, TEST_DEPLOYMENT_TYPE));
         verify(mockRegistry, times(1)).registerLongCounter(eq(INFERENCE_REQUEST_COUNT_TOTAL), any(), any());
         verify(mockRegistry, times(1)).registerLongHistogram(eq(INFERENCE_REQUEST_DURATION), any(), any());
         verify(mockRegistry, times(1)).registerLongHistogram(eq(INFERENCE_DEPLOYMENT_DURATION), any(), any());
@@ -133,7 +135,14 @@ public class InferenceStatsTests extends ESTestCase {
             longCounter,
             mock(),
             mock(),
-            Map.of(ES_STACK_VERSION, TEST_STACK_VERSION, ES_PRODUCTION_RELEASE, TEST_IS_PRODUCTION_RELEASE)
+            Map.of(
+                ES_STACK_VERSION,
+                TEST_STACK_VERSION,
+                ES_PRODUCTION_RELEASE,
+                TEST_IS_PRODUCTION_RELEASE,
+                ES_DEPLOYMENT_TYPE,
+                TEST_DEPLOYMENT_TYPE
+            )
         );
 
         stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withSuccess().incrementBy(1);
@@ -150,6 +159,8 @@ public class InferenceStatsTests extends ESTestCase {
                     TEST_STACK_VERSION,
                     ES_PRODUCTION_RELEASE,
                     TEST_IS_PRODUCTION_RELEASE,
+                    ES_DEPLOYMENT_TYPE,
+                    TEST_DEPLOYMENT_TYPE,
                     STATUS_CODE_ATTRIBUTE,
                     200
                 )

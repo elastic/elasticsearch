@@ -30,6 +30,9 @@ public interface MetricAttributes {
     /** Indicates whether the node is a production release (i.e. not a snapshot, alpha, etc.) */
     String ES_PRODUCTION_RELEASE = "es_production_release";
 
+    /** The deployment type of the metered node: {@code "serverless"} or {@code "hosted"}. */
+    String ES_DEPLOYMENT_TYPE = "es_deployment_type";
+
     /**
      * This should be used to hold the {@code X-Elastic-Product-Origin} header value.
      * <p>

@@ -213,12 +213,12 @@ public class ShutdownPrepareService {
             asyncReindexTimeout,
             ReindexAction.NAME,
             taskManager,
-            ShutdownPrepareService::maybeRequestRelocationForBulkByScroll
+            ShutdownPrepareService::maybeRequestRelocationForBulkByPaginatedSearch
         );
     }
 
     // package-private for tests
-    static void maybeRequestRelocationForBulkByScroll(Task task) {
+    static void maybeRequestRelocationForBulkByPaginatedSearch(Task task) {
         if (task instanceof BulkByPaginatedSearchTask bulkByPaginatedSearchTask) {
             if (bulkByPaginatedSearchTask.isEligibleForRelocationOnShutdown()
                 && bulkByPaginatedSearchTask.isRelocationRequested() == false) {

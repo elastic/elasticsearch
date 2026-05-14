@@ -45,7 +45,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
 
 /**
- * Task storing information about a currently running BulkByScroll request.
+ * Task storing information about a currently running BulkByPaginatedSearch request.
  *
  * <p>When the request is not sliced, this task is the only task created, and starts an action to perform search requests.
  *
@@ -999,9 +999,9 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
         @Override
         public String toString() {
             if (exception != null) {
-                return "BulkByScrollTask{error=" + Strings.toString(this) + "}";
+                return "BulkByPaginatedSearchTask{error=" + Strings.toString(this) + "}";
             } else {
-                return "BulkByScrollTask{status=" + Strings.toString(this) + "}";
+                return "BulkByPaginatedSearchTask{status=" + Strings.toString(this) + "}";
             }
         }
 

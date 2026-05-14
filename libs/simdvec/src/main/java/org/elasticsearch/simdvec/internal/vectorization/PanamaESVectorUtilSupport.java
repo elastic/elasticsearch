@@ -33,7 +33,7 @@ import org.elasticsearch.simdvec.MultiVectorsSource;
 import org.elasticsearch.simdvec.internal.Similarities;
 
 import java.lang.foreign.MemorySegment;
-import java.nio.ShortBuffer;
+import java.nio.ByteOrder;
 
 import static jdk.incubator.vector.VectorOperators.ADD;
 import static jdk.incubator.vector.VectorOperators.AND;
@@ -88,48 +88,64 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void floatToBFloat16(float[] floats, ShortBuffer bFloats) {
+    public void floatToBFloat16(float[] floats, int floatOffset, byte[] bfloats, int bfloatOffset, int count, ByteOrder byteOrder) {
         if (!SUPPORTS_HEAP_SEGMENTS || BFLOAT_SPECIES == null) {
-            DefaultESVectorUtilSupport.floatToBFloat16(floats, bFloats, 0);
+            DefaultESVectorUtilSupport.floatToBFloat16Impl(floats, floatOffset, bfloats, bfloatOffset, count, byteOrder);
         } else {
-            MemorySegment buffer = MemorySegment.ofBuffer(bFloats);
-            int vectorEnd = FLOAT_SPECIES.loopBound(floats.length);
+            MemorySegment buffer = MemorySegment.ofArray(bfloats);
+            final int vectorEnd = FLOAT_SPECIES.loopBound(count);
 
             for (int i = 0; i < vectorEnd; i += FLOAT_SPECIES.length()) {
-                IntVector bits = FloatVector.fromArray(FLOAT_SPECIES, floats, i).reinterpretAsInts();
+                IntVector bits = FloatVector.fromArray(FLOAT_SPECIES, floats, i + floatOffset).reinterpretAsInts();
                 // roundingBias = 0x7fff + ((bits >> 16) & 1)
                 IntVector bias = bits.lanewise(LSHR, 16).lanewise(AND, 1).add(0x7fff);
                 bits = bits.add(bias);
                 bits.lanewise(LSHR, 16)
                     .convertShape(VectorOperators.I2S, BFLOAT_SPECIES, 0)
-                    .intoMemorySegment(buffer, (long) i * Short.BYTES, bFloats.order());
+                    .intoMemorySegment(buffer, (long) i * Short.BYTES + bfloatOffset, byteOrder);
             }
-            bFloats.position(bFloats.position() + vectorEnd);
 
-            // scalar tail
-            DefaultESVectorUtilSupport.floatToBFloat16(floats, bFloats, vectorEnd);
+            if (vectorEnd < count) {
+                // scalar tail
+                DefaultESVectorUtilSupport.floatToBFloat16Impl(
+                    floats,
+                    vectorEnd + floatOffset,
+                    bfloats,
+                    vectorEnd * Short.BYTES + bfloatOffset,
+                    count - vectorEnd,
+                    byteOrder
+                );
+            }
         }
     }
 
     @Override
-    public void bFloat16ToFloat(ShortBuffer bFloats, float[] floats) {
+    public void bFloat16ToFloat(byte[] bfloats, int bfloatOffset, float[] floats, int floatOffset, int count, ByteOrder byteOrder) {
         if (!SUPPORTS_HEAP_SEGMENTS || BFLOAT_SPECIES == null) {
-            DefaultESVectorUtilSupport.bFloat16ToFloat(bFloats, floats, 0);
+            DefaultESVectorUtilSupport.bFloat16ToFloatImpl(bfloats, bfloatOffset, floats, floatOffset, count, byteOrder);
         } else {
-            MemorySegment buffer = MemorySegment.ofBuffer(bFloats);
-            int vectorEnd = BFLOAT_SPECIES.loopBound(floats.length);    // take the number of elements as the length of the array
+            MemorySegment buffer = MemorySegment.ofArray(bfloats);
+            int vectorEnd = BFLOAT_SPECIES.loopBound(count);
 
             for (int i = 0; i < vectorEnd; i += BFLOAT_SPECIES.length()) {
-                ShortVector sv = ShortVector.fromMemorySegment(BFLOAT_SPECIES, buffer, (long) i * Short.BYTES, bFloats.order());
+                ShortVector sv = ShortVector.fromMemorySegment(BFLOAT_SPECIES, buffer, (long) i * Short.BYTES + bfloatOffset, byteOrder);
                 sv.convertShape(VectorOperators.ZERO_EXTEND_S2I, INTEGER_SPECIES, 0)
                     .lanewise(LSHL, 16)
                     .reinterpretAsFloats()
-                    .intoArray(floats, i);
+                    .intoArray(floats, i + floatOffset);
             }
-            bFloats.position(bFloats.position() + vectorEnd);
 
-            // scalar tail
-            DefaultESVectorUtilSupport.bFloat16ToFloat(bFloats, floats, vectorEnd);
+            if (vectorEnd < count) {
+                // scalar tail
+                DefaultESVectorUtilSupport.bFloat16ToFloatImpl(
+                    bfloats,
+                    vectorEnd * Short.BYTES + bfloatOffset,
+                    floats,
+                    vectorEnd + floatOffset,
+                    count - vectorEnd,
+                    byteOrder
+                );
+            }
         }
     }
 

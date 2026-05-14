@@ -389,6 +389,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .put("path.home", createTempDir().toString());
 
         String[] vocab = randomArray(50_000, 100_000, String[]::new, () -> randomAlphanumericOfLength(20));
+
         int synonymsPerFilter = 10_000;
         int synonymSets = 100;
         List<String> filterNames = new ArrayList<>();

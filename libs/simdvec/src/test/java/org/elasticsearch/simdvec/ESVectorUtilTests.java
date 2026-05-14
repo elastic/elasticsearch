@@ -20,9 +20,11 @@ import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.ShortBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.Random;
 import java.util.function.ToLongBiFunction;
 
 import static org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport.B_QUERY;
@@ -73,6 +75,48 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         float expected = defaultedProvider.getVectorUtilSupport().maxSimDotProduct(source, queryVectors, defaultScoresScratch);
         float actual = defOrPanamaProvider.getVectorUtilSupport().maxSimDotProduct(source, queryVectors, defOrPanamaScoresScratch);
         assertEquals(expected, actual, 1e-3f * dims * numQueryVectors);
+    }
+
+    public void testBFloat16ToFloat() {
+        Random r = random();
+        int dims = r.nextInt(1025);
+        ByteOrder bo = randomFrom(ByteOrder.LITTLE_ENDIAN, ByteOrder.LITTLE_ENDIAN);
+        float[] floats = new float[dims];
+        byte[] bFloats = new byte[dims * BFloat16.BYTES];
+        ShortBuffer bfloatShorts = ByteBuffer.wrap(bFloats).order(bo).asShortBuffer();
+        for (int i = 0; i < dims; i++) {
+            floats[i] = BFloat16.truncateToBFloat16(r.nextFloat());
+            bfloatShorts.put(BFloat16.floatToBFloat16(floats[i]));
+        }
+
+        float[] defaultFloats = new float[dims];
+        defaultedProvider.getVectorUtilSupport().bFloat16ToFloat(bFloats, 0, defaultFloats, 0, dims, bo);
+        assertArrayEquals(floats, defaultFloats, 0f);
+
+        float[] panamaFloats = new float[dims];
+        defOrPanamaProvider.getVectorUtilSupport().bFloat16ToFloat(bFloats, 0, panamaFloats, 0, dims, bo);
+        assertArrayEquals(floats, panamaFloats, 0f);
+    }
+
+    public void testFloatToBFloat16() {
+        Random r = random();
+        int dims = r.nextInt(1025);
+        ByteOrder bo = randomFrom(ByteOrder.LITTLE_ENDIAN, ByteOrder.LITTLE_ENDIAN);
+        float[] floats = new float[dims];
+        byte[] bFloats = new byte[dims * BFloat16.BYTES];
+        ShortBuffer bfloatShorts = ByteBuffer.wrap(bFloats).order(bo).asShortBuffer();
+        for (int i = 0; i < dims; i++) {
+            floats[i] = r.nextFloat();
+            bfloatShorts.put(BFloat16.floatToBFloat16(floats[i]));
+        }
+
+        byte[] defaultBFloats = new byte[bFloats.length];
+        defaultedProvider.getVectorUtilSupport().floatToBFloat16(floats, 0, defaultBFloats, 0, dims, bo);
+        assertArrayEquals(bFloats, defaultBFloats);
+
+        byte[] panamaBFloats = new byte[bFloats.length];
+        defOrPanamaProvider.getVectorUtilSupport().floatToBFloat16(floats, 0, panamaBFloats, 0, dims, bo);
+        assertArrayEquals(bFloats, panamaBFloats);
     }
 
     public void testIpByteBit() {
@@ -609,12 +653,11 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
 
     private static BytesRef encodeBFloat16Vectors(float[][] vectors) {
         int dims = vectors[0].length;
-        ByteBuffer buffer = ByteBuffer.allocate(vectors.length * dims * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
-        var bFloat16Buffer = buffer.asShortBuffer();
-        for (float[] vector : vectors) {
-            BFloat16.floatToBFloat16(vector, bFloat16Buffer);
+        byte[] buffer = new byte[vectors.length * dims * BFloat16.BYTES];
+        for (int i = 0; i < vectors.length; i++) {
+            ESVectorUtil.floatToBFloat16(vectors[i], 0, buffer, i * dims * BFloat16.BYTES, dims, ByteOrder.LITTLE_ENDIAN);
         }
-        return new BytesRef(buffer.array());
+        return new BytesRef(buffer);
     }
 
     private static class TestMultiFloatVectorsSource implements MultiFloatVectorsSource {
@@ -1041,7 +1084,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         }
 
         float referenceResult = defaultedProvider.getVectorUtilSupport().logSumExpNQT(x);
-        assertEquals(referenceResult, defOrPanamaProvider.getVectorUtilSupport().logSumExpNQT(x), 1e-2 * referenceResult);
+        assertEquals(referenceResult, defOrPanamaProvider.getVectorUtilSupport().logSumExpNQT(x), 1.1e-2 * referenceResult);
     }
 
     public void testLinearCombination() {

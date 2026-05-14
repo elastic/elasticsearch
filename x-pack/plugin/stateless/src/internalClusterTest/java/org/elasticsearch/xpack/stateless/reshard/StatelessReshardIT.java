@@ -2259,11 +2259,11 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                 columnarLogsdbIndexName,
                 Settings.builder()
                     .put(indexSettings(randomIntBetween(1, 5), 0).build())
-                    .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.getName())
+                    .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
                     .build()
             );
             ensureGreen(columnarLogsdbIndexName);
-            assertReshardNonstandardIndexFails(columnarLogsdbIndexName, IndexMode.COLUMNAR_LOGSDB);
+            assertReshardNonstandardIndexFails(columnarLogsdbIndexName, IndexMode.LOGSDB_COLUMNAR);
         }
     }
 

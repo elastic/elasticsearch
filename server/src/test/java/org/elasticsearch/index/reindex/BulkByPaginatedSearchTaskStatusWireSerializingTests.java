@@ -25,12 +25,12 @@ import java.util.Objects;
 import static java.lang.Math.abs;
 
 /**
- * Wire serialization tests for {@link BulkByScrollTask.Status}.
+ * Wire serialization tests for {@link BulkByPaginatedSearchTask.Status}.
  * Uses a wrapper type so that equality after round-trip is semantic (e.g. exception messages
- * instead of instance identity), matching {@link BulkByScrollTaskStatusTests#assertTaskStatusEquals}.
+ * instead of instance identity), matching {@link BulkByPaginatedSearchTaskStatusTests#assertTaskStatusEquals}.
  */
-public class BulkByScrollTaskStatusWireSerializingTests extends AbstractWireSerializingTestCase<
-    BulkByScrollTaskStatusWireSerializingTests.StatusWrapper> {
+public class BulkByPaginatedSearchTaskStatusWireSerializingTests extends AbstractWireSerializingTestCase<
+    BulkByPaginatedSearchTaskStatusWireSerializingTests.StatusWrapper> {
 
     @Override
     protected Writeable.Reader<StatusWrapper> instanceReader() {
@@ -39,7 +39,7 @@ public class BulkByScrollTaskStatusWireSerializingTests extends AbstractWireSeri
 
     @Override
     protected StatusWrapper createTestInstance() {
-        return new StatusWrapper(BulkByScrollTaskStatusTests.randomStatus());
+        return new StatusWrapper(BulkByPaginatedSearchTaskStatusTests.randomStatus());
     }
 
     @Override
@@ -49,9 +49,9 @@ public class BulkByScrollTaskStatusWireSerializingTests extends AbstractWireSeri
 
     /**
      * Returns a copy of the given status with exactly one field changed. Used by
-     * {@link BulkByScrollTaskStatusOrExceptionWireSerializingTests} when mutating the status field.
+     * {@link BulkByPaginatedSearchTaskStatusOrExceptionWireSerializingTests} when mutating the status field.
      */
-    public static BulkByScrollTask.Status mutateStatus(BulkByScrollTask.Status status) {
+    public static BulkByPaginatedSearchTask.Status mutateStatus(BulkByPaginatedSearchTask.Status status) {
         if (status.getSliceStatuses().isEmpty()) {
             return mutateSingleFieldStatus(status);
         } else {
@@ -59,7 +59,7 @@ public class BulkByScrollTaskStatusWireSerializingTests extends AbstractWireSeri
         }
     }
 
-    private static BulkByScrollTask.Status mutateSingleFieldStatus(BulkByScrollTask.Status status) {
+    private static BulkByPaginatedSearchTask.Status mutateSingleFieldStatus(BulkByPaginatedSearchTask.Status status) {
         int field = between(0, 13);
         Integer sliceId = status.getSliceId();
         long total = status.getTotal();
@@ -87,13 +87,16 @@ public class BulkByScrollTaskStatusWireSerializingTests extends AbstractWireSeri
             case 7 -> noops = randomValueOtherThan(noops, () -> randomLongBetween(0, 100));
             case 8 -> bulkRetries = randomValueOtherThan(bulkRetries, () -> randomLongBetween(0, 100));
             case 9 -> searchRetries = randomValueOtherThan(searchRetries, () -> randomLongBetween(0, 100));
-            case 10 -> throttled = randomValueOtherThan(throttled, BulkByScrollTaskStatusWireSerializingTests::randomTimeValue);
+            case 10 -> throttled = randomValueOtherThan(throttled, BulkByPaginatedSearchTaskStatusWireSerializingTests::randomTimeValue);
             case 11 -> requestsPerSecond = randomValueOtherThan(status.getRequestsPerSecond(), () -> abs(Randomness.get().nextFloat()));
             case 12 -> reasonCancelled = randomValueOtherThan(reasonCancelled, () -> randomBoolean() ? null : randomAlphaOfLength(10));
-            default -> throttledUntil = randomValueOtherThan(throttledUntil, BulkByScrollTaskStatusWireSerializingTests::randomTimeValue);
+            default -> throttledUntil = randomValueOtherThan(
+                throttledUntil,
+                BulkByPaginatedSearchTaskStatusWireSerializingTests::randomTimeValue
+            );
         }
 
-        return new BulkByScrollTask.Status(
+        return new BulkByPaginatedSearchTask.Status(
             sliceId,
             total,
             updated,
@@ -111,49 +114,51 @@ public class BulkByScrollTaskStatusWireSerializingTests extends AbstractWireSeri
         );
     }
 
-    private static BulkByScrollTask.Status mutateMergedStatus(BulkByScrollTask.Status status) {
+    private static BulkByPaginatedSearchTask.Status mutateMergedStatus(BulkByPaginatedSearchTask.Status status) {
         int field = between(0, 1);
         if (field == 0) {
             String reasonCancelled = randomValueOtherThan(
                 status.getReasonCancelled(),
                 () -> randomBoolean() ? null : randomAlphaOfLength(10)
             );
-            return new BulkByScrollTask.Status(status.getSliceStatuses(), reasonCancelled, status.getRequestsPerSecond());
+            return new BulkByPaginatedSearchTask.Status(status.getSliceStatuses(), reasonCancelled, status.getRequestsPerSecond());
         } else {
-            List<BulkByScrollTask.StatusOrException> newSlices = new ArrayList<>(status.getSliceStatuses());
+            List<BulkByPaginatedSearchTask.StatusOrException> newSlices = new ArrayList<>(status.getSliceStatuses());
             newSlices.add(randomSliceStatusOrException());
-            return new BulkByScrollTask.Status(newSlices, status.getReasonCancelled(), status.getRequestsPerSecond());
+            return new BulkByPaginatedSearchTask.Status(newSlices, status.getReasonCancelled(), status.getRequestsPerSecond());
         }
     }
 
-    private static BulkByScrollTask.StatusOrException randomSliceStatusOrException() {
+    private static BulkByPaginatedSearchTask.StatusOrException randomSliceStatusOrException() {
         return switch (between(0, 2)) {
             case 0 -> null;
-            case 1 -> new BulkByScrollTask.StatusOrException(new ElasticsearchException(randomAlphaOfLength(5)));
-            default -> new BulkByScrollTask.StatusOrException(BulkByScrollTaskStatusTests.randomWorkingStatus(between(0, 100)));
+            case 1 -> new BulkByPaginatedSearchTask.StatusOrException(new ElasticsearchException(randomAlphaOfLength(5)));
+            default -> new BulkByPaginatedSearchTask.StatusOrException(
+                BulkByPaginatedSearchTaskStatusTests.randomWorkingStatus(between(0, 100))
+            );
         };
     }
 
     @Override
     protected void assertEqualInstances(StatusWrapper expectedInstance, StatusWrapper newInstance) {
         assertNotSame(expectedInstance, newInstance);
-        BulkByScrollTaskStatusTests.assertTaskStatusEquals(expectedInstance.status, newInstance.status);
+        BulkByPaginatedSearchTaskStatusTests.assertTaskStatusEquals(expectedInstance.status, newInstance.status);
     }
 
     /**
-     * Wrapper around {@link BulkByScrollTask.Status} that implements semantic equality and hashCode
+     * Wrapper around {@link BulkByPaginatedSearchTask.Status} that implements semantic equality and hashCode
      * so that round-trip serialization passes (e.g. exceptions in slice statuses are compared by
      * message, not reference).
      */
     static class StatusWrapper implements Writeable {
-        private final BulkByScrollTask.Status status;
+        private final BulkByPaginatedSearchTask.Status status;
 
-        StatusWrapper(BulkByScrollTask.Status status) {
+        StatusWrapper(BulkByPaginatedSearchTask.Status status) {
             this.status = status;
         }
 
         StatusWrapper(StreamInput in) throws IOException {
-            this.status = new BulkByScrollTask.Status(in);
+            this.status = new BulkByPaginatedSearchTask.Status(in);
         }
 
         @Override
@@ -174,7 +179,7 @@ public class BulkByScrollTaskStatusWireSerializingTests extends AbstractWireSeri
             return statusHashCode(status);
         }
 
-        static boolean statusEquals(BulkByScrollTask.Status a, BulkByScrollTask.Status b) {
+        static boolean statusEquals(BulkByPaginatedSearchTask.Status a, BulkByPaginatedSearchTask.Status b) {
             if (a == b) return true;
             if (a == null || b == null) return false;
             if (a.getTotal() != b.getTotal()) return false;
@@ -191,8 +196,8 @@ public class BulkByScrollTaskStatusWireSerializingTests extends AbstractWireSeri
             if (Objects.equals(a.getThrottled(), b.getThrottled()) == false) return false;
             if (Objects.equals(a.getReasonCancelled(), b.getReasonCancelled()) == false) return false;
             if (Objects.equals(a.getThrottledUntil(), b.getThrottledUntil()) == false) return false;
-            List<BulkByScrollTask.StatusOrException> sa = a.getSliceStatuses();
-            List<BulkByScrollTask.StatusOrException> sb = b.getSliceStatuses();
+            List<BulkByPaginatedSearchTask.StatusOrException> sa = a.getSliceStatuses();
+            List<BulkByPaginatedSearchTask.StatusOrException> sb = b.getSliceStatuses();
             if (sa.size() != sb.size()) return false;
             for (int i = 0; i < sa.size(); i++) {
                 if (statusOrExceptionEquals(sa.get(i), sb.get(i)) == false) return false;
@@ -200,7 +205,10 @@ public class BulkByScrollTaskStatusWireSerializingTests extends AbstractWireSeri
             return true;
         }
 
-        private static boolean statusOrExceptionEquals(BulkByScrollTask.StatusOrException a, BulkByScrollTask.StatusOrException b) {
+        private static boolean statusOrExceptionEquals(
+            BulkByPaginatedSearchTask.StatusOrException a,
+            BulkByPaginatedSearchTask.StatusOrException b
+        ) {
             if (a == b) return true;
             if (a == null || b == null) return false;
             if (a.getStatus() != null && b.getStatus() != null) return statusEquals(a.getStatus(), b.getStatus());
@@ -210,7 +218,7 @@ public class BulkByScrollTaskStatusWireSerializingTests extends AbstractWireSeri
             return false;
         }
 
-        static int statusHashCode(BulkByScrollTask.Status s) {
+        static int statusHashCode(BulkByPaginatedSearchTask.Status s) {
             if (s == null) return 0;
             int h = Objects.hash(
                 s.getSliceId(),
@@ -228,13 +236,13 @@ public class BulkByScrollTaskStatusWireSerializingTests extends AbstractWireSeri
                 s.getReasonCancelled(),
                 s.getThrottledUntil()
             );
-            for (BulkByScrollTask.StatusOrException soe : s.getSliceStatuses()) {
+            for (BulkByPaginatedSearchTask.StatusOrException soe : s.getSliceStatuses()) {
                 h = 31 * h + statusOrExceptionHashCode(soe);
             }
             return h;
         }
 
-        private static int statusOrExceptionHashCode(BulkByScrollTask.StatusOrException statusOrException) {
+        private static int statusOrExceptionHashCode(BulkByPaginatedSearchTask.StatusOrException statusOrException) {
             if (statusOrException == null) return 0;
             if (statusOrException.getStatus() != null) return statusHashCode(statusOrException.getStatus());
             if (statusOrException.getException() != null) return Objects.hashCode(statusOrException.getException().getMessage());

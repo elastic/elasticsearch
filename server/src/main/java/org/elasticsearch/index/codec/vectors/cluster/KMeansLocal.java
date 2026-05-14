@@ -270,9 +270,7 @@ abstract class KMeansLocal {
         int[] assignments = kMeansIntermediate.assignments();
         int[] centroidVectorCount = kMeansIntermediate.clusterCounts();
 
-Arrays.fill(centroidVectorCount, 0, centroids.length, 0)
-            centroidVectorCount[c] = 0;
-        }
+        Arrays.fill(centroidVectorCount, 0, centroids.length, 0);
 
         // handle assignment here so we can track distance and cluster size
         int effectiveCluster = -1;

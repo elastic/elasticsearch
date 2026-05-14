@@ -58,6 +58,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
+import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -1088,23 +1089,20 @@ public class InternalEngine extends Engine {
         VersionValue versionValue = getVersionFromMap(op.uid());
         if (versionValue == null) {
             assert incrementIndexVersionLookup(); // used for asserting in tests
-            final VersionsAndSeqNoResolver.DocIdAndVersion docIdAndVersion = performActionWithDirectoryReader(
-                SearcherScope.INTERNAL,
-                directoryReader -> {
-                    if (engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
-                        assert engineConfig.getLeafSorter() == DataStream.TIMESERIES_LEAF_READERS_SORTER;
-                        return VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(
-                            directoryReader,
-                            op.uid(),
-                            op.id(),
-                            loadSeqNo,
-                            useTsdbSyntheticId
-                        );
-                    } else {
-                        return VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, op.uid(), loadSeqNo);
-                    }
+            final DocIdAndVersion docIdAndVersion = performActionWithDirectoryReader(SearcherScope.INTERNAL, directoryReader -> {
+                if (engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
+                    assert engineConfig.getLeafSorter() == DataStream.TIMESERIES_LEAF_READERS_SORTER;
+                    return VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(
+                        directoryReader,
+                        op.uid(),
+                        op.id(),
+                        loadSeqNo,
+                        useTsdbSyntheticId
+                    );
+                } else {
+                    return VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, op.uid(), loadSeqNo);
                 }
-            );
+            });
             if (docIdAndVersion != null) {
                 versionValue = new IndexVersionValue(null, docIdAndVersion.version, docIdAndVersion.seqNo, docIdAndVersion.primaryTerm);
             }
@@ -1655,7 +1653,7 @@ public class InternalEngine extends Engine {
                         }
                         final Index op = ops[i];
                         final boolean loadSeqNo = op.getIfSeqNo() != UNASSIGNED_SEQ_NO;
-                        final VersionsAndSeqNoResolver.DocIdAndVersion d = VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(
+                        final DocIdAndVersion d = VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(
                             reader,
                             op.uid(),
                             op.id(),
@@ -1686,13 +1684,13 @@ public class InternalEngine extends Engine {
                         k++;
                     }
                 }
-                final VersionsAndSeqNoResolver.DocIdAndVersion[] luceneResults = new VersionsAndSeqNoResolver.DocIdAndVersion[luceneCount];
+                final DocIdAndVersion[] luceneResults = new DocIdAndVersion[luceneCount];
                 performActionWithDirectoryReader(SearcherScope.INTERNAL, reader -> {
                     VersionsAndSeqNoResolver.batchLoadDocIdAndVersion(reader, luceneUids, luceneLoadSeqNo, luceneResults);
                     return null;
                 });
                 for (int k = 0; k < luceneCount; k++) {
-                    final VersionsAndSeqNoResolver.DocIdAndVersion d = luceneResults[k];
+                    final DocIdAndVersion d = luceneResults[k];
                     if (d != null) {
                         resolvedVersions[luceneToSubBatch[k]] = new IndexVersionValue(null, d.version, d.seqNo, d.primaryTerm);
                     }

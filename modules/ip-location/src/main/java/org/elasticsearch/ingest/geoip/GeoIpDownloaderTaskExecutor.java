@@ -63,6 +63,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         ENABLED_DEFAULT,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope,
+        // Until ProjectScopedSettings#get is implemented, this is just a placeholder
         Setting.Property.ProjectScope
     );
 
@@ -224,11 +225,11 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
                     || PersistentTasksCustomMetadata.getTaskWithId(projects.get(p), getTaskIdForProject(p)) == null
             );
 
-        for (var entry : projects.entrySet()) {
+        for (var taskEntry : tasks.entrySet()) {
             // looking for a state transition from either non-existing project or IpLocationDownloadConsumers, or empty
             // IpLocationDownloadConsumers, to existing and non-empty IpLocationDownloadConsumers
-            ProjectId projectId = entry.getKey();
-            IpLocationDownloadConsumers current = entry.getValue()
+            ProjectId projectId = taskEntry.getKey();
+            IpLocationDownloadConsumers current = projects.get(projectId)
                 .custom(IpLocationDownloadConsumers.TYPE, IpLocationDownloadConsumers.EMPTY);
             if (current.hasConsumers() == false) {
                 continue;
@@ -240,10 +241,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             if (previous.hasConsumers()) {
                 continue;
             }
-            GeoIpDownloader downloader = tasks.get(projectId);
-            if (downloader != null) {
-                downloader.requestRunOnDemand();
-            }
+            taskEntry.getValue().requestRunOnDemand();
         }
     }
 

@@ -359,7 +359,9 @@ public abstract class AbstractGeoIpDownloader extends AllocatedPersistentTask {
                     }
                 }
                 case DRAINING -> {
-                    if (runState.compareAndSet(RunState.DRAINING, RunState.COMPLETED)) {
+                    boolean swapped = runState.compareAndSet(RunState.DRAINING, RunState.COMPLETED);
+                    assert swapped : "DRAINING → COMPLETED CAS must succeed: only the in-flight worker can transition out of DRAINING";
+                    if (swapped) {
                         logger.debug("In-flight downloader run drained after cancellation, completing task");
                         markAsCompleted();
                         return false;

@@ -216,10 +216,14 @@ public class IngestIpLocationPluginTests extends ESTestCase {
     }
 
     /**
-     * Hand-over to the local node, but the project has no geoip pipeline. The bootstrap must not register
-     * {@link IpLocationConsumer#INGEST} — there is nothing to download for this project.
+     * Hand-over to the local node, with a project that has no geoip pipeline. The reconcile must not register
+     * {@link IpLocationConsumer#INGEST} — there is nothing to download. It does call
+     * {@link org.elasticsearch.iplocation.api.IpLocationService#cancelDownloadRequest} as part of the unified
+     * master-takeover reconcile; that call is an idempotent no-op in production
+     * (the {@code IpLocationDownloadConsumers} custom is absent or doesn't contain {@code INGEST}, so the
+     * service short-circuits before submitting a transport action).
      */
-    public void testNoBootstrapWhenBecomingMasterWithoutGeoipPipeline() throws IOException {
+    public void testReconcileOnBecomingMasterWithoutGeoipPipeline() throws IOException {
         var mocks = createPluginWithMocks();
         ProjectId projectId = randomProjectIdOrDefault();
 
@@ -230,7 +234,7 @@ public class IngestIpLocationPluginTests extends ESTestCase {
 
         mocks.plugin.clusterChanged(new ClusterChangedEvent("test", currentState, previousState));
         verify(mocks.service, never()).requestDownloads(anyString(), any(IpLocationConsumer.class));
-        verify(mocks.service, never()).cancelDownloadRequest(anyString(), any(IpLocationConsumer.class));
+        verify(mocks.service).cancelDownloadRequest(projectId.id(), IpLocationConsumer.INGEST);
     }
 
     public void testHasAtLeastOneGeoipProcessorWhenDownloadDatabaseOnPipelineCreationIsFalse() throws IOException {

@@ -88,27 +88,17 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
             return;
         }
 
-        // Bootstrap on master handover: a previous master from an older version may not have written
-        // the IpLocationDownloadConsumers custom (introduced in 9.5). On every master election, re-scan
-        // each project's pipelines and re-register INGEST for projects that have a geoip processor.
-        // This is a safe way for an upgraded master to recover the consumer set without the custom
-        // being already present in cluster state, and is idempotent for 9.5 -> 9.5 handovers since
-        // requestDownloads short-circuits when INGEST is already registered.
-        if (event.previousState().nodes().isLocalNodeElectedMaster() == false) {
-            for (var projectMetadata : event.state().metadata().projects().values()) {
-                if (hasAtLeastOneGeoipProcessor(projectMetadata)) {
-                    ipLocationService.requestDownloads(projectMetadata.id().id(), IpLocationConsumer.INGEST);
-                }
-            }
-        }
+        // On every master election, reconcile each project so an upgraded master can recover the
+        // IpLocationDownloadConsumers custom (introduced in 9.5) even if the previous master (older
+        // version) didn't write it. Idempotent for 9.5 -> 9.5 handovers since both requestDownloads
+        // and cancelDownloadRequest short-circuit when the consumer is already in the desired state.
+        boolean masterChanged = event.previousState().nodes().isLocalNodeElectedMaster() == false;
 
-        if (event.metadataChanged() == false) {
+        if (event.metadataChanged() == false && masterChanged == false) {
             return;
         }
 
-        var currentProjects = event.state().metadata().projects();
-
-        for (var projectMetadata : currentProjects.values()) {
+        for (var projectMetadata : event.state().metadata().projects().values()) {
             ProjectId projectId = projectMetadata.id();
 
             boolean hasIngestChanges = event.customMetadataChanged(projectId, IngestMetadata.TYPE);
@@ -122,7 +112,7 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
                     .equals(projectMetadata.indices()) == false;
             }
 
-            if (hasIngestChanges == false && hasIndicesChanges == false) {
+            if (hasIngestChanges == false && hasIndicesChanges == false && masterChanged == false) {
                 continue;
             }
 

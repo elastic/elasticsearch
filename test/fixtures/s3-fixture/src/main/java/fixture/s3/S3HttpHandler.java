@@ -138,7 +138,7 @@ public class S3HttpHandler implements HttpHandler {
                     // HEAD response must include Content-Length header for S3 clients (AWS SDK) that read file size
                     exchange.getResponseHeaders().add("Content-Length", String.valueOf(blobEntry.contents().length()));
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                    if (!BlobEntry.DEFAULT_STORAGE_CLASS.equals(blobEntry.storageClass())) {
+                    if (!"STANDARD".equals(blobEntry.storageClass())) {
                         exchange.getResponseHeaders().add("x-amz-storage-class", blobEntry.storageClass());
                     }
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
@@ -408,7 +408,7 @@ public class S3HttpHandler implements HttpHandler {
                 }
 
                 exchange.getResponseHeaders().add("ETag", etagFromContents);
-                if (BlobEntry.DEFAULT_STORAGE_CLASS.equals(blobEntry.storageClass()) == false) {
+                if (!"STANDARD".equals(blobEntry.storageClass())) {
                     exchange.getResponseHeaders().add("x-amz-storage-class", blobEntry.storageClass());
                 }
                 final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
@@ -677,7 +677,7 @@ public class S3HttpHandler implements HttpHandler {
 
     private static String getRequestStorageClass(final HttpExchange exchange) {
         final var storageClassHeader = exchange.getRequestHeaders().getFirst("x-amz-storage-class");
-        return storageClassHeader != null ? storageClassHeader : BlobEntry.DEFAULT_STORAGE_CLASS;
+        return storageClassHeader != null ? storageClassHeader : "STANDARD";
     }
 
     @Nullable // if no X-amz-copy-source header present

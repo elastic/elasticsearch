@@ -86,7 +86,7 @@ public final class S3FixtureUtils {
      */
     public static void addBlobToFixture(S3HttpHandler handler, String key, byte[] content) {
         String fullPath = "/" + BUCKET + "/" + key;
-        handler.blobs().put(fullPath, new BlobEntry(new BytesArray(content)));
+        handler.blobs().put(fullPath, new BlobEntry(new BytesArray(content), "STANDARD"));
         logRequest("PUT_OBJECT", fullPath, content.length);
     }
 

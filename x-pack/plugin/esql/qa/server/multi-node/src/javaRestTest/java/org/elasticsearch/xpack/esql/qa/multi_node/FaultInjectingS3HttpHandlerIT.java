@@ -34,7 +34,8 @@ public class FaultInjectingS3HttpHandlerIT extends ESTestCase {
 
     public void testNoFaultReturnsNormalResponse() throws Exception {
         S3HttpHandler s3Handler = new S3HttpHandler("bucket", S3ConsistencyModel.STRONG_MPUS);
-        s3Handler.blobs().put("/bucket/data.parquet", new BlobEntry(new BytesArray("test-content".getBytes(StandardCharsets.UTF_8))));
+        s3Handler.blobs()
+            .put("/bucket/data.parquet", new BlobEntry(new BytesArray("test-content".getBytes(StandardCharsets.UTF_8)), "STANDARD"));
         FaultInjectingS3HttpHandler handler = new FaultInjectingS3HttpHandler(s3Handler);
 
         try (TestHttpServer server = new TestHttpServer(handler)) {
@@ -54,7 +55,7 @@ public class FaultInjectingS3HttpHandlerIT extends ESTestCase {
             assertEquals(0, handler.remainingFaults());
 
             // Next request should succeed (fault exhausted)
-            s3Handler.blobs().put("/bucket/data.parquet", new BlobEntry(new BytesArray("ok".getBytes(StandardCharsets.UTF_8))));
+            s3Handler.blobs().put("/bucket/data.parquet", new BlobEntry(new BytesArray("ok".getBytes(StandardCharsets.UTF_8)), "STANDARD"));
             HttpURLConnection conn2 = openConnection(server, "/bucket/data.parquet");
             assertEquals(200, conn2.getResponseCode());
         }
@@ -73,7 +74,7 @@ public class FaultInjectingS3HttpHandlerIT extends ESTestCase {
 
     public void testFaultCountdownDecrementsCorrectly() throws Exception {
         S3HttpHandler s3Handler = new S3HttpHandler("bucket", S3ConsistencyModel.STRONG_MPUS);
-        s3Handler.blobs().put("/bucket/data.parquet", new BlobEntry(new BytesArray("ok".getBytes(StandardCharsets.UTF_8))));
+        s3Handler.blobs().put("/bucket/data.parquet", new BlobEntry(new BytesArray("ok".getBytes(StandardCharsets.UTF_8)), "STANDARD"));
         FaultInjectingS3HttpHandler handler = new FaultInjectingS3HttpHandler(s3Handler);
         handler.setFault(FaultType.HTTP_503, 3);
 
@@ -90,7 +91,7 @@ public class FaultInjectingS3HttpHandlerIT extends ESTestCase {
 
     public void testPathFilterOnlyAffectsMatchingPaths() throws Exception {
         S3HttpHandler s3Handler = new S3HttpHandler("bucket", S3ConsistencyModel.STRONG_MPUS);
-        s3Handler.blobs().put("/bucket/metadata.json", new BlobEntry(new BytesArray("meta".getBytes(StandardCharsets.UTF_8))));
+        s3Handler.blobs().put("/bucket/metadata.json", new BlobEntry(new BytesArray("meta".getBytes(StandardCharsets.UTF_8)), "STANDARD"));
         FaultInjectingS3HttpHandler handler = new FaultInjectingS3HttpHandler(s3Handler);
         handler.setFault(FaultType.HTTP_503, 10, path -> path.endsWith(".parquet"));
 
@@ -103,7 +104,7 @@ public class FaultInjectingS3HttpHandlerIT extends ESTestCase {
 
     public void testClearFaultStopsInjection() throws Exception {
         S3HttpHandler s3Handler = new S3HttpHandler("bucket", S3ConsistencyModel.STRONG_MPUS);
-        s3Handler.blobs().put("/bucket/data.parquet", new BlobEntry(new BytesArray("ok".getBytes(StandardCharsets.UTF_8))));
+        s3Handler.blobs().put("/bucket/data.parquet", new BlobEntry(new BytesArray("ok".getBytes(StandardCharsets.UTF_8)), "STANDARD"));
         FaultInjectingS3HttpHandler handler = new FaultInjectingS3HttpHandler(s3Handler);
         handler.setFault(FaultType.HTTP_503, 100);
 

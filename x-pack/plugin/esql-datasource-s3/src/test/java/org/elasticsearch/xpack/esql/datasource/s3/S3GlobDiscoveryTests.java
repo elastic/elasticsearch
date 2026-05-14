@@ -144,7 +144,7 @@ public class S3GlobDiscoveryTests extends ESTestCase {
     }
 
     private static void addBlob(String key, byte[] content) {
-        s3Fixture.handler().blobs().put("/" + BUCKET + "/" + key, new BlobEntry(new BytesArray(content)));
+        s3Fixture.handler().blobs().put("/" + BUCKET + "/" + key, new BlobEntry(new BytesArray(content), "STANDARD"));
     }
 
     private static List<StorageEntry> collectAll(StorageIterator iterator) throws IOException {

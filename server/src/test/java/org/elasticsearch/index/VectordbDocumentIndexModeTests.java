@@ -58,6 +58,11 @@ public class VectordbDocumentIndexModeTests extends ESTestCase {
 
         // Merge IO auto-throttling is disabled by default.
         assertEquals("false", resolved.get(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey()));
+
+        // Merge policy is tuned for fewer, larger segments to reduce per-query HNSW/IVF graph traversal cost.
+        assertEquals("16gb", resolved.get(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING.getKey()));
+        assertEquals("128mb", resolved.get(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey()));
+        assertEquals("5.0", resolved.get(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey()));
     }
 
     public void testProviderRejectsExplicitFalseExcludeSourceVectors() {
@@ -89,6 +94,9 @@ public class VectordbDocumentIndexModeTests extends ESTestCase {
             .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), "vex")
             .put(IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING.getKey(), false)
             .put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), true)
+            .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING.getKey(), "5gb")
+            .put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), "2mb")
+            .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), 10.0)
             .build();
         Settings.Builder additional = Settings.builder();
         runProvider(userSettings, additional);
@@ -105,6 +113,18 @@ public class VectordbDocumentIndexModeTests extends ESTestCase {
         assertNull(
             "should not override user-provided merge auto-throttle setting",
             resolved.get(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey())
+        );
+        assertNull(
+            "should not override user-provided max merged segment setting",
+            resolved.get(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING.getKey())
+        );
+        assertNull(
+            "should not override user-provided floor segment setting",
+            resolved.get(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey())
+        );
+        assertNull(
+            "should not override user-provided segments per tier setting",
+            resolved.get(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey())
         );
     }
 

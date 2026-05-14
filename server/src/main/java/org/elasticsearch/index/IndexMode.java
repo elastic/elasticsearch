@@ -959,6 +959,31 @@ public enum IndexMode {
                 if (MergeSchedulerConfig.AUTO_THROTTLE_SETTING.exists(indexTemplateAndCreateRequestSettings) == false) {
                     additionalSettings.put(autoThrottleKey, false);
                 }
+
+                // Use a larger max merged segment to reduce segment count; fewer segments means fewer HNSW/IVF graphs
+                // to traverse per query, which is the dominant vector search cost.
+                // Only applied when the user has not set it explicitly.
+                String maxMergedSegmentKey = MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING.getKey();
+                if (MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING.exists(
+                    indexTemplateAndCreateRequestSettings
+                ) == false) {
+                    additionalSettings.put(maxMergedSegmentKey, "16gb");
+                }
+
+                // Raise the floor segment so that small post-flush segments are coalesced quickly.
+                // Only applied when the user has not set it explicitly.
+                String floorSegmentKey = MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey();
+                if (MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.exists(indexTemplateAndCreateRequestSettings) == false) {
+                    additionalSettings.put(floorSegmentKey, "128mb");
+                }
+
+                // Lower segments per tier to keep the steady-state segment count small.
+                // Also implicitly clamps max_merge_at_once to 5 via MergePolicyConfig#adjustMaxMergeAtOnceIfNeeded.
+                // Only applied when the user has not set it explicitly.
+                String segmentsPerTierKey = MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey();
+                if (MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.exists(indexTemplateAndCreateRequestSettings) == false) {
+                    additionalSettings.put(segmentsPerTierKey, 5.0);
+                }
             }
         }
 

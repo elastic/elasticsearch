@@ -78,8 +78,7 @@ public class TestRestrictedIndices {
                     getKibanaSavedObjectsDescriptor(),
                     getReportingIndexDescriptor(),
                     getApmAgentConfigDescriptor(),
-                    getApmCustomLinkDescriptor(),
-                    getEvaluationDescriptor()
+                    getApmCustomLinkDescriptor()
                 )
             )
         );
@@ -250,15 +249,6 @@ public class TestRestrictedIndices {
         return SystemIndexDescriptor.builder()
             .setIndexPattern(".apm-custom-link*")
             .setDescription("system index for APM custom links")
-            .setType(SystemIndexDescriptor.Type.EXTERNAL_UNMANAGED)
-            .setAllowedElasticProductOrigins(List.of("kibana"))
-            .build();
-    }
-
-    private static SystemIndexDescriptor getEvaluationDescriptor() {
-        return SystemIndexDescriptor.builder()
-            .setIndexPattern(".evaluation-*")
-            .setDescription("Evaluations system indices")
             .setType(SystemIndexDescriptor.Type.EXTERNAL_UNMANAGED)
             .setAllowedElasticProductOrigins(List.of("kibana"))
             .build();

@@ -16,7 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.reindex.BulkByScrollTask.Status;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask.Status;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -41,23 +41,23 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.hamcrest.Matchers.equalTo;
 
-public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkByScrollTask.Status> {
+public class BulkByPaginatedSearchTaskStatusTests extends AbstractXContentTestCase<BulkByPaginatedSearchTask.Status> {
 
     private boolean includeUpdated;
     private boolean includeCreated;
 
     public void testBulkByTaskStatus() throws IOException {
-        BulkByScrollTask.Status status = randomStatus();
+        BulkByPaginatedSearchTask.Status status = randomStatus();
         BytesStreamOutput out = new BytesStreamOutput();
         status.writeTo(out);
-        BulkByScrollTask.Status tripped = new BulkByScrollTask.Status(out.bytes().streamInput());
+        BulkByPaginatedSearchTask.Status tripped = new BulkByPaginatedSearchTask.Status(out.bytes().streamInput());
         assertTaskStatusEquals(status, tripped);
     }
 
     /**
      * Assert that two task statuses are equal after serialization.
      */
-    public static void assertTaskStatusEquals(BulkByScrollTask.Status expected, BulkByScrollTask.Status actual) {
+    public static void assertTaskStatusEquals(BulkByPaginatedSearchTask.Status expected, BulkByPaginatedSearchTask.Status actual) {
         assertEquals(expected.getTotal(), actual.getTotal());
         assertEquals(expected.getUpdated(), actual.getUpdated());
         assertEquals(expected.getCreated(), actual.getCreated());
@@ -73,7 +73,7 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
         assertEquals(expected.getThrottledUntil(), actual.getThrottledUntil());
         assertThat(actual.getSliceStatuses(), Matchers.hasSize(expected.getSliceStatuses().size()));
         for (int i = 0; i < expected.getSliceStatuses().size(); i++) {
-            BulkByScrollTask.StatusOrException sliceStatus = expected.getSliceStatuses().get(i);
+            BulkByPaginatedSearchTask.StatusOrException sliceStatus = expected.getSliceStatuses().get(i);
             if (sliceStatus == null) {
                 assertNull(actual.getSliceStatuses().get(i));
             } else if (sliceStatus.getException() == null) {
@@ -87,38 +87,38 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
         }
     }
 
-    public static BulkByScrollTask.Status randomStatus() {
+    public static BulkByPaginatedSearchTask.Status randomStatus() {
         if (randomBoolean()) {
             return randomWorkingStatus(null);
         }
         boolean canHaveNullStatues = randomBoolean();
-        List<BulkByScrollTask.StatusOrException> statuses = IntStream.range(0, between(0, 10)).mapToObj(i -> {
+        List<BulkByPaginatedSearchTask.StatusOrException> statuses = IntStream.range(0, between(0, 10)).mapToObj(i -> {
             if (canHaveNullStatues && LuceneTestCase.rarely()) {
                 return null;
             }
             if (randomBoolean()) {
-                return new BulkByScrollTask.StatusOrException(new ElasticsearchException(randomAlphaOfLength(5)));
+                return new BulkByPaginatedSearchTask.StatusOrException(new ElasticsearchException(randomAlphaOfLength(5)));
             }
-            return new BulkByScrollTask.StatusOrException(randomWorkingStatus(i));
+            return new BulkByPaginatedSearchTask.StatusOrException(randomWorkingStatus(i));
         }).collect(toList());
-        return new BulkByScrollTask.Status(statuses, randomBoolean() ? "test" : null, 0f);
+        return new BulkByPaginatedSearchTask.Status(statuses, randomBoolean() ? "test" : null, 0f);
     }
 
-    public static BulkByScrollTask.Status randomStatusWithoutException() {
+    public static BulkByPaginatedSearchTask.Status randomStatusWithoutException() {
         if (randomBoolean()) {
             return randomWorkingStatus(null);
         }
         boolean canHaveNullStatues = randomBoolean();
-        List<BulkByScrollTask.StatusOrException> statuses = IntStream.range(0, between(0, 10)).mapToObj(i -> {
+        List<BulkByPaginatedSearchTask.StatusOrException> statuses = IntStream.range(0, between(0, 10)).mapToObj(i -> {
             if (canHaveNullStatues && LuceneTestCase.rarely()) {
                 return null;
             }
-            return new BulkByScrollTask.StatusOrException(randomWorkingStatus(i));
+            return new BulkByPaginatedSearchTask.StatusOrException(randomWorkingStatus(i));
         }).collect(toList());
-        return new BulkByScrollTask.Status(statuses, randomBoolean() ? "test" : null, 0f);
+        return new BulkByPaginatedSearchTask.Status(statuses, randomBoolean() ? "test" : null, 0f);
     }
 
-    public static BulkByScrollTask.Status randomWorkingStatus(Integer sliceId) {
+    public static BulkByPaginatedSearchTask.Status randomWorkingStatus(Integer sliceId) {
         // These all should be believably small because we sum them if we have multiple workers
         int total = between(0, 10000000);
         int updated = between(0, total);
@@ -133,7 +133,7 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
         TimeUnit[] timeUnits = { TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS };
         TimeValue throttled = new TimeValue(randomIntBetween(0, 1000), randomFrom(timeUnits));
         TimeValue throttledUntil = new TimeValue(randomIntBetween(0, 1000), randomFrom(timeUnits));
-        return new BulkByScrollTask.Status(
+        return new BulkByPaginatedSearchTask.Status(
             sliceId,
             total,
             updated,
@@ -152,8 +152,8 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
     }
 
     public static void assertEqualStatus(
-        BulkByScrollTask.Status expected,
-        BulkByScrollTask.Status actual,
+        BulkByPaginatedSearchTask.Status expected,
+        BulkByPaginatedSearchTask.Status actual,
         boolean includeUpdated,
         boolean includeCreated
     ) {
@@ -161,7 +161,7 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
         assertTrue(expected.equalsWithoutSliceStatus(actual, includeUpdated, includeCreated));
         assertThat(expected.getSliceStatuses().size(), equalTo(actual.getSliceStatuses().size()));
         for (int i = 0; i < expected.getSliceStatuses().size(); i++) {
-            BulkByScrollTaskStatusOrExceptionTests.assertEqualStatusOrException(
+            BulkByPaginatedSearchTaskStatusOrExceptionTests.assertEqualStatusOrException(
                 expected.getSliceStatuses().get(i),
                 actual.getSliceStatuses().get(i),
                 includeUpdated,
@@ -171,18 +171,18 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
     }
 
     @Override
-    protected void assertEqualInstances(BulkByScrollTask.Status first, BulkByScrollTask.Status second) {
+    protected void assertEqualInstances(BulkByPaginatedSearchTask.Status first, BulkByPaginatedSearchTask.Status second) {
         assertEqualStatus(first, second, includeUpdated, includeCreated);
     }
 
     @Override
-    protected BulkByScrollTask.Status createTestInstance() {
+    protected BulkByPaginatedSearchTask.Status createTestInstance() {
         // failures are tested separately, so we can test xcontent equivalence at least when we have no failures
         return randomStatusWithoutException();
     }
 
     @Override
-    protected BulkByScrollTask.Status doParseInstance(XContentParser parser) throws IOException {
+    protected BulkByPaginatedSearchTask.Status doParseInstance(XContentParser parser) throws IOException {
         XContentParser.Token token;
         if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
             token = parser.nextToken();
@@ -201,41 +201,62 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
         a -> new Tuple<>(((Long) a[0]), (Long) a[1])
     );
     static {
-        RETRIES_PARSER.declareLong(constructorArg(), new ParseField(BulkByScrollTask.Status.RETRIES_BULK_FIELD));
-        RETRIES_PARSER.declareLong(constructorArg(), new ParseField(BulkByScrollTask.Status.RETRIES_SEARCH_FIELD));
+        RETRIES_PARSER.declareLong(constructorArg(), new ParseField(BulkByPaginatedSearchTask.Status.RETRIES_BULK_FIELD));
+        RETRIES_PARSER.declareLong(constructorArg(), new ParseField(BulkByPaginatedSearchTask.Status.RETRIES_SEARCH_FIELD));
     }
 
-    public static void declareFields(ObjectParser<? extends BulkByScrollTask.StatusBuilder, Void> parser) {
-        parser.declareInt(BulkByScrollTask.StatusBuilder::setSliceId, new ParseField(BulkByScrollTask.Status.SLICE_ID_FIELD));
-        parser.declareLong(BulkByScrollTask.StatusBuilder::setTotal, new ParseField(BulkByScrollTask.Status.TOTAL_FIELD));
-        parser.declareLong(BulkByScrollTask.StatusBuilder::setUpdated, new ParseField(BulkByScrollTask.Status.UPDATED_FIELD));
-        parser.declareLong(BulkByScrollTask.StatusBuilder::setCreated, new ParseField(BulkByScrollTask.Status.CREATED_FIELD));
-        parser.declareLong(BulkByScrollTask.StatusBuilder::setDeleted, new ParseField(BulkByScrollTask.Status.DELETED_FIELD));
-        parser.declareInt(BulkByScrollTask.StatusBuilder::setBatches, new ParseField(BulkByScrollTask.Status.BATCHES_FIELD));
-        parser.declareLong(
-            BulkByScrollTask.StatusBuilder::setVersionConflicts,
-            new ParseField(BulkByScrollTask.Status.VERSION_CONFLICTS_FIELD)
+    public static void declareFields(ObjectParser<? extends BulkByPaginatedSearchTask.StatusBuilder, Void> parser) {
+        parser.declareInt(
+            BulkByPaginatedSearchTask.StatusBuilder::setSliceId,
+            new ParseField(BulkByPaginatedSearchTask.Status.SLICE_ID_FIELD)
         );
-        parser.declareLong(BulkByScrollTask.StatusBuilder::setNoops, new ParseField(BulkByScrollTask.Status.NOOPS_FIELD));
+        parser.declareLong(BulkByPaginatedSearchTask.StatusBuilder::setTotal, new ParseField(BulkByPaginatedSearchTask.Status.TOTAL_FIELD));
+        parser.declareLong(
+            BulkByPaginatedSearchTask.StatusBuilder::setUpdated,
+            new ParseField(BulkByPaginatedSearchTask.Status.UPDATED_FIELD)
+        );
+        parser.declareLong(
+            BulkByPaginatedSearchTask.StatusBuilder::setCreated,
+            new ParseField(BulkByPaginatedSearchTask.Status.CREATED_FIELD)
+        );
+        parser.declareLong(
+            BulkByPaginatedSearchTask.StatusBuilder::setDeleted,
+            new ParseField(BulkByPaginatedSearchTask.Status.DELETED_FIELD)
+        );
+        parser.declareInt(
+            BulkByPaginatedSearchTask.StatusBuilder::setBatches,
+            new ParseField(BulkByPaginatedSearchTask.Status.BATCHES_FIELD)
+        );
+        parser.declareLong(
+            BulkByPaginatedSearchTask.StatusBuilder::setVersionConflicts,
+            new ParseField(BulkByPaginatedSearchTask.Status.VERSION_CONFLICTS_FIELD)
+        );
+        parser.declareLong(BulkByPaginatedSearchTask.StatusBuilder::setNoops, new ParseField(BulkByPaginatedSearchTask.Status.NOOPS_FIELD));
         parser.declareObject(
-            BulkByScrollTask.StatusBuilder::setRetries,
+            BulkByPaginatedSearchTask.StatusBuilder::setRetries,
             RETRIES_PARSER,
-            new ParseField(BulkByScrollTask.Status.RETRIES_FIELD)
+            new ParseField(BulkByPaginatedSearchTask.Status.RETRIES_FIELD)
         );
-        parser.declareLong(BulkByScrollTask.StatusBuilder::setThrottled, new ParseField(BulkByScrollTask.Status.THROTTLED_RAW_FIELD));
-        parser.declareFloat(
-            BulkByScrollTask.StatusBuilder::setRequestsPerSecond,
-            new ParseField(BulkByScrollTask.Status.REQUESTS_PER_SEC_FIELD)
-        );
-        parser.declareString(BulkByScrollTask.StatusBuilder::setReasonCancelled, new ParseField(BulkByScrollTask.Status.CANCELED_FIELD));
         parser.declareLong(
-            BulkByScrollTask.StatusBuilder::setThrottledUntil,
-            new ParseField(BulkByScrollTask.Status.THROTTLED_UNTIL_RAW_FIELD)
+            BulkByPaginatedSearchTask.StatusBuilder::setThrottled,
+            new ParseField(BulkByPaginatedSearchTask.Status.THROTTLED_RAW_FIELD)
+        );
+        parser.declareFloat(
+            BulkByPaginatedSearchTask.StatusBuilder::setRequestsPerSecond,
+            new ParseField(BulkByPaginatedSearchTask.Status.REQUESTS_PER_SEC_FIELD)
+        );
+        parser.declareString(
+            BulkByPaginatedSearchTask.StatusBuilder::setReasonCancelled,
+            new ParseField(BulkByPaginatedSearchTask.Status.CANCELED_FIELD)
+        );
+        parser.declareLong(
+            BulkByPaginatedSearchTask.StatusBuilder::setThrottledUntil,
+            new ParseField(BulkByPaginatedSearchTask.Status.THROTTLED_UNTIL_RAW_FIELD)
         );
         parser.declareObjectArray(
-            BulkByScrollTask.StatusBuilder::setSliceStatuses,
+            BulkByPaginatedSearchTask.StatusBuilder::setSliceStatuses,
             (p, c) -> parseStatusOrException(p),
-            new ParseField(BulkByScrollTask.Status.SLICES_FIELD)
+            new ParseField(BulkByPaginatedSearchTask.Status.SLICES_FIELD)
         );
     }
 
@@ -243,7 +264,7 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
         XContentParser.Token token = parser.currentToken();
         String fieldName = parser.currentName();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-        BulkByScrollTask.StatusBuilder builder = new BulkByScrollTask.StatusBuilder();
+        BulkByPaginatedSearchTask.StatusBuilder builder = new BulkByPaginatedSearchTask.StatusBuilder();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
@@ -282,13 +303,13 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
     }
 
     /**
-     * Since {@link BulkByScrollTask.StatusOrException} can contain either an {@link Exception} or a {@link Status} we need to peek
+     * Since {@link BulkByPaginatedSearchTask.StatusOrException} can contain either an {@link Exception} or a {@link Status} we need to peek
      * at a field first before deciding what needs to be parsed since the same object could contains either.
-     * The {@link BulkByScrollTask.StatusOrException#EXPECTED_EXCEPTION_FIELDS} contains the fields that are expected when the serialised
-     * object was an instance of exception and the {@link Status#FIELDS_SET} is the set of fields expected when the
+     * The {@link BulkByPaginatedSearchTask.StatusOrException#EXPECTED_EXCEPTION_FIELDS} contains the fields that are expected when the
+     * serialised object was an instance of exception and the {@link Status#FIELDS_SET} is the set of fields expected when the
      * serialized object was an instance of Status.
      */
-    public static BulkByScrollTask.StatusOrException parseStatusOrException(XContentParser parser) throws IOException {
+    public static BulkByPaginatedSearchTask.StatusOrException parseStatusOrException(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == null) {
             token = parser.nextToken();
@@ -305,9 +326,9 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
                 String fieldName = parser.currentName();
                 // weird way to ignore unknown tokens
                 if (Status.FIELDS_SET.contains(fieldName)) {
-                    return new BulkByScrollTask.StatusOrException(innerParseStatus(parser));
-                } else if (BulkByScrollTask.StatusOrException.EXPECTED_EXCEPTION_FIELDS.contains(fieldName)) {
-                    return new BulkByScrollTask.StatusOrException(ElasticsearchException.innerFromXContent(parser, false));
+                    return new BulkByPaginatedSearchTask.StatusOrException(innerParseStatus(parser));
+                } else if (BulkByPaginatedSearchTask.StatusOrException.EXPECTED_EXCEPTION_FIELDS.contains(fieldName)) {
+                    return new BulkByPaginatedSearchTask.StatusOrException(ElasticsearchException.innerFromXContent(parser, false));
                 } else {
                     // Ignore unknown tokens
                     token = parser.nextToken();
@@ -332,7 +353,7 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
      * without failures, and this other test with failures where we disable asserting on xcontent equivalence at the end.
      */
     public void testFromXContentWithFailures() throws IOException {
-        Supplier<Status> instanceSupplier = BulkByScrollTaskStatusTests::randomStatus;
+        Supplier<Status> instanceSupplier = BulkByPaginatedSearchTaskStatusTests::randomStatus;
         // with random fields insertion in the inner exceptions, some random stuff may be parsed back as metadata,
         // but that does not bother our assertions, as we only want to test that we don't break.
         boolean supportsUnknownFields = true;
@@ -371,21 +392,21 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
     }
 
     /**
-     * Verifies that {@link BulkByScrollTask.Status#getWriteableName()} returns the expected name used for wire serialization.
+     * Verifies that {@link BulkByPaginatedSearchTask.Status#getWriteableName()} returns the expected name used for wire serialization.
      */
     public void testGetWriteableName() {
-        BulkByScrollTask.Status status = randomStatusWithoutException();
-        assertEquals(BulkByScrollTask.Status.NAME, status.getWriteableName());
+        BulkByPaginatedSearchTask.Status status = randomStatusWithoutException();
+        assertEquals(BulkByPaginatedSearchTask.Status.NAME, status.getWriteableName());
     }
 
     /**
-     * Verifies that {@link BulkByScrollTask.Status#equalsWithoutSliceStatus(Object, boolean, boolean)} treats two statuses
+     * Verifies that {@link BulkByPaginatedSearchTask.Status#equalsWithoutSliceStatus(Object, boolean, boolean)} treats two statuses
      * that differ only in {@code updated} as equal when {@code includeUpdated} is false.
      */
     public void testEqualsWithoutSliceStatusRespectsIncludeUpdated() {
-        BulkByScrollTask.Status status = randomWorkingStatus(null);
+        BulkByPaginatedSearchTask.Status status = randomWorkingStatus(null);
         long otherUpdated = randomValueOtherThan(status.getUpdated(), () -> (long) between(0, 10000));
-        BulkByScrollTask.Status sameExceptUpdated = new BulkByScrollTask.Status(
+        BulkByPaginatedSearchTask.Status sameExceptUpdated = new BulkByPaginatedSearchTask.Status(
             status.getSliceId(),
             status.getTotal(),
             otherUpdated,
@@ -406,13 +427,13 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
     }
 
     /**
-     * Verifies that {@link BulkByScrollTask.Status#equalsWithoutSliceStatus(Object, boolean, boolean)} treats two statuses
+     * Verifies that {@link BulkByPaginatedSearchTask.Status#equalsWithoutSliceStatus(Object, boolean, boolean)} treats two statuses
      * that differ only in {@code created} as equal when {@code includeCreated} is false.
      */
     public void testEqualsWithoutSliceStatusRespectsIncludeCreated() {
-        BulkByScrollTask.Status status = randomWorkingStatus(null);
+        BulkByPaginatedSearchTask.Status status = randomWorkingStatus(null);
         long otherCreated = randomValueOtherThan(status.getCreated(), () -> (long) between(0, 10000));
-        BulkByScrollTask.Status sameExceptCreated = new BulkByScrollTask.Status(
+        BulkByPaginatedSearchTask.Status sameExceptCreated = new BulkByPaginatedSearchTask.Status(
             status.getSliceId(),
             status.getTotal(),
             status.getUpdated(),

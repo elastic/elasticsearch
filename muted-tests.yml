@@ -533,9 +533,6 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexRethrottleRelocationIT
   method: testRethrottleByOriginalTaskIdAfterRelocation
   issue: https://github.com/elastic/elasticsearch/issues/148893
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {yaml=snapshot/10_basic/Create a source only snapshot and then restore it}
-  issue: https://github.com/elastic/elasticsearch/issues/148917
 - class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
   method: testProcessOnceOnPrimary
   issue: https://github.com/elastic/elasticsearch/issues/148943

@@ -530,9 +530,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
   method: testMixedOperationsDuringSplit
   issue: https://github.com/elastic/elasticsearch/issues/148809
-- class: org.elasticsearch.reindex.management.ReindexRethrottleRelocationIT
-  method: testRethrottleByOriginalTaskIdAfterRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/148893
 - class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
   method: testProcessOnceOnPrimary
   issue: https://github.com/elastic/elasticsearch/issues/148943

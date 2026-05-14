@@ -224,7 +224,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             return value;
         },
-        Setting.Property.IndexScope
+        Setting.Property.IndexScope,
+        Setting.Property.PrivateIndex
     );
 
     private static boolean hasRescoreIndexVersion(IndexVersion version) {

@@ -1482,3 +1482,58 @@ FROM employees METADATA _index | WHERE _index LIKE "employ??es" | KEEP emp_no;
 
 emp_no:integer
 ;
+
+// Tests for LIKE/RLIKE on text fields with doc values only (no inverted index).
+// Exercises the doc-values paths added to TextFieldType.wildcardQuery() and .regexpQuery().
+
+likeTextDocValuesPrefix
+required_capability: text_doc_values_prefix_wildcard_regexp
+FROM airports_text_doc_values | WHERE name LIKE "London*" | KEEP abbrev, name | SORT abbrev;
+
+abbrev:keyword | name:text
+LGW            | London Gatwick
+LHR            | London Heathrow
+LTN            | London Luton
+;
+
+likeTextDocValuesSuffix
+required_capability: text_doc_values_prefix_wildcard_regexp
+FROM airports_text_doc_values | WHERE name LIKE "*Heathrow" | KEEP abbrev, name;
+
+abbrev:keyword | name:text
+LHR            | London Heathrow
+;
+
+likeTextDocValuesSubstring
+required_capability: text_doc_values_prefix_wildcard_regexp
+FROM airports_text_doc_values | WHERE name LIKE "*Changi*" | KEEP abbrev, name;
+
+abbrev:keyword | name:text
+SIN            | Singapore Changi
+;
+
+rlikeTextDocValuesPrefix
+required_capability: text_doc_values_prefix_wildcard_regexp
+FROM airports_text_doc_values | WHERE name RLIKE "London.*" | KEEP abbrev, name | SORT abbrev;
+
+abbrev:keyword | name:text
+LGW            | London Gatwick
+LHR            | London Heathrow
+LTN            | London Luton
+;
+
+rlikeTextDocValuesSuffix
+required_capability: text_doc_values_prefix_wildcard_regexp
+FROM airports_text_doc_values | WHERE name RLIKE ".*Heathrow" | KEEP abbrev, name;
+
+abbrev:keyword | name:text
+LHR            | London Heathrow
+;
+
+rlikeTextDocValuesSubstring
+required_capability: text_doc_values_prefix_wildcard_regexp
+FROM airports_text_doc_values | WHERE name RLIKE ".*Changi.*" | KEEP abbrev, name;
+
+abbrev:keyword | name:text
+SIN            | Singapore Changi
+;

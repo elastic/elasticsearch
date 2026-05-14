@@ -78,6 +78,9 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature MV_MAX_FUNCTION_FUSE_TO_LOAD = new NodeFeature("mapper.keyword.mv_max_function_fuse_to_load");
     static final NodeFeature TDIGEST_TYPE = new NodeFeature("mapper.tdigest_type");
     public static final NodeFeature TEXT_FIELD_DOC_VALUES = new NodeFeature("mapper.text.doc_values");
+    public static final NodeFeature TEXT_FIELD_DOC_VALUES_PREFIX_WILDCARD_REGEXP = new NodeFeature(
+        "mapper.text.doc_values_prefix_wildcard_regexp"
+    );
     static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX = new NodeFeature(
         "mapper.dense_vector.dynamic_template_dotted_field_fix"
     );
@@ -149,6 +152,7 @@ public class MapperFeatures implements FeatureSpecification {
             MV_MAX_FUNCTION_FUSE_TO_LOAD,
             TDIGEST_TYPE,
             TEXT_FIELD_DOC_VALUES,
+            TEXT_FIELD_DOC_VALUES_PREFIX_WILDCARD_REGEXP,
             DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX,
             DOC_VALUES_MULTI_VALUE,
             DOC_VALUES_MULTI_VALUE_ENFORCEMENT,

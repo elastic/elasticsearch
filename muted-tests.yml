@@ -229,9 +229,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/145728
-- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
-  method: testReindexTaskRelocatesOnNodeShutdown
-  issue: https://github.com/elastic/elasticsearch/issues/147449
 - class: org.elasticsearch.xpack.core.transform.transforms.pivot.ScriptConfigTests
   method: testFromXContent
   issue: https://github.com/elastic/elasticsearch/issues/147543
@@ -467,9 +464,6 @@ tests:
 - class: org.elasticsearch.index.mapper.DateRangeDocValuesLoaderTests
   method: testEmptyRangesAppendsNull
   issue: https://github.com/elastic/elasticsearch/issues/148378
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
-  method: testReshardMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/148463
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionIT
   method: testEndToEndFrozenTransition
   issue: https://github.com/elastic/elasticsearch/issues/148467
@@ -482,9 +476,6 @@ tests:
 - class: org.elasticsearch.compute.data.BlockAccountingTests
   method: testBytesRefVector
   issue: https://github.com/elastic/elasticsearch/issues/148481
-- class: org.elasticsearch.xpack.stateless.engine.SoftDeletesRetentionIT
-  method: testRetentionLeasesIgnoredForSoftDeletesPolicy
-  issue: https://github.com/elastic/elasticsearch/issues/148557
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148339
@@ -539,15 +530,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
   method: testMixedOperationsDuringSplit
   issue: https://github.com/elastic/elasticsearch/issues/148809
-- class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
-  method: testSearchShardRecoveryAddsTrackingToLatestShardCommit
-  issue: https://github.com/elastic/elasticsearch/issues/148883
-- class: org.elasticsearch.reindex.management.ReindexRethrottleRelocationIT
-  method: testRethrottleByOriginalTaskIdAfterRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/148893
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {yaml=snapshot/10_basic/Create a source only snapshot and then restore it}
-  issue: https://github.com/elastic/elasticsearch/issues/148917
 - class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
   method: testProcessOnceOnPrimary
   issue: https://github.com/elastic/elasticsearch/issues/148943
@@ -557,3 +539,42 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.IndexCommitTimestampFieldRangeTests
   method: testFieldValueRangeForBatchedCompoundCommit
   issue: https://github.com/elastic/elasticsearch/issues/148961
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
+  issue: https://github.com/elastic/elasticsearch/issues/147516
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Get old regression job stats}
+  issue: https://github.com/elastic/elasticsearch/issues/147517
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:flattened.casePicksPerRow}
+  issue: https://github.com/elastic/elasticsearch/issues/149027
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:field_extract.caseWithFieldExtractInCondition}
+  issue: https://github.com/elastic/elasticsearch/issues/149028
+- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotIT
+  method: testSnapshotFailsCleanlyWhenShardClosesDuringDisconnect
+  issue: https://github.com/elastic/elasticsearch/issues/149032
+- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
+  method: testCommitsNotDeletedWhileAnUnpromotableIsRecovering
+  issue: https://github.com/elastic/elasticsearch/issues/149036
+- class: org.elasticsearch.xpack.stateless.objectstore.S3ObjectStoreTests
+  method: testUploadIndicesDataWithRetries
+  issue: https://github.com/elastic/elasticsearch/issues/149037
+- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
+  method: testConcurrentRolloverDuringTransition
+  issue: https://github.com/elastic/elasticsearch/issues/149039
+- class: org.elasticsearch.packaging.test.BootstrapCheckTests
+  method: test20RunWithBootstrapChecks
+  issue: https://github.com/elastic/elasticsearch/issues/149040
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=data_stream/110_update_by_query/Update by query from data stream}
+  issue: https://github.com/elastic/elasticsearch/issues/149042
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:fuse.fuseWithRowRRFAndMultiValueGroupColumn}
+  issue: https://github.com/elastic/elasticsearch/issues/149046
+- class: org.elasticsearch.xpack.security.ReindexRelocationWithSecurityIT
+  method: testReindexRelocatesWhenCoordinatorShutsDown
+  issue: https://github.com/elastic/elasticsearch/issues/149055
+- class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
+  method: testRetainCommitForReadersAfterShardMovedAway
+  issue: https://github.com/elastic/elasticsearch/issues/149083

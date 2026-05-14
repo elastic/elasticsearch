@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 147854
+pr: 148983
+summary: Fix errors in blockloaders when filtering nulls on histograms
+type: bug

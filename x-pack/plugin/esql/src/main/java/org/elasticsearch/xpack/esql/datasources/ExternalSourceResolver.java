@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.datasources.utils.BoundedParallelGather;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -363,7 +364,7 @@ public class ExternalSourceResolver {
         // planner's view, no re-inference.
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
         if (dataOnlySchema != null && dataOnlySchema.isEmpty() == false) {
-            Map<StoragePath, SchemaReconciliation.FileSchemaInfo> perFileInfo = new LinkedHashMap<>();
+            Map<StoragePath, SchemaReconciliation.FileSchemaInfo> perFileInfo = Maps.newHashMapWithExpectedSize(listing.fileCount());
             SchemaReconciliation.ColumnMapping identityMapping = new SchemaReconciliation.ColumnMapping(
                 identityMapping(dataOnlySchema.size()),
                 null
@@ -371,7 +372,7 @@ public class ExternalSourceResolver {
             for (int i = 0; i < listing.fileCount(); i++) {
                 perFileInfo.put(listing.path(i), new SchemaReconciliation.FileSchemaInfo(dataOnlySchema, identityMapping, null));
             }
-            schemaMap = Map.copyOf(perFileInfo);
+            schemaMap = Collections.unmodifiableMap(perFileInfo);
         } else {
             schemaMap = Map.of();
         }

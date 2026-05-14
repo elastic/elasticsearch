@@ -38,7 +38,11 @@ import java.util.List;
 import java.util.Set;
 
 import static org.apache.parquet.schema.LogicalTypeAnnotation.dateType;
+import static org.apache.parquet.schema.LogicalTypeAnnotation.decimalType;
+import static org.apache.parquet.schema.LogicalTypeAnnotation.float16Type;
 import static org.apache.parquet.schema.LogicalTypeAnnotation.timestampType;
+import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.DOUBLE;
+import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT32;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT96;
@@ -419,6 +423,94 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of());
         MessageType schema = Types.buildMessage().required(INT64).named("status").named("schema");
         assertFalse("empty expression list has no YES conjuncts", pushed.hasYesConjunctOutsideFilterPredicate(schema));
+    }
+
+    // -----------------------------------------------------------------------------------
+    // DOUBLE pushdown is unsafe when the physical column is NOT a native FLOAT/DOUBLE:
+    // parquet-mr's SchemaCompatibilityValidator rejects a doubleColumn predicate against an
+    // INT32/INT64/FIXED_LEN_BYTE_ARRAY/BINARY physical column at RowGroupFilter time (throws
+    // IllegalArgumentException), so any DECIMAL- or Float16-encoded column read as ESQL DOUBLE
+    // would crash a stats-based read. Build*Predicate / translateIn must peek at the file
+    // schema and refuse to translate those shapes, leaving the row to RECHECK / late-mat.
+    // These tests fail today (the predicate is built unconditionally) and pass after the fix.
+    // -----------------------------------------------------------------------------------
+
+    public void testDoubleEqAgainstDecimalInt32IsNotPushed() {
+        MessageType schema = Types.buildMessage().required(INT32).as(decimalType(2, 9)).named("price").named("test");
+        Expression expr = eq("price", DataType.DOUBLE, 100.0);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        assertNull("DOUBLE predicate against INT32+DECIMAL must be suppressed", pushed.toFilterPredicate(schema));
+    }
+
+    public void testDoubleEqAgainstDecimalInt64IsNotPushed() {
+        MessageType schema = Types.buildMessage().required(INT64).as(decimalType(2, 18)).named("price").named("test");
+        Expression expr = eq("price", DataType.DOUBLE, 100.0);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        assertNull("DOUBLE predicate against INT64+DECIMAL must be suppressed", pushed.toFilterPredicate(schema));
+    }
+
+    public void testDoubleEqAgainstDecimalFixedLenBinaryIsNotPushed() {
+        MessageType schema = Types.buildMessage()
+            .required(FIXED_LEN_BYTE_ARRAY)
+            .length(16)
+            .as(decimalType(2, 30))
+            .named("price")
+            .named("test");
+        Expression expr = eq("price", DataType.DOUBLE, 100.0);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        assertNull("DOUBLE predicate against FIXED_LEN_BYTE_ARRAY+DECIMAL must be suppressed", pushed.toFilterPredicate(schema));
+    }
+
+    public void testDoubleEqAgainstFloat16IsNotPushed() {
+        MessageType schema = Types.buildMessage().required(FIXED_LEN_BYTE_ARRAY).length(2).as(float16Type()).named("ratio").named("test");
+        Expression expr = eq("ratio", DataType.DOUBLE, 0.5);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        assertNull("DOUBLE predicate against FIXED_LEN_BYTE_ARRAY(2)+Float16 must be suppressed", pushed.toFilterPredicate(schema));
+    }
+
+    public void testDoubleInAgainstDecimalInt32IsNotPushed() {
+        MessageType schema = Types.buildMessage().required(INT32).as(decimalType(2, 9)).named("price").named("test");
+        Expression inExpr = new In(
+            Source.EMPTY,
+            attr("price", DataType.DOUBLE),
+            List.of(lit(100.0, DataType.DOUBLE), lit(200.0, DataType.DOUBLE))
+        );
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(inExpr));
+
+        assertNull("IN over DOUBLE against INT32+DECIMAL must be suppressed", pushed.toFilterPredicate(schema));
+    }
+
+    public void testDoubleRangeAgainstDecimalInt32IsNotPushed() {
+        // Range routes through buildPredicate twice (lower + upper); both must return null so
+        // the And built around them collapses and the whole Range is suppressed.
+        MessageType schema = Types.buildMessage().required(INT32).as(decimalType(2, 9)).named("price").named("test");
+        Expression range = new Range(
+            Source.EMPTY,
+            attr("price", DataType.DOUBLE),
+            lit(10.0, DataType.DOUBLE),
+            true,
+            lit(100.0, DataType.DOUBLE),
+            true,
+            ZoneOffset.UTC
+        );
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(range));
+
+        assertNull("Range over DOUBLE against INT32+DECIMAL must be suppressed", pushed.toFilterPredicate(schema));
+    }
+
+    public void testDoubleEqAgainstNativeDoubleColumnIsPushed() {
+        // No-regression: native DOUBLE physical must keep going through pushdown unchanged.
+        MessageType schema = Types.buildMessage().required(DOUBLE).named("score").named("test");
+        Expression expr = eq("score", DataType.DOUBLE, 0.5);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("score"));
     }
 
     // --- helpers ---

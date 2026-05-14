@@ -17,8 +17,8 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
  */
 public record StatelessReaderHeapMetrics(LongCounter refreshDeferredCounter) {
 
-    public static final String RESERVED_BYTES = "es.stateless.reader_heap.reserved.bytes";
-    public static final String BUDGET_BYTES = "es.stateless.reader_heap.budget.bytes";
+    public static final String RESERVED_SIZE = "es.stateless.reader_heap.reserved.size";
+    public static final String BUDGET_SIZE = "es.stateless.reader_heap.budget.size";
     public static final String REFRESH_DEFERRED_TOTAL = "es.stateless.reader_heap.refresh_deferred.total";
 
     public static final StatelessReaderHeapMetrics NOOP = new StatelessReaderHeapMetrics(
@@ -27,13 +27,13 @@ public record StatelessReaderHeapMetrics(LongCounter refreshDeferredCounter) {
 
     public static StatelessReaderHeapMetrics register(MeterRegistry registry, CircuitBreaker breaker) {
         registry.registerLongGauge(
-            RESERVED_BYTES,
+            RESERVED_SIZE,
             "Stateless reader-heap bytes currently reserved",
             "bytes",
             () -> new LongWithAttributes(breaker.getUsed())
         );
         registry.registerLongGauge(
-            BUDGET_BYTES,
+            BUDGET_SIZE,
             "Configured stateless reader-heap limit",
             "bytes",
             () -> new LongWithAttributes(breaker.getLimit())

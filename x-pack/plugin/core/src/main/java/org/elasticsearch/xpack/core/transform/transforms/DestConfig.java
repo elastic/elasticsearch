@@ -42,7 +42,7 @@ public class DestConfig implements Writeable, ToXContentObject {
     private static final Set<DocWriteRequest.OpType> VALID_OP_TYPES = Set.of(DocWriteRequest.OpType.INDEX, DocWriteRequest.OpType.CREATE);
 
     // The registered name must not change — it is the key used to look up the transport version at startup.
-    static final TransportVersion TRANSFORM_DEST_OP_TYPE = TransportVersion.fromName("transform_dest_write_action");
+    static final TransportVersion TRANSFORM_DEST_OP_TYPE = TransportVersion.fromName("transform_dest_op_type");
 
     public static final ConstructingObjectParser<DestConfig, Void> STRICT_PARSER = createParser(false);
     public static final ConstructingObjectParser<DestConfig, Void> LENIENT_PARSER = createParser(true);
@@ -67,16 +67,18 @@ public class DestConfig implements Writeable, ToXContentObject {
     }
 
     private static DocWriteRequest.OpType parseOpType(String opTypeStr) {
-        DocWriteRequest.OpType parsed;
         try {
-            parsed = DocWriteRequest.OpType.fromString(opTypeStr);
+            return requireValidOpType(DocWriteRequest.OpType.fromString(opTypeStr));
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("invalid op_type [" + opTypeStr + "], must be one of [index, create]");
         }
-        if (VALID_OP_TYPES.contains(parsed) == false) {
-            throw new IllegalArgumentException("invalid op_type [" + opTypeStr + "], must be one of [index, create]");
+    }
+
+    private static DocWriteRequest.OpType requireValidOpType(DocWriteRequest.OpType opType) {
+        if (VALID_OP_TYPES.contains(opType) == false) {
+            throw new IllegalArgumentException("invalid op_type [" + opType.getLowercase() + "], must be one of [index, create]");
         }
-        return parsed;
+        return opType;
     }
 
     private final String index;
@@ -92,7 +94,7 @@ public class DestConfig implements Writeable, ToXContentObject {
         this.index = ExceptionsHelper.requireNonNull(index, INDEX.getPreferredName());
         this.aliases = aliases;
         this.pipeline = pipeline;
-        this.opType = ExceptionsHelper.requireNonNull(opType, OP_TYPE.getPreferredName());
+        this.opType = requireValidOpType(ExceptionsHelper.requireNonNull(opType, OP_TYPE.getPreferredName()));
     }
 
     public DestConfig(final StreamInput in) throws IOException {

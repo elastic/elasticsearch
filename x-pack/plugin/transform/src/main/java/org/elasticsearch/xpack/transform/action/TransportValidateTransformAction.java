@@ -17,10 +17,12 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.License;
@@ -29,6 +31,7 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackFeatures;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
@@ -53,6 +56,8 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
     private final SourceDestValidator sourceDestValidator;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final FeatureService featureService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportValidateTransformAction(
@@ -63,7 +68,9 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         ClusterService clusterService,
         Settings settings,
         IngestService ingestService,
-        TransformServices transformServices
+        TransformServices transformServices,
+        FeatureService featureService,
+        ProjectResolver projectResolver
     ) {
         super(ValidateTransformAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
@@ -83,11 +90,29 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         );
         this.crossProjectModeDecider = transformServices.crossProjectModeDecider();
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.featureService = featureService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState clusterState = clusterService.state();
+
+        // Mixed-cluster gate: reject [dest.op_type: create] unless every node supports the feature. Without this guard,
+        // DestConfig.writeTo drops the op_type byte under the transport-version guard when talking to an older node,
+        // silently reverting an opted-in append-only transform to INDEX semantics. We enforce this even when
+        // defer_validation is set, since the transform may be started before the cluster is fully upgraded.
+        if (request.getConfig().getDestination().getOpType() == DocWriteRequest.OpType.CREATE
+            && featureService.clusterHasFeature(clusterState, XPackFeatures.TRANSFORM_DEST_OP_TYPE) == false) {
+            listener.onFailure(
+                new ValidationException().addValidationError(
+                    "[dest.op_type] is [create], but the feature is not yet supported by all nodes in the cluster; "
+                        + "please complete upgrades before creating a transform with [dest.op_type: create]."
+                )
+            );
+            return;
+        }
+
         if (request.isDeferValidation() == false) {
             TransformNodes.throwIfNoTransformNodes(clusterState);
             boolean requiresRemote = request.getConfig().getSource().requiresRemoteCluster();
@@ -163,7 +188,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
                     destinationIndex
                 );
                 boolean destExists = concreteIndices.length > 0
-                    || clusterState.metadata().getProject().dataStreams().containsKey(destinationIndex);
+                    || projectResolver.getProjectMetadata(clusterState).dataStreams().containsKey(destinationIndex);
                 if (destExists == false) {
                     l.onFailure(
                         new ValidationException().addValidationError(

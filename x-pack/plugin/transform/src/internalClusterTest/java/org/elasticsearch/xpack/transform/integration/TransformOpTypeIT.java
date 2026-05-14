@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.transform.integration;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
@@ -17,6 +18,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
@@ -169,7 +171,7 @@ public class TransformOpTypeIT extends TransformSingleNodeTestCase {
             .setLatestConfig(new LatestConfig(List.of("roll"), "time"))
             .build();
 
-        Exception e = expectThrows(Exception.class, () -> createTransform(config));
+        ValidationException e = expectThrows(ValidationException.class, () -> createTransform(config));
         assertThat(e.getMessage(), containsString("does not exist"));
         assertThat(e.getMessage(), containsString("op_type"));
     }
@@ -194,7 +196,7 @@ public class TransformOpTypeIT extends TransformSingleNodeTestCase {
             .setRetentionPolicyConfig(new TimeRetentionPolicyConfig("time", TimeValue.timeValueDays(1)))
             .build();
 
-        Exception e = expectThrows(Exception.class, () -> createTransform(config));
+        ActionRequestValidationException e = expectThrows(ActionRequestValidationException.class, () -> createTransform(config));
         assertThat(e.getMessage(), containsString("op_type: create"));
         assertThat(e.getMessage(), containsString("retention_policy"));
     }

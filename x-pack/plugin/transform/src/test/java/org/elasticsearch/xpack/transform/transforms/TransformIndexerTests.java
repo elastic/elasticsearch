@@ -801,7 +801,7 @@ public class TransformIndexerTests extends ESTestCase {
             responseListener.onResponse(
                 new BulkByScrollResponse(
                     TimeValue.ZERO,
-                    new BulkByScrollTask.Status(0, 0L, 0L, 0L, 0L, 0, 0L, 0L, 0L, 0L, TimeValue.ZERO, 0.0f, null, TimeValue.ZERO),
+                    new BulkByPaginatedSearchTask.Status(0, 0L, 0L, 0L, 0L, 0, 0L, 0L, 0L, 0L, TimeValue.ZERO, 0.0f, null, TimeValue.ZERO),
                     Collections.emptyList(),
                     Collections.emptyList(),
                     false
@@ -944,7 +944,8 @@ public class TransformIndexerTests extends ESTestCase {
                 new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
                 mock(TransformNode.class),
                 mock(CrossProjectModeDecider.class),
-                projectId -> false
+                projectId -> false,
+                mock(ProjectResolver.class)
             );
 
             WriteActionTransformIndexer indexer = new WriteActionTransformIndexer(

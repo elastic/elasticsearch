@@ -135,4 +135,11 @@ public class DestConfigTests extends AbstractSerializingTransformTestCase<DestCo
             assertThat(dest.getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
         }
     }
+
+    public void testConstructorRejectsInvalidOpType() {
+        DocWriteRequest.OpType invalid = randomFrom(DocWriteRequest.OpType.UPDATE, DocWriteRequest.OpType.DELETE);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new DestConfig("my-index", null, null, invalid));
+        assertThat(e.getMessage(), containsString("invalid op_type [" + invalid.getLowercase() + "]"));
+        assertThat(e.getMessage(), containsString("must be one of [index, create]"));
+    }
 }

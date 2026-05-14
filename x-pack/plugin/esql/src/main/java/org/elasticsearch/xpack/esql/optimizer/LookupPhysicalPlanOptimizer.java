@@ -25,7 +25,7 @@ import java.util.List;
  * Physical plan optimizer for the lookup node. Mirrors {@link LocalPhysicalPlanOptimizer} but with a
  * reduced rule set appropriate for lookup plans (rooted at ParameterizedQueryExec, not EsSourceExec).
  */
-public class LookupPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
+public class LookupPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LookupPhysicalOptimizerContext> {
 
     private static final Logger log = LogManager.getLogger(LookupPhysicalPlanOptimizer.class);
 
@@ -37,7 +37,7 @@ public class LookupPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physi
 
     private final PhysicalVerifier verifier = PhysicalVerifier.LOCAL_INSTANCE;
 
-    public LookupPhysicalPlanOptimizer(LocalPhysicalOptimizerContext context) {
+    public LookupPhysicalPlanOptimizer(LookupPhysicalOptimizerContext context) {
         super(context);
     }
 

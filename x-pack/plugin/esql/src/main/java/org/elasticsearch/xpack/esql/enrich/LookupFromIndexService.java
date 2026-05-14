@@ -58,8 +58,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LookupLogicalOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.LookupPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LookupPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -927,14 +927,13 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         LogicalPlan optimizedLogical = new LookupLogicalOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats))
             .localOptimize(logicalPlan);
         PhysicalPlan physicalPlan = LocalMapper.INSTANCE.map(optimizedLogical);
-        LocalPhysicalOptimizerContext context = new LocalPhysicalOptimizerContext(
+        LookupPhysicalOptimizerContext context = new LookupPhysicalOptimizerContext(
             plannerSettings,
             flags,
             configuration,
             foldCtx,
             searchStats,
-            aliasFilter,
-            null
+            aliasFilter
         );
         return new LookupPhysicalPlanOptimizer(context).optimize(physicalPlan);
     }

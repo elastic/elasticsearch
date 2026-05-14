@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -15,15 +14,30 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
-public record LocalPhysicalOptimizerContext(
-    PlannerSettings plannerSettings,
-    EsqlFlags flags,
-    Configuration configuration,
-    FoldContext foldCtx,
-    SearchStats searchStats,
-    AliasFilter aliasFilter,
-    FormatReaderRegistry formatReaderRegistry
-) {
+public class LocalPhysicalOptimizerContext {
+    private final PlannerSettings plannerSettings;
+    private final EsqlFlags flags;
+    private final Configuration configuration;
+    private final FoldContext foldCtx;
+    private final SearchStats searchStats;
+    private final FormatReaderRegistry formatReaderRegistry;
+
+    public LocalPhysicalOptimizerContext(
+        PlannerSettings plannerSettings,
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        SearchStats searchStats,
+        FormatReaderRegistry formatReaderRegistry
+    ) {
+        this.plannerSettings = plannerSettings;
+        this.flags = flags;
+        this.configuration = configuration;
+        this.foldCtx = foldCtx;
+        this.searchStats = searchStats;
+        this.formatReaderRegistry = formatReaderRegistry;
+    }
+
     /**
      * Convenience constructor without format reader registry (for backward compatibility and tests).
      */
@@ -34,20 +48,30 @@ public record LocalPhysicalOptimizerContext(
         FoldContext foldCtx,
         SearchStats searchStats
     ) {
-        this(plannerSettings, flags, configuration, foldCtx, searchStats, null, null);
+        this(plannerSettings, flags, configuration, foldCtx, searchStats, null);
     }
 
-    /**
-     * Convenience constructor without alias filter (for backward compatibility and tests).
-     */
-    public LocalPhysicalOptimizerContext(
-        PlannerSettings plannerSettings,
-        EsqlFlags flags,
-        Configuration configuration,
-        FoldContext foldCtx,
-        SearchStats searchStats,
-        FormatReaderRegistry formatReaderRegistry
-    ) {
-        this(plannerSettings, flags, configuration, foldCtx, searchStats, null, formatReaderRegistry);
+    public PlannerSettings plannerSettings() {
+        return plannerSettings;
+    }
+
+    public EsqlFlags flags() {
+        return flags;
+    }
+
+    public Configuration configuration() {
+        return configuration;
+    }
+
+    public FoldContext foldCtx() {
+        return foldCtx;
+    }
+
+    public SearchStats searchStats() {
+        return searchStats;
+    }
+
+    public FormatReaderRegistry formatReaderRegistry() {
+        return formatReaderRegistry;
     }
 }

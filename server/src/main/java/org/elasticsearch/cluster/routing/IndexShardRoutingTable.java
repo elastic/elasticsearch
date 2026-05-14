@@ -16,7 +16,6 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -271,28 +270,6 @@ public class IndexShardRoutingTable {
     }
 
     /**
-     * Feature flag for ARS probing of stat-less nodes. When enabled:
-     * <ul>
-     *   <li>Nodes without EWMA stats are probed ahead of measured nodes to build initial stats,
-     *       bounded by {@link #PROBE_INFLIGHT_CAP}.</li>
-     *   <li>Null ranks (no stats, above cap) sort last so stat-less nodes are deprioritized.</li>
-     * </ul>
-     * When disabled, the original ARS behavior is preserved: null ranks sort first and no
-     * probing is applied.
-     */
-    private static final FeatureFlag ARS_PROBING_FEATURE_FLAG = new FeatureFlag("ars_probing");
-
-    /**
-     * Maximum number of concurrent in-flight requests to a stat-less data node before it stops
-     * being probed. This is a per-coordinator cap — each coordinating node tracks its own
-     * in-flight counts independently, so the effective global cap for probes targeting a single
-     * data node is {@code PROBE_INFLIGHT_CAP * number_of_coordinators}. Caps the initial burst
-     * while the node builds EWMA stats from its first completed requests. Set to 0 (disabled)
-     * when the feature flag is off.
-     */
-    public static final long PROBE_INFLIGHT_CAP = ARS_PROBING_FEATURE_FLAG.isEnabled() ? 2 : 0;
-
-    /**
      * Computes a rank for each node based on its adaptive replica selection (ARS) stats.
      * Nodes with stats are ranked using the C3 formula via {@link ResponseCollectorService.ComputedNodeStats#rank}.
      * Nodes without stats (e.g. newly joined) are assigned {@code Math.nextDown(bestRank)} so they
@@ -325,7 +302,8 @@ public class IndexShardRoutingTable {
      *                         warming-up node before the in-flight gate kicks in
      * @param warmupSamples    minimum observation count for a peer to be considered warm; {@code 0}
      *                         disables both warmup protections (clamp and in-flight gate during warmup)
-     * @return map of node ID to computed rank; nodes above the in-flight cap with sparse stats are absent
+     * @return map of node ID to rank; stat-less nodes outside the cap, and all stat-less nodes when
+     *         {@code probeInflightCap} is 0, have no entry and sort per the caller's comparator
      */
     static Map<String, Double> rankNodes(
         final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats,
@@ -457,13 +435,19 @@ public class IndexShardRoutingTable {
         // Retrieve which nodes we can potentially send the query to
         final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats = getNodeStats(shards, collector);
 
-        // Warmup smoothing only applies when probing is on (the gate creates the cold→warm
-        // transition the smoothing is designed to bridge). With probing off, behavior is unchanged.
-        final int warmupSamples = ARS_PROBING_FEATURE_FLAG.isEnabled() ? arsContext.warmupSamples() : 0;
+        // Zeroing the cap suppresses probe candidates; probeEnabled also selects the null-rank
+        // sort order and enables warmup smoothing.
+        final long probeInflightCap = arsContext.probeEnabled() ? arsContext.probeInflightCap() : 0L;
+        final int warmupSamples = arsContext.probeEnabled() ? arsContext.warmupSamples() : 0;
 
         // sort all shards based on the shard rank
         ArrayList<ShardRouting> sortedShards = new ArrayList<>(shards);
-        sortedShards.sort(new NodeRankComparator(rankNodes(nodeStats, snapshotCounts, liveCounts, PROBE_INFLIGHT_CAP, warmupSamples)));
+        sortedShards.sort(
+            new NodeRankComparator(
+                rankNodes(nodeStats, snapshotCounts, liveCounts, probeInflightCap, warmupSamples),
+                arsContext.probeEnabled()
+            )
+        );
 
         // Blend the winner's stats into non-winner nodes so their stale EWMA values
         // gradually converge toward the winner's, preventing permanent starvation.
@@ -487,24 +471,22 @@ public class IndexShardRoutingTable {
     }
 
     private static class NodeRankComparator implements Comparator<ShardRouting> {
-        /**
-         * When ARS probing is enabled, null ranks (missing stats) sort after all ranked nodes so that
-         * stat-less nodes are deprioritized. When disabled, null ranks sort first to preserve the
-         * original ARS behavior.
-         */
-        private static final Comparator<Double> RANK_COMPARATOR = ARS_PROBING_FEATURE_FLAG.isEnabled()
-            ? Comparator.nullsLast(Double::compare)
-            : Comparator.nullsFirst(Double::compare);
+        private static final Comparator<Double> PROBE_ON_COMPARATOR = Comparator.nullsLast(Double::compare);
+        private static final Comparator<Double> PROBE_OFF_COMPARATOR = Comparator.nullsFirst(Double::compare);
 
         private final Map<String, Double> nodeRanks;
+        private final Comparator<Double> rankComparator;
 
-        NodeRankComparator(Map<String, Double> nodeRanks) {
+        NodeRankComparator(Map<String, Double> nodeRanks, boolean probeEnabled) {
             this.nodeRanks = nodeRanks;
+            // When probing is on, unranked nodes (above cap or no stats) sort last.
+            // When probing is off, unranked nodes sort first to preserve original ARS behavior.
+            this.rankComparator = probeEnabled ? PROBE_ON_COMPARATOR : PROBE_OFF_COMPARATOR;
         }
 
         @Override
         public int compare(ShardRouting s1, ShardRouting s2) {
-            return RANK_COMPARATOR.compare(nodeRanks.get(s1.currentNodeId()), nodeRanks.get(s2.currentNodeId()));
+            return rankComparator.compare(nodeRanks.get(s1.currentNodeId()), nodeRanks.get(s2.currentNodeId()));
         }
     }
 

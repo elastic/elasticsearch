@@ -2600,6 +2600,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             responseCollectorService,
             searchTransportService.getPendingSearchRequests(),
             searchTransportService.getLiveClientConnections(),
+            operationRouting.isAdaptiveReplicaSelectionProbeEnabled(),
+            operationRouting.getAdaptiveReplicaSelectionProbeInflightCap(),
             operationRouting.getAdaptiveReplicaSelectionWarmupSamples()
         );
         List<SearchShardRouting> shardRoutings = operationRouting.searchShards(

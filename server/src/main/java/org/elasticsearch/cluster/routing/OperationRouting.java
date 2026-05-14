@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
@@ -37,6 +38,14 @@ import java.util.stream.Collectors;
 public class OperationRouting {
 
     /**
+     * Feature flag for ARS probing of stat-less nodes. Controls the default value of
+     * {@link #ADAPTIVE_REPLICA_SELECTION_PROBE_ENABLED_SETTING}: enabled in snapshot/test builds,
+     * disabled otherwise. Once the feature is stable the flag will be removed and the setting
+     * default will become {@code true} unconditionally.
+     */
+    static final FeatureFlag ARS_PROBING_FEATURE_FLAG = new FeatureFlag("ars_probing");
+
+    /**
      * Bundles the state needed for adaptive replica selection (ARS) routing decisions.
      *
      * @param collector        collects per-node EWMA stats (queue size, response time, service time)
@@ -44,6 +53,11 @@ public class OperationRouting {
      *                         incremented locally for multi-shard spreading within a single search
      * @param liveCounts       read-only live view of in-flight counts, used by the probe cap to
      *                         see real concurrent load across searches
+     * @param probeEnabled     whether ARS probing of stat-less and warming-up nodes is active;
+     *                         when {@code false} the original ARS behavior is preserved
+     * @param probeInflightCap per-coordinator cap on in-flight requests to a stat-less or warming-up
+     *                         node before probing is suspended; see
+     *                         {@link #ADAPTIVE_REPLICA_SELECTION_PROBE_INFLIGHT_CAP_SETTING}
      * @param warmupSamples    minimum observation count for a peer to be considered warm; below
      *                         this threshold a peer is subject to the in-flight cap and the rank
      *                         clamp; {@code 0} disables both warmup protections
@@ -52,6 +66,8 @@ public class OperationRouting {
         ResponseCollectorService collector,
         Map<String, Long> snapshotCounts,
         Map<String, Long> liveCounts,
+        boolean probeEnabled,
+        long probeInflightCap,
         int warmupSamples
     ) {}
 
@@ -63,19 +79,39 @@ public class OperationRouting {
     );
 
     /**
-     * Minimum observation count for a peer to be considered warm. Below this threshold a peer is
-     * <em>warming up</em> and is subject to two protections in the ARS routing decision: the same
-     * in-flight cap as stat-less probes ({@link IndexShardRoutingTable#PROBE_INFLIGHT_CAP}) and a rank clamp that pegs
-     * its rank to the lowest warm peer's rank. Once a peer's observation count reaches the
-     * threshold both protections release and the peer ranks on standard C3 terms.
+     * Controls ARS probing of stat-less and warming-up nodes. When {@code false} the original ARS
+     * behavior is preserved: unranked nodes sort first and no probing or warmup smoothing is applied.
      * <p>
-     * Higher values keep a freshly probed node under the cap and clamp longer, giving its EWMA
-     * stats more time to converge under sustained load before full participation. The default is
-     * sized so that, at typical request rates, a node has experienced several rounds of cap
-     * saturation before graduating — by which point its bare rank reflects real, not light-probe,
-     * performance.
-     * <p>
-     * Internal tuning surface — not advertised in user docs; {@code 0} disables both warmup
+     * Defaults to {@link #ARS_PROBING_FEATURE_FLAG}: enabled in snapshot/test builds, disabled in
+     * release builds. Once stable, the flag will be removed and the default becomes {@code true}.
+     */
+    public static final Setting<Boolean> ADAPTIVE_REPLICA_SELECTION_PROBE_ENABLED_SETTING = Setting.boolSetting(
+        "cluster.routing.use_adaptive_replica_selection.probe_enabled",
+        ARS_PROBING_FEATURE_FLAG.isEnabled(),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Per-coordinator cap on concurrent in-flight requests to a stat-less or warming-up data node
+     * before probing is suspended. The effective global cap for probes targeting one node is
+     * {@code probe_inflight_cap × number_of_coordinators}. Set to {@code 0} to suppress probing
+     * while keeping the feature enabled. Internal tuning surface — not advertised in user docs.
+     */
+    public static final Setting<Long> ADAPTIVE_REPLICA_SELECTION_PROBE_INFLIGHT_CAP_SETTING = Setting.longSetting(
+        "cluster.routing.use_adaptive_replica_selection.probe_inflight_cap",
+        2L,
+        0L,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Observation count below which a peer is considered <em>warming up</em>. Warming-up peers
+     * are subject to the same in-flight cap as stat-less probes and a rank clamp that pegs their
+     * rank to the best warm peer, preventing sparse EWMA stats from making them look artificially
+     * fast. Both protections release once the threshold is reached and the peer ranks on standard
+     * C3 terms. Internal tuning surface — not advertised in user docs; {@code 0} disables both
      * protections.
      */
     public static final Setting<Integer> ADAPTIVE_REPLICA_SELECTION_WARMUP_SAMPLES_SETTING = Setting.intSetting(
@@ -87,14 +123,26 @@ public class OperationRouting {
         Setting.Property.NodeScope
     );
 
-    private boolean useAdaptiveReplicaSelection;
+    private volatile boolean useAdaptiveReplicaSelection;
+    private volatile boolean adaptiveReplicaSelectionProbeEnabled;
+    private volatile long adaptiveReplicaSelectionProbeInflightCap;
     private volatile int adaptiveReplicaSelectionWarmupSamples;
 
     @SuppressWarnings("this-escape")
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
         this.useAdaptiveReplicaSelection = USE_ADAPTIVE_REPLICA_SELECTION_SETTING.get(settings);
+        this.adaptiveReplicaSelectionProbeEnabled = ADAPTIVE_REPLICA_SELECTION_PROBE_ENABLED_SETTING.get(settings);
+        this.adaptiveReplicaSelectionProbeInflightCap = ADAPTIVE_REPLICA_SELECTION_PROBE_INFLIGHT_CAP_SETTING.get(settings);
         this.adaptiveReplicaSelectionWarmupSamples = ADAPTIVE_REPLICA_SELECTION_WARMUP_SAMPLES_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(USE_ADAPTIVE_REPLICA_SELECTION_SETTING, this::setUseAdaptiveReplicaSelection);
+        clusterSettings.addSettingsUpdateConsumer(
+            ADAPTIVE_REPLICA_SELECTION_PROBE_ENABLED_SETTING,
+            this::setAdaptiveReplicaSelectionProbeEnabled
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            ADAPTIVE_REPLICA_SELECTION_PROBE_INFLIGHT_CAP_SETTING,
+            this::setAdaptiveReplicaSelectionProbeInflightCap
+        );
         clusterSettings.addSettingsUpdateConsumer(
             ADAPTIVE_REPLICA_SELECTION_WARMUP_SAMPLES_SETTING,
             this::setAdaptiveReplicaSelectionWarmupSamples
@@ -105,8 +153,24 @@ public class OperationRouting {
         this.useAdaptiveReplicaSelection = useAdaptiveReplicaSelection;
     }
 
+    void setAdaptiveReplicaSelectionProbeEnabled(boolean probeEnabled) {
+        this.adaptiveReplicaSelectionProbeEnabled = probeEnabled;
+    }
+
+    void setAdaptiveReplicaSelectionProbeInflightCap(long probeInflightCap) {
+        this.adaptiveReplicaSelectionProbeInflightCap = probeInflightCap;
+    }
+
     void setAdaptiveReplicaSelectionWarmupSamples(int adaptiveReplicaSelectionWarmupSamples) {
         this.adaptiveReplicaSelectionWarmupSamples = adaptiveReplicaSelectionWarmupSamples;
+    }
+
+    public boolean isAdaptiveReplicaSelectionProbeEnabled() {
+        return adaptiveReplicaSelectionProbeEnabled;
+    }
+
+    public long getAdaptiveReplicaSelectionProbeInflightCap() {
+        return adaptiveReplicaSelectionProbeInflightCap;
     }
 
     public int getAdaptiveReplicaSelectionWarmupSamples() {

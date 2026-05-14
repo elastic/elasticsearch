@@ -1,0 +1,5 @@
+area: ESQL
+issues: []
+PR: 149052
+summary: Synchronize warning registration in Warnings to stabilize flaky FUSE RRF multi-node warning assertions
+type: bug

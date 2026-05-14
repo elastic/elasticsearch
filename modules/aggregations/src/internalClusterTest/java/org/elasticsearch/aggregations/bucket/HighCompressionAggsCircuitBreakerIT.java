@@ -153,7 +153,5 @@ public class HighCompressionAggsCircuitBreakerIT extends AggregationIntegTestCas
             docs.add(prepareIndex(INDEX).setOpType(DocWriteRequest.OpType.CREATE).setSource(doc));
         }
         indexRandom(true, false, false, false, docs);
-        forceMerge(false);
-        flushAndRefresh(INDEX);
     }
 }

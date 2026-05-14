@@ -1482,4 +1482,3 @@ FROM employees METADATA _index | WHERE _index LIKE "employ??es" | KEEP emp_no;
 
 emp_no:integer
 ;
-

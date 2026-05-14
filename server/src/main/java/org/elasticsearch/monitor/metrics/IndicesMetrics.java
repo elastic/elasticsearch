@@ -271,7 +271,10 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
         long count = 0;
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
-                count += indexShard.mapperService().mappingLookup().getTotalFieldsCount();
+                var mapperService = indexShard.mapperService();
+                if (mapperService.mappingLookup() != null) {
+                    count += indexShard.mapperService().mappingLookup().getTotalFieldsCount();
+                }
             }
         }
         return count;

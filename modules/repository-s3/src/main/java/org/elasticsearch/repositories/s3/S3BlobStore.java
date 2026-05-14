@@ -151,8 +151,8 @@ class S3BlobStore implements BlobStore {
         this.maxCopySizeBeforeMultipart = service.settings(projectId, repositoryMetadata).maxCopySizeBeforeMultipart;
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
-        this.dataStorageClass = initStorageClass(dataStorageClass);
-        this.metadataStorageClass = initStorageClass(metadataStorageClass);
+        this.dataStorageClass = Strings.hasText(storageClass) ? initStorageClass(dataStorageClass) : this.storageClass;
+        this.metadataStorageClass = Strings.hasText(metadataStorageClass) ? initStorageClass(metadataStorageClass) : this.storageClass;
         this.supportsConditionalWrites = supportConditionalWrites;
         this.repositoryMetadata = repositoryMetadata;
         this.threadPool = threadPool;

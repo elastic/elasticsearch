@@ -1091,7 +1091,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), Matchers.is(buildExpectationFloat(List.of(new float[] { -0.0123F, 0.0123F }))));
+            assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { -0.0123F, 0.0123F }))));
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(
@@ -1101,8 +1101,8 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), Matchers.is(1));
-            assertThat(requestMap.get("inputs"), Matchers.is(List.of("abc")));
+            assertThat(requestMap.size(), is(1));
+            assertThat(requestMap.get("inputs"), is(List.of("abc")));
         }
     }
 
@@ -1145,7 +1145,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
 
             assertThat(
                 result.asMap(),
-                Matchers.is(
+                is(
                     SparseEmbeddingResultsTests.buildExpectationSparseEmbeddings(
                         List.of(new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of(".", 0.13315596f), false))
                     )
@@ -1160,8 +1160,8 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), Matchers.is(1));
-            assertThat(requestMap.get("inputs"), Matchers.is(List.of("abc")));
+            assertThat(requestMap.size(), is(1));
+            assertThat(requestMap.get("inputs"), is(List.of("abc")));
         }
     }
 
@@ -1207,11 +1207,11 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
 
             var rankedDocsResults = (RankedDocsResults) result;
             var rankedDocs = rankedDocsResults.getRankedDocs();
-            assertThat(rankedDocs.size(), Matchers.is(2));
-            assertThat(rankedDocs.get(0).relevanceScore(), Matchers.is(1.11111111111111111F));
-            assertThat(rankedDocs.get(0).index(), Matchers.is(1));
-            assertThat(rankedDocs.get(1).relevanceScore(), Matchers.is(-0.22222222222222222F));
-            assertThat(rankedDocs.get(1).index(), Matchers.is(4));
+            assertThat(rankedDocs.size(), is(2));
+            assertThat(rankedDocs.get(0).relevanceScore(), is(1.11111111111111111F));
+            assertThat(rankedDocs.get(0).index(), is(1));
+            assertThat(rankedDocs.get(1).relevanceScore(), is(-0.22222222222222222F));
+            assertThat(rankedDocs.get(1).index(), is(4));
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().getFirst().getUri().getQuery());
@@ -1221,7 +1221,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             );
             assertThat(
                 webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION),
-                CoreMatchers.is(Strings.format("Bearer %s", API_KEY_VALUE))
+                is(Strings.format("Bearer %s", API_KEY_VALUE))
             );
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
@@ -1232,7 +1232,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             if (returnDocuments != null) {
                 expectedRequestMap.put("return_text", returnDocuments);
             }
-            assertThat(requestMap, Matchers.is(expectedRequestMap));
+            assertThat(requestMap, is(expectedRequestMap));
         }
     }
 
@@ -1264,10 +1264,10 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             service.rerankInfer(model, new RerankRequest(inputs, query, null, null, new HashMap<>()), null, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
-            assertThat(thrownException.status(), Matchers.is(RestStatus.BAD_REQUEST));
+            assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
             assertThat(
                 thrownException.getMessage(),
-                Matchers.is("The hugging_face service does not support rerank with non-text inputs or queries")
+                is("The hugging_face service does not support rerank with non-text inputs or queries")
             );
         }
     }
@@ -1321,8 +1321,8 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), Matchers.is(1));
-            assertThat(requestMap.get("inputs"), Matchers.is(List.of("abc")));
+            assertThat(requestMap.size(), is(1));
+            assertThat(requestMap.get("inputs"), is(List.of("abc")));
         }
     }
 
@@ -1377,8 +1377,8 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), Matchers.is(1));
-            assertThat(requestMap.get("inputs"), Matchers.is(List.of("abc")));
+            assertThat(requestMap.size(), is(1));
+            assertThat(requestMap.get("inputs"), is(List.of("abc")));
         }
     }
 

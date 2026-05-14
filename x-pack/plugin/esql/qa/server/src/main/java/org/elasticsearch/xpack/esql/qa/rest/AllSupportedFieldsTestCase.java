@@ -204,6 +204,19 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return clusterHasCapability("PUT", "/{index}", List.of(), List.of("vectordb_document_index_mode")).orElse(false);
     }
 
+    private static Boolean flattenedDatatypeSortedKeysSupported;
+
+    private boolean flattenedDatatypeSortedKeysSupported() throws IOException {
+        if (flattenedDatatypeSortedKeysSupported == null) {
+            flattenedDatatypeSortedKeysSupported = fetchFlattenedDatatypeSortedKeysSupported();
+        }
+        return flattenedDatatypeSortedKeysSupported;
+    }
+
+    protected boolean fetchFlattenedDatatypeSortedKeysSupported() throws IOException {
+        return clusterHasCapability("GET", "/_query", List.of(), List.of("FLATTENED_DATATYPE_SORTED_KEYS")).orElse(false);
+    }
+
     protected boolean lookupJoinOnAllIndicesSupported() throws IOException {
         return true;
     }
@@ -457,7 +470,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         boolean expectMetadataFields,
         boolean expectNonEnrichableFields,
         String indexName
-    ) {
+    ) throws IOException {
+        boolean flattenedSortedKeys = flattenedDatatypeSortedKeysSupported();
         MapMatcher expectedValues = matchesMap();
         expectedValues = expectedValues.entry(LOOKUP_ID_FIELD, equalTo(123));
         for (DataType type : DataType.values()) {
@@ -469,7 +483,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             }
             expectedValues = expectedValues.entry(
                 fieldName(type),
-                expectedValue(type, coordinatorVersion, minimumVersionAcrossInvolvedNodes, indexMode, extractPreference)
+                expectedValue(type, coordinatorVersion, minimumVersionAcrossInvolvedNodes, indexMode, extractPreference, flattenedSortedKeys)
             );
         }
         if (expectMetadataFields) {
@@ -1039,7 +1053,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         TransportVersion coordinatorVersion,
         TransportVersion minimumVersion,
         IndexMode indexMode,
-        MappedFieldType.FieldExtractPreference extractPreference
+        MappedFieldType.FieldExtractPreference extractPreference,
+        boolean flattenedSortedKeys
     ) {
         return switch (type) {
             case BOOLEAN -> equalTo(true);
@@ -1120,6 +1135,21 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                         .entry("d", "baz")
                         .entry("e", "qux")
                         .entry("j", "bleh");
+                    if (extractPreference == MappedFieldType.FieldExtractPreference.STORED && flattenedSortedKeys == false) {
+                        /*
+                         * Old nodes use the raw source fetcher for STORED preference, which
+                         * returns nested objects rather than dot-notation keys. Accept either
+                         * format during rolling upgrades.
+                         */
+                        yield anyOf(
+                            values,
+                            matchesMap().entry("a", Map.of("c", "bar"))
+                                .entry("b", "foo")
+                                .entry("d", "baz")
+                                .entry("e", "qux")
+                                .entry("j", "bleh")
+                        );
+                    }
                     if (isSingleNodeSnapshot()) {
                         /*
                          * Only assert that keys come back in sorted order because

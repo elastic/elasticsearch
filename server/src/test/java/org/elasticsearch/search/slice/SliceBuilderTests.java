@@ -68,7 +68,7 @@ public class SliceBuilderTests extends ESTestCase {
         int max = randomIntBetween(2, MAX_SLICE);
         int id = randomIntBetween(1, max - 1);
         String field = randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null;
-        return randomBoolean() ? new SliceBuilder(field, id, max) : SliceBuilder.withoutShardOptimization(new SliceBuilder(field, id, max));
+        return new SliceBuilder(field, id, max);
     }
 
     private static SliceBuilder serializedCopy(SliceBuilder original) throws IOException {

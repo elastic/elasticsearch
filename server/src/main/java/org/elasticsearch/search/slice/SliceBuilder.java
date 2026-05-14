@@ -52,14 +52,12 @@ public class SliceBuilder implements Writeable, ToXContentObject {
     private static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField ID_FIELD = new ParseField("id");
     private static final ParseField MAX_FIELD = new ParseField("max");
-    private static final ParseField OPTIMIZE_BY_SHARD_FIELD = new ParseField("optimize_by_shard");
     private static final ObjectParser<SliceBuilder, Void> PARSER = new ObjectParser<>("slice", SliceBuilder::new);
 
     static {
         PARSER.declareString(SliceBuilder::setField, FIELD_FIELD);
         PARSER.declareInt(SliceBuilder::setId, ID_FIELD);
         PARSER.declareInt(SliceBuilder::setMax, MAX_FIELD);
-        PARSER.declareBoolean(SliceBuilder::setOptimizeByShard, OPTIMIZE_BY_SHARD_FIELD);
     }
 
     /** Name of field to slice against. If null, a default slicing strategy is used. */
@@ -195,9 +193,6 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         }
         builder.field(ID_FIELD.getPreferredName(), id);
         builder.field(MAX_FIELD.getPreferredName(), max);
-        if (optimizeByShard == false) {
-            builder.field(OPTIMIZE_BY_SHARD_FIELD.getPreferredName(), optimizeByShard);
-        }
     }
 
     public static SliceBuilder fromXContent(XContentParser parser) throws IOException {

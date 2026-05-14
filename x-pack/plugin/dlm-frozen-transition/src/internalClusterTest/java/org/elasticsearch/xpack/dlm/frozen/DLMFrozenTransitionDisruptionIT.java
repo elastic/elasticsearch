@@ -487,8 +487,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-team/issues/2815")
     public void testMasterFailoverDuringMarkReadOnly() throws Exception {
-        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
-
         String candidateIndex = setupClusterAndInfrastructure(3);
         CountDownLatch latch = registerMasterFailoverInterceptor(TransportAddIndexBlockAction.TYPE.name());
         triggerRollover();
@@ -506,8 +504,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-team/issues/2815")
     public void testMasterFailoverDuringClone() throws Exception {
-        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
-
         String candidateIndex = setupClusterAndInfrastructure(3);
         CountDownLatch latch = registerMasterFailoverInterceptor(TransportResizeAction.TYPE.name());
         triggerRollover();
@@ -524,8 +520,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      */
     @AwaitsFix(bugUrl = "")
     public void testMasterFailoverDuringForceMerge() throws Exception {
-        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
-
         String candidateIndex = setupClusterAndInfrastructure(3);
         CountDownLatch latch = registerMasterFailoverInterceptor("indices:admin/forcemerge");
         triggerRollover();
@@ -543,8 +537,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      */
     @AwaitsFix(bugUrl = "")
     public void testMasterFailoverDuringSnapshot() throws Exception {
-        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
-
         String candidateIndex = setupClusterAndInfrastructure(3);
         CountDownLatch latch = registerMasterFailoverInterceptor(TransportGetSnapshotsAction.TYPE.name());
         triggerRollover();
@@ -561,8 +553,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-team/issues/2815")
     public void testMasterFailoverDuringMountSnapshot() throws Exception {
-        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
-
         String candidateIndex = setupClusterAndInfrastructure(3);
         CountDownLatch latch = registerMasterFailoverInterceptor("cluster:admin/snapshot/mount");
         triggerRollover();
@@ -580,8 +570,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-team/issues/2815")
     public void testMasterFailoverDuringCleanup() throws Exception {
-        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
-
         String candidateIndex = setupClusterAndInfrastructure(3);
         CountDownLatch latch = registerMasterFailoverInterceptor("indices:admin/data_stream/modify");
         triggerRollover();

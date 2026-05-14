@@ -106,7 +106,16 @@ public final class ByteMatchers {
     /**
      * Returns {@code true} iff {@code value} contains {@code literal} as a contiguous subsequence.
      * An empty literal matches every value (including an empty one). Routes through the SIMD
-     * substring search exposed by {@link BinaryDocValuesContainsTermQuery}.
+     * substring search exposed by {@link BinaryDocValuesContainsTermQuery#contains(byte[], int,
+     * int, BytesRef)}.
+     *
+     * <p>The Lucene query class is used purely as a static-method shim around
+     * {@code ESVectorUtil#contains}: {@code simdvec}'s module exports the SIMD utility only to
+     * {@code org.elasticsearch.server}, so plugins (unnamed modules) cannot import it directly.
+     * Calling it through this server-side neighbor keeps the SIMD intent without forcing every
+     * consumer plugin to add a {@code simdvec} dependency it cannot legally use at runtime. If
+     * the shim ever moves to a more semantically-named {@code :server} home, only this method
+     * needs to change.
      */
     public static boolean containsLiteral(BytesRef value, BytesRef literal) {
         if (literal.length == 0) {

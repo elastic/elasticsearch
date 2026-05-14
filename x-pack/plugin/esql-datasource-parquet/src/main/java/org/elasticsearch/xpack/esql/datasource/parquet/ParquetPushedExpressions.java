@@ -1258,14 +1258,8 @@ final class ParquetPushedExpressions {
         if (compiled.matchesAll) {
             return maskNonNullRows(block, rowCount);
         }
-        ByteRunAutomaton runner = compiled.matcher;
-        // For case-sensitive patterns of the affix-contains family (prefix*literal*suffix and all
-        // degenerate forms), dispatch the per-byte loop through ByteMatchers#affixContains rather
-        // than the automaton: short JDK-intrinsified affix equality + the SIMD-backed contains
-        // helper. Profiling on URL columns (LIKE "*google*") showed evaluateWildcardLike at ~25%
-        // CPU dominated by ByteRunAutomaton state transitions; the affix-contains dispatch
-        // shortens the hot loop substantially once values clear the SIMD activation threshold.
-        Predicate<BytesRef> matcher = matcherFor(compiled, runner);
+        // Use the affix-contains dispatch when the pattern matches that shape; see CompiledWildcard.
+        Predicate<BytesRef> matcher = matcherFor(compiled);
         if (block instanceof OrdinalBytesRefBlock obb && shouldShortCircuitOnDictionary(obb)) {
             WordMask mask = new WordMask();
             mask.reset(rowCount);
@@ -1293,7 +1287,7 @@ final class ParquetPushedExpressions {
         return null;
     }
 
-    private static Predicate<BytesRef> matcherFor(CompiledWildcard compiled, ByteRunAutomaton runner) {
+    private static Predicate<BytesRef> matcherFor(CompiledWildcard compiled) {
         WildcardLikeShape shape = compiled.shape();
         if (shape != null) {
             BytesRef prefix = shape.prefix();
@@ -1301,6 +1295,7 @@ final class ParquetPushedExpressions {
             BytesRef suffix = shape.suffix();
             return entry -> ByteMatchers.affixContains(entry, prefix, literal, suffix);
         }
+        ByteRunAutomaton runner = compiled.matcher;
         return entry -> runner.run(entry.bytes, entry.offset, entry.length);
     }
 

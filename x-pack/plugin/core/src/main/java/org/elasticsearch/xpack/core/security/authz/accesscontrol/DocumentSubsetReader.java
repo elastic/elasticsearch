@@ -17,13 +17,14 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
-import org.elasticsearch.lucene.util.CombinedBitSet;
+import org.elasticsearch.lucene.util.CombinedBits;
 import org.elasticsearch.lucene.util.MatchAllBitSet;
 import org.elasticsearch.transport.Transports;
 
@@ -66,14 +67,22 @@ public final class DocumentSubsetReader extends SequentialStoredFieldsLeafReader
             // slow
             return roleQueryBits.cardinality();
         } else {
-            // very slow, but necessary in order to be correct
+            // slower, but necessary in order to be correct
             int numDocs = 0;
-            DocIdSetIterator it = new BitSetIterator(roleQueryBits, 0L); // we don't use the cost
+            // Temporary bit set, just to do the counting
+            FixedBitSet bitSet = new FixedBitSet(1024);
+            DocIdSetIterator roleBitsIterator = new BitSetIterator(roleQueryBits, 0L); // we don't use the cost
             try {
-                for (int doc = it.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
-                    if (liveDocs.get(doc)) {
-                        numDocs++;
-                    }
+                for (int from = roleBitsIterator.nextDoc(); from != DocIdSetIterator.NO_MORE_DOCS; from = roleBitsIterator.docID()) {
+                    bitSet.clear();
+
+                    // OR role bits into `bitSet`
+                    int upTo = (int) Math.min((long) from + bitSet.length(), Integer.MAX_VALUE);
+                    roleBitsIterator.intoBitSet(upTo, bitSet, from);
+
+                    // And then AND live doc bits into `bitSet`
+                    liveDocs.applyMask(bitSet, from);
+                    numDocs += bitSet.cardinality();
                 }
                 return numDocs;
             } catch (IOException e) {
@@ -204,7 +213,7 @@ public final class DocumentSubsetReader extends SequentialStoredFieldsLeafReader
             return roleQueryBits;
         } else {
             // apply deletes when needed:
-            return new CombinedBitSet(roleQueryBits, actualLiveDocs);
+            return new CombinedBits(roleQueryBits, actualLiveDocs);
         }
     }
 

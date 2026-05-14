@@ -19,7 +19,9 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Simulates the impact to each node's write-load in response to the movement of individual
@@ -30,11 +32,14 @@ public class ShardMovementWriteLoadSimulator {
     private final Map<String, NodeUsageStatsForThreadPools> originalNodeUsageStatsForThreadPools;
     private final ObjectDoubleMap<String> simulatedNodeWriteLoadDeltas;
     private final Map<ShardId, Double> writeLoadsPerShard;
+    // The set to track whether a node has seen a shard move away from it
+    private final Set<String> nodesWithMovedAwayShard;
 
     public ShardMovementWriteLoadSimulator(RoutingAllocation routingAllocation) {
         this.originalNodeUsageStatsForThreadPools = routingAllocation.clusterInfo().getNodeUsageStatsForThreadPools();
         this.writeLoadsPerShard = routingAllocation.clusterInfo().getShardWriteLoads();
         this.simulatedNodeWriteLoadDeltas = new ObjectDoubleHashMap<>();
+        this.nodesWithMovedAwayShard = new HashSet<>();
     }
 
     public void simulateShardStarted(ShardRouting shardRouting) {
@@ -53,6 +58,10 @@ public class ShardMovementWriteLoadSimulator {
                 simulatedNodeWriteLoadDeltas.addTo(shardRouting.currentNodeId(), writeLoadForShard);
             }
         }
+        // Always record the moving shard regardless whether its write load is adjusted
+        if (shardRouting.relocatingNodeId() != null) {
+            nodesWithMovedAwayShard.add(shardRouting.relocatingNodeId());
+        }
     }
 
     /**
@@ -63,13 +72,17 @@ public class ShardMovementWriteLoadSimulator {
             originalNodeUsageStatsForThreadPools.size()
         );
         for (Map.Entry<String, NodeUsageStatsForThreadPools> entry : originalNodeUsageStatsForThreadPools.entrySet()) {
-            if (simulatedNodeWriteLoadDeltas.containsKey(entry.getKey())) {
+            if (simulatedNodeWriteLoadDeltas.containsKey(entry.getKey()) || nodesWithMovedAwayShard.contains(entry.getKey())) {
                 var adjustedValue = new NodeUsageStatsForThreadPools(
                     entry.getKey(),
                     Maps.copyMapWithAddedOrReplacedEntry(
                         entry.getValue().threadPoolUsageStatsMap(),
                         ThreadPool.Names.WRITE,
-                        replaceWritePoolStats(entry.getValue(), simulatedNodeWriteLoadDeltas.get(entry.getKey()))
+                        replaceWritePoolStats(
+                            entry.getValue(),
+                            simulatedNodeWriteLoadDeltas.getOrDefault(entry.getKey(), 0.0),
+                            nodesWithMovedAwayShard.contains(entry.getKey())
+                        )
                     )
                 );
                 adjustedNodeUsageStatsForThreadPools.put(entry.getKey(), adjustedValue);
@@ -82,7 +95,8 @@ public class ShardMovementWriteLoadSimulator {
 
     private static NodeUsageStatsForThreadPools.ThreadPoolUsageStats replaceWritePoolStats(
         NodeUsageStatsForThreadPools value,
-        double writeLoadDelta
+        double writeLoadDelta,
+        boolean hasSeenMovedAwayShard
     ) {
         final NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = value.threadPoolUsageStatsMap()
             .get(ThreadPool.Names.WRITE);
@@ -93,7 +107,7 @@ public class ShardMovementWriteLoadSimulator {
                 (float) writeLoadDelta,
                 writeThreadPoolStats.totalThreadPoolThreads()
             ),
-            writeThreadPoolStats.maxThreadPoolQueueLatencyMillis()
+            adjustThreadPoolQueueLatencyWithShardMovements(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), hasSeenMovedAwayShard)
         );
     }
 
@@ -113,7 +127,32 @@ public class ShardMovementWriteLoadSimulator {
         float shardWriteLoadDelta,
         int numberOfWriteThreads
     ) {
-        float newNodeUtilization = nodeUtilization + (shardWriteLoadDelta / numberOfWriteThreads);
+        float newNodeUtilization = nodeUtilization + calculateUtilizationForWriteLoad(shardWriteLoadDelta, numberOfWriteThreads);
         return (float) Math.max(newNodeUtilization, 0.0);
+    }
+
+    /**
+     * Calculate what percentage utilization increase would result from adding some amount of write-load
+     *
+     * @param totalShardWriteLoad The write-load being added/removed
+     * @param numberOfThreads The number of threads in the node-being-added-to's write thread pool
+     * @return The change in percentage utilization
+     */
+    public static float calculateUtilizationForWriteLoad(float totalShardWriteLoad, int numberOfThreads) {
+        return totalShardWriteLoad / numberOfThreads;
+    }
+
+    /**
+     * Adjust the max thread pool queue latency by accounting for whether shard has moved away from the node.
+     * @param maxThreadPoolQueueLatencyMillis The current max thread pool queue latency.
+     * @param hasSeenMovedAwayShard Whether the node has seen a shard move away from it.
+     * @return The new adjusted max thread pool queue latency.
+     */
+    public static long adjustThreadPoolQueueLatencyWithShardMovements(long maxThreadPoolQueueLatencyMillis, boolean hasSeenMovedAwayShard) {
+        // Intentionally keep it simple by reducing queue latency to zero if we move any shard off the node.
+        // This means the node is considered as no longer hot-spotting (with respect to queue latency) once a shard moves away.
+        // The next ClusterInfo will come in up-to 30 seconds later, and we will see the actual impact of the
+        // shard movement and repeat the process. We keep the queue latency unchanged if shard moves onto the node.
+        return hasSeenMovedAwayShard ? 0L : maxThreadPoolQueueLatencyMillis;
     }
 }

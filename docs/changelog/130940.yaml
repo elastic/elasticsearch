@@ -1,6 +1,0 @@
-pr: 130940
-summary: Block trained model updates from inference
-area: Machine Learning
-type: enhancement
-issues:
- - 129999

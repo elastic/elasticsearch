@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -102,10 +103,10 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
 
     public void testPartialResults() throws Exception {
         populateIndices();
-        EsqlQueryRequest request = new EsqlQueryRequest();
-        request.query("FROM ok*,fail*,*:ok*,*:fail* | KEEP id, fail_me | LIMIT 1000");
-        request.includeCCSMetadata(randomBoolean());
         {
+            EsqlQueryRequest request = new EsqlQueryRequest();
+            request.query("FROM ok*,fail*,*:ok*,*:fail* | KEEP id, fail_me | LIMIT 1000");
+            request.includeCCSMetadata(randomBoolean());
             request.allowPartialResults(false);
             Exception error = expectThrows(Exception.class, () -> runQuery(request).close());
             error = EsqlTestUtils.unwrapIfWrappedInRemoteException(error);
@@ -113,8 +114,16 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
             assertThat(error, instanceOf(IllegalStateException.class));
             assertThat(error.getMessage(), containsString("Accessing failing field"));
         }
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM ok*,fail*,*:ok*,*:fail* | KEEP id, fail_me | LIMIT 1000");
+        request.includeCCSMetadata(randomBoolean());
         request.allowPartialResults(true);
+        // Limit to one shard per batch to prevent all ok shards from being grouped with failed shards,
+        // which could cause the ok shards to fail if a failed shard is processed first.
+        request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()));
+        request.acceptedPragmaRisks(true);
         try (var resp = runQuery(request)) {
+            logger.info("--> response {}", resp);
             assertTrue(resp.isPartial());
             Set<String> allIds = Stream.of(local.okIds, remote1.okIds, remote2.okIds)
                 .flatMap(Collection::stream)
@@ -134,6 +143,8 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
             for (String cluster : List.of(LOCAL_CLUSTER, REMOTE_CLUSTER_1, REMOTE_CLUSTER_2)) {
                 assertClusterFailure(resp, cluster, "Accessing failing field");
             }
+        } catch (Exception e) {
+            throw new AssertionError("failed to execute query", e);
         }
     }
 
@@ -143,7 +154,12 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
         request.query("FROM ok*,cluster-a:ok*,*-b:fail* | KEEP id, fail_me");
         request.allowPartialResults(true);
         request.includeCCSMetadata(randomBoolean());
+        // Limit to one shard per batch to prevent all ok shards from being grouped with failed shards,
+        // which could cause the ok shards to fail if a failed shard is processed first.
+        request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()));
+        request.acceptedPragmaRisks(true);
         try (var resp = runQuery(request)) {
+            logger.info("--> response {}", resp);
             assertTrue(resp.isPartial());
             Set<String> allIds = Stream.of(local.okIds, remote1.okIds).flatMap(Collection::stream).collect(Collectors.toSet());
             List<List<Object>> rows = getValuesList(resp);
@@ -155,7 +171,6 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
                 assertTrue(returnedIds.add(id));
             }
             assertThat(returnedIds, equalTo(allIds));
-
             assertClusterSuccess(resp, LOCAL_CLUSTER, local.okShards);
             assertClusterSuccess(resp, REMOTE_CLUSTER_1, remote1.okShards);
             assertClusterPartial(resp, REMOTE_CLUSTER_2, remote2.failingShards, 0);

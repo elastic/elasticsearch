@@ -6,19 +6,22 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Now}.
+ * {@link ExpressionEvaluator} implementation for {@link Now}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class NowEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(NowEvaluator.class);
+
   private final Source source;
 
   private final long now;
@@ -36,6 +39,12 @@ public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public Block eval(Page page) {
     return eval(page.getPositionCount()).asBlock();
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    return baseRamBytesUsed;
   }
 
   public LongVector eval(int positionCount) {
@@ -58,17 +67,12 @@ public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
     private final long now;

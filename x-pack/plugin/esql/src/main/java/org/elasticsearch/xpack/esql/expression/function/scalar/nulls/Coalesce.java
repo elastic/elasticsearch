@@ -11,8 +11,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -31,20 +32,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
-import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 
 /**
  * Function returning the first non-null value. {@code COALESCE} runs as though
@@ -52,6 +40,10 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
  */
 public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Coalesce", Coalesce::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Coalesce.class)
+        .unaryVariadic(Coalesce::new)
+        .capabilities("flattened")
+        .name("coalesce");
 
     private DataType dataType;
 
@@ -62,13 +54,21 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             "cartesian_shape",
             "date_nanos",
             "date",
+            "dense_vector",
+            "flattened",
+            "histogram",
             "geo_point",
             "geo_shape",
+            "geohash",
+            "geotile",
+            "geohex",
             "integer",
             "ip",
             "keyword",
             "long",
-            "version" },
+            "tdigest",
+            "version",
+            "exponential_histogram" },
         description = "Returns the first of its arguments that is not null. If all arguments are null, it returns `null`.",
         examples = { @Example(file = "null", tag = "coalesce") }
     )
@@ -82,14 +82,22 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "cartesian_shape",
                 "date_nanos",
                 "date",
+                "dense_vector",
+                "flattened",
+                "histogram",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
+                "tdigest",
                 "text",
-                "version" },
+                "version",
+                "exponential_histogram" },
             description = "Expression to evaluate."
         ) Expression first,
         @Param(
@@ -100,17 +108,25 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "cartesian_shape",
                 "date_nanos",
                 "date",
+                "dense_vector",
+                "flattened",
+                "histogram",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
+                "tdigest",
                 "text",
-                "version" },
+                "version",
+                "exponential_histogram" },
             description = "Other expression to evaluate.",
             optional = true
-        ) List<Expression> rest
+        ) List<? extends Expression> rest
     ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
     }
@@ -205,13 +221,19 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             case BOOLEAN -> CoalesceBooleanEvaluator.toEvaluator(toEvaluator, children());
             case DOUBLE, COUNTER_DOUBLE -> CoalesceDoubleEvaluator.toEvaluator(toEvaluator, children());
             case INTEGER, COUNTER_INTEGER -> CoalesceIntEvaluator.toEvaluator(toEvaluator, children());
-            case LONG, DATE_NANOS, DATETIME, COUNTER_LONG, UNSIGNED_LONG -> CoalesceLongEvaluator.toEvaluator(toEvaluator, children());
-            case KEYWORD, TEXT, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, IP, VERSION -> CoalesceBytesRefEvaluator
-                .toEvaluator(toEvaluator, children());
-            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
+            case LONG, DATE_NANOS, DATETIME, COUNTER_LONG, UNSIGNED_LONG, GEOHASH, GEOTILE, GEOHEX -> CoalesceLongEvaluator.toEvaluator(
+                toEvaluator,
+                children()
+            );
+            case KEYWORD, TEXT, CARTESIAN_POINT, CARTESIAN_SHAPE, FLATTENED, HISTOGRAM, GEO_POINT, GEO_SHAPE, IP, VERSION ->
+                CoalesceBytesRefEvaluator.toEvaluator(toEvaluator, children());
+            case EXPONENTIAL_HISTOGRAM -> CoalesceExponentialHistogramEvaluator.toEvaluator(toEvaluator, children());
+            case TDIGEST -> CoalesceTDigestEvaluator.toEvaluator(toEvaluator, children());
+            case DENSE_VECTOR -> CoalesceFloatEvaluator.toEvaluator(toEvaluator, children());
+            case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             case UNSUPPORTED, SHORT, BYTE, DATE_PERIOD, OBJECT, DOC_DATA_TYPE, SOURCE, TIME_DURATION, FLOAT, HALF_FLOAT, TSID_DATA_TYPE,
-                SCALED_FLOAT, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR -> throw new UnsupportedOperationException(
-                    dataType() + " can’t be coalesced"
+                SCALED_FLOAT, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE, DATE_RANGE -> throw new UnsupportedOperationException(
+                    dataType() + " can't be coalesced"
                 );
         };
     }

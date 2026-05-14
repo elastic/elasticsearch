@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.bootstrap.TestScopeResolver;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.test.ESTestCase;
@@ -97,6 +98,10 @@ public class TestPolicyManager extends PolicyManager {
 
     @Override
     protected boolean isTrustedSystemClass(Class<?> requestingClass) {
+        if (TestScopeResolver.getExcludedSystemPackageScope(requestingClass) != null) {
+            // We don't trust the excluded packages even though they are in system modules
+            return false;
+        }
         ClassLoader loader = requestingClass.getClassLoader();
         return loader == null || loader == ClassLoader.getPlatformClassLoader();
     }
@@ -209,6 +214,7 @@ public class TestPolicyManager extends PolicyManager {
 
     private static final String[] TEST_FRAMEWORK_PACKAGE_PREFIXES = {
         "org.gradle",
+        "worker.org.gradle", // gradle-worker.jar shades its runtime under a "worker." prefix
 
         "org.jcodings", // A library loaded with SPI that tries to create a CharsetProvider
         "com.google.common.jimfs", // Used on Windows

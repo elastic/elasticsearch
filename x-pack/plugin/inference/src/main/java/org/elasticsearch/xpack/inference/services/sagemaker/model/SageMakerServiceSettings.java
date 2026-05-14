@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.sagemaker.model;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,7 +38,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractReq
  * Maintains the settings for SageMaker that cannot be changed without impacting semantic search and AI assistants.
  * Model-specific settings are stored in {@link SageMakerStoredServiceSchema}.
  */
-record SageMakerServiceSettings(
+public record SageMakerServiceSettings(
     String endpointName,
     String region,
     String api,
@@ -51,15 +50,16 @@ record SageMakerServiceSettings(
 ) implements ServiceSettings {
 
     static final String NAME = "sage_maker_service_settings";
-    private static final String API = "api";
-    private static final String ENDPOINT_NAME = "endpoint_name";
-    private static final String REGION = "region";
-    private static final String TARGET_MODEL = "target_model";
-    private static final String TARGET_CONTAINER_HOSTNAME = "target_container_hostname";
-    private static final String INFERENCE_COMPONENT_NAME = "inference_component_name";
-    private static final String BATCH_SIZE = "batch_size";
+    static final String API = "api";
+    static final String ENDPOINT_NAME = "endpoint_name";
+    static final String REGION = "region";
+    static final String TARGET_MODEL = "target_model";
+    static final String TARGET_CONTAINER_HOSTNAME = "target_container_hostname";
+    static final String INFERENCE_COMPONENT_NAME = "inference_component_name";
+    static final String BATCH_SIZE = "batch_size";
+    private static final TransportVersion ML_INFERENCE_SAGEMAKER = TransportVersion.fromName("ml_inference_sagemaker");
 
-    SageMakerServiceSettings {
+    public SageMakerServiceSettings {
         Objects.requireNonNull(endpointName);
         Objects.requireNonNull(region);
         Objects.requireNonNull(api);
@@ -112,13 +112,12 @@ record SageMakerServiceSettings(
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         assert false : "should never be called when supportsVersion is used";
-        return TransportVersions.ML_INFERENCE_SAGEMAKER;
+        return ML_INFERENCE_SAGEMAKER;
     }
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.ML_INFERENCE_SAGEMAKER)
-            || version.isPatchFrom(TransportVersions.ML_INFERENCE_SAGEMAKER_8_19);
+        return version.supports(ML_INFERENCE_SAGEMAKER);
     }
 
     @Override
@@ -161,7 +160,7 @@ record SageMakerServiceSettings(
     }
 
     static SageMakerServiceSettings fromMap(SageMakerSchemas schemas, TaskType taskType, Map<String, Object> serviceSettingsMap) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
         var endpointName = extractRequiredString(
             serviceSettingsMap,
@@ -212,6 +211,32 @@ record SageMakerServiceSettings(
             inferenceComponentName,
             batchSize,
             apiServiceSettings
+        );
+    }
+
+    @Override
+    public SageMakerServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedBatchSize = extractOptionalPositiveInteger(
+            serviceSettings,
+            BATCH_SIZE,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+
+        var updatedApiServiceSettings = this.apiServiceSettings().updateServiceSettings(serviceSettings);
+
+        validationException.throwIfValidationErrorsExist();
+        return new SageMakerServiceSettings(
+            this.endpointName(),
+            this.region(),
+            this.api(),
+            this.targetModel(),
+            this.targetContainerHostname(),
+            this.inferenceComponentName(),
+            extractedBatchSize != null ? extractedBatchSize : this.batchSize(),
+            updatedApiServiceSettings
         );
     }
 

@@ -1,5 +1,0 @@
-pr: 131599
-summary: Speed up `OptimizedScalarQuantizer`
-area: Vector Search
-type: enhancement
-issues: []

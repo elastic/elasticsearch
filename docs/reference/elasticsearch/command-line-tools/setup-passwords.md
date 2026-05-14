@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/setup-passwords.html
+applies_to:
+  deployment:
+    self: ga
 ---
 
 # elasticsearch-setup-passwords [setup-passwords]

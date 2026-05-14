@@ -26,6 +26,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -37,7 +38,9 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -60,6 +63,7 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static java.util.Collections.singleton;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -1026,9 +1030,9 @@ public class GetActionIT extends ESIntegTestCase {
         assertTrue(lucene1.isExists());
         assertTrue(lucene2.isExists());
         assertTrue(lucene3.isExists());
-        assertThat(translog1.getSourceAsBytesRef(), equalTo(lucene1.getSourceAsBytesRef()));
-        assertThat(translog2.getSourceAsBytesRef(), equalTo(lucene2.getSourceAsBytesRef()));
-        assertThat(translog3.getSourceAsBytesRef(), equalTo(lucene3.getSourceAsBytesRef()));
+        assertThat(translog1.getSourceAsBytesRef(), equalBytes(lucene1.getSourceAsBytesRef()));
+        assertThat(translog2.getSourceAsBytesRef(), equalBytes(lucene2.getSourceAsBytesRef()));
+        assertThat(translog3.getSourceAsBytesRef(), equalBytes(lucene3.getSourceAsBytesRef()));
     }
 
     private void assertGetFieldsAlwaysWorks(String index, String docId, String[] fields) {
@@ -1096,6 +1100,67 @@ public class GetActionIT extends ESIntegTestCase {
         MultiGetResponse multiGetResponse = multiGetRequestBuilder.get();
         assertThat(multiGetResponse.getResponses().length, equalTo(1));
         return multiGetResponse.getResponses()[0].getResponse();
+    }
+
+    public void testGetWithSequenceNumbersDisabled() {
+        String index = "test-seq-no-disabled";
+        assertAcked(
+            prepareCreate(index).setSettings(
+                Settings.builder()
+                    .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
+                    .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            )
+        );
+
+        prepareIndex(index).setId("1").setSource("field", "value1").get();
+        prepareIndex(index).setId("2").setSource("field", "value2").get();
+        prepareIndex(index).setId("3").setSource("field", "value3").get();
+
+        assertSeqNoDisabledGet(client().prepareGet(index, "1").get());
+        assertSeqNoDisabledGet(client().prepareGet(index, "2").get());
+
+        MultiGetResponse mgetResponse = client().prepareMultiGet().add(index, "1").add(index, "2").add(index, "3").get();
+        assertThat(mgetResponse.getResponses().length, equalTo(3));
+        for (MultiGetItemResponse item : mgetResponse.getResponses()) {
+            assertSeqNoDisabledGet(item.getResponse());
+        }
+
+        refresh(index);
+
+        assertSeqNoDisabledGet(client().prepareGet(index, "1").get());
+        assertSeqNoDisabledGet(client().prepareGet(index, "2").setRealtime(false).get());
+
+        mgetResponse = client().prepareMultiGet().add(index, "1").add(index, "2").add(index, "3").get();
+        for (MultiGetItemResponse item : mgetResponse.getResponses()) {
+            assertSeqNoDisabledGet(item.getResponse());
+        }
+
+        prepareIndex(index).setId("4").setSource("field", "value4").get();
+        assertSeqNoDisabledGet(client().prepareGet(index, "4").get());
+
+        flush(index);
+
+        assertSeqNoDisabledGet(client().prepareGet(index, "1").get());
+        assertSeqNoDisabledGet(client().prepareGet(index, "3").setRealtime(false).get());
+        assertSeqNoDisabledGet(client().prepareGet(index, "4").get());
+
+        mgetResponse = client().prepareMultiGet().add(index, "1").add(index, "2").add(index, "3").add(index, "4").get();
+        assertThat(mgetResponse.getResponses().length, equalTo(4));
+        for (MultiGetItemResponse item : mgetResponse.getResponses()) {
+            assertSeqNoDisabledGet(item.getResponse());
+        }
+
+        prepareIndex(index).setId("1").setSource("field", "value1_updated").get();
+        assertSeqNoDisabledGet(client().prepareGet(index, "1").get());
+    }
+
+    private static void assertSeqNoDisabledGet(GetResponse response) {
+        assertTrue(response.isExists());
+        assertThat(response.getSeqNo(), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
+        assertThat(response.getPrimaryTerm(), equalTo(SequenceNumbers.UNASSIGNED_PRIMARY_TERM));
     }
 
     private GetResponse getDocument(String index, String docId, String field, @Nullable String routing) {

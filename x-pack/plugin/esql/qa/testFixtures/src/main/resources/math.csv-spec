@@ -172,6 +172,18 @@ l:long
 1
 ;
 
+absMinLong
+required_capability: fn_abs_min_warning
+
+ROW a=-9223372036854775808 | EVAL a = ABS(a) | limit 3;
+
+warning:Line 1:39: evaluation of [ABS(a)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:39: java.lang.ArithmeticException: Overflow to represent absolute value of Long.MIN_VALUE
+
+a:LONG
+null
+;
+
 absInt
 from employees | eval s = abs(0-salary) | keep s | sort s asc | limit 3;
 
@@ -1855,15 +1867,19 @@ cs1:double | cs2:integer | cs3:integer
 copySignWithMixedNumericValuesWithMV
 required_capability: copy_sign
 
+// tag::copy_sign[]
 FROM employees
 | EVAL cs1 = COPY_SIGN(salary, LEAST(salary_change))
+// end::copy_sign[]
 | KEEP emp_no, salary, salary_change, cs1
 | SORT emp_no
 | LIMIT 3
 ;
 
-    emp_no:integer | salary:integer | salary_change:double | cs1:integer
-    10001          | 57305          | 1.19                 | 57305
-    10002          | 56371          | [-7.23, 11.17]       | -56371  
-    10003          | 61805          | [12.82, 14.68]       | 61805  
+// tag::copy_sign-result[]
+emp_no:integer | salary:integer | salary_change:double | cs1:integer
+10001          | 57305          | 1.19                 | 57305
+10002          | 56371          | [-7.23, 11.17]       | -56371
+10003          | 61805          | [12.82, 14.68]       | 61805
+// end::copy_sign-result[]
 ;

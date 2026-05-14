@@ -16,7 +16,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -65,9 +65,19 @@ public class OpenAiUnifiedChatCompletionResponseHandlerTests extends ESTestCase 
 
         var errorJson = invalidResponseJson(responseJson);
 
-        assertThat(errorJson, is("""
-            {"error":{"message":"Received a server error status code for request from inference entity id [abc] status [500]. \
-            Error message: [a message]","type":"not_found_error"}}"""));
+        @SuppressWarnings("checkstyle:LineLength")
+        var expectedError = XContentHelper.stripWhitespace(
+            """
+                {
+                    "error":{
+                        "code":"bad_request",
+                        "message":"Received a server error status code for request from inference entity id [abc] status [500]. Error message: [a message]",
+                        "type":"not_found_error"
+                    }
+                }"""
+        );
+
+        assertThat(errorJson, is(expectedError));
     }
 
     public void testFailValidationWithInvalidJson() throws IOException {
@@ -79,7 +89,7 @@ public class OpenAiUnifiedChatCompletionResponseHandlerTests extends ESTestCase 
 
         assertThat(errorJson, is("""
             {"error":{"code":"bad_request","message":"Received a server error status code for request from inference entity id [abc] status\
-             [500]","type":"ErrorResponse"}}"""));
+             [500]","type":"UnifiedChatCompletionErrorResponse"}}"""));
     }
 
     private String invalidResponseJson(String responseJson) throws IOException {
@@ -101,11 +111,11 @@ public class OpenAiUnifiedChatCompletionResponseHandlerTests extends ESTestCase 
         );
     }
 
-    private static Request mockRequest() {
-        var request = mock(Request.class);
-        when(request.getInferenceEntityId()).thenReturn("abc");
-        when(request.isStreaming()).thenReturn(true);
-        return request;
+    private static OutboundRequest mockRequest() {
+        var outboundRequest = mock(OutboundRequest.class);
+        when(outboundRequest.getInferenceEntityId()).thenReturn("abc");
+        when(outboundRequest.isStreaming()).thenReturn(true);
+        return outboundRequest;
     }
 
     private static HttpResponse mock500Response() {

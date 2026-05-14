@@ -15,10 +15,13 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -37,6 +40,31 @@ public abstract class InferenceMetadataFieldsMapper extends MetadataFieldMapper 
     public static final Setting<Boolean> USE_LEGACY_SEMANTIC_TEXT_FORMAT = Setting.boolSetting(
         "index.mapping.semantic_text.use_legacy_format",
         false,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Boolean value) {}
+
+            @Override
+            public void validate(Boolean value, Map<Setting<?>, Object> settings) {
+                if (value) {
+                    var indexVersion = (IndexVersion) settings.get(IndexMetadata.SETTING_INDEX_VERSION_CREATED);
+                    if (indexVersion.equals(IndexVersions.ZERO) == false
+                        && indexVersion.onOrAfter(IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN)) {
+                        throw new IllegalArgumentException(
+                            "The setting [index.mapping.semantic_text.use_legacy_format] cannot be set to [true] "
+                                + "for indices created on or after version ["
+                                + IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN
+                                + "]. The legacy semantic text format is not supported for new indices."
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(IndexMetadata.SETTING_INDEX_VERSION_CREATED).iterator();
+            }
+        },
         Setting.Property.Final,
         Setting.Property.IndexScope,
         Setting.Property.InternalIndex
@@ -48,6 +76,8 @@ public abstract class InferenceMetadataFieldsMapper extends MetadataFieldMapper 
 
     public static final String NAME = "_inference_fields";
     public static final String CONTENT_TYPE = "_inference_fields";
+
+    public static final NodeFeature INFERENCE_FIELDS_GET_VIA_SOURCE_INCLUDES = new NodeFeature("inference_fields.get_via_source_includes");
 
     protected InferenceMetadataFieldsMapper(MappedFieldType inferenceFieldType) {
         super(inferenceFieldType);
@@ -65,7 +95,7 @@ public abstract class InferenceMetadataFieldsMapper extends MetadataFieldMapper 
 
     public abstract static class InferenceMetadataFieldType extends MappedFieldType {
         public InferenceMetadataFieldType() {
-            super(NAME, false, false, false, TextSearchInfo.NONE, Map.of());
+            super(NAME, IndexType.NONE, false, Map.of());
         }
 
         /**

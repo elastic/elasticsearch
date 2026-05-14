@@ -31,14 +31,12 @@ dependencies {
   testImplementation project(':test:framework')
   api "junit:junit:${versions.junit}"
   api project(':test:fixtures:testcontainer-utils')
-  api("org.testcontainers:testcontainers:${versions.testcontainer}") {
-    transitive = false
-  }
+  implementation("commons-io:commons-io:2.15.1")
+
   implementation("com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"){
     transitive = false
   }
   implementation "org.slf4j:slf4j-api:${versions.slf4j}"
- // implementation "com.github.docker-java:docker-java-api:${versions.dockerJava}"
   implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
 
   // ensure we have proper logging during when used in tests

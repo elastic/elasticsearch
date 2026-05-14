@@ -35,6 +35,9 @@ public class TransformMessages {
     public static final String REST_WARN_NO_TRANSFORM_NODES =
         "Transform requires the transform node role for at least 1 node, found no transform nodes";
 
+    public static final String REST_WARN_DEFER_WITH_NO_SYNC_CONFIG =
+        "Unable to defer scheduling for batch Transform [{0}]. Defaulting to scheduling without defer.";
+
     public static final String CANNOT_STOP_SINGLE_FAILED_TRANSFORM = "Unable to stop transform [{0}] as it is in a failed state. "
         + "Use force stop to stop the transform. More details: [{1}]";
     public static final String CANNOT_STOP_MULTIPLE_FAILED_TRANSFORMS = "Unable to stop transforms. The following transforms are in a "

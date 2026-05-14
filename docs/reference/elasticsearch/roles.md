@@ -1,19 +1,30 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/built-in-roles.html
+applies_to:
+  stack: all
 ---
 
-# Roles [built-in-roles]
+# Built-in roles [built-in-roles]
 
-:::{note}
-This section provides detailed **reference information** for Elasticsearch privileges.
+This section provides detailed **reference information** for {{es}} roles.
 
-Refer to [User roles](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/user-roles.md) in the **Deploy and manage** section for overview, getting started and conceptual information.
+To learn how to apply roles for {{stack}}, and to learn how role-based access control works, refer to [User roles](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/user-roles.md).
+
+
+:::{tip}
+{{serverless-full}} uses a different set of predefined roles. To learn more about the roles available in {{serverless-short}} projects, refer to [Elastic Cloud Serverless predefined roles](docs-content://deploy-manage/users-roles/cloud-organization/user-roles.md#general-assign-user-roles-table).
 :::
 
 The {{stack-security-features}} apply a default role to all users, including [anonymous users](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/anonymous-access.md). The default role enables users to access the authenticate endpoint, change their own passwords, and get information about themselves.
 
 There is also a set of built-in roles you can explicitly assign to users. These roles have a fixed set of privileges and cannot be updated.
+
+When you assign a user multiple roles, the user receives a union of the roles’ privileges.
+
+If the built-in roles do not address your use case, then you can create additional [custom roles](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/defining-roles.md).
+
+## Available roles [available-roles]
 
 $$$built-in-roles-apm-system$$$ `apm_system`
 :   Grants access necessary for the APM system user to send system-level data (such as monitoring) to {{es}}.
@@ -59,8 +70,8 @@ $$$built-in-roles-ingest-user$$$ `ingest_admin`
     ::::
 
 
-$$$built-in-roles-kibana-dashboard$$$ `kibana_dashboard_only_user`
-:   (This role is deprecated, please use [{{kib}} feature privileges](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/kibana-privileges.md#kibana-feature-privileges) instead). Grants read-only access to the {{kib}} Dashboard in every [space in {{kib}}](docs-content://deploy-manage/manage-spaces.md). This role does not have access to editing tools in {{kib}}.
+$$$built-in-roles-kibana-dashboard$$$ `kibana_dashboard_only_user` {applies_to}`stack: deprecated`
+:   This role is deprecated. Use [{{kib}} feature privileges](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/kibana-privileges.md#kibana-feature-privileges) instead. Grants read-only access to the {{kib}} Dashboard in every [space in {{kib}}](docs-content://deploy-manage/manage-spaces.md). This role does not have access to editing tools in {{kib}}.
 
 $$$built-in-roles-kibana-system$$$ `kibana_system`
 :   Grants access necessary for the {{kib}} system user to read from and write to the {{kib}} indices, manage index templates and tokens, and check the availability of the {{es}} cluster. It also permits activating, searching, and retrieving user profiles, as well as updating user profile data for the `kibana-*` namespace. This role grants read access to the `.monitoring-*` indices and read and write access to the `.reporting-*` indices. For more information, see [Configuring Security in {{kib}}](docs-content://deploy-manage/security/secure-your-cluster-deployment.md).
@@ -71,10 +82,12 @@ $$$built-in-roles-kibana-system$$$ `kibana_system`
 
 
 $$$built-in-roles-kibana-admin$$$ `kibana_admin`
-:   Grants access to all features in {{kib}}. For more information on {{kib}} authorization, see [Kibana authorization](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/built-in-roles.md).
+:   Grants access to all {{kib}} features in all spaces. For more information on {{kib}} authorization, see [Kibana authorization](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/built-in-roles.md).
 
-$$$built-in-roles-kibana-user$$$ `kibana_user`
-:   (This role is deprecated, please use the [`kibana_admin`](#built-in-roles-kibana-admin) role instead.) Grants access to all features in {{kib}}. For more information on {{kib}} authorization, see [Kibana authorization](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/built-in-roles.md).
+$$$built-in-roles-kibana-user$$$ `kibana_user` {applies_to}`stack: deprecated`
+:   This role is deprecated. Use the [`kibana_admin`](#built-in-roles-kibana-admin) role instead. Grants access to all features in {{kib}}.
+
+    For more information on {{kib}} authorization, see [Kibana authorization](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/built-in-roles.md).
 
 $$$built-in-roles-logstash-admin$$$ `logstash_admin`
 :   Grants access to the `.logstash*` indices for managing configurations, and grants necessary access for logstash-specific APIs exposed by the logstash x-pack plugin.
@@ -104,8 +117,10 @@ $$$built-in-roles-remote-monitoring-agent$$$ `remote_monitoring_agent`
 $$$built-in-roles-remote-monitoring-collector$$$ `remote_monitoring_collector`
 :   Grants the minimum privileges required to collect monitoring data for the {{stack}}.
 
-$$$built-in-roles-reporting-user$$$ `reporting_user`
-:   Grants the necessary privileges required to use {{report-features}} in {{kib}}, including generating and downloading reports. This role implicitly grants access to all Kibana reporting features, with each user having access only to their own reports. Note that reporting users should also be assigned additional roles that grant read access to the [indices](https://www.elastic.co/guide/en/elasticsearch/reference/current/defining-roles.html#roles-indices-priv) that will be used to generate reports.
+$$$built-in-roles-reporting-user$$$ `reporting_user` {applies_to}`stack: deprecated 9.0`
+:   This role is deprecated. Use [{{kib}} feature privileges](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/kibana-privileges.md#kibana-feature-privileges) instead.
+    
+    Grants the necessary privileges required to use {{report-features}} in {{kib}}, including generating and downloading reports. This role implicitly grants access to all {{kib}} reporting features, with each user having access only to their own reports. Note that reporting users should also be assigned additional roles that grant read access to the [indices](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/role-structure.md#roles-indices-priv) that will be used to generate reports.
 
 $$$built-in-roles-rollup-admin$$$ `rollup_admin`
 :   Grants `manage_rollup` cluster privileges, which enable you to manage and execute all rollup actions.

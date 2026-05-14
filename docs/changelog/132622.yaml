@@ -1,5 +1,0 @@
-pr: 132622
-summary: Push down compute engine value loading of long based singleton numeric doc value to the es819 tsdb doc values codec.
-area: "Codec"
-type: enhancement
-issues: []

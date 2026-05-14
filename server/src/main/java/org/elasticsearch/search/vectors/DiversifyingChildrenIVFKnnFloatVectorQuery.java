@@ -12,7 +12,6 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
-import org.apache.lucene.search.knn.KnnCollectorManager;
 
 import java.util.Objects;
 
@@ -38,15 +37,16 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
         int numCands,
         Query childFilter,
         BitSetProducer parentsFilter,
-        float visitRatio
+        float visitRatio,
+        boolean doPrecondition
     ) {
-        super(field, query, k, numCands, childFilter, visitRatio);
+        super(field, query, k, numCands, childFilter, visitRatio, doPrecondition);
         this.parentsFilter = parentsFilter;
     }
 
     @Override
-    protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
-        return new DiversifiedIVFKnnCollectorManager(k, parentsFilter);
+    protected IVFCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
+        return new DiversifiedIVFKnnCollectorManager(k, searcher, parentsFilter);
     }
 
     @Override

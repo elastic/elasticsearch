@@ -7,30 +7,24 @@
 
 package org.elasticsearch.xpack.inference.services.llama;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
-import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
-import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
@@ -38,14 +32,16 @@ import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestMana
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.llama.action.LlamaActionCreator;
 import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.llama.request.completion.LlamaChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
@@ -64,19 +60,15 @@ import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 
 /**
  * LlamaService is an inference service for Llama models, supporting text embedding and chat completion tasks.
  * It extends SenderService to handle HTTP requests and responses for Llama models.
  */
-public class LlamaService extends SenderService {
+public class LlamaService extends SenderService<LlamaModel> {
     public static final String NAME = "llama";
     private static final String SERVICE_NAME = "Llama";
+    private static final TransportVersion ML_INFERENCE_LLAMA_ADDED = TransportVersion.fromName("ml_inference_llama_added");
     /**
      * The optimal batch size depends on the hardware the model is deployed on.
      * For Llama use a conservatively small max batch size as it is
@@ -87,6 +79,15 @@ public class LlamaService extends SenderService {
     private static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new LlamaChatCompletionResponseHandler(
         "llama chat completion",
         OpenAiChatCompletionResponseEntity::fromResponse
+    );
+    private static final LlamaChatCompletionModelCreator CHAT_COMPLETION_MODEL_CREATOR = new LlamaChatCompletionModelCreator();
+    private static final Map<TaskType, ModelCreator<? extends LlamaModel>> MODEL_CREATORS = Map.of(
+        TaskType.TEXT_EMBEDDING,
+        new LlamaEmbeddingsModelCreator(),
+        TaskType.COMPLETION,
+        CHAT_COMPLETION_MODEL_CREATOR,
+        TaskType.CHAT_COMPLETION,
+        CHAT_COMPLETION_MODEL_CREATOR
     );
 
     /**
@@ -105,7 +106,7 @@ public class LlamaService extends SenderService {
     }
 
     public LlamaService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService);
+        super(factory, serviceComponents, clusterService, MODEL_CREATORS);
     }
 
     @Override
@@ -127,37 +128,6 @@ public class LlamaService extends SenderService {
     @Override
     protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
         ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(inputType, validationException);
-    }
-
-    /**
-     * Creates a LlamaModel based on the provided parameters.
-     *
-     * @param inferenceId the unique identifier for the inference entity
-     * @param taskType the type of task this model is designed for
-     * @param serviceSettings the settings for the inference service
-     * @param chunkingSettings the settings for chunking, if applicable
-     * @param secretSettings the secret settings for the model, such as API keys or tokens
-     * @param failureMessage the message to use in case of failure
-     * @param context the context for parsing configuration settings
-     * @return a new instance of LlamaModel based on the provided parameters
-     */
-    protected LlamaModel createModel(
-        String inferenceId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        ChunkingSettings chunkingSettings,
-        Map<String, Object> secretSettings,
-        String failureMessage,
-        ConfigurationParseContext context
-    ) {
-        switch (taskType) {
-            case TEXT_EMBEDDING:
-                return new LlamaEmbeddingsModel(inferenceId, taskType, NAME, serviceSettings, chunkingSettings, secretSettings, context);
-            case CHAT_COMPLETION, COMPLETION:
-                return new LlamaChatCompletionModel(inferenceId, taskType, NAME, serviceSettings, secretSettings, context);
-            default:
-                throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
-        }
     }
 
     @Override
@@ -185,7 +155,7 @@ public class LlamaService extends SenderService {
     @Override
     protected void doChunkedInfer(
         Model model,
-        EmbeddingsInput inputs,
+        List<ChunkInferenceInput> inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -200,14 +170,14 @@ public class LlamaService extends SenderService {
         var actionCreator = new LlamaActionCreator(getSender(), getServiceComponents());
 
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
-            inputs.getInputs(),
+            inputs,
             EMBEDDING_MAX_BATCH_SIZE,
             llamaModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {
             var action = llamaModel.accept(actionCreator);
-            action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
+            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
         }
     }
 
@@ -259,117 +229,8 @@ public class LlamaService extends SenderService {
     }
 
     @Override
-    public void parseRequestConfig(
-        String modelId,
-        TaskType taskType,
-        Map<String, Object> config,
-        ActionListener<Model> parsedModelListener
-    ) {
-        try {
-            Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-            Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-
-            ChunkingSettings chunkingSettings = null;
-            if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-                chunkingSettings = ChunkingSettingsBuilder.fromMap(
-                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
-                );
-            }
-
-            LlamaModel model = createModel(
-                modelId,
-                taskType,
-                serviceSettingsMap,
-                chunkingSettings,
-                serviceSettingsMap,
-                TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
-                ConfigurationParseContext.REQUEST
-            );
-
-            throwIfNotEmptyMap(config, NAME);
-            throwIfNotEmptyMap(serviceSettingsMap, NAME);
-            throwIfNotEmptyMap(taskSettingsMap, NAME);
-
-            parsedModelListener.onResponse(model);
-        } catch (Exception e) {
-            parsedModelListener.onFailure(e);
-        }
-    }
-
-    @Override
-    public Model parsePersistedConfigWithSecrets(
-        String modelId,
-        TaskType taskType,
-        Map<String, Object> config,
-        Map<String, Object> secrets
-    ) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-        Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
-
-        ChunkingSettings chunkingSettings = null;
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
-
-        return createModelFromPersistent(
-            modelId,
-            taskType,
-            serviceSettingsMap,
-            chunkingSettings,
-            secretSettingsMap,
-            parsePersistedConfigErrorMsg(modelId, NAME)
-        );
-    }
-
-    private LlamaModel createModelFromPersistent(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        ChunkingSettings chunkingSettings,
-        Map<String, Object> secretSettings,
-        String failureMessage
-    ) {
-        return createModel(
-            inferenceEntityId,
-            taskType,
-            serviceSettings,
-            chunkingSettings,
-            secretSettings,
-            failureMessage,
-            ConfigurationParseContext.PERSISTENT
-        );
-    }
-
-    @Override
-    public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-
-        ChunkingSettings chunkingSettings = null;
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
-
-        return createModelFromPersistent(
-            modelId,
-            taskType,
-            serviceSettingsMap,
-            chunkingSettings,
-            null,
-            parsePersistedConfigErrorMsg(modelId, NAME)
-        );
-    }
-
-    @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_LLAMA_ADDED;
-    }
-
-    @Override
-    public boolean hideFromConfigurationApi() {
-        // The Llama service is very configurable so we're going to hide it from being exposed in the service API.
-        return true;
+        return ML_INFERENCE_LLAMA_ADDED;
     }
 
     /**

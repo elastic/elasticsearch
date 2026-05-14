@@ -10,7 +10,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
-import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
@@ -19,23 +19,28 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 public class OrderBy extends UnaryPlan
     implements
         PostAnalysisVerificationAware,
-        PostOptimizationVerificationAware,
+        PostOptimizationPlanVerificationAware,
         TelemetryAware,
         SortAgnostic,
         PipelineBreaker {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "OrderBy", OrderBy::new);
 
     private final List<Order> order;
+
+    public static final String UNBOUNDED_SORT_NOT_SUPPORTED_FOR_COMMAND_MESSAGE = "{} [{}] cannot yet have an unbounded SORT [{}]"
+        + " before it: either move the SORT after it, or add a LIMIT after the SORT";
 
     public OrderBy(Source source, LogicalPlan child, List<Order> order) {
         super(source, child);
@@ -118,7 +123,39 @@ public class OrderBy extends UnaryPlan
     }
 
     @Override
-    public void postOptimizationVerification(Failures failures) {
-        failures.add(fail(this, "Unbounded sort not supported yet [{}] please add a limit", this.sourceText()));
+    public BiConsumer<LogicalPlan, Failures> postOptimizationPlanVerification() {
+        return (p, failures) -> {
+            if (p instanceof InlineJoin inlineJoin) {
+                inlineJoin.left()
+                    .forEachUp(
+                        OrderBy.class,
+                        orderBy -> failures.add(
+                            fail(
+                                inlineJoin,
+                                UNBOUNDED_SORT_NOT_SUPPORTED_FOR_COMMAND_MESSAGE,
+                                "INLINE STATS",
+                                inlineJoin.sourceText(),
+                                orderBy.sourceText()
+                            )
+                        )
+                    );
+            } else if (p instanceof MvExpand mvExpand) {
+                mvExpand.child()
+                    .forEachUp(
+                        OrderBy.class,
+                        orderBy -> failures.add(
+                            fail(
+                                mvExpand,
+                                UNBOUNDED_SORT_NOT_SUPPORTED_FOR_COMMAND_MESSAGE,
+                                "MV_EXPAND",
+                                mvExpand.sourceText(),
+                                orderBy.sourceText()
+                            )
+                        )
+                    );
+            } else if (p instanceof OrderBy) {
+                failures.add(fail(p, "Unbounded SORT not supported yet [{}] please add a LIMIT", p.sourceText()));
+            }
+        };
     }
 }

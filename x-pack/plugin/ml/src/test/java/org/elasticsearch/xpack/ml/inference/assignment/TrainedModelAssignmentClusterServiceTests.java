@@ -15,7 +15,6 @@ import org.apache.logging.log4j.message.Message;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -34,6 +33,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationD
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -70,7 +70,6 @@ import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests;
 import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
-import org.elasticsearch.xpack.ml.test.MockAppender;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -91,6 +90,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -439,7 +439,6 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .add(buildNode("ml-node-without-room", true, 1000L, 2))
             .add(buildNode("not-ml-node", false, ByteSizeValue.ofGb(4).getBytes(), 2))
             .add(buildNode("ml-node-shutting-down", true, ByteSizeValue.ofGb(4).getBytes(), 2))
-            .add(buildOldNode("old-ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes(), 2))
             .build();
         nodeAvailabilityZoneMapper = randomFrom(
             new NodeRealAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes),
@@ -489,7 +488,6 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .add(buildNode("ml-node-without-room", true, 1000L, 2))
             .add(buildNode("not-ml-node", false, ByteSizeValue.ofGb(4).getBytes(), 2))
             .add(buildNode("ml-node-shutting-down", true, ByteSizeValue.ofGb(4).getBytes(), 2))
-            .add(buildOldNode("old-ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes(), 2))
             .build();
         nodeAvailabilityZoneMapper = randomFrom(
             new NodeRealAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes),
@@ -1968,6 +1966,110 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         assertThat(assignment.getReason().get(), is("nodes changed"));
     }
 
+    public void testSetShuttingDownNodeRoutesToStopping_GivenZeroAllocationAssignmentMissingFromBuilder_ItIsPreserved() {
+        var shuttingDownNodeId = "shutting-down-1";
+        var zeroAllocDeploymentId = "zero-alloc-deployment";
+        // Use 0 allocations so calculateAssignmentState() returns STARTED (matching the production state
+        // of a deployment that adaptive allocations has scaled down to zero)
+        StartTrainedModelDeploymentAction.TaskParams taskParams = newParams(zeroAllocDeploymentId, 100, 0, 1);
+
+        // Existing cluster state: a zero-allocation deployment (no routing entries, STARTED state)
+        TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
+            .addNewAssignment(
+                zeroAllocDeploymentId,
+                TrainedModelAssignment.Builder.empty(taskParams, null).calculateAndSetAssignmentState()
+            )
+            .build();
+
+        // Rebalancer output: empty (simulates the anomaly — rebalancer dropped the deployment)
+        TrainedModelAssignmentMetadata.Builder rebalanced = TrainedModelAssignmentMetadata.Builder.empty();
+
+        TrainedModelAssignmentMetadata result = TrainedModelAssignmentClusterService.setShuttingDownNodeRoutesToStopping(
+            currentMetadata,
+            Set.of(shuttingDownNodeId),
+            rebalanced
+        ).build();
+
+        TrainedModelAssignment assignment = result.getDeploymentAssignment(zeroAllocDeploymentId);
+        assertThat("zero-allocation deployment must not be silently dropped", assignment, is(notNullValue()));
+        assertThat(assignment.getNodeRoutingTable().entrySet(), is(empty()));
+        // The assignment state should be preserved as STARTED (not STOPPING) for zero-alloc deployments
+        assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTED));
+    }
+
+    public void testSetShuttingDownNodeRoutesToStopping_GivenZeroAllocationAssignmentPresentInBuilder_ItIsNotOverwritten() {
+        var shuttingDownNodeId = "shutting-down-1";
+        var zeroAllocDeploymentId = "zero-alloc-deployment";
+        var currentSentinelReason = "reason-from-current-metadata";
+        var rebalancedSentinelReason = "reason-from-rebalancer";
+        StartTrainedModelDeploymentAction.TaskParams taskParams = newParams(zeroAllocDeploymentId, 100, 0, 1);
+
+        // Sentinel on the current-metadata version so we can detect if the fast path
+        // accidentally overwrites the rebalancer's version with this one.
+        TrainedModelAssignment.Builder currentBuilder = TrainedModelAssignment.Builder.empty(taskParams, null)
+            .setReason(currentSentinelReason)
+            .calculateAndSetAssignmentState();
+        TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
+            .addNewAssignment(zeroAllocDeploymentId, currentBuilder)
+            .build();
+
+        // Rebalancer output already contains the zero-allocation deployment — tagged with a distinct
+        // sentinel reason so the assertion can prove the rebalancer's version survived untouched.
+        TrainedModelAssignmentMetadata.Builder rebalanced = TrainedModelAssignmentMetadata.Builder.empty()
+            .addNewAssignment(
+                zeroAllocDeploymentId,
+                TrainedModelAssignment.Builder.empty(taskParams, null).setReason(rebalancedSentinelReason).calculateAndSetAssignmentState()
+            );
+
+        TrainedModelAssignmentMetadata result = TrainedModelAssignmentClusterService.setShuttingDownNodeRoutesToStopping(
+            currentMetadata,
+            Set.of(shuttingDownNodeId),
+            rebalanced
+        ).build();
+
+        TrainedModelAssignment assignment = result.getDeploymentAssignment(zeroAllocDeploymentId);
+        assertThat(assignment, is(notNullValue()));
+        assertThat(assignment.getNodeRoutingTable().entrySet(), is(empty()));
+        assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTED));
+        // The rebalancer's version must win — the fast path must not overwrite it with currentMetadata's version.
+        assertThat(assignment.getReason(), equalTo(Optional.of(rebalancedSentinelReason)));
+    }
+
+    public void testSetShuttingDownNodeRoutesToStopping_GivenAnomalyAssignmentWithNoShuttingDownRoutes_ItIsStillPreserved() {
+        var shuttingDownNodeId = "shutting-down-1";
+        var healthyNodeId = "node-1";
+        var deploymentId = "deployment-routed-to-healthy-node";
+        StartTrainedModelDeploymentAction.TaskParams taskParams = newParams(deploymentId, 100);
+
+        // Assignment has a route to a healthy node only (not the shutting-down node)
+        TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
+            .addNewAssignment(
+                deploymentId,
+                TrainedModelAssignment.Builder.empty(taskParams, null)
+                    .addRoutingEntry(healthyNodeId, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+            )
+            .build();
+
+        // Rebalancer output: empty (anomaly — rebalancer dropped the deployment)
+        TrainedModelAssignmentMetadata.Builder rebalanced = TrainedModelAssignmentMetadata.Builder.empty();
+
+        TrainedModelAssignmentMetadata result = TrainedModelAssignmentClusterService.setShuttingDownNodeRoutesToStopping(
+            currentMetadata,
+            Set.of(shuttingDownNodeId),
+            rebalanced
+        ).build();
+
+        TrainedModelAssignment assignment = result.getDeploymentAssignment(deploymentId);
+        assertThat("deployment routed only to healthy nodes must not be dropped by the anomaly branch", assignment, is(notNullValue()));
+        assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STOPPING));
+        assertThat(
+            "healthy-node route must be preserved so the node service can drain it on the next reconciliation",
+            assignment.getNodeRoutingTable(),
+            hasKey(healthyNodeId)
+        );
+        assertThat(assignment.getNodeRoutingTable().get(healthyNodeId).getState(), equalTo(RoutingState.STARTED));
+    }
+
     private static ClusterState createClusterState(List<String> nodeIds, Metadata metadata) {
         DiscoveryNode[] nodes = nodeIds.stream()
             .map(id -> buildNode(id, true, ByteSizeValue.ofGb(4).getBytes(), 8))
@@ -2137,17 +2239,6 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
     private static RoutingInfoUpdate started() {
         return RoutingInfoUpdate.updateStateAndReason(new RoutingStateAndReason(RoutingState.STARTED, ""));
-    }
-
-    private static DiscoveryNode buildOldNode(String name, boolean isML, long nativeMemory, int allocatedProcessors) {
-        return buildNode(
-            name,
-            isML,
-            nativeMemory,
-            allocatedProcessors,
-            VersionInformation.inferVersions(Version.V_7_15_0),
-            MlConfigVersion.V_7_15_0
-        );
     }
 
     private static StartTrainedModelDeploymentAction.TaskParams newParams(String modelId, long modelSize) {

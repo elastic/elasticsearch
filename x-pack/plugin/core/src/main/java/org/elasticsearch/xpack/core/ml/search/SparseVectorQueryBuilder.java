@@ -11,8 +11,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,21 +18,16 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
-import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,10 +37,8 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQueryBuilder> {
+public class SparseVectorQueryBuilder extends LeafQueryBuilder<SparseVectorQueryBuilder> {
     public static final String NAME = "sparse_vector";
     public static final String ALLOWED_FIELD_TYPE = "sparse_vector";
     public static final ParseField FIELD_FIELD = new ParseField("field");
@@ -59,8 +50,11 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
     private static final boolean DEFAULT_PRUNE = false;
 
-    static final TransportVersion SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_8_19 = TransportVersions.SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_8_19;
-    static final TransportVersion SPARSE_VECTOR_FIELD_PRUNING_OPTIONS = TransportVersions.SPARSE_VECTOR_FIELD_PRUNING_OPTIONS;
+    public static final String SPARSE_VECTOR_FIELD_PRUNING_OPTIONS = "sparse_vector_field_pruning_options";
+
+    private static final TransportVersion SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_TV = TransportVersion.fromName(
+        SPARSE_VECTOR_FIELD_PRUNING_OPTIONS
+    );
 
     private final String fieldName;
     private final List<WeightedToken> queryVectors;
@@ -128,8 +122,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         super(in);
         this.fieldName = in.readString();
 
-        if (in.getTransportVersion().isPatchFrom(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_8_19)
-            || in.getTransportVersion().onOrAfter(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS)) {
+        if (in.getTransportVersion().supports(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_TV)) {
             this.shouldPruneTokens = in.readOptionalBoolean();
         } else {
             this.shouldPruneTokens = in.readBoolean();
@@ -184,11 +177,11 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
         out.writeString(fieldName);
 
-        if (out.getTransportVersion().isPatchFrom(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_8_19)
-            || out.getTransportVersion().onOrAfter(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS)) {
+        if (out.getTransportVersion().supports(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_TV)) {
             out.writeOptionalBoolean(shouldPruneTokens);
         } else {
-            out.writeBoolean(shouldPruneTokens);
+            // Older nodes carry shouldPruneTokens as a primitive boolean; coerce null to the false to avoid an NPE on auto-unboxing.
+            out.writeBoolean(shouldPruneTokens != null ? shouldPruneTokens : false);
         }
 
         out.writeOptionalCollection(queryVectors);
@@ -226,7 +219,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         if (queryVectors == null) {
-            return new MatchNoDocsQuery("Empty query vectors");
+            throw new IllegalStateException("query vectors should be set during sparse_vector query rewrite");
         }
 
         final MappedFieldType ft = context.getFieldType(fieldName);
@@ -272,56 +265,11 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             throw new IllegalArgumentException("inference_id required to perform vector search on query string");
         }
 
-        // TODO move this to xpack core and use inference APIs
-        CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
-            inferenceId,
-            List.of(query),
-            TextExpansionConfigUpdate.EMPTY_UPDATE,
-            false,
-            null
-        );
-        inferRequest.setHighPriority(true);
-        inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
-
         SetOnce<TextExpansionResults> textExpansionResultsSupplier = new SetOnce<>();
-        queryRewriteContext.registerAsyncAction(
-            (client, listener) -> executeAsyncWithOrigin(
-                client,
-                ML_ORIGIN,
-                CoordinatedInferenceAction.INSTANCE,
-                inferRequest,
-                ActionListener.wrap(inferenceResponse -> {
 
-                    List<InferenceResults> inferenceResults = inferenceResponse.getInferenceResults();
-                    if (inferenceResults.isEmpty()) {
-                        listener.onFailure(new IllegalStateException("inference response contain no results"));
-                        return;
-                    }
-                    if (inferenceResults.size() > 1) {
-                        listener.onFailure(new IllegalStateException("inference response should contain only one result"));
-                        return;
-                    }
-
-                    if (inferenceResults.get(0) instanceof TextExpansionResults textExpansionResults) {
-                        textExpansionResultsSupplier.set(textExpansionResults);
-                        listener.onResponse(null);
-                    } else if (inferenceResults.get(0) instanceof WarningInferenceResults warning) {
-                        listener.onFailure(new IllegalStateException(warning.getWarning()));
-                    } else {
-                        listener.onFailure(
-                            new IllegalArgumentException(
-                                "expected a result of type ["
-                                    + TextExpansionResults.NAME
-                                    + "] received ["
-                                    + inferenceResults.get(0).getWriteableName()
-                                    + "]. Is ["
-                                    + inferenceId
-                                    + "] a compatible model?"
-                            )
-                        );
-                    }
-                }, listener::onFailure)
-            )
+        queryRewriteContext.registerUniqueAsyncAction(
+            new SparseInferenceRewriteAction(inferenceId, query),
+            textExpansionResultsSupplier::set
         );
 
         return new SparseVectorQueryBuilder(this, textExpansionResultsSupplier);
@@ -349,7 +297,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     private static final ConstructingObjectParser<SparseVectorQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, a -> {

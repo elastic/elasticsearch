@@ -17,21 +17,25 @@ import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.node.internal.TerminationHandler;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.core.Strings.format;
 
 /**
  * This class was created to extract out the logic from {@link Node#prepareForClose()} to facilitate testing.
@@ -44,17 +48,14 @@ import static org.elasticsearch.core.Strings.format;
  */
 public class ShutdownPrepareService {
 
-    private final Logger logger = LogManager.getLogger(ShutdownPrepareService.class);
-    private final Settings settings;
-    private final HttpServerTransport httpServerTransport;
-    private final TerminationHandler terminationHandler;
-    private volatile boolean hasBeenShutdown = false;
+    /// Allows setting the system property `es.reindex.disable_relocation` as an escape hatch to disable triggering reindex relocation.
+    // TODO(#2715): Remove this when we're confident relocation works
+    private static final boolean DISABLE_REINDEX_RELOCATION = Booleans.parseBooleanLenient(
+        System.getProperty("es.reindex.disable_relocation", "false"),
+        false
+    );
 
-    public ShutdownPrepareService(Settings settings, HttpServerTransport httpServerTransport, TerminationHandler terminationHandler) {
-        this.settings = settings;
-        this.httpServerTransport = httpServerTransport;
-        this.terminationHandler = terminationHandler;
-    }
+    private record ShutdownHook(String name, Runnable action) {}
 
     public static final Setting<TimeValue> MAXIMUM_SHUTDOWN_TIMEOUT_SETTING = Setting.positiveTimeSetting(
         "node.maximum_shutdown_grace_period",
@@ -68,6 +69,40 @@ public class ShutdownPrepareService {
         Setting.Property.NodeScope
     );
 
+    private static final Logger logger = LogManager.getLogger(ShutdownPrepareService.class);
+
+    private final TimeValue maxTimeout;
+    private final TerminationHandler terminationHandler;
+    private final List<ShutdownHook> hooks = new ArrayList<>();
+    private volatile boolean isShuttingDown = false;
+
+    @SuppressWarnings(value = "this-escape")
+    public ShutdownPrepareService(
+        Settings settings,
+        HttpServerTransport httpServerTransport,
+        TransportService transportService,
+        TerminationHandler terminationHandler
+    ) {
+        this.maxTimeout = MAXIMUM_SHUTDOWN_TIMEOUT_SETTING.get(settings);
+        this.terminationHandler = terminationHandler;
+
+        final var reindexTimeout = MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(settings);
+        addShutdownHook("http-server-transport-stop", httpServerTransport::close);
+        addShutdownHook("async-search-stop", () -> awaitSearchTasksComplete(maxTimeout, transportService.getTaskManager()));
+        addShutdownHook("reindex-stop", () -> relocateReindexTasksAndAwaitComplete(reindexTimeout, transportService.getTaskManager()));
+        if (terminationHandler != null) {
+            addShutdownHook("termination-handler-stop", terminationHandler::handleTermination);
+        }
+    }
+
+    public void addShutdownHook(String name, Runnable action) {
+        hooks.add(new ShutdownHook(name, action));
+    }
+
+    public boolean isShuttingDown() {
+        return isShuttingDown;
+    }
+
     /**
      * Invokes hooks to prepare this node to be closed. This should be called when Elasticsearch receives a request to shut down
      * gracefully from the underlying operating system, before system resources are closed. This method will block
@@ -76,11 +111,18 @@ public class ShutdownPrepareService {
      * Note that this class is part of infrastructure to react to signals from the operating system - most graceful shutdown
      * logic should use Node Shutdown, see {@link org.elasticsearch.cluster.metadata.NodesShutdownMetadata}.
      */
-    public void prepareForShutdown(TaskManager taskManager) {
-        assert hasBeenShutdown == false;
-        hasBeenShutdown = true;
-        final var maxTimeout = MAXIMUM_SHUTDOWN_TIMEOUT_SETTING.get(settings);
-        final var reindexTimeout = MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(settings);
+    public void prepareForShutdown() {
+        assert isShuttingDown == false;
+        isShuttingDown = true;
+
+        // first make sure the node can safely be shutdown
+        if (terminationHandler != null) {
+            try {
+                terminationHandler.blockTermination();
+            } catch (RuntimeException e) {
+                logger.warn("termination handler failed; proceeding with shutdown", e);
+            }
+        }
 
         record Stopper(String name, SubscribableListener<Void> listener) {
             boolean isIncomplete() {
@@ -91,26 +133,19 @@ public class ShutdownPrepareService {
         final var stoppers = new ArrayList<Stopper>();
         final var allStoppersFuture = new PlainActionFuture<Void>();
         try (var listeners = new RefCountingListener(allStoppersFuture)) {
-            final BiConsumer<String, Runnable> stopperRunner = (name, action) -> {
-                final var stopper = new Stopper(name, new SubscribableListener<>());
+            for (var hook : hooks) {
+                final var stopper = new Stopper(hook.name(), new SubscribableListener<>());
                 stoppers.add(stopper);
                 stopper.listener().addListener(listeners.acquire());
                 new Thread(() -> {
                     try {
-                        action.run();
+                        hook.action.run();
                     } catch (Exception ex) {
                         logger.warn("unexpected exception in shutdown task [" + stopper.name() + "]", ex);
                     } finally {
                         stopper.listener().onResponse(null);
                     }
                 }, stopper.name()).start();
-            };
-
-            stopperRunner.accept("http-server-transport-stop", httpServerTransport::close);
-            stopperRunner.accept("async-search-stop", () -> awaitSearchTasksComplete(maxTimeout, taskManager));
-            stopperRunner.accept("reindex-stop", () -> awaitReindexTasksComplete(reindexTimeout, taskManager));
-            if (terminationHandler != null) {
-                stopperRunner.accept("termination-handler-stop", terminationHandler::handleTermination);
             }
         }
 
@@ -136,14 +171,18 @@ public class ShutdownPrepareService {
         }
     }
 
-    private void awaitTasksComplete(TimeValue timeout, String taskName, TaskManager taskManager) {
+    private void awaitTasksComplete(TimeValue timeout, String taskName, TaskManager taskManager, @Nullable Consumer<Task> taskNotifier) {
         long millisWaited = 0;
         while (true) {
-            long tasksRemaining = taskManager.getTasks().values().stream().filter(task -> taskName.equals(task.getAction())).count();
-            if (tasksRemaining == 0) {
+            List<Task> tasksRemaining = taskManager.getTasks().values().stream().filter(task -> taskName.equals(task.getAction())).toList();
+            if (tasksRemaining.isEmpty()) {
                 logger.debug("all " + taskName + " tasks complete");
                 return;
             } else {
+                // First, notify all remaining tasks that a shutdown is happening, if a notifier is provided.
+                if (taskNotifier != null) {
+                    tasksRemaining.forEach(taskNotifier);
+                }
                 // Let the system work on those tasks for a while. We're on a dedicated thread to manage app shutdown, so we
                 // literally just want to wait and not take up resources on this thread for now. Poll period chosen to allow short
                 // response times, but checking the tasks list is relatively expensive, and we don't want to waste CPU time we could
@@ -151,22 +190,14 @@ public class ShutdownPrepareService {
                 final TimeValue pollPeriod = TimeValue.timeValueMillis(500);
                 millisWaited += pollPeriod.millis();
                 if (TimeValue.ZERO.equals(timeout) == false && millisWaited >= timeout.millis()) {
-                    logger.warn(
-                        format("timed out after waiting [%s] for [%d] " + taskName + " tasks to finish", timeout.toString(), tasksRemaining)
-                    );
+                    logger.warn("timed out after waiting [{}] for [{}] {} tasks to finish", timeout, tasksRemaining.size(), taskName);
                     return;
                 }
-                logger.debug(format("waiting for [%s] " + taskName + " tasks to finish, next poll in [%s]", tasksRemaining, pollPeriod));
+                logger.debug("waiting for [{}] {} tasks to finish, next poll in [{}]", tasksRemaining.size(), taskName, pollPeriod);
                 try {
                     Thread.sleep(pollPeriod.millis());
                 } catch (InterruptedException ex) {
-                    logger.warn(
-                        format(
-                            "interrupted while waiting [%s] for [%d] " + taskName + " tasks to finish",
-                            timeout.toString(),
-                            tasksRemaining
-                        )
-                    );
+                    logger.warn("interrupted while waiting [{}] for [{}] {} tasks to finish", timeout, tasksRemaining.size(), taskName);
                     return;
                 }
             }
@@ -174,11 +205,42 @@ public class ShutdownPrepareService {
     }
 
     private void awaitSearchTasksComplete(TimeValue asyncSearchTimeout, TaskManager taskManager) {
-        awaitTasksComplete(asyncSearchTimeout, TransportSearchAction.NAME, taskManager);
+        awaitTasksComplete(asyncSearchTimeout, TransportSearchAction.NAME, taskManager, null);
     }
 
-    private void awaitReindexTasksComplete(TimeValue asyncReindexTimeout, TaskManager taskManager) {
-        awaitTasksComplete(asyncReindexTimeout, ReindexAction.NAME, taskManager);
+    private void relocateReindexTasksAndAwaitComplete(TimeValue asyncReindexTimeout, TaskManager taskManager) {
+        awaitTasksComplete(
+            asyncReindexTimeout,
+            ReindexAction.NAME,
+            taskManager,
+            ShutdownPrepareService::maybeRequestRelocationForBulkByScroll
+        );
     }
 
+    // package-private for tests
+    static void maybeRequestRelocationForBulkByScroll(Task task) {
+        if (task instanceof BulkByScrollTask bulkByScrollTask) {
+            if (bulkByScrollTask.isEligibleForRelocationOnShutdown() && bulkByScrollTask.isRelocationRequested() == false) {
+                if (DISABLE_REINDEX_RELOCATION) {
+                    logger.info(
+                        "Not requesting relocation for task {} because the system property es.reindex.disable_relocation is set",
+                        task.getId()
+                    );
+                    return;
+                }
+                if (bulkByScrollTask.isLeader()) {
+                    logger.info("Requesting relocation task for leader bulk-by-scroll task {} and its workers", bulkByScrollTask.getId());
+                } else {
+                    logger.debug(
+                        "Requesting relocation task for worker bulk-by-scroll task {} (leader: {})",
+                        bulkByScrollTask.getId(),
+                        bulkByScrollTask.getParentTaskId()
+                    );
+                }
+                bulkByScrollTask.requestRelocation();
+            }
+        } else {
+            logger.warn("Requested relocation task for non-bulk-by-scroll task {}", task);
+        }
+    }
 }

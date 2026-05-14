@@ -9,26 +9,29 @@ import java.lang.Override;
 import java.lang.String;
 import java.time.ZoneId;
 import java.util.Locale;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MonthName}.
+ * {@link ExpressionEvaluator} implementation for {@link MonthName}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class MonthNameMillisEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class MonthNameMillisEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MonthNameMillisEvaluator.class);
+
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator val;
+  private final ExpressionEvaluator val;
 
   private final ZoneId zoneId;
 
@@ -38,8 +41,8 @@ public final class MonthNameMillisEvaluator implements EvalOperator.ExpressionEv
 
   private Warnings warnings;
 
-  public MonthNameMillisEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      ZoneId zoneId, Locale locale, DriverContext driverContext) {
+  public MonthNameMillisEvaluator(Source source, ExpressionEvaluator val, ZoneId zoneId,
+      Locale locale, DriverContext driverContext) {
     this.source = source;
     this.val = val;
     this.zoneId = zoneId;
@@ -58,21 +61,29 @@ public final class MonthNameMillisEvaluator implements EvalOperator.ExpressionEv
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += val.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public BytesRefBlock eval(int positionCount, LongBlock valBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (valBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (valBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (valBlock.getValueCount(p) != 1) {
-          if (valBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendBytesRef(MonthName.processMillis(valBlock.getLong(valBlock.getFirstValueIndex(p)), this.zoneId, this.locale));
+        long val = valBlock.getLong(valBlock.getFirstValueIndex(p));
+        result.appendBytesRef(MonthName.processMillis(val, this.zoneId, this.locale));
       }
       return result.build();
     }
@@ -81,7 +92,8 @@ public final class MonthNameMillisEvaluator implements EvalOperator.ExpressionEv
   public BytesRefVector eval(int positionCount, LongVector valVector) {
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(MonthName.processMillis(valVector.getLong(p), this.zoneId, this.locale));
+        long val = valVector.getLong(p);
+        result.appendBytesRef(MonthName.processMillis(val, this.zoneId, this.locale));
       }
       return result.build();
     }
@@ -99,27 +111,21 @@ public final class MonthNameMillisEvaluator implements EvalOperator.ExpressionEv
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory val;
+    private final ExpressionEvaluator.Factory val;
 
     private final ZoneId zoneId;
 
     private final Locale locale;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val, ZoneId zoneId,
-        Locale locale) {
+    public Factory(Source source, ExpressionEvaluator.Factory val, ZoneId zoneId, Locale locale) {
       this.source = source;
       this.val = val;
       this.zoneId = zoneId;

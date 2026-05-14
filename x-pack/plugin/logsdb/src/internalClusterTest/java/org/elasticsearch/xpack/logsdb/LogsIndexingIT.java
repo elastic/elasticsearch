@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -37,6 +39,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
+import static org.elasticsearch.action.admin.indices.ResizeIndexTestUtils.resizeRequest;
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -106,12 +109,13 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
     public void testStandard() throws Exception {
         String dataStreamName = "k8s";
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
+        String indexMode = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean() ? "logsdb_columnar" : "logsdb";
         putTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName + "*"))
                 .template(
                     new Template(
-                        indexSettings(4, 0).put("index.mode", "logsdb").put("index.sort.field", "message,k8s.pod.uid,@timestamp").build(),
+                        indexSettings(4, 0).put("index.mode", indexMode).put("index.sort.field", "message,k8s.pod.uid,@timestamp").build(),
                         new CompressedXContent(MAPPING_TEMPLATE),
                         null
                     )
@@ -211,11 +215,12 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
     }
 
     public void testShrink() throws Exception {
+        String indexMode = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean() ? "logsdb_columnar" : "logsdb";
         client().admin()
             .indices()
             .prepareCreate("my-logs")
             .setMapping("@timestamp", "type=date", "host.name", "type=keyword")
-            .setSettings(indexSettings(between(3, 5), 0).put("index.mode", "logsdb").put("index.sort.field", "host.name"))
+            .setSettings(indexSettings(between(3, 5), 0).put("index.mode", indexMode).put("index.sort.field", "host.name"))
             .get();
 
         long timestamp = DEFAULT_DATE_TIME_FORMATTER.parseMillis("2025-08-08T00:00:00Z");
@@ -233,12 +238,9 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
         client().bulk(bulkRequest).actionGet();
         client().admin().indices().prepareFlush("my-logs").get();
         client().admin().indices().prepareUpdateSettings("my-logs").setSettings(Settings.builder().put("index.blocks.write", true)).get();
-        client().admin()
-            .indices()
-            .prepareResizeIndex("my-logs", "shrink-my-logs")
-            .setResizeType(ResizeType.SHRINK)
-            .setSettings(indexSettings(1, 0).build())
-            .get();
+
+        client().execute(TransportResizeAction.TYPE, resizeRequest(ResizeType.SHRINK, "my-logs", "shrink-my-logs", indexSettings(1, 0)))
+            .actionGet();
         assertNoFailures(client().admin().indices().prepareForceMerge("shrink-my-logs").setMaxNumSegments(1).setFlush(true).get());
     }
 

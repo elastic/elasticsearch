@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.common.Strings;
@@ -32,6 +31,8 @@ import java.util.Set;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.asyncEsqlQueryRequest;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -95,8 +96,7 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
     }
 
     protected EsqlQueryResponse runQuery(String query, Boolean ccsMetadataInResponse, QueryBuilder filter) {
-        EsqlQueryRequest request = randomBoolean() ? EsqlQueryRequest.asyncEsqlQueryRequest() : EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query(query);
+        EsqlQueryRequest request = randomBoolean() ? asyncEsqlQueryRequest(query) : syncEsqlQueryRequest(query);
         request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
         request.profile(randomInt(5) == 2);
         request.columnar(randomBoolean());
@@ -235,27 +235,20 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
         // Both indices are filtered out - wildcards
         filter = new RangeQueryBuilder("@timestamp").from("2025-01-01").to("now");
         try (EsqlQueryResponse resp = runQuery("from logs-*,c*:logs-*", randomBoolean(), filter)) {
-            List<List<Object>> values = getValuesList(resp);
-            assertThat(values, hasSize(0));
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), hasItems("@timestamp", "tag-local", "tag-cluster-a"));
+            assertThat(getValuesList(resp), hasSize(0));
+            assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), hasItems("<no-fields>"));
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertNotNull(executionInfo);
             assertThat(executionInfo.isCrossClusterSearch(), is(true));
             long overallTookMillis = executionInfo.overallTook().millis();
             assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
-
             assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, LOCAL_CLUSTER)));
-
-            EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
             // Remote has no shards due to filter
-            assertClusterMetadataSkippedShards(remoteCluster, remoteShards, overallTookMillis, "logs-*");
-
-            EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
+            assertClusterMetadataSkippedShards(executionInfo.getCluster(REMOTE_CLUSTER_1), 0, overallTookMillis, "logs-*");
             // Local cluster can not be filtered out for now
-            assertClusterMetadataSkippedShards(localCluster, localShards, overallTookMillis, "logs-*");
+            assertClusterMetadataSkippedShards(executionInfo.getCluster(LOCAL_CLUSTER), 0, overallTookMillis, "logs-*");
         }
-
     }
 
     public void testFilterWithMissingIndex() {
@@ -289,9 +282,6 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
             // Local index missing + existing remote
             e = expectThrows(VerificationException.class, () -> runQuery("from missing,cluster-a:logs-2", randomBoolean(), filter).close());
             assertThat(e.getDetailedMessage(), containsString("Unknown index [missing]"));
-            // Wildcard index missing
-            e = expectThrows(VerificationException.class, () -> runQuery("from missing*", randomBoolean(), filter).close());
-            assertThat(e.getDetailedMessage(), containsString("Unknown index [missing*]"));
             // Wildcard index missing + existing index
             try (EsqlQueryResponse resp = runQuery("from missing*,logs-1", randomBoolean(), filter)) {
                 List<List<Object>> values = getValuesList(resp);
@@ -339,8 +329,9 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
             e = expectThrows(VerificationException.class, () -> runQuery("from logs-1,cluster-a:missing", randomBoolean(), filter).close());
             assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:missing]"));
             // Wildcard index missing
-            e = expectThrows(VerificationException.class, () -> runQuery("from cluster-a:missing*", randomBoolean(), filter).close());
-            assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:missing*]"));
+            try (var response = runQuery("from cluster-a:missing*", randomBoolean(), filter)) {
+                assertThat(getValuesList(response), hasSize(0));
+            }
             // Wildcard index missing + existing remote index
             try (EsqlQueryResponse resp = runQuery("from cluster-a:missing*,cluster-a:logs-2", randomBoolean(), filter)) {
                 List<List<Object>> values = getValuesList(resp);
@@ -348,8 +339,7 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
             }
             // Wildcard index missing + existing local index
             try (EsqlQueryResponse resp = runQuery("from cluster-a:missing*,logs-1", randomBoolean(), filter)) {
-                List<List<Object>> values = getValuesList(resp);
-                assertThat(values, hasSize(count > 2 ? 0 : docsTest1));
+                assertThat(getValuesList(resp), hasSize(count > 2 ? 0 : docsTest1));
             }
         }
     }
@@ -401,16 +391,16 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
                 var fail = remoteCluster.getFailures().get(0);
                 assertThat(fail.getCause().getMessage(), containsString("no such index [missing]"));
             }
-            // TODO: for now, these fail, but in the future may be skipped instead
             // Remote index missing
-            VerificationException e = expectThrows(
-                VerificationException.class,
-                () -> runQuery("from cluster-a:missing", randomBoolean(), filter).close()
-            );
-            assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:missing]"));
+            try (var response = runQuery("from cluster-a:missing", randomBoolean(), filter)) {
+                assertThat(getValuesList(response), hasSize(0));
+                assertThat(response.getExecutionInfo().getCluster("cluster-a").getStatus(), equalTo(Status.SKIPPED));
+            }
             // Wildcard index missing
-            e = expectThrows(VerificationException.class, () -> runQuery("from cluster-a:missing*", randomBoolean(), filter).close());
-            assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:missing*]"));
+            try (var response = runQuery("from cluster-a:missing*", randomBoolean(), filter)) {
+                assertThat(getValuesList(response), hasSize(0));
+                assertThat(response.getExecutionInfo().getCluster("cluster-a").getStatus(), equalTo(Status.SUCCESSFUL));
+            }
         }
     }
 
@@ -420,11 +410,11 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
             new RangeQueryBuilder("@timestamp").from("2025-01-01").to("now")
         )) {
             // One index
-            var e = expectThrows(ElasticsearchException.class, () -> runQuery("from cluster-a:log-2", randomBoolean(), filter).close());
+            var e = expectThrows(RuntimeException.class, () -> runQuery("from cluster-a:log-2", randomBoolean(), filter).close());
             // Two indices
-            e = expectThrows(ElasticsearchException.class, () -> runQuery("from logs-1,cluster-a:log-2", randomBoolean(), filter).close());
+            e = expectThrows(RuntimeException.class, () -> runQuery("from logs-1,cluster-a:log-2", randomBoolean(), filter).close());
             // Wildcard
-            e = expectThrows(ElasticsearchException.class, () -> runQuery("from logs-1,cluster-a:log*", randomBoolean(), filter).close());
+            e = expectThrows(RuntimeException.class, () -> runQuery("from logs-1,cluster-a:log*", randomBoolean(), filter).close());
         }
     }
 

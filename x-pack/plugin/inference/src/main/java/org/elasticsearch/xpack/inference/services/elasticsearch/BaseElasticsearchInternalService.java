@@ -47,7 +47,6 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.inference.telemetry.InferenceStats.modelAndResponseAttributes;
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -126,7 +125,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
             });
             subscribableListener.addTimeout(timeout, threadPool, inferenceExecutor);
             subscribableListener.addListener(ActionListener.wrap(started -> {
-                inferenceStats.deploymentDuration().record(timer.elapsedMillis(), modelAndResponseAttributes(model, null));
+                inferenceStats.deploymentDuration().withModel(model).withSuccess().record(timer.elapsedMillis());
                 finalListener.onResponse(started);
             }, e -> {
                 if (e instanceof ElasticsearchTimeoutException) {
@@ -139,10 +138,10 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
                             model.getInferenceEntityId()
                         )
                     );
-                    inferenceStats.deploymentDuration().record(timer.elapsedMillis(), modelAndResponseAttributes(model, timeoutException));
+                    inferenceStats.deploymentDuration().withModel(model).withThrowable(timeoutException).record(timer.elapsedMillis());
                     finalListener.onFailure(timeoutException);
                 } else {
-                    inferenceStats.deploymentDuration().record(timer.elapsedMillis(), modelAndResponseAttributes(model, unwrapCause(e)));
+                    inferenceStats.deploymentDuration().withModel(model).withThrowable(unwrapCause(e)).record(timer.elapsedMillis());
                     finalListener.onFailure(e);
                 }
             }));

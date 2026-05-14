@@ -94,11 +94,25 @@ public class FromPartialGroupingAggregatorFunction implements GroupingAggregator
     }
 
     @Override
-    public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
+    public PreparedForEvaluation prepareEvaluateIntermediate(IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return (blocks, offset, selectedInPage) -> evaluateIntermediate(blocks, offset, selectedInPage, ctx);
+    }
+
+    @Override
+    public PreparedForEvaluation prepareEvaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+    }
+
+    private void evaluateIntermediate(
+        Block[] blocks,
+        int offset,
+        IntVector selected,
+        GroupingAggregatorEvaluationContext evaluationContext
+    ) {
         Block[] partialBlocks = new Block[delegate.intermediateBlockCount()];
         boolean success = false;
         try {
-            delegate.evaluateIntermediate(partialBlocks, 0, selected);
+            delegate.prepareEvaluateIntermediate(selected, evaluationContext).evaluate(partialBlocks, 0, selected);
             blocks[offset] = new CompositeBlock(partialBlocks);
             success = true;
         } finally {
@@ -108,9 +122,8 @@ public class FromPartialGroupingAggregatorFunction implements GroupingAggregator
         }
     }
 
-    @Override
-    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
-        delegate.evaluateFinal(blocks, offset, selected, evaluationContext);
+    private void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
+        delegate.prepareEvaluateFinal(selected, evaluationContext).evaluate(blocks, offset, selected);
     }
 
     @Override

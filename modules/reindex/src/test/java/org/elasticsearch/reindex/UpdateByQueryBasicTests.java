@@ -12,7 +12,7 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.UpdateByQueryRequestBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.IndexSettings.SYNTHETIC_VECTORS;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -152,15 +151,14 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
     public void testMissingSources() {
         BulkByScrollResponse response = updateByQuery().source("missing-index-*")
             .refresh(true)
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
+            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES)
             .get();
         assertThat(response, matcher().updated(0).slices(hasSize(0)));
     }
 
     public void testUpdateByQueryIncludeVectors() throws Exception {
-        assumeTrue("This test requires synthetic vectors to be enabled", SYNTHETIC_VECTORS);
         var resp1 = prepareCreate("test").setSettings(
-            Settings.builder().put(IndexSettings.INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING.getKey(), true).build()
+            Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true).build()
         ).setMapping("foo", "type=dense_vector,similarity=l2_norm", "bar", "type=sparse_vector").get();
         assertAcked(resp1);
 

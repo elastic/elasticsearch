@@ -175,7 +175,8 @@ public class RestSqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
                     CoreProtocol.FIELD_MULTI_VALUE_LENIENCY,
                     CoreProtocol.INDEX_INCLUDE_FROZEN,
                     CoreProtocol.BINARY_COMMUNICATION,
-                    CoreProtocol.ALLOW_PARTIAL_SEARCH_RESULTS
+                    CoreProtocol.ALLOW_PARTIAL_SEARCH_RESULTS,
+                    null
                 )
             );
         }

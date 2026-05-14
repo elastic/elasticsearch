@@ -50,7 +50,7 @@ public final class LongVectorFixedBuilder implements LongVector.FixedBuilder {
         return size == 1
             ? ConstantLongVector.RAM_BYTES_USED
             : LongArrayVector.BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(
-                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + size * Long.BYTES
+                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) size * Long.BYTES
             );
     }
 

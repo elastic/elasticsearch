@@ -159,7 +159,11 @@ public class CCSUsageTelemetry {
             skippedRemotes.increment();
             ccsUsage.getSkippedRemotes().forEach(remote -> byRemoteCluster.computeIfAbsent(remote, PerClusterCCSTelemetry::new).skipped());
         }
-        ccsUsage.getFeatures().forEach(f -> featureCounts.computeIfAbsent(f, k -> new LongAdder()).increment());
+        ccsUsage.getFeatures().forEach(f -> {
+            if (useMRT || f.equals(MRT_FEATURE) == false) {
+                featureCounts.computeIfAbsent(f, k -> new LongAdder()).increment();
+            }
+        });
         String client = ccsUsage.getClient();
         if (client != null && KNOWN_CLIENTS.contains(client)) {
             // We count only known clients for now

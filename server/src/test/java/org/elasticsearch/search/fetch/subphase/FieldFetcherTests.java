@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.SearchHit;
@@ -50,6 +51,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
@@ -117,7 +119,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .endObject();
 
         ParsedDocument doc = mapperService.documentMapper().parse(source(Strings.toString(source)));
-        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "foo.bar");
         assertThat(fields.size(), equalTo(1));
@@ -1172,9 +1174,13 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             """;
 
         var results = fetchFields(mapperService, source, fieldAndFormatList("*", null, false));
-        SearchHit searchHit = SearchHit.unpooled(0);
-        searchHit.addDocumentFields(results, Map.of());
-        assertThat(Strings.toString(searchHit), containsString("\"ml.top_classes\":"));
+        SearchHit searchHit = new SearchHit(0);
+        try {
+            searchHit.addDocumentFields(results, Map.of());
+            assertThat(Strings.toString(searchHit), containsString("\"ml.top_classes\":"));
+        } finally {
+            searchHit.decRef();
+        }
     }
 
     public void testNestedIOOB() throws IOException {
@@ -1585,9 +1591,13 @@ public class FieldFetcherTests extends MapperServiceTestCase {
     }
 
     public void testStoredFieldsSpec() throws IOException {
+        var mapperService = createMapperService();
         List<FieldAndFormat> fields = List.of(new FieldAndFormat("field", null));
-        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(createMapperService()), fields);
-        assertEquals(StoredFieldsSpec.NEEDS_SOURCE, fieldFetcher.storedFieldsSpec());
+        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), fields);
+        assertEquals(
+            StoredFieldsSpec.withSourcePaths(mapperService.getIndexSettings().getIgnoredSourceFormat(), Set.of("field")),
+            fieldFetcher.storedFieldsSpec()
+        );
     }
 
     private List<FieldAndFormat> fieldAndFormatList(String name, String format, boolean includeUnmapped) {
@@ -1694,7 +1704,9 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             null,
             null,
             emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
     }
 

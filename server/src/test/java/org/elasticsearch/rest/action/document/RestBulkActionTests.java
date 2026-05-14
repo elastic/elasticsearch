@@ -10,6 +10,7 @@
 package org.elasticsearch.rest.action.document;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -18,19 +19,21 @@ import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
+import org.elasticsearch.test.rest.FakeHttpBodyStream;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.XContentType;
@@ -42,9 +45,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -201,6 +207,167 @@ public class RestBulkActionTests extends ESTestCase {
         }
     }
 
+    public void testIncrementalBulkMissingContent() {
+        assertEquals(
+            "request body is required",
+            assertThrows(
+                ElasticsearchParseException.class,
+                () -> new RestBulkAction(
+                    Settings.EMPTY,
+                    ClusterSettings.createBuiltInClusterSettings(),
+                    new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
+                ).handleRequest(
+                    new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
+                        .withContentLength(0)
+                        .withBody(new FakeHttpBodyStream())
+                        .build(),
+                    mock(RestChannel.class),
+                    mock(NodeClient.class)
+                )
+            ).getMessage()
+        );
+    }
+
+    public void testBulkSliceRequestParamMappedToRouting() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        AtomicBoolean bulkCalled = new AtomicBoolean(false);
+        try (var threadPool = createThreadPool()) {
+            final var verifyingClient = new NoOpNodeClient(threadPool) {
+                @Override
+                public void bulk(BulkRequest request, ActionListener<BulkResponse> listener) {
+                    bulkCalled.set(true);
+                    assertThat(request.requests(), hasSize(1));
+                    IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
+                    assertThat(indexRequest.routing(), equalTo("s1"));
+                    assertThat(indexRequest.isRoutingFromSlice(), equalTo(true));
+                }
+            };
+            new RestBulkAction(
+                settings(IndexVersion.current()).build(),
+                ClusterSettings.createBuiltInClusterSettings(),
+                new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
+            ).handleRequest(
+                new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
+                    .withParams(Map.of("_slice", "s1"))
+                    .withContent(new BytesArray("""
+                        {"index":{"_id":"1"}}
+                        {"field1":"val1"}
+                        """), XContentType.JSON)
+                    .withMethod(RestRequest.Method.POST)
+                    .build(),
+                mock(RestChannel.class),
+                verifyingClient
+            );
+            assertThat(bulkCalled.get(), equalTo(true));
+        }
+    }
+
+    public void testBulkSliceMetadataMappedToRouting() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        AtomicBoolean bulkCalled = new AtomicBoolean(false);
+        try (var threadPool = createThreadPool()) {
+            final var verifyingClient = new NoOpNodeClient(threadPool) {
+                @Override
+                public void bulk(BulkRequest request, ActionListener<BulkResponse> listener) {
+                    bulkCalled.set(true);
+                    assertThat(request.requests(), hasSize(2));
+                    IndexRequest first = (IndexRequest) request.requests().get(0);
+                    IndexRequest second = (IndexRequest) request.requests().get(1);
+                    assertThat(first.routing(), equalTo("s1"));
+                    assertThat(second.routing(), equalTo("s2"));
+                    assertThat(first.isRoutingFromSlice(), equalTo(true));
+                    assertThat(second.isRoutingFromSlice(), equalTo(true));
+                }
+            };
+            new RestBulkAction(
+                settings(IndexVersion.current()).build(),
+                ClusterSettings.createBuiltInClusterSettings(),
+                new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
+            ).handleRequest(new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk").withContent(new BytesArray("""
+                {"index":{"_id":"1","_slice":"s1"}}
+                {"field1":"val1"}
+                {"index":{"_id":"2","_slice":"s2"}}
+                {"field1":"val2"}
+                """), XContentType.JSON).withMethod(RestRequest.Method.POST).build(), mock(RestChannel.class), verifyingClient);
+            assertThat(bulkCalled.get(), equalTo(true));
+        }
+    }
+
+    public void testBulkTopLevelSliceRejectsItemRoutingOverride() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        try (var threadPool = createThreadPool()) {
+            final var client = new NoOpNodeClient(threadPool);
+            FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
+                .withParams(Map.of("_slice", "s1"))
+                .withContent(new BytesArray("""
+                    {"index":{"_id":"1","routing":"r1"}}
+                    {"field1":"val1"}
+                    """), XContentType.JSON)
+                .withMethod(RestRequest.Method.POST)
+                .build();
+            FakeRestChannel channel = new FakeRestChannel(request, true);
+            new RestBulkAction(
+                settings(IndexVersion.current()).build(),
+                ClusterSettings.createBuiltInClusterSettings(),
+                new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
+            ).handleRequest(request, channel, client);
+            try (var response = channel.capturedResponse()) {
+                assertThat(response.status().getStatus(), equalTo(400));
+                assertThat(response.content().utf8ToString(), containsString("contains both [routing] and [_slice]"));
+            }
+        }
+    }
+
+    public void testBulkSliceAndRoutingParamsAreMutuallyExclusive() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        try (var threadPool = createThreadPool()) {
+            final var client = new NoOpNodeClient(threadPool);
+            FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
+                .withParams(Map.of("_slice", "s1", "routing", "r1"))
+                .withContent(new BytesArray("""
+                    {"index":{"_id":"1"}}
+                    {"field1":"val1"}
+                    """), XContentType.JSON)
+                .withMethod(RestRequest.Method.POST)
+                .build();
+            FakeRestChannel channel = new FakeRestChannel(request, true);
+            var ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> new RestBulkAction(
+                    settings(IndexVersion.current()).build(),
+                    ClusterSettings.createBuiltInClusterSettings(),
+                    new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
+                ).handleRequest(request, channel, client)
+            );
+            assertThat(ex.getMessage(), containsString("[routing] is not allowed together with [_slice]"));
+        }
+    }
+
+    public void testBulkSliceParamRejectedWhenInvalid() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        try (var threadPool = createThreadPool()) {
+            final var client = new NoOpNodeClient(threadPool);
+            FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
+                .withParams(Map.of("_slice", "_all"))
+                .withContent(new BytesArray("""
+                    {"index":{"_id":"1"}}
+                    {"field1":"val1"}
+                    """), XContentType.JSON)
+                .withMethod(RestRequest.Method.POST)
+                .build();
+            FakeRestChannel channel = new FakeRestChannel(request, true);
+            var ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> new RestBulkAction(
+                    settings(IndexVersion.current()).build(),
+                    ClusterSettings.createBuiltInClusterSettings(),
+                    new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
+                ).handleRequest(request, channel, client)
+            );
+            assertThat(ex.getMessage(), containsString("invalid [_slice] value"));
+        }
+    }
+
     public void testIncrementalParsing() {
         ArrayList<DocWriteRequest<?>> docs = new ArrayList<>();
         AtomicBoolean isLast = new AtomicBoolean(false);
@@ -208,21 +375,7 @@ public class RestBulkActionTests extends ESTestCase {
 
         FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
             .withMethod(RestRequest.Method.POST)
-            .withBody(new HttpBody.Stream() {
-                @Override
-                public void close() {}
-
-                @Override
-                public ChunkHandler handler() {
-                    return null;
-                }
-
-                @Override
-                public void addTracingHandler(ChunkHandler chunkHandler) {}
-
-                @Override
-                public void setHandler(ChunkHandler chunkHandler) {}
-
+            .withBody(new FakeHttpBodyStream() {
                 @Override
                 public void next() {
                     next.set(true);
@@ -230,7 +383,7 @@ public class RestBulkActionTests extends ESTestCase {
             })
             .withHeaders(Map.of("Content-Type", Collections.singletonList("application/json")))
             .build();
-        FakeRestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
+        FakeRestChannel channel = new FakeRestChannel(request, randomBoolean());
 
         IndexingPressure indexingPressure = new IndexingPressure(Settings.EMPTY);
         RestBulkAction.ChunkHandler chunkHandler = new RestBulkAction.ChunkHandler(true, request, () -> {
@@ -240,7 +393,8 @@ public class RestBulkActionTests extends ESTestCase {
                 null,
                 null,
                 null,
-                MeterRegistry.NOOP.getLongHistogram(IncrementalBulkService.CHUNK_WAIT_TIME_HISTOGRAM_NAME)
+                MeterRegistry.NOOP.getLongHistogram(IncrementalBulkService.CHUNK_WAIT_TIME_HISTOGRAM_NAME),
+                emptySet()
             ) {
 
                 @Override

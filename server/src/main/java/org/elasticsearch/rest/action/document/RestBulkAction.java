@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -36,6 +37,7 @@ import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.transport.Transports;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -62,7 +64,6 @@ public class RestBulkAction extends BaseRestHandler {
 
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in bulk requests is deprecated.";
     public static final String FAILURE_STORE_STATUS_CAPABILITY = "failure_store_status";
-
     private final boolean allowExplicitIndex;
     private final IncrementalBulkService bulkHandler;
     private final IncrementalBulkService.Enabled incrementalEnabled;
@@ -100,7 +101,8 @@ public class RestBulkAction extends BaseRestHandler {
         if (request.isStreamedContent() == false) {
             BulkRequest bulkRequest = new BulkRequest();
             String defaultIndex = request.param("index");
-            String defaultRouting = request.param("routing");
+            final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseRoutingOrSliceWithProvenance(request);
+            String defaultRouting = parsedRouting.routing();
             FetchSourceContext defaultFetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
             String defaultPipeline = request.param("pipeline");
             boolean defaultListExecutedPipelines = request.paramAsBoolean("list_executed_pipelines", false);
@@ -113,6 +115,7 @@ public class RestBulkAction extends BaseRestHandler {
             bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
             bulkRequest.setRefreshPolicy(request.param("refresh"));
             bulkRequest.includeSourceOnError(RestUtils.getIncludeSourceOnError(request));
+            bulkRequest.requestParamsUsed(request.params().keySet());
             ReleasableBytesReference content = request.requiredContent();
 
             try {
@@ -120,6 +123,7 @@ public class RestBulkAction extends BaseRestHandler {
                     content,
                     defaultIndex,
                     defaultRouting,
+                    parsedRouting.fromSlice(),
                     defaultFetchSourceContext,
                     defaultPipeline,
                     defaultRequireAlias,
@@ -137,10 +141,15 @@ public class RestBulkAction extends BaseRestHandler {
                 client.bulk(bulkRequest, ActionListener.releaseAfter(new RestRefCountedChunkedToXContentListener<>(channel), content));
             };
         } else {
+            request.ensureContent();
             String waitForActiveShards = request.param("wait_for_active_shards");
             TimeValue timeout = request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT);
             String refresh = request.param("refresh");
-            return new ChunkHandler(allowExplicitIndex, request, () -> bulkHandler.newBulkRequest(waitForActiveShards, timeout, refresh));
+            return new ChunkHandler(
+                allowExplicitIndex,
+                request,
+                () -> bulkHandler.newBulkRequest(waitForActiveShards, timeout, refresh, request.params().keySet())
+            );
         }
     }
 
@@ -172,10 +181,13 @@ public class RestBulkAction extends BaseRestHandler {
         ChunkHandler(boolean allowExplicitIndex, RestRequest request, Supplier<IncrementalBulkService.Handler> handlerSupplier) {
             this.request = request;
             this.handlerSupplier = handlerSupplier;
+            final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseRoutingOrSliceWithProvenance(request);
+            String defaultRouting = parsedRouting.routing();
             this.parser = new BulkRequestParser(true, RestUtils.getIncludeSourceOnError(request), request.getRestApiVersion())
                 .incrementalParser(
                     request.param("index"),
-                    request.param("routing"),
+                    defaultRouting,
+                    parsedRouting.fromSlice(),
                     FetchSourceContext.parseFromRestRequest(request),
                     request.param("pipeline"),
                     request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false),
@@ -298,12 +310,12 @@ public class RestBulkAction extends BaseRestHandler {
     }
 
     @Override
-    public boolean supportsBulkContent() {
-        return true;
+    public Set<String> supportedCapabilities() {
+        return capabilities;
     }
 
     @Override
-    public Set<String> supportedCapabilities() {
-        return capabilities;
+    public boolean mediaTypesValid(RestRequest request) {
+        return super.mediaTypesValid(request) && XContentType.supportsDelimitedBulkRequests(request.getXContentType());
     }
 }

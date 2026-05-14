@@ -52,10 +52,10 @@ class FetchSearchPhase extends SearchPhase {
         @Nullable SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
         super(NAME);
-        if (context.getNumShards() != resultConsumer.getNumShards()) {
+        if (context.results.getNumShards() != resultConsumer.getNumShards()) {
             throw new IllegalStateException(
                 "number of shards must match the length of the query results but doesn't:"
-                    + context.getNumShards()
+                    + context.results.getNumShards()
                     + "!="
                     + resultConsumer.getNumShards()
             );
@@ -92,19 +92,20 @@ class FetchSearchPhase extends SearchPhase {
 
     private void innerRun() throws Exception {
         assert this.reducedQueryPhase == null ^ this.resultConsumer == null;
+        long phaseStartTimeInNanos = System.nanoTime();
         // depending on whether we executed the RankFeaturePhase we may or may not have the reduced query result computed already
         final var reducedQueryPhase = this.reducedQueryPhase == null ? resultConsumer.reduce() : this.reducedQueryPhase;
-        final int numShards = context.getNumShards();
+        final int numShards = context.results.getNumShards();
         // Usually when there is a single shard, we force the search type QUERY_THEN_FETCH. But when there's kNN, we might
         // still use DFS_QUERY_THEN_FETCH, which does not perform the "query and fetch" optimization during the query phase.
-        final boolean queryAndFetchOptimization = numShards == 1
+        final boolean queryAndFetchOptimization = context.getNumShards() == 1
             && context.getRequest().hasKnnSearch() == false
             && reducedQueryPhase.queryPhaseRankCoordinatorContext() == null
             && (context.getRequest().source() == null || context.getRequest().source().rankBuilder() == null);
         if (queryAndFetchOptimization) {
             assert assertConsistentWithQueryAndFetchOptimization();
             // query AND fetch optimization
-            moveToNextPhase(searchPhaseShardResults, reducedQueryPhase);
+            moveToNextPhase(searchPhaseShardResults, reducedQueryPhase, phaseStartTimeInNanos);
         } else {
             ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs().scoreDocs();
             // no docs to fetch -- sidestep everything and return
@@ -112,14 +113,19 @@ class FetchSearchPhase extends SearchPhase {
                 // we have to release contexts here to free up resources
                 searchPhaseShardResults.asList()
                     .forEach(searchPhaseShardResult -> releaseIrrelevantSearchContext(searchPhaseShardResult, context));
-                moveToNextPhase(new AtomicArray<>(0), reducedQueryPhase);
+                moveToNextPhase(new AtomicArray<>(0), reducedQueryPhase, phaseStartTimeInNanos);
             } else {
-                innerRunFetch(scoreDocs, numShards, reducedQueryPhase);
+                innerRunFetch(scoreDocs, numShards, reducedQueryPhase, phaseStartTimeInNanos);
             }
         }
     }
 
-    private void innerRunFetch(ScoreDoc[] scoreDocs, int numShards, SearchPhaseController.ReducedQueryPhase reducedQueryPhase) {
+    private void innerRunFetch(
+        ScoreDoc[] scoreDocs,
+        int numShards,
+        SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
+        long phaseStartTimeInNanos
+    ) {
         ArraySearchPhaseResults<FetchSearchResult> fetchResults = new ArraySearchPhaseResults<>(numShards);
         final List<Map<Integer, RankDoc>> rankDocsPerShard = false == shouldExplainRankScores(context.getRequest())
             ? null
@@ -133,7 +139,7 @@ class FetchSearchPhase extends SearchPhase {
             docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
             () -> {
                 try (fetchResults) {
-                    moveToNextPhase(fetchResults.getAtomicArray(), reducedQueryPhase);
+                    moveToNextPhase(fetchResults.getAtomicArray(), reducedQueryPhase, phaseStartTimeInNanos);
                 }
             },
             context
@@ -231,6 +237,7 @@ class FetchSearchPhase extends SearchPhase {
                 }
             }
         };
+
         final Transport.Connection connection;
         try {
             connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
@@ -251,15 +258,19 @@ class FetchSearchPhase extends SearchPhase {
                     shardPhaseResult.getRescoreDocIds(),
                     aggregatedDfs
                 ),
-                context.getTask(),
+                context,
+                shardTarget,
                 listener
             );
     }
 
     private void moveToNextPhase(
         AtomicArray<? extends SearchPhaseResult> fetchResultsArr,
-        SearchPhaseController.ReducedQueryPhase reducedQueryPhase
+        SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
+        long phaseStartTimeInNanos
     ) {
+        context.getSearchResponseMetrics()
+            .recordSearchPhaseDuration(getName(), System.nanoTime() - phaseStartTimeInNanos, context.getSearchRequestAttributes());
         context.executeNextPhase(NAME, () -> {
             var resp = SearchPhaseController.merge(context.getRequest().scroll() != null, reducedQueryPhase, fetchResultsArr);
             context.addReleasable(resp);

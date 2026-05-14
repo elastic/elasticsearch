@@ -135,6 +135,9 @@ Refer to [Enrich your data](docs-content://manage-data/ingest/transform-enrich/d
 [`bytes` processor](/reference/enrich-processor/bytes-processor.md)
 :   Converts a human-readable byte value to its value in bytes (for example `1kb` becomes `1024`).
 
+[`cef` processor](/reference/enrich-processor/cef-processor.md)
+:   Extracts fields from a Common Event Format (CEF) messages.
+
 [`csv` processor](/reference/enrich-processor/csv-processor.md)
 :   Extracts a single line of CSV data from a text field.
 
@@ -155,6 +158,9 @@ Refer to [Enrich your data](docs-content://manage-data/ingest/transform-enrich/d
 
 [`lowercase` processor](/reference/enrich-processor/lowercase-processor.md) and [`uppercase` processor](/reference/enrich-processor/uppercase-processor.md)
 :   Converts a string field to lowercase or uppercase.
+
+[`recover_failure_document` processor](/reference/enrich-processor/recover-failure-document-processor.md)
+:   Converts a failure-store document to its original format.
 
 [`split` processor](/reference/enrich-processor/split-processor.md)
 :   Splits a field into an array of values.
@@ -193,7 +199,7 @@ Refer to [Enrich your data](docs-content://manage-data/ingest/transform-enrich/d
 :   Runs an ingest processor on each element of an array or object.
 
 [`json` processor](/reference/enrich-processor/json-processor.md)
-:   Converts a JSON string into a structured JSON object.
+:   Parses a string containing JSON data into a structured object, string, or other value.
 
 [`script` processor](/reference/enrich-processor/script-processor.md)
 :   Runs an inline or stored [script](docs-content://explore-analyze/scripting.md) on incoming documents. The script runs in the [painless `ingest` context](/reference/scripting-languages/painless/painless-ingest-processor-context.md).
@@ -213,49 +219,3 @@ Mark a plugin as mandatory by setting `plugin.mandatory` in `elasticsearch.yml`.
 ```yaml
 plugin.mandatory: my-ingest-plugin
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

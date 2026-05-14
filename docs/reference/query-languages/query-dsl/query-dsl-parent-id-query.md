@@ -32,6 +32,7 @@ To use the `parent_id` query, your index must include a [join](/reference/elasti
       }
     }
     ```
+    % TESTSETUP
 
 2. Index a parent document with an ID of `1`.
 

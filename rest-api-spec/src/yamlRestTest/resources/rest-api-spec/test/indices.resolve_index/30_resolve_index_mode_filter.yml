@@ -1,0 +1,108 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: my-std-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          aliases:
+            my-std-alias: { }
+
+  # Create a time-series index
+  - do:
+      indices.create:
+        index: my-ts-index
+        body:
+          settings:
+            index.mode: time_series
+            number_of_shards: 1
+            number_of_replicas: 0
+            index.routing_path: [ "host" ]
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+                time_series_dimension: true
+              metric:
+                type: keyword
+              value:
+                type: double
+          aliases:
+            my-ts-alias: { }
+  # Create a lookup index
+  - do:
+      indices.create:
+        index: my-lookup-index
+        body:
+          settings:
+            index.mode: lookup
+          aliases:
+            my-lookup-alias: { }
+
+---
+"resolve index filters by mode":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_resolve/index/*
+          capabilities: [ mode_filter ]
+      reason: "Need support for mode filtering in indices.resolve_index"
+
+  - do:
+      indices.resolve_index:
+        name: 'my-*'
+        mode: lookup
+  - length: { indices: 1 }
+  - match: { indices.0.name: "my-lookup-index" }
+  - match: { indices.0.mode: "lookup" }
+  - match: { indices.0.aliases: [ "my-lookup-alias" ] }
+  - length: { aliases: 1 }
+  - match: { aliases.0.name: "my-lookup-alias" }
+  - match: { aliases.0.indices: [ "my-lookup-index" ] }
+
+---
+"resolve index filters by mode, multiple modes":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_resolve/index/*
+          capabilities: [ mode_filter ]
+      reason: "Need support for mode filtering in indices.resolve_index"
+
+  - do:
+      indices.resolve_index:
+        name: 'my-*'
+        mode: time_series,standard
+  - length: { indices: 2 }
+  - match: { indices.0.name: "my-std-index" }
+  - match: { indices.0.mode: "standard" }
+  - match: { indices.0.aliases: [ "my-std-alias" ] }
+  - match: { indices.1.name: "my-ts-index" }
+  - match: { indices.1.mode: "time_series" }
+  - match: { indices.1.aliases: [ "my-ts-alias" ] }
+  - length: { aliases: 2 }
+  - match: { aliases.0.name: "my-std-alias" }
+  - match: { aliases.0.indices: [ "my-std-index" ] }
+  - match: { aliases.1.name: "my-ts-alias" }
+  - match: { aliases.1.indices: [ "my-ts-index" ] }
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: my-std-index
+        ignore_unavailable: true
+  - do:
+      indices.delete:
+        index: my-ts-index
+        ignore_unavailable: true
+  - do:
+      indices.delete:
+        index: my-lookup-index
+        ignore_unavailable: true

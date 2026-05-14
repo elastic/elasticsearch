@@ -12,7 +12,6 @@ package org.elasticsearch.index.query.functionscore;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
@@ -24,6 +23,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -158,7 +158,7 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor queryVisitor) throws IOException {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException(
                 "[script score] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
@@ -167,7 +167,7 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
         ScoreScript.Factory factory = context.compile(script, ScoreScript.CONTEXT);
         SearchLookup lookup = context.lookup();
         ScoreScript.LeafFactory scoreScriptFactory = factory.newFactory(script.getParams(), lookup);
-        Query query = this.query.toQuery(context);
+        Query query = this.query.toQuery(context, queryVisitor);
         return new ScriptScoreQuery(
             query,
             script,
@@ -204,6 +204,6 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

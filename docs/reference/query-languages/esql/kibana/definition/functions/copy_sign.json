@@ -167,6 +167,9 @@
       "returnType" : "long"
     }
   ],
+  "examples" : [
+    "FROM employees\n| EVAL cs1 = COPY_SIGN(salary, LEAST(salary_change))"
+  ],
   "preview" : false,
   "snapshot_only" : false
 }

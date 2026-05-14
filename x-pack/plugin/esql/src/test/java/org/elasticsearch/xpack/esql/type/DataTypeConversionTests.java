@@ -15,10 +15,12 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.Converter;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
+import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
@@ -571,5 +573,13 @@ public class DataTypeConversionTests extends ESTestCase {
             "2.1.4-SNAPSHOT",
             versionToString.convert(stringToVersion.convert(new Literal(s2, BytesRefs.toBytesRef("2.1.4-SNAPSHOT"), stringType)))
         );
+    }
+
+    private ZonedDateTime asDateTime(long millis) {
+        return DateUtils.asDateTime(millis, ZoneOffset.UTC);
+    }
+
+    private ZonedDateTime asDateTime(String dateString) {
+        return DateUtils.asDateTime(dateString);
     }
 }

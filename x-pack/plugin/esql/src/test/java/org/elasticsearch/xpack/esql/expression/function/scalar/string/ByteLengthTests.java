@@ -16,13 +16,13 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.UnaryTestCaseHelper;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.unary;
 
 public class ByteLengthTests extends AbstractScalarFunctionTestCase {
     public ByteLengthTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -32,46 +32,19 @@ public class ByteLengthTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> cases = new ArrayList<>();
-        cases.addAll(List.of(new TestCaseSupplier("byte length basic test", List.of(DataType.KEYWORD), () -> {
-            var s = randomAlphaOfLength(between(0, 10000));
-            return testCase(s, DataType.KEYWORD, s.length());
-        })));
-        cases.addAll(makeTestCases("empty string", () -> "", 0));
-        cases.addAll(makeTestCases("single ascii character", () -> "a", 1));
-        cases.addAll(makeTestCases("ascii string", () -> "clump", 5));
-        cases.addAll(makeTestCases("3 bytes, 1 code point", () -> "☕", 3));
-        cases.addAll(makeTestCases("6 bytes, 2 code points", () -> "❗️", 6));
-        cases.addAll(makeTestCases("100 random alpha", () -> randomAlphaOfLength(100), 100));
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(ENTIRELY_NULL_PRESERVES_TYPE, cases);
-    }
-
-    private static List<TestCaseSupplier> makeTestCases(String title, Supplier<String> text, int expectedByteLength) {
-        return Stream.of(DataType.KEYWORD, DataType.TEXT)
-            .map(
-                dataType -> new TestCaseSupplier(
-                    title + " with " + dataType,
-                    List.of(dataType),
-                    () -> testCase(text.get(), dataType, expectedByteLength)
-                )
-            )
-            .toList();
+        UnaryTestCaseHelper base = unary().expectedOutputType(DataType.INTEGER).evaluatorToString("ByteLengthEvaluator[val=%0]");
+        base.strings().expectedFromString(s -> new BytesRef(s).length).build(cases);
+        base.strings("empty string", () -> "").expectedFromString(s -> 0).build(cases);
+        base.strings("single ascii character", () -> "a").expectedFromString(s -> 1).build(cases);
+        base.strings("ascii string", () -> "clump").expectedFromString(s -> 5).build(cases);
+        base.strings("3 bytes, 1 code point", () -> "☕").expectedFromString(s -> 3).build(cases);
+        base.strings("6 bytes, 2 code points", () -> "❗️").expectedFromString(s -> 6).build(cases);
+        base.strings("100 random alpha", () -> randomAlphaOfLength(100)).expectedFromString(s -> 100).build(cases);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        assert args.size() == 1;
         return new ByteLength(source, args.get(0));
     }
-
-    private static TestCaseSupplier.TestCase testCase(String s, DataType dataType, int expectedByteLength) {
-        var bytesRef = new BytesRef(s);
-        return new TestCaseSupplier.TestCase(
-            List.of(new TestCaseSupplier.TypedData(bytesRef, dataType, "f")),
-            "ByteLengthEvaluator[val=Attribute[channel=0]]",
-            DataType.INTEGER,
-            equalTo(expectedByteLength)
-        );
-    }
-
-    private static final boolean ENTIRELY_NULL_PRESERVES_TYPE = true;
 }

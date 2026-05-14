@@ -13,13 +13,11 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
@@ -29,12 +27,20 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.LongScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.mapper.blockloader.script.LongScriptBlockDocValuesReader;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.ScoreScript;
@@ -42,16 +48,20 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTestCase {
 
@@ -93,7 +103,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 IndexSearcher searcher = newSearcher(reader);
                 LongScriptFieldType ft = build("add_param", Map.of("param", 1), OnScriptError.FAIL);
                 LongScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
-                searcher.search(new MatchAllDocsQuery(), new Collector() {
+                searcher.search(Queries.ALL_DOCS_INSTANCE, new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
                         return ScoreMode.COMPLETE_NO_SCORES;
@@ -101,7 +111,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
 
                     @Override
                     public LeafCollector getLeafCollector(LeafReaderContext context) {
-                        SortedNumericDocValues dv = ifd.load(context).getLongValues();
+                        SortedNumericLongValues dv = ifd.load(context).getLongValues();
                         return new LeafCollector() {
                             @Override
                             public void setScorer(Scorable scorer) {}
@@ -132,7 +142,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 IndexSearcher searcher = newSearcher(reader);
                 LongScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder(mockFielddataContext()).build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
-                TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
+                TopFieldDocs docs = searcher.search(Queries.ALL_DOCS_INSTANCE, 3, new Sort(sf));
                 StoredFields storedFields = reader.storedFields();
                 assertThat(
                     storedFields.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(),
@@ -160,7 +170,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 LongScriptFieldData ifd = build("millis_ago", Map.of(), OnScriptError.FAIL).fielddataBuilder(mockFielddataContext())
                     .build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
-                TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
+                TopFieldDocs docs = searcher.search(Queries.ALL_DOCS_INSTANCE, 3, new Sort(sf));
                 assertThat(readSource(reader, docs.scoreDocs[0].doc), equalTo("{\"timestamp\": [1595432181356]}"));
                 assertThat(readSource(reader, docs.scoreDocs[1].doc), equalTo("{\"timestamp\": [1595432181354]}"));
                 assertThat(readSource(reader, docs.scoreDocs[2].doc), equalTo("{\"timestamp\": [1595432181351]}"));
@@ -183,28 +193,31 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
-                assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
-                    @Override
-                    public boolean needs_score() {
-                        return false;
-                    }
+                assertThat(
+                    searcher.count(new ScriptScoreQuery(Queries.ALL_DOCS_INSTANCE, new Script("test"), new ScoreScript.LeafFactory() {
+                        @Override
+                        public boolean needs_score() {
+                            return false;
+                        }
 
-                    @Override
-                    public boolean needs_termStats() {
-                        return false;
-                    }
+                        @Override
+                        public boolean needs_termStats() {
+                            return false;
+                        }
 
-                    @Override
-                    public ScoreScript newInstance(DocReader docReader) {
-                        return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
-                            @Override
-                            public double execute(ExplanationHolder explanation) {
-                                ScriptDocValues.Longs longs = (ScriptDocValues.Longs) getDoc().get("test");
-                                return longs.get(0);
-                            }
-                        };
-                    }
-                }, searchContext.lookup(), 2.5f, "test", 0, IndexVersion.current())), equalTo(1));
+                        @Override
+                        public ScoreScript newInstance(DocReader docReader) {
+                            return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
+                                @Override
+                                public double execute(ExplanationHolder explanation) {
+                                    ScriptDocValues.Longs longs = (ScriptDocValues.Longs) getDoc().get("test");
+                                    return longs.get(0);
+                                }
+                            };
+                        }
+                    }, searchContext.lookup(), 2.5f, "test", 0, IndexVersion.current())),
+                    equalTo(1)
+                );
             }
         }
     }
@@ -283,6 +296,42 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     }
 
     public void testBlockLoader() throws IOException {
+        testBlockLoader(newLimitedBreaker(ByteSizeValue.ofMb(1)), f -> f);
+    }
+
+    public void testWithCrankyBreaker() throws IOException {
+        CircuitBreaker cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
+        try {
+            testBlockLoader(cranky, r -> r);
+            logger.info("Cranky breaker didn't break. This should be rare, but possible randomly.");
+        } catch (CircuitBreakingException e) {
+            logger.info("Cranky breaker broke", e);
+        }
+        assertThat(cranky.getUsed(), equalTo(0L));
+    }
+
+    public void testWithCrankyFactory() throws IOException {
+        try {
+            testBlockLoader(newLimitedBreaker(ByteSizeValue.ofMb(1)), CrankyLeafFactory::new);
+            logger.info("Cranky factory didn't break.");
+        } catch (IllegalStateException e) {
+            logger.info("Cranky factory broke", e);
+        }
+    }
+
+    public void testWithCrankyBreakerAndFactory() throws IOException {
+        CircuitBreaker cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
+        try {
+            testBlockLoader(cranky, CrankyLeafFactory::new);
+            logger.info("Cranky breaker nor reader didn't break. This should be rare, but possible randomly.");
+        } catch (IllegalStateException | CircuitBreakingException e) {
+            logger.info("Cranky breaker or reader broke", e);
+        }
+        assertThat(cranky.getUsed(), equalTo(0L));
+    }
+
+    private void testBlockLoader(CircuitBreaker breaker, Function<LongFieldScript.LeafFactory, LongFieldScript.LeafFactory> factoryWrapper)
+        throws IOException {
         try (
             Directory directory = newDirectory();
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
@@ -294,10 +343,71 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 )
             );
             try (DirectoryReader reader = iw.getReader()) {
-                LongScriptFieldType fieldType = build("add_param", Map.of("param", 1), OnScriptError.FAIL);
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 0), equalTo(List.of(2L, 3L)));
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 1), equalTo(List.of(3L)));
-                assertThat(blockLoaderReadValuesFromRowStrideReader(reader, fieldType), equalTo(List.of(2L, 3L)));
+                LongScriptFieldType fieldType = buildWrapped("add_param", Map.of("param", 1), factoryWrapper);
+                assertColumnAtATimeReaderNotSupported(reader, fieldType);
+                assertThat(blockLoaderReadValuesFromRowStrideReader(breaker, reader, fieldType), equalTo(List.of(2L, 3L)));
+            }
+        }
+    }
+
+    public void testBlockLoaderSourceOnlyRuntimeField() throws IOException {
+        try (
+            Directory directory = newDirectory();
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
+        ) {
+            iw.addDocuments(
+                List.of(
+                    List.of(new StoredField("_source", new BytesRef("{\"test\": [1]}"))),
+                    List.of(new StoredField("_source", new BytesRef("{\"test\": [2]}")))
+                )
+            );
+            try (DirectoryReader reader = iw.getReader()) {
+                LongScriptFieldType fieldType = simpleSourceOnlyMappedFieldType();
+                assertColumnAtATimeReaderNotSupported(reader, fieldType);
+
+                // Assert implementations:
+                BlockLoader loader = fieldType.blockLoader(blContext(Settings.EMPTY, true));
+                assertThat(loader, instanceOf(LongScriptBlockDocValuesReader.LongScriptBlockLoader.class));
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+                try (var rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {
+                    assertThat(rowStrideReader, instanceOf(LongScriptBlockDocValuesReader.class));
+                }
+
+                // Assert values:
+                assertThat(blockLoaderReadValuesFromRowStrideReader(breaker, reader, fieldType), equalTo(List.of(1L, 2L)));
+            }
+        }
+    }
+
+    public void testBlockLoaderSourceOnlyRuntimeFieldWithSyntheticSource() throws IOException {
+        var settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        try (
+            Directory directory = newDirectory();
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
+        ) {
+
+            var document1 = createDocumentWithIgnoredSource("[1]");
+            var document2 = createDocumentWithIgnoredSource("[2]");
+
+            iw.addDocuments(List.of(document1, document2));
+            try (DirectoryReader reader = iw.getReader()) {
+                LongScriptFieldType fieldType = simpleSourceOnlyMappedFieldType();
+
+                // Assert implementations:
+                BlockLoader loader = fieldType.blockLoader(blContext(settings, true));
+                assertThat(loader, instanceOf(FallbackSyntheticSourceBlockLoader.class));
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+                // ignored source doesn't support column at a time loading:
+                assertThat(loader.columnAtATimeReader(reader.leaves().getFirst()), nullValue());
+                try (var rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {
+                    assertThat(
+                        rowStrideReader.getClass().getName(),
+                        equalTo("org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader$IgnoredSourceRowStrideReader")
+                    );
+                }
+
+                // Assert values:
+                assertThat(blockLoaderReadValuesFromRowStrideReader(breaker, settings, reader, fieldType, true), equalTo(List.of(1L, 2L)));
             }
         }
     }
@@ -310,6 +420,10 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     @Override
     protected LongScriptFieldType simpleMappedFieldType() {
         return build("read_foo", Map.of(), OnScriptError.FAIL);
+    }
+
+    private LongScriptFieldType simpleSourceOnlyMappedFieldType() {
+        return build("read_test", Map.of(), OnScriptError.FAIL);
     }
 
     @Override
@@ -327,8 +441,47 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         return new LongScriptFieldType("test", factory(script), script, emptyMap(), onScriptError);
     }
 
+    protected LongScriptFieldType buildWrapped(
+        String code,
+        Map<String, Object> params,
+        Function<LongFieldScript.LeafFactory, LongFieldScript.LeafFactory> leafFactoryWrapper
+    ) {
+        Script script = new Script(ScriptType.INLINE, "test", code, params);
+        LongFieldScript.Factory factory = factory(script);
+        LongFieldScript.Factory wrapped = (fieldName, params1, searchLookup, onScriptError) -> leafFactoryWrapper.apply(
+            factory.newFactory(fieldName, params1, searchLookup, onScriptError)
+        );
+        return new LongScriptFieldType("test", wrapped, script, emptyMap(), OnScriptError.FAIL);
+    }
+
     private static LongFieldScript.Factory factory(Script script) {
         switch (script.getIdOrCode()) {
+            case "read_test":
+                return new LongFieldScript.Factory() {
+                    @Override
+                    public LongFieldScript.LeafFactory newFactory(
+                        String fieldName,
+                        Map<String, Object> params,
+                        SearchLookup lookup,
+                        OnScriptError onScriptError
+                    ) {
+                        return (ctx) -> new LongFieldScript(fieldName, params, lookup, onScriptError, ctx) {
+                            @Override
+                            @SuppressWarnings("unchecked")
+                            public void execute() {
+                                Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                                for (Object foo : (List<?>) source.get("test")) {
+                                    emit(((Number) foo).longValue());
+                                }
+                            };
+                        };
+                    }
+
+                    @Override
+                    public boolean isParsedFromSource() {
+                        return true;
+                    }
+                };
             case "read_foo":
                 return (fieldName, params, lookup, onScriptError) -> (ctx) -> new LongFieldScript(
                     fieldName,
@@ -403,6 +556,22 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 };
             default:
                 throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
+        }
+    }
+
+    private static class CrankyLeafFactory implements LongFieldScript.LeafFactory {
+        private final LongFieldScript.LeafFactory next;
+
+        private CrankyLeafFactory(LongFieldScript.LeafFactory next) {
+            this.next = next;
+        }
+
+        @Override
+        public LongFieldScript newInstance(LeafReaderContext ctx) {
+            if (between(0, 20) == 0) {
+                throw new IllegalStateException("cranky");
+            }
+            return next.newInstance(ctx);
         }
     }
 }

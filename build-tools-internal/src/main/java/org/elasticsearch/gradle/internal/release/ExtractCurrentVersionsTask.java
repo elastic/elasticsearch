@@ -29,7 +29,7 @@ import java.util.function.Consumer;
 
 import javax.inject.Inject;
 
-public class ExtractCurrentVersionsTask extends AbstractVersionsTask {
+public abstract class ExtractCurrentVersionsTask extends AbstractVersionsTask {
     private static final Logger LOGGER = Logging.getLogger(ExtractCurrentVersionsTask.class);
 
     private Path outputFile;
@@ -53,9 +53,6 @@ public class ExtractCurrentVersionsTask extends AbstractVersionsTask {
         LOGGER.lifecycle("Extracting latest version information");
 
         List<String> output = new ArrayList<>();
-        int transportVersion = readLatestVersion(rootDir.resolve(TRANSPORT_VERSIONS_FILE_PATH));
-        LOGGER.lifecycle("Transport version: {}", transportVersion);
-        output.add(TRANSPORT_VERSION_TYPE + ":" + transportVersion);
 
         int indexVersion = readLatestVersion(rootDir.resolve(INDEX_VERSIONS_FILE_PATH));
         LOGGER.lifecycle("Index version: {}", indexVersion);

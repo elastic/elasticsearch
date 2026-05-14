@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.license.License;
@@ -26,7 +26,6 @@ import java.util.function.BiFunction;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.hamcrest.Matchers.containsString;
@@ -70,6 +69,7 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
     protected static void addTestCaseSuppliers(
         List<TestCaseSupplier> suppliers,
         DataType[] dataTypes,
+        DataType gridType,
         BiFunction<BytesRef, Integer, Long> expectedValue,
         TriFunction<BytesRef, Integer, GeoBoundingBox, Long> expectedValueWithBounds
     ) {
@@ -91,7 +91,7 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
                     return new TestCaseSupplier.TestCase(
                         List.of(geoTypedData, precisionData),
                         getFunctionClassName() + evaluatorName,
-                        LONG,
+                        gridType,
                         equalTo(expectedValue.apply(geometry, precision))
                     );
                 }));
@@ -111,7 +111,7 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
                     return new TestCaseSupplier.TestCase(
                         List.of(geoTypedData, precisionData, boundsData.typedData),
                         startsWith(getFunctionClassName() + evaluatorName),
-                        LONG,
+                        gridType,
                         equalTo(expectedValueWithBounds.apply(geometry, precision, boundsData.geoBoundingBox()))
                     );
                 }));
@@ -121,17 +121,17 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
 
     public static TestCaseSupplier.TypedDataSupplier testCaseSupplier(DataType dataType, boolean pointsOnly) {
         if (pointsOnly) {
-            return switch (dataType.esType()) {
-                case "geo_point" -> TestCaseSupplier.geoPointCases(() -> false).getFirst();
-                case "cartesian_point" -> TestCaseSupplier.cartesianPointCases(() -> false).getFirst();
+            return switch (dataType) {
+                case GEO_POINT -> TestCaseSupplier.geoPointCases(() -> false).getFirst();
+                case CARTESIAN_POINT -> TestCaseSupplier.cartesianPointCases(() -> false).getFirst();
                 default -> throw new IllegalArgumentException("Unsupported datatype for " + functionName() + ": " + dataType);
             };
         } else {
-            return switch (dataType.esType()) {
-                case "geo_point" -> TestCaseSupplier.geoPointCases(() -> false).getFirst();
-                case "geo_shape" -> TestCaseSupplier.geoShapeCases(() -> false).getFirst();
-                case "cartesian_point" -> TestCaseSupplier.cartesianPointCases(() -> false).getFirst();
-                case "cartesian_shape" -> TestCaseSupplier.cartesianShapeCases(() -> false).getFirst();
+            return switch (dataType) {
+                case GEO_POINT -> TestCaseSupplier.geoPointCases(() -> false).getFirst();
+                case GEO_SHAPE -> TestCaseSupplier.geoShapeCases(() -> false).getFirst();
+                case CARTESIAN_POINT -> TestCaseSupplier.cartesianPointCases(() -> false).getFirst();
+                case CARTESIAN_SHAPE -> TestCaseSupplier.cartesianShapeCases(() -> false).getFirst();
                 default -> throw new IllegalArgumentException("Unsupported datatype for " + functionName() + ": " + dataType);
             };
         }
@@ -162,7 +162,7 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
         assumeTrue("Expected a BytesRef, but got " + spatialObj.getClass(), spatialObj instanceof BytesRef);
         BytesRef wkb = (BytesRef) spatialObj;
         try (
-            EvalOperator.ExpressionEvaluator eval = evaluator(
+            ExpressionEvaluator eval = evaluator(
                 build(Source.EMPTY, List.of(new Literal(Source.EMPTY, wkb, GEO_POINT), new Literal(Source.EMPTY, precision, INTEGER)))
             ).get(driverContext());
             Block block = eval.eval(row(List.of(wkb, precision)))
@@ -177,7 +177,7 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
         assumeTrue("Expected a BytesRef, but got " + spatialObj.getClass(), spatialObj instanceof BytesRef);
         BytesRef wkb = (BytesRef) spatialObj;
         try (
-            EvalOperator.ExpressionEvaluator eval = evaluator(
+            ExpressionEvaluator eval = evaluator(
                 build(
                     Source.EMPTY,
                     List.of(

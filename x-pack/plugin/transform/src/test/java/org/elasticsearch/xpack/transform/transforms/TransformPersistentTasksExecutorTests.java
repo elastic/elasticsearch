@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -37,8 +38,10 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -660,16 +663,20 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         var transformCheckpointService = new TransformCheckpointService(
             Clock.systemUTC(),
             Settings.EMPTY,
-            new ClusterService(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadPool,
-                null
-            ),
+            StubLinkedProjectConfigService.INSTANCE,
             configManager,
             mockAuditor
         );
-        return new TransformServices(configManager, transformCheckpointService, mockAuditor, scheduler, mock(TransformNode.class));
+        return new TransformServices(
+            configManager,
+            transformCheckpointService,
+            mockAuditor,
+            scheduler,
+            mock(TransformNode.class),
+            mock(CrossProjectModeDecider.class),
+            projectId -> false,
+            mock(ProjectResolver.class)
+        );
     }
 
     private TransformPersistentTasksExecutor buildTaskExecutor(TransformServices transformServices) {

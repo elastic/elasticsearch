@@ -7,23 +7,26 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StGeotile}.
+ * {@link ExpressionEvaluator} implementation for {@link StGeotile}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StGeotileFromFieldDocValuesAndLiteralEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class StGeotileFromFieldDocValuesAndLiteralEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StGeotileFromFieldDocValuesAndLiteralEvaluator.class);
+
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator encoded;
+  private final ExpressionEvaluator encoded;
 
   private final int precision;
 
@@ -31,8 +34,8 @@ public final class StGeotileFromFieldDocValuesAndLiteralEvaluator implements Eva
 
   private Warnings warnings;
 
-  public StGeotileFromFieldDocValuesAndLiteralEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator encoded, int precision, DriverContext driverContext) {
+  public StGeotileFromFieldDocValuesAndLiteralEvaluator(Source source, ExpressionEvaluator encoded,
+      int precision, DriverContext driverContext) {
     this.source = source;
     this.encoded = encoded;
     this.precision = precision;
@@ -44,6 +47,13 @@ public final class StGeotileFromFieldDocValuesAndLiteralEvaluator implements Eva
     try (LongBlock encodedBlock = (LongBlock) encoded.eval(page)) {
       return eval(page.getPositionCount(), encodedBlock);
     }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += encoded.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public LongBlock eval(int positionCount, LongBlock encodedBlock) {
@@ -80,24 +90,19 @@ public final class StGeotileFromFieldDocValuesAndLiteralEvaluator implements Eva
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory encoded;
+    private final ExpressionEvaluator.Factory encoded;
 
     private final int precision;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory encoded, int precision) {
+    public Factory(Source source, ExpressionEvaluator.Factory encoded, int precision) {
       this.source = source;
       this.encoded = encoded;
       this.precision = precision;

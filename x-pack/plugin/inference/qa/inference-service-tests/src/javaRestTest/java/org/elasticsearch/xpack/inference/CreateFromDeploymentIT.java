@@ -12,6 +12,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 
 import java.io.IOException;
 import java.util.List;
@@ -49,7 +50,7 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         );
 
         var results = infer(inferenceId, List.of("washing machine"));
-        assertNotNull(results.get("sparse_embedding"));
+        assertNotNull(results.get(SparseEmbeddingResults.SPARSE_EMBEDDING));
 
         deleteModel(inferenceId);
         // assert deployment not stopped
@@ -108,7 +109,9 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         );
 
         var results = infer(inferenceId, List.of("washing machine"));
-        assertNotNull(results.get("sparse_embedding"));
+        assertNotNull(results.get(SparseEmbeddingResults.SPARSE_EMBEDDING));
+
+        deleteModel(inferenceId);
 
         forceStopMlNodeDeployment(deploymentId);
     }
@@ -225,6 +228,7 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
             )
         );
 
+        deleteModel(inferenceId);
         forceStopMlNodeDeployment(deploymentId);
     }
 
@@ -266,6 +270,7 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
             is(Map.of("num_allocations", 2, "num_threads", 1, "model_id", modelId))
         );
 
+        deleteModel(inferenceId);
         forceStopMlNodeDeployment(deploymentId);
     }
 
@@ -309,6 +314,8 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
             )
         );
 
+        deleteModel(inferenceId);
+        deleteModel(secondInferenceId);
         forceStopMlNodeDeployment(deploymentId);
     }
 
@@ -331,6 +338,7 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
             )
         );
 
+        deleteModel(inferenceId);
         // Force stop will stop the deployment
         forceStopMlNodeDeployment(deploymentId);
     }
@@ -356,16 +364,6 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
               }
             }
             """, modelId, deploymentId);
-    }
-
-    private String updatedEndpointConfig(int numAllocations) {
-        return Strings.format("""
-            {
-              "service_settings": {
-                "num_allocations": %d
-              }
-            }
-            """, numAllocations);
     }
 
     private Response startMlNodeDeploymemnt(String modelId, String deploymentId) throws IOException {
@@ -413,16 +411,6 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         return client().performRequest(request);
     }
 
-    private Map<String, Object> updateMlNodeDeploymemnt(String deploymentId, String body) throws IOException {
-        String endPoint = "/_ml/trained_models/" + deploymentId + "/deployment/_update";
-
-        Request request = new Request("POST", endPoint);
-        request.setJsonEntity(body);
-        var response = client().performRequest(request);
-        assertStatusOkOrCreated(response);
-        return entityAsMap(response);
-    }
-
     protected void stopMlNodeDeployment(String deploymentId) throws IOException {
         String endpoint = "/_ml/trained_models/" + deploymentId + "/deployment/_stop";
         Request request = new Request("POST", endpoint);
@@ -436,8 +424,4 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         client().performRequest(request);
     }
 
-    protected Map<String, Object> getTrainedModelStats(String modelId) throws IOException {
-        Request request = new Request("GET", "/_ml/trained_models/" + modelId + "/_stats");
-        return entityAsMap(client().performRequest(request));
-    }
 }

@@ -12,16 +12,19 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
+import org.elasticsearch.xpack.core.security.authc.CustomAuthenticator;
 import org.elasticsearch.xpack.core.security.authc.Realm;
-import org.elasticsearch.xpack.core.security.authc.apikey.CustomApiKeyAuthenticator;
 import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.AuthorizedProjectsResolver;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ImplicitPrivilegesProvider;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 
 import java.util.Collections;
@@ -63,6 +66,9 @@ public interface SecurityExtension {
 
         /** Provides the ability to access project-scoped data from the global scope **/
         ProjectResolver projectResolver();
+
+        /** Provides the ability to access the APM tracer and meter registry **/
+        TelemetryProvider telemetryProvider();
     }
 
     /**
@@ -129,7 +135,7 @@ public interface SecurityExtension {
         return null;
     }
 
-    default CustomApiKeyAuthenticator getCustomApiKeyAuthenticator(SecurityComponents components) {
+    default List<CustomAuthenticator> getCustomAuthenticators(SecurityComponents components) {
         return null;
     }
 
@@ -147,5 +153,26 @@ public interface SecurityExtension {
 
     default String extensionName() {
         return getClass().getName();
+    }
+
+    default AuthorizedProjectsResolver getAuthorizedProjectsResolver(SecurityComponents components) {
+        return null;
+    }
+
+    /**
+     * Returns providers of implicit index privileges derived from application privileges.
+     * These providers are invoked during role building to inject additional index-level
+     * privileges that are not explicitly declared in the role definition.
+     * <p>
+     * Exceptions thrown by a provider are not caught — they propagate out of role building
+     * and fail authorization for the affected user. See {@link ImplicitPrivilegesProvider}
+     * for the implementation contract.
+     * <p>
+     * By default, an empty list is returned.
+     *
+     * @param components Access to components that may be used to build providers
+     */
+    default List<ImplicitPrivilegesProvider> getImplicitPrivilegesProviders(SecurityComponents components) {
+        return Collections.emptyList();
     }
 }

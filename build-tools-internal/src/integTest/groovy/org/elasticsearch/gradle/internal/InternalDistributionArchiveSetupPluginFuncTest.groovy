@@ -80,11 +80,8 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
     def "registered distribution provides archives and directory variant"() {
         given:
         file('someFile.txt') << "some content"
-
-        settingsFile << """
-            include ':consumer'
-            include ':producer-tar'
-        """
+        subProject("consumer")
+        subProject("producer-tar")
 
         buildFile << """
         import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
@@ -154,9 +151,7 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
     def "builds extracted distribution via extractedAssemble"() {
         given:
         file('someFile.txt') << "some content"
-        settingsFile << """
-            include ':producer-tar'
-        """
+        subProject("producer-tar")
 
         buildFile << """
         import org.gradle.api.artifacts.type.ArtifactTypeDefinition;

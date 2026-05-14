@@ -1,25 +1,31 @@
 {
-  "rollup.start_job":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/rollup-start-job.html",
-      "description":"Starts an existing, stopped rollup job."
+  "rollup.start_job": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-rollup-start-job",
+      "description": "Start rollup jobs"
     },
-    "stability":"experimental",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "experimental",
+    "visibility": "public",
+    "deprecated": {
+      "version": "8.11.0",
+      "description": "Rollup APIs are deprecated, use downsampling with time series data stream instead"
     },
-    "url":{
-      "paths":[
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
         {
-          "path":"/_rollup/job/{id}/_start",
-          "methods":[
+          "path": "/_rollup/job/{id}/_start",
+          "methods": [
             "POST"
           ],
-          "parts":{
-            "id":{
-              "type":"string",
-              "description":"The ID of the job to start"
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the job to start"
             }
           }
         }

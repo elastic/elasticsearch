@@ -34,16 +34,10 @@ public final class MinBytesRefAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public MinBytesRefAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      MinBytesRefAggregator.SingleState state) {
+  MinBytesRefAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static MinBytesRefAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new MinBytesRefAggregatorFunction(driverContext, channels, MinBytesRefAggregator.initSingle(driverContext));
+    this.state = MinBytesRefAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -70,6 +64,18 @@ public final class MinBytesRefAggregatorFunction implements AggregatorFunction {
     BytesRefBlock valueBlock = page.getBlock(channels.get(0));
     BytesRefVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
+      if (valueBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(valueBlock, mask);
       return;
     }
@@ -80,6 +86,18 @@ public final class MinBytesRefAggregatorFunction implements AggregatorFunction {
     BytesRefBlock valueBlock = page.getBlock(channels.get(0));
     BytesRefVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
+      if (valueBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(valueBlock);
       return;
     }
@@ -108,11 +126,12 @@ public final class MinBytesRefAggregatorFunction implements AggregatorFunction {
   private void addRawBlock(BytesRefBlock valueBlock) {
     BytesRef valueScratch = new BytesRef();
     for (int p = 0; p < valueBlock.getPositionCount(); p++) {
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         BytesRef valueValue = valueBlock.getBytesRef(valueOffset, valueScratch);
         MinBytesRefAggregator.combine(state, valueValue);
@@ -126,11 +145,12 @@ public final class MinBytesRefAggregatorFunction implements AggregatorFunction {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         BytesRef valueValue = valueBlock.getBytesRef(valueOffset, valueScratch);
         MinBytesRefAggregator.combine(state, valueValue);
@@ -144,18 +164,36 @@ public final class MinBytesRefAggregatorFunction implements AggregatorFunction {
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block minUncast = page.getBlock(channels.get(0));
     if (minUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BytesRefVector min = ((BytesRefBlock) minUncast).asVector();
     assert min.getPositionCount() == 1;
     Block seenUncast = page.getBlock(channels.get(1));
     if (seenUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert seen.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    MinBytesRefAggregator.combineIntermediate(state, min.getBytesRef(0, scratch), seen.getBoolean(0));
+    BytesRef minScratch = new BytesRef();
+    MinBytesRefAggregator.combineIntermediate(state, min.getBytesRef(0, minScratch), seen.getBoolean(0));
   }
 
   @Override

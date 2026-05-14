@@ -461,10 +461,10 @@ public final class IndexLifecycleTransition {
         Settings.Builder newSettings = Settings.builder().put(idxSettings);
         boolean notChanged = true;
 
-        notChanged &= Strings.isNullOrEmpty(newSettings.remove(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
-        notChanged &= Strings.isNullOrEmpty(newSettings.remove(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.getKey()));
-        notChanged &= Strings.isNullOrEmpty(newSettings.remove(LifecycleSettings.LIFECYCLE_SKIP_SETTING.getKey()));
-        notChanged &= Strings.isNullOrEmpty(newSettings.remove(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.getKey()));
+        notChanged &= Strings.isNullOrEmpty(newSettings.removeAndGet(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
+        notChanged &= Strings.isNullOrEmpty(newSettings.removeAndGet(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.getKey()));
+        notChanged &= Strings.isNullOrEmpty(newSettings.removeAndGet(LifecycleSettings.LIFECYCLE_SKIP_SETTING.getKey()));
+        notChanged &= Strings.isNullOrEmpty(newSettings.removeAndGet(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.getKey()));
         long newSettingsVersion = notChanged ? indexMetadata.getSettingsVersion() : 1 + indexMetadata.getSettingsVersion();
 
         IndexMetadata.Builder builder = IndexMetadata.builder(indexMetadata);

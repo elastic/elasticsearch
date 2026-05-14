@@ -9,12 +9,12 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.action.admin.indices.stats.IndexStats;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -26,6 +26,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
@@ -45,12 +46,16 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.test.NodeShutdownTestUtils.clearShutdownMetadata;
+import static org.elasticsearch.test.NodeShutdownTestUtils.flushMasterQueue;
+import static org.elasticsearch.test.NodeShutdownTestUtils.putShutdownForRemovalMetadata;
 import static org.elasticsearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -59,6 +64,13 @@ import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
+
+    /**
+     * OpenTelemetry double histograms may report bucket values rounded slightly above the wall-clock
+     * interval measured here with {@link TimeValue#secondsFrac()}, causing strict {@code lessThan}
+     * comparisons to flake (e.g. 0.108 vs 0.107915...).
+     */
+    private static final double DOUBLE_HISTOGRAM_DURATION_UPPER_BOUND_SLACK_SEC = 1e-4;
 
     private static final String REQUIRE_NODE_NAME_SETTING = IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name";
 
@@ -83,47 +95,38 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         final int numReplicas = randomIntBetween(0, 1);
         createIndex(indexName, numShards, numReplicas);
 
-        indexRandom(true, indexName, randomIntBetween(100, 300));
-
-        final IndicesStatsResponse indicesStats = indicesAdmin().prepareStats(indexName).get();
-        final IndexStats indexStats = indicesStats.getIndex(indexName);
-        long totalSizeInBytes = 0;
-        for (ShardStats shard : indexStats.getShards()) {
-            totalSizeInBytes += shard.getStats().getStore().sizeInBytes();
-        }
-        logger.info("--> total shards size: {} bytes", totalSizeInBytes);
+        indexRandom(true, indexName, randomIntBetween(3000, 5000));
 
         final String repositoryName = randomIdentifier();
-
-        // we want to ensure some throttling, but not so much that it makes the test excessively slow.
-        final int shardSizeMultipleToEnsureThrottling = 2;
         createRepository(
             repositoryName,
             "mock",
-            randomRepositorySettings().put(
-                BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC.getKey(),
-                ByteSizeValue.ofBytes(totalSizeInBytes * shardSizeMultipleToEnsureThrottling)
-            )
-                .put(
-                    BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC.getKey(),
-                    ByteSizeValue.ofBytes(totalSizeInBytes * shardSizeMultipleToEnsureThrottling)
-                )
+            Settings.builder()
+                .put(randomRepositorySettings().build())
+                // Making chunk size small and adding throttling increases the likelihood of upload duration being non-zero
+                .put("chunk_size", ByteSizeValue.ofKb(1))
+                .put(BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC.getKey(), ByteSizeValue.ofMb(1))
+                .put(BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC.getKey(), ByteSizeValue.ofMb(1))
         );
 
         // Block the snapshot to test "snapshot shards in progress"
         blockAllDataNodes(repositoryName);
         final String snapshotName = randomIdentifier();
         final long beforeCreateSnapshotNanos = System.nanoTime();
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture;
         try {
-            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, snapshotName)
+            snapshotFuture = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, snapshotName)
                 .setIndices(indexName)
-                .setWaitForCompletion(false)
-                .get();
+                .setWaitForCompletion(true)
+                .execute();
 
-            waitForBlockOnAnyDataNode(repositoryName);
-            collectMetrics();
-            assertShardsInProgressMetricIs(hasItem(greaterThan(0L)));
-            assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOTS_STARTED), equalTo(1L));
+            // We are able to wait for either the creation to complete (`wait_for_completion=false`), or the snapshot to complete
+            // (`wait_for_completion=true`), but not both. To know when the creation listeners complete, we must assertBusy
+            assertBusy(() -> {
+                collectMetrics();
+                assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOTS_STARTED), equalTo(1L));
+                assertShardsInProgressMetricIs(hasItem(greaterThan(0L)));
+            });
             assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOTS_COMPLETED), equalTo(0L));
             assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_STARTED), greaterThan(0L));
             assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_COMPLETED), equalTo(0L));
@@ -132,26 +135,32 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         }
 
         // wait for snapshot to finish to test the other metrics
-        awaitNumberOfSnapshotsInProgress(0);
+        safeGet(snapshotFuture);
         final TimeValue snapshotElapsedTime = TimeValue.timeValueNanos(System.nanoTime() - beforeCreateSnapshotNanos);
+        final double maxHistogramDurationSeconds = snapshotElapsedTime.secondsFrac() + DOUBLE_HISTOGRAM_DURATION_UPPER_BOUND_SLACK_SEC;
         collectMetrics();
 
         // sanity check blobs, bytes and throttling metrics
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_BLOBS_UPLOADED), greaterThan(0L));
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_BYTES_UPLOADED), greaterThan(0L));
-        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_CREATE_THROTTLE_DURATION), greaterThan(0L));
-        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_RESTORE_THROTTLE_DURATION), equalTo(0L));
 
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOTS_STARTED), equalTo(1L));
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOTS_COMPLETED), equalTo(1L));
 
         // Sanity check shard duration observations
         assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, hasSize(numShards));
-        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, everyItem(lessThan(snapshotElapsedTime.secondsFrac())));
+        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, everyItem(lessThan(maxHistogramDurationSeconds)));
+
+        // Sanity check shard queue time observations
+        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_SHARDS_QUEUE_TIME, hasSize(numShards));
+        assertDoubleHistogramMetrics(
+            SnapshotMetrics.SNAPSHOT_SHARDS_QUEUE_TIME,
+            everyItem(allOf(greaterThanOrEqualTo(0.0), lessThan(maxHistogramDurationSeconds)))
+        );
 
         // Sanity check snapshot observations
         assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, hasSize(1));
-        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, everyItem(lessThan(snapshotElapsedTime.secondsFrac())));
+        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, everyItem(lessThan(maxHistogramDurationSeconds)));
 
         // Work out the maximum amount of concurrency per node
         final ThreadPool tp = internalCluster().getDataNodeInstance(ThreadPool.class);
@@ -165,37 +174,14 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_UPLOAD_DURATION),
             allOf(greaterThan(0L), lessThan(upperBoundTimeSpentOnSnapshotThingsMillis))
         );
-        assertThat(
-            getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_UPLOAD_READ_DURATION),
-            allOf(greaterThan(0L), lessThan(upperBoundTimeSpentOnSnapshotThingsMillis))
-        );
 
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_STARTED), equalTo((long) numShards));
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_COMPLETED), equalTo((long) numShards));
 
         assertShardsInProgressMetricIs(everyItem(equalTo(0L)));
 
-        // Restore the snapshot
-        clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, snapshotName)
-            .setIndices(indexName)
-            .setWaitForCompletion(true)
-            .setRenamePattern("(.+)")
-            .setRenameReplacement("restored-$1")
-            .get();
-        collectMetrics();
-
-        // assert we throttled on restore
-        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_RESTORE_THROTTLE_DURATION), greaterThan(0L));
-
         // assert appropriate attributes are present
-        final Map<String, Object> expectedAttrs = Map.of(
-            "project_id",
-            ProjectId.DEFAULT.id(),
-            "repo_name",
-            repositoryName,
-            "repo_type",
-            "mock"
-        );
+        final Map<String, Object> expectedAttrs = Map.of("repo_name", repositoryName, "repo_type", "mock");
         final Map<String, Object> expectedAttrsWithShardStage = Maps.copyMapWithAddedEntry(
             expectedAttrs,
             "stage",
@@ -214,16 +200,124 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertMetricsHaveAttributes(InstrumentType.LONG_GAUGE, SnapshotMetrics.SNAPSHOT_SHARDS_IN_PROGRESS, expectedAttrs);
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_SHARDS_COMPLETED, expectedAttrsWithShardStage);
         assertMetricsHaveAttributes(InstrumentType.DOUBLE_HISTOGRAM, SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, expectedAttrsWithShardStage);
+        assertMetricsHaveAttributes(InstrumentType.DOUBLE_HISTOGRAM, SnapshotMetrics.SNAPSHOT_SHARDS_QUEUE_TIME, expectedAttrs);
 
-        assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_RESTORE_THROTTLE_DURATION, expectedAttrs);
-        assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_CREATE_THROTTLE_DURATION, expectedAttrs);
-        assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_UPLOAD_READ_DURATION, expectedAttrs);
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_UPLOAD_DURATION, expectedAttrs);
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_BYTES_UPLOADED, expectedAttrs);
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_BLOBS_UPLOADED, expectedAttrs);
     }
 
-    public void testByStateCounts_InitAndQueuedShards() throws Exception {
+    public void testThrottlingMetrics() throws Exception {
+        final String indexName = randomIdentifier();
+        final int numShards = randomIntBetween(1, 3);
+        final int numReplicas = randomIntBetween(0, 1);
+        createIndex(indexName, numShards, numReplicas);
+        indexRandom(true, indexName, randomIntBetween(10, 50));
+
+        // Create a repository with restrictive throttling settings
+        final String repositoryName = randomIdentifier();
+        final Settings.Builder repositorySettings = randomRepositorySettings().put(
+            BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC.getKey(),
+            ByteSizeValue.ofKb(2)
+        )
+            .put(BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC.getKey(), ByteSizeValue.ofKb(2))
+            // Small chunk size ensures we don't get stuck throttling for too long. But we don't want to overwhelm with too many chunks.
+            .put("chunk_size", ByteSizeValue.ofBytes(1000));
+        createRepository(repositoryName, "mock", repositorySettings, false);
+
+        final String snapshotName = randomIdentifier();
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture;
+
+        // Kick off a snapshot
+        final long snapshotStartTime = System.currentTimeMillis();
+        snapshotFuture = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, snapshotName)
+            .setIndices(indexName)
+            .setWaitForCompletion(true)
+            .execute();
+
+        // Poll until we see some throttling occurring
+        final long snap_ts0 = System.currentTimeMillis();
+        assertBusy(() -> {
+            collectMetrics();
+            assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_CREATE_THROTTLE_DURATION), greaterThan(0L));
+        });
+        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_RESTORE_THROTTLE_DURATION), equalTo(0L));
+
+        // Remove create throttling
+        final long snap_ts1 = System.currentTimeMillis();
+        createRepository(
+            repositoryName,
+            "mock",
+            repositorySettings.put(BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC.getKey(), ByteSizeValue.ZERO),
+            false
+        );
+        final long snap_ts2 = System.currentTimeMillis();
+
+        // wait for the snapshot to finish
+        safeGet(snapshotFuture);
+        final long snap_ts3 = System.currentTimeMillis();
+
+        logger.info(
+            "saw throttling in [{}] remove throttling took [{}], snapshot took [{}]",
+            TimeValue.timeValueMillis(snap_ts1 - snap_ts0),
+            TimeValue.timeValueMillis(snap_ts2 - snap_ts1),
+            TimeValue.timeValueMillis(snap_ts3 - snap_ts2)
+        );
+
+        // Work out the maximum amount of concurrency per node
+        final ThreadPool tp = internalCluster().getDataNodeInstance(ThreadPool.class);
+        final int snapshotThreadPoolSize = tp.info(ThreadPool.Names.SNAPSHOT).getMax();
+        final int maximumPerNodeConcurrency = Math.max(snapshotThreadPoolSize, numShards);
+
+        // we should also have incurred some read duration due to the throttling
+        final long upperBoundTimeSpentOnSnapshotThingsMillis = internalCluster().numDataNodes() * maximumPerNodeConcurrency * (System
+            .currentTimeMillis() - snapshotStartTime);
+        assertThat(
+            getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_UPLOAD_READ_DURATION),
+            allOf(greaterThan(0L), lessThan(upperBoundTimeSpentOnSnapshotThingsMillis))
+        );
+
+        // Restore the snapshot
+        final long restore_ts0 = System.currentTimeMillis();
+        ActionFuture<RestoreSnapshotResponse> restoreFuture = clusterAdmin().prepareRestoreSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            repositoryName,
+            snapshotName
+        ).setIndices(indexName).setWaitForCompletion(true).setRenamePattern("(.+)").setRenameReplacement("restored-$1").execute();
+
+        final long restore_ts1 = System.currentTimeMillis();
+        // assert we throttled on restore
+        assertBusy(() -> {
+            collectMetrics();
+            assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_RESTORE_THROTTLE_DURATION), greaterThan(0L));
+        });
+
+        final long restore_ts2 = System.currentTimeMillis();
+        // Remove restore throttling
+        createRepository(
+            repositoryName,
+            "mock",
+            repositorySettings.put(BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC.getKey(), ByteSizeValue.ZERO),
+            false
+        );
+        safeGet(restoreFuture);
+        final long restore_ts3 = System.currentTimeMillis();
+
+        logger.info(
+            "saw throttling in [{}] remove throttling took [{}], restore took [{}]",
+            TimeValue.timeValueMillis(restore_ts1 - restore_ts0),
+            TimeValue.timeValueMillis(restore_ts2 - restore_ts1),
+            TimeValue.timeValueMillis(restore_ts3 - restore_ts2)
+        );
+
+        // assert appropriate attributes are present
+        final Map<String, Object> expectedAttrs = Map.of("repo_name", repositoryName, "repo_type", "mock");
+        assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_UPLOAD_READ_DURATION, expectedAttrs);
+        assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_RESTORE_THROTTLE_DURATION, expectedAttrs);
+        assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_CREATE_THROTTLE_DURATION, expectedAttrs);
+    }
+
+    public void testByStateCounts_InitAndQueuedShards() {
         final String indexName = randomIdentifier();
         final int numShards = randomIntBetween(2, 10);
         final int numReplicas = randomIntBetween(0, 1);
@@ -237,13 +331,18 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         blockAllDataNodes(repositoryName);
 
         final String snapshotName = randomIdentifier();
+        final ActionFuture<CreateSnapshotResponse> firstSnapshotFuture;
+        final ActionFuture<CreateSnapshotResponse> secondSnapshotFuture;
         try {
-            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, snapshotName)
+            firstSnapshotFuture = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, snapshotName)
                 .setIndices(indexName)
-                .setWaitForCompletion(false)
-                .get();
+                .setWaitForCompletion(true)
+                .execute();
 
             waitForBlockOnAnyDataNode(repositoryName);
+            safeAwait(
+                (ActionListener<Void> l) -> flushMasterQueue(internalCluster().getCurrentMasterNodeInstance(ClusterService.class), l)
+            );
 
             // Should be {numShards} in INIT state, and 1 STARTED snapshot
             Map<SnapshotsInProgress.ShardState, Long> shardStates = getShardStates();
@@ -252,10 +351,12 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             assertThat(snapshotStates.get(SnapshotsInProgress.State.STARTED), equalTo(1L));
 
             // Queue up another snapshot
-            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, randomIdentifier())
+            secondSnapshotFuture = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, randomIdentifier())
                 .setIndices(indexName)
-                .setWaitForCompletion(false)
-                .get();
+                .setWaitForCompletion(true)
+                .execute();
+
+            awaitNumberOfSnapshotsInProgress(2);
 
             // Should be {numShards} in QUEUED and INIT states, and 2 STARTED snapshots
             shardStates = getShardStates();
@@ -268,7 +369,8 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         }
 
         // All statuses should return to zero when the snapshots complete
-        awaitNumberOfSnapshotsInProgress(0);
+        safeGet(firstSnapshotFuture);
+        safeGet(secondSnapshotFuture);
         getShardStates().forEach((key, value) -> assertThat(value, equalTo(0L)));
         getSnapshotStates().forEach((key, value) -> assertThat(value, equalTo(0L)));
 
@@ -276,12 +378,12 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertMetricsHaveAttributes(
             InstrumentType.LONG_GAUGE,
             SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATE,
-            Map.of("project_id", ProjectId.DEFAULT.id(), "repo_name", repositoryName, "repo_type", "mock")
+            Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
         assertMetricsHaveAttributes(
             InstrumentType.LONG_GAUGE,
             SnapshotMetrics.SNAPSHOTS_BY_STATE,
-            Map.of("project_id", ProjectId.DEFAULT.id(), "repo_name", repositoryName, "repo_type", "mock")
+            Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
     }
 
@@ -309,12 +411,13 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         blockNodeOnAnyFiles(repositoryName, nodeForRemoval);
 
         final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture;
         try {
             // Kick off a snapshot
-            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, randomIdentifier())
+            snapshotFuture = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, randomIdentifier())
                 .setIndices(indexName)
-                .setWaitForCompletion(false)
-                .get();
+                .setWaitForCompletion(true)
+                .execute();
 
             // Wait till we're blocked
             waitForBlock(nodeForRemoval, repositoryName);
@@ -337,7 +440,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         clearShutdownMetadata(clusterService);
 
         // All statuses should return to zero when the snapshot completes
-        awaitNumberOfSnapshotsInProgress(0);
+        safeGet(snapshotFuture);
         getShardStates().forEach((key, value) -> assertThat(value, equalTo(0L)));
         getSnapshotStates().forEach((key, value) -> assertThat(value, equalTo(0L)));
 
@@ -345,16 +448,16 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertMetricsHaveAttributes(
             InstrumentType.LONG_GAUGE,
             SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATE,
-            Map.of("project_id", ProjectId.DEFAULT.id(), "repo_name", repositoryName, "repo_type", "mock")
+            Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
         assertMetricsHaveAttributes(
             InstrumentType.LONG_GAUGE,
             SnapshotMetrics.SNAPSHOTS_BY_STATE,
-            Map.of("project_id", ProjectId.DEFAULT.id(), "repo_name", repositoryName, "repo_type", "mock")
+            Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
     }
 
-    public void testByStateCounts_WaitingShards() throws Exception {
+    public void testByStateCounts_WaitingShards() {
         final String indexName = randomIdentifier();
         final String boundNode = internalCluster().startDataOnlyNode();
         final String destinationNode = internalCluster().startDataOnlyNode();
@@ -395,10 +498,14 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         safeAwait(handoffRequestBarrier);
 
         // Kick off a snapshot
-        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, randomIdentifier())
-            .setIndices(indexName)
-            .setWaitForCompletion(false)
-            .get();
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            repositoryName,
+            randomIdentifier()
+        ).setIndices(indexName).setWaitForCompletion(true).execute();
+
+        // Wait for the snapshot to start
+        awaitNumberOfSnapshotsInProgress(1);
 
         // Wait till we see a shard in WAITING state
         createSnapshotInStateListener(clusterService(), repositoryName, indexName, 1, SnapshotsInProgress.ShardState.WAITING);
@@ -413,7 +520,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         safeAwait(handoffRequestBarrier);
 
         // All statuses should return to zero when the snapshot completes
-        awaitNumberOfSnapshotsInProgress(0);
+        safeGet(snapshotFuture);
         getShardStates().forEach((key, value) -> assertThat(value, equalTo(0L)));
         getSnapshotStates().forEach((key, value) -> assertThat(value, equalTo(0L)));
 
@@ -421,13 +528,107 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertMetricsHaveAttributes(
             InstrumentType.LONG_GAUGE,
             SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATE,
-            Map.of("project_id", ProjectId.DEFAULT.id(), "repo_name", repositoryName, "repo_type", "mock")
+            Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
         assertMetricsHaveAttributes(
             InstrumentType.LONG_GAUGE,
             SnapshotMetrics.SNAPSHOTS_BY_STATE,
-            Map.of("project_id", ProjectId.DEFAULT.id(), "repo_name", repositoryName, "repo_type", "mock")
+            Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
+    }
+
+    public void testSnapshotDurationIncludesFinalization() throws Exception {
+        final String indexName = randomIndexName();
+        createIndex(indexName, 1, 0);
+        indexRandom(true, indexName, randomIntBetween(10, 50));
+
+        final String repositoryName = randomRepoName();
+        createRepository(repositoryName, "mock");
+
+        final String masterNode = internalCluster().getMasterName();
+        blockMasterOnWriteIndexFile(repositoryName);
+
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            repositoryName,
+            randomSnapshotName()
+        ).setIndices(indexName).setWaitForCompletion(true).execute();
+
+        waitForBlock(masterNode, repositoryName);
+
+        final long delayMillis = between(50, 200);
+        safeSleep(delayMillis);
+
+        unblockNode(repositoryName, masterNode);
+        safeGet(snapshotFuture);
+
+        collectMetrics();
+
+        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, hasSize(1));
+        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, everyItem(greaterThanOrEqualTo(delayMillis / 1000.0)));
+    }
+
+    public void testSnapshotDurationDoesNotIncludeCleanup() throws Exception {
+        final String indexName = randomIndexName();
+        createIndex(indexName, 1, 0);
+        indexRandom(true, indexName, randomIntBetween(10, 50));
+
+        final String repositoryName = randomRepoName();
+        createRepository(repositoryName, "mock");
+
+        // First snapshot establishes an index-N blob that the second snapshot's cleanup will delete
+        createSnapshot(repositoryName, "first-snapshot", List.of(indexName));
+
+        final String masterNode = internalCluster().getMasterName();
+        blockMasterFromDeletingIndexNFile(repositoryName);
+
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            repositoryName,
+            randomSnapshotName()
+        ).setIndices(indexName).setWaitForCompletion(true).execute();
+
+        // Wait for cleanup to be blocked. The finalization listener has already fired (recording metrics)
+        // but onDone hasn't fired yet because cleanup is still in progress.
+        waitForBlock(masterNode, repositoryName);
+
+        collectMetrics();
+
+        // Both snapshots' metrics are already recorded even though the second snapshot's cleanup hasn't finished
+        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOTS_COMPLETED), equalTo(2L));
+        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, hasSize(2));
+
+        unblockNode(repositoryName, masterNode);
+        safeGet(snapshotFuture);
+    }
+
+    public void testSnapshotMetricsRecordedOnFinalizationFailure() throws Exception {
+        final String indexName = randomIndexName();
+        createIndex(indexName, 1, 0);
+        indexRandom(true, indexName, randomIntBetween(10, 50));
+
+        final String repositoryName = randomRepoName();
+        createRepository(repositoryName, "mock");
+
+        final String masterNode = internalCluster().getMasterName();
+        blockMasterFromFinalizingSnapshotOnIndexFile(repositoryName);
+
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            repositoryName,
+            randomSnapshotName()
+        ).setIndices(indexName).setWaitForCompletion(true).execute();
+
+        waitForBlock(masterNode, repositoryName);
+        unblockNode(repositoryName, masterNode);
+
+        expectThrows(SnapshotException.class, snapshotFuture);
+
+        awaitNoMoreRunningOperations();
+        collectMetrics();
+
+        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOTS_COMPLETED), equalTo(1L));
+        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, hasSize(1));
     }
 
     private Map<SnapshotsInProgress.ShardState, Long> getShardStates() {

@@ -12,12 +12,14 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiModel;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.action.AzureOpenAiActionVisitor;
 import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils;
+import org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettings;
 
 import java.net.URISyntaxException;
 import java.util.Map;
@@ -29,8 +31,7 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
             return model;
         }
 
-        var requestTaskSettings = AzureOpenAiEmbeddingsRequestTaskSettings.fromMap(taskSettings);
-        return new AzureOpenAiEmbeddingsModel(model, AzureOpenAiEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
+        return new AzureOpenAiEmbeddingsModel(model, model.getTaskSettings().updatedTaskSettings(taskSettings));
     }
 
     public AzureOpenAiEmbeddingsModel(
@@ -41,16 +42,18 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        ThreadPool threadPool
     ) {
         this(
             inferenceEntityId,
             taskType,
             service,
             AzureOpenAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
-            AzureOpenAiEmbeddingsTaskSettings.fromMap(taskSettings),
+            AzureOpenAiEmbeddingsTaskSettings.fromMap(taskSettings, context),
             chunkingSettings,
-            AzureOpenAiSecretSettings.fromMap(secrets)
+            AzureOpenAiSecretSettings.fromMap(secrets),
+            threadPool
         );
     }
 
@@ -62,13 +65,18 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
         AzureOpenAiEmbeddingsServiceSettings serviceSettings,
         AzureOpenAiEmbeddingsTaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
-        @Nullable AzureOpenAiSecretSettings secrets
+        @Nullable AzureOpenAiSecretSettings secrets,
+        ThreadPool threadPool
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secrets),
-            serviceSettings
+            threadPool
         );
+    }
+
+    public AzureOpenAiEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets, ThreadPool threadPool) {
+        super(modelConfigurations, modelSecrets, (AzureOpenAiServiceSettings) modelConfigurations.getServiceSettings(), threadPool);
         try {
             this.uri = buildUriString();
         } catch (URISyntaxException e) {
@@ -92,11 +100,6 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
     @Override
     public AzureOpenAiEmbeddingsTaskSettings getTaskSettings() {
         return (AzureOpenAiEmbeddingsTaskSettings) super.getTaskSettings();
-    }
-
-    @Override
-    public AzureOpenAiSecretSettings getSecretSettings() {
-        return (AzureOpenAiSecretSettings) super.getSecretSettings();
     }
 
     @Override

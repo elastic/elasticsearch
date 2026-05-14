@@ -8,33 +8,35 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Length}.
+ * {@link ExpressionEvaluator} implementation for {@link Length}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class LengthEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LengthEvaluator.class);
+
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator val;
+  private final ExpressionEvaluator val;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public LengthEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      DriverContext driverContext) {
+  public LengthEvaluator(Source source, ExpressionEvaluator val, DriverContext driverContext) {
     this.source = source;
     this.val = val;
     this.driverContext = driverContext;
@@ -51,22 +53,30 @@ public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += val.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public IntBlock eval(int positionCount, BytesRefBlock valBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (valBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (valBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (valBlock.getValueCount(p) != 1) {
-          if (valBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendInt(Length.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch)));
+        BytesRef val = valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch);
+        result.appendInt(Length.process(val));
       }
       return result.build();
     }
@@ -76,7 +86,8 @@ public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
     try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(p, Length.process(valVector.getBytesRef(p, valScratch)));
+        BytesRef val = valVector.getBytesRef(p, valScratch);
+        result.appendInt(p, Length.process(val));
       }
       return result.build();
     }
@@ -94,22 +105,17 @@ public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory val;
+    private final ExpressionEvaluator.Factory val;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val) {
+    public Factory(Source source, ExpressionEvaluator.Factory val) {
       this.source = source;
       this.val = val;
     }

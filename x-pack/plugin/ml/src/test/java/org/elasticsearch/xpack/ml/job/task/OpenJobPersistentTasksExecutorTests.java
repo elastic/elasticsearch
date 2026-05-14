@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -77,7 +78,12 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.validateJobAndId;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
@@ -105,12 +111,15 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
                     ClusterService.USER_DEFINED_METADATA,
                     ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                     ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING,
+                    ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL,
+                    ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_QUIET_TIME,
                     MachineLearning.CONCURRENT_JOB_ALLOCATIONS,
                     MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
                     MachineLearningField.MAX_LAZY_ML_NODES,
                     MachineLearning.MAX_ML_NODE_SIZE,
                     MachineLearning.MAX_OPEN_JOBS_PER_NODE,
-                    MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT
+                    MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT,
+                    MachineLearning.JOB_OPEN_RETRY_TIMEOUT
                 )
             )
         );
@@ -301,6 +310,138 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
         return job.build(new Date());
+    }
+
+    public void testNodeOperation_userInitiated_nullState_doesNotRetry() {
+        // When state is null (user-initiated fresh open), pipeline runs directly (no retry action created)
+        var executor = spy(createExecutor(Settings.EMPTY));
+        var jobTask = mock(JobTask.class);
+        when(jobTask.getAllocationId()).thenReturn(1L);
+        var params = new OpenJobAction.JobParams("test_job");
+
+        doAnswer(inv -> null).when(executor).executeOpenJobPipeline(any(), any(), any(), any());
+
+        executor.nodeOperation(jobTask, params, null);
+
+        // executeOpenJobPipeline called once, not in a retry loop
+        verify(executor).executeOpenJobPipeline(any(), any(), any(), any());
+        // No retry action was created
+        verify(executor, never()).createOpenJobRetryableAction(any(), any(), any(), any());
+    }
+
+    public void testNodeOperation_staleState_createsRetryableAction() {
+        // When state.getAllocationId() != task.getAllocationId() (system reassignment), retry logic is used
+        var executor = spy(createExecutor(Settings.EMPTY));
+        var jobTask = mock(JobTask.class);
+        when(jobTask.getAllocationId()).thenReturn(2L); // current allocation
+        var params = new OpenJobAction.JobParams("test_job");
+
+        // stale state: allocationId 1 != jobTask allocationId 2
+        var staleState = new JobTaskState(JobState.OPENED, 1L, null, Instant.now());
+
+        // Mock createOpenJobRetryableAction to return a no-op action
+        var mockAction = mock(OpenJobPersistentTasksExecutor.OpenJobRetryableAction.class);
+        doAnswer(inv -> mockAction).when(executor).createOpenJobRetryableAction(any(), any(), any(), any());
+
+        executor.nodeOperation(jobTask, params, staleState);
+
+        // createOpenJobRetryableAction should be called for reassignments
+        verify(executor).createOpenJobRetryableAction(any(), any(), any(), any());
+        // executeOpenJobPipeline NOT called directly
+        verify(executor, never()).executeOpenJobPipeline(any(), any(), any(), any());
+    }
+
+    public void testNodeOperation_freshState_notStale_doesNotRetry() {
+        // When state is present but NOT stale (same allocation), treat as user-initiated: no retry
+        var executor = spy(createExecutor(Settings.EMPTY));
+        var jobTask = mock(JobTask.class);
+        when(jobTask.getAllocationId()).thenReturn(1L); // current allocation matches state
+        var params = new OpenJobAction.JobParams("test_job");
+
+        // fresh state: allocationId 1 == jobTask allocationId 1 (not stale)
+        var freshState = new JobTaskState(JobState.OPENED, 1L, null, Instant.now());
+
+        doAnswer(inv -> null).when(executor).executeOpenJobPipeline(any(), any(), any(), any());
+
+        executor.nodeOperation(jobTask, params, freshState);
+
+        // For non-stale state, pipeline runs directly (user-initiated path)
+        verify(executor).executeOpenJobPipeline(any(), any(), any(), any());
+        verify(executor, never()).createOpenJobRetryableAction(any(), any(), any(), any());
+    }
+
+    public void testFailTask_retriesStateUpdate() throws Exception {
+        // failTask() should retry updatePersistentTaskState on transient failure
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+
+        // schedule retries synchronously
+        when(threadPool.schedule(any(Runnable.class), any(TimeValue.class), any(java.util.concurrent.Executor.class))).thenAnswer(inv -> {
+            Runnable r = inv.getArgument(0);
+            r.run();
+            return mock(org.elasticsearch.threadpool.ThreadPool.Cancellable.class);
+        });
+        when(client.threadPool()).thenReturn(threadPool);
+
+        var executor = createExecutor(Settings.EMPTY);
+        var jobTask = mock(JobTask.class);
+        when(jobTask.getJobId()).thenReturn("test_job");
+        when(jobTask.getAllocationId()).thenReturn(1L);
+
+        java.util.concurrent.atomic.AtomicInteger attempts = new java.util.concurrent.atomic.AtomicInteger();
+        doAnswer(inv -> {
+            @SuppressWarnings("unchecked")
+            org.elasticsearch.action.ActionListener<org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask<?>> listener =
+                (org.elasticsearch.action.ActionListener<org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask<?>>) inv
+                    .getArguments()[1];
+            if (attempts.incrementAndGet() < 3) {
+                listener.onFailure(new RuntimeException("transient"));
+            } else {
+                listener.onResponse(null);
+            }
+            return null;
+        }).when(jobTask).updatePersistentTaskState(any(), any());
+
+        executor.failTask(jobTask, "test failure");
+
+        // Should have been retried
+        verify(jobTask, org.mockito.Mockito.atLeast(2)).updatePersistentTaskState(any(), any());
+    }
+
+    public void testFailTask_fallsBackToMarkAsFailed_onResourceNotFoundException() {
+        // Set up client.threadPool() mock
+        ThreadPool tp = mock(ThreadPool.class);
+        when(tp.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(tp.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        when(client.threadPool()).thenReturn(tp);
+
+        var executor = createExecutor(Settings.EMPTY);
+        var jobTask = mock(JobTask.class);
+        when(jobTask.getJobId()).thenReturn("test_job");
+        when(jobTask.getAllocationId()).thenReturn(1L);
+
+        var rnfe = new ResourceNotFoundException("task not found");
+        doAnswer(inv -> {
+            @SuppressWarnings("unchecked")
+            org.elasticsearch.action.ActionListener<org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask<?>> listener =
+                (org.elasticsearch.action.ActionListener<org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask<?>>) inv
+                    .getArguments()[1];
+            listener.onFailure(rnfe);
+            return null;
+        }).when(jobTask).updatePersistentTaskState(any(), any());
+
+        // markAsFailed is final on LicensedAllocatedPersistentTask so we can't verify it on a mock,
+        // but we verify that no retry was attempted (only one call to updatePersistentTaskState)
+        try {
+            executor.failTask(jobTask, "test failure");
+        } catch (AssertionError e) {
+            // The mock's markAsFailed() is final and calls licensedFeature.stopTracking() which
+            // NPEs on a basic mock; the important assertion is the call count below
+        }
+
+        // ResourceNotFoundException -> UpdateStateRetryableAction.shouldRetry() = false -> no retry
+        verify(jobTask, org.mockito.Mockito.times(1)).updatePersistentTaskState(any(), any());
     }
 
     private OpenJobPersistentTasksExecutor createExecutor(Settings settings) {

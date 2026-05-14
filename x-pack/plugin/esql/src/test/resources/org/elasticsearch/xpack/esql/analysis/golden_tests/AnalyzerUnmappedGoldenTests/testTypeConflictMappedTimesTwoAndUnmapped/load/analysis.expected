@@ -1,0 +1,4 @@
+Limit[1000[INTEGER],false,false]
+\_Project[[ts{r}#0]]
+  \_Eval[[$$@timestamp$converted_to$datetime{f(MultiTypeEsField)$}#1 AS ts#0]]
+    \_EsRelation[sample_data_ts_long,sample_data,no_mapping_sample_data][!@timestamp, client_ip{f}#2, event_duration{f}#3, message{f(PotentiallyUnmappedKeywordEsField)}#4, $$@timestamp$converted_to$datetime{f(MultiTypeEsField)$}#1]

@@ -243,7 +243,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
             int indexedChars = readIntProperty(TYPE, processorTag, config, "indexed_chars", NUMBER_OF_CHARS_INDEXED);
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             String indexedCharsField = readOptionalStringProperty(TYPE, processorTag, config, "indexed_chars_field");
-            @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+            @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
             // Revisit whether we want to update the [remove_binary] default to be 'true' - would need to find a way to do this safely
             Boolean removeBinary = readOptionalBooleanProperty(TYPE, processorTag, config, "remove_binary");
             if (removeBinary == null) {

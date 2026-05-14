@@ -11,15 +11,11 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
 import org.junit.Before;
 
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -38,7 +34,7 @@ public class ProjectSecretsTests extends AbstractNamedWriteableTestCase<ProjectS
         // string or file
         mockSecureSettings.setFile("foo", "bar".getBytes(StandardCharsets.UTF_8));
         mockSecureSettings.setFile("goo", "baz".getBytes(StandardCharsets.UTF_8));
-        secureClusterStateSettings = new SecureClusterStateSettings(mockSecureSettings);
+        secureClusterStateSettings = mockSecureSettings.toSecureClusterStateSettings();
     }
 
     public void testGetSettings() throws Exception {
@@ -76,22 +72,22 @@ public class ProjectSecretsTests extends AbstractNamedWriteableTestCase<ProjectS
 
     @Override
     protected ProjectSecrets createTestInstance() {
-        return new ProjectSecrets(
-            new SecureClusterStateSettings(
-                randomMap(0, 3, () -> Tuple.tuple(randomAlphaOfLength(10), randomAlphaOfLength(15).getBytes(Charset.defaultCharset())))
-            )
-        );
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        int size = randomIntBetween(0, 3);
+        for (int i = 0; i < size; i++) {
+            secureSettings.setFile(randomAlphaOfLength(10), randomAlphaOfLength(15).getBytes(StandardCharsets.UTF_8));
+        }
+        return new ProjectSecrets(secureSettings.toSecureClusterStateSettings());
     }
 
     @Override
     protected ProjectSecrets mutateInstance(ProjectSecrets instance) {
-        Map<String, byte[]> updatedSettings = new HashMap<>();
-
+        MockSecureSettings updatedSettings = new MockSecureSettings();
         for (var settingName : instance.getSettings().getSettingNames()) {
-            updatedSettings.put(settingName, instance.getSettings().getString(settingName).toString().getBytes(StandardCharsets.UTF_8));
+            updatedSettings.setFile(settingName, instance.getSettings().getString(settingName).toString().getBytes(StandardCharsets.UTF_8));
         }
-        updatedSettings.put(randomAlphaOfLength(9), randomAlphaOfLength(14).getBytes(StandardCharsets.UTF_8));
-        return new ProjectSecrets(new SecureClusterStateSettings(updatedSettings));
+        updatedSettings.setFile(randomAlphaOfLength(9), randomAlphaOfLength(14).getBytes(StandardCharsets.UTF_8));
+        return new ProjectSecrets(updatedSettings.toSecureClusterStateSettings());
     }
 
     @Override

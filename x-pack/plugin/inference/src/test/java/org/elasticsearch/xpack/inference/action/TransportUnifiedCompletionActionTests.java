@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.action;
 
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.telemetry.InferenceStats;
@@ -19,8 +18,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
-import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
-import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 
 import java.util.Optional;
 
@@ -45,24 +43,20 @@ public class TransportUnifiedCompletionActionTests extends BaseTransportInferenc
         TransportService transportService,
         ActionFilters actionFilters,
         MockLicenseState licenseState,
-        ModelRegistry modelRegistry,
+        InferenceEndpointRegistry inferenceEndpointRegistry,
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
         StreamingTaskManager streamingTaskManager,
-        InferenceServiceRateLimitCalculator inferenceServiceRateLimitCalculator,
-        NodeClient nodeClient,
         ThreadPool threadPool
     ) {
         return new TransportUnifiedCompletionInferenceAction(
             transportService,
             actionFilters,
             licenseState,
-            modelRegistry,
+            inferenceEndpointRegistry,
             serviceRegistry,
             inferenceStats,
             streamingTaskManager,
-            inferenceServiceRateLimitCalculator,
-            nodeClient,
             threadPool
         );
     }
@@ -75,7 +69,7 @@ public class TransportUnifiedCompletionActionTests extends BaseTransportInferenc
     public void testThrows_IncompatibleTaskTypeException_WhenUsingATextEmbeddingInferenceEndpoint() {
         var modelTaskType = TaskType.TEXT_EMBEDDING;
         var requestTaskType = TaskType.TEXT_EMBEDDING;
-        mockModelRegistry(modelTaskType);
+        mockInferenceEndpointRegistry(modelTaskType);
         when(serviceRegistry.getService(any())).thenReturn(Optional.of(mock()));
 
         var listener = doExecute(requestTaskType);
@@ -88,19 +82,19 @@ public class TransportUnifiedCompletionActionTests extends BaseTransportInferenc
             );
             assertThat(((UnifiedChatCompletionException) e).status(), is(RestStatus.BAD_REQUEST));
         }));
-        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
+        verify(mockInferenceDurationHistogram).record(anyLong(), assertArg(attributes -> {
             assertThat(attributes.get("service"), is(serviceId));
             assertThat(attributes.get("task_type"), is(modelTaskType.toString()));
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), is(RestStatus.BAD_REQUEST.getStatus()));
-            assertThat(attributes.get("error.type"), is(String.valueOf(RestStatus.BAD_REQUEST.getStatus())));
+            assertThat(attributes.get("error_type"), is(String.valueOf(RestStatus.BAD_REQUEST.getStatus())));
         }));
     }
 
     public void testThrows_IncompatibleTaskTypeException_WhenUsingRequestIsAny_ModelIsTextEmbedding() {
         var modelTaskType = TaskType.ANY;
         var requestTaskType = TaskType.TEXT_EMBEDDING;
-        mockModelRegistry(modelTaskType);
+        mockInferenceEndpointRegistry(modelTaskType);
         when(serviceRegistry.getService(any())).thenReturn(Optional.of(mock()));
 
         var listener = doExecute(requestTaskType);
@@ -113,28 +107,28 @@ public class TransportUnifiedCompletionActionTests extends BaseTransportInferenc
             );
             assertThat(((UnifiedChatCompletionException) e).status(), is(RestStatus.BAD_REQUEST));
         }));
-        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
+        verify(mockInferenceDurationHistogram).record(anyLong(), assertArg(attributes -> {
             assertThat(attributes.get("service"), is(serviceId));
             assertThat(attributes.get("task_type"), is(modelTaskType.toString()));
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), is(RestStatus.BAD_REQUEST.getStatus()));
-            assertThat(attributes.get("error.type"), is(String.valueOf(RestStatus.BAD_REQUEST.getStatus())));
+            assertThat(attributes.get("error_type"), is(String.valueOf(RestStatus.BAD_REQUEST.getStatus())));
         }));
     }
 
     public void testMetricsAfterUnifiedInferSuccess_WithRequestTaskTypeAny() {
-        mockModelRegistry(TaskType.COMPLETION);
+        mockInferenceEndpointRegistry(TaskType.COMPLETION);
         mockService(listener -> listener.onResponse(mock()));
 
         var listener = doExecute(TaskType.ANY);
 
         verify(listener).onResponse(any());
-        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
+        verify(mockInferenceDurationHistogram).record(anyLong(), assertArg(attributes -> {
             assertThat(attributes.get("service"), is(serviceId));
             assertThat(attributes.get("task_type"), is(taskType.toString()));
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), is(200));
-            assertThat(attributes.get("error.type"), nullValue());
+            assertThat(attributes.get("error_type"), nullValue());
         }));
     }
 }

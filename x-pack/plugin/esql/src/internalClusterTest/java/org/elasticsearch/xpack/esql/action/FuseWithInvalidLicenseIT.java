@@ -31,7 +31,6 @@ public class FuseWithInvalidLicenseIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {
-        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE.isEnabled());
         var indexName = "test";
         var client = client().admin().indices();
         var CreateRequest = client.prepareCreate(indexName)
@@ -50,8 +49,8 @@ public class FuseWithInvalidLicenseIT extends AbstractEsqlIntegTestCase {
         var query = """
             FROM test METADATA _score, _id, _index
             | FORK
-               ( WHERE content:"fox" )
-               ( WHERE content:"dog" )
+               ( WHERE content:"fox" | SORT _score | LIMIT 10 )
+               ( WHERE content:"dog" | SORT _score | LIMIT 10 )
             | FUSE
             """;
 

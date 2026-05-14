@@ -17,7 +17,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.custom.CustomModelTests;
-import org.elasticsearch.xpack.inference.services.custom.CustomServiceTests;
+import org.elasticsearch.xpack.inference.services.custom.CustomServiceParameterizedTestConfiguration;
 import org.elasticsearch.xpack.inference.services.custom.response.RerankResponseParser;
 import org.junit.After;
 import org.junit.Before;
@@ -25,7 +25,7 @@ import org.junit.Before;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.hamcrest.Matchers.isA;
 import static org.mockito.ArgumentMatchers.any;
@@ -44,7 +44,7 @@ public class ModelValidatorBuilderTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
 
@@ -57,7 +57,7 @@ public class ModelValidatorBuilderTests extends ESTestCase {
     }
 
     public void testCustomServiceValidator() {
-        var service = CustomServiceTests.createService(threadPool, clientManager);
+        var service = CustomServiceParameterizedTestConfiguration.createService(threadPool, clientManager);
         var validator = ModelValidatorBuilder.buildModelValidator(TaskType.RERANK, service);
         var mockService = mock(InferenceService.class);
         validator.validate(
@@ -95,7 +95,7 @@ public class ModelValidatorBuilderTests extends ESTestCase {
     private Map<TaskType, Class<? extends ModelValidator>> taskTypeToModelValidatorClassMap() {
         return Map.of(
             TaskType.TEXT_EMBEDDING,
-            TextEmbeddingModelValidator.class,
+            DenseEmbeddingModelValidator.class,
             TaskType.SPARSE_EMBEDDING,
             SimpleModelValidator.class,
             TaskType.RERANK,

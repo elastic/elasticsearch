@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -51,6 +52,7 @@ import java.util.regex.Pattern;
 
 import javax.net.ssl.X509ExtendedTrustManager;
 import javax.net.ssl.X509TrustManager;
+import javax.security.auth.x500.X500Principal;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -76,6 +78,7 @@ public class PkiRealm extends Realm implements CachingRealm {
 
     private final X509TrustManager trustManager;
     private final Pattern principalPattern;
+    private final String principalRdnOid;
     private final UserRoleMapper roleMapper;
     private final Cache<BytesKey, User> cache;
     private DelegatedAuthorizationSupport delegatedRealms;
@@ -91,6 +94,18 @@ public class PkiRealm extends Realm implements CachingRealm {
         this.delegationEnabled = config.getSetting(PkiRealmSettings.DELEGATION_ENABLED_SETTING);
         this.trustManager = trustManagers(config);
         this.principalPattern = config.getSetting(PkiRealmSettings.USERNAME_PATTERN_SETTING);
+        String rdnOid = config.getSetting(PkiRealmSettings.USERNAME_RDN_OID_SETTING);
+        String rdnOidFromName = config.getSetting(PkiRealmSettings.USERNAME_RDN_NAME_SETTING);
+        if (false == rdnOid.isEmpty() && false == rdnOidFromName.isEmpty()) {
+            throw new SettingsException(
+                "Both ["
+                    + config.getConcreteSetting(PkiRealmSettings.USERNAME_RDN_OID_SETTING).getKey()
+                    + "] and ["
+                    + config.getConcreteSetting(PkiRealmSettings.USERNAME_RDN_NAME_SETTING).getKey()
+                    + "] are set. Only one of these settings can be configured."
+            );
+        }
+        this.principalRdnOid = false == rdnOid.isEmpty() ? rdnOid : (false == rdnOidFromName.isEmpty() ? rdnOidFromName : null);
         this.roleMapper = roleMapper;
         this.roleMapper.clearRealmCacheOnChange(this);
         this.cache = CacheBuilder.<BytesKey, User>builder()
@@ -133,7 +148,7 @@ public class PkiRealm extends Realm implements CachingRealm {
         // validation). In this case the principal should be set by the realm that completes the authentication. But in the common case,
         // where a single PKI realm is configured, there is no risk of eagerly parsing the principal before authentication and it also
         // maintains BWC.
-        String parsedPrincipal = getPrincipalFromSubjectDN(principalPattern, token, logger);
+        String parsedPrincipal = getPrincipalFromToken(token);
         if (parsedPrincipal == null) {
             return null;
         }
@@ -164,7 +179,7 @@ public class PkiRealm extends Realm implements CachingRealm {
                 // parse the principal again after validating the cert chain, and do not rely on the token.principal one, because that could
                 // be set by a different realm that failed trusted chain validation. We SHOULD NOT parse the principal BEFORE this step, but
                 // we do it for BWC purposes. Changing this is a breaking change.
-                final String principal = getPrincipalFromSubjectDN(principalPattern, token, logger);
+                final String principal = getPrincipalFromToken(token);
                 if (principal == null) {
                     logger.debug(
                         () -> format(
@@ -229,6 +244,24 @@ public class PkiRealm extends Realm implements CachingRealm {
     @Override
     public void lookupUser(String username, ActionListener<User> listener) {
         listener.onResponse(null);
+    }
+
+    String getPrincipalFromToken(X509AuthenticationToken token) {
+        return principalRdnOid != null
+            ? getPrincipalFromRdnAttribute(principalRdnOid, token, logger)
+            : getPrincipalFromSubjectDN(principalPattern, token, logger);
+    }
+
+    static String getPrincipalFromRdnAttribute(String principalRdnOid, X509AuthenticationToken token, Logger logger) {
+        X500Principal certPrincipal = token.credentials()[0].getSubjectX500Principal();
+        String principal = RdnFieldExtractor.extract(certPrincipal.getEncoded(), principalRdnOid);
+        if (principal == null) {
+            logger.debug(
+                () -> format("the extracted principal from DN [%s] using RDN OID [%s] is empty", certPrincipal.toString(), principalRdnOid)
+            );
+            return null;
+        }
+        return principal;
     }
 
     static String getPrincipalFromSubjectDN(Pattern principalPattern, X509AuthenticationToken token, Logger logger) {

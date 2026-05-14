@@ -16,14 +16,15 @@ import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
 import org.elasticsearch.gradle.internal.test.SimpleCommandLineArgumentProvider;
+import org.elasticsearch.gradle.internal.test.rerun.InternalTestRerunPlugin;
 import org.elasticsearch.gradle.test.GradleTestPolicySetupPlugin;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.gradle.api.Action;
-import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.configuration.BuildFeatures;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.ProviderFactory;
@@ -56,10 +57,14 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
     @Inject
     protected abstract ProviderFactory getProviderFactory();
 
+    @Inject
+    protected abstract BuildFeatures getBuildFeatures();
+
     @Override
     public void apply(Project project) {
         project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
         var buildParams = loadBuildParams(project);
+        project.getPluginManager().apply(InternalTestRerunPlugin.class);
         project.getPluginManager().apply(GradleTestPolicySetupPlugin.class);
         // for fips mode check
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
@@ -68,9 +73,11 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
 
         // none of this stuff is applicable to the `:buildSrc` project tests
         File heapdumpDir = new File(project.getBuildDir(), "heapdump");
+        final boolean isCi = buildParams.get().getCi();
 
         project.getTasks().withType(Test.class).configureEach(test -> {
             File testOutputDir = new File(test.getReports().getJunitXml().getOutputLocation().getAsFile().get(), "output");
+            test.getReports().getHtml().getRequired().set(isCi == false);
 
             ErrorReportingTestListener listener = new ErrorReportingTestListener(test, testOutputDir);
             test.getExtensions().getExtraProperties().set(DUMP_OUTPUT_ON_FAILURE_PROP_NAME, true);
@@ -126,17 +133,14 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 "--add-opens=java.base/java.time=ALL-UNNAMED",
                 "--add-opens=java.management/java.lang.management=ALL-UNNAMED",
                 "--enable-native-access=ALL-UNNAMED",
-                "-XX:+HeapDumpOnOutOfMemoryError"
+                "--add-modules=jdk.incubator.vector",
+                "-XX:+HeapDumpOnOutOfMemoryError",
+                "-XX:-UseGCOverheadLimit"
             );
 
             test.getJvmArgumentProviders().add(new SimpleCommandLineArgumentProvider("-XX:HeapDumpPath=" + heapdumpDir));
-            test.getJvmArgumentProviders().add(() -> {
-                if (test.getJavaVersion().compareTo(JavaVersion.VERSION_23) <= 0) {
-                    return List.of("-Djava.security.manager=allow");
-                } else {
-                    return List.of();
-                }
-            });
+            test.getJvmArgumentProviders()
+                .add(() -> List.of("-Dorg.apache.lucene.vectorization.upperJavaFeatureVersion=" + test.getJavaVersion().getMajorVersion()));
 
             String argline = System.getProperty("tests.jvm.argline");
             if (argline != null) {
@@ -152,21 +156,14 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 System.out.println("disable assertions");
                 test.setEnableAssertions(false);
             }
-            Map<String, String> sysprops = Map.of(
-                "java.awt.headless",
-                "true",
-                "tests.artifact",
-                project.getName(),
-                "tests.security.manager",
-                "true",
-                "jna.nosys",
-                "true"
-            );
+            Map<String, String> sysprops = Map.of("java.awt.headless", "true", "tests.artifact", project.getName(), "jna.nosys", "true");
             test.systemProperties(sysprops);
 
-            // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability experimentation
-            if (System.getProperty("ignore.tests.seed") != null) {
-                nonInputProperties.systemProperty("tests.seed", buildParams.get().getTestSeed());
+            // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability
+            // also ignore when configuration cache is on since the test seed as task input would break
+            // configuration cache reuse.
+            if (System.getProperty("ignore.tests.seed") != null || getBuildFeatures().getConfigurationCache().getActive().get()) {
+                nonInputProperties.systemProperty("tests.seed", buildParams.get().getTestSeedProvider());
             } else {
                 test.systemProperty("tests.seed", buildParams.get().getTestSeed());
             }
@@ -330,24 +327,22 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             .matching(test -> TEST_TASKS_WITH_ENTITLEMENTS.contains(test.getName()))
             .configureEach(test -> {
                 // See also SystemJvmOptions.maybeAttachEntitlementAgent.
+                SystemPropertyCommandLineArgumentProvider nonInputSystemProperties = test.getExtensions()
+                    .getByType(SystemPropertyCommandLineArgumentProvider.class);
 
                 // Agent
-                if (agentFiles.isEmpty() == false) {
-                    test.getInputs().files(agentFiles);
-                    test.systemProperty("es.entitlement.agentJar", agentFiles.getAsPath());
-                    test.systemProperty("jdk.attach.allowAttachSelf", true);
-                }
+                test.getInputs().files(agentFiles).optional(true);
+                nonInputSystemProperties.systemProperty("es.entitlement.agentJar", agentFiles::getAsPath);
+                nonInputSystemProperties.systemProperty("jdk.attach.allowAttachSelf", () -> agentFiles.isEmpty() ? "false" : "true");
 
                 // Bridge
-                if (bridgeFiles.isEmpty() == false) {
-                    String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net";
-                    test.getInputs().files(bridgeFiles);
-                    // Tests may not be modular, but the JDK still is
-                    test.jvmArgs(
-                        "--add-exports=java.base/org.elasticsearch.entitlement.bridge=ALL-UNNAMED,"
-                            + modulesContainingEntitlementInstrumentation
-                    );
-                }
+                String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net,jdk.zipfs";
+                test.getInputs().files(bridgeFiles).optional(true);
+                // Tests may not be modular, but the JDK still is
+                test.jvmArgs(
+                    "--add-exports=java.base/org.elasticsearch.entitlement.bridge=ALL-UNNAMED,"
+                        + modulesContainingEntitlementInstrumentation
+                );
             });
     }
 

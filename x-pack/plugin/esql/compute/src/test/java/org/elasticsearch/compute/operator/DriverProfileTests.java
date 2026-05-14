@@ -10,8 +10,8 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator;
-import org.elasticsearch.compute.lucene.LuceneSourceOperatorStatusTests;
+import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
+import org.elasticsearch.compute.lucene.query.LuceneSourceOperatorStatusTests;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatusTests;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
@@ -45,7 +45,7 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
                 List.of(new DriverSleeps.Sleep("driver time", Thread.currentThread().getName(), 1, 1))
             )
         );
-        assertThat(Strings.toString(status, true, true), equalTo("""
+        assertThat(Strings.toTruncatedString(status, true, true), equalTo("""
             {
               "description" : "test",
               "cluster_name" : "elasticsearch",

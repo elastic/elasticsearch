@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.search.SearchTaskWatchdog;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.client.internal.Client;
@@ -64,7 +65,9 @@ import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.metrics.IndicesMetrics;
 import org.elasticsearch.monitor.metrics.NodeMetrics;
+import org.elasticsearch.monitor.metrics.SystemMetrics;
 import org.elasticsearch.node.internal.TerminationHandler;
+import org.elasticsearch.persistent.PersistentTaskLifecycleManager;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
@@ -151,6 +154,8 @@ public class Node implements Closeable {
         Property.NodeScope
     );
 
+    public static final String APM_PROPFILE_REGEX = "^\\.elstcapm\\..*\\.tmp";
+
     private final Lifecycle lifecycle = new Lifecycle();
 
     /**
@@ -224,7 +229,7 @@ public class Node implements Closeable {
                 if (parts[0].matches(APM_AGENT_CONFIG_FILE_REGEX)) {
                     if (parts.length == 2 && parts[1].startsWith("c=")) {
                         final Path apmConfig = PathUtils.get(parts[1].substring(2));
-                        if (apmConfig.getFileName().toString().matches("^\\.elstcapm\\..*\\.tmp")) {
+                        if (apmConfig.getFileName().toString().matches(APM_PROPFILE_REGEX)) {
                             try {
                                 Files.deleteIfExists(apmConfig);
                             } catch (IOException e) {
@@ -277,9 +282,6 @@ public class Node implements Closeable {
         logger.info("starting ...");
         pluginLifecycleComponents.forEach(LifecycleComponent::start);
 
-        if (ReadinessService.enabled(environment)) {
-            injector.getInstance(ReadinessService.class).start();
-        }
         injector.getInstance(MappingUpdatedAction.class).setClient(client);
         injector.getInstance(IndicesService.class).start();
         injector.getInstance(IndicesClusterStateService.class).start();
@@ -287,7 +289,13 @@ public class Node implements Closeable {
         injector.getInstance(SnapshotShardsService.class).start();
         injector.getInstance(RepositoriesService.class).start();
         injector.getInstance(SearchService.class).start();
+        injector.getInstance(SearchTaskWatchdog.class).start();
         injector.getInstance(FsHealthService.class).start();
+        injector.getInstance(NodeMetrics.class).start();
+        injector.getInstance(IndicesMetrics.class).start();
+        injector.getInstance(SystemMetrics.class).start();
+        injector.getInstance(HealthPeriodicLogger.class).start();
+        injector.getInstance(PersistentTaskLifecycleManager.class).start();
         nodeService.getMonitorService().start();
 
         final ClusterService clusterService = injector.getInstance(ClusterService.class);
@@ -397,6 +405,8 @@ public class Node implements Closeable {
                         latch.countDown();
                     }
                 }, state -> state.nodes().getMasterNodeId() != null, initialStateTimeout);
+                var shutdownService = injector.getInstance(ShutdownPrepareService.class);
+                shutdownService.addShutdownHook("cancel-cluster-join", latch::countDown);
 
                 try {
                     latch.await();
@@ -404,10 +414,21 @@ public class Node implements Closeable {
                     Thread.currentThread().interrupt();
                     throw new ElasticsearchTimeoutException("Interrupted while waiting for initial discovery state");
                 }
+
+                if (shutdownService.isShuttingDown()) {
+                    // shutdown started in the middle of startup, so bail early
+                    logger.info("shutdown began while waiting for initial discovery state");
+                    return this;
+                }
             }
         }
 
+        // ------- DO NOT ADD NEW START CALLS BELOW HERE -------
+
         injector.getInstance(HttpServerTransport.class).start();
+        if (ReadinessService.enabled(environment)) {
+            injector.getInstance(ReadinessService.class).start();
+        }
 
         if (WRITE_PORTS_FILE_SETTING.get(settings())) {
             TransportService transport = injector.getInstance(TransportService.class);
@@ -424,11 +445,6 @@ public class Node implements Closeable {
                 writePortsFile("remote_cluster", transport.boundRemoteAccessAddress());
             }
         }
-
-        injector.getInstance(NodeMetrics.class).start();
-        injector.getInstance(IndicesMetrics.class).start();
-        injector.getInstance(HealthPeriodicLogger.class).start();
-
         logger.info("started {}", transportService.getLocalNode());
 
         pluginsService.filterPlugins(ClusterPlugin.class).forEach(ClusterPlugin::onNodeStarted);
@@ -454,6 +470,7 @@ public class Node implements Closeable {
         }
         // We stop the health periodic logger first since certain checks won't be possible anyway
         stopIfStarted(HealthPeriodicLogger.class);
+        stopIfStarted(PersistentTaskLifecycleManager.class);
         stopIfStarted(FileSettingsService.class);
         injector.getInstance(ResourceWatcherService.class).close();
         stopIfStarted(HttpServerTransport.class);
@@ -473,9 +490,11 @@ public class Node implements Closeable {
         stopIfStarted(nodeService.getMonitorService());
         stopIfStarted(GatewayService.class);
         stopIfStarted(SearchService.class);
+        stopIfStarted(SearchTaskWatchdog.class);
         stopIfStarted(TransportService.class);
         stopIfStarted(NodeMetrics.class);
         stopIfStarted(IndicesMetrics.class);
+        stopIfStarted(SystemMetrics.class);
 
         pluginLifecycleComponents.forEach(Node::stopIfStarted);
         // we should stop this last since it waits for resources to get released
@@ -542,15 +561,18 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(GatewayService.class));
         toClose.add(() -> stopWatch.stop().start("search"));
         toClose.add(injector.getInstance(SearchService.class));
+        toClose.add(injector.getInstance(SearchTaskWatchdog.class));
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
         toClose.add(injector.getInstance(NodeMetrics.class));
         toClose.add(injector.getInstance(IndicesMetrics.class));
+        toClose.add(injector.getInstance(SystemMetrics.class));
         if (ReadinessService.enabled(environment)) {
             toClose.add(injector.getInstance(ReadinessService.class));
         }
         toClose.add(injector.getInstance(FileSettingsService.class));
         toClose.add(injector.getInstance(HealthPeriodicLogger.class));
+        toClose.add(injector.getInstance(PersistentTaskLifecycleManager.class));
 
         for (LifecycleComponent plugin : pluginLifecycleComponents) {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));
@@ -590,8 +612,7 @@ public class Node implements Closeable {
      * logic should use Node Shutdown, see {@link org.elasticsearch.cluster.metadata.NodesShutdownMetadata}.
      */
     public void prepareForClose() {
-        injector.getInstance(ShutdownPrepareService.class)
-            .prepareForShutdown(injector.getInstance(TransportService.class).getTaskManager());
+        injector.getInstance(ShutdownPrepareService.class).prepareForShutdown();
     }
 
     /**

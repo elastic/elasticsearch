@@ -34,16 +34,10 @@ public final class LossySumDoubleAggregatorFunction implements AggregatorFunctio
 
   private final List<Integer> channels;
 
-  public LossySumDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      LossySumDoubleAggregator.SumState state) {
+  LossySumDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static LossySumDoubleAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new LossySumDoubleAggregatorFunction(driverContext, channels, LossySumDoubleAggregator.initSingle());
+    this.state = LossySumDoubleAggregator.initSingle();
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -70,6 +64,18 @@ public final class LossySumDoubleAggregatorFunction implements AggregatorFunctio
     DoubleBlock vBlock = page.getBlock(channels.get(0));
     DoubleVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock, mask);
       return;
     }
@@ -80,6 +86,18 @@ public final class LossySumDoubleAggregatorFunction implements AggregatorFunctio
     DoubleBlock vBlock = page.getBlock(channels.get(0));
     DoubleVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock);
       return;
     }
@@ -107,12 +125,13 @@ public final class LossySumDoubleAggregatorFunction implements AggregatorFunctio
 
   private void addRawBlock(DoubleBlock vBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       state.seen(true);
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         double vValue = vBlock.getDouble(vOffset);
         LossySumDoubleAggregator.combine(state, vValue);
@@ -125,12 +144,13 @@ public final class LossySumDoubleAggregatorFunction implements AggregatorFunctio
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       state.seen(true);
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         double vValue = vBlock.getDouble(vOffset);
         LossySumDoubleAggregator.combine(state, vValue);
@@ -144,18 +164,45 @@ public final class LossySumDoubleAggregatorFunction implements AggregatorFunctio
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block valueUncast = page.getBlock(channels.get(0));
     if (valueUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     DoubleVector value = ((DoubleBlock) valueUncast).asVector();
     assert value.getPositionCount() == 1;
     Block unusedDeltasUncast = page.getBlock(channels.get(1));
     if (unusedDeltasUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     DoubleVector unusedDeltas = ((DoubleBlock) unusedDeltasUncast).asVector();
     assert unusedDeltas.getPositionCount() == 1;
     Block seenUncast = page.getBlock(channels.get(2));
     if (seenUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();

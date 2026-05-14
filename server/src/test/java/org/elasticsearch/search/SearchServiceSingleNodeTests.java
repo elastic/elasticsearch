@@ -12,7 +12,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
@@ -21,7 +20,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.OriginalIndices;
@@ -47,6 +45,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -56,6 +55,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.TimeValue;
@@ -64,7 +64,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -72,9 +72,11 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.settings.InternalOrPrivateSettingsPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -149,8 +151,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
@@ -166,6 +170,7 @@ import static org.elasticsearch.search.SearchService.QUERY_PHASE_PARALLEL_COLLEC
 import static org.elasticsearch.search.SearchService.SEARCH_WORKER_THREADS_ENABLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -335,6 +340,66 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         assertEquals(activeRefs, indexShard.store().refCount());
     }
 
+    public void testContextLeak() throws Exception {
+        createIndex("test");
+        prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        SearchService service = getInstanceFromNode(SearchService.class);
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("test"));
+        IndexShard indexShard = indexService.getShard(0);
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true)
+            .scroll(TimeValue.timeValueMinutes(1))
+            .source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(1));
+
+        ShardSearchRequest shardRequest = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            indexShard.shardId(),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            -1,
+            null
+        );
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, emptyMap());
+
+        int contextsBefore = service.getActiveContexts();
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean innerOnResponseSeen = new AtomicBoolean(false);
+        AtomicBoolean innerOnFailureSeen = new AtomicBoolean(false);
+
+        service.executeQueryPhase(shardRequest, task, new ActionListener<>() {
+            @Override
+            public void onResponse(SearchPhaseResult result) {
+                innerOnResponseSeen.set(true);
+                // Simulate NetworkPathListener.onResponse throwing on serialization failure
+                throw new RuntimeException("simulated NetworkPathListener serialization failure");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                innerOnFailureSeen.set(true);
+                latch.countDown();
+            }
+        });
+
+        assertTrue("listener must complete within 30s", latch.await(30, TimeUnit.SECONDS));
+        assertTrue("inner listener.onResponse must have run", innerOnResponseSeen.get());
+        assertTrue("inner listener.onFailure must have run", innerOnFailureSeen.get());
+
+        assertBusy(
+            () -> assertEquals(
+                "ReaderContext leaked — wrapFailureListener.processFailure was not invoked.",
+                contextsBefore,
+                service.getActiveContexts()
+            )
+        );
+    }
+
     public void testSearchWhileIndexDeleted() throws InterruptedException {
         createIndex("index");
         prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
@@ -414,7 +479,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                 null/* not a scroll */
                             );
                             PlainActionFuture<FetchSearchResult> listener = new PlainActionFuture<>();
-                            service.executeFetchPhase(req, new SearchShardTask(123L, "", "", "", null, emptyMap()), listener);
+                            service.executeFetchPhase(req, new SearchShardTask(123L, "", "", "", null, emptyMap()), null, listener);
                             listener.get();
                             if (useScroll) {
                                 // have to free context since this test does not remove the index from IndicesService.
@@ -625,7 +690,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                     throw new AssertionError("No failure should have been raised", e);
                 }
             };
-            service.executeFetchPhase(fetchRequest, searchTask, fetchListener);
+            service.executeFetchPhase(fetchRequest, searchTask, null, fetchListener);
             fetchListener.get();
         } catch (Exception ex) {
             if (queryResult != null) {
@@ -779,7 +844,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 for (SearchHit hit : hits.getHits()) {
                     assertEquals(hit.getRank(), 3 + index);
                     assertTrue(hit.getScore() >= 0);
-                    assertEquals(hit.getFields().get(fetchFieldName).getValue(), fetchFieldValue + "_" + hit.docId());
+                    assertEquals(hit.getFields().get(fetchFieldName).getValue(), fetchFieldValue + "_" + hit.getId());
                     index++;
                 }
             }
@@ -1344,7 +1409,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
      */
     public void testMaxDocvalueFieldsSearch() throws IOException {
         final Settings settings = Settings.builder().put(IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey(), 1).build();
-        createIndex("index", settings, null, "field1", "keyword", "field2", "keyword");
+        createIndex("index", settings);
         prepareIndex("index").setId("1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
 
         final SearchService service = getInstanceFromNode(SearchService.class);
@@ -1398,7 +1463,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testDeduplicateDocValuesFields() throws Exception {
-        createIndex("index", Settings.EMPTY, "_doc", "field1", "type=date", "field2", "type=date");
+        createIndex("index", Settings.EMPTY, "field1", "type=date", "field2", "type=date");
         prepareIndex("index").setId("1").setSource("field1", "2022-08-03", "field2", "2022-08-04").setRefreshPolicy(IMMEDIATE).get();
         SearchService service = getInstanceFromNode(SearchService.class);
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
@@ -1866,7 +1931,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testAggContextGetsMatchAll() throws IOException {
         createIndex("test");
-        withAggregationContext("test", context -> assertThat(context.query(), equalTo(new MatchAllDocsQuery())));
+        withAggregationContext("test", context -> assertThat(context.query(), equalTo(Queries.ALL_DOCS_INSTANCE)));
     }
 
     public void testAggContextGetsNestedFilter() throws IOException {
@@ -1875,7 +1940,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         mapping.endObject().endObject();
 
         createIndex("test", Settings.EMPTY, mapping);
-        withAggregationContext("test", context -> assertThat(context.query(), equalTo(new MatchAllDocsQuery())));
+        withAggregationContext("test", context -> assertThat(context.query(), equalTo(Queries.ALL_DOCS_INSTANCE)));
     }
 
     /**
@@ -2001,6 +2066,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             clusterAlias
         );
         try (SearchContext searchContext = service.createSearchContext(request, new TimeValue(System.currentTimeMillis()))) {
+            assertTrue(searchContext.searcher().hasExecutor());
             SearchShardTarget searchShardTarget = searchContext.shardTarget();
             SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
             String expectedIndexName = clusterAlias == null ? index : clusterAlias + ":" + index;
@@ -2256,7 +2322,12 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("index");
         SearchService searchService = getInstanceFromNode(SearchService.class);
         PlainActionFuture<ShardSearchContextId> future = new PlainActionFuture<>();
-        searchService.openReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
+        searchService.openReaderContext(
+            new ShardId(resolveIndex("index"), 0),
+            TimeValue.timeValueMinutes(between(1, 10)),
+            SplitShardCountSummary.IRRELEVANT,
+            future
+        );
         future.actionGet();
         assertThat(searchService.getActiveContexts(), equalTo(1));
         assertTrue(searchService.freeReaderContext(future.actionGet()));
@@ -2460,7 +2531,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             -1,
             null,
             null,
-            null
+            null,
+            SplitShardCountSummary.UNSET
         );
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         service.executeQueryPhase(request, task, future.delegateFailure((l, r) -> {
@@ -2496,7 +2568,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             -1,
             null,
             null,
-            null
+            null,
+            SplitShardCountSummary.UNSET
         );
         service.executeQueryPhase(request, task, future);
         IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, future::actionGet);
@@ -2534,7 +2607,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             -1,
             null,
             null,
-            null
+            null,
+            SplitShardCountSummary.UNSET
         );
         service.executeQueryPhase(request, task, future);
 
@@ -2571,7 +2645,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             -1,
             null,
             null,
-            null
+            null,
+            SplitShardCountSummary.UNSET
         );
         service.executeQueryPhase(request, task, future);
 
@@ -2697,6 +2772,112 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.DFS, randomBoolean())) {
                     assertTrue(searchContext.searcher().hasExecutor());
                 }
+            }
+        }
+    }
+
+    /**
+     * Verify that {@link IndicesService#canCache} reflects dynamic updates to the index search request cache setting
+     */
+    public void testCanCacheReflectsDynamicIndexRequestCacheSetting() throws IOException {
+        final String indexName = "req-cache-dynamic";
+        IndexService indexService = createIndex(
+            indexName,
+            Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true).build()
+        );
+        IndexShard indexShard = indexService.getShard(0);
+
+        SearchRequest nonZeroSizeSearch = new SearchRequest().allowPartialSearchResults(randomBoolean())
+            .source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(DEFAULT_SIZE));
+        assertNull(nonZeroSizeSearch.requestCache());
+        ShardSearchRequest nonZeroShardRequest = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            nonZeroSizeSearch,
+            indexShard.shardId(),
+            0,
+            indexService.numberOfShards(),
+            AliasFilter.EMPTY,
+            1f,
+            System.currentTimeMillis(),
+            null
+        );
+        assertNull(nonZeroShardRequest.requestCache());
+
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        SearchShardTask task = new SearchShardTask(0, "type", "action", "description", null, emptyMap());
+
+        try (ReaderContext readerContext = createReaderContext(indexService, indexShard)) {
+            // With request.requestCache() == null and context.size() != 0, canCache is false whether the index setting is on or
+            // off; still verify the live IndexSettings flag tracks dynamic updates (the value canCache reads).
+            try (SearchContext ctx = searchService.createContext(readerContext, nonZeroShardRequest, task, ResultsType.QUERY, false)) {
+                assertThat(ctx.size(), not(equalTo(0)));
+                assertTrue(ctx.indexShard().indexSettings().isRequestCacheEnabled());
+                assertFalse(IndicesService.canCache(nonZeroShardRequest, ctx));
+            }
+
+            assertAcked(
+                indicesAdmin().prepareUpdateSettings(indexName)
+                    .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), false).build())
+                    .get()
+            );
+            try (SearchContext ctx = searchService.createContext(readerContext, nonZeroShardRequest, task, ResultsType.QUERY, false)) {
+                assertThat(ctx.size(), not(equalTo(0)));
+                assertFalse(ctx.indexShard().indexSettings().isRequestCacheEnabled());
+                assertFalse(IndicesService.canCache(nonZeroShardRequest, ctx));
+            }
+
+            assertAcked(
+                indicesAdmin().prepareUpdateSettings(indexName)
+                    .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true).build())
+                    .get()
+            );
+            try (SearchContext ctx = searchService.createContext(readerContext, nonZeroShardRequest, task, ResultsType.QUERY, false)) {
+                assertThat(ctx.size(), not(equalTo(0)));
+                assertTrue(ctx.indexShard().indexSettings().isRequestCacheEnabled());
+                assertFalse(IndicesService.canCache(nonZeroShardRequest, ctx));
+            }
+
+            SearchRequest sizeZeroSearch = new SearchRequest().allowPartialSearchResults(randomBoolean())
+                .source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(0));
+            assertNull(sizeZeroSearch.requestCache());
+            ShardSearchRequest sizeZeroShardRequest = new ShardSearchRequest(
+                OriginalIndices.NONE,
+                sizeZeroSearch,
+                indexShard.shardId(),
+                0,
+                indexService.numberOfShards(),
+                AliasFilter.EMPTY,
+                1f,
+                System.currentTimeMillis(),
+                null
+            );
+
+            try (SearchContext ctx = searchService.createContext(readerContext, sizeZeroShardRequest, task, ResultsType.QUERY, false)) {
+                assertThat(ctx.size(), equalTo(0));
+                assertTrue(ctx.indexShard().indexSettings().isRequestCacheEnabled());
+                assertTrue(IndicesService.canCache(sizeZeroShardRequest, ctx));
+            }
+
+            assertAcked(
+                indicesAdmin().prepareUpdateSettings(indexName)
+                    .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), false).build())
+                    .get()
+            );
+            try (SearchContext ctx = searchService.createContext(readerContext, sizeZeroShardRequest, task, ResultsType.QUERY, false)) {
+                assertThat(ctx.size(), equalTo(0));
+                assertFalse(ctx.indexShard().indexSettings().isRequestCacheEnabled());
+                assertFalse(IndicesService.canCache(sizeZeroShardRequest, ctx));
+            }
+
+            assertAcked(
+                indicesAdmin().prepareUpdateSettings(indexName)
+                    .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true).build())
+                    .get()
+            );
+            try (SearchContext ctx = searchService.createContext(readerContext, sizeZeroShardRequest, task, ResultsType.QUERY, false)) {
+                assertThat(ctx.size(), equalTo(0));
+                assertTrue(ctx.indexShard().indexSettings().isRequestCacheEnabled());
+                assertTrue(IndicesService.canCache(sizeZeroShardRequest, ctx));
             }
         }
     }
@@ -2893,6 +3074,81 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testSeqNoAndPrimaryTermReturnsSentinelsWhenSequenceNumbersDisabled() {
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), "doc_values_only")
+            .build();
+        createIndex("test-no-seqno", settings);
+        prepareIndex("test-no-seqno").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        assertNoFailuresAndResponse(client().prepareSearch("test-no-seqno").seqNoAndPrimaryTerm(true), response -> {
+            assertHitCount(response, 1);
+            assertEquals(SequenceNumbers.UNASSIGNED_SEQ_NO, response.getHits().getAt(0).getSeqNo());
+            assertEquals(SequenceNumbers.UNASSIGNED_PRIMARY_TERM, response.getHits().getAt(0).getPrimaryTerm());
+        });
+    }
+
+    public void testCancelledTaskFailsFastWithCaching() throws Exception {
+        createIndex("index");
+        prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+
+        SearchRequest searchRequest = new SearchRequest("index").allowPartialSearchResults(true);
+        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
+        searchRequest.requestCache(true);
+
+        long nowInMillis = System.currentTimeMillis();
+        OriginalIndices originalIndices = new OriginalIndices(new String[] { "index" }, IndicesOptions.strictExpandOpenAndForbidClosed());
+        ShardSearchRequest request = new ShardSearchRequest(
+            originalIndices,
+            searchRequest,
+            indexShard.shardId(),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            nowInMillis,
+            null
+        );
+
+        // Create a task and cancel it before execution
+        SearchShardTask task = new SearchShardTask(1L, "", "", "", null, emptyMap());
+        TaskCancelHelper.cancel(task, "pre-cancelled for test");
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> caughtException = new AtomicReference<>();
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+
+        service.executeQueryPhase(request, task, new ActionListener<>() {
+            @Override
+            public void onResponse(SearchPhaseResult result) {
+                try {
+                    service.freeReaderContext(result.getContextId());
+                    succeeded.set(true);
+                } finally {
+                    latch.countDown();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                caughtException.set(e);
+                latch.countDown();
+            }
+        });
+
+        assertTrue("Should complete", latch.await(10, TimeUnit.SECONDS));
+        assertFalse("Should not succeed", succeeded.get());
+        assertNotNull("Should have exception", caughtException.get());
+        assertThat(caughtException.get(), instanceOf(TaskCancelledException.class));
+        assertThat(caughtException.get().getMessage(), containsString("pre-cancelled for test"));
+    }
+
     private static ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {
         return new ReaderContext(
             new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong()),
@@ -2911,7 +3167,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         return fieldValues;
     }
 
-    private static class TestRewriteCounterQueryBuilder extends AbstractQueryBuilder<TestRewriteCounterQueryBuilder> {
+    private static class TestRewriteCounterQueryBuilder extends LeafQueryBuilder<TestRewriteCounterQueryBuilder> {
 
         final int asyncRewriteCount;
         final Supplier<Boolean> fetched;
@@ -2933,7 +3189,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersion.zero();
         }
 
         @Override
@@ -2944,7 +3200,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
         @Override
         protected Query doToQuery(SearchExecutionContext context) throws IOException {
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
 
         @Override

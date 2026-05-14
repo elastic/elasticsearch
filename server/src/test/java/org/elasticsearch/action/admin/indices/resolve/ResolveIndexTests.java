@@ -46,6 +46,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -120,7 +121,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
-        TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams);
+        TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams, Set.of());
 
         validateIndices(
             indices,
@@ -147,7 +148,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
-        TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams);
+        TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams, Set.of());
         validateIndices(
             indices,
             ".ds-logs-mysql-prod-" + dateString + "-000001",
@@ -170,6 +171,84 @@ public class ResolveIndexTests extends ESTestCase {
         validateDataStreams(dataStreams, "logs-mysql-prod", "logs-mysql-test");
     }
 
+    public void testResolveModesFilter() {
+        String[] names = randomFrom(new String[] { "*" }, new String[] { "_all" });
+        List<ResolvedIndex> indices = new ArrayList<>();
+        List<ResolvedAlias> aliases = new ArrayList<>();
+        List<ResolvedDataStream> dataStreams = new ArrayList<>();
+
+        // One type
+        TransportAction.resolveIndices(
+            names,
+            IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN,
+            projectState,
+            resolver,
+            indices,
+            aliases,
+            dataStreams,
+            EnumSet.of(IndexMode.TIME_SERIES)
+        );
+        validateIndices(indices, "logs-pgsql-prod-20200102");
+        assertThat(aliases.size(), equalTo(2));
+        var alias1 = aliases.get(0);
+        assertThat(alias1.getName(), equalTo("logs-pgsql-prod"));
+        assertThat(alias1.getIndices(), arrayContaining("logs-pgsql-prod-20200102"));
+        var alias2 = aliases.get(1);
+        assertThat(alias2.getName(), equalTo("one-off-alias"));
+        assertThat(alias2.getIndices(), arrayContaining("logs-pgsql-prod-20200102"));
+        assertThat(dataStreams.size(), equalTo(0));
+
+        indices = new ArrayList<>();
+        aliases = new ArrayList<>();
+        dataStreams = new ArrayList<>();
+        // Everything
+        TransportAction.resolveIndices(
+            names,
+            IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN,
+            projectState,
+            resolver,
+            indices,
+            aliases,
+            dataStreams,
+            EnumSet.of(IndexMode.TIME_SERIES, IndexMode.STANDARD)
+        );
+        validateIndices(
+            indices,
+            ".ds-logs-mysql-prod-" + dateString + "-000001",
+            ".ds-logs-mysql-prod-" + dateString + "-000002",
+            ".ds-logs-mysql-prod-" + dateString + "-000003",
+            ".ds-logs-mysql-prod-" + dateString + "-000004",
+            ".ds-logs-mysql-test-" + dateString + "-000001",
+            ".ds-logs-mysql-test-" + dateString + "-000002",
+            ".test-system-index",
+            "logs-pgsql-prod-20200101",
+            "logs-pgsql-prod-20200102",
+            "logs-pgsql-prod-20200103",
+            "logs-pgsql-test-20200101",
+            "logs-pgsql-test-20200102",
+            "logs-pgsql-test-20200103"
+        );
+        validateAliases(aliases, "logs-pgsql-prod", "logs-pgsql-test", "one-off-alias");
+        validateDataStreams(dataStreams, "logs-mysql-prod", "logs-mysql-test");
+        // Not matched
+        indices = new ArrayList<>();
+        aliases = new ArrayList<>();
+        dataStreams = new ArrayList<>();
+        TransportAction.resolveIndices(
+            names,
+            IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN,
+            projectState,
+            resolver,
+            indices,
+            aliases,
+            dataStreams,
+            EnumSet.of(IndexMode.LOOKUP)
+        );
+        assertThat(indices.size(), equalTo(0));
+        assertThat(aliases.size(), equalTo(0));
+        assertThat(dataStreams.size(), equalTo(0));
+    }
+
     public void testResolveWithPattern() {
         String[] names = new String[] { "logs-pgsql*" };
         IndicesOptions indicesOptions = Request.DEFAULT_INDICES_OPTIONS;
@@ -177,7 +256,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
-        TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams);
+        TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams, Set.of());
 
         validateIndices(
             indices,
@@ -204,7 +283,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
-        TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams);
+        TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams, Set.of());
         validateIndices(indices, ".ds-logs-mysql-prod-" + dateString + "-000003", "logs-pgsql-test-20200102");
         validateAliases(aliases, "one-off-alias");
         validateDataStreams(dataStreams, "logs-mysql-test");
@@ -229,7 +308,16 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedIndex> indices = new ArrayList<>();
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
-        TransportAction.resolveIndices(new String[] { "*" }, indicesOptions, projectState, resolver, indices, aliases, dataStreams);
+        TransportAction.resolveIndices(
+            new String[] { "*" },
+            indicesOptions,
+            projectState,
+            resolver,
+            indices,
+            aliases,
+            dataStreams,
+            Set.of()
+        );
 
         assertThat(dataStreams.size(), equalTo(1));
         assertThat(dataStreams.get(0).getBackingIndices(), arrayContaining(names));
@@ -251,6 +339,7 @@ public class ResolveIndexTests extends ESTestCase {
             project,
             IndicesOptions.LENIENT_EXPAND_OPEN,
             true,
+            false,
             requestedIndex
         );
         assertThat(resolvedIndices.size(), is(1));
@@ -288,7 +377,8 @@ public class ResolveIndexTests extends ESTestCase {
                 resolver,
                 indices,
                 aliases,
-                dataStreams
+                dataStreams,
+                Set.of()
             );
             // non net-new system indices are allowed even when no system indices are allowed
             assertThat(indices.stream().map(ResolvedIndex::getName).collect(Collectors.toList()), hasItem(is(".test-system-1")));
@@ -307,7 +397,8 @@ public class ResolveIndexTests extends ESTestCase {
                 resolver,
                 indices,
                 aliases,
-                dataStreams
+                dataStreams,
+                Set.of()
             );
             assertThat(indices.stream().map(ResolvedIndex::getName).collect(Collectors.toList()), hasItem(is(".test-system-1")));
             assertThat(indices.stream().map(ResolvedIndex::getName).collect(Collectors.toList()), hasItem(is(".test-net-new-system-1")));
@@ -319,7 +410,8 @@ public class ResolveIndexTests extends ESTestCase {
                 resolver,
                 indices,
                 aliases,
-                dataStreams
+                dataStreams,
+                Set.of()
             );
             assertThat(indices.stream().map(ResolvedIndex::getName).collect(Collectors.toList()), not(hasItem(is(".test-system-1"))));
             assertThat(indices.stream().map(ResolvedIndex::getName).collect(Collectors.toList()), hasItem(is(".test-net-new-system-1")));
@@ -334,7 +426,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
         IndexNotFoundException infe = expectThrows(
             IndexNotFoundException.class,
-            () -> TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams)
+            () -> TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams, Set.of())
         );
         assertThat(infe.getMessage(), containsString("no such index [missing]"));
     }
@@ -347,7 +439,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
         IndexNotFoundException infe = expectThrows(
             IndexNotFoundException.class,
-            () -> TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams)
+            () -> TransportAction.resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams, Set.of())
         );
         assertThat(infe.getMessage(), containsString("no such index [missing*]"));
     }
@@ -474,14 +566,21 @@ public class ResolveIndexTests extends ESTestCase {
         boolean frozen,
         IndexMode mode
     ) {
+        IndexMetadata.Builder indexBuilder = IndexMetadata.builder(name);
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.hidden", hidden)
             .put("index.frozen", frozen)
             .put("index.mode", mode.toString());
 
-        IndexMetadata.Builder indexBuilder = IndexMetadata.builder(name)
-            .settings(settingsBuilder)
+        if (mode == IndexMode.TIME_SERIES) {
+            settingsBuilder.put(
+                randomBoolean() ? IndexMetadata.INDEX_DIMENSIONS.getKey() : IndexMetadata.INDEX_ROUTING_PATH.getKey(),
+                "dummy_value"
+            );
+        }
+
+        indexBuilder.settings(settingsBuilder)
             .state(closed ? IndexMetadata.State.CLOSE : IndexMetadata.State.OPEN)
             .system(system)
             .numberOfShards(1)

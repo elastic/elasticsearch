@@ -205,8 +205,10 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             request.getContentType(),
             request.routing(),
             request.getDynamicTemplates(),
+            request.getDynamicTemplateParams(),
             request.getIncludeSourceOnError(),
-            XContentMeteringParserDecorator.NOOP
+            XContentMeteringParserDecorator.NOOP,
+            request.tsid()
         );
 
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());

@@ -118,7 +118,7 @@ public class BinaryFieldMapperTests extends MapperTestCase {
 
         // case 2: a value that looks compressed: this used to fail in 1.x
         BytesStreamOutput out = new BytesStreamOutput();
-        try (OutputStream compressed = CompressorFactory.COMPRESSOR.threadLocalOutputStream(out)) {
+        try (OutputStream compressed = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(out)) {
             new BytesArray(binaryValue1).writeTo(compressed);
         }
         final byte[] binaryValue2 = BytesReference.toBytes(out.bytes());
@@ -145,6 +145,7 @@ public class BinaryFieldMapperTests extends MapperTestCase {
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension")
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-08T23:40:53.384Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean())
             .build();
 
         var mapping = mapping(b -> {
@@ -165,11 +166,11 @@ public class BinaryFieldMapperTests extends MapperTestCase {
         });
         DocumentMapper mapper = createMapperService(getVersion(), indexSettings, () -> true, mapping).documentMapper();
 
-        var source = source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
+        var source = source(null, b -> {
             b.field("field", Base64.getEncoder().encodeToString(randomByteArrayOfLength(10)));
             b.field("@timestamp", "2000-10-10T23:40:53.384Z");
             b.field("dimension", "dimension1");
-        }, null);
+        }, TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE);
         ParsedDocument doc = mapper.parse(source);
 
         List<IndexableField> fields = doc.rootDoc().getFields("field");
@@ -262,5 +263,15 @@ public class BinaryFieldMapperTests extends MapperTestCase {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 // begin generated imports
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -21,21 +20,54 @@ import java.io.IOException;
  * Vector that stores int values.
  * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
-public sealed interface IntVector extends Vector permits ConstantIntVector, IntArrayVector, IntBigArrayVector, ConstantNullVector {
-
+public sealed interface IntVector extends Vector permits ConstantIntVector, IntArrayVector, IntBigArrayVector, IntRangeVector,
+    ConstantNullVector, org.elasticsearch.compute.data.arrow.IntArrowBufVector, org.elasticsearch.compute.data.arrow.UInt8ArrowBufVector,
+    org.elasticsearch.compute.data.arrow.Int8ArrowBufVector, org.elasticsearch.compute.data.arrow.UInt16ArrowBufVector,
+    org.elasticsearch.compute.data.arrow.Int16ArrowBufVector {
     int getInt(int position);
+
+    /**
+     * Copies values from this vector into the destination array.
+     */
+    default void copyTo(int srcPosition, int[] dst, int dstPosition, int length) {
+        for (int i = 0; i < length; i++) {
+            dst[dstPosition + i] = getInt(srcPosition + i);
+        }
+    }
 
     @Override
     IntBlock asBlock();
 
     @Override
-    IntVector filter(int... positions);
+    IntVector filter(boolean mayContainDuplicates, int... positions);
 
     @Override
     IntBlock keepMask(BooleanVector mask);
 
+    /**
+     * Make a deep copy of this {@link Vector} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default IntVector deepCopy(BlockFactory blockFactory) {
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(getPositionCount())) {
+            builder.copyFrom(asBlock(), 0, getPositionCount());
+            builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return builder.build().asVector();
+        }
+    }
+
     @Override
     ReleasableIterator<? extends IntBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    /**
+     * Return a subset of this vector from {@code beginInclusive} to
+     * {@code endExclusive}. This <strong>may</strong> return the same
+     * instance if the range covers all positions, but if it does it
+     * will {@link #incRef()} it.
+     */
+    @Override
+    IntVector slice(int beginInclusive, int endExclusive);
 
     /**
      * The minimum value in the Vector. An empty Vector will return {@link Integer#MAX_VALUE}.
@@ -46,6 +78,12 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
      * The maximum value in the Vector. An empty Vector will return {@link Integer#MIN_VALUE}.
      */
     int max();
+
+    /**
+     * The maximum size in bytes of any single value stored in this vector, or {@code 0} if there are no values.
+     * Always {@code Integer.BYTES} since all int values encode to the same number of bytes.
+     */
+    int valueMaxByteSize();
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the
@@ -116,10 +154,10 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
         if (isConstant() && positions > 0) {
             out.writeByte(SERIALIZE_VECTOR_CONSTANT);
             out.writeInt(getInt(0));
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof IntArrayVector v) {
+        } else if (this instanceof IntArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_ARRAY);
             v.writeArrayVector(positions, out);
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof IntBigArrayVector v) {
+        } else if (this instanceof IntBigArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_BIG_ARRAY);
             v.writeArrayVector(positions, out);
         } else {
@@ -141,15 +179,6 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
         for (int i = 0; i < positions; i++) {
             out.writeInt(v.getInt(i));
         }
-    }
-
-    /** Create a vector for a range of ints. */
-    static IntVector range(int startInclusive, int endExclusive, BlockFactory blockFactory) {
-        int[] values = new int[endExclusive - startInclusive];
-        for (int i = 0; i < values.length; i++) {
-            values[i] = startInclusive + i;
-        }
-        return blockFactory.newIntArrayVector(values, values.length);
     }
 
     /**

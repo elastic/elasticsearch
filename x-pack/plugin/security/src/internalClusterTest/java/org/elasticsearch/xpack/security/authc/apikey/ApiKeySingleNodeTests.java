@@ -719,7 +719,13 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             ApiKeyTests.randomFutureExpirationTime();
         }
 
-        final var updateApiKeyRequest = new UpdateCrossClusterApiKeyRequest(apiKeyId, roleDescriptorBuilder, updateMetadata, expiration);
+        final var updateApiKeyRequest = new UpdateCrossClusterApiKeyRequest(
+            apiKeyId,
+            roleDescriptorBuilder,
+            updateMetadata,
+            expiration,
+            null
+        );
         final UpdateApiKeyResponse updateApiKeyResponse = client().execute(UpdateCrossClusterApiKeyAction.INSTANCE, updateApiKeyRequest)
             .actionGet();
 

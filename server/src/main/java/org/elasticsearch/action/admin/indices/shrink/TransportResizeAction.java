@@ -10,6 +10,7 @@
 package org.elasticsearch.action.admin.indices.shrink;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -48,6 +49,8 @@ import java.util.Locale;
  */
 public class TransportResizeAction extends TransportMasterNodeAction<ResizeRequest, CreateIndexResponse> {
 
+    public static final ActionType<CreateIndexResponse> TYPE = new ActionType<>("indices:admin/resize");
+
     private final MetadataCreateIndexService createIndexService;
     private final ProjectResolver projectResolver;
     private final Client client;
@@ -62,7 +65,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         ProjectResolver projectResolver,
         Client client
     ) {
-        this(ResizeAction.NAME, transportService, clusterService, threadPool, createIndexService, actionFilters, projectResolver, client);
+        this(TYPE.name(), transportService, clusterService, threadPool, createIndexService, actionFilters, projectResolver, client);
     }
 
     protected TransportResizeAction(
@@ -204,11 +207,11 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         final ResizeNumberOfShardsCalculator resizeNumberOfShardsCalculator
     ) {
         final CreateIndexRequest targetIndex = resizeRequest.getTargetIndexRequest();
-        final Settings.Builder targetIndexSettingsBuilder = Settings.builder()
+        final Settings targetIndexSettings = Settings.builder()
             .put(targetIndex.settings())
-            .normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
-        targetIndexSettingsBuilder.remove(IndexMetadata.SETTING_HISTORY_UUID);
-        final Settings targetIndexSettings = targetIndexSettingsBuilder.build();
+            .normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX)
+            .remove(IndexMetadata.SETTING_HISTORY_UUID)
+            .build();
         final Integer requestedNumberOfShards;
         if (IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
             requestedNumberOfShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings);

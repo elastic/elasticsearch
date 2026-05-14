@@ -216,3 +216,875 @@ emp_no:integer | first_name:keyword | last_name:keyword
 10021          | Ramzi              | Erde
 10022          | Shahaf             | Famili
 ;
+
+###############################################
+# Null comparison tests
+###############################################
+
+# Field compared with null returns empty result
+compareFieldWithNull
+required_capability: fix_null_comparison_type_check
+
+FROM employees | WHERE emp_no == null | KEEP emp_no, first_name | LIMIT 1
+;
+
+emp_no:integer | first_name:keyword
+;
+
+
+# ROW with null compared to string value
+rowNullCompareWithString
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = "foo" | WHERE x == y | KEEP x, y
+;
+
+x:null | y:keyword
+;
+
+
+# null == integer evaluates to null
+rowNullEqualsInteger
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1 | EVAL result = x == y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null != integer evaluates to null
+rowNullNotEqualsInteger
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1 | EVAL result = x != y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null > integer evaluates to null
+rowNullGreaterThanInteger
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1 | EVAL result = x > y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null < integer evaluates to null
+rowNullLessThanInteger
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1 | EVAL result = x < y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null >= integer evaluates to null
+rowNullGreaterThanOrEqualInteger
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1 | EVAL result = x >= y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null <= integer evaluates to null
+rowNullLessThanOrEqualInteger
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1 | EVAL result = x <= y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# Two nulls comparison evaluates to null
+rowTwoNullsComparison
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = null | EVAL result = x == y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# Value compared with null (null on right side)
+rowValueCompareWithNull
+required_capability: fix_null_comparison_type_check
+
+ROW x = 1, y = null | EVAL result = x == y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null compared with keyword
+rowNullCompareWithKeyword
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = "test" | EVAL result = x == y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null compared with datetime
+rowNullCompareWithDatetime
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = now() | EVAL result = x == y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+###############################################
+# Complex null comparison tests (derived null)
+###############################################
+
+# null derived from arithmetic: null + 1 produces null, then compared with integer
+rowDerivedNullFromAdditionCompare
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1, z = 2 | EVAL t = x + 1 > z | KEEP t
+;
+
+t:boolean
+null
+;
+
+
+# null derived from multiplication: null * 2 compared with integer
+rowDerivedNullFromMultiplicationCompare
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 2 | EVAL t = x * 2 == y | KEEP t
+;
+
+t:boolean
+null
+;
+
+
+# chained null propagation: null + 1 - 2 compared with value
+rowChainedNullPropagationCompare
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 5 | EVAL t = (x + 1 - 2) >= y | KEEP t
+;
+
+t:boolean
+null
+;
+
+
+# null derived from function: to_integer(null) compared with value
+rowDerivedNullFromFunctionCompare
+required_capability: fix_null_comparison_type_check
+
+ROW y = 10 | EVAL t = to_integer(null) < y | KEEP t
+;
+
+t:boolean
+null
+;
+
+
+# WHERE filters out all rows when derived null is used in condition
+rowDerivedNullInWhereClause
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1, z = 2 | WHERE x + 1 > z | KEEP x, y, z
+;
+
+x:null | y:integer | z:integer
+;
+
+
+# null propagation through nested arithmetic on both sides
+rowDerivedNullBothSidesCompare
+required_capability: fix_null_comparison_type_check
+
+ROW a = null, b = null | EVAL t = (a + 1) == (b + 2) | KEEP t
+;
+
+t:boolean
+null
+;
+
+
+# non-null side produces value, null side propagates null
+rowDerivedNullOneSideCompare
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 3 | EVAL left_val = x + 10, right_val = y * 2, t = left_val > right_val | KEEP left_val, right_val, t
+;
+
+left_val:integer    | right_val:integer | t:boolean
+null                | 6                 | null
+;
+
+
+# null from division by zero is different, but null literal through arithmetic should propagate
+rowDerivedNullCompareWithString
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = "hello" | EVAL t = concat(x, " world") == y | KEEP t
+;
+
+t:boolean
+null
+;
+
+
+###############################################
+# Null in IN expression tests
+###############################################
+
+# integer value IN list containing null — value matches, result is true
+rowIntegerInWithNullMatch
+required_capability: fix_null_comparison_type_check
+
+ROW x = 1 | EVAL result = x IN (1, null) | KEEP result
+;
+
+result:boolean
+true
+;
+
+
+# integer value IN list containing only null — no match, result is null
+rowIntegerInWithOnlyNull
+required_capability: fix_null_comparison_type_check
+
+ROW x = 1 | EVAL result = x IN (null) | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# integer value IN list with null — value does not match non-null entries, result is null
+rowIntegerInWithNullNoMatch
+required_capability: fix_null_comparison_type_check
+
+ROW x = 5 | EVAL result = x IN (1, 2, null) | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null value IN list of integers — result is null
+rowNullInIntegerList
+required_capability: fix_null_comparison_type_check
+
+ROW x = null | EVAL result = x IN (1, 2, 3) | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null value IN list containing null — result is null (null == null is null, not true)
+rowNullInNullList
+required_capability: fix_null_comparison_type_check
+
+ROW x = null | EVAL result = x IN (null) | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# keyword value IN list containing null — value matches
+rowKeywordInWithNullMatch
+required_capability: fix_null_comparison_type_check
+
+ROW x = "foo" | EVAL result = x IN ("foo", null) | KEEP result
+;
+
+result:boolean
+true
+;
+
+
+# keyword value IN list with null — no match
+rowKeywordInWithNullNoMatch
+required_capability: fix_null_comparison_type_check
+
+ROW x = "foo" | EVAL result = x IN ("bar", null) | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# field IN list with null — matching rows returned
+fieldInWithNull
+required_capability: fix_null_comparison_type_check
+
+FROM employees | WHERE emp_no IN (10001, 10002, null) | SORT emp_no | KEEP emp_no | LIMIT 3
+;
+
+emp_no:integer
+10001
+10002
+;
+
+
+# field IN list with only null — no rows match
+fieldInWithOnlyNull
+required_capability: fix_null_comparison_type_check
+
+FROM employees | WHERE emp_no IN (null) | KEEP emp_no | LIMIT 1
+;
+
+emp_no:integer
+;
+
+
+# WHERE with IN containing null filters correctly
+fieldInWithNullWhereFilter
+required_capability: fix_null_comparison_type_check
+
+FROM employees | WHERE emp_no IN (10001, null) AND first_name IS NOT NULL | SORT emp_no | KEEP emp_no, first_name | LIMIT 1
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+;
+
+sumOfNullWithEval
+required_capability: fix_sum_of_null_optimization
+
+ROW x = 1
+| STATS s = SUM(null)
+| EVAL r = s + 1
+;
+
+s:null | r:integer
+null   | null
+;
+
+sumOfNullPlusNullWithEval
+required_capability: fix_sum_of_null_optimization
+
+ROW x = 1
+| STATS s = SUM(null + null)
+| EVAL r = s + 1
+;
+
+s:null | r:integer
+null   | null
+;
+
+sumOfNullPlusOneWithEval
+
+ROW x = 1
+| STATS s = SUM(null + 1)
+| EVAL r = s + 1
+;
+
+s:long | r:long
+null   | null
+;
+
+sumOfEvalNullWithEval
+required_capability: fix_sum_of_null_optimization
+
+ROW x = 1
+| EVAL y = null
+| STATS s = SUM(y)
+| EVAL r = s + 1
+;
+
+s:null | r:integer
+null   | null
+;
+
+sumOfNullifiedUnmappedWithEval
+required_capability: fix_sum_of_null_optimization
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| STATS s = SUM(foo)
+| EVAL r = s + 1
+;
+
+s:null | r:integer
+null   | null
+;
+
+avgOfNullWithEval
+
+ROW x = 1
+| STATS a = AVG(null)
+| EVAL r = a + 1
+;
+
+a:double | r:double
+null     | null
+;
+
+avgOfNullPlusNullWithEval
+
+ROW x = 1
+| STATS a = AVG(null + null)
+| EVAL r = a + 1
+;
+
+a:double | r:double
+null     | null
+;
+
+avgOfEvalNullWithEval
+
+ROW x = 1
+| EVAL y = null
+| STATS a = AVG(y)
+| EVAL r = a + 1
+;
+
+a:double | r:double
+null     | null
+;
+
+avgOfNullifiedUnmappedWithEval
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| STATS a = AVG(foo)
+| EVAL r = a + 1
+;
+
+a:double | r:double
+null     | null
+;
+
+minOfNullWithEval
+
+ROW x = 1
+| STATS m = MIN(null)
+| EVAL r = m + 1
+;
+
+m:null | r:integer
+null   | null
+;
+
+minOfEvalNullWithEval
+required_capability: fix_sum_of_null_optimization
+
+ROW x = 1
+| EVAL y = null
+| STATS m = MIN(y)
+| EVAL r = m + 1
+;
+
+m:null | r:integer
+null   | null
+;
+
+minOfNullifiedUnmappedWithEval
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| STATS m = MIN(foo)
+| EVAL r = m + 1
+;
+
+m:null | r:integer
+null   | null
+;
+
+maxOfNullWithEval
+
+ROW x = 1
+| STATS m = MAX(null)
+| EVAL r = m + 1
+;
+
+m:null | r:integer
+null   | null
+;
+
+maxOfEvalNullWithEval
+required_capability: fix_sum_of_null_optimization
+
+ROW x = 1
+| EVAL y = null
+| STATS m = MAX(y)
+| EVAL r = m + 1
+;
+
+m:null | r:integer
+null   | null
+;
+
+maxOfNullifiedUnmappedWithEval
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| STATS m = MAX(foo)
+| EVAL r = m + 1
+;
+
+m:null | r:integer
+null   | null
+;
+
+multipleAggsOverNullExpressions
+required_capability: fix_sum_of_null_optimization
+
+ROW x=1, y=2
+| STATS c=count(null + 1),
+    c_d=count_distinct(1 + null),
+    a=avg(null + x),
+    mi=min(y + null),
+    ma=max(y + x * null),
+    s=sum(null)
+;
+
+ c:long | c_d:long | a:double | mi:integer | ma:integer | s:null
+0       |0         |null      |null        |null        |null
+;
+
+countOfNullWithGrouping
+
+ROW a = [1,2,3], c = 5 | EVAL c = null + c | STATS COUNT(c), COUNT(null), COUNT(null - 1) BY a
+;
+
+COUNT(c):long |COUNT(null):long|COUNT(null - 1):long|a:integer
+0             |0               |0                   |1
+0             |0               |0                   |2
+0             |0               |0                   |3
+;
+
+countOfNullGroupedByFoldableNull
+
+ROW a = 1+null, c = 5 | EVAL c = null + c | STATS COUNT(c), COUNT(null), COUNT(null - 1) BY a
+;
+
+COUNT(c):long |COUNT(null):long|COUNT(null - 1):long|a:integer
+0             |0               |0                   |null
+;
+
+countDistinctOfNullWithGrouping
+
+ROW a = [1,2,3], c = 5 | EVAL c = null + c | STATS COUNT_DISTINCT(c), COUNT_DISTINCT(null), COUNT_DISTINCT(null - 1) BY a
+;
+
+COUNT_DISTINCT(c):long|COUNT_DISTINCT(null):long|COUNT_DISTINCT(null - 1):long|a:integer
+0                     |0                        |0                            |1
+0                     |0                        |0                            |2
+0                     |0                        |0                            |3
+;
+
+// Tests for fix: (a IS NOT NULL OR p) AND a IS NULL must not discard the surviving OR branch p.
+// Without the fix, PropagateNullable.nullify() replaced the entire OR with null, returning 0 rows.
+
+isNullWithOrDisjunctionAllRows
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE (gender IS NOT NULL OR emp_no > 10000) AND gender IS NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+10
+;
+
+isNullWithOrDisjunctionSurvivingBranchFilters
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE (gender IS NOT NULL OR emp_no > 10015) AND gender IS NULL
+| SORT emp_no
+| KEEP emp_no, gender
+;
+
+emp_no:integer|gender:keyword
+10016         |null
+10017         |null
+10018         |null
+10019         |null
+;
+
+isNullWithNestedOrDisjunction
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE emp_no > 10000 AND (gender IS NOT NULL OR languages > 4) AND gender IS NULL
+| SORT emp_no
+| KEEP emp_no, gender
+;
+
+emp_no:integer|gender:keyword
+10011         |null
+10012         |null
+10014         |null
+10015         |null
+;
+
+isNullWithIsNullInsideOr
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE (gender IS NULL OR emp_no > 10000) AND gender IS NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+10
+;
+
+isNullWithOrSalaryFilter
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE (gender IS NOT NULL OR salary > 50000) AND gender IS NULL
+| SORT emp_no
+| KEEP emp_no, gender, salary
+;
+
+emp_no:integer|gender:keyword|salary:integer
+10016         |null          |61358
+10017         |null          |58715
+10018         |null          |56760
+10019         |null          |73717
+;
+
+isNullWithOrLanguageFilter
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE (gender IS NOT NULL OR languages > 3) AND gender IS NULL
+| SORT emp_no
+| KEEP emp_no, gender, languages
+;
+
+emp_no:integer|gender:keyword|languages:integer
+10010         |null          |4
+10011         |null          |5
+10012         |null          |5
+10014         |null          |5
+10015         |null          |5
+;
+
+isNullWithOrDisjunctionSeparateWhereClauses
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE gender IS NOT NULL OR emp_no > 10015
+| WHERE gender IS NULL
+| SORT emp_no
+| KEEP emp_no, gender
+;
+
+emp_no:integer|gender:keyword
+10016         |null
+10017         |null
+10018         |null
+10019         |null
+;
+
+isNullWithOrDisjunctionStatsByLanguage
+required_capability: fix_propagate_nullable_or_disjunction
+required_capability: inline_stats
+
+FROM employees
+| WHERE (gender IS NOT NULL OR languages > 3) AND gender IS NULL
+| INLINE STATS c = COUNT(*) BY languages
+| SORT emp_no
+| KEEP emp_no, gender, languages, c
+;
+
+emp_no:integer|gender:keyword|languages:integer|c:long
+10010         |null          |4                |1
+10011         |null          |5                |4
+10012         |null          |5                |4
+10014         |null          |5                |4
+10015         |null          |5                |4
+;
+
+isNullWithOrThreeBranches
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE (gender IS NOT NULL OR emp_no > 10017 OR salary > 60000) AND gender IS NULL
+| SORT emp_no
+| KEEP emp_no, gender, salary
+;
+
+emp_no:integer|gender:keyword|salary:integer
+10016         |null          |61358
+10018         |null          |56760
+10019         |null          |73717
+;
+
+isNullWithOrEvalAlias
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| EVAL g = gender
+| WHERE (g IS NOT NULL OR emp_no > 10015) AND g IS NULL
+| SORT emp_no
+| KEEP emp_no, g
+;
+
+emp_no:integer|g:keyword
+10016         |null
+10017         |null
+10018         |null
+10019         |null
+;
+
+isNullWithOrCompoundAndRangeEvalSeparateWhereClauses
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| EVAL nullable = gender
+| KEEP emp_no, nullable, gender
+| WHERE nullable IS NOT NULL OR (emp_no > 10010 AND emp_no <= 10016)
+| WHERE nullable IS NULL
+| SORT emp_no
+;
+
+emp_no:integer|nullable:keyword|gender:keyword
+10011         |null            |null
+10012         |null            |null
+10013         |null            |null
+10014         |null            |null
+10015         |null            |null
+10016         |null            |null
+;
+
+isNullWithOrDisjunctionMvEvalNull
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE emp_no >= 10009 AND emp_no <= 10015
+| EVAL sc = salary_change + 1
+| WHERE (sc IS NOT NULL OR emp_no > 10011) AND sc IS NULL
+| SORT emp_no
+| KEEP emp_no, salary_change, sc
+;
+warningRegex:Line \d+:\d+: evaluation of \[salary_change \+ 1\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line \d+:\d+: java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer|salary_change:double|sc:double
+10013         |null                |null
+10014         |[-1.89, 9.07]       |null
+10015         |[12.4, 14.25]       |null
+;
+
+isNullWithOrDisjunctionMvEvalNullSeparateWhereClauses
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE emp_no >= 10009 AND emp_no <= 10015
+| EVAL sc = salary_change + 1
+| WHERE sc IS NOT NULL OR emp_no > 10011
+| WHERE sc IS NULL
+| SORT emp_no
+| KEEP emp_no, salary_change, sc
+;
+warningRegex:Line \d+:\d+: evaluation of \[salary_change \+ 1\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line \d+:\d+: java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer|salary_change:double|sc:double
+10013         |null                |null
+10014         |[-1.89, 9.07]       |null
+10015         |[12.4, 14.25]       |null
+;
+
+isNotNullWithOrDisjunctionSurvivingBranch
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE (gender IS NULL OR emp_no <= 10009) AND gender IS NOT NULL
+| SORT emp_no
+| KEEP emp_no, gender
+;
+
+emp_no:integer|gender:keyword
+10001         |M
+10002         |F
+10003         |M
+10004         |M
+10005         |M
+10006         |F
+10007         |F
+10008         |M
+10009         |F
+;
+
+isNotNullWithIsNotNullInsideOr
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE (gender IS NOT NULL OR emp_no <= 10009) AND gender IS NOT NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+90
+;
+
+isNotNullWithOrDisjunctionSeparateWhereClauses
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE gender IS NULL OR emp_no <= 10009
+| WHERE gender IS NOT NULL
+| SORT emp_no
+| KEEP emp_no, gender
+;
+
+emp_no:integer|gender:keyword
+10001         |M
+10002         |F
+10003         |M
+10004         |M
+10005         |M
+10006         |F
+10007         |F
+10008         |M
+10009         |F
+;

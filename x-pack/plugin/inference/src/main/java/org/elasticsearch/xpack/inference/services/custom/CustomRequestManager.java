@@ -36,7 +36,7 @@ import java.util.function.Supplier;
 public class CustomRequestManager extends BaseRequestManager {
     private static final Logger logger = LogManager.getLogger(CustomRequestManager.class);
 
-    record RateLimitGrouping(int apiKeyHash) {
+    record RateLimitGrouping(int serviceSettingsHash) {
         public static RateLimitGrouping of(CustomModel model) {
             Objects.requireNonNull(model);
 
@@ -69,15 +69,12 @@ public class CustomRequestManager extends BaseRequestManager {
         ActionListener<InferenceServiceResults> listener
     ) {
         RequestParameters requestParameters;
-        if (inferenceInputs instanceof QueryAndDocsInputs) {
-            requestParameters = RerankParameters.of(QueryAndDocsInputs.of(inferenceInputs));
+        if (inferenceInputs instanceof QueryAndDocsInputs queryAndDocsInputs) {
+            requestParameters = RerankParameters.of(queryAndDocsInputs);
         } else if (inferenceInputs instanceof ChatCompletionInput chatInputs) {
             requestParameters = CompletionParameters.of(chatInputs);
-        } else if (inferenceInputs instanceof EmbeddingsInput) {
-            requestParameters = EmbeddingParameters.of(
-                EmbeddingsInput.of(inferenceInputs),
-                model.getServiceSettings().getInputTypeTranslator()
-            );
+        } else if (inferenceInputs instanceof EmbeddingsInput embeddingsInput) {
+            requestParameters = EmbeddingParameters.of(embeddingsInput, model.getServiceSettings().getInputTypeTranslator());
         } else {
             listener.onFailure(
                 new ElasticsearchStatusException(

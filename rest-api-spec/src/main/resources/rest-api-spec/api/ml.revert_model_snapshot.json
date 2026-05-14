@@ -1,43 +1,49 @@
 {
-  "ml.revert_model_snapshot":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-revert-snapshot.html",
-      "description":"Reverts to a specific snapshot."
+  "ml.revert_model_snapshot": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-revert-model-snapshot",
+      "description": "Revert to a snapshot"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}/_revert",
-          "methods":[
+          "path": "/_ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}/_revert",
+          "methods": [
             "POST"
           ],
-          "parts":{
-            "job_id":{
-              "type":"string",
-              "description":"The ID of the job to fetch"
+          "parts": {
+            "job_id": {
+              "type": "string",
+              "description": "The ID of the job to fetch"
             },
-            "snapshot_id":{
-              "type":"string",
-              "description":"The ID of the snapshot to revert to"
+            "snapshot_id": {
+              "type": "string",
+              "description": "The ID of the snapshot to revert to"
             }
           }
         }
       ]
     },
-    "params":{
-      "delete_intervening_results":{
-        "type":"boolean",
-        "description":"Should we reset the results back to the time of the snapshot?"
+    "params": {
+      "delete_intervening_results": {
+        "type": "boolean",
+        "default": false,
+        "description": "Should we reset the results back to the time of the snapshot?"
       }
     },
-    "body":{
-      "description":"Reversion options"
+    "body": {
+      "description": "Reversion options",
+      "required": false
     }
   }
 }

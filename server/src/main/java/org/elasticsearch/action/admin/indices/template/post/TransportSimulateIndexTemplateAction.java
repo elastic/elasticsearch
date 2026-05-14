@@ -86,7 +86,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
      * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
      * we no longer need to support calling this action remotely.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
     @SuppressWarnings("this-escape")
     @Inject
     public TransportSimulateIndexTemplateAction(
@@ -278,15 +278,19 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
         Settings.Builder additionalSettings = Settings.builder();
         Set<String> overrulingSettings = new HashSet<>();
         for (var provider : indexSettingProviders) {
-            Settings result = provider.getAdditionalIndexSettings(
+            Settings.Builder builder = Settings.builder();
+            provider.provideAdditionalSettings(
                 indexName,
                 template.getDataStreamTemplate() != null ? indexName : null,
                 simulatedProject.retrieveIndexModeFromTemplate(template),
                 simulatedProject,
                 now,
                 templateSettings,
-                mappings
+                mappings,
+                IndexVersion.current(),
+                builder
             );
+            Settings result = builder.build();
             MetadataCreateIndexService.validateAdditionalSettings(provider, result, additionalSettings);
             dummySettings.put(result);
             additionalSettings.put(result);
@@ -324,7 +328,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
                 xContentRegistry,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                tempIndexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
+                tempIndexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap(), null, null),
                 IndexService.dateMathExpressionResolverAt(),
                 systemIndices::isSystemName
             )

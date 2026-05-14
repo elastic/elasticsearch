@@ -20,12 +20,12 @@ esplugin {
 
 restResources {
   restApi {
-    include '_common', 'streams', 'bulk', 'index', 'ingest', 'indices', 'delete_by_query', 'search'
+    include '_common', 'streams', 'bulk', 'index', 'ingest', 'indices', 'delete_by_query', 'search', 'capabilities'
   }
 }
 
 configurations {
-  basicRestSpecs {
+  restTests {
     attributes {
       attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
     }
@@ -33,7 +33,7 @@ configurations {
 }
 
 artifacts {
-  basicRestSpecs(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+  restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
 dependencies {
@@ -41,3 +41,8 @@ dependencies {
   clusterModules project(':modules:ingest-common')
   clusterModules project(':modules:reindex')
 }
+
+tasks.named("yamlRestCompatTestTransform").configure ({ task ->
+  // Expected deprecation warning to compat yaml tests:
+  task.addAllowedWarningRegex("The 'logs' stream is deprecated. Use individual stream names such as 'logs.otel' and 'logs.ecs' instead")
+})

@@ -112,7 +112,10 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
             return;
         }
 
-        final boolean transformIsRunning = TransformTask.getTransformTask(request.getId(), state) != null;
+        final boolean transformIsRunning = TransformTask.getTransformTask(
+            request.getId(),
+            projectResolver.getProjectMetadata(state)
+        ) != null;
         if (transformIsRunning && request.isForce() == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(
@@ -151,6 +154,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
                     false, // defer validation
                     false, // dry run
                     false, // check access
+                    false, // hasLinkedProjects (irrelevant since checkAccess is false)
                     request.ackTimeout(),
                     destIndexSettings,
                     updateTransformListener

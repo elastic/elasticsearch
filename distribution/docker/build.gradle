@@ -14,8 +14,7 @@ import org.elasticsearch.gradle.Architecture
 import java.nio.file.Path
 import java.time.temporal.ChronoUnit
 
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.test.fixtures'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-distribution-download'
 apply plugin: 'elasticsearch.dra-artifacts'
 apply plugin: 'elasticsearch.jdk-download'
@@ -23,6 +22,10 @@ apply plugin: 'elasticsearch.repositories'
 
 String buildId = providers.systemProperty('build.id').getOrNull()
 boolean useLocalArtifacts = buildId != null && buildId.isBlank() == false && useDra == false
+
+// FIPS version for Docker builds: '140-2' (default) or '140-3'
+// Use -Ddocker.fips.version=140-3 to build with FIPS 140-3 / BC 2.x libraries
+ext.isFips140_3 = providers.systemProperty('docker.fips.version').getOrElse('140-3') == '140-3'
 
 repositories {
   // Define a repository that allows Gradle to fetch a resource from GitHub. This
@@ -105,6 +108,7 @@ configurations {
   metricbeat_x86_64
   metricbeat_fips_x86_64
   fips
+  fips_140_3
 }
 
 String tiniArch = Architecture.current() == Architecture.AARCH64 ? 'arm64' : 'amd64'
@@ -129,8 +133,16 @@ dependencies {
   metricbeat_fips_aarch64 "beats:metricbeat-fips:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
   metricbeat_fips_x86_64 "beats:metricbeat-fips:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
 
-  fips "org.bouncycastle:bc-fips:1.0.2.5"
+  // FIPS 140-2 libraries (default)
+  fips "org.bouncycastle:bc-fips:1.0.2.6"
   fips "org.bouncycastle:bctls-fips:1.0.19"
+
+  // FIPS 140-3 libraries
+  fips_140_3 "org.bouncycastle:bc-fips:2.0.1"
+  fips_140_3 "org.bouncycastle:bctls-fips:2.0.22"
+  fips_140_3 "org.bouncycastle:bcutil-fips:2.0.5"
+
+  yamlRestTestImplementation project(':test:fixtures:testcontainer-utils')
 }
 
 ext.expansions = { Architecture architecture, DockerBase base, String publicationContext = '' ->
@@ -142,6 +154,9 @@ ext.expansions = { Architecture architecture, DockerBase base, String publicatio
   // an image for every single change. Therefore, outside of CI, we fix the
   // build time to midnight so that the Docker build cache is usable.
   def buildDate = buildParams.ci ? buildParams.buildDate : buildParams.buildDate.truncatedTo(ChronoUnit.DAYS).toString()
+
+  // BC-FIPS version depends on FIPS version (140-2 vs 140-3)
+  def bcFipsVersion = isFips140_3 ? '2.0.1' : '1.0.2.6'
 
   return [
     'arch'               : architecture.classifier,
@@ -156,7 +171,8 @@ ext.expansions = { Architecture architecture, DockerBase base, String publicatio
     'docker_context'     : publicationContext,
     'version'            : VersionProperties.elasticsearch,
     'major_minor_version': "${major}.${minor}",
-    'retry'              : ShellRetry
+    'retry'              : ShellRetry,
+    'bc_fips_version'    : bcFipsVersion
   ]
 }
 
@@ -211,23 +227,6 @@ ext.dockerBuildContext = { Architecture architecture, DockerBase base, String pu
   }
 }
 
-tasks.register("copyNodeKeyMaterial", Sync) {
-  def certsDir = file("build/certs")
-  def pemFile = file("build/certs/testnode.pem")
-  def crtFile = file("build/certs/testnode.crt")
-  from project(':x-pack:plugin:core')
-    .files(
-      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
-      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt'
-    )
-  into "build/certs"
-  doLast {
-    certsDir.setReadable(true, false)
-    pemFile.setReadable(true, false)
-    crtFile.setReadable(true, false)
-  }
-}
-
 elasticsearch_distributions {
   Architecture.values().each { eachArchitecture ->
     "docker_${eachArchitecture == Architecture.AARCH64 ? '_aarch64' : ''}" {
@@ -235,31 +234,6 @@ elasticsearch_distributions {
       type = InternalElasticsearchDistributionTypes.DOCKER
       version = VersionProperties.getElasticsearch()
       failIfUnavailable = false // This ensures we don't attempt to build images if docker is unavailable
-    }
-  }
-}
-
-interface Injected {
-  @Inject
-  FileSystemOperations getFs()
-}
-
-tasks.named("preProcessFixture").configure {
-  dependsOn elasticsearch_distributions.matching { it.architecture == Architecture.current() }
-  dependsOn "copyNodeKeyMaterial"
-  def injected = project.objects.newInstance(Injected)
-  def testFixturesFolder = project.testFixturesDir.absoluteFile
-  doLast {
-    // tests expect to have an empty repo
-    injected.fs.delete {
-      it.delete("${testFixturesFolder}/repo")
-    }
-    ["${testFixturesFolder}/repo",
-     "${testFixturesFolder}/logs/default-1",
-     "${testFixturesFolder}/logs/default-2"].each { location ->
-      File file = new File(location)
-      file.mkdirs()
-      file.setWritable(true, false)
     }
   }
 }
@@ -274,23 +248,14 @@ tasks.named("processYamlRestTestResources").configure {
 
 tasks.named("yamlRestTest").configure {
   outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
-  maxParallelForks = '1'
+  maxParallelForks = 1
   include '**/*IT.class'
+  // Boot the JUnit-driven Testcontainers fixture against the locally tagged elasticsearch:test image
+  dependsOn elasticsearch_distributions.matching { it.architecture == Architecture.current() }
 }
 
 tasks.named("check").configure {
   dependsOn "yamlRestTest"
-}
-
-// We build the images used in compose locally, but the pull command insists on using a repository
-// thus we must disable it to prevent it from doing so.
-// Everything will still be pulled since we will build the local images on a pull
-tasks.named("composePull").configure {
-  enabled = false
-}
-
-tasks.named("composeUp").configure {
-  dependsOn tasks.named("preProcessFixture")
 }
 
 
@@ -336,7 +301,7 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base, Strin
 
         into("fips") {
           into("libs") {
-            from configurations.fips
+            from(isFips140_3 ? configurations.fips_140_3 : configurations.fips)
           }
           into("resources") {
             from tasks.named('fipsDockerResources')
@@ -488,13 +453,6 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
       } else {
         baseImages = []
       }
-
-      Provider<DockerSupportService> serviceProvider = GradleUtils.getBuildService(
-        project.gradle.sharedServices,
-        DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME
-      )
-      onlyIf("$architecture supported") { serviceProvider.get().isArchitectureSupported(architecture) }
-
     }
 
   if (base != DockerBase.IRON_BANK && base != DockerBase.CLOUD_ESS) {
@@ -553,7 +511,7 @@ void addBuildCloudDockerImageTasks(Architecture architecture) {
       DockerBase base = DockerBase.WOLFI
 
       TaskProvider<DockerBuildTask> buildBaseTask = tasks.named(taskName("build", architecture, base, "DockerImage"))
-      inputs.files(buildBaseTask)
+      inputs.files(buildBaseTask).withPathSensitivity(PathSensitivity.RELATIVE)
 
       dockerContext.fileProvider(buildContextTask.map { it.getDestinationDir() })
 
@@ -561,11 +519,6 @@ void addBuildCloudDockerImageTasks(Architecture architecture) {
       baseImages = []
       tags = generateTags(dockerBase, architecture)
       platforms.add(architecture.dockerPlatform)
-      Provider<DockerSupportService> serviceProvider = GradleUtils.getBuildService(
-        project.gradle.sharedServices,
-        DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME
-      )
-      onlyIf("$architecture supported") { serviceProvider.get().isArchitectureSupported(architecture) }
 
     }
 
@@ -579,7 +532,6 @@ TaskProvider<ExportElasticsearchBuildResourcesTask> fipsResourcesTask = tasks.re
 fipsResourcesTask.configure {
   outputDir = project.layout.buildDirectory.dir('fips-docker-resources').get().asFile
   copy 'fips_java.security'
-  copy 'fips_java.policy'
 }
 
 for (final Architecture architecture : Architecture.values()) {
@@ -633,7 +585,7 @@ subprojects { Project subProject ->
     final String tarFile = "${parent.projectDir}/build/${artifactName}_${VersionProperties.elasticsearch}.${extension}"
 
     def exportTask = tasks.register(exportTaskName, LoggedExec) {
-      inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker")
+      inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker").withPathSensitivity(PathSensitivity.RELATIVE)
       executable = 'docker'
       outputs.file(tarFile)
       outputs.doNotCacheIf("Build cache is disabled for export tasks") { true }
@@ -668,6 +620,11 @@ subprojects { Project subProject ->
       dependsOn compressExportTask
     }
 
+    tasks.named('assemble').configure {
+      dependsOn exportTask
+    }
+
+    // deprecated here for backwards compatibility of DistroTestPlugin and DistributionDownloadPlugin
     artifacts.add('default', file(tarFile)) {
       type = 'tar'
       name = artifactName

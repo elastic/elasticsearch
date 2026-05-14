@@ -53,7 +53,83 @@ import java.util.function.Predicate;
 import static org.elasticsearch.core.Strings.format;
 
 /**
- * A base class for operations that needs to be performed on the master node.
+ * A base class for operations that need to be performed on the master node.
+ *
+ * <p>Many cluster operations (e.g. creating indices, managing snapshots) result in
+ * {@link org.elasticsearch.cluster.ClusterState} updates and must therefore run on the elected master
+ * node. This class provides a common framework that handles routing requests to the current master,
+ * retrying when the master changes, and checking for cluster blocks.
+ *
+ * <h2>Subclass Responsibilities</h2>
+ *
+ * <p>Subclasses must implement two abstract methods:
+ * <ul>
+ *   <li>{@link #masterOperation} – the actual operation to perform on the master. This typically
+ *       involves submitting a cluster state update task to the
+ *       {@link org.elasticsearch.cluster.service.MasterService}.</li>
+ *   <li>{@link #checkBlock} – returns a
+ *       {@link org.elasticsearch.cluster.block.ClusterBlockException} if the action should be blocked
+ *       for the current cluster state (e.g. an index write block during a close operation), or
+ *       {@code null} if the action can proceed.</li>
+ * </ul>
+ *
+ * <h2>Request Types</h2>
+ *
+ * <p>The {@link MasterNodeRequest} is the request type this class is parameterized on. It carries two
+ * fields relevant to master routing:
+ * <ul>
+ *   <li>{@code masterNodeTimeout} – how long the request will wait when no master is available or the
+ *       current master is unreachable. For REST-originated requests this is set via the
+ *       {@code master_timeout} query parameter and parsed via
+ *       {@link org.elasticsearch.rest.RestUtils#getMasterNodeTimeout}. Internally-generated requests typically use
+ *       {@code INFINITE_MASTER_NODE_TIMEOUT} to wait indefinitely.</li>
+ *   <li>{@code masterTerm} – the term of the cluster state used to route this request, which prevents
+ *       routing loops. When a node receives a forwarded request whose {@code masterTerm} exceeds its
+ *       own cluster state term, it waits for its local term to catch up before proceeding.</li>
+ * </ul>
+ *
+ * <p>The {@link #localExecute} method can be overridden to allow the action to run on the local node
+ * rather than being forwarded to the master (see {@link TransportMasterNodeReadAction} as an example).
+ * This is typically used for read-only operations (e.g. cluster health or cluster state queries) where
+ * a potentially stale local view is acceptable. It is conventionally controlled by the {@code ?local}
+ * request parameter.
+ *
+ * <h2>Execution Flow</h2>
+ *
+ * <p>Execution is delegated to an {@code AsyncSingleAction}, which handles routing, async execution,
+ * and result listener registration.
+ *
+ * <p>If the local node is the master (or {@link #localExecute} returns {@code true}):
+ * <ol>
+ *   <li>Cluster blocks are checked via {@link #checkBlock}. A non-retryable block fails the request
+ *       immediately. A retryable block causes a retry until the block clears.</li>
+ *   <li>If there are no blocks, {@link #masterOperation} is invoked on the configured executor.</li>
+ *   <li>If {@code masterOperation} fails with a publish failure
+ *       ({@link org.elasticsearch.cluster.NotMasterException} or
+ *       {@link org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException}), the
+ *       action retries on the next master.</li>
+ * </ol>
+ *
+ * <p>If the local node is not the master:
+ * <ol>
+ *   <li>If no master is known, the action retries until a master appears.</li>
+ *   <li>If the local cluster state term is lower than the request's {@code masterTerm}, the action
+ *       waits for the local term to catch up to avoid routing loops.</li>
+ *   <li>Otherwise, the request is forwarded to the known master via the transport layer. If the
+ *       connection fails ({@link org.elasticsearch.transport.ConnectTransportException}) or the target
+ *       node is closing ({@link org.elasticsearch.node.NodeClosedException}), the action retries on
+ *       the next available master.</li>
+ * </ol>
+ *
+ * <h2>Retry Mechanism</h2>
+ *
+ * <p>All retries are driven by a {@link org.elasticsearch.cluster.ClusterStateObserver}, which watches
+ * for cluster state changes satisfying a given predicate. The observer uses the remaining
+ * {@code masterNodeTimeout} as its deadline. If the predicate is not satisfied before the timeout expires,
+ * the request fails with a {@link org.elasticsearch.discovery.MasterNotDiscoveredException}. For
+ * {@link org.elasticsearch.tasks.CancellableTask}s, a cancellation listener is also registered so
+ * that the retry aborts immediately if the task is canceled. Each retry re-enters {@code doStart}
+ * with the new cluster state, re-evaluating the routing decision from scratch.
  */
 public abstract class TransportMasterNodeAction<Request extends MasterNodeRequest<Request>, Response extends ActionResponse> extends
     HandledTransportAction<Request, Response>
@@ -143,7 +219,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
             state.metadata().reservedStateMetadata().values(),
             handlerName.get(),
             modifiedKeys(request),
-            request.toString()
+            request::toString
         );
     }
 

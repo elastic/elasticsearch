@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.ErrorsForCasesWithoutExamplesTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.hamcrest.Matcher;
 
@@ -25,6 +24,7 @@ import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction.expectedTypesAsString;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -50,7 +50,11 @@ public class MatchErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
         return equalTo(
-            errorMessageStringForMatch(validPerPosition, signature, (l, p) -> p == 0 ? FIELD_TYPE_ERROR_STRING : QUERY_TYPE_ERROR_STRING)
+            errorMessageStringForMatch(
+                validPerPosition,
+                signature,
+                (l, p) -> p == 0 ? expectedTypesAsString(Match.FIELD_DATA_TYPES) : expectedTypesAsString(Match.QUERY_DATA_TYPES)
+            )
         );
     }
 
@@ -59,10 +63,9 @@ public class MatchErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
         List<DataType> signature,
         AbstractFunctionTestCase.PositionalErrorMessageSupplier positionalErrorMessageSupplier
     ) {
-        boolean invalid = false;
-        for (int i = 0; i < signature.size() && invalid == false; i++) {
+        for (int i = 0; i < signature.size(); i++) {
             // Need to check for nulls and bad parameters in order
-            if (signature.get(i) == DataType.NULL) {
+            if (signature.get(i) == DataType.NULL && i > 0) {
                 return TypeResolutions.ParamOrdinal.fromIndex(i).name().toLowerCase(Locale.ROOT)
                     + " argument of ["
                     + sourceForSignature(signature)
@@ -77,17 +80,6 @@ public class MatchErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             }
         }
 
-        try {
-            return typeErrorMessage(true, validPerPosition, signature, positionalErrorMessageSupplier);
-        } catch (IllegalStateException e) {
-            // This means all the positional args were okay, so the expected error is for nulls or from the combination
-            return EsqlBinaryComparison.formatIncompatibleTypesMessage(signature.get(0), signature.get(1), sourceForSignature(signature));
-        }
+        return typeErrorMessage(true, validPerPosition, signature, positionalErrorMessageSupplier);
     }
-
-    private static final String FIELD_TYPE_ERROR_STRING =
-        "keyword, text, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version";
-
-    private static final String QUERY_TYPE_ERROR_STRING =
-        "keyword, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version";
 }

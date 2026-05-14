@@ -20,6 +20,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -158,7 +159,7 @@ public class RefreshListenersTests extends ESTestCase {
             newMergePolicy(),
             iwc.getAnalyzer(),
             iwc.getSimilarity(),
-            new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE),
+            new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, null),
             eventListener,
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
@@ -456,6 +457,7 @@ public class RefreshListenersTests extends ESTestCase {
                                 get,
                                 mapperService.mappingLookup(),
                                 mapperService.documentParser(),
+                                SplitShardCountSummary.IRRELEVANT,
                                 EngineTestCase.randomSearcherWrapper()
                             )
                         ) {

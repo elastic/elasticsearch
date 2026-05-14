@@ -24,6 +24,17 @@ public class MigrateToDataTiersRequestTests extends AbstractWireSerializingTestC
 
     @Override
     protected MigrateToDataTiersRequest mutateInstance(MigrateToDataTiersRequest instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        boolean isDryRun = instance.isDryRun();
+        String legacyTemplateToDelete = instance.getLegacyTemplateToDelete();
+        String nodeAttributeName = instance.getNodeAttributeName();
+        switch (between(0, 2)) {
+            case 0 -> isDryRun = isDryRun == false;
+            case 1 -> legacyTemplateToDelete = randomValueOtherThan(legacyTemplateToDelete, () -> randomAlphaOfLength(10));
+            case 2 -> nodeAttributeName = randomValueOtherThan(nodeAttributeName, () -> randomAlphaOfLength(10));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        MigrateToDataTiersRequest mutated = new MigrateToDataTiersRequest(TEST_REQUEST_TIMEOUT, legacyTemplateToDelete, nodeAttributeName);
+        mutated.setDryRun(isDryRun);
+        return mutated;
     }
 }

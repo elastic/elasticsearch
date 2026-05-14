@@ -15,16 +15,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -37,8 +35,6 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
 
-    private static final RoutingChangesObserver NOOP = new RoutingChangesObserver() {
-    };
     private static final String[] INDICES = { "indexOne", "indexTwo", "indexThree" };
 
     /**
@@ -48,9 +44,9 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
         final var originalNode0ThreadPoolStats = randomThreadPoolUsageStats();
         final var originalNode1ThreadPoolStats = randomThreadPoolUsageStats();
         final var allocation = createRoutingAllocationWithRandomisedWriteLoads(
+            Set.of(),
             originalNode0ThreadPoolStats,
-            originalNode1ThreadPoolStats,
-            Set.of()
+            originalNode1ThreadPoolStats
         );
 
         final var shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation);
@@ -66,27 +62,35 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
         );
     }
 
-    public void testMovementOfAShardWillMoveThreadPoolUtilisation() {
+    public void testMovementOfAShardWillMoveThreadPoolStats() {
         final var originalNode0ThreadPoolStats = randomThreadPoolUsageStats();
         final var originalNode1ThreadPoolStats = randomThreadPoolUsageStats();
+        final var originalNode2ThreadPoolStats = randomThreadPoolUsageStats();
         final var allocation = createRoutingAllocationWithRandomisedWriteLoads(
+            Set.of(),
             originalNode0ThreadPoolStats,
             originalNode1ThreadPoolStats,
-            Set.of()
+            originalNode2ThreadPoolStats
         );
         final var shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation);
 
         // Relocate a random shard from node_0 to node_1
         final var randomShard = randomFrom(StreamSupport.stream(allocation.routingNodes().node("node_0").spliterator(), false).toList());
         final var expectedShardSize = randomNonNegativeLong();
-        final var moveShardTuple = allocation.routingNodes().relocateShard(randomShard, "node_1", expectedShardSize, "testing", NOOP);
+        final var moveShardTuple = allocation.routingNodes()
+            .relocateShard(randomShard, "node_1", expectedShardSize, "testing", RoutingChangesObserver.NOOP);
         shardMovementWriteLoadSimulator.simulateShardStarted(moveShardTuple.v2());
-        final ShardRouting movedAndStartedShard = allocation.routingNodes().startShard(moveShardTuple.v2(), NOOP, expectedShardSize);
+        final ShardRouting movedAndStartedShard = allocation.routingNodes()
+            .startShard(moveShardTuple.v2(), RoutingChangesObserver.NOOP, expectedShardSize);
 
         final var calculatedNodeUsageStats = shardMovementWriteLoadSimulator.simulatedNodeUsageStatsForThreadPools();
-        assertThat(calculatedNodeUsageStats, Matchers.aMapWithSize(2));
+        assertThat(calculatedNodeUsageStats, Matchers.aMapWithSize(3));
 
         final var shardWriteLoad = allocation.clusterInfo().getShardWriteLoads().get(randomShard.shardId());
+        assertNotNull(
+            "Looked up shard [" + randomShard.shardId() + "]. Shard write loads: " + allocation.clusterInfo().getShardWriteLoads(),
+            shardWriteLoad
+        );
         final var expectedUtilisationReductionAtSource = shardWriteLoad / originalNode0ThreadPoolStats.totalThreadPoolThreads();
         final var expectedUtilisationIncreaseAtDestination = shardWriteLoad / originalNode1ThreadPoolStats.totalThreadPoolThreads();
 
@@ -109,9 +113,22 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
             closeTo(expectedUtilisationIncreaseAtDestination, 0.001f)
         );
 
+        // Queue latency reduced for node_0 since it has a shard moved out
+        assertThat(getMaxThreadPoolQueueLatency(shardMovementWriteLoadSimulator, "node_0"), equalTo(0L));
+        // Queue latency stays unchanged for node_1 since it only has a shard moved in
+        assertThat(
+            getMaxThreadPoolQueueLatency(shardMovementWriteLoadSimulator, "node_1"),
+            equalTo(originalNode1ThreadPoolStats.maxThreadPoolQueueLatencyMillis())
+        );
+        // Queue latency stays unchanged for node_2 since it has no shard movement
+        assertThat(
+            getMaxThreadPoolQueueLatency(shardMovementWriteLoadSimulator, "node_2"),
+            equalTo(originalNode2ThreadPoolStats.maxThreadPoolQueueLatencyMillis())
+        );
+
         // Then move it back
         final var moveBackTuple = allocation.routingNodes()
-            .relocateShard(movedAndStartedShard, "node_0", expectedShardSize, "testing", NOOP);
+            .relocateShard(movedAndStartedShard, "node_0", expectedShardSize, "testing", RoutingChangesObserver.NOOP);
         shardMovementWriteLoadSimulator.simulateShardStarted(moveBackTuple.v2());
 
         // The utilization numbers should return to their original values
@@ -123,34 +140,95 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
             getAverageWritePoolUtilization(shardMovementWriteLoadSimulator, "node_1"),
             equalTo(originalNode1ThreadPoolStats.averageThreadPoolUtilization())
         );
+
+        // We intentionally keep things simple so that if a shard has moved away from a node, its queue latency is reduced to zero
+        // regardless of whether other shards have subsequently moved onto or out of the same node.
+        assertThat(getMaxThreadPoolQueueLatency(shardMovementWriteLoadSimulator, "node_0"), equalTo(0L));
+        assertThat(getMaxThreadPoolQueueLatency(shardMovementWriteLoadSimulator, "node_1"), equalTo(0L));
+        // Queue latency stays unchanged for node_2 since it has no shard movement
+        assertThat(
+            getMaxThreadPoolQueueLatency(shardMovementWriteLoadSimulator, "node_2"),
+            equalTo(originalNode2ThreadPoolStats.maxThreadPoolQueueLatencyMillis())
+        );
     }
 
     public void testMovementBetweenNodesWithNoThreadPoolAndWriteLoadStats() {
         final var originalNode0ThreadPoolStats = randomBoolean() ? randomThreadPoolUsageStats() : null;
         final var originalNode1ThreadPoolStats = randomBoolean() ? randomThreadPoolUsageStats() : null;
         final var allocation = createRoutingAllocationWithRandomisedWriteLoads(
+            new HashSet<>(randomSubsetOf(Arrays.asList(INDICES))),
             originalNode0ThreadPoolStats,
-            originalNode1ThreadPoolStats,
-            new HashSet<>(randomSubsetOf(Arrays.asList(INDICES)))
+            originalNode1ThreadPoolStats
         );
         final var shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation);
 
         // Relocate a random shard from node_0 to node_1
         final var expectedShardSize = randomNonNegativeLong();
         final var randomShard = randomFrom(StreamSupport.stream(allocation.routingNodes().node("node_0").spliterator(), false).toList());
-        final var moveShardTuple = allocation.routingNodes().relocateShard(randomShard, "node_1", expectedShardSize, "testing", NOOP);
+        final var moveShardTuple = allocation.routingNodes()
+            .relocateShard(randomShard, "node_1", expectedShardSize, "testing", RoutingChangesObserver.NOOP);
         shardMovementWriteLoadSimulator.simulateShardStarted(moveShardTuple.v2());
-        allocation.routingNodes().startShard(moveShardTuple.v2(), NOOP, expectedShardSize);
+        allocation.routingNodes().startShard(moveShardTuple.v2(), RoutingChangesObserver.NOOP, expectedShardSize);
 
         final var simulated = shardMovementWriteLoadSimulator.simulatedNodeUsageStatsForThreadPools();
         assertThat(simulated.containsKey("node_0"), equalTo(originalNode0ThreadPoolStats != null));
         assertThat(simulated.containsKey("node_1"), equalTo(originalNode1ThreadPoolStats != null));
     }
 
+    public void testShardWithNoWriteLoadStillResetsQueueLatency() {
+        final ClusterState clusterState = createClusterState();
+        final var allocation = createRoutingAllocationWithShardWriteLoads(
+            clusterState,
+            Map.of(),
+            randomThreadPoolUsageStats(),
+            randomThreadPoolUsageStats()
+        );
+        final var shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation);
+
+        // Relocate a random shard from node_0 to node_1
+        final var randomShard = randomFrom(StreamSupport.stream(allocation.routingNodes().node("node_0").spliterator(), false).toList());
+        final var moveShardTuple = allocation.routingNodes()
+            .relocateShard(randomShard, "node_1", 0, "testing", RoutingChangesObserver.NOOP);
+        shardMovementWriteLoadSimulator.simulateShardStarted(moveShardTuple.v2());
+
+        final var simulated = shardMovementWriteLoadSimulator.simulatedNodeUsageStatsForThreadPools();
+        final var threadPoolUsageStats = simulated.get("node_0").threadPoolUsageStatsMap().get("write");
+        assertThat(threadPoolUsageStats.maxThreadPoolQueueLatencyMillis(), equalTo(0L)); // queue latency is reset
+        // No change to write load since shard has no write load
+        assertThat(
+            threadPoolUsageStats.averageThreadPoolUtilization(),
+            equalTo(
+                allocation.clusterInfo()
+                    .getNodeUsageStatsForThreadPools()
+                    .get("node_0")
+                    .threadPoolUsageStatsMap()
+                    .get("write")
+                    .averageThreadPoolUtilization()
+            )
+        );
+    }
+
+    public void testUpdateThreadPoolQueueLatencyWithShardMovements() {
+        final long originalLatency = randomNonNegativeLong();
+
+        assertThat(
+            ShardMovementWriteLoadSimulator.adjustThreadPoolQueueLatencyWithShardMovements(originalLatency, false),
+            equalTo(originalLatency)
+        );
+
+        assertThat(ShardMovementWriteLoadSimulator.adjustThreadPoolQueueLatencyWithShardMovements(originalLatency, true), equalTo(0L));
+    }
+
     private float getAverageWritePoolUtilization(ShardMovementWriteLoadSimulator shardMovementWriteLoadSimulator, String nodeId) {
         final var generatedNodeUsageStates = shardMovementWriteLoadSimulator.simulatedNodeUsageStatsForThreadPools();
         final var node0WritePoolStats = generatedNodeUsageStates.get(nodeId).threadPoolUsageStatsMap().get("write");
         return node0WritePoolStats.averageThreadPoolUtilization();
+    }
+
+    private long getMaxThreadPoolQueueLatency(ShardMovementWriteLoadSimulator shardMovementWriteLoadSimulator, String nodeId) {
+        final var generatedNodeUsageStates = shardMovementWriteLoadSimulator.simulatedNodeUsageStatsForThreadPools();
+        final var writePoolStats = generatedNodeUsageStates.get(nodeId).threadPoolUsageStatsMap().get("write");
+        return writePoolStats.maxThreadPoolQueueLatencyMillis();
     }
 
     private NodeUsageStatsForThreadPools.ThreadPoolUsageStats randomThreadPoolUsageStats() {
@@ -162,43 +240,42 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
     }
 
     private RoutingAllocation createRoutingAllocationWithRandomisedWriteLoads(
-        NodeUsageStatsForThreadPools.ThreadPoolUsageStats node0ThreadPoolStats,
-        NodeUsageStatsForThreadPools.ThreadPoolUsageStats node1ThreadPoolStats,
-        Set<String> indicesWithNoWriteLoad
+        Set<String> indicesWithNoWriteLoad,
+        NodeUsageStatsForThreadPools.ThreadPoolUsageStats... arrayOfNodeThreadPoolStats
+    ) {
+        final ClusterState clusterState = createClusterState();
+        final Map<ShardId, Double> shardWriteLoads = clusterState.metadata()
+            .getProject(ProjectId.DEFAULT)
+            .stream()
+            .filter(index -> indicesWithNoWriteLoad.contains(index.getIndex().getName()) == false)
+            .flatMap(index -> IntStream.range(0, 3).mapToObj(shardNum -> new ShardId(index.getIndex(), shardNum)))
+            .collect(
+                Collectors.toUnmodifiableMap(shardId -> shardId, shardId -> randomBoolean() ? 0.0f : randomDoubleBetween(0.1, 5.0, true))
+            );
+
+        return createRoutingAllocationWithShardWriteLoads(clusterState, shardWriteLoads, arrayOfNodeThreadPoolStats);
+    }
+
+    private RoutingAllocation createRoutingAllocationWithShardWriteLoads(
+        ClusterState clusterState,
+        Map<ShardId, Double> shardWriteLoads,
+        NodeUsageStatsForThreadPools.ThreadPoolUsageStats... arrayOfNodeThreadPoolStats
     ) {
         final Map<String, NodeUsageStatsForThreadPools> nodeUsageStats = new HashMap<>();
-        if (node0ThreadPoolStats != null) {
-            nodeUsageStats.put("node_0", new NodeUsageStatsForThreadPools("node_0", Map.of("write", node0ThreadPoolStats)));
-        }
-        if (node1ThreadPoolStats != null) {
-            nodeUsageStats.put("node_1", new NodeUsageStatsForThreadPools("node_1", Map.of("write", node1ThreadPoolStats)));
+        for (int i = 0; i < arrayOfNodeThreadPoolStats.length; i++) {
+            final var nodeThreadPoolStats = arrayOfNodeThreadPoolStats[i];
+            if (nodeThreadPoolStats != null) {
+                final var nodeId = "node_" + i;
+                nodeUsageStats.put(nodeId, new NodeUsageStatsForThreadPools(nodeId, Map.of("write", nodeThreadPoolStats)));
+            }
         }
 
-        final ClusterState clusterState = createClusterState();
         final ClusterInfo clusterInfo = ClusterInfo.builder()
             .nodeUsageStatsForThreadPools(nodeUsageStats)
-            .shardWriteLoads(
-                clusterState.metadata()
-                    .getProject(ProjectId.DEFAULT)
-                    .stream()
-                    .filter(index -> indicesWithNoWriteLoad.contains(index.getIndex().getName()) == false)
-                    .flatMap(index -> IntStream.range(0, 3).mapToObj(shardNum -> new ShardId(index.getIndex(), shardNum)))
-                    .collect(
-                        Collectors.toUnmodifiableMap(
-                            shardId -> shardId,
-                            shardId -> randomBoolean() ? 0.0f : randomDoubleBetween(0.1, 5.0, true)
-                        )
-                    )
-            )
+            .shardWriteLoads(shardWriteLoads)
             .build();
 
-        return new RoutingAllocation(
-            new AllocationDeciders(List.of()),
-            clusterState,
-            clusterInfo,
-            SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
-        ).mutableCloneForSimulation();
+        return TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).build().mutableCloneForSimulation();
     }
 
     private ClusterState createClusterState() {

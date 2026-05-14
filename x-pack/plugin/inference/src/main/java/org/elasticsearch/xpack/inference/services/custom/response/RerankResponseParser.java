@@ -48,9 +48,7 @@ public class RerankResponseParser extends BaseCustomResponseParser {
         var rerankIndex = extractOptionalString(responseParserMap, RERANK_PARSER_INDEX, fullScope, validationException);
         var documentText = extractOptionalString(responseParserMap, RERANK_PARSER_DOCUMENT_TEXT, fullScope, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new RerankResponseParser(relevanceScore, rerankIndex, documentText);
     }
@@ -91,6 +89,18 @@ public class RerankResponseParser extends BaseCustomResponseParser {
         }
         builder.endObject();
         return builder;
+    }
+
+    String getRelevanceScorePath() {
+        return relevanceScorePath;
+    }
+
+    String getRerankIndexPath() {
+        return rerankIndexPath;
+    }
+
+    String getDocumentTextPath() {
+        return documentTextPath;
     }
 
     @Override
@@ -188,5 +198,10 @@ public class RerankResponseParser extends BaseCustomResponseParser {
         }
 
         return null;
+    }
+
+    @Override
+    public CustomResponseParser updateFromMap(Map<String, Object> map, String scope, ValidationException validationException) {
+        return fromMap(map, scope, validationException);
     }
 }

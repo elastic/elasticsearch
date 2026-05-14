@@ -20,21 +20,23 @@ class ResultBuilderForBoolean implements ResultBuilder {
 
     private final boolean inKey;
 
+    private final TopNEncoder encoder;
+
     /**
      * The value previously set by {@link #decodeKey}.
      */
     private boolean key;
 
     ResultBuilderForBoolean(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
-        assert encoder == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
+        this.encoder = encoder;
         this.inKey = inKey;
         this.builder = blockFactory.newBooleanBlockBuilder(initialSize);
     }
 
     @Override
-    public void decodeKey(BytesRef keys) {
+    public void decodeKey(BytesRef keys, boolean asc) {
         assert inKey;
-        key = TopNEncoder.DEFAULT_SORTABLE.decodeBoolean(keys);
+        key = encoder.toSortable(asc).decodeBoolean(keys);
     }
 
     @Override
@@ -62,6 +64,11 @@ class ResultBuilderForBoolean implements ResultBuilder {
     @Override
     public BooleanBlock build() {
         return builder.build();
+    }
+
+    @Override
+    public long estimatedBytes() {
+        return builder.estimatedBytes();
     }
 
     @Override

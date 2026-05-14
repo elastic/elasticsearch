@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.ml.autoscaling;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 
 import java.util.Collection;
 import java.util.List;
@@ -18,16 +16,14 @@ import java.util.OptionalInt;
 
 public interface NodeAvailabilityZoneMapper {
     /**
-     * @param clusterState The specific cluster state whose nodes will be used to detect ML nodes by availability zone.
+     * @param mlNodes The nodes which will be used to detect ML nodes by availability zone.
      * @return A map whose keys are conceptually lists of availability zone attributes, and whose values are collections
      *         of nodes corresponding to the availability zone attributes.
      *         An empty map will be returned if there are no ML nodes in the cluster.
      */
-    Map<List<String>, Collection<DiscoveryNode>> buildMlNodesByAvailabilityZone(ClusterState clusterState);
+    Map<List<String>, Collection<DiscoveryNode>> buildMlNodesByAvailabilityZone(List<DiscoveryNode> mlNodes);
 
     OptionalInt getNumMlAvailabilityZones();
-
-    NodesByAvailabilityZone buildNodesByAvailabilityZone(DiscoveryNodes discoveryNodes);
 
     record NodesByAvailabilityZone(
         Map<List<String>, Collection<DiscoveryNode>> allNodes,

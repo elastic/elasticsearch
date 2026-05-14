@@ -7,24 +7,27 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link RoundToInt}.
+ * {@link ExpressionEvaluator} implementation for {@link RoundToInt}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class RoundToInt8Evaluator implements EvalOperator.ExpressionEvaluator {
+public final class RoundToInt8Evaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToInt8Evaluator.class);
+
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator field;
+  private final ExpressionEvaluator field;
 
   private final int p0;
 
@@ -46,8 +49,8 @@ public final class RoundToInt8Evaluator implements EvalOperator.ExpressionEvalua
 
   private Warnings warnings;
 
-  public RoundToInt8Evaluator(Source source, EvalOperator.ExpressionEvaluator field, int p0, int p1,
-      int p2, int p3, int p4, int p5, int p6, int p7, DriverContext driverContext) {
+  public RoundToInt8Evaluator(Source source, ExpressionEvaluator field, int p0, int p1, int p2,
+      int p3, int p4, int p5, int p6, int p7, DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.p0 = p0;
@@ -72,21 +75,29 @@ public final class RoundToInt8Evaluator implements EvalOperator.ExpressionEvalua
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += field.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public IntBlock eval(int positionCount, IntBlock fieldBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (fieldBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (fieldBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (fieldBlock.getValueCount(p) != 1) {
-          if (fieldBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendInt(RoundToInt.process(fieldBlock.getInt(fieldBlock.getFirstValueIndex(p)), this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6, this.p7));
+        int field = fieldBlock.getInt(fieldBlock.getFirstValueIndex(p));
+        result.appendInt(RoundToInt.process(field, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6, this.p7));
       }
       return result.build();
     }
@@ -95,7 +106,8 @@ public final class RoundToInt8Evaluator implements EvalOperator.ExpressionEvalua
   public IntVector eval(int positionCount, IntVector fieldVector) {
     try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(p, RoundToInt.process(fieldVector.getInt(p), this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6, this.p7));
+        int field = fieldVector.getInt(p);
+        result.appendInt(p, RoundToInt.process(field, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6, this.p7));
       }
       return result.build();
     }
@@ -113,20 +125,15 @@ public final class RoundToInt8Evaluator implements EvalOperator.ExpressionEvalua
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final ExpressionEvaluator.Factory field;
 
     private final int p0;
 
@@ -144,8 +151,8 @@ public final class RoundToInt8Evaluator implements EvalOperator.ExpressionEvalua
 
     private final int p7;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field, int p0, int p1,
-        int p2, int p3, int p4, int p5, int p6, int p7) {
+    public Factory(Source source, ExpressionEvaluator.Factory field, int p0, int p1, int p2, int p3,
+        int p4, int p5, int p6, int p7) {
       this.source = source;
       this.field = field;
       this.p0 = p0;

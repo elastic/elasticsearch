@@ -39,6 +39,11 @@ public final class FloatVectorBlock extends AbstractVectorBlock implements Float
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
+    @Override
     public int getPositionCount() {
         return vector.getPositionCount();
     }
@@ -49,13 +54,23 @@ public final class FloatVectorBlock extends AbstractVectorBlock implements Float
     }
 
     @Override
-    public FloatBlock filter(int... positions) {
-        return vector.filter(positions).asBlock();
+    public FloatBlock slice(int beginInclusive, int endExclusive) {
+        return vector.slice(beginInclusive, endExclusive).asBlock();
+    }
+
+    @Override
+    public FloatBlock filter(boolean mayContainDuplicates, int... positions) {
+        return vector.filter(mayContainDuplicates, positions).asBlock();
     }
 
     @Override
     public FloatBlock keepMask(BooleanVector mask) {
         return vector.keepMask(mask);
+    }
+
+    @Override
+    public FloatBlock deepCopy(BlockFactory blockFactory) {
+        return vector.deepCopy(blockFactory).asBlock();
     }
 
     @Override

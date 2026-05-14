@@ -26,9 +26,15 @@ public class DataStreamFeatures implements FeatureSpecification {
         "data_stream.downsample.default_aggregate_metric_fix"
     );
 
+    public static final NodeFeature DOWNSAMPLE_MULTI_VALUE_DIMENSIONS = new NodeFeature(
+        "data_stream.downsample.fix_support_multi_value_dimensions"
+    );
+
     public static final NodeFeature LOGS_STREAM_FEATURE = new NodeFeature("logs_stream");
 
     public static final NodeFeature FAILURE_STORE_IN_LOG_DATA_STREAMS = new NodeFeature("logs_data_streams.failure_store.enabled");
+
+    public static final NodeFeature DATA_STREAMS_MAPPINGS_API = new NodeFeature("data_stream.mappings_api");
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -41,7 +47,9 @@ public class DataStreamFeatures implements FeatureSpecification {
             DATA_STREAM_FAILURE_STORE_TSDB_FIX,
             DOWNSAMPLE_AGGREGATE_DEFAULT_METRIC_FIX,
             LOGS_STREAM_FEATURE,
-            FAILURE_STORE_IN_LOG_DATA_STREAMS
+            FAILURE_STORE_IN_LOG_DATA_STREAMS,
+            DOWNSAMPLE_MULTI_VALUE_DIMENSIONS,
+            DATA_STREAMS_MAPPINGS_API
         );
     }
 }

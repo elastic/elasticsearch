@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.inference.qa.mixed;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.junit.AfterClass;

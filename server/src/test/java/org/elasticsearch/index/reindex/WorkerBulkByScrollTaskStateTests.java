@@ -9,8 +9,10 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -21,16 +23,22 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -40,7 +48,18 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
 
     @Before
     public void createTask() {
-        task = new BulkByScrollTask(1, "test_type", "test_action", "test", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+        task = new BulkByScrollTask(
+            new TaskId(randomAlphaOfLength(10), 1),
+            "test_type",
+            "test_action",
+            "test",
+            TaskId.EMPTY_TASK_ID,
+            Collections.emptyMap(),
+            false,
+            randomBoolean()
+                ? null
+                : new ResumeInfo.RelocationOrigin(new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()), randomNonNegativeLong())
+        );
         task.setWorker(Float.POSITIVE_INFINITY, null);
         workerState = task.getWorkerState();
     }
@@ -227,6 +246,125 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
         } finally {
             threadPool.shutdown();
         }
+    }
+
+    public void testRethrottleWithRelocationGuardNonSliced() {
+        final float rps = randomFloatBetween(0.1f, 1000f, true);
+        workerState.rethrottleWithRelocationGuard(rps);
+        assertThat(workerState.getStatus().getRequestsPerSecond(), equalTo(rps));
+
+        final float captured = workerState.captureRequestsPerSecondForRelocation();
+        assertThat(captured, equalTo(rps));
+
+        final float anotherRps = randomFloatBetween(0.1f, 1000f, true);
+        final ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> workerState.rethrottleWithRelocationGuard(anotherRps)
+        );
+        assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+    }
+
+    public void testRethrottleWithRelocationGuardSlicedChild() {
+        final int sliceId = randomIntBetween(0, 100);
+        final BulkByScrollTask slicedTask = new BulkByScrollTask(
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            TaskId.EMPTY_TASK_ID,
+            Collections.emptyMap(),
+            false,
+            null
+        );
+        final float initialRps = randomFloatBetween(0.1f, 1000f, true);
+        slicedTask.setWorker(initialRps, sliceId);
+        final WorkerBulkByScrollTaskState slicedWorker = slicedTask.getWorkerState();
+
+        final float newRps = randomFloatBetween(0.1f, 1000f, true);
+        slicedWorker.rethrottleWithRelocationGuard(newRps);
+        assertThat(slicedTask.getStatus().getRequestsPerSecond(), equalTo(newRps));
+    }
+
+    public void testCaptureAndRethrottleRaceCondition() throws Exception {
+        final float initialRps = randomFloatBetween(0.1f, 500f, true);
+        final float rethrottledRps = randomFloatBetween(501f, 1000f, true);
+        workerState.rethrottleWithRelocationGuard(initialRps);
+
+        final CountDownLatch ready = new CountDownLatch(2);
+        final CountDownLatch go = new CountDownLatch(1);
+
+        final ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            final Future<Float> captureFuture = executor.submit(() -> {
+                ready.countDown();
+                safeAwait(go);
+                return workerState.captureRequestsPerSecondForRelocation();
+            });
+            final Future<ElasticsearchStatusException> rethrottleFuture = executor.submit(() -> {
+                ready.countDown();
+                safeAwait(go);
+                try {
+                    workerState.rethrottleWithRelocationGuard(rethrottledRps);
+                    return null;
+                } catch (ElasticsearchStatusException e) {
+                    return e;
+                }
+            });
+
+            safeAwait(ready);
+            go.countDown();
+
+            final float captured = safeGet(captureFuture);
+            final ElasticsearchStatusException rethrottleError = safeGet(rethrottleFuture);
+
+            // check mutual exclusion of race, we either:
+            // 1. fail to rethrottle, RPS doesn't change, and we get an exception
+            // 2. or we succeed to rethrottle, RPS changes, and we get no exception
+            if (rethrottleError != null) {
+                assertThat(captured, equalTo(initialRps));
+                assertThat(rethrottleError.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+            } else {
+                assertThat(captured, equalTo(rethrottledRps));
+            }
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    public void testRestoreStateDoesNotOverrideRequestRps() {
+        final float requestRps = randomFloatBetween(0.1f, 1000f, true);
+        final BulkByScrollTask restoreTask = new BulkByScrollTask(
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            TaskId.EMPTY_TASK_ID,
+            Collections.emptyMap(),
+            false,
+            null
+        );
+        restoreTask.setWorker(requestRps, null);
+        final WorkerBulkByScrollTaskState state = restoreTask.getWorkerState();
+
+        final BulkByScrollTask.Status statusWithDifferentRps = new BulkByScrollTask.Status(
+            null,
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomIntBetween(0, 100),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            timeValueMillis(randomNonNegativeLong()),
+            999f,
+            null,
+            timeValueMillis(0)
+        );
+        state.restoreState(statusWithDifferentRps);
+
+        assertThat(restoreTask.getStatus().getRequestsPerSecond(), equalTo(requestRps));
     }
 
     public void testPerfectlyThrottledBatchTime() {

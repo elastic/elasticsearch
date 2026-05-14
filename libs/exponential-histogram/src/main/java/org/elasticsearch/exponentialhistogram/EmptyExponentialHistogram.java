@@ -23,7 +23,7 @@ package org.elasticsearch.exponentialhistogram;
 
 import java.util.OptionalLong;
 
-class EmptyExponentialHistogram implements ReleasableExponentialHistogram {
+class EmptyExponentialHistogram extends AbstractExponentialHistogram implements ReleasableExponentialHistogram {
 
     static final EmptyExponentialHistogram INSTANCE = new EmptyExponentialHistogram();
 
@@ -36,10 +36,15 @@ class EmptyExponentialHistogram implements ReleasableExponentialHistogram {
     private static class EmptyBuckets implements Buckets {
 
         private static final EmptyBuckets INSTANCE = new EmptyBuckets();
-        private static final CopyableBucketIterator EMPTY_ITERATOR = new BucketArrayIterator(SCALE, new long[0], new long[0], 0, 0);
+        private static final CopyableBucketIterator EMPTY_ITERATOR = BucketArrayIterator.create(SCALE, new long[0], new long[0], 0, 0);
 
         @Override
         public CopyableBucketIterator iterator() {
+            return EMPTY_ITERATOR;
+        }
+
+        @Override
+        public CopyableBucketIterator reverseIterator() {
             return EMPTY_ITERATOR;
         }
 
@@ -75,6 +80,21 @@ class EmptyExponentialHistogram implements ReleasableExponentialHistogram {
     @Override
     public Buckets negativeBuckets() {
         return EmptyBuckets.INSTANCE;
+    }
+
+    @Override
+    public double sum() {
+        return 0;
+    }
+
+    @Override
+    public double min() {
+        return Double.NaN;
+    }
+
+    @Override
+    public double max() {
+        return Double.NaN;
     }
 
     @Override

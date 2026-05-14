@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -57,13 +56,11 @@ public class GetUsersResponse extends ActionResponse implements ToXContentObject
                 Authentication.AuthenticationSerializationHelper.writeUserTo(user, out);
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
-            if (profileUidLookup != null) {
-                out.writeBoolean(true);
-                out.writeMap(profileUidLookup, StreamOutput::writeString);
-            } else {
-                out.writeBoolean(false);
-            }
+        if (profileUidLookup != null) {
+            out.writeBoolean(true);
+            out.writeMap(profileUidLookup, StreamOutput::writeString);
+        } else {
+            out.writeBoolean(false);
         }
     }
 

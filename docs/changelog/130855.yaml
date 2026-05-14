@@ -1,6 +1,0 @@
-pr: 130855
-summary: Add checks that optimizers do not modify the layout
-area: ES|QL
-type: enhancement
-issues:
- - 125576

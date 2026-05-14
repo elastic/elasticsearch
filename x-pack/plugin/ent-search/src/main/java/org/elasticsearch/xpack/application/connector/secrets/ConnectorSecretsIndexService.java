@@ -7,17 +7,17 @@
 
 package org.elasticsearch.xpack.application.connector.secrets;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.secrets.action.DeleteConnectorSecretResponse;
 import org.elasticsearch.xpack.application.connector.secrets.action.GetConnectorSecretResponse;
 import org.elasticsearch.xpack.application.connector.secrets.action.PostConnectorSecretRequest;
@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.application.connector.secrets.action.PutConnector
 import org.elasticsearch.xpack.application.connector.secrets.action.PutConnectorSecretResponse;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
+import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -53,22 +54,26 @@ public class ConnectorSecretsIndexService {
      * @return The {@link SystemIndexDescriptor} for the Connector Secrets system index.
      */
     public static SystemIndexDescriptor getSystemIndexDescriptor() {
-        PutIndexTemplateRequest request = new PutIndexTemplateRequest();
-
-        String templateSource = TemplateUtils.loadTemplate(
-            "/connector-secrets.json",
-            Version.CURRENT.toString(),
-            MAPPING_VERSION_VARIABLE,
-            Map.of(MAPPING_MANAGED_VERSION_VARIABLE, Integer.toString(CURRENT_INDEX_VERSION))
-        );
-        request.source(templateSource, XContentType.JSON);
+        Template template;
+        try {
+            template = TemplateUtils.loadTemplate(
+                "/connector-secrets.json",
+                Version.CURRENT.toString(),
+                MAPPING_VERSION_VARIABLE,
+                Map.of(MAPPING_MANAGED_VERSION_VARIABLE, Integer.toString(CURRENT_INDEX_VERSION)),
+                false,
+                Template::parse
+            );
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("invalid template [/connector-secrets.json]");
+        }
 
         return SystemIndexDescriptor.builder()
             .setIndexPattern(CONNECTOR_SECRETS_INDEX_NAME + "*")
             .setPrimaryIndex(CONNECTOR_SECRETS_INDEX_NAME + "-" + CURRENT_INDEX_VERSION)
             .setDescription("Secret values managed by Connectors")
-            .setMappings(request.mappings())
-            .setSettings(request.settings())
+            .setMappings(template.mappings().string())
+            .setSettings(template.settings())
             .setAliasName(CONNECTOR_SECRETS_INDEX_NAME)
             .setOrigin(CONNECTORS_ORIGIN)
             .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)

@@ -3,7 +3,20 @@
   "type" : "scalar",
   "name" : "v_magnitude",
   "description" : "Calculates the magnitude of a dense_vector.",
-  "signatures" : [ ],
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "input",
+          "type" : "dense_vector",
+          "optional" : false,
+          "description" : "dense_vector for which to compute the magnitude"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    }
+  ],
   "examples" : [
     " from colors\n | eval magnitude = v_magnitude(rgb_vector)\n | sort magnitude desc, color asc"
   ],

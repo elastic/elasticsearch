@@ -18,9 +18,11 @@ import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
 /**
@@ -105,6 +107,14 @@ public class DesiredBalanceMetrics {
     /** {@link #UNDESIRED_ALLOCATION_COUNT_METRIC_NAME} / {@link #TOTAL_SHARDS_METRIC_NAME} */
     public static final String UNDESIRED_ALLOCATION_RATIO_METRIC_NAME = "es.allocator.desired_balance.allocations.undesired.ratio";
 
+    // Desired balance computation metrics (from {@link DesiredBalanceStats}).
+    public static final String COMPUTATIONS_SUBMITTED_METRIC_NAME = "es.allocator.desired_balance.computations.submitted.total";
+    public static final String COMPUTATIONS_EXECUTED_METRIC_NAME = "es.allocator.desired_balance.computations.executed.total";
+    public static final String COMPUTATIONS_CONVERGED_METRIC_NAME = "es.allocator.desired_balance.computations.converged.total";
+    public static final String COMPUTATIONS_ITERATIONS_METRIC_NAME = "es.allocator.desired_balance.computations.iterations.total";
+    public static final String COMPUTATIONS_TIME_METRIC_NAME = "es.allocator.desired_balance.computations.time";
+    public static final String RECONCILIATIONS_TIME_METRIC_NAME = "es.allocator.desired_balance.reconciliations.time";
+
     // Desired balance node metrics.
     public static final String DESIRED_BALANCE_NODE_WEIGHT_METRIC_NAME = "es.allocator.desired_balance.allocations.node_weight.current";
     public static final String DESIRED_BALANCE_NODE_SHARD_COUNT_METRIC_NAME =
@@ -124,8 +134,13 @@ public class DesiredBalanceMetrics {
     public static final String CURRENT_NODE_FORECASTED_DISK_USAGE_METRIC_NAME =
         "es.allocator.allocations.node.forecasted_disk_usage_bytes.current";
 
-    public static final AllocationStats EMPTY_ALLOCATION_STATS = new AllocationStats(0, Map.of());
+    // Decider metrics
+    public static final String WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE = "es.allocator.deciders.write_load.max_latency_value.current";
 
+    public static final AllocationStats EMPTY_ALLOCATION_STATS = new AllocationStats(0, Map.of());
+    public static final DesiredBalanceMetrics NOOP = new DesiredBalanceMetrics(MeterRegistry.NOOP);
+
+    private final MeterRegistry meterRegistry;
     private volatile boolean nodeIsMaster = false;
 
     /**
@@ -138,10 +153,13 @@ public class DesiredBalanceMetrics {
         Map.of()
     );
 
+    private volatile DesiredBalanceStats desiredBalanceStats = DesiredBalanceStats.ZERO;
+
     public void updateMetrics(
         AllocationStats allocationStats,
         Map<DiscoveryNode, NodeWeightStats> weightStatsPerNode,
-        Map<DiscoveryNode, NodeAllocationStatsAndWeight> nodeAllocationStats
+        Map<DiscoveryNode, NodeAllocationStatsAndWeight> nodeAllocationStats,
+        DesiredBalanceStats desiredBalanceStats
     ) {
         assert allocationStats != null : "allocation stats cannot be null";
         assert weightStatsPerNode != null : "node balance weight stats cannot be null";
@@ -150,9 +168,11 @@ public class DesiredBalanceMetrics {
         }
         weightStatsPerNodeRef.set(weightStatsPerNode);
         allocationStatsPerNodeRef.set(nodeAllocationStats);
+        this.desiredBalanceStats = desiredBalanceStats;
     }
 
     public DesiredBalanceMetrics(MeterRegistry meterRegistry) {
+        this.meterRegistry = meterRegistry;
         meterRegistry.registerLongsGauge(
             UNASSIGNED_SHARDS_METRIC_NAME,
             "Current number of unassigned shards",
@@ -171,6 +191,43 @@ public class DesiredBalanceMetrics {
             "Ratio of undesired allocations to shard count excluding shutting down nodes",
             "1",
             this::getUndesiredAllocationsRatioMetrics
+        );
+
+        meterRegistry.registerLongsAsyncCounter(
+            COMPUTATIONS_SUBMITTED_METRIC_NAME,
+            "Total number of desired balance computations submitted on this elected master",
+            "unit",
+            this::getComputationSubmittedMetrics
+        );
+        meterRegistry.registerLongsAsyncCounter(
+            COMPUTATIONS_EXECUTED_METRIC_NAME,
+            "Total number of desired balance computations executed on this elected master",
+            "unit",
+            this::getComputationExecutedMetrics
+        );
+        meterRegistry.registerLongsAsyncCounter(
+            COMPUTATIONS_CONVERGED_METRIC_NAME,
+            "Total number of desired balance computations that converged on this elected master",
+            "unit",
+            this::getComputationConvergedMetrics
+        );
+        meterRegistry.registerLongsAsyncCounter(
+            COMPUTATIONS_ITERATIONS_METRIC_NAME,
+            "Total iterations across desired balance computations on this elected master",
+            "unit",
+            this::getComputationIterationsMetrics
+        );
+        meterRegistry.registerLongsAsyncCounter(
+            COMPUTATIONS_TIME_METRIC_NAME,
+            "Cumulative wall-clock time spent in desired balance computation on this elected master",
+            "ms",
+            this::getCumulativeComputationTimeMillisMetrics
+        );
+        meterRegistry.registerLongsAsyncCounter(
+            RECONCILIATIONS_TIME_METRIC_NAME,
+            "Cumulative wall-clock time spent reconciling toward the desired balance on this elected master",
+            "ms",
+            this::getCumulativeReconciliationTimeMillisMetrics
         );
 
         meterRegistry.registerDoublesGauge(
@@ -258,6 +315,19 @@ public class DesiredBalanceMetrics {
 
     public AllocationStats allocationStats() {
         return lastReconciliationAllocationStats;
+    }
+
+    DesiredBalanceStats desiredBalanceStats() {
+        return desiredBalanceStats;
+    }
+
+    public void registerWriteLoadDeciderMaxLatencyGauge(Supplier<Collection<LongWithAttributes>> maxLatencySupplier) {
+        meterRegistry.registerLongsGauge(
+            WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE,
+            "max latency for write load decider",
+            "ms",
+            maxLatencySupplier
+        );
     }
 
     private List<LongWithAttributes> getUnassignedShardsMetrics() {
@@ -409,6 +479,37 @@ public class DesiredBalanceMetrics {
         var currentStats = lastReconciliationAllocationStats;
         if (nodeIsMaster && currentStats != EMPTY_ALLOCATION_STATS) {
             return List.of(new DoubleWithAttributes(currentStats.undesiredAllocationsRatio()));
+        }
+        return List.of();
+    }
+
+    private List<LongWithAttributes> getComputationSubmittedMetrics() {
+        return getIfPublishingDesiredBalanceStats(DesiredBalanceStats::computationSubmitted);
+    }
+
+    private List<LongWithAttributes> getComputationExecutedMetrics() {
+        return getIfPublishingDesiredBalanceStats(DesiredBalanceStats::computationExecuted);
+    }
+
+    private List<LongWithAttributes> getComputationConvergedMetrics() {
+        return getIfPublishingDesiredBalanceStats(DesiredBalanceStats::computationConverged);
+    }
+
+    private List<LongWithAttributes> getComputationIterationsMetrics() {
+        return getIfPublishingDesiredBalanceStats(DesiredBalanceStats::computationIterations);
+    }
+
+    private List<LongWithAttributes> getCumulativeComputationTimeMillisMetrics() {
+        return getIfPublishingDesiredBalanceStats(DesiredBalanceStats::cumulativeComputationTime);
+    }
+
+    private List<LongWithAttributes> getCumulativeReconciliationTimeMillisMetrics() {
+        return getIfPublishingDesiredBalanceStats(DesiredBalanceStats::cumulativeReconciliationTime);
+    }
+
+    private List<LongWithAttributes> getIfPublishingDesiredBalanceStats(ToLongFunction<DesiredBalanceStats> value) {
+        if (nodeIsMaster && lastReconciliationAllocationStats != EMPTY_ALLOCATION_STATS) {
+            return List.of(new LongWithAttributes(value.applyAsLong(desiredBalanceStats)));
         }
         return List.of();
     }

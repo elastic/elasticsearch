@@ -106,7 +106,7 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
     }
 
     public void testGermanAndGerman2Stemmer() throws IOException {
-        IndexVersion v = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.UPGRADE_TO_LUCENE_10_0_0, IndexVersion.current());
+        IndexVersion v = IndexVersionUtils.randomVersionBetween(IndexVersions.UPGRADE_TO_LUCENE_10_0_0, IndexVersion.current());
         Analyzer analyzer = createGermanStemmer("german", v);
         assertAnalyzesTo(analyzer, "Buecher Bücher", new String[] { "Buch", "Buch" });
 

@@ -7,18 +7,18 @@
 
 package org.elasticsearch.xpack.esql.expression.function.vector;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
-import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -26,10 +26,13 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
@@ -41,6 +44,7 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
         "Magnitude",
         Magnitude::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Magnitude.class).unary(Magnitude::new).name("v_magnitude");
     static final ScalarEvaluatorFunction SCALAR_FUNCTION = Magnitude::calculateScalar;
 
     @FunctionInfo(
@@ -62,8 +66,8 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
     }
 
     @Override
-    protected UnaryScalarFunction replaceChild(Expression newChild) {
-        return new Magnitude(source(), newChild);
+    public Expression replaceChildren(List<Expression> newChildren) {
+        return new Magnitude(source(), newChildren.getFirst());
     }
 
     @Override
@@ -103,67 +107,77 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
-        return EvaluatorMapper.super.fold(source(), ctx);
-    }
-
-    @Override
-    public final EvalOperator.ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
+    public final ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
         return new ScalarEvaluatorFactory(toEvaluator.apply(field()), SCALAR_FUNCTION, getClass().getSimpleName() + "Evaluator");
     }
 
-    private record ScalarEvaluatorFactory(
-        EvalOperator.ExpressionEvaluator.Factory child,
-        ScalarEvaluatorFunction scalarFunction,
-        String evaluatorName
-    ) implements EvalOperator.ExpressionEvaluator.Factory {
+    private record ScalarEvaluatorFactory(ExpressionEvaluator.Factory child, ScalarEvaluatorFunction scalarFunction, String evaluatorName)
+        implements
+            ExpressionEvaluator.Factory {
 
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext context) {
             // TODO check whether to use this custom evaluator or reuse / define an existing one
-            return new EvalOperator.ExpressionEvaluator() {
-                @Override
-                public Block eval(Page page) {
-                    try (FloatBlock block = (FloatBlock) child.get(context).eval(page);) {
-                        int positionCount = page.getPositionCount();
-                        int dimensions = 0;
-                        // Get the first non-empty vector to calculate the dimension
-                        for (int p = 0; p < positionCount; p++) {
-                            if (block.getValueCount(p) != 0) {
-                                dimensions = block.getValueCount(p);
-                                break;
-                            }
-                        }
-                        if (dimensions == 0) {
-                            return context.blockFactory().newConstantFloatBlockWith(0F, 0);
-                        }
+            return new ScalarEvaluator(child.get(context), scalarFunction, evaluatorName, context.blockFactory());
+        }
 
-                        float[] scratch = new float[dimensions];
-                        try (var builder = context.blockFactory().newDoubleBlockBuilder(positionCount * dimensions)) {
-                            for (int p = 0; p < positionCount; p++) {
-                                int dims = block.getValueCount(p);
-                                if (dims == 0) {
-                                    // A null value for the vector, by default append null as result.
-                                    builder.appendNull();
-                                    continue;
-                                }
-                                readFloatArray(block, block.getFirstValueIndex(p), dimensions, scratch);
-                                float result = scalarFunction.calculateScalar(scratch);
-                                builder.appendDouble(result);
-                            }
-                            return builder.build();
-                        }
+        @Override
+        public String toString() {
+            return evaluatorName() + "[child=" + child + "]";
+        }
+    }
+
+    private record ScalarEvaluator(
+        ExpressionEvaluator child,
+        ScalarEvaluatorFunction scalarFunction,
+        String evaluatorName,
+        BlockFactory blockFactory
+    ) implements ExpressionEvaluator {
+
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ScalarEvaluator.class);
+
+        @Override
+        public Block eval(Page page) {
+            try (FloatBlock block = (FloatBlock) child.eval(page);) {
+                int positionCount = page.getPositionCount();
+                int dimensions = 0;
+                // Get the first non-empty vector to calculate the dimension
+                for (int p = 0; p < positionCount; p++) {
+                    if (block.getValueCount(p) != 0) {
+                        dimensions = block.getValueCount(p);
+                        break;
                     }
                 }
-
-                @Override
-                public String toString() {
-                    return evaluatorName() + "[child=" + child + "]";
+                if (dimensions == 0) {
+                    return blockFactory.newConstantFloatBlockWith(0F, 0);
                 }
 
-                @Override
-                public void close() {}
-            };
+                float[] scratch = new float[dimensions];
+                try (var builder = blockFactory.newDoubleBlockBuilder(positionCount * dimensions)) {
+                    for (int p = 0; p < positionCount; p++) {
+                        int dims = block.getValueCount(p);
+                        if (dims == 0) {
+                            // A null value for the vector, by default append null as result.
+                            builder.appendNull();
+                            continue;
+                        }
+                        readFloatArray(block, block.getFirstValueIndex(p), dimensions, scratch);
+                        float result = scalarFunction.calculateScalar(scratch);
+                        builder.appendDouble(result);
+                    }
+                    return builder.build();
+                }
+            }
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + child.baseRamBytesUsed();
+        }
+
+        @Override
+        public String toString() {
+            return evaluatorName() + "[child=" + child + "]";
         }
 
         private static void readFloatArray(FloatBlock block, int position, int dimensions, float[] scratch) {
@@ -173,8 +187,8 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
         }
 
         @Override
-        public String toString() {
-            return evaluatorName() + "[child=" + child + "]";
+        public void close() {
+            child.close();
         }
     }
 }

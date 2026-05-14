@@ -77,7 +77,7 @@ public class ReaderContext implements Releasable {
         indexShard.getSearchOperationListener().validateReaderContext(this, request);
     }
 
-    private long nowInMillis() {
+    protected final long nowInMillis() {
         return indexShard.getThreadPool().relativeTimeInMillis();
     }
 
@@ -116,6 +116,10 @@ public class ReaderContext implements Releasable {
         this.keepAlive.accumulateAndGet(keepAlive, Math::max);
     }
 
+    public long keepAlive() {
+        return keepAlive.longValue();
+    }
+
     /**
      * Returns a releasable to indicate that the caller has stopped using this reader.
      * The time to live of the reader after usage can be extended using the provided
@@ -131,11 +135,20 @@ public class ReaderContext implements Releasable {
     }
 
     public boolean isExpired() {
-        if (refCounted.refCount() > 1) {
+        if (hasOutstandingRefs()) {
             return false; // being used by markAsUsed
         }
+
         final long elapsed = nowInMillis() - lastAccessTime.get();
         return elapsed > keepAlive.get();
+    }
+
+    protected final boolean hasOutstandingRefs() {
+        return refCounted.refCount() > 1;
+    }
+
+    public boolean isRelocating() {
+        return false;
     }
 
     // BWC

@@ -270,6 +270,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
             new float[] { 1.0f, 2.0f, 3.0f },
             null,
             1,
+            10f,
             null,
             null
         );

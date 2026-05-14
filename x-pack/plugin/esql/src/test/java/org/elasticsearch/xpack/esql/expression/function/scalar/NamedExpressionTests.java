@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 
@@ -28,7 +29,7 @@ public class NamedExpressionTests extends ESTestCase {
 
     public void testArithmeticFunctionName() {
         String e = "5 +  2";
-        Add add = new Add(s(e), l(5), l(2));
+        Add add = new Add(s(e), l(5), l(2), TEST_CFG);
         assertEquals(e, add.sourceText());
 
         e = "5 /  2";
@@ -44,7 +45,7 @@ public class NamedExpressionTests extends ESTestCase {
         assertEquals(e, mul.sourceText());
 
         e = "5 -2";
-        Sub sub = new Sub(s(e), l(5), l(2));
+        Sub sub = new Sub(s(e), l(5), l(2), TEST_CFG);
         assertEquals(e, sub.sourceText());
 
         e = " -  5";
@@ -59,7 +60,7 @@ public class NamedExpressionTests extends ESTestCase {
             new EsField("myESField", DataType.INTEGER, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
         );
         String e = "myField  + 10";
-        Add add = new Add(s(e), fa, l(10));
+        Add add = new Add(s(e), fa, l(10), TEST_CFG);
         assertEquals(e, add.sourceText());
     }
 

@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Optional;
 import java.util.Set;
@@ -30,6 +31,8 @@ import java.util.function.Function;
  */
 public class AllocationDeciders {
 
+    public static final AllocationDeciders EMPTY = new AllocationDeciders(Set.of());
+
     private static final Logger logger = LogManager.getLogger(AllocationDeciders.class);
 
     private static final Decision NO_IGNORING_SHARD_FOR_NODE = Decision.single(
@@ -39,6 +42,10 @@ public class AllocationDeciders {
     );
 
     private final AllocationDecider[] deciders;
+
+    public AllocationDeciders(AllocationDecider... deciders) {
+        this.deciders = Arrays.copyOf(deciders, deciders.length);
+    }
 
     public AllocationDeciders(Collection<? extends AllocationDecider> deciders) {
         this.deciders = deciders.toArray(AllocationDecider[]::new);
@@ -205,31 +212,38 @@ public class AllocationDeciders {
         BiFunction<String, Decision, String> logMessageCreator
     ) {
         if (debugMode == RoutingAllocation.DebugMode.OFF) {
-            Decision result = Decision.YES;
+            Decision mostNegativeDecision = Decision.YES;
             for (AllocationDecider decider : deciders) {
                 var decision = deciderAction.apply(decider);
-                if (decision.type() == Decision.Type.NO) {
-                    if (logger.isTraceEnabled()) {
-                        logger.trace(() -> logMessageCreator.apply(decider.getClass().getSimpleName(), decision));
+                if (mostNegativeDecision.type().compareToBetweenDecisions(decision.type()) > 0) {
+                    mostNegativeDecision = decision;
+                    if (mostNegativeDecision.type() == Decision.Type.NO) {
+                        traceNoDecisions(decider, decision, logMessageCreator);
+                        break;
                     }
-                    return decision;
-                } else if (result.type() == Decision.Type.YES && decision.type() == Decision.Type.THROTTLE) {
-                    result = decision;
                 }
             }
-            return result;
+
+            return mostNegativeDecision;
         } else {
-            var result = new Decision.Multi();
+            final var multiDecision = new Decision.Multi();
             for (AllocationDecider decider : deciders) {
                 var decision = deciderAction.apply(decider);
-                if (logger.isTraceEnabled() && decision.type() == Decision.Type.NO) {
-                    logger.trace(() -> logMessageCreator.apply(decider.getClass().getSimpleName(), decision));
-                }
+                traceNoDecisions(decider, decision, logMessageCreator);
                 if (decision != Decision.ALWAYS && (debugMode == RoutingAllocation.DebugMode.ON || decision.type() != Decision.Type.YES)) {
-                    result.add(decision);
+                    multiDecision.add(decision);
                 }
             }
-            return result;
+            return multiDecision;
+        }
+    }
+
+    /**
+     * NO decisions have TRACE-level logging.
+     */
+    private void traceNoDecisions(AllocationDecider decider, Decision decision, BiFunction<String, Decision, String> logMessageCreator) {
+        if (logger.isTraceEnabled() && decision.type() == Decision.Type.NO) {
+            logger.trace(() -> logMessageCreator.apply(decider.getClass().getSimpleName(), decision));
         }
     }
 

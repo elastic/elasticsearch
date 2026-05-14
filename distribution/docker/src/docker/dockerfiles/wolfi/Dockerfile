@@ -1,5 +1,6 @@
 ################################################################################
-# This Dockerfile was generated from the template at distribution/src/docker/Dockerfile
+# This Dockerfile was generated from the template at
+# distribution/src/docker/dockerfiles/wolfi/Dockerfile
 #
 # Beginning of multi stage Dockerfile
 ################################################################################
@@ -24,7 +25,7 @@
 # Extract Elasticsearch artifact
 ################################################################################
 
-FROM docker.elastic.co/wolfi/chainguard-base:latest@sha256:661355310ab9ecc86082d247341881eb272853eb8fe4c91e53e02f0f2e30fb2c AS builder
+FROM docker.elastic.co/wolfi/chainguard-base:latest@sha256:7adf8e4e386d6bb3c4a75327099909e49b0041cc3049e97acc8f5835d826a970 AS builder
 
 # Install required packages to extract the Elasticsearch distribution
 RUN <%= retry.loop(package_manager, "export DEBIAN_FRONTEND=noninteractive && ${package_manager} update && ${package_manager} update && ${package_manager} add --no-cache curl") %>
@@ -67,8 +68,8 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     mv config/log4j2.properties config/log4j2.file.properties && \\
     mv config/log4j2.docker.properties config/log4j2.properties && \\
     find . -type d -exec chmod 0555 {} + && \\
-    find . -type f -exec chmod 0444 {} + && \\
-    chmod 0555 bin/* jdk/bin/* jdk/lib/jspawnhelper modules/x-pack-ml/platform/linux-*/bin/* && \\
+    find . -type f -perm /111 -exec chmod 0555 {} + && \\
+    find . -type f ! -perm /111 -exec chmod 0444 {} + && \\
     chmod 0775 bin config config/jvm.options.d data logs plugins && \\
     find config -type f -exec chmod 0664 {} +
 
@@ -79,7 +80,7 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
 # Add entrypoint
 ################################################################################
 
-FROM docker.elastic.co/wolfi/chainguard-base:latest@sha256:661355310ab9ecc86082d247341881eb272853eb8fe4c91e53e02f0f2e30fb2c
+FROM docker.elastic.co/wolfi/chainguard-base:latest@sha256:7adf8e4e386d6bb3c4a75327099909e49b0041cc3049e97acc8f5835d826a970
 
 RUN <%= retry.loop(package_manager,
           "export DEBIAN_FRONTEND=noninteractive && \n" +
@@ -102,6 +103,7 @@ RUN groupadd -g 1000 elasticsearch && \
     chown -R 0:0 /usr/share/elasticsearch
 
 ENV ELASTIC_CONTAINER=true
+ENV GLIBC_TUNABLES=glibc.malloc.hugetlb=0
 
 WORKDIR /usr/share/elasticsearch
 

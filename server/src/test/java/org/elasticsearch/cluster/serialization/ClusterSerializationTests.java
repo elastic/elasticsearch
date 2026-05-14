@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.serialization;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterModule;
@@ -29,6 +28,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.UUIDs;
@@ -59,6 +59,10 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ClusterSerializationTests extends ESAllocationTestCase {
 
+    private static final TransportVersion PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP = TransportVersion.fromName(
+        "project_id_in_snapshots_deletions_and_repo_cleanup"
+    );
+
     public void testClusterStateSerialization() throws Exception {
         IndexLongFieldRange eventIngestedRangeInput = randomFrom(
             IndexLongFieldRange.UNKNOWN,
@@ -73,14 +77,18 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             .numberOfReplicas(1)
             .eventIngestedRange(eventIngestedRangeInput);
 
-        ClusterStateTestRecord result = createAndSerializeClusterState(indexMetadataBuilder, TransportVersion.current());
+        final ProjectId projectId = randomProjectIdOrDefault();
+        ClusterStateTestRecord result = createAndSerializeClusterState(projectId, indexMetadataBuilder, TransportVersion.current());
 
         assertThat(result.serializedClusterState().getClusterName().value(), equalTo(result.clusterState().getClusterName().value()));
-        assertThat(result.serializedClusterState().routingTable().toString(), equalTo(result.clusterState().routingTable().toString()));
+        assertThat(
+            result.serializedClusterState().globalRoutingTable().toString(),
+            equalTo(result.clusterState().globalRoutingTable().toString())
+        );
 
         IndexLongFieldRange eventIngestedRangeOutput = result.serializedClusterState()
             .getMetadata()
-            .getProject()
+            .getProject(projectId)
             .index("test")
             .getEventIngestedRange();
         assertThat(eventIngestedRangeInput, equalTo(eventIngestedRangeOutput));
@@ -98,15 +106,15 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
     private record ClusterStateTestRecord(ClusterState clusterState, ClusterState serializedClusterState) {}
 
     private static ClusterStateTestRecord createAndSerializeClusterState(
+        final ProjectId projectId,
         IndexMetadata.Builder indexMetadataBuilder,
         TransportVersion transportVersion
     ) throws IOException {
-        final ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
         final ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).put(indexMetadataBuilder).build();
         final Metadata metadata = Metadata.builder().put(projectMetadata).build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.getProject().index("test"))
+            .addAsNew(metadata.getProject(projectId).index("test"))
             .build();
 
         DiscoveryNodes nodes = DiscoveryNodes.builder()
@@ -120,12 +128,12 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("clusterName1"))
             .nodes(nodes)
             .metadata(metadata)
-            .routingTable(projectId, routingTable)
+            .routingTable(GlobalRoutingTableTestHelper.routingTable(projectId, routingTable))
             .build();
 
         AllocationService strategy = createAllocationService();
         clusterState = ClusterState.builder(clusterState)
-            .routingTable(strategy.reroute(clusterState, "reroute", ActionListener.noop()).routingTable())
+            .routingTable(strategy.reroute(clusterState, "reroute", ActionListener.noop()).globalRoutingTable())
             .build();
 
         BytesStreamOutput outStream = new BytesStreamOutput();
@@ -142,12 +150,16 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
     }
 
     public void testRoutingTableSerialization() throws Exception {
+        final ProjectId projectId = randomProjectIdOrDefault();
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(10).numberOfReplicas(1))
+            .put(
+                ProjectMetadata.builder(projectId)
+                    .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(10).numberOfReplicas(1))
+            )
             .build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.getProject().index("test"))
+            .addAsNew(metadata.getProject(projectId).index("test"))
             .build();
 
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")).build();
@@ -155,11 +167,11 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(nodes)
             .metadata(metadata)
-            .routingTable(routingTable)
+            .routingTable(GlobalRoutingTableTestHelper.routingTable(projectId, routingTable))
             .build();
 
         AllocationService strategy = createAllocationService();
-        RoutingTable source = strategy.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
+        RoutingTable source = strategy.reroute(clusterState, "reroute", ActionListener.noop()).routingTable(projectId);
 
         BytesStreamOutput outStream = new BytesStreamOutput();
         source.writeTo(outStream);
@@ -170,11 +182,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
     }
 
     public void testSnapshotDeletionsInProgressSerialization() throws Exception {
-        TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.MINIMUM_COMPATIBLE,
-            TransportVersion.current()
-        );
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
 
         boolean includeRestore = randomBoolean();
 
@@ -184,7 +192,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
                 SnapshotDeletionsInProgress.of(
                     List.of(
                         new SnapshotDeletionsInProgress.Entry(
-                            version.onOrAfter(TransportVersions.PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP)
+                            version.supports(PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP)
                                 ? randomProjectIdOrDefault()
                                 : ProjectId.DEFAULT,
                             "repo1",
@@ -263,15 +271,18 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         IndexTemplateMetadata indexTemplateMetadata = IndexTemplateMetadata.builder("test-template")
             .patterns(Arrays.asList(generateRandomStringArray(10, 100, false, false)))
             .build();
-        Metadata metadata = Metadata.builder().put(indexMetadata, true).put(indexTemplateMetadata).build();
+        final ProjectId projectId = randomProjectIdOrDefault();
+        Metadata metadata = Metadata.builder()
+            .put(ProjectMetadata.builder(projectId).put(indexMetadata, true).put(indexTemplateMetadata))
+            .build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.getProject().index("test"))
+            .addAsNew(metadata.getProject(projectId).index("test"))
             .build();
 
         ClusterState clusterState1 = ClusterState.builder(new ClusterName("clusterName1"))
             .metadata(metadata)
-            .routingTable(routingTable)
+            .routingTable(GlobalRoutingTableTestHelper.routingTable(projectId, routingTable))
             .build();
         BytesStreamOutput outStream = new BytesStreamOutput();
         outStream.setTransportVersion(TransportVersion.current());
@@ -285,49 +296,55 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         // Create a new, albeit equal, IndexMetadata object
         ClusterState clusterState2 = ClusterState.builder(clusterState1)
             .incrementVersion()
-            .metadata(Metadata.builder().put(IndexMetadata.builder(indexMetadata).numberOfReplicas(1).build(), true))
+            .metadata(
+                Metadata.builder()
+                    .put(ProjectMetadata.builder(projectId).put(IndexMetadata.builder(indexMetadata).numberOfReplicas(1).build(), true))
+            )
             .build();
         assertNotSame(
             "Should have created a new, equivalent, IndexMetadata object in clusterState2",
-            clusterState1.metadata().getProject().index("test"),
-            clusterState2.metadata().getProject().index("test")
+            clusterState1.metadata().getProject(projectId).index("test"),
+            clusterState2.metadata().getProject(projectId).index("test")
         );
 
         ClusterState serializedClusterState2 = updateUsingSerialisedDiff(serializedClusterState1, clusterState2.diff(clusterState1));
         assertSame(
             "Unchanged metadata should not create new IndexMetadata objects",
-            serializedClusterState1.metadata().getProject().index("test"),
-            serializedClusterState2.metadata().getProject().index("test")
+            serializedClusterState1.metadata().getProject(projectId).index("test"),
+            serializedClusterState2.metadata().getProject(projectId).index("test")
         );
         assertSame(
             "Unchanged routing table should not create new IndexRoutingTable objects",
-            serializedClusterState1.routingTable().index("test"),
-            serializedClusterState2.routingTable().index("test")
+            serializedClusterState1.routingTable(projectId).index("test"),
+            serializedClusterState2.routingTable(projectId).index("test")
         );
 
         // Create a new and different IndexMetadata object
         ClusterState clusterState3 = ClusterState.builder(clusterState1)
             .incrementVersion()
-            .metadata(Metadata.builder().put(IndexMetadata.builder(indexMetadata).numberOfReplicas(2).build(), true))
+            .metadata(
+                Metadata.builder()
+                    .put(ProjectMetadata.builder(projectId).put(IndexMetadata.builder(indexMetadata).numberOfReplicas(2).build(), true))
+            )
             .build();
         ClusterState serializedClusterState3 = updateUsingSerialisedDiff(serializedClusterState2, clusterState3.diff(clusterState2));
         assertNotEquals(
             "Should have a new IndexMetadata object",
-            serializedClusterState2.metadata().getProject().index("test"),
-            serializedClusterState3.metadata().getProject().index("test")
+            serializedClusterState2.metadata().getProject(projectId).index("test"),
+            serializedClusterState3.metadata().getProject(projectId).index("test")
         );
         assertSame(
             "Unchanged routing table should not create new IndexRoutingTable objects",
-            serializedClusterState2.routingTable().index("test"),
-            serializedClusterState3.routingTable().index("test")
+            serializedClusterState2.routingTable(projectId).index("test"),
+            serializedClusterState3.routingTable(projectId).index("test")
         );
 
         assertSame("nodes", serializedClusterState2.nodes(), serializedClusterState3.nodes());
         assertSame("blocks", serializedClusterState2.blocks(), serializedClusterState3.blocks());
         assertSame(
             "template",
-            serializedClusterState2.metadata().getProject().templates().get("test-template"),
-            serializedClusterState3.metadata().getProject().templates().get("test-template")
+            serializedClusterState2.metadata().getProject(projectId).templates().get("test-template"),
+            serializedClusterState3.metadata().getProject(projectId).templates().get("test-template")
         );
     }
 
@@ -412,7 +429,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.MINIMUM_COMPATIBLE;
+            return TransportVersion.minimumCompatible();
         }
 
     }
@@ -451,7 +468,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         // serialize with minimum compatibile version
         outStream = new BytesStreamOutput();
-        version = TransportVersions.MINIMUM_COMPATIBLE;
+        version = TransportVersion.minimumCompatible();
         outStream.setTransportVersion(version);
         diffs.writeTo(outStream);
         inStream = outStream.bytes().streamInput();

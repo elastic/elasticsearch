@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -27,6 +28,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
@@ -54,6 +56,7 @@ import org.elasticsearch.xpack.transform.persistence.InMemoryTransformConfigMana
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.time.Clock;
@@ -85,9 +88,19 @@ import static org.mockito.Mockito.verify;
 
 public class TransformIndexerStateTests extends ESTestCase {
 
-    private static final SearchResponse ONE_HIT_SEARCH_RESPONSE = SearchResponseUtils.successfulResponse(
-        SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f)
-    );
+    private static SearchResponse ONE_HIT_SEARCH_RESPONSE;
+
+    static {
+        SearchHits hits = new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f);
+        ONE_HIT_SEARCH_RESPONSE = SearchResponseUtils.successfulResponse(hits);
+        hits.decRef(); // transfer ownership to ONE_HIT_SEARCH_RESPONSE
+    }
+
+    @AfterClass
+    public static void releaseStaticResources() {
+        ONE_HIT_SEARCH_RESPONSE.decRef();
+        ONE_HIT_SEARCH_RESPONSE = null;
+    }
 
     private Client client;
     private ThreadPool threadPool;
@@ -172,7 +185,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             responseListener.onResponse(
                 new BulkByScrollResponse(
                     TimeValue.ZERO,
-                    new BulkByScrollTask.Status(Collections.emptyList(), null),
+                    new BulkByScrollTask.Status(Collections.emptyList(), null, 0f),
                     Collections.emptyList(),
                     Collections.emptyList(),
                     false
@@ -372,7 +385,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             responseListener.onResponse(
                 new BulkByScrollResponse(
                     TimeValue.ZERO,
-                    new BulkByScrollTask.Status(Collections.emptyList(), null),
+                    new BulkByScrollTask.Status(Collections.emptyList(), null, 0f),
                     Collections.emptyList(),
                     Collections.emptyList(),
                     false
@@ -837,7 +850,10 @@ public class TransformIndexerStateTests extends ESTestCase {
                 mock(TransformCheckpointService.class),
                 auditor,
                 new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
-                mock(TransformNode.class)
+                mock(TransformNode.class),
+                mock(CrossProjectModeDecider.class),
+                projectId -> false,
+                mock(ProjectResolver.class)
             ),
             new MockTimebasedCheckpointProvider(config),
             config,
@@ -1055,7 +1071,10 @@ public class TransformIndexerStateTests extends ESTestCase {
             mock(TransformCheckpointService.class),
             transformAuditor,
             new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
-            mock(TransformNode.class)
+            mock(TransformNode.class),
+            mock(CrossProjectModeDecider.class),
+            projectId -> false,
+            mock(ProjectResolver.class)
         );
 
         MockedTransformIndexer indexer = new MockedTransformIndexer(
@@ -1090,7 +1109,10 @@ public class TransformIndexerStateTests extends ESTestCase {
             mock(TransformCheckpointService.class),
             transformAuditor,
             new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
-            mock(TransformNode.class)
+            mock(TransformNode.class),
+            mock(CrossProjectModeDecider.class),
+            projectId -> false,
+            mock(ProjectResolver.class)
         );
 
         MockedTransformIndexerForStatePersistenceTesting indexer = new MockedTransformIndexerForStatePersistenceTesting(

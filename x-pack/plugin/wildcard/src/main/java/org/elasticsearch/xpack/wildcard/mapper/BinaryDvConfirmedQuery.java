@@ -7,24 +7,32 @@
 
 package org.elasticsearch.xpack.wildcard.mapper;
 
-import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -46,15 +54,65 @@ abstract class BinaryDvConfirmedQuery extends Query {
     }
 
     /**
-     * Returns a query that runs the provided Automaton across all binary doc values (but only for docs that also
-     * match a provided approximation query which is key to getting good performance).
+     * Returns a query that runs the generated Automaton from a range query across
+     * all binary doc values (but only for docs that also match a provided approximation query which is key
+     * to getting good performance).
      */
-    public static Query fromAutomaton(Query approximation, String field, String matchPattern, Automaton automaton) {
-        return new BinaryDvConfirmedAutomatonQuery(approximation, field, matchPattern, automaton);
+    public static Query fromRangeQuery(
+        Query approximation,
+        String field,
+        BytesRef lower,
+        BytesRef upper,
+        boolean includeLower,
+        boolean includeUpper
+    ) {
+        return new BinaryDvConfirmedAutomatonQuery(
+            approximation,
+            field,
+            new RangeAutomatonProvider(lower, upper, includeLower, includeUpper)
+        );
     }
 
     /**
-     * Returns a query that checks for equality of at leat one of the provided terms across
+     * Returns a query that runs the generated Automaton from a wildcard query across
+     * all binary doc values (but only for docs that also match a provided approximation query which is key
+     * to getting good performance).
+     */
+    public static Query fromWildcardQuery(Query approximation, String field, String matchPattern, boolean caseInsensitive) {
+        return new BinaryDvConfirmedAutomatonQuery(approximation, field, new PatternAutomatonProvider(matchPattern, caseInsensitive));
+    }
+
+    /**
+     * Returns a query that runs the generated Automaton from a regexp query across
+     * all binary doc values (but only for docs that also match a provided approximation query which is key
+     * to getting good performance).
+     */
+    public static Query fromRegexpQuery(
+        Query approximation,
+        String field,
+        String value,
+        int syntaxFlags,
+        int matchFlags,
+        int maxDeterminizedStates
+    ) {
+        return new BinaryDvConfirmedAutomatonQuery(
+            approximation,
+            field,
+            new RegexAutomatonProvider(value, syntaxFlags, matchFlags, maxDeterminizedStates)
+        );
+    }
+
+    /**
+     * Returns a query that runs the generated Automaton from a fuzzy query across
+     * all binary doc values (but only for docs that also match a provided approximation query which is key
+     * to getting good performance).
+     */
+    public static Query fromFuzzyQuery(Query approximation, String field, String searchTerm, FuzzyQuery fuzzyQuery) {
+        return new BinaryDvConfirmedAutomatonQuery(approximation, field, new FuzzyQueryAutomatonProvider(searchTerm, fuzzyQuery));
+    }
+
+    /**
+     * Returns a query that checks for equality of at least one of the provided terms across
      * all binary doc values (but only for docs that also match a provided approximation query which
      * is key to getting good performance).
      */
@@ -63,13 +121,16 @@ abstract class BinaryDvConfirmedQuery extends Query {
         return new BinaryDvConfirmedTermsQuery(approximation, field, terms);
     }
 
-    protected abstract boolean matchesBinaryDV(ByteArrayStreamInput bytes, BytesRef bytesRef, BytesRef scratch) throws IOException;
+    protected abstract BinaryDVMatcher getBinaryDVMatcher();
 
     protected abstract Query rewrite(Query approxRewrite) throws IOException;
 
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
         Query approxRewrite = approxQuery.rewrite(searcher);
+        if (approxRewrite instanceof MatchNoDocsQuery) {
+            return MatchNoDocsQuery.INSTANCE;
+        }
         if (approxQuery != approxRewrite) {
             return rewrite(approxRewrite);
         }
@@ -79,7 +140,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         final Weight approxWeight = approxQuery.createWeight(searcher, scoreMode, boost);
-
+        final BinaryDVMatcher matcher = getBinaryDVMatcher();
         return new ConstantScoreWeight(this, boost) {
 
             @Override
@@ -89,9 +150,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
                     // No matches to be had
                     return null;
                 }
-                final ByteArrayStreamInput bytes = new ByteArrayStreamInput();
-                final BytesRef scratch = new BytesRef();
-                final BinaryDocValues values = DocValues.getBinary(context.reader(), field);
+                final SortedBinaryDocValues values = MultiValuedSortedBinaryDocValues.fromMultiValued(context.reader(), field);
                 return new ScorerSupplier() {
                     @Override
                     public Scorer get(long leadCost) throws IOException {
@@ -104,9 +163,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
                                     // Can happen when approxQuery resolves to some form of MatchAllDocs expression
                                     return false;
                                 }
-                                final BytesRef bytesRef = values.binaryValue();
-                                bytes.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-                                return matchesBinaryDV(bytes, bytesRef, scratch);
+                                return matcher.matchesBinaryDV(values);
                             }
 
                             @Override
@@ -153,46 +210,47 @@ abstract class BinaryDvConfirmedQuery extends Query {
     @Override
     public void visit(QueryVisitor visitor) {
         if (visitor.acceptField(field)) {
+            approxQuery.visit(visitor.getSubVisitor(BooleanClause.Occur.MUST, this));
             visitor.visitLeaf(this);
         }
     }
 
+    interface BinaryDVMatcher {
+        boolean matchesBinaryDV(SortedBinaryDocValues values) throws IOException;
+    }
+
     private static class BinaryDvConfirmedAutomatonQuery extends BinaryDvConfirmedQuery {
 
-        private final ByteRunAutomaton byteRunAutomaton;
-        private final String matchPattern;
+        private final AutomatonProvider automatonProvider;
 
-        private BinaryDvConfirmedAutomatonQuery(Query approximation, String field, String matchPattern, Automaton automaton) {
-            this(approximation, field, matchPattern, new ByteRunAutomaton(automaton));
-        }
-
-        private BinaryDvConfirmedAutomatonQuery(Query approximation, String field, String matchPattern, ByteRunAutomaton byteRunAutomaton) {
+        private BinaryDvConfirmedAutomatonQuery(Query approximation, String field, AutomatonProvider automatonProvider) {
             super(approximation, field);
-            this.matchPattern = matchPattern;
-            this.byteRunAutomaton = byteRunAutomaton;
+            this.automatonProvider = automatonProvider;
         }
 
         @Override
-        protected boolean matchesBinaryDV(ByteArrayStreamInput bytes, BytesRef bytesRef, BytesRef scratch) throws IOException {
-            int size = bytes.readVInt();
-            for (int i = 0; i < size; i++) {
-                int valLength = bytes.readVInt();
-                if (byteRunAutomaton.run(bytesRef.bytes, bytes.getPosition(), valLength)) {
-                    return true;
+        protected BinaryDVMatcher getBinaryDVMatcher() {
+            final ByteRunAutomaton byteRunAutomaton = new ByteRunAutomaton(automatonProvider.getAutomaton(field));
+            return (values) -> {
+                int count = values.docValueCount();
+                for (int i = 0; i < count; i++) {
+                    BytesRef val = values.nextValue();
+                    if (byteRunAutomaton.run(val.bytes, val.offset, val.length)) {
+                        return true;
+                    }
                 }
-                bytes.skipBytes(valLength);
-            }
-            return false;
+                return false;
+            };
         }
 
         @Override
         protected Query rewrite(Query approxRewrite) {
-            return new BinaryDvConfirmedAutomatonQuery(approxRewrite, field, matchPattern, byteRunAutomaton);
+            return new BinaryDvConfirmedAutomatonQuery(approxRewrite, field, automatonProvider);
         }
 
         @Override
         public String toString(String field) {
-            return field + ":" + matchPattern;
+            return field + ":" + automatonProvider.toString();
         }
 
         @Override
@@ -200,12 +258,12 @@ abstract class BinaryDvConfirmedQuery extends Query {
             if (o == null || getClass() != o.getClass()) return false;
             if (super.equals(o) == false) return false;
             BinaryDvConfirmedAutomatonQuery other = (BinaryDvConfirmedAutomatonQuery) o;
-            return Objects.equals(byteRunAutomaton, other.byteRunAutomaton) && Objects.equals(matchPattern, other.matchPattern);
+            return Objects.equals(automatonProvider, other.automatonProvider);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), matchPattern, byteRunAutomaton);
+            return Objects.hash(super.hashCode(), automatonProvider);
         }
     }
 
@@ -220,28 +278,25 @@ abstract class BinaryDvConfirmedQuery extends Query {
         }
 
         @Override
-        protected boolean matchesBinaryDV(ByteArrayStreamInput bytes, BytesRef bytesRef, BytesRef scratch) throws IOException {
-            scratch.bytes = bytesRef.bytes;
-            final int size = bytes.readVInt();
-            for (int i = 0; i < size; i++) {
-                final int valLength = bytes.readVInt();
-                scratch.offset = bytes.getPosition();
-                scratch.length = valLength;
-                if (terms.length == 1) {
-                    if (terms[0].bytesEquals(scratch)) {
-                        return true;
-                    }
-                } else {
-                    final int pos = Arrays.binarySearch(terms, scratch, BytesRef::compareTo);
-                    if (pos >= 0) {
-                        assert terms[pos].bytesEquals(scratch) : "Expected term at position " + pos + " to match scratch, but it did not.";
-                        return true;
+        protected BinaryDVMatcher getBinaryDVMatcher() {
+            return (values) -> {
+                int count = values.docValueCount();
+                for (int i = 0; i < count; i++) {
+                    BytesRef val = values.nextValue();
+                    if (terms.length == 1) {
+                        if (terms[0].bytesEquals(val)) {
+                            return true;
+                        }
+                    } else {
+                        final int pos = Arrays.binarySearch(terms, val, BytesRef::compareTo);
+                        if (pos >= 0) {
+                            assert terms[pos].bytesEquals(val) : "Expected term at position " + pos + " to match value, but it did not.";
+                            return true;
+                        }
                     }
                 }
-                bytes.skipBytes(valLength);
-            }
-            assert bytes.available() == 0 : "Expected no bytes left to read, but found " + bytes.available();
-            return false;
+                return false;
+            };
         }
 
         @Override
@@ -273,6 +328,45 @@ abstract class BinaryDvConfirmedQuery extends Query {
         @Override
         public int hashCode() {
             return Objects.hash(super.hashCode(), Arrays.hashCode(terms));
+        }
+    }
+
+    private interface AutomatonProvider {
+        Automaton getAutomaton(String field);
+    }
+
+    private record PatternAutomatonProvider(String matchPattern, boolean caseInsensitive) implements AutomatonProvider {
+        @Override
+        public Automaton getAutomaton(String field) {
+            return caseInsensitive
+                ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(field, matchPattern))
+                : WildcardQuery.toAutomaton(new Term(field, matchPattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        }
+    }
+
+    private record RegexAutomatonProvider(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates)
+        implements
+            AutomatonProvider {
+        @Override
+        public Automaton getAutomaton(String field) {
+            RegExp regex = new RegExp(value, syntaxFlags, matchFlags);
+            return Operations.determinize(regex.toAutomaton(), maxDeterminizedStates);
+        }
+    }
+
+    private record RangeAutomatonProvider(BytesRef lower, BytesRef upper, boolean includeLower, boolean includeUpper)
+        implements
+            AutomatonProvider {
+        @Override
+        public Automaton getAutomaton(String field) {
+            return TermRangeQuery.toAutomaton(lower, upper, includeLower, includeUpper);
+        }
+    }
+
+    private record FuzzyQueryAutomatonProvider(String searchTerm, FuzzyQuery fuzzyQuery) implements AutomatonProvider {
+        @Override
+        public Automaton getAutomaton(String field) {
+            return fuzzyQuery.getAutomata().automaton;
         }
     }
 }

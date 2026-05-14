@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractChunkedBWCSerializationTestCase;
@@ -58,24 +57,7 @@ public class RankedDocsResultsTests extends AbstractChunkedBWCSerializationTestC
 
     @Override
     protected RankedDocsResults mutateInstanceForVersion(RankedDocsResults instance, TransportVersion fromVersion) {
-        if (fromVersion.onOrAfter(TransportVersions.V_8_15_0)) {
-            return instance;
-        } else {
-            var compatibleDocs = rankedDocsNullStringToEmpty(instance.getRankedDocs());
-            return new RankedDocsResults(compatibleDocs);
-        }
-    }
-
-    private List<RankedDocsResults.RankedDoc> rankedDocsNullStringToEmpty(List<RankedDocsResults.RankedDoc> rankedDocs) {
-        var result = new ArrayList<RankedDocsResults.RankedDoc>(rankedDocs.size());
-        for (var doc : rankedDocs) {
-            if (doc.text() == null) {
-                result.add(new RankedDocsResults.RankedDoc(doc.index(), doc.relevanceScore(), ""));
-            } else {
-                result.add(doc);
-            }
-        }
-        return result;
+        return instance;
     }
 
     @Override

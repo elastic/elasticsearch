@@ -14,9 +14,13 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.search.diversification.DenseVectorSupplier;
+import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -28,7 +32,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
-import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,9 +41,11 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.getTextEmbeddingVectorFromChunk;
 
 /**
  * A {@link ToXContentObject} that is used to represent the transformation of the semantic text field's inputs.
@@ -58,11 +64,11 @@ public record SemanticTextField(
     @Nullable List<String> originalValues,
     InferenceResult inference,
     XContentType contentType
-) implements ToXContentObject {
+) implements ToXContentObject, DenseVectorSupplier {
 
     static final String TEXT_FIELD = "text";
     static final String INFERENCE_FIELD = "inference";
-    static final String INFERENCE_ID_FIELD = "inference_id";
+    public static final String INFERENCE_ID_FIELD = "inference_id";
     static final String SEARCH_INFERENCE_ID_FIELD = "search_inference_id";
     static final String CHUNKS_FIELD = "chunks";
     static final String CHUNKED_EMBEDDINGS_FIELD = "embeddings";
@@ -70,19 +76,99 @@ public record SemanticTextField(
     static final String CHUNKED_OFFSET_FIELD = "offset";
     static final String CHUNKED_START_OFFSET_FIELD = "start_offset";
     static final String CHUNKED_END_OFFSET_FIELD = "end_offset";
-    static final String MODEL_SETTINGS_FIELD = "model_settings";
+    static final String CHUNKED_INPUT_INDEX_FIELD = "input_index";
+    public static final String MODEL_SETTINGS_FIELD = "model_settings";
     static final String CHUNKING_SETTINGS_FIELD = "chunking_settings";
 
     public record InferenceResult(
         String inferenceId,
-        MinimalServiceSettings modelSettings,
-        ChunkingSettings chunkingSettings,
+        @Nullable MinimalServiceSettings modelSettings,
+        @Nullable ChunkingSettings chunkingSettings,
         Map<String, List<Chunk>> chunks
     ) {}
 
-    public record Chunk(@Nullable String text, int startOffset, int endOffset, BytesReference rawEmbeddings) {}
+    /**
+     * A single chunk of a semantic (text) field. Exactly one of the three forms is populated:
+     * text (legacy format), character offsets, or an input index. Each form has its own
+     * public constructor; there is no mixed-form constructor.
+     */
+    public static final class Chunk {
+        private static final int NO_OFFSET = -1;
 
-    public record Offset(String sourceFieldName, int startOffset, int endOffset) {}
+        @Nullable
+        private final String text;
+        private final int startOffset;
+        private final int endOffset;
+        @Nullable
+        private final Integer inputIndex;
+        private final BytesReference rawEmbeddings;
+
+        /** Text-form chunk (used by the legacy semantic_text format). */
+        public Chunk(String text, BytesReference rawEmbeddings) {
+            this(text, NO_OFFSET, NO_OFFSET, null, rawEmbeddings);
+        }
+
+        /** Offset-form chunk, identifying a character span in the original source field. */
+        public Chunk(int startOffset, int endOffset, BytesReference rawEmbeddings) {
+            this(null, startOffset, endOffset, null, rawEmbeddings);
+        }
+
+        /** Input-index-form chunk, identifying which of several input values the chunk refers to. */
+        public Chunk(int inputIndex, BytesReference rawEmbeddings) {
+            this(null, NO_OFFSET, NO_OFFSET, inputIndex, rawEmbeddings);
+        }
+
+        private Chunk(@Nullable String text, int startOffset, int endOffset, @Nullable Integer inputIndex, BytesReference rawEmbeddings) {
+            // Temporary logic to ensure no callers set inputIndex in release builds
+            if (inputIndex != null && SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled() == false) {
+                throw new UnsupportedOperationException("Input index is not supported yet");
+            }
+            this.text = text;
+            this.startOffset = startOffset;
+            this.endOffset = endOffset;
+            this.inputIndex = inputIndex;
+            this.rawEmbeddings = rawEmbeddings;
+        }
+
+        @Nullable
+        public String text() {
+            return text;
+        }
+
+        public int startOffset() {
+            return startOffset;
+        }
+
+        public int endOffset() {
+            return endOffset;
+        }
+
+        @Nullable
+        public Integer inputIndex() {
+            return inputIndex;
+        }
+
+        public BytesReference rawEmbeddings() {
+            return rawEmbeddings;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Chunk that = (Chunk) o;
+            return startOffset == that.startOffset
+                && endOffset == that.endOffset
+                && Objects.equals(text, that.text)
+                && Objects.equals(inputIndex, that.inputIndex)
+                && Objects.equals(rawEmbeddings, that.rawEmbeddings);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(text, startOffset, endOffset, inputIndex, rawEmbeddings);
+        }
+    }
 
     public static String getOriginalTextFieldName(String fieldName) {
         return fieldName + "." + TEXT_FIELD;
@@ -104,13 +190,13 @@ public record SemanticTextField(
         return getChunksFieldName(fieldName) + "." + CHUNKED_OFFSET_FIELD;
     }
 
-    record ParserContext(boolean useLegacyFormat, String fieldName, XContentType xContentType) {}
+    protected record ParserContext(boolean useLegacyFormat, String fieldName, XContentType xContentType) {}
 
     static SemanticTextField parse(XContentParser parser, ParserContext context) throws IOException {
         return SEMANTIC_TEXT_FIELD_PARSER.parse(parser, context);
     }
 
-    static MinimalServiceSettings parseModelSettingsFromMap(Object node) {
+    public static MinimalServiceSettings parseModelSettingsFromMap(Object node) {
         if (node == null) {
             return null;
         }
@@ -154,7 +240,7 @@ public record SemanticTextField(
         }
         builder.startObject(INFERENCE_FIELD);
         builder.field(INFERENCE_ID_FIELD, inference.inferenceId);
-        builder.field(MODEL_SETTINGS_FIELD, inference.modelSettings);
+        builder.field(MODEL_SETTINGS_FIELD, inference.modelSettings != null ? inference.modelSettings.getFilteredXContentObject() : null);
         if (inference.chunkingSettings != null) {
             builder.field(CHUNKING_SETTINGS_FIELD, inference.chunkingSettings);
         }
@@ -172,6 +258,8 @@ public record SemanticTextField(
                 builder.startObject();
                 if (useLegacyFormat) {
                     builder.field(TEXT_FIELD, chunk.text);
+                } else if (chunk.inputIndex != null) {
+                    builder.field(CHUNKED_INPUT_INDEX_FIELD, chunk.inputIndex);
                 } else {
                     builder.field(CHUNKED_START_OFFSET_FIELD, chunk.startOffset);
                     builder.field(CHUNKED_END_OFFSET_FIELD, chunk.endOffset);
@@ -236,10 +324,51 @@ public record SemanticTextField(
         true,
         (args, context) -> {
             String text = (String) args[0];
-            if (context.useLegacyFormat() && text == null) {
-                throw new IllegalArgumentException("Missing chunk text");
+            Integer startOffset = (Integer) args[1];
+            Integer endOffset = (Integer) args[2];
+            Integer inputIndex = (Integer) args[3];
+            BytesReference rawEmbeddings = (BytesReference) args[4];
+
+            if (context.useLegacyFormat()) {
+                if (text == null) {
+                    throw new IllegalArgumentException("Missing chunk text");
+                }
+
+                return new Chunk(text, rawEmbeddings);
             }
-            return new Chunk(text, args[1] != null ? (int) args[1] : -1, args[2] != null ? (int) args[2] : -1, (BytesReference) args[3]);
+
+            if (inputIndex != null) {
+                if (startOffset != null || endOffset != null) {
+                    throw new IllegalArgumentException(
+                        "["
+                            + CHUNKS_FIELD
+                            + "] must not specify both ["
+                            + CHUNKED_INPUT_INDEX_FIELD
+                            + "] and ["
+                            + CHUNKED_START_OFFSET_FIELD
+                            + "]/["
+                            + CHUNKED_END_OFFSET_FIELD
+                            + "]"
+                    );
+                }
+
+                return new Chunk(inputIndex, rawEmbeddings);
+            }
+
+            if (startOffset == null || endOffset == null) {
+                throw new IllegalArgumentException(
+                    "["
+                        + CHUNKS_FIELD
+                        + "] requires either ["
+                        + CHUNKED_INPUT_INDEX_FIELD
+                        + "] or both ["
+                        + CHUNKED_START_OFFSET_FIELD
+                        + "] and ["
+                        + CHUNKED_END_OFFSET_FIELD
+                        + "]"
+                );
+            }
+            return new Chunk(startOffset, endOffset, rawEmbeddings);
         }
     );
 
@@ -270,6 +399,7 @@ public record SemanticTextField(
         CHUNKS_PARSER.declareString(optionalConstructorArg(), new ParseField(TEXT_FIELD));
         CHUNKS_PARSER.declareInt(optionalConstructorArg(), new ParseField(CHUNKED_START_OFFSET_FIELD));
         CHUNKS_PARSER.declareInt(optionalConstructorArg(), new ParseField(CHUNKED_END_OFFSET_FIELD));
+        CHUNKS_PARSER.declareInt(optionalConstructorArg(), new ParseField(CHUNKED_INPUT_INDEX_FIELD));
         CHUNKS_PARSER.declareField(constructorArg(), (p, c) -> {
             XContentBuilder b = XContentBuilder.builder(p.contentType().xContent());
             b.copyCurrentStructure(p);
@@ -318,10 +448,9 @@ public record SemanticTextField(
      * Converts the provided {@link ChunkedInference} into a list of {@link Chunk}.
      */
     public static Chunk toSemanticTextFieldChunk(int offsetAdjustment, ChunkedInference.Chunk chunk) {
-        String text = null;
         int startOffset = chunk.textOffset().start() + offsetAdjustment;
         int endOffset = chunk.textOffset().end() + offsetAdjustment;
-        return new Chunk(text, startOffset, endOffset, chunk.bytesReference());
+        return new Chunk(startOffset, endOffset, chunk.bytesReference());
     }
 
     public static List<Chunk> toSemanticTextFieldChunksLegacy(String input, ChunkedInference results, XContentType contentType)
@@ -336,6 +465,36 @@ public record SemanticTextField(
 
     public static Chunk toSemanticTextFieldChunkLegacy(String input, org.elasticsearch.inference.ChunkedInference.Chunk chunk) {
         var text = input.substring(chunk.textOffset().start(), chunk.textOffset().end());
-        return new Chunk(text, -1, -1, chunk.bytesReference());
+        return new Chunk(text, chunk.bytesReference());
+    }
+
+    @Override
+    public String getSupplierContentType() {
+        return SemanticTextFieldMapper.CONTENT_TYPE;
+    }
+
+    @Override
+    public List<VectorData> getDenseVectorData() throws IOException {
+        if (this.inference == null || this.inference.chunks() == null) {
+            return null;
+        }
+
+        if (this.inference().modelSettings() == null || this.inference().modelSettings().taskType() != TaskType.TEXT_EMBEDDING) {
+            return null;
+        }
+
+        DenseVectorFieldMapper.ElementType elementType = this.inference().modelSettings().elementType();
+        if (elementType == null) {
+            return null;
+        }
+
+        List<VectorData> chunkVectors = new ArrayList<>();
+        for (List<Chunk> fieldChunks : this.inference.chunks.values()) {
+            for (Chunk chunk : fieldChunks) {
+                chunkVectors.add(getTextEmbeddingVectorFromChunk(chunk, contentType, elementType));
+            }
+        }
+
+        return chunkVectors;
     }
 }

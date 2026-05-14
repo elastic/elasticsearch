@@ -30,6 +30,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.test.BackgroundIndexer;
+import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -38,6 +39,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Collections;
@@ -86,7 +88,9 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     @BeforeClass
     public static void startHttpServer() throws Exception {
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-        ThreadFactory threadFactory = EsExecutors.daemonThreadFactory("[" + ESMockAPIBasedRepositoryIntegTestCase.class.getName() + "]");
+        ThreadFactory threadFactory = TestEsExecutors.testOnlyDaemonThreadFactory(
+            "[" + ESMockAPIBasedRepositoryIntegTestCase.class.getName() + "]"
+        );
         // the EncryptedRepository can require more than one connection open at one time
         executorService = EsExecutors.newScaling(
             ESMockAPIBasedRepositoryIntegTestCase.class.getName(),
@@ -153,7 +157,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     /**
      * Test the snapshot and restore of an index which has large segments files.
      */
-    public final void testSnapshotWithLargeSegmentFiles() throws Exception {
+    public void testSnapshotWithLargeSegmentFiles() throws Exception {
         final String repository = createRepository(randomRepositoryName());
         final String index = "index-no-merges";
         createIndex(index, 1, 0);
@@ -259,6 +263,21 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         return InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
     }
 
+    protected static String httpServerUrlLocalhost() {
+        return "http://" + serverUrlLocalhost();
+    }
+
+    protected static String serverUrlLocalhost() {
+        InetSocketAddress address = httpServer.getAddress();
+        // Use "localhost" for loopback addresses to avoid issues with IPv6 addresses
+        // in URLs that some SDKs (like Azure) cannot properly parse
+        InetAddress inetAddress = address.getAddress();
+        String host = inetAddress.isLoopbackAddress() && inetAddress instanceof Inet6Address
+            ? "localhost"
+            : InetAddresses.toUriString(inetAddress);
+        return host + ":" + address.getPort();
+    }
+
     /**
      * Consumes and closes the given {@link InputStream}
      */
@@ -288,7 +307,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
             this.requests = new ConcurrentHashMap<>();
             this.delegate = delegate;
             this.maxErrorsPerRequest = maxErrorsPerRequest;
-            assert maxErrorsPerRequest > 1;
+            assert maxErrorsPerRequest > 0;
         }
 
         @Override

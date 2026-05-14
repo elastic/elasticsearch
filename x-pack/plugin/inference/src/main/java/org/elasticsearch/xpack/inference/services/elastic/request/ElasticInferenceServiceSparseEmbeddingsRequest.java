@@ -16,8 +16,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundSparseEmbeddingRequest;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceUsageContext;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import org.elasticsearch.xpack.inference.telemetry.TraceContextHandler;
@@ -26,7 +28,11 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInferenceServiceRequest {
+import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
+
+public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInferenceServiceRequest
+    implements
+        OutboundSparseEmbeddingRequest {
 
     private final URI uri;
     private final ElasticInferenceServiceSparseEmbeddingsModel model;
@@ -41,9 +47,10 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInfer
         ElasticInferenceServiceSparseEmbeddingsModel model,
         TraceContext traceContext,
         ElasticInferenceServiceRequestMetadata metadata,
-        InputType inputType
+        InputType inputType,
+        CCMAuthenticationApplierFactory.AuthApplier authApplier
     ) {
-        super(metadata);
+        super(metadata, authApplier);
         this.truncator = truncator;
         this.truncationResult = truncationResult;
         this.model = Objects.requireNonNull(model);
@@ -55,7 +62,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInfer
     @Override
     public HttpRequestBase createHttpRequestBase() {
         var httpPost = new HttpPost(uri);
-        var usageContext = inputTypeToUsageContext(inputType);
+        var usageContext = ElasticInferenceServiceUsageContext.fromInputType(inputType);
         var requestEntity = Strings.toString(
             new ElasticInferenceServiceSparseEmbeddingsRequestEntity(
                 truncationResult.input(),
@@ -69,6 +76,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInfer
 
         traceContextHandler.propagateTraceContext(httpPost);
         httpPost.setHeader(new BasicHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType()));
+        httpPost.setHeader(new BasicHeader(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, usageContext.productUseCaseHeaderValue()));
 
         return httpPost;
     }
@@ -88,7 +96,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInfer
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         var truncatedInput = truncator.truncate(truncationResult.input());
         return new ElasticInferenceServiceSparseEmbeddingsRequest(
             truncator,
@@ -96,27 +104,13 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInfer
             model,
             traceContextHandler.traceContext(),
             getMetadata(),
-            inputType
+            inputType,
+            authApplier
         );
     }
 
     @Override
     public boolean[] getTruncationInfo() {
         return truncationResult.truncated().clone();
-    }
-
-    // visible for testing
-    static ElasticInferenceServiceUsageContext inputTypeToUsageContext(InputType inputType) {
-        switch (inputType) {
-            case SEARCH, INTERNAL_SEARCH -> {
-                return ElasticInferenceServiceUsageContext.SEARCH;
-            }
-            case INGEST, INTERNAL_INGEST -> {
-                return ElasticInferenceServiceUsageContext.INGEST;
-            }
-            default -> {
-                return ElasticInferenceServiceUsageContext.UNSPECIFIED;
-            }
-        }
     }
 }

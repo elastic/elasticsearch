@@ -1,0 +1,137 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.datasources.spi;
+
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+
+/**
+ * Extension point for data source implementations.
+ * Plugins implementing this interface will be discovered by ESQL at startup
+ * via Elasticsearch's plugin discovery mechanism.
+ *
+ * <p>This interface allows plugins to provide:
+ * <ul>
+ *   <li>Storage providers (S3, GCS, Azure, HTTP) for accessing data - keyed by URI scheme</li>
+ *   <li>Format readers (Parquet, CSV, ORC) for parsing data files - keyed by format name</li>
+ *   <li>Table catalog connectors (Iceberg, Delta Lake) for table metadata - keyed by catalog type</li>
+ *   <li>Custom operator factories for complex datasources - keyed by source type</li>
+ *   <li>Decompression codecs for compound extensions (e.g. .csv.gz) - via {@link #decompressionCodecs(Settings)} or
+ *       {@link #decompressionCodecs(Settings, ExecutorService)}</li>
+ * </ul>
+ *
+ * <p>All methods have default implementations returning empty maps/lists, allowing
+ * plugins to implement only the capabilities they provide.
+ *
+ * <p>Note: Method names follow the project convention of omitting the "get" prefix
+ * since there are no corresponding setters.
+ */
+public interface DataSourcePlugin {
+
+    /**
+     * URI schemes whose storage providers this plugin supplies (e.g. "s3", "gs", "http").
+     * Called once at registration time; must be cheap (no I/O, no heavy deps).
+     * Connector plugins should use {@link #supportedConnectorSchemes()} instead.
+     */
+    default Set<String> supportedSchemes() {
+        return Set.of();
+    }
+
+    /**
+     * URI schemes handled by this plugin's connectors (e.g. "flight", "grpc").
+     * Separate from {@link #supportedSchemes()} which is for storage providers.
+     */
+    default Set<String> supportedConnectorSchemes() {
+        return Set.of();
+    }
+
+    /**
+     * Format descriptors this plugin provides. Each {@link FormatSpec} pairs a logical
+     * format name with the file extensions that select it. Format names must match
+     * the keys returned by {@link #formatReaders(Settings)}.
+     */
+    default Set<FormatSpec> formatSpecs() {
+        return Set.of();
+    }
+
+    /**
+     * Catalog types this plugin provides (e.g. "iceberg").
+     * Keys must match {@link #tableCatalogs(Settings)} keys.
+     */
+    default Set<String> supportedCatalogs() {
+        return Set.of();
+    }
+
+    default Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+        return Map.of();
+    }
+
+    default Map<String, StorageProviderFactory> storageProviders(Settings settings, ExecutorService executor) {
+        return storageProviders(settings);
+    }
+
+    default Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+        return Map.of();
+    }
+
+    /**
+     * Decompression codecs this plugin provides (e.g. gzip for .gz, .gzip).
+     * Used for compound extensions like .csv.gz or .ndjson.gz.
+     */
+    default List<DecompressionCodec> decompressionCodecs(Settings settings) {
+        return List.of();
+    }
+
+    /**
+     * Decompression codecs with access to the datasource module's Elasticsearch-managed
+     * {@link ExecutorService} (typically the {@code generic} thread pool).
+     * Codecs that parallelize work (e.g. scanning compressed block boundaries) should use this executor
+     * instead of creating ad-hoc thread pools.
+     */
+    default List<DecompressionCodec> decompressionCodecs(Settings settings, ExecutorService executor) {
+        return decompressionCodecs(settings);
+    }
+
+    // Complete external source factories
+    default Map<String, ExternalSourceFactory> sourceFactories(Settings settings) {
+        return Map.of();
+    }
+
+    // FIXME: the methods below are superseded by sourceFactories() and ExternalSourceFactory capabilities.
+    // Migrate plugins from connectors()/tableCatalogs() to sourceFactories(),
+    // and from operatorFactories() to ExternalSourceFactory methods.
+    default Map<String, TableCatalogFactory> tableCatalogs(Settings settings) {
+        return Map.of();
+    }
+
+    default Map<String, SourceOperatorFactoryProvider> operatorFactories(Settings settings) {
+        return Map.of();
+    }
+
+    default Map<String, ConnectorFactory> connectors(Settings settings) {
+        return Map.of();
+    }
+
+    default List<NamedWriteableRegistry.Entry> namedWriteables() {
+        return List.of();
+    }
+
+    /**
+     * CRUD-time validators for datasource and dataset settings, keyed by type name.
+     * Receives node {@link Settings} so implementations can read cluster admin overrides
+     * (e.g. limits, allowed auth modes, default field values) when constructing validators.
+     */
+    default Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
+        return Map.of();
+    }
+}

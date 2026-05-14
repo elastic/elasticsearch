@@ -11,7 +11,6 @@ package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -22,13 +21,19 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.elasticsearch.TransportVersions.BYTE_SIZE_VALUE_ALWAYS_USES_BYTES;
-import static org.elasticsearch.TransportVersions.V_8_16_0;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSizeValue> {
+
+    private static final TransportVersion BYTE_SIZE_VALUE_ALWAYS_USES_BYTES = TransportVersion.fromName(
+        "byte_size_value_always_uses_bytes"
+    );
+    private static final TransportVersion BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_PATCH = BYTE_SIZE_VALUE_ALWAYS_USES_BYTES.nextPatchVersion();
+    private static final TransportVersion REMOVE_ALL_APPLICABLE_SELECTOR_PATCH = TransportVersion.fromName("remove_all_applicable_selector")
+        .nextPatchVersion();
+
     public void testActualPeta() {
         MatcherAssert.assertThat(ByteSizeValue.of(4, ByteSizeUnit.PB).getBytes(), equalTo(4503599627370496L));
     }
@@ -522,7 +527,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
 
     public void testBWCTransportFormat() throws IOException {
         var tenMegs = ByteSizeValue.ofMb(10);
-        for (var tv : List.of(V_8_16_0)) {
+        for (var tv : List.of(TransportVersion.minimumCompatible(), REMOVE_ALL_APPLICABLE_SELECTOR_PATCH)) {
             try (BytesStreamOutput expected = new BytesStreamOutput(); BytesStreamOutput actual = new BytesStreamOutput()) {
                 expected.writeZLong(10);
                 ByteSizeUnit.MB.writeTo(expected);
@@ -538,7 +543,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     public void testTransportRoundTripsWithTwoDigitFractions() throws IOException {
-        for (var tv : List.of(TransportVersion.current(), BYTE_SIZE_VALUE_ALWAYS_USES_BYTES, TransportVersions.V_9_0_0)) {
+        for (var tv : List.of(TransportVersion.current(), BYTE_SIZE_VALUE_ALWAYS_USES_BYTES, BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_PATCH)) {
             for (var desiredUnit : ByteSizeUnit.values()) {
                 if (desiredUnit == ByteSizeUnit.BYTES) {
                     // Can't have a fraction of a byte!
@@ -559,15 +564,13 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     public void testIntegerTransportRoundTrips() throws IOException {
-        for (var tv : List.of(TransportVersion.current(), V_8_16_0)) {
-            checkTransportRoundTrip(ByteSizeValue.ONE, tv);
-            checkTransportRoundTrip(ByteSizeValue.ZERO, tv);
-            checkTransportRoundTrip(ByteSizeValue.MINUS_ONE, tv);
-            for (var unit : ByteSizeUnit.values()) {
-                // Try increasing values until we exceed Long.MAX_VALUE and it wraps around negative
-                for (long bytes = unit.toBytes(1); bytes > 0; bytes *= 10) {
-                    checkTransportRoundTrip(new ByteSizeValue(bytes, unit), tv);
-                }
+        checkTransportRoundTrip(ByteSizeValue.ONE, TransportVersion.current());
+        checkTransportRoundTrip(ByteSizeValue.ZERO, TransportVersion.current());
+        checkTransportRoundTrip(ByteSizeValue.MINUS_ONE, TransportVersion.current());
+        for (var unit : ByteSizeUnit.values()) {
+            // Try increasing values until we exceed Long.MAX_VALUE and it wraps around negative
+            for (long bytes = unit.toBytes(1); bytes > 0; bytes *= 10) {
+                checkTransportRoundTrip(new ByteSizeValue(bytes, unit), TransportVersion.current());
             }
         }
     }

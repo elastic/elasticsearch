@@ -6,6 +6,8 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
+
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -16,7 +18,6 @@ esplugin {
 }
 
 dependencies {
-
   implementation "software.amazon.awssdk:annotations:${versions.awsv2sdk}"
   implementation "software.amazon.awssdk:apache-client:${versions.awsv2sdk}"
   implementation "software.amazon.awssdk:auth:${versions.awsv2sdk}"
@@ -67,7 +68,7 @@ dependencies {
   internalClusterTestImplementation project(':test:fixtures:ec2-imds-fixture')
 }
 
-tasks.named("dependencyLicenses").configure {
+tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: 'annotations',              to: 'aws-sdk-2'
   mapping from: 'apache-client',            to: 'aws-sdk-2'
   mapping from: 'auth',                     to: 'aws-sdk-2'
@@ -99,63 +100,9 @@ esplugin.bundleSpec.from('config/discovery-ec2') {
     into 'config'
 }
 
-tasks.register("writeTestJavaPolicy") {
-  boolean inFips = buildParams.inFipsJvm
-  inputs.property("inFipsJvm", inFips)
-  final File javaPolicy = new File(layout.buildDirectory.asFile.get(), "tmp/java.policy")
-  outputs.file(javaPolicy)
-  doLast {
-    if (inFips) {
-      javaPolicy.write(
-        [
-          "grant {",
-          "permission java.security.SecurityPermission \"putProviderProperty.BCFIPS\";",
-          "permission java.security.SecurityPermission \"putProviderProperty.BCJSSE\";",
-          "permission java.lang.RuntimePermission \"getProtectionDomain\";",
-          "permission java.util.PropertyPermission \"java.runtime.name\", \"read\";",
-          "permission org.bouncycastle.crypto.CryptoServicesPermission \"tlsAlgorithmsEnabled\";",
-          "permission java.lang.RuntimePermission \"accessClassInPackage.sun.security.internal.spec\";",
-          "permission java.lang.RuntimePermission \"accessDeclaredMembers\";",
-          "permission java.util.PropertyPermission \"intellij.debug.agent\", \"read\";",
-          "permission java.util.PropertyPermission \"intellij.debug.agent\", \"write\";",
-          "permission org.bouncycastle.crypto.CryptoServicesPermission \"exportSecretKey\";",
-          "permission org.bouncycastle.crypto.CryptoServicesPermission \"exportPrivateKey\";",
-          "permission java.io.FilePermission \"\${javax.net.ssl.trustStore}\", \"read\";",
-          "permission java.security.SecurityPermission \"getProperty.jdk.tls.disabledAlgorithms\";",
-          "permission java.security.SecurityPermission \"getProperty.jdk.certpath.disabledAlgorithms\";",
-          "permission java.security.SecurityPermission \"getProperty.keystore.type.compat\";",
-          "permission java.security.SecurityPermission \"getProperty.org.bouncycastle.ec.max_f2m_field_size\";",
-          "permission java.util.PropertyPermission \"aws.ec2MetadataServiceEndpoint\", \"write\";",
-          "permission java.util.PropertyPermission \"http.proxyHost\", \"read\";",
-          "permission java.util.PropertyPermission \"aws.region\", \"read\";",
-          "};"
-        ].join("\n")
-      )
-    } else {
-      javaPolicy.write(
-        [
-          "grant {",
-          "permission java.util.PropertyPermission \"aws.ec2MetadataServiceEndpoint\", \"write\";",
-          "permission java.util.PropertyPermission \"http.proxyHost\", \"read\";",
-          "permission java.util.PropertyPermission \"aws.region\", \"read\";",
-          "};"
-        ].join("\n"))
-    }
-  }
-}
-
 tasks.withType(Test).configureEach {
-  dependsOn "writeTestJavaPolicy"
   // this is needed for insecure plugins, remove if possible!
   systemProperty 'tests.artifact', project.name
-
-  // this is needed to manipulate aws.ec2MetadataServiceEndpoint system property
-  // it is better rather disable security manager at all with `systemProperty 'tests.security.manager', 'false'`
-  if (buildParams.inFipsJvm){
-    nonInputProperties.systemProperty 'java.security.policy', "=file://${layout.buildDirectory.asFile.get()}/tmp/java.policy"
-  } else {
-    nonInputProperties.systemProperty 'java.security.policy', "file://${layout.buildDirectory.asFile.get()}/tmp/java.policy"
-  }
 
   systemProperty 'aws.region', 'es-test-region'
 }

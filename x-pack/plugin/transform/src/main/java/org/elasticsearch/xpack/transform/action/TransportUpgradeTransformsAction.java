@@ -29,7 +29,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction;
@@ -107,7 +106,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         }
 
         // do not allow in mixed clusters
-        if (TransportVersionUtils.isMinTransportVersionSameAsCurrent(state) == false) {
+        if (state.nodes().isMixedVersionCluster()) {
             listener.onFailure(
                 new ElasticsearchStatusException("Cannot upgrade transforms while cluster upgrade is in progress.", RestStatus.CONFLICT)
             );
@@ -172,7 +171,8 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
                 configAndVersion.v2(),
                 false, // defer validation
                 dryRun,
-                false, // check access,
+                false, // check access
+                false, // hasLinkedProjects (irrelevant since checkAccess is false)
                 timeout,
                 destIndexSettings,
                 listener

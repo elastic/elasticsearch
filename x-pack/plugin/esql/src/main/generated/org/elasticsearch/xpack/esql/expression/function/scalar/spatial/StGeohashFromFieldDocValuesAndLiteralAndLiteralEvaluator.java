@@ -8,23 +8,26 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.function.Function;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StGeohash}.
+ * {@link ExpressionEvaluator} implementation for {@link StGeohash}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator.class);
+
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator encoded;
+  private final ExpressionEvaluator encoded;
 
   private final StGeohash.GeoHashBoundedGrid bounds;
 
@@ -33,7 +36,7 @@ public final class StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator impl
   private Warnings warnings;
 
   public StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator encoded, StGeohash.GeoHashBoundedGrid bounds,
+      ExpressionEvaluator encoded, StGeohash.GeoHashBoundedGrid bounds,
       DriverContext driverContext) {
     this.source = source;
     this.encoded = encoded;
@@ -46,6 +49,13 @@ public final class StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator impl
     try (LongBlock encodedBlock = (LongBlock) encoded.eval(page)) {
       return eval(page.getPositionCount(), encodedBlock);
     }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += encoded.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public LongBlock eval(int positionCount, LongBlock encodedBlock) {
@@ -82,24 +92,19 @@ public final class StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator impl
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory encoded;
+    private final ExpressionEvaluator.Factory encoded;
 
     private final Function<DriverContext, StGeohash.GeoHashBoundedGrid> bounds;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory encoded,
+    public Factory(Source source, ExpressionEvaluator.Factory encoded,
         Function<DriverContext, StGeohash.GeoHashBoundedGrid> bounds) {
       this.source = source;
       this.encoded = encoded;

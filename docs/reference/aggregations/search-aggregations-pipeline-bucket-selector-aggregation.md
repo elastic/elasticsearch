@@ -29,6 +29,7 @@ A `bucket_selector` aggregation looks like this in isolation:
   }
 }
 ```
+% NOTCONSOLE
 
 1. Here, `my_var1` is the name of the variable for this buckets path to use in the script, `the_sum` is the path to the metrics to use for that variable.
 
@@ -72,6 +73,7 @@ POST /sales/_search
   }
 }
 ```
+% TEST[setup:sales]
 
 And the following may be the response:
 
@@ -105,6 +107,9 @@ And the following may be the response:
    }
 }
 ```
+% TESTRESPONSE[s/"took": 11/"took": $body.took/]
+% TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+% TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 1. Bucket for `2015/02/01 00:00:00` has been removed as its total sales was less than 200
 

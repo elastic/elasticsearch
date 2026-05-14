@@ -100,6 +100,8 @@ sum_a:long    | b:integer
 ;
 
 expandAfterSort1
+request_stored: skip
+
 from employees | keep job_positions, emp_no | sort emp_no | mv_expand job_positions | limit 10 | sort job_positions;
 
    job_positions:keyword  |emp_no:integer     
@@ -116,6 +118,8 @@ null                      |10003
 ;
 
 expandAfterSort2
+request_stored: skip
+
 from employees | sort emp_no | mv_expand job_positions | keep job_positions, emp_no | limit 5;
 
    job_positions:keyword  |emp_no:integer     
@@ -127,6 +131,8 @@ Head Human Resources   |10004
 ;
 
 expandWithMultiSort
+request_stored: skip
+
 from employees | keep emp_no, job_positions | sort emp_no | mv_expand job_positions | limit 10 | where emp_no <= 10006 | sort job_positions nulls first;
 
 emp_no:integer |  job_positions:keyword       
@@ -191,6 +197,8 @@ emp_no:integer |  job_positions:keyword   |salary:integer
 ;
 
 doubleLimit_expandLimitLowerThanAvailable
+request_stored: skip
+
 from employees | where emp_no == 10004 | limit 1 | keep emp_no, job_positions | mv_expand job_positions | limit 2;
 
 emp_no:integer |  job_positions:keyword
@@ -199,6 +207,8 @@ emp_no:integer |  job_positions:keyword
 ;
 
 doubleLimit_expandLimitGreaterThanAvailable
+request_stored: ignore_order
+
 from employees | where emp_no == 10004 | limit 1 | keep emp_no, job_positions | mv_expand job_positions | limit 5;
 
 emp_no:integer |  job_positions:keyword
@@ -219,6 +229,8 @@ emp_no:integer |  job_positions:keyword
 ;
 
 tripleLimit_WithWhere_InBetween_MvExpand_And_Limit
+request_stored: skip
+
 from employees | where emp_no == 10004 | limit 1 | keep emp_no, job_positions | mv_expand job_positions | where job_positions LIKE "*a*" | limit 2 | where job_positions LIKE "*a*" | limit 3;
 
 emp_no:integer |  job_positions:keyword
@@ -233,6 +245,118 @@ row a = "foobar", b = ["foo", "bar"], c = 12 | mv_expand b | where b LIKE "fo*";
 a:keyword   | b:keyword | c:integer
 foobar      | foo       | 12
 ;
+
+
+filterAfterMvExpandOnUnexpandedField
+ROW a = [1, 2, 3], b = 2
+| MV_EXPAND a
+| WHERE b == 2
+| SORT a;
+
+a:integer | b:integer
+1         | 2
+2         | 2
+3         | 2
+;
+
+
+filterAfterMvExpandOnExpandedAndUnexpandedFields
+ROW a = [1, 2, 3], b = 2
+| MV_EXPAND a
+| WHERE b == 2 AND a > 1
+| SORT a;
+
+a:integer | b:integer
+2         | 2
+3         | 2
+;
+
+
+pushDownFilterPastMvExpand
+ROW emp_no = 11, languages = [1, 2]
+| MV_EXPAND languages
+| WHERE emp_no > 10 AND languages == 1
+| SORT languages;
+
+emp_no:integer | languages:integer
+11             | 1
+;
+
+
+pushDownFilterPastSequentialMvExpands
+ROW emp_no = 11, languages = [1, 2], first_name = ["John", "Jane"]
+| MV_EXPAND languages
+| MV_EXPAND first_name
+| WHERE emp_no > 10 AND languages == 1 AND first_name == "John"
+| SORT languages, first_name;
+
+emp_no:integer | languages:integer | first_name:keyword
+11             | 1                 | John
+;
+
+
+dontPushDownOrFilterPastMvExpand
+ROW emp_no = 9, languages = [1, 2]
+| MV_EXPAND languages
+| WHERE emp_no > 10 OR languages == 1
+| SORT languages;
+
+emp_no:integer | languages:integer
+9              | 1
+;
+
+
+pushDownFilterPastMvExpandWithEval
+ROW emp_no = 11, languages = [1, 2]
+| EVAL double_emp = emp_no * 2
+| MV_EXPAND languages
+| WHERE double_emp > 20 AND languages == 1
+| SORT languages;
+
+emp_no:integer | languages:integer | double_emp:integer
+11             | 1                 | 22
+;
+
+
+pushDownChainedWherePastMvExpand
+ROW emp_no = 11, languages = [1, 2], salary = 60000
+| MV_EXPAND languages
+| WHERE emp_no > 10
+| WHERE languages == 1
+| WHERE salary > 50000
+| SORT languages;
+
+emp_no:integer | languages:integer | salary:integer
+11             | 1                 | 60000
+;
+
+
+filterAfterMvExpandOnUnexpandedFieldFromSource
+FROM employees
+| KEEP emp_no, job_positions
+| MV_EXPAND job_positions
+| WHERE emp_no == 10004
+| SORT job_positions;
+
+emp_no:integer | job_positions:keyword
+10004          |Head Human Resources
+10004          |Reporting Analyst
+10004          |Support Engineer
+10004          |Tech Lead
+;
+
+
+filterAfterMvExpandOnExpandedAndUnexpandedFieldsFromSource
+FROM employees
+| KEEP emp_no, job_positions
+| MV_EXPAND job_positions
+| WHERE emp_no == 10004 AND job_positions LIKE "*Lead"
+| SORT job_positions;
+
+emp_no:integer | job_positions:keyword
+10004          |Tech Lead
+;
+
 
 expandEvalFoldable
 from employees | sort emp_no | limit 2 | eval foldable = "foo,bar" | eval generate_mv = split(foldable,",") | mv_expand generate_mv | keep emp_no, first_name, generate_mv | sort emp_no asc, generate_mv desc;
@@ -481,3 +605,26 @@ Production   | false                 | true            | -1            | 1      
 Success      | false                 | true            | -1            | 1             | null               | 1
 ;
 
+returnMultiValueFieldsWithoutExpansion
+FROM employees
+| WHERE emp_no == 10008
+| KEEP emp_no, job_positions, is_rehired, salary_change
+;
+
+emp_no:integer | job_positions:keyword                                                     | is_rehired:boolean | salary_change:double
+10008          | [Internship, Junior Developer, Purchase Manager, Senior Python Developer] | [false, true]      | [-2.92, 0.75, 3.54, 12.68]
+;
+
+returnMultiValueFieldsWithMultivalueTypeConversions
+FROM employees
+| WHERE emp_no == 10008
+| EVAL job_positions = TO_STRING(job_positions)
+| EVAL is_rehired = TO_STRING(is_rehired)
+| EVAL salary_change = TO_STRING(salary_change)
+| EVAL is_rehired_again = TO_BOOLEAN(is_rehired)
+| KEEP emp_no, job_positions, is_rehired, salary_change, is_rehired_again
+;
+
+emp_no:integer | job_positions:keyword                                                     | is_rehired:keyword | salary_change:keyword      | is_rehired_again:boolean
+10008          | [Internship, Junior Developer, Purchase Manager, Senior Python Developer] | [false, true]      | [-2.92, 0.75, 3.54, 12.68] | [false, true]
+;

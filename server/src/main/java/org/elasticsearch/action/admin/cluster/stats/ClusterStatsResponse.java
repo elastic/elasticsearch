@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResponse> implements ToXContentFragment {
@@ -54,15 +55,16 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         AnalysisStats analysisStats,
         VersionStats versionStats,
         ClusterSnapshotStats clusterSnapshotStats,
-        Map<String, RemoteClusterStats> remoteClustersStats
+        Map<String, RemoteClusterStats> remoteClustersStats,
+        boolean skipMRT
     ) {
         super(clusterName, nodes, failures);
         this.clusterUUID = clusterUUID;
         this.timestamp = timestamp;
         nodesStats = new ClusterStatsNodes(nodes);
         indicesStats = new ClusterStatsIndices(nodes, mappingStats, analysisStats, versionStats);
-        ccsMetrics = new CCSTelemetrySnapshot();
-        esqlMetrics = new CCSTelemetrySnapshot().setUseMRT(false);
+        ccsMetrics = new CCSTelemetrySnapshot(skipMRT == false);
+        esqlMetrics = new CCSTelemetrySnapshot(false);
         ClusterHealthStatus status = null;
         for (ClusterStatsNodeResponse response : nodes) {
             // only the master node populates the status
@@ -181,7 +183,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     public record RemoteClusterStats(
         String clusterUUID,
         String mode,
-        boolean skipUnavailable,
+        Optional<Boolean> skipUnavailable,
         String transportCompress,
         Set<String> versions,
         String status,
@@ -192,7 +194,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         long heapBytes,
         long memBytes
     ) implements ToXContentFragment {
-        public RemoteClusterStats(String mode, boolean skipUnavailable, String transportCompress) {
+        public RemoteClusterStats(String mode, Optional<Boolean> skipUnavailable, String transportCompress) {
             this(
                 "unavailable",
                 mode,
@@ -231,7 +233,9 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
             builder.startObject();
             builder.field("cluster_uuid", clusterUUID);
             builder.field("mode", mode);
-            builder.field("skip_unavailable", skipUnavailable);
+            if (skipUnavailable.isPresent()) {
+                builder.field("skip_unavailable", skipUnavailable.get());
+            }
             builder.field("transport.compress", transportCompress);
             builder.field("status", status);
             builder.field("version", versions);

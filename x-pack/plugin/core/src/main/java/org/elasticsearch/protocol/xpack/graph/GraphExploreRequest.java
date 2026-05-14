@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.protocol.xpack.graph;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
@@ -111,10 +110,6 @@ public class GraphExploreRequest extends LegacyActionRequest implements IndicesR
 
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            String[] types = in.readStringArray();
-            assert types.length == 0;
-        }
         routing = in.readOptionalString();
         timeout = in.readOptionalTimeValue();
         sampleSize = in.readInt();
@@ -174,9 +169,6 @@ public class GraphExploreRequest extends LegacyActionRequest implements IndicesR
         super.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeStringArray(Strings.EMPTY_ARRAY);
-        }
         out.writeOptionalString(routing);
         out.writeOptionalTimeValue(timeout);
 

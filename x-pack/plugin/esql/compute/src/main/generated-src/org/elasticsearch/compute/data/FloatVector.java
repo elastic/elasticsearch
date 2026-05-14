@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 // begin generated imports
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -21,21 +20,59 @@ import java.io.IOException;
  * Vector that stores float values.
  * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
-public sealed interface FloatVector extends Vector permits ConstantFloatVector, FloatArrayVector, FloatBigArrayVector, ConstantNullVector {
+public sealed interface FloatVector extends Vector permits ConstantFloatVector, FloatArrayVector, FloatBigArrayVector, ConstantNullVector,
+    org.elasticsearch.compute.data.arrow.FloatArrowBufVector {
 
     float getFloat(int position);
+
+    /**
+     * Copies values from this vector into the destination array.
+     */
+    default void copyTo(int srcPosition, float[] dst, int dstPosition, int length) {
+        for (int i = 0; i < length; i++) {
+            dst[dstPosition + i] = getFloat(srcPosition + i);
+        }
+    }
 
     @Override
     FloatBlock asBlock();
 
     @Override
-    FloatVector filter(int... positions);
+    FloatVector filter(boolean mayContainDuplicates, int... positions);
 
     @Override
     FloatBlock keepMask(BooleanVector mask);
 
+    /**
+     * Make a deep copy of this {@link Vector} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default FloatVector deepCopy(BlockFactory blockFactory) {
+        try (FloatBlock.Builder builder = blockFactory.newFloatBlockBuilder(getPositionCount())) {
+            builder.copyFrom(asBlock(), 0, getPositionCount());
+            builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return builder.build().asVector();
+        }
+    }
+
     @Override
     ReleasableIterator<? extends FloatBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    /**
+     * Return a subset of this vector from {@code beginInclusive} to
+     * {@code endExclusive}. This <strong>may</strong> return the same
+     * instance if the range covers all positions, but if it does it
+     * will {@link #incRef()} it.
+     */
+    @Override
+    FloatVector slice(int beginInclusive, int endExclusive);
+
+    /**
+     * The maximum size in bytes of any single value stored in this vector, or {@code 0} if there are no values.
+     * Always {@code Float.BYTES} since all float values encode to the same number of bytes.
+     */
+    int valueMaxByteSize();
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the
@@ -106,10 +143,10 @@ public sealed interface FloatVector extends Vector permits ConstantFloatVector, 
         if (isConstant() && positions > 0) {
             out.writeByte(SERIALIZE_VECTOR_CONSTANT);
             out.writeFloat(getFloat(0));
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof FloatArrayVector v) {
+        } else if (this instanceof FloatArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_ARRAY);
             v.writeArrayVector(positions, out);
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof FloatBigArrayVector v) {
+        } else if (this instanceof FloatBigArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_BIG_ARRAY);
             v.writeArrayVector(positions, out);
         } else {

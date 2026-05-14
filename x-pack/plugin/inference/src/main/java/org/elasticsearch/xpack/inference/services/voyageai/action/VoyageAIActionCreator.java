@@ -57,7 +57,7 @@ public class VoyageAIActionCreator implements VoyageAIActionVisitor {
             overriddenModel,
             EMBEDDINGS_HANDLER,
             (embeddingsInput) -> new VoyageAIEmbeddingsRequest(
-                embeddingsInput.getStringInputs(),
+                embeddingsInput.getTextInputs(),
                 embeddingsInput.getInputType(),
                 overriddenModel
             ),
@@ -76,8 +76,8 @@ public class VoyageAIActionCreator implements VoyageAIActionVisitor {
             overriddenModel,
             RERANK_HANDLER,
             (rerankInput) -> new VoyageAIRerankRequest(
-                rerankInput.getQuery(),
-                rerankInput.getChunks(),
+                rerankInput.getQueryAsString(),
+                rerankInput.getDocsAsStrings(),
                 rerankInput.getReturnDocuments(),
                 rerankInput.getTopN(),
                 model

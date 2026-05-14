@@ -34,11 +34,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.streams.StreamType;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.NodeClosedException;
@@ -48,11 +50,16 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+
+import static org.elasticsearch.rest.RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS;
 
 /**
  * This is an abstract base class for bulk actions. It traverses all indices that the request gets routed to, executes all applicable
@@ -60,6 +67,24 @@ import java.util.function.LongSupplier;
  */
 public abstract class TransportAbstractBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
     private static final Logger logger = LogManager.getLogger(TransportAbstractBulkAction.class);
+
+    public static final Set<String> STREAMS_ALLOWED_PARAMS = new HashSet<>() {
+        {
+            add("error_trace");
+            add("filter_path");
+            add("id");
+            add("index");
+            add("op_type");
+            add("pretty");
+            add("refresh");
+            add("require_data_stream");
+            add(SliceIndexing.PARAM_NAME);
+            add("timeout");
+            add("include_source_on_error");
+            // Add internal marker params
+            addAll(INTERNAL_MARKER_REQUEST_PARAMETERS);
+        }
+    };
 
     protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
@@ -187,13 +212,18 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         executor.execute(new ActionRunnable<>(releasingListener) {
             @Override
             protected void doRun() throws IOException {
-                applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, releasingListener);
+                applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, releasingListener, false);
             }
         });
     }
 
-    private boolean applyPipelines(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> listener)
-        throws IOException {
+    private boolean applyPipelines(
+        Task task,
+        BulkRequest bulkRequest,
+        Executor executor,
+        ActionListener<BulkResponse> listener,
+        boolean haveRunIngestService
+    ) throws IOException {
         boolean hasIndexRequestsWithPipelines = false;
         ClusterState state = clusterService.state();
         ProjectId projectId = projectResolver.getProjectId();
@@ -244,15 +274,15 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             project = state.metadata().getProject(projectId);
         }
 
-        Map<String, IngestService.Pipelines> resolvedPipelineCache = new HashMap<>();
+        final long pipelineResolutionTimeMillis = threadPool.absoluteTimeInMillis();
+        Map<PipelineCacheKey, IngestService.Pipelines> resolvedPipelineCache = new HashMap<>();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
                 if (indexRequest.isPipelineResolved() == false) {
                     var pipeline = resolvedPipelineCache.computeIfAbsent(
-                        indexRequest.index(),
-                        // TODO perhaps this should use `threadPool.absoluteTimeInMillis()`, but leaving as is for now.
-                        (index) -> IngestService.resolvePipelines(actionRequest, indexRequest, project, System.currentTimeMillis())
+                        new PipelineCacheKey(actionRequest.index(), indexRequest.index()),
+                        (index) -> IngestService.resolvePipelines(actionRequest, indexRequest, project, pipelineResolutionTimeMillis)
                     );
                     IngestService.setPipelineOnRequest(indexRequest, pipeline);
                 }
@@ -321,7 +351,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                     ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
                         @Override
                         protected void doRun() throws IOException {
-                            applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, actionListener);
+                            applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, actionListener, true);
                         }
 
                         @Override
@@ -362,6 +392,8 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
      */
     protected abstract Boolean resolveFailureStore(String indexName, ProjectMetadata metadata, long epochMillis);
 
+    private record PipelineCacheKey(String originalIndex, String embeddedIndex) {}
+
     /**
      * Retrieves the {@link IndexRequest} from the provided {@link DocWriteRequest} for index or upsert actions.  Upserts are
      * modeled as {@link IndexRequest} inside the {@link UpdateRequest}. Ignores {@link org.elasticsearch.action.delete.DeleteRequest}'s
@@ -399,7 +431,8 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         Task task,
         BulkRequest bulkRequest,
         Executor executor,
-        ActionListener<BulkResponse> listener
+        ActionListener<BulkResponse> listener,
+        boolean haveRunIngestService
     ) throws IOException {
         final long relativeStartTimeNanos = relativeTimeNanos();
 
@@ -412,38 +445,82 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         while (bulkRequestModifier.hasNext()) {
             req = bulkRequestModifier.next();
             i++;
-
-            for (StreamType streamType : StreamType.getEnabledStreamTypesForProject(projectMetadata)) {
-                if (req instanceof IndexRequest ir && streamType.matchesStreamPrefix(req.index()) && ir.isPipelineResolved() == false) {
-                    IllegalArgumentException e = new IllegalArgumentException(
-                        "Direct writes to child streams are prohibited. Index directly into the ["
-                            + streamType.getStreamName()
-                            + "] stream instead"
-                    );
-                    Boolean failureStoreEnabled = resolveFailureStore(req.index(), projectMetadata, threadPool.absoluteTimeInMillis());
-
-                    if (featureService.clusterHasFeature(clusterService.state(), DataStream.DATA_STREAM_FAILURE_STORE_FEATURE)) {
-                        if (Boolean.TRUE.equals(failureStoreEnabled)) {
-                            bulkRequestModifier.markItemForFailureStore(i, req.index(), e);
-                        } else if (Boolean.FALSE.equals(failureStoreEnabled)) {
-                            bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_ENABLED);
-                        } else {
-                            bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
-                        }
-                    } else {
-                        bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
-                    }
-
-                    break;
-                }
-            }
+            doStreamsChecks(bulkRequest, projectMetadata, req, bulkRequestModifier, i);
         }
 
         var wrappedListener = bulkRequestModifier.wrapActionListenerIfNeeded(listener);
 
-        if (applyPipelines(task, bulkRequestModifier.getBulkRequest(), executor, wrappedListener) == false) {
+        if (applyPipelines(task, bulkRequestModifier.getBulkRequest(), executor, wrappedListener, haveRunIngestService) == false) {
             doInternalExecute(task, bulkRequestModifier.getBulkRequest(), executor, wrappedListener, relativeStartTimeNanos);
         }
+    }
+
+    private void doStreamsChecks(
+        BulkRequest bulkRequest,
+        ProjectMetadata projectMetadata,
+        DocWriteRequest<?> req,
+        BulkRequestModifier bulkRequestModifier,
+        int i
+    ) {
+        final Consumer<Exception> errHandler = e -> {
+            final Boolean failureStoreEnabled = resolveFailureStore(req.index(), projectMetadata, threadPool.absoluteTimeInMillis());
+
+            if (featureService.clusterHasFeature(clusterService.state(), DataStream.DATA_STREAM_FAILURE_STORE_FEATURE)) {
+                if (Boolean.TRUE.equals(failureStoreEnabled)) {
+                    bulkRequestModifier.markItemForFailureStore(i, req.index(), e);
+                } else if (Boolean.FALSE.equals(failureStoreEnabled)) {
+                    bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_ENABLED);
+                } else {
+                    bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
+                }
+            } else {
+                bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
+            }
+        };
+
+        if (req instanceof IndexRequest ir && ir.isPipelineResolved() == false) {
+            final StreamType parentStream = StreamType.enabledParentStreamOf(projectMetadata, req.index());
+            if (parentStream != null) {
+                errHandler.accept(
+                    new IllegalArgumentException(
+                        "Direct writes to child streams are prohibited. Index directly into the ["
+                            + parentStream.getStreamName()
+                            + "] stream instead"
+                    )
+                );
+                return;
+            }
+            final StreamType streamTarget = StreamType.exactEnabledStreamMatch(projectMetadata, ir.index());
+            if (streamTarget != null) {
+                if (ir.getPipeline() != null) {
+                    errHandler.accept(
+                        new IllegalArgumentException(
+                            "Cannot provide a pipeline when writing to a stream "
+                                + "however the ["
+                                + ir.getPipeline()
+                                + "] pipeline was provided when writing to the ["
+                                + streamTarget.getStreamName()
+                                + "] stream"
+                        )
+                    );
+                    return;
+                }
+                if (streamsRestrictedParamsUsed(bulkRequest)) {
+                    errHandler.accept(
+                        new IllegalArgumentException(
+                            "When writing to a stream, only the following parameters are allowed: ["
+                                + String.join(", ", STREAMS_ALLOWED_PARAMS)
+                                + "] however the following were used: "
+                                + bulkRequest.requestParamsUsed()
+                        )
+                    );
+                }
+            }
+        }
+    }
+
+    private boolean streamsRestrictedParamsUsed(BulkRequest bulkRequest) {
+        return Sets.difference(bulkRequest.requestParamsUsed(), STREAMS_ALLOWED_PARAMS).isEmpty() == false;
     }
 
     /**

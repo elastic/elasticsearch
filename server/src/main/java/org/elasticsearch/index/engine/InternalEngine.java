@@ -3903,18 +3903,10 @@ public class InternalEngine extends Engine {
             }
             final CombinedDocValues dv = new CombinedDocValues(leaf.reader());
             final DocIdSetIterator iterator = scorer.iterator();
-            // The upfront buffering is currently only required for TsIdLoader.
-            // TODO: Maybe instead make TsIdLeaf lazy initializing if docsIdsInLeaf is null?
-            IntArrayList docIdBuffer = new IntArrayList();
+            var leafStoredFieldLoader = storedFieldLoader.getLoader(leaf, null);
+            var leafIdLoader = idLoader.leaf(leafStoredFieldLoader, leaf.reader(), null);
+
             for (int docId = iterator.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = iterator.nextDoc()) {
-                docIdBuffer.add(docId);
-            }
-
-            docIdBuffer.trimToSize();
-            var leafStoredFieldLoader = storedFieldLoader.getLoader(leaf, docIdBuffer.buffer);
-            var leafIdLoader = idLoader.leaf(leafStoredFieldLoader, leaf.reader(), docIdBuffer.buffer);
-
-            for (int docId : docIdBuffer.buffer) {
                 final long primaryTerm = dv.docPrimaryTerm(docId);
                 final long seqNo = dv.docSeqNo(docId);
                 localCheckpointTracker.markSeqNoAsProcessed(seqNo);

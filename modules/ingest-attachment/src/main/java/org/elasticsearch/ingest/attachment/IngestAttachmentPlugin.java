@@ -9,15 +9,20 @@
 
 package org.elasticsearch.ingest.attachment;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.Plugin.PluginServices;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
 public class IngestAttachmentPlugin extends Plugin implements IngestPlugin {
+
+    private final SetOnce<AttachmentIngestMetrics> attachmentMetrics = new SetOnce<>();
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -25,9 +30,13 @@ public class IngestAttachmentPlugin extends Plugin implements IngestPlugin {
     }
 
     @Override
-    public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        return Map.of(AttachmentProcessor.TYPE, new AttachmentProcessor.Factory(parameters.env.settings()));
-
+    public Collection<?> createComponents(PluginServices services) {
+        attachmentMetrics.set(new AttachmentIngestMetrics(services.telemetryProvider().getMeterRegistry()));
+        return super.createComponents(services);
     }
 
+    @Override
+    public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+        return Map.of(AttachmentProcessor.TYPE, new AttachmentProcessor.Factory(parameters.env.settings(), attachmentMetrics));
+    }
 }

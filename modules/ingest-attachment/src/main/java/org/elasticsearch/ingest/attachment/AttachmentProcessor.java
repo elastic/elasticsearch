@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.attachment;
 
+import org.apache.lucene.util.SetOnce;
 import org.apache.tika.exception.ZeroByteFileException;
 import org.apache.tika.langdetect.tika.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
@@ -88,6 +89,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
     private final RelativeByteSizeValue maxFieldSizeFromNode;
     private final long maxFieldSizeFromNodeBytes;
     private final String maxFieldSizeExceededMessage;
+    private final SetOnce<AttachmentIngestMetrics> attachmentMetrics;
 
     AttachmentProcessor(
         String tag,
@@ -102,7 +104,8 @@ public final class AttachmentProcessor extends AbstractProcessor {
         boolean removeBinary,
         int maxFieldBytesFromProcessor,
         RelativeByteSizeValue maxFieldSizeFromNode,
-        String maxFieldSizeExceededMessage
+        String maxFieldSizeExceededMessage,
+        SetOnce<AttachmentIngestMetrics> attachmentMetrics
     ) {
         super(tag, description);
         this.field = field;
@@ -117,6 +120,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
         this.maxFieldSizeFromNode = maxFieldSizeFromNode;
         this.maxFieldSizeFromNodeBytes = resolveMaxFieldSizeFromNode(maxFieldSizeFromNode);
         this.maxFieldSizeExceededMessage = maxFieldSizeExceededMessage;
+        this.attachmentMetrics = attachmentMetrics;
     }
 
     /**
@@ -196,7 +200,11 @@ public final class AttachmentProcessor extends AbstractProcessor {
         } else if (fieldValue == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot parse.");
         }
-        checkMaxAttachmentFieldSize(ingestDocument.getFieldValueRawBytesLength(field, fieldValue));
+        final int rawBytes = ingestDocument.getFieldValueRawBytesLength(field, fieldValue);
+        if (attachmentMetrics.get() != null) {
+            attachmentMetrics.get().recordRawBytesReceived(rawBytes);
+        }
+        checkMaxAttachmentFieldSize(rawBytes);
         byte[] input = ingestDocument.getFieldValueAsBytes(field, fieldValue);
 
         Integer indexedCharsValue = this.indexedChars;
@@ -284,6 +292,9 @@ public final class AttachmentProcessor extends AbstractProcessor {
         if (removeBinary) {
             ingestDocument.removeField(field);
         }
+        if (attachmentMetrics.get() != null) {
+            attachmentMetrics.get().recordRawBytesProcessed(rawBytes);
+        }
         return ingestDocument;
     }
 
@@ -326,10 +337,12 @@ public final class AttachmentProcessor extends AbstractProcessor {
 
         private final RelativeByteSizeValue maxFieldSizeFromNode;
         private final String maxFieldSizeExceededMessage;
+        private final SetOnce<AttachmentIngestMetrics> attachmentMetrics;
 
-        public Factory(Settings nodeSettings) {
+        public Factory(Settings nodeSettings, SetOnce<AttachmentIngestMetrics> attachmentMetrics) {
             this.maxFieldSizeFromNode = MAX_FIELD_SIZE_SETTING.get(nodeSettings);
             this.maxFieldSizeExceededMessage = MAX_FIELD_SIZE_MESSAGE_SUFFIX_SETTING.get(nodeSettings);
+            this.attachmentMetrics = attachmentMetrics;
         }
 
         @Override
@@ -403,7 +416,8 @@ public final class AttachmentProcessor extends AbstractProcessor {
                 removeBinary,
                 maxFieldBytesFromProcessor,
                 maxFieldSizeFromNode,
-                maxFieldSizeExceededMessage
+                maxFieldSizeExceededMessage,
+                attachmentMetrics
             );
         }
     }

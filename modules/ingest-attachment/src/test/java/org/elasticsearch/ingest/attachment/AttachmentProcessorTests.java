@@ -10,6 +10,7 @@
 package org.elasticsearch.ingest.attachment;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -19,6 +20,8 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -65,7 +68,8 @@ public class AttachmentProcessorTests extends ESTestCase {
             false,
             -1,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
-            ""
+            "",
+            new SetOnce<>()
         );
     }
 
@@ -123,7 +127,8 @@ public class AttachmentProcessorTests extends ESTestCase {
             false,
             -1,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
-            ""
+            "",
+            new SetOnce<>()
         );
 
         Map<String, Object> attachmentData = parseDocument("htmlWithEmptyDateMeta.html", processor);
@@ -383,7 +388,8 @@ public class AttachmentProcessorTests extends ESTestCase {
             false,
             -1,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
-            ""
+            "",
+            new SetOnce<>()
         );
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
@@ -405,7 +411,8 @@ public class AttachmentProcessorTests extends ESTestCase {
             false,
             -1,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
-            ""
+            "",
+            new SetOnce<>()
         );
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
@@ -430,7 +437,8 @@ public class AttachmentProcessorTests extends ESTestCase {
             false,
             -1,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
-            ""
+            "",
+            new SetOnce<>()
         );
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("field [source_field] is null, cannot parse."));
@@ -452,7 +460,8 @@ public class AttachmentProcessorTests extends ESTestCase {
             false,
             -1,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
-            ""
+            "",
+            new SetOnce<>()
         );
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("field [source_field] not present as part of path [source_field]"));
@@ -502,7 +511,8 @@ public class AttachmentProcessorTests extends ESTestCase {
             false,
             -1,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
-            ""
+            "",
+            new SetOnce<>()
         );
 
         Map<String, Object> attachmentData = parseDocument("text-in-english.txt", processor);
@@ -526,7 +536,8 @@ public class AttachmentProcessorTests extends ESTestCase {
             false,
             -1,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
-            ""
+            "",
+            new SetOnce<>()
         );
 
         attachmentData = parseDocument("text-in-english.txt", processor);
@@ -569,7 +580,8 @@ public class AttachmentProcessorTests extends ESTestCase {
             false,
             -1,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
-            ""
+            "",
+            new SetOnce<>()
         );
 
         Map<String, Object> attachmentData = parseDocument(
@@ -626,7 +638,8 @@ public class AttachmentProcessorTests extends ESTestCase {
                 true,
                 -1,
                 new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
-                ""
+                "",
+                new SetOnce<>()
             );
             Map<String, Object> document = new HashMap<>();
             document.put("source_field", getAsBinaryOrBase64("text-in-english.txt"));
@@ -650,7 +663,8 @@ public class AttachmentProcessorTests extends ESTestCase {
             true,
             randomIntBetween(1, 4),
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
-            ""
+            "",
+            new SetOnce<>()
         );
         ElasticsearchParseException ex = expectThrows(
             ElasticsearchParseException.class,
@@ -674,7 +688,8 @@ public class AttachmentProcessorTests extends ESTestCase {
             true,
             100,
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
-            ""
+            "",
+            new SetOnce<>()
         );
         // Each "QQ==" is four bytes and decodes to two bytes; raw field size exceeds the cap while decoded size stays modest.
         String largeBase64 = "QQ==".repeat(50);
@@ -702,7 +717,8 @@ public class AttachmentProcessorTests extends ESTestCase {
             true,
             randomIntBetween(100000, 200000),
             new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
-            ""
+            "",
+            new SetOnce<>()
         );
         final var attachmentData = parseDocument("text-in-english.txt", processor);
         assertNotNull(attachmentData);
@@ -728,7 +744,8 @@ public class AttachmentProcessorTests extends ESTestCase {
             true,
             bytes,
             nodeLimit,
-            ""
+            "",
+            new SetOnce<>()
         );
 
         if (bytes < 0) {
@@ -763,7 +780,8 @@ public class AttachmentProcessorTests extends ESTestCase {
             final int bytes = randomIntBetween(-1, 10);
             final var expectedRelativeByteSizeValue = new RelativeByteSizeValue(ByteSizeValue.ofBytes(bytes));
             final var testFactory = new AttachmentProcessor.Factory(
-                Settings.builder().put("ingest.attachment.max_field_size", bytes + "b").build()
+                Settings.builder().put("ingest.attachment.max_field_size", bytes + "b").build(),
+                new SetOnce<>()
             );
             int expectedProcessorBytes = -1;
             if (randomBoolean() && bytes >= 0) {
@@ -799,7 +817,8 @@ public class AttachmentProcessorTests extends ESTestCase {
             long percent = randomLongBetween(0L, 2L);
             final var expectedRelativeByteSizeValue = new RelativeByteSizeValue(new RatioValue(percent * 1.0));
             final var testFactory = new AttachmentProcessor.Factory(
-                Settings.builder().put("ingest.attachment.max_field_size", percent + "%").build()
+                Settings.builder().put("ingest.attachment.max_field_size", percent + "%").build(),
+                new SetOnce<>()
             );
             long heapMaxBytes = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
             assertThat(heapMaxBytes, greaterThan(0L));
@@ -853,7 +872,8 @@ public class AttachmentProcessorTests extends ESTestCase {
             Settings.builder()
                 .put(AttachmentProcessor.MAX_FIELD_SIZE_SETTING.getKey(), "1b")
                 .put(AttachmentProcessor.MAX_FIELD_SIZE_MESSAGE_SUFFIX_SETTING.getKey(), customMessage)
-                .build()
+                .build(),
+            new SetOnce<>()
         ).create(null, "t", null, config, null);
 
         ElasticsearchParseException ex = expectThrows(
@@ -864,6 +884,139 @@ public class AttachmentProcessorTests extends ESTestCase {
             ex.getMessage(),
             equalTo("field [source_field] has an attachment field size of [2] bytes exceeding the maximum allowed input size custom")
         );
+    }
+
+    public void testSizeMetricsSuccess() throws Exception {
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        SetOnce<AttachmentIngestMetrics> metricsRef = new SetOnce<>();
+        metricsRef.set(new AttachmentIngestMetrics(meterRegistry));
+        processor = new AttachmentProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            "target_field",
+            EnumSet.of(AttachmentProcessor.Property.CONTENT),
+            10000,
+            false,
+            null,
+            null,
+            false,
+            -1,
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            "",
+            metricsRef
+        );
+        int bytes = randomIntBetween(1, 100);
+        assertThat(parseRandomStringAttachmentAndGetTargetField(bytes, processor), notNullValue());
+        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_BYTES_RECEIVED, bytes);
+        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_BYTES_PROCESSED, bytes);
+    }
+
+    public void testSizeMetricsIgnoreMissing() throws Exception {
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        SetOnce<AttachmentIngestMetrics> metricsRef = new SetOnce<>();
+        metricsRef.set(new AttachmentIngestMetrics(meterRegistry));
+        processor = new AttachmentProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            "randomTarget",
+            EnumSet.of(AttachmentProcessor.Property.CONTENT),
+            10,
+            true,
+            null,
+            null,
+            false,
+            -1,
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            "",
+            metricsRef
+        );
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
+        processor.execute(ingestDocument);
+        assertThat(
+            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_BYTES_RECEIVED),
+            hasSize(0)
+        );
+        assertThat(
+            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_BYTES_PROCESSED),
+            hasSize(0)
+        );
+    }
+
+    public void testSizeMetricsForOversize() {
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        SetOnce<AttachmentIngestMetrics> metricsRef = new SetOnce<>();
+        metricsRef.set(new AttachmentIngestMetrics(meterRegistry));
+        processor = new AttachmentProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            "target_field",
+            EnumSet.of(AttachmentProcessor.Property.CONTENT),
+            10000,
+            false,
+            null,
+            null,
+            false,
+            0,
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            "",
+            metricsRef
+        );
+
+        int bytes = randomIntBetween(1, 100);
+        expectThrows(ElasticsearchParseException.class, () -> parseRandomStringAttachmentAndGetTargetField(bytes, processor));
+
+        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_BYTES_RECEIVED, bytes);
+        assertThat(
+            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_BYTES_PROCESSED),
+            hasSize(0)
+        );
+    }
+
+    public void testSizeMetricsWhenProcessingFails() throws Exception {
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        SetOnce<AttachmentIngestMetrics> metricsRef = new SetOnce<>();
+        metricsRef.set(new AttachmentIngestMetrics(meterRegistry));
+        processor = new AttachmentProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            "target_field",
+            EnumSet.allOf(AttachmentProcessor.Property.class),
+            10000,
+            false,
+            null,
+            null,
+            false,
+            -1,
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            "",
+            metricsRef
+        );
+        expectThrows(ElasticsearchParseException.class, () -> parseDocument("encrypted.pdf", processor));
+        assertThat(
+            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_BYTES_RECEIVED),
+            hasSize(greaterThanOrEqualTo(1))
+        );
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_BYTES_RECEIVED)
+                .getLast()
+                .getLong(),
+            greaterThan(0L)
+        );
+        assertThat(
+            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_BYTES_PROCESSED),
+            hasSize(0)
+        );
+    }
+
+    private static void assertHistogramLastValue(RecordingMeterRegistry meterRegistry, String metricName, long expected) {
+        var measurements = meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, metricName);
+        assertThat(measurements, hasSize(greaterThanOrEqualTo(1)));
+        assertThat(measurements.get(measurements.size() - 1).getLong(), equalTo(expected));
     }
 
     private static Object parseRandomStringAttachmentAndGetTargetField(int bytes, Processor processor) throws Exception {

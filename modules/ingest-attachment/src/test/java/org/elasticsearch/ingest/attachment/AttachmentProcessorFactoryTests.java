@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.attachment;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -30,7 +31,7 @@ import static org.hamcrest.core.Is.is;
 
 public class AttachmentProcessorFactoryTests extends ESTestCase {
 
-    private final AttachmentProcessor.Factory factory = new AttachmentProcessor.Factory(Settings.EMPTY);
+    private final AttachmentProcessor.Factory factory = new AttachmentProcessor.Factory(Settings.EMPTY, new SetOnce<>());
 
     public void testBuildDefaults() throws Exception {
         Map<String, Object> config = new HashMap<>();

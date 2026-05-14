@@ -9,6 +9,7 @@
 
 package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
+import io.opentelemetry.sdk.metrics.Aggregation;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter;
@@ -22,6 +23,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class OtelSdkExportMeterSupplierTests extends ESTestCase {
 
@@ -96,6 +98,32 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
             greaterThan(0)
         );
         supplier.close();
+    }
+
+    /** Default preserves OTel's built-in behavior: explicit-bucket histograms. */
+    public void testHistogramAggregationDefaultsToExplicitBucket() {
+        assertThat(OtelSdkExportMeterSupplier.histogramAggregation(Settings.EMPTY), sameInstance(Aggregation.explicitBucketHistogram()));
+    }
+
+    public void testHistogramAggregationExplicitBucketWhenConfigured() {
+        Settings settings = Settings.builder()
+            .put(OtelSdkSettings.TELEMETRY_OTEL_METRICS_HISTOGRAM_AGGREGATION.getKey(), "EXPLICIT_BUCKET_HISTOGRAM")
+            .build();
+        assertThat(OtelSdkExportMeterSupplier.histogramAggregation(settings), sameInstance(Aggregation.explicitBucketHistogram()));
+    }
+
+    public void testHistogramAggregationBase2ExponentialBucketWhenConfigured() {
+        Settings settings = Settings.builder()
+            .put(OtelSdkSettings.TELEMETRY_OTEL_METRICS_HISTOGRAM_AGGREGATION.getKey(), "BASE2_EXPONENTIAL_BUCKET_HISTOGRAM")
+            .build();
+        assertThat(OtelSdkExportMeterSupplier.histogramAggregation(settings), sameInstance(Aggregation.base2ExponentialBucketHistogram()));
+    }
+
+    public void testHistogramAggregationRejectsUnknownValue() {
+        Settings settings = Settings.builder()
+            .put(OtelSdkSettings.TELEMETRY_OTEL_METRICS_HISTOGRAM_AGGREGATION.getKey(), "TDIGEST")
+            .build();
+        expectThrows(IllegalArgumentException.class, () -> OtelSdkExportMeterSupplier.histogramAggregation(settings));
     }
 
     private static OtelSdkExportMeterSupplier.OTelMetricsResources testResources(InMemoryMetricExporter exporter) {

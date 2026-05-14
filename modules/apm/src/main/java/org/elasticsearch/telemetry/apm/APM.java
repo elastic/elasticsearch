@@ -92,6 +92,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
             OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENDPOINT,
             OtelSdkSettings.TELEMETRY_OTEL_METRICS_INTERVAL,
             OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENABLED,
+            OtelSdkSettings.TELEMETRY_OTEL_METRICS_HISTOGRAM_AGGREGATION,
             // Tracing
             APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING,
             APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING,

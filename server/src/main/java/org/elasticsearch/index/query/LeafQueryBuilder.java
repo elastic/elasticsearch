@@ -11,8 +11,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
-import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 
@@ -27,7 +25,6 @@ import java.io.IOException;
 public abstract class LeafQueryBuilder<QB extends LeafQueryBuilder<QB>> extends AbstractQueryBuilder<QB> {
 
     protected LeafQueryBuilder() {
-        
     }
 
     protected LeafQueryBuilder(StreamInput in) throws IOException {

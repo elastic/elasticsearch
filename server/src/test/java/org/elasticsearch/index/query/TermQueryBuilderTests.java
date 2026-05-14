@@ -19,7 +19,6 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -28,7 +27,6 @@ import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.util.Locale;
-import java.util.stream.IntStream;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;

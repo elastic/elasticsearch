@@ -178,7 +178,7 @@ public class RuleQueryBuilder extends LeafQueryBuilder<RuleQueryBuilder> {
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
 
         if (pinnedDocsSupplier != null && excludedDocsSupplier != null) {
             List<SpecifiedDocument> identifiedPinnedDocs = pinnedDocsSupplier.get();
@@ -189,24 +189,28 @@ public class RuleQueryBuilder extends LeafQueryBuilder<RuleQueryBuilder> {
                 return this;
             }
 
+            // Rewrite the organic query so that any pending coordinator-level rewrites (e.g. inference)
+            // are applied before it is wrapped in a PinnedQueryBuilder or BoolQueryBuilder.
+            QueryBuilder rewrittenOrganic = organicQuery.rewrite(queryRewriteContext);
+
             if (identifiedPinnedDocs.isEmpty() && identifiedExcludedDocs.isEmpty()) {
                 // Nothing to do, just return the organic query
-                return organicQuery;
+                return rewrittenOrganic;
             }
 
             if (identifiedPinnedDocs.isEmpty() == false && identifiedExcludedDocs.isEmpty()) {
                 // We have pinned IDs but nothing to exclude
-                return new PinnedQueryBuilder(organicQuery, truncateList(identifiedPinnedDocs).toArray(new SpecifiedDocument[0]));
+                return new PinnedQueryBuilder(rewrittenOrganic, truncateList(identifiedPinnedDocs).toArray(new SpecifiedDocument[0]));
             }
 
             if (identifiedPinnedDocs.isEmpty()) {
                 // We have excluded IDs but nothing to pin
                 QueryBuilder excludedDocsQueryBuilder = buildExcludedDocsQuery(identifiedExcludedDocs);
-                return new BoolQueryBuilder().must(organicQuery).mustNot(excludedDocsQueryBuilder);
+                return new BoolQueryBuilder().must(rewrittenOrganic).mustNot(excludedDocsQueryBuilder);
             } else {
                 // We have documents to both pin and exclude
                 QueryBuilder pinnedQuery = new PinnedQueryBuilder(
-                    organicQuery,
+                    rewrittenOrganic,
                     truncateList(identifiedPinnedDocs).toArray(new SpecifiedDocument[0])
                 );
                 QueryBuilder excludedDocsQueryBuilder = buildExcludedDocsQuery(identifiedExcludedDocs);

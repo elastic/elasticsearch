@@ -292,7 +292,13 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
     private QueryBuilder queryNonSemanticTextField() {
         List<WeightedToken> queryVector = originalQuery.getQueryVectors();
         if (queryVector == null) {
-            throw new IllegalStateException("No query vector set when querying a non-inference field");
+            throw new IllegalStateException(
+                "No query vector set when querying non-inference field ["
+                    + getField()
+                    + "] with inference ID ["
+                    + originalQuery.getInferenceId()
+                    + "]. This suggests the coordinator rewrite did not complete inference before the query reached the data node."
+            );
         }
 
         return new SparseVectorQueryBuilder(

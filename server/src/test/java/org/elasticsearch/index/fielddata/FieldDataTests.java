@@ -44,7 +44,7 @@ public class FieldDataTests extends ESTestCase {
         LongValues values = new DummyValues(valueBits);
 
         SortedNumericDoubleValues asMultiDoubles = FieldData.sortableLongBitsToDoubles(SortedNumericLongValues.singleton(values));
-        DoubleValues asDoubles = FieldData.unwrapSingleton(asMultiDoubles);
+        DoubleValues asDoubles = SortedNumericDoubleValues.unwrapSingleton(asMultiDoubles);
         assertNotNull(asDoubles);
         assertTrue(asDoubles.advanceExact(0));
         assertEquals(value, asDoubles.doubleValue(), 0);

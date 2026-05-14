@@ -1298,6 +1298,12 @@ public class RoundingTests extends ESTestCase {
         assertArrayEquals(lowerRounding.prepare(min - 1, max).fixedRoundingPoints(), upper.fixedRoundingPoints());
     }
 
+    public void testUpperIntervalGetIntervalMatchesWrappedRounding() {
+        Rounding lowerRounding = Rounding.builder(TimeValue.timeValueMinutes(5)).build();
+        Rounding upperRounding = Rounding.ToUpperRounding.createRounding(lowerRounding);
+        assertThat(upperRounding.getInterval(), equalTo(lowerRounding.getInterval()));
+    }
+
     public void testUpperIntervalRoundingPreservesConfigurationOnReprepare() {
         long min = time("2020-01-01T00:00:30");
         long max = time("2020-01-01T00:20:30");

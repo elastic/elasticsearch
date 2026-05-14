@@ -1819,6 +1819,7 @@ public abstract class Rounding implements Writeable {
                 yield new Interval(unit.multiplier, name);
             }
             case Rounding.OffsetRounding offset -> offset.delegate.getInterval();
+            case Rounding.ToUpperRounding upper -> upper.next.getInterval();
             default -> throw new RuntimeException("Unexpected Rounding implementation: " + getClass().getName());
         };
     }

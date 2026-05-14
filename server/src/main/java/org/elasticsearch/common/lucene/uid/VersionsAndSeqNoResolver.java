@@ -93,7 +93,7 @@ public final class VersionsAndSeqNoResolver {
     private VersionsAndSeqNoResolver() {}
 
     /** Wraps an {@link LeafReaderContext}, a doc ID <b>relative to the context doc base</b> and a version. */
-    public static class DocIdAndVersion {
+    public static final class DocIdAndVersion {
         public final int docId;
         public final long version;
         public final long seqNo;
@@ -101,7 +101,7 @@ public final class VersionsAndSeqNoResolver {
         public final LeafReader reader;
         public final int docBase;
 
-        public DocIdAndVersion(int docId, long version, long seqNo, long primaryTerm, LeafReader reader, int docBase) {
+        DocIdAndVersion(int docId, long version, long seqNo, long primaryTerm, LeafReader reader, int docBase) {
             this.docId = docId;
             this.version = version;
             this.seqNo = seqNo;
@@ -112,7 +112,7 @@ public final class VersionsAndSeqNoResolver {
     }
 
     /** Wraps an {@link LeafReaderContext}, a doc ID <b>relative to the context doc base</b> and a seqNo. */
-    public static class DocIdAndSeqNo {
+    public static final class DocIdAndSeqNo {
         public final int docId;
         public final long seqNo;
         public final LeafReaderContext context;

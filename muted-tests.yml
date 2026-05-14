@@ -530,9 +530,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
   method: testMixedOperationsDuringSplit
   issue: https://github.com/elastic/elasticsearch/issues/148809
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {yaml=snapshot/10_basic/Create a source only snapshot and then restore it}
-  issue: https://github.com/elastic/elasticsearch/issues/148917
 - class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
   method: testProcessOnceOnPrimary
   issue: https://github.com/elastic/elasticsearch/issues/148943
@@ -543,11 +540,7 @@ tests:
   method: testFieldValueRangeForBatchedCompoundCommit
   issue: https://github.com/elastic/elasticsearch/issues/148961
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
-  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
-  issue: https://github.com/elastic/elasticsearch/issues/147516
-- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
-  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Get old regression job stats}
-  issue: https://github.com/elastic/elasticsearch/issues/147517
+  issue: https://github.com/elastic/elasticsearch/issues/149010
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:flattened.casePicksPerRow}
   issue: https://github.com/elastic/elasticsearch/issues/149027
@@ -575,3 +568,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:fuse.fuseWithRowRRFAndMultiValueGroupColumn}
   issue: https://github.com/elastic/elasticsearch/issues/149046
+- class: org.elasticsearch.xpack.security.ReindexRelocationWithSecurityIT
+  method: testReindexRelocatesWhenCoordinatorShutsDown
+  issue: https://github.com/elastic/elasticsearch/issues/149055

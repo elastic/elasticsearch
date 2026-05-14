@@ -40,13 +40,13 @@ import static org.mockito.Mockito.verify;
 
 public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
     private int slices;
-    private BulkByScrollTask task;
+    private BulkByPaginatedSearchTask task;
     private LeaderBulkByScrollTaskState taskState;
 
     @Before
     public void createTask() {
         slices = between(2, 50);
-        task = new BulkByScrollTask(
+        task = new BulkByPaginatedSearchTask(
             new TaskId(randomAlphaOfLength(10), 1),
             "test_type",
             "test_action",
@@ -75,8 +75,10 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
         long noops = 0;
         long versionConflicts = 0;
         int batches = 0;
-        List<BulkByScrollTask.StatusOrException> sliceStatuses = Arrays.asList(new BulkByScrollTask.StatusOrException[slices]);
-        BulkByScrollTask.Status status = task.getStatus();
+        List<BulkByPaginatedSearchTask.StatusOrException> sliceStatuses = Arrays.asList(
+            new BulkByPaginatedSearchTask.StatusOrException[slices]
+        );
+        BulkByPaginatedSearchTask.Status status = task.getStatus();
         assertEquals(total, status.getTotal());
         assertEquals(created, status.getCreated());
         assertEquals(updated, status.getUpdated());
@@ -94,7 +96,7 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
             int thisNoops = thisTotal - thisCreated - thisUpdated - thisDeleted;
             int thisVersionConflicts = between(0, 1000);
             int thisBatches = between(1, 100);
-            BulkByScrollTask.Status sliceStatus = new BulkByScrollTask.Status(
+            BulkByPaginatedSearchTask.Status sliceStatus = new BulkByPaginatedSearchTask.Status(
                 slice,
                 thisTotal,
                 thisUpdated,
@@ -117,7 +119,7 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
             noops += thisNoops;
             versionConflicts += thisVersionConflicts;
             batches += thisBatches;
-            sliceStatuses.set(slice, new BulkByScrollTask.StatusOrException(sliceStatus));
+            sliceStatuses.set(slice, new BulkByPaginatedSearchTask.StatusOrException(sliceStatus));
 
             @SuppressWarnings("unchecked")
             ActionListener<BulkByScrollResponse> listener = slice < slices - 1 ? neverCalledListener() : mock(ActionListener.class);
@@ -262,8 +264,8 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
         assertThat(response.getPitId().get(), equalTo(pitIdSlice2));
     }
 
-    private static BulkByScrollTask createLeaderTask(final int sliceCount) {
-        final BulkByScrollTask task = new BulkByScrollTask(
+    private static BulkByPaginatedSearchTask createLeaderTask(final int sliceCount) {
+        final BulkByPaginatedSearchTask task = new BulkByPaginatedSearchTask(
             new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
@@ -322,7 +324,7 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
     public void testFinalResponseUsesLeaderStoredRps() {
         final float leaderRps = randomFloatBetween(1f, 1000f, true);
         final int sliceCount = between(2, 5);
-        final BulkByScrollTask leaderTask = new BulkByScrollTask(
+        final BulkByPaginatedSearchTask leaderTask = new BulkByPaginatedSearchTask(
             new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
@@ -338,7 +340,7 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
         final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
         for (int i = 0; i < sliceCount; i++) {
             float childRps = randomFloatBetween(0.1f, 50f, true);
-            BulkByScrollTask.Status childStatus = new BulkByScrollTask.Status(
+            BulkByPaginatedSearchTask.Status childStatus = new BulkByPaginatedSearchTask.Status(
                 i,
                 0,
                 0,
@@ -370,7 +372,7 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
     public void testGetStatusReportsStoredRpsNotSumOfChildren() {
         final float leaderRps = randomFloatBetween(1f, 1000f, true);
         final int sliceCount = between(2, 10);
-        final BulkByScrollTask leaderTask = new BulkByScrollTask(
+        final BulkByPaginatedSearchTask leaderTask = new BulkByPaginatedSearchTask(
             new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
@@ -386,7 +388,7 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
         // Simulate children completing with various per-child RPS that don't sum to leaderRps
         for (int i = 0; i < sliceCount; i++) {
             float childRps = randomFloatBetween(0.1f, 50f, true);
-            BulkByScrollTask.Status childStatus = new BulkByScrollTask.Status(
+            BulkByPaginatedSearchTask.Status childStatus = new BulkByPaginatedSearchTask.Status(
                 i,
                 0,
                 0,
@@ -419,7 +421,7 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
 
     public void testCaptureRequestsPerSecondForRelocation() {
         final float initialRPS = randomFloatBetween(0.1f, 1000f, true);
-        final BulkByScrollTask leaderTask = new BulkByScrollTask(
+        final BulkByPaginatedSearchTask leaderTask = new BulkByPaginatedSearchTask(
             new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
@@ -497,8 +499,8 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
         }
     }
 
-    private static BulkByScrollTask createRelocationLeaderTask(final int sliceCount) {
-        final BulkByScrollTask task = new BulkByScrollTask(
+    private static BulkByPaginatedSearchTask createRelocationLeaderTask(final int sliceCount) {
+        final BulkByPaginatedSearchTask task = new BulkByPaginatedSearchTask(
             new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
@@ -514,8 +516,8 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
         return task;
     }
 
-    private static BulkByScrollTask.Status statusForSlice(final int sliceId) {
-        return new BulkByScrollTask.Status(
+    private static BulkByPaginatedSearchTask.Status statusForSlice(final int sliceId) {
+        return new BulkByPaginatedSearchTask.Status(
             sliceId,
             randomNonNegativeInt(),
             randomNonNegativeInt(),
@@ -544,7 +546,7 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
         );
         return new BulkByScrollResponse(
             randomTimeValue(),
-            new BulkByScrollTask.Status(List.of(), null, 0f),
+            new BulkByPaginatedSearchTask.Status(List.of(), null, 0f),
             List.of(),
             List.of(),
             false,

@@ -197,7 +197,9 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
             registry.registerLongGauge(
                 FIELD_INFOS_CACHED_CURRENT_METRIC_NAME,
                 "Unique FieldInfo instances retained by the per-shard FieldInfo cache across all shards on this node; "
-                    + "deduped count of " + FIELD_INFOS_CURRENT_METRIC_NAME + ", which ideally approaches "
+                    + "deduped count of "
+                    + FIELD_INFOS_CURRENT_METRIC_NAME
+                    + ", which ideally approaches "
                     + MAPPING_FIELDS_CURRENT_METRIC_NAME,
                 "unit",
                 () -> new LongWithAttributes(getCachedFieldInfoCount(cache.indicesService))
@@ -206,8 +208,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
         metrics.add(
             registry.registerLongGauge(
                 FIELD_INFOS_CURRENT_METRIC_NAME,
-                "Raw count of FieldInfo instances summed across every segment of every shard on this node, before "
-                    + "deduplication",
+                "Raw count of FieldInfo instances summed across every segment of every shard on this node, before " + "deduplication",
                 "unit",
                 () -> new LongWithAttributes(getTotalLuceneFieldCount(cache.indicesService))
             )

@@ -15,7 +15,7 @@ import org.apache.lucene.search.LongValues;
 import java.io.IOException;
 
 /**
- * A multivalued version of {@link LongValues}
+ * Iterable extention of {@link SortedNumericLongValues}.
  */
 public abstract class IterableSortedNumericLongValues extends SortedNumericLongValues implements IterableNumericValues {
 

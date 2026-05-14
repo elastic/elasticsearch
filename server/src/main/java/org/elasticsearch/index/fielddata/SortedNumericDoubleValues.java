@@ -124,7 +124,6 @@ public abstract class SortedNumericDoubleValues {
                 }
             };
         }
-
         return new IterableSortedNumericDoubleValues() {
             @Override
             public int docID() {

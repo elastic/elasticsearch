@@ -161,31 +161,29 @@ public enum FieldData {
      * Wrap the provided {@link SortedNumericDocValues} instance to cast all values to doubles.
      */
     public static SortedNumericDoubleValues castToDouble(final SortedNumericLongValues values) {
-        if (values instanceof IterableSortedNumericLongValues iterableLongValues) {
-            if (iterableLongValues instanceof IterableSortedNumericLongValues.Singleton singleton) {
-                return new IterableSortedNumericDoubleValues.Singleton() {
-                    @Override
-                    public int docID() {
-                        return singleton.docID();
-                    }
+        return switch (values) {
+            case IterableSortedNumericLongValues.Singleton singleton -> new IterableSortedNumericDoubleValues.Singleton() {
+                @Override
+                public int docID() {
+                    return singleton.docID();
+                }
 
-                    @Override
-                    public int advance(int target) throws IOException {
-                        return singleton.advance(target);
-                    }
+                @Override
+                public int advance(int target) throws IOException {
+                    return singleton.advance(target);
+                }
 
-                    @Override
-                    public boolean advanceExact(int target) throws IOException {
-                        return singleton.advanceExact(target);
-                    }
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    return singleton.advanceExact(target);
+                }
 
-                    @Override
-                    public double nextValue() throws IOException {
-                        return singleton.nextValue();
-                    }
-                };
-            }
-            return new IterableSortedNumericDoubleValues() {
+                @Override
+                public double nextValue() throws IOException {
+                    return singleton.nextValue();
+                }
+            };
+            case IterableSortedNumericLongValues iterableLongValues -> new IterableSortedNumericDoubleValues() {
                 @Override
                 public int docID() {
                     return iterableLongValues.docID();
@@ -211,44 +209,40 @@ public enum FieldData {
                     return iterableLongValues.docValueCount();
                 }
             };
-        }
-        final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
-        if (singleton != null) {
-            return singleton(new DoubleCastedValues(singleton));
-        } else {
-            return new SortedDoubleCastedValues(values);
-        }
+            default -> {
+                final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
+                yield singleton != null ? singleton(new DoubleCastedValues(singleton)) : new SortedDoubleCastedValues(values);
+            }
+        };
     }
 
     /**
      * Wrap the provided {@link SortedNumericDoubleValues} instance to cast all values to longs.
      */
     public static SortedNumericLongValues castToLong(final SortedNumericDoubleValues values) {
-        if (values instanceof IterableSortedNumericDoubleValues iterableDoubleValues) {
-            if (iterableDoubleValues instanceof IterableSortedNumericDoubleValues.Singleton singleton) {
-                return new IterableSortedNumericLongValues.Singleton() {
-                    @Override
-                    public int docID() {
-                        return singleton.docID();
-                    }
+        return switch (values) {
+            case IterableSortedNumericDoubleValues.Singleton singleton -> new IterableSortedNumericLongValues.Singleton() {
+                @Override
+                public int docID() {
+                    return singleton.docID();
+                }
 
-                    @Override
-                    public int advance(int target) throws IOException {
-                        return singleton.advance(target);
-                    }
+                @Override
+                public int advance(int target) throws IOException {
+                    return singleton.advance(target);
+                }
 
-                    @Override
-                    public boolean advanceExact(int target) throws IOException {
-                        return singleton.advanceExact(target);
-                    }
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    return singleton.advanceExact(target);
+                }
 
-                    @Override
-                    public long nextValue() throws IOException {
-                        return (long) singleton.nextValue();
-                    }
-                };
-            }
-            return new IterableSortedNumericLongValues() {
+                @Override
+                public long nextValue() throws IOException {
+                    return (long) singleton.nextValue();
+                }
+            };
+            case IterableSortedNumericDoubleValues iterableDoubleValues -> new IterableSortedNumericLongValues() {
                 @Override
                 public int docID() {
                     return iterableDoubleValues.docID();
@@ -274,13 +268,13 @@ public enum FieldData {
                     return iterableDoubleValues.docValueCount();
                 }
             };
-        }
-        final DoubleValues singleton = SortedNumericDoubleValues.unwrapSingleton(values);
-        if (singleton != null) {
-            return SortedNumericLongValues.singleton(new LongCastedValues(singleton));
-        } else {
-            return new SortedLongCastedValues(values);
-        }
+            default -> {
+                final DoubleValues singleton = SortedNumericDoubleValues.unwrapSingleton(values);
+                yield singleton != null
+                    ? SortedNumericLongValues.singleton(new LongCastedValues(singleton))
+                    : new SortedLongCastedValues(values);
+            }
+        };
     }
 
     /**

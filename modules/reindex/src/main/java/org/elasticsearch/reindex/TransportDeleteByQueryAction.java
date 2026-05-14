@@ -19,8 +19,8 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -77,11 +77,11 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
 
     @Override
     public void doExecute(Task task, DeleteByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
-        BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
+        BulkByPaginatedSearchTask bulkByPaginatedSearchTask = (BulkByPaginatedSearchTask) task;
         long startTime = System.nanoTime();
         BulkByPaginatedSearchParallelizationHelper.startSlicedAction(
             request,
-            bulkByScrollTask,
+            bulkByPaginatedSearchTask,
             DeleteByQueryAction.INSTANCE,
             listener,
             client,
@@ -90,10 +90,10 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(
                     client,
                     clusterService.localNode(),
-                    bulkByScrollTask
+                    bulkByPaginatedSearchTask
                 );
                 new AsyncDeleteByQueryAction(
-                    bulkByScrollTask,
+                    bulkByPaginatedSearchTask,
                     logger,
                     assigningClient,
                     threadPool,

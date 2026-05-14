@@ -17,8 +17,8 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,7 +33,7 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<De
     private final CircuitBreaker requestBreaker;
 
     public AsyncDeleteByQueryAction(
-        BulkByScrollTask task,
+        BulkByPaginatedSearchTask task,
         Logger logger,
         ParentTaskAssigningClient client,
         ThreadPool threadPool,

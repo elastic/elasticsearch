@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -48,55 +49,46 @@ public class FieldExtractTests extends AbstractScalarFunctionTestCase {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         for (DataType pathType : List.of(DataType.KEYWORD, DataType.TEXT)) {
-            suppliers.add(
-                new TestCaseSupplier(
-                    "literal dotted key " + pathType.typeName(),
-                    types(DataType.FLATTENED, pathType),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("{\"host.name\":\"node-a\"}"), DataType.FLATTENED, "field"),
-                            new TestCaseSupplier.TypedData(new BytesRef("host.name"), pathType, "path")
-                        ),
-                        "FieldExtractEvaluator[flattenedJson=Attribute[channel=0], path=Attribute[channel=1]]",
-                        DataType.KEYWORD,
-                        equalTo(new BytesRef("node-a"))
-                    )
-                )
-            );
-        }
-
-        suppliers.add(
-            new TestCaseSupplier(
-                "constant dotted path",
-                types(DataType.FLATTENED, DataType.KEYWORD),
-                () -> new TestCaseSupplier.TestCase(
+            suppliers.add(new TestCaseSupplier("literal dotted key " + pathType.typeName(), types(DataType.FLATTENED, pathType), () -> {
+                assumeTrue("Requires FIELD_EXTRACT_FUNCTION capability", EsqlCapabilities.Cap.FIELD_EXTRACT_FUNCTION.isEnabled());
+                return new TestCaseSupplier.TestCase(
                     List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef("{\"k.inner\":\"v\"}"), DataType.FLATTENED, "field"),
-                        new TestCaseSupplier.TypedData(new BytesRef("k.inner"), DataType.KEYWORD, "path").forceLiteral()
-                    ),
-                    "FieldExtractConstantEvaluator[flattenedJson=Attribute[channel=0], path=k.inner]",
-                    DataType.KEYWORD,
-                    equalTo(new BytesRef("v"))
-                )
-            )
-        );
-
-        suppliers.add(
-            new TestCaseSupplier(
-                "missing path",
-                types(DataType.FLATTENED, DataType.KEYWORD),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef("{\"a\":1}"), DataType.FLATTENED, "field"),
-                        new TestCaseSupplier.TypedData(new BytesRef("missing"), DataType.KEYWORD, "path")
+                        new TestCaseSupplier.TypedData(new BytesRef("{\"host.name\":\"node-a\"}"), DataType.FLATTENED, "field"),
+                        new TestCaseSupplier.TypedData(new BytesRef("host.name"), pathType, "path")
                     ),
                     "FieldExtractEvaluator[flattenedJson=Attribute[channel=0], path=Attribute[channel=1]]",
                     DataType.KEYWORD,
-                    nullValue()
-                ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
-                    .withWarning("Line 1:1: java.lang.IllegalArgumentException: path [missing] does not exist")
-            )
-        );
+                    equalTo(new BytesRef("node-a"))
+                );
+            }));
+        }
+
+        suppliers.add(new TestCaseSupplier("constant dotted path", types(DataType.FLATTENED, DataType.KEYWORD), () -> {
+            assumeTrue("Requires FIELD_EXTRACT_FUNCTION capability", EsqlCapabilities.Cap.FIELD_EXTRACT_FUNCTION.isEnabled());
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef("{\"k.inner\":\"v\"}"), DataType.FLATTENED, "field"),
+                    new TestCaseSupplier.TypedData(new BytesRef("k.inner"), DataType.KEYWORD, "path").forceLiteral()
+                ),
+                "FieldExtractConstantEvaluator[flattenedJson=Attribute[channel=0], path=k.inner]",
+                DataType.KEYWORD,
+                equalTo(new BytesRef("v"))
+            );
+        }));
+
+        suppliers.add(new TestCaseSupplier("missing path", types(DataType.FLATTENED, DataType.KEYWORD), () -> {
+            assumeTrue("Requires FIELD_EXTRACT_FUNCTION capability", EsqlCapabilities.Cap.FIELD_EXTRACT_FUNCTION.isEnabled());
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef("{\"a\":1}"), DataType.FLATTENED, "field"),
+                    new TestCaseSupplier.TypedData(new BytesRef("missing"), DataType.KEYWORD, "path")
+                ),
+                "FieldExtractEvaluator[flattenedJson=Attribute[channel=0], path=Attribute[channel=1]]",
+                DataType.KEYWORD,
+                nullValue()
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line 1:1: java.lang.IllegalArgumentException: path [missing] does not exist");
+        }));
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }

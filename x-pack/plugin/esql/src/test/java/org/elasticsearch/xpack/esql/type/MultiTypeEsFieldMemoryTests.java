@@ -42,17 +42,15 @@ import static org.hamcrest.Matchers.lessThan;
  * the legacy {@link InvalidMappedField} (keyed per-index).
  */
 public class MultiTypeEsFieldMemoryTests extends ESTestCase {
-    private static final int NUM_INDICES = 5_000;
-    private static final int NUM_CONFLICTING_FIELDS = 50;
+    private static final int NUM_INDICES = 500;
+    private static final int NUM_CONFLICTING_FIELDS = 500;
 
     /**
      * {@link RamUsageTester} walks reflectively, which fails on JDK-internal classes (e.g. {@code sun.util.locale.BaseLocale}) that
      * aren't opened to unnamed modules. The plan transitively references a {@link Locale} and a {@link ZoneId} via the analyzer's
      * {@code Configuration}, so we treat those as opaque as they're irrelevant to the union-type memory we care about here.
-     *
      * <p>{@link Reference} values are filtered out at queue time rather than on pop: {@code RamUsageTester#handleOther} builds a
-     * class cache before consulting the accumulator, and on JDK 25 that fails for {@link Reference} subclasses because
-     * {@code java.lang.ref} isn't opened to unnamed modules.
+     * class cache before consulting the accumulator.
      */
     private static final RamUsageTester.Accumulator ACCUMULATOR = new RamUsageTester.Accumulator() {
         @Override
@@ -77,6 +75,7 @@ public class MultiTypeEsFieldMemoryTests extends ESTestCase {
         String query = "FROM idx* | EVAL " + evalAssignments + " | KEEP " + keepFields + " | LIMIT 1";
 
         assertThat(getBytesUsed(true, query) * 10L, lessThan(getBytesUsed(false, query)));
+        assertThat(getBytesUsed(true, query), lessThan(1_500_000L));
     }
 
     private static long getBytesUsed(boolean compact, String query) {

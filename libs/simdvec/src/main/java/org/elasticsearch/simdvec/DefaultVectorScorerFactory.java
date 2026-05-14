@@ -162,4 +162,9 @@ final class DefaultVectorScorerFactory implements VectorScorerFactory {
     ) {
         return Optional.empty();
     }
+
+    @Override
+    public String toString() {
+        return "DefaultVectorScorerFactory";
+    }
 }

@@ -203,4 +203,9 @@ final class Panama22VectorScorerFactory implements VectorScorerFactory {
     ) {
         return Optional.empty();
     }
+
+    @Override
+    public String toString() {
+        return "Panama22VectorScorerFactory";
+    }
 }

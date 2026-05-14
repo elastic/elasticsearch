@@ -273,4 +273,9 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
             throw new IllegalArgumentException("input length is less than expected vector data");
         }
     }
+
+    @Override
+    public String toString() {
+        return "Native22VectorScorerFactory";
+    }
 }

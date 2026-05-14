@@ -29,12 +29,14 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.downsample.DownsampleDataStreamTests.TIMEOUT;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
@@ -213,6 +215,9 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
     }
 
     private void assertResultColumns(EsqlQueryResponse response) {
+        Map<String, Object> bucketMeta = COLUMN_METADATA_BUCKET.isEnabled()
+            ? Map.of("bucket", Map.of("interval", 1L, "unit", "hour"))
+            : null;
         var columns = response.columns();
         assertThat(columns, hasSize(3));
         assertThat(
@@ -221,7 +226,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
                 List.of(
                     new ColumnInfoImpl("rate", "double", null),
                     new ColumnInfoImpl("_timeseries", "keyword", null),
-                    new ColumnInfoImpl("time_bucket", "date", null)
+                    new ColumnInfoImpl("time_bucket", "date", null, bucketMeta)
                 )
             )
         );

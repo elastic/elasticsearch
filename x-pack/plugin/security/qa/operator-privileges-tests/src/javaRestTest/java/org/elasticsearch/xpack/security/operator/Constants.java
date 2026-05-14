@@ -493,6 +493,7 @@ public class Constants {
         "cluster:monitor/xpack/usage/health_api",
         "cluster:monitor/xpack/usage/ilm",
         "cluster:monitor/xpack/usage/inference",
+        "cluster:monitor/xpack/usage/logging",
         "cluster:monitor/xpack/usage/logsdb",
         "cluster:monitor/xpack/usage/logstash",
         "cluster:monitor/xpack/usage/ml",

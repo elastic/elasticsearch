@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.azureopenai.secrets;
+package org.elasticsearch.xpack.inference.common.secrets;
 
 import org.apache.http.Header;
 import org.apache.http.client.methods.HttpRequestBase;
@@ -15,12 +15,12 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
- * Applies a header to a request. Mainly used to apply secrets (like the entra ID or API key) to requests.
+ * Applies a header (e.g. API key bearer token, Entra ID token) to an outbound inference request.
  * @param headerSupplier a supplier to retrieve the header to apply to the request
  */
-public record AzureOpenAiHeaderApplier(Supplier<Header> headerSupplier) implements AzureOpenAiSecretsApplier {
+public record HeaderApplier(Supplier<Header> headerSupplier) implements SecretsApplier {
 
-    public AzureOpenAiHeaderApplier(Supplier<Header> headerSupplier) {
+    public HeaderApplier(Supplier<Header> headerSupplier) {
         this.headerSupplier = Objects.requireNonNull(headerSupplier);
     }
 

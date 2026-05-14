@@ -22,6 +22,7 @@ import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -45,6 +46,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
+import static org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs.fromRerankRequest;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 
@@ -138,6 +140,26 @@ public class CustomService extends SenderService<CustomModel> implements Reranki
     protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
         // The custom service doesn't do any validation for the input type because if the input type is supported a default
         // must be supplied within the service settings.
+    }
+
+    @Override
+    protected void doRerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        if (!(model instanceof CustomModel customModel)) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+        var overriddenModel = CustomModel.of(customModel, request.taskSettings());
+
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(SERVICE_NAME);
+        var manager = CustomRequestManager.of(overriddenModel, getServiceComponents().threadPool());
+        var action = new SenderExecutableAction(getSender(), manager, failedToSendRequestErrorMessage);
+
+        action.execute(fromRerankRequest(request), timeout, listener);
+    }
+
+    @Override
+    public boolean supportsNewRerankCodePath() {
+        return true;
     }
 
     @Override

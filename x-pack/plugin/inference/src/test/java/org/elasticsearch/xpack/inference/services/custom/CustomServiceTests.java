@@ -8,19 +8,23 @@
 package org.elasticsearch.xpack.inference.services.custom;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
@@ -45,6 +49,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.inference.InferenceStringTests.createRandomUsingDataTypes;
 import static org.elasticsearch.xpack.inference.Utils.TIMEOUT;
 import static org.elasticsearch.xpack.inference.Utils.getRequestConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
@@ -59,6 +64,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class CustomServiceTests extends InferenceServiceTestCase {
 
@@ -72,7 +79,7 @@ public class CustomServiceTests extends InferenceServiceTestCase {
                 new DenseEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT),
                 getUrl(webServer)
             );
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.infer(
                 model,
                 null,
@@ -130,7 +137,7 @@ public class CustomServiceTests extends InferenceServiceTestCase {
                 new DenseEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT),
                 getUrl(webServer)
             );
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.infer(
                 model,
                 null,
@@ -155,7 +162,46 @@ public class CustomServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testInfer_HandlesRerankRequest_Cohere_Format() throws IOException {
+    public void testRerankInfer_ThrowsError_WithNonTextQuery() throws IOException {
+        var textInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.of(DataType.TEXT)));
+        var nonTextQuery = createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT)));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(textInputs, nonTextQuery);
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextInputs() throws IOException {
+        var nonTextInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT))));
+        var textQuery = createRandomUsingDataTypes(EnumSet.of(DataType.TEXT));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(nonTextInputs, textQuery);
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextInputsAndQuery() throws IOException {
+        var nonTextInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT))));
+        var nonTextQuery = createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT)));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(nonTextInputs, nonTextQuery);
+    }
+
+    private void testRerankInfer_ThrowsError_WithNonTextInputOrQuery(List<InferenceString> inputs, InferenceString query)
+        throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        var model = mock(CustomModel.class);
+        when(model.getTaskType()).thenReturn(TaskType.RERANK);
+
+        try (var service = new CustomService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+
+            service.rerankInfer(model, new RerankRequest(inputs, query, null, null, new HashMap<>()), null, listener);
+
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(thrownException.status(), CoreMatchers.is(RestStatus.BAD_REQUEST));
+            assertThat(
+                thrownException.getMessage(),
+                CoreMatchers.is("The custom service does not support rerank with non-text inputs or queries")
+            );
+        }
+    }
+
+    public void testRerankInfer_Cohere_Format() throws IOException {
         try (var service = createInferenceService()) {
             String responseJson = """
                 {
@@ -203,19 +249,19 @@ public class CustomServiceTests extends InferenceServiceTestCase {
                 null
             );
 
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                "query",
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+
+            var inputOne = randomAlphanumericOfLength(8);
+            var inputTwo = randomAlphanumericOfLength(8);
+            var query = randomAlphanumericOfLength(8);
+            var request = new RerankRequest(
+                List.of(new InferenceString(DataType.TEXT, inputOne), new InferenceString(DataType.TEXT, inputTwo)),
+                new InferenceString(DataType.TEXT, query),
                 null,
                 null,
-                List.of("test input"),
-                false,
-                new HashMap<>(),
-                InputType.INTERNAL_SEARCH,
-                null,
-                listener
+                null
             );
+            service.rerankInfer(model, request, null, listener);
 
             InferenceServiceResults results = listener.actionGet(TIMEOUT);
             assertThat(results, instanceOf(RankedDocsResults.class));
@@ -275,7 +321,7 @@ public class CustomServiceTests extends InferenceServiceTestCase {
                 null
             );
 
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.infer(
                 model,
                 null,
@@ -341,7 +387,7 @@ public class CustomServiceTests extends InferenceServiceTestCase {
                 null
             );
 
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.infer(
                 model,
                 null,
@@ -394,7 +440,7 @@ public class CustomServiceTests extends InferenceServiceTestCase {
 
             var config = getRequestConfigMap(settingsMap, Map.of(), Map.of());
 
-            var listener = new PlainActionFuture<Model>();
+            var listener = new TestPlainActionFuture<Model>();
             service.parseRequestConfig("id", TaskType.COMPLETION, config, listener);
 
             var exception = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
@@ -451,7 +497,7 @@ public class CustomServiceTests extends InferenceServiceTestCase {
         try (var service = createInferenceService()) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
             service.chunkedInfer(
                 model,
                 null,
@@ -526,7 +572,7 @@ public class CustomServiceTests extends InferenceServiceTestCase {
         try (var service = createInferenceService()) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
             service.chunkedInfer(
                 model,
                 null,
@@ -614,7 +660,7 @@ public class CustomServiceTests extends InferenceServiceTestCase {
         try (var service = createInferenceService()) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
             service.chunkedInfer(
                 model,
                 null,
@@ -726,7 +772,7 @@ public class CustomServiceTests extends InferenceServiceTestCase {
         try (var service = createInferenceService()) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
             service.chunkedInfer(
                 model,
                 null,
@@ -793,7 +839,7 @@ public class CustomServiceTests extends InferenceServiceTestCase {
 
         try (var service = createInferenceService()) {
 
-            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
             service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var results = listener.actionGet(TIMEOUT);

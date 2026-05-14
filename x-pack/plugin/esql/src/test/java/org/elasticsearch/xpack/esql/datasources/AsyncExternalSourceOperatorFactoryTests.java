@@ -2409,6 +2409,18 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         when(inner.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
         when(inner.metadata(any())).thenReturn(null);
         when(inner.read(any(), any())).thenReturn(emptyPageIterator());
+        when(inner.findNextRecordBoundary(any())).thenAnswer(invocation -> {
+            InputStream in = invocation.getArgument(0);
+            long consumed = 0;
+            int b;
+            while ((b = in.read()) != -1) {
+                consumed++;
+                if (b == '\n') {
+                    return consumed;
+                }
+            }
+            return -1L;
+        });
         return inner;
     }
 

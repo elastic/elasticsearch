@@ -50,7 +50,6 @@ import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
@@ -91,13 +90,10 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConf
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.InputTypeTests;
-import org.elasticsearch.xpack.inference.ModelConfigurationsTests;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
-import org.junit.After;
-import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
@@ -122,9 +118,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction.Response.RESULTS_FIELD;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
-import static org.elasticsearch.xpack.inference.services.elasticsearch.BaseElasticsearchInternalService.notElasticsearchModelException;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME;
 import static org.hamcrest.Matchers.containsString;
@@ -151,22 +145,14 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
     private InferenceStats inferenceStats;
     private LongHistogram mockDeploymentDurationHistogram;
 
-    private static ThreadPool threadPool;
-
     private final String TEST_SENTENCE = "This is a test sentence that has ten total words. ";
 
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    @Override
+    public void doInit() throws IOException {
+        super.doInit();
         randomInferenceEntityId = randomAlphaOfLength(10);
         mockDeploymentDurationHistogram = mock(LongHistogram.class);
         inferenceStats = new InferenceStats(mock(), mock(), mockDeploymentDurationHistogram, Map.of());
-        threadPool = createThreadPool(inferenceUtilityExecutors());
-    }
-
-    @After
-    public void shutdownThreadPool() {
-        terminate(threadPool);
     }
 
     public void testParseRequestConfig() {
@@ -977,39 +963,6 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         }
     }
 
-    public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() {
-        var service = createService(mock(Client.class));
-        var model = new Model(ModelConfigurationsTests.createRandomInstance());
-
-        assertThrows(ElasticsearchStatusException.class, () -> { service.updateModelWithEmbeddingDetails(model, randomNonNegativeInt()); });
-    }
-
-    public void testUpdateModelWithEmbeddingDetails_TextEmbeddingCustomElandEmbeddingsModelUpdatesDimensions() {
-        var service = createService(mock(Client.class));
-        var elandServiceSettings = new CustomElandInternalTextEmbeddingServiceSettings(
-            1,
-            4,
-            "invalid",
-            null,
-            null,
-            null,
-            SimilarityMeasure.COSINE,
-            DenseVectorFieldMapper.ElementType.FLOAT
-        );
-        var model = new CustomElandEmbeddingModel(
-            randomAlphaOfLength(10),
-            TaskType.TEXT_EMBEDDING,
-            "elasticsearch",
-            elandServiceSettings,
-            null
-        );
-
-        var embeddingSize = randomNonNegativeInt();
-        var updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
-
-        assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
-    }
-
     public void testUpdateModelWithEmbeddingDetails_NonTextEmbeddingCustomElandEmbeddingsModelNotModified() {
         var service = createService(mock(Client.class));
         var elandServiceSettings = new CustomElandInternalTextEmbeddingServiceSettings(
@@ -1044,18 +997,6 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
 
         assertEquals(model, updatedModel);
         verifyNoMoreInteractions(model);
-    }
-
-    public void testInfer_UnsupportedModel() {
-        var service = createService(mock(Client.class));
-        var model = new Model(ModelConfigurationsTests.createRandomInstance());
-
-        ActionListener<InferenceServiceResults> listener = ActionListener.wrap(
-            results -> fail("Expected infer to fail for unsupported model type"),
-            e -> assertEquals(e.getMessage(), notElasticsearchModelException(model).getMessage())
-        );
-
-        service.infer(model, null, null, null, List.of(), randomBoolean(), Map.of(), InputType.INGEST, null, listener);
     }
 
     public void testInfer_ElasticRerankerSucceedsWithoutChunkingConfiguration() {
@@ -2316,11 +2257,42 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
     }
 
     @Override
+    public Model createEmbeddingModel(SimilarityMeasure similarity) {
+        var elandServiceSettings = new CustomElandInternalTextEmbeddingServiceSettings(
+            null,
+            randomInt(),
+            randomAlphaOfLength(8),
+            null,
+            null,
+            null,
+            similarity,
+            DenseVectorFieldMapper.ElementType.FLOAT
+        );
+        return new CustomElandEmbeddingModel(
+            randomAlphaOfLength(10),
+            TaskType.TEXT_EMBEDDING,
+            ElasticsearchInternalService.NAME,
+            elandServiceSettings,
+            null
+        );
+    }
+
+    @Override
+    public EnumSet<TaskType> expectedStreamingTasks() {
+        return EnumSet.noneOf(TaskType.class);
+    }
+
+    @Override
     protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
         assertThat(
             rerankingInferenceService.rerankerWindowSize("any model"),
             CoreMatchers.is(RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE)
         );
+    }
+
+    @Override
+    public void testUpdateModelWithEmbeddingDetails_NullSimilarityInOriginalModel_UsesDefaultSimilarity() {
+        // It is not possible for CustomElandEmbeddingModel to have null similarity
     }
 
     private ElasticsearchInternalService createService(Client client, BaseElasticsearchInternalService.PreferredModelVariant modelVariant) {

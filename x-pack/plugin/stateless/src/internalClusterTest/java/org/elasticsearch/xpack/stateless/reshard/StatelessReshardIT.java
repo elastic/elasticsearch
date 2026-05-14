@@ -1830,7 +1830,6 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         assertThat(iae.getMessage(), equalTo("Requested new shard count [4] does not match required new shard count [2]"));
     }
 
-    @TestLogging(value = "org.elasticsearch.xpack.stateless.commits:debug", reason = "Issue #6241")
     public void testReshardFailsDuringResize() throws Exception {
         String indexNode = startMasterAndIndexNode();
         startSearchNode();
@@ -2260,11 +2259,11 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                 columnarLogsdbIndexName,
                 Settings.builder()
                     .put(indexSettings(randomIntBetween(1, 5), 0).build())
-                    .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.getName())
+                    .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
                     .build()
             );
             ensureGreen(columnarLogsdbIndexName);
-            assertReshardNonstandardIndexFails(columnarLogsdbIndexName, IndexMode.COLUMNAR_LOGSDB);
+            assertReshardNonstandardIndexFails(columnarLogsdbIndexName, IndexMode.LOGSDB_COLUMNAR);
         }
     }
 
@@ -3551,7 +3550,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         waitForReshardCompletion(indexName);
 
         var telemetryPlugin = getTelemetryPlugin(indexNode);
-        assertThat(getTotalLongCounterValue(ReshardMetrics.RESHARD_COUNT, getTelemetryPlugin(indexNode)), equalTo(1L));
+        assertThat(getTotalLongCounterValue(ReshardMetrics.RESHARD_COUNT, telemetryPlugin), equalTo(1L));
 
         var reshardTargetShardCountHistogram = telemetryPlugin.getLongHistogramMeasurement(ReshardMetrics.RESHARD_TARGET_SHARD_COUNT);
         assertEquals(List.of((long) numShardsAfter), reshardTargetShardCountHistogram.stream().map(Measurement::getLong).toList());
@@ -4691,19 +4690,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         }
     }
 
-    private static void checkNumberOfShardsSetting(String indexNode, String indexName, int expected_shards) {
-        assertThat(
-            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(
-                client(indexNode).admin()
-                    .indices()
-                    .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
-                    .execute()
-                    .actionGet()
-                    .getIndexToSettings()
-                    .get(indexName)
-            ),
-            equalTo(expected_shards)
-        );
+    private static void checkNumberOfShardsSetting(String indexNode, String indexName, int expectedShards) {
+        ReshardingTestHelpers.checkNumberOfShardsSetting(client(indexNode), indexName, expectedShards);
     }
 
     public PlainActionFuture<ClusterState> waitForClusterState(Predicate<ClusterState> predicate) {

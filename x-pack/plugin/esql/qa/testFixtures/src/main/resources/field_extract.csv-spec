@@ -63,12 +63,14 @@ c:long | host.name:keyword
 1      | devops-ci-master-blue.c.elastic-ci-prod.internal
 1      | elasticsearch-ci-immutable-debian-9-pkg-1599049660880335683
 1      | elasticsearch-ci-immutable-sles-15-1599243844262984968
+1      | equal-host
 1      | filebeat-6t7v6
 1      | filebeat-8pmfj
 2      | infra-filebeat-6vjxr
 1      | infra-filebeat-cpcmv
 1      | infra-filebeat-mdvqm
 1      | infra-filebeat-z5mjq
+1      | null
 ;
 
 countDistinctOverFlattenedSubfield
@@ -82,7 +84,7 @@ FROM flattened_otel_logs
 ;
 
 distinct_hosts:long
-9
+10
 ;
 
 filteringByFlattenedSubfield
@@ -118,8 +120,8 @@ FROM flattened_otel_logs
 2020-01-01T00:07:43.000Z | devops-ci-master-blue.c.elastic-ci-prod.internal
 2020-01-01T14:37:29.195Z | elasticsearch-ci-immutable-debian-9-pkg-1599049660880335683
 2020-01-01T00:31:18.303Z | elasticsearch-ci-immutable-sles-15-1599243844262984968
+2020-01-01T00:00:00.000Z | equal-host
 2020-01-01T11:43:13.255Z | filebeat-6t7v6
-2020-01-01T10:12:02.675Z | filebeat-8pmfj
 ;
 
 evalLengthOfFlattenedSubfield
@@ -151,9 +153,9 @@ FROM flattened_otel_logs
 ;
 
 @timestamp:date          | host.name:keyword
+2020-01-01T00:00:00.000Z | equal-host
 2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr
-2020-01-01T00:07:43.000Z | devops-ci-master-blue.c.elastic-ci-prod.internal
-2020-01-01T00:31:18.303Z | elasticsearch-ci-immutable-sles-15-1599243844262984968
+2020-01-01T00:04:00.000Z | null
 ;
 
 fieldExtractInWhereAfterLimit
@@ -185,9 +187,9 @@ FROM flattened_otel_logs
 ;
 
 @timestamp:date          | host.name:keyword
+2020-01-01T00:00:00.000Z | equal-host
 2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr
-2020-01-01T00:07:43.000Z | devops-ci-master-blue.c.elastic-ci-prod.internal
-2020-01-01T00:31:18.303Z | elasticsearch-ci-immutable-sles-15-1599243844262984968
+2020-01-01T00:04:00.000Z | null
 ;
 
 fieldExtractInSubquery
@@ -202,7 +204,7 @@ FROM (FROM flattened_otel_logs | WHERE @timestamp >= "2020-01-01T12:00:00Z" | EV
 ;
 
 d_late:long | d_early:long
-3           | 6
+3           | 7
 ;
 
 fieldExtractAfterSubqueriesWithRename
@@ -219,7 +221,7 @@ FROM (FROM flattened_otel_logs | WHERE @timestamp >= "2020-01-01T12:00:00Z" | RE
 ;
 
 d_late:long | d_early:long
-3           | 6
+3           | 7
 ;
 
 fieldExtractWithLookupJoin
@@ -428,9 +430,9 @@ FROM flattened_otel_logs
 @timestamp:date          | count:long | host.name:keyword
 2020-01-01T00:02:48.461Z | 2          | infra-filebeat-6vjxr
 2020-01-01T11:38:54.751Z | 2          | infra-filebeat-6vjxr
+2020-01-01T00:00:00.000Z | 1          | equal-host
+2020-01-01T00:04:00.000Z | 1          | null
 2020-01-01T00:07:43.000Z | 1          | devops-ci-master-blue.c.elastic-ci-prod.internal
-2020-01-01T00:31:18.303Z | 1          | elasticsearch-ci-immutable-sles-15-1599243844262984968
-2020-01-01T00:58:35.557Z | 1          | infra-filebeat-mdvqm
 ;
 
 // MV_EXPAND on a single-valued field_extract result is a row-preserving no-op,
@@ -452,9 +454,9 @@ FROM flattened_otel_logs
 ;
 
 @timestamp:date          | hn:keyword
+2020-01-01T00:00:00.000Z | equal-host
 2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr
-2020-01-01T00:07:43.000Z | devops-ci-master-blue.c.elastic-ci-prod.internal
-2020-01-01T00:31:18.303Z | elasticsearch-ci-immutable-sles-15-1599243844262984968
+2020-01-01T00:04:00.000Z | null
 ;
 
 caseWithFieldExtractInCondition

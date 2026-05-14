@@ -547,7 +547,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             IndexMode mode = indexSettings.getMode();
             return docValuesParameters.getValue().enabled()
                 && indexSettings.useDocValuesSkipperForHostName()
-                && (IndexMode.LOGSDB.equals(mode) || IndexMode.COLUMNAR_LOGSDB.equals(mode))
+                && (IndexMode.LOGSDB.equals(mode) || IndexMode.LOGSDB_COLUMNAR.equals(mode))
                 && HOST_NAME.equals(fullFieldName)
                 && indexSortConfigByHostName(indexSettings.getIndexSortConfig());
         }

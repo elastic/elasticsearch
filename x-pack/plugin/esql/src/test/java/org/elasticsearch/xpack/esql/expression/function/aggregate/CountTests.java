@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -104,18 +105,18 @@ public class CountTests extends AbstractAggregationTestCase {
                     .withAppliesTo(histogramPreviewAppliesTo)
                     .withAppliesTo(histogramGaAppliesTo)
                 : TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field");
-            suppliers.add(
-                new TestCaseSupplier(
-                    "No rows (" + dataType + ")",
-                    List.of(dataType),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(field),
-                        dataType == DataType.DENSE_VECTOR ? "DenseVectorCount" : "Count",
-                        DataType.LONG,
-                        equalTo(0L)
-                    )
-                )
-            );
+            suppliers.add(new TestCaseSupplier("No rows (" + dataType + ")", List.of(dataType), () -> {
+                if (dataType == DataType.FLATTENED) {
+                    assumeTrue("Requires FLATTENED_DATATYPE capability", EsqlCapabilities.Cap.FLATTENED_DATATYPE.isEnabled());
+                }
+                return new TestCaseSupplier.TestCase(
+                    List.of(field),
+                    // Dense vector uses a different count implementation
+                    dataType == DataType.DENSE_VECTOR ? "DenseVectorCount" : "Count",
+                    DataType.LONG,
+                    equalTo(0L)
+                );
+            }));
         }
 
         // "No rows" expects 0 here instead of null

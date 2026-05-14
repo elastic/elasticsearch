@@ -406,7 +406,6 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         var model = mock(AlibabaCloudSearchRerankModel.class);
-        when(model.getTaskType()).thenReturn(TaskType.RERANK);
 
         try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
@@ -472,7 +471,6 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         var model = mock(AlibabaCloudSearchRerankModel.class);
-        when(model.getTaskType()).thenReturn(TaskType.RERANK);
 
         try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
@@ -543,7 +541,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
             );
 
             var listener = new TestPlainActionFuture<InferenceServiceResults>();
-            service.doRerankInfer(model, request, null, listener);
+            service.rerankInfer(model, request, null, listener);
             var result = listener.actionGet(TIMEOUT);
 
             var expectedResults = List.of(

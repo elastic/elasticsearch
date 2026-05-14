@@ -487,64 +487,18 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
 
     @Override
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
-        List<String> projectedColumns = context.projectedColumns();
-        int batchSize = context.batchSize();
-        int rowLimit = context.rowLimit();
-
         ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object);
         ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, readOptionsBuilder().build());
-        try {
-            FileMetaData fileMetaData = reader.getFileMetaData();
-            MessageType parquetSchema = fileMetaData.getSchema();
-
-            boolean useOptimized = optimizedReader && forceBaselinePath == false;
-            FilterPredicate filterPredicate = resolveFilterPredicate(object, parquetSchema);
-            FilterCompat.Filter recordFilter = filterPredicate != null ? FilterCompat.get(filterPredicate) : resolveRecordFilter();
-
-            // The optimized path drives row-group selection and page-level filtering itself
-            // (via RowGroupFilter + ColumnIndexRowRangesComputer + PrefetchedRowGroupBuilder), so
-            // parquet-mr never sees the filter and the reader does not need to be re-opened.
-            if (useOptimized == false && FilterCompat.isFilteringRequired(recordFilter)) {
-                reader.close();
-                reader = openParquetFileCached(object, parquetInputFile, readOptionsBuilder().withRecordFilter(recordFilter).build());
-                fileMetaData = reader.getFileMetaData();
-                parquetSchema = fileMetaData.getSchema();
-            }
-            List<Attribute> attributes = convertParquetSchemaToAttributes(parquetSchema);
-            List<Attribute> projectedAttributes = buildProjectedAttributes(projectedColumns, attributes);
-
-            MessageType projectedSchema = buildProjectedSchema(parquetSchema, projectedAttributes);
-            String createdBy = fileMetaData.getCreatedBy();
-            boolean hasRecordFilter = forceBaselinePath || FilterCompat.isFilteringRequired(recordFilter);
-            if (useOptimized) {
-                return createOptimizedIterator(
-                    reader,
-                    projectedSchema,
-                    projectedAttributes,
-                    batchSize,
-                    rowLimit,
-                    createdBy,
-                    object,
-                    parquetInputFile,
-                    filterPredicate,
-                    recordFilter
-                );
-            }
-            return new ParquetColumnIterator(
-                reader,
-                projectedSchema,
-                projectedAttributes,
-                batchSize,
-                blockFactory,
-                rowLimit,
-                createdBy,
-                object.path().toString(),
-                hasRecordFilter
-            );
-        } catch (Throwable t) {
-            reader.close();
-            throw t;
-        }
+        return buildIterator(
+            object,
+            parquetInputFile,
+            reader,
+            context.projectedColumns(),
+            context.batchSize(),
+            context.rowLimit(),
+            null,
+            filter -> openParquetFileCached(object, parquetInputFile, readOptionsBuilder().withRecordFilter(filter).build())
+        );
     }
 
     @Override
@@ -696,9 +650,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     public CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) throws IOException {
         long rangeStart = context.rangeStart();
         long rangeEnd = context.rangeEnd();
-        List<String> projectedColumns = context.projectedColumns();
-        int batchSize = context.batchSize();
-        List<Attribute> resolvedAttributes = context.resolvedAttributes();
 
         ParquetStorageObjectAdapter parquetInputFile = ParquetStorageObjectAdapter.forRange(object, rangeEnd - rangeStart);
         ParquetReadOptions rangeOptions = readOptionsBuilder().withRange(rangeStart, rangeEnd).build();
@@ -719,6 +670,67 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         context.setFileContext(fullFooter);
         ParquetMetadata rangeMetadata = filterBlocksByRange(fullFooter, rangeStart, rangeEnd);
         ParquetFileReader reader = openParquetFile(object, parquetInputFile, rangeOptions, rangeMetadata);
+        return buildIterator(
+            object,
+            parquetInputFile,
+            reader,
+            context.projectedColumns(),
+            context.batchSize(),
+            NO_LIMIT,
+            context.resolvedAttributes(),
+            // fullFooter was resolved (and stashed into the context) above, so the re-open path
+            // always reuses it rather than risk a re-parse through the no-footer overload.
+            filter -> openParquetFile(
+                object,
+                parquetInputFile,
+                readOptionsBuilder().withRange(rangeStart, rangeEnd).withRecordFilter(filter).build(),
+                filterBlocksByRange(fullFooter, rangeStart, rangeEnd)
+            )
+        );
+    }
+
+    /**
+     * Hook used by the shared {@link #buildIterator} to re-open the underlying
+     * {@link ParquetFileReader} with a record filter when the baseline (non-optimized) path
+     * needs row-level filtering applied by parquet-mr. The caller closes the previous reader
+     * before invoking the hook; the hook returns a fresh reader configured with the supplied
+     * filter on top of whatever read options the originating {@link #read} or {@link #readRange}
+     * call established (notably: {@code withRange} for {@link #readRange}). Centralising the
+     * post-open construction lets {@code read} and {@code readRange} share filter resolution,
+     * attribute derivation, and iterator construction without duplicating their divergent
+     * setup logic.
+     */
+    @FunctionalInterface
+    private interface FilteredReopener {
+        ParquetFileReader reopen(FilterCompat.Filter recordFilter) throws IOException;
+    }
+
+    /**
+     * Shared post-open machinery for {@link #read} and {@link #readRange}: resolves the pushed
+     * predicate against the actual file schema, re-opens through {@code reopener} when the
+     * baseline path requires record filtering, and instantiates the appropriate iterator
+     * (optimized vs {@link ParquetColumnIterator}). The optimized path drives row-group
+     * selection and page-level filtering itself via {@code RowGroupFilter +
+     * ColumnIndexRowRangesComputer + PrefetchedRowGroupBuilder}, so parquet-mr never sees the
+     * filter and the reader is not re-opened.
+     *
+     * @param resolvedAttributes planner-supplied attribute list for the column read path; when
+     *                           {@code null} or empty, falls back to deriving attributes from
+     *                           the file schema. {@link #read} always passes {@code null};
+     *                           {@link #readRange} threads through the planner-resolved value
+     *                           to skip redundant schema conversion across the splits of one
+     *                           file (see {@code AsyncExternalSourceOperatorFactory}).
+     */
+    private CloseableIterator<Page> buildIterator(
+        StorageObject object,
+        ParquetStorageObjectAdapter parquetInputFile,
+        ParquetFileReader reader,
+        List<String> projectedColumns,
+        int batchSize,
+        int rowLimit,
+        List<Attribute> resolvedAttributes,
+        FilteredReopener reopener
+    ) throws IOException {
         try {
             FileMetaData fileMetaData = reader.getFileMetaData();
             MessageType parquetSchema = fileMetaData.getSchema();
@@ -732,21 +744,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             // parquet-mr never sees the filter and the reader does not need to be re-opened.
             if (useOptimized == false && FilterCompat.isFilteringRequired(recordFilter)) {
                 reader.close();
-                ParquetReadOptions filteredOptions = readOptionsBuilder().withRange(rangeStart, rangeEnd)
-                    .withRecordFilter(recordFilter)
-                    .build();
-                // fullFooter was resolved (and stashed into context) above, so we always reuse it
-                // rather than risk a re-parse through the no-footer overload.
-                reader = openParquetFile(object, parquetInputFile, filteredOptions, filterBlocksByRange(fullFooter, rangeStart, rangeEnd));
+                reader = reopener.reopen(recordFilter);
                 fileMetaData = reader.getFileMetaData();
                 parquetSchema = fileMetaData.getSchema();
             }
             // The framework passes planning-time resolved attributes for this query (AsyncExternalSourceOperatorFactory).
             // Reuse them to avoid redundant schema conversion work per split. We still read Parquet metadata to drive row groups.
-            final List<Attribute> attributes = resolvedAttributes != null && resolvedAttributes.isEmpty() == false
+            List<Attribute> attributes = (resolvedAttributes != null && resolvedAttributes.isEmpty() == false)
                 ? resolvedAttributes
                 : convertParquetSchemaToAttributes(parquetSchema);
-
             List<Attribute> projectedAttributes = buildProjectedAttributes(projectedColumns, attributes);
 
             MessageType projectedSchema = buildProjectedSchema(parquetSchema, projectedAttributes);
@@ -758,7 +764,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                     projectedSchema,
                     projectedAttributes,
                     batchSize,
-                    NO_LIMIT,
+                    rowLimit,
                     createdBy,
                     object,
                     parquetInputFile,
@@ -772,7 +778,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 projectedAttributes,
                 batchSize,
                 blockFactory,
-                NO_LIMIT,
+                rowLimit,
                 createdBy,
                 object.path().toString(),
                 hasRecordFilter

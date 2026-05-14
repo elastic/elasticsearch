@@ -70,6 +70,9 @@ public abstract class SortedNumericLongValues {
         if (values instanceof SingletonSortedNumericLongValues sv) {
             return sv.values;
         }
+        if (values instanceof IterableSortedNumericLongValues.Singleton sv) {
+            return sv.getLongValues();
+        }
         return null;
     }
 
@@ -114,19 +117,39 @@ public abstract class SortedNumericLongValues {
     public static SortedNumericLongValues wrap(SortedNumericDocValues values) {
         NumericDocValues singleton = DocValues.unwrapSingleton(values);
         if (singleton != null) {
-            return new SingletonSortedNumericLongValues(new LongValues() {
+            return new IterableSortedNumericLongValues.Singleton() {
                 @Override
-                public long longValue() throws IOException {
+                public boolean advanceExact(int target) throws IOException {
+                    return singleton.advanceExact(target);
+                }
+
+                @Override
+                public long nextValue() throws IOException {
                     return singleton.longValue();
                 }
 
                 @Override
-                public boolean advanceExact(int doc) throws IOException {
-                    return singleton.advanceExact(doc);
+                public int docID() {
+                    return singleton.docID();
                 }
-            });
+
+                @Override
+                public int advance(int target) throws IOException {
+                    return singleton.advance(target);
+                }
+            };
         }
-        return new SortedNumericLongValues() {
+        return new IterableSortedNumericLongValues() {
+            @Override
+            public int docID() {
+                return values.docID();
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                return values.advance(target);
+            }
+
             @Override
             public boolean advanceExact(int target) throws IOException {
                 return values.advanceExact(target);

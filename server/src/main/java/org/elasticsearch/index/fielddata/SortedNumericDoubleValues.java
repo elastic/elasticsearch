@@ -55,6 +55,9 @@ public abstract class SortedNumericDoubleValues {
         if (values instanceof SortedNumericDoubleValues.SingletonSortedNumericDoubleValues sv) {
             return sv.values;
         }
+        if (values instanceof IterableSortedNumericDoubleValues.Singleton sv) {
+            return sv.getDoubleValues();
+        }
         return null;
     }
 
@@ -99,19 +102,40 @@ public abstract class SortedNumericDoubleValues {
     public static SortedNumericDoubleValues wrap(SortedNumericDocValues values) {
         NumericDocValues singleton = DocValues.unwrapSingleton(values);
         if (singleton != null) {
-            return new SortedNumericDoubleValues.SingletonSortedNumericDoubleValues(new DoubleValues() {
-                @Override
-                public double doubleValue() throws IOException {
-                    return NumericUtils.sortableLongToDouble(singleton.longValue());
-                }
-
+            return new IterableSortedNumericDoubleValues.Singleton() {
                 @Override
                 public boolean advanceExact(int doc) throws IOException {
                     return singleton.advanceExact(doc);
                 }
-            });
+
+                @Override
+                public double nextValue() throws IOException {
+                    return NumericUtils.sortableLongToDouble(singleton.longValue());
+                }
+
+                @Override
+                public int docID() {
+                    return singleton.docID();
+                }
+
+                @Override
+                public int advance(int doc) throws IOException {
+                    return singleton.advance(doc);
+                }
+            };
         }
-        return new SortedNumericDoubleValues() {
+
+        return new IterableSortedNumericDoubleValues() {
+            @Override
+            public int docID() {
+                return values.docID();
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                return values.advance(target);
+            }
+
             @Override
             public boolean advanceExact(int target) throws IOException {
                 return values.advanceExact(target);

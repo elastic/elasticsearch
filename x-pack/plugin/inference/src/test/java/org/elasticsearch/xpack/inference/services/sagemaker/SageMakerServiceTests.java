@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchema;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStreamSchema;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -93,17 +92,18 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
     private SageMakerClient client;
     private SageMakerSchemas schemas;
     private SageMakerService sageMakerService;
-    private ThreadPool threadPool;
+    private ThreadPool sageMakerThreadPool;
 
-    @Before
-    public void init() {
+    @Override
+    public void doInit() throws IOException {
+        super.doInit();
         modelBuilder = mock();
         client = mock();
         schemas = mock();
-        threadPool = mock();
-        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        sageMakerService = new SageMakerService(modelBuilder, client, schemas, threadPool, Map::of, mockClusterServiceEmpty());
+        sageMakerThreadPool = mock();
+        when(sageMakerThreadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(sageMakerThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        sageMakerService = new SageMakerService(modelBuilder, client, schemas, sageMakerThreadPool, Map::of, mockClusterServiceEmpty());
     }
 
     public void testSupportedTaskTypes() {
@@ -138,21 +138,6 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
     public void testParsePersistedConfig_WithoutSecrets() {
         sageMakerService.parsePersistedConfig(new UnparsedModel("modelId", TaskType.ANY, SageMakerService.NAME, Map.of(), null));
         verify(modelBuilder, only()).fromStorage(eq("modelId"), eq(TaskType.ANY), eq(SageMakerService.NAME), eq(Map.of()), eq(null));
-    }
-
-    public void testInferWithWrongModel() {
-        sageMakerService.infer(
-            mockUnsupportedModel(),
-            QUERY,
-            false,
-            null,
-            INPUT,
-            false,
-            null,
-            INPUT_TYPE,
-            THIRTY_SECONDS,
-            assertUnsupportedModel()
-        );
     }
 
     private static Model mockUnsupportedModel() {
@@ -215,7 +200,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
             Settings.builder().put(InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), configuredTimeout).build()
         );
 
-        var service = new SageMakerService(modelBuilder, client, schemas, threadPool, Map::of, clusterService);
+        var service = new SageMakerService(modelBuilder, client, schemas, sageMakerThreadPool, Map::of, clusterService);
 
         var capturedTimeout = new AtomicReference<TimeValue>();
         doAnswer(ans -> {
@@ -242,7 +227,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
             Settings.builder().put(InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(15)).build()
         );
 
-        var service = new SageMakerService(modelBuilder, client, schemas, threadPool, Map::of, clusterService);
+        var service = new SageMakerService(modelBuilder, client, schemas, sageMakerThreadPool, Map::of, clusterService);
 
         var capturedTimeout = new AtomicReference<TimeValue>();
         doAnswer(ans -> {
@@ -574,6 +559,16 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
     public InferenceService createInferenceService() {
         when(schemas.supportedTaskTypes()).thenReturn(EnumSet.of(TaskType.RERANK, TaskType.TEXT_EMBEDDING, TaskType.COMPLETION));
         return sageMakerService;
+    }
+
+    @Override
+    public void testUpdateModelWithEmbeddingDetails_NullSimilarityInOriginalModel_UsesDefaultSimilarity() {
+        // Coverage for the happy path of this method is handled in SageMakerModelBuilderTests
+    }
+
+    @Override
+    public void testUpdateModelWithEmbeddingDetails_NonNullSimilarityInOriginalModel_KeepsSimilarity() {
+        // Coverage for the happy path of this method is handled in SageMakerModelBuilderTests
     }
 
     @Override

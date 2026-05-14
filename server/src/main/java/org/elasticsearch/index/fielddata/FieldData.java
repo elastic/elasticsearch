@@ -161,6 +161,57 @@ public enum FieldData {
      * Wrap the provided {@link SortedNumericDocValues} instance to cast all values to doubles.
      */
     public static SortedNumericDoubleValues castToDouble(final SortedNumericLongValues values) {
+        if (values instanceof IterableSortedNumericLongValues iterableLongValues) {
+            if (iterableLongValues instanceof IterableSortedNumericLongValues.Singleton singleton) {
+                return new IterableSortedNumericDoubleValues.Singleton() {
+                    @Override
+                    public int docID() {
+                        return singleton.docID();
+                    }
+
+                    @Override
+                    public int advance(int target) throws IOException {
+                        return singleton.advance(target);
+                    }
+
+                    @Override
+                    public boolean advanceExact(int target) throws IOException {
+                        return singleton.advanceExact(target);
+                    }
+
+                    @Override
+                    public double nextValue() throws IOException {
+                        return singleton.nextValue();
+                    }
+                };
+            }
+            return new IterableSortedNumericDoubleValues() {
+                @Override
+                public int docID() {
+                    return iterableLongValues.docID();
+                }
+
+                @Override
+                public int advance(int target) throws IOException {
+                    return iterableLongValues.advance(target);
+                }
+
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    return iterableLongValues.advanceExact(target);
+                }
+
+                @Override
+                public double nextValue() throws IOException {
+                    return (double) iterableLongValues.nextValue();
+                }
+
+                @Override
+                public int docValueCount() {
+                    return iterableLongValues.docValueCount();
+                }
+            };
+        }
         final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
         if (singleton != null) {
             return singleton(new DoubleCastedValues(singleton));
@@ -173,6 +224,57 @@ public enum FieldData {
      * Wrap the provided {@link SortedNumericDoubleValues} instance to cast all values to longs.
      */
     public static SortedNumericLongValues castToLong(final SortedNumericDoubleValues values) {
+        if (values instanceof IterableSortedNumericDoubleValues iterableDoubleValues) {
+            if (iterableDoubleValues instanceof IterableSortedNumericDoubleValues.Singleton singleton) {
+                return new IterableSortedNumericLongValues.Singleton() {
+                    @Override
+                    public int docID() {
+                        return singleton.docID();
+                    }
+
+                    @Override
+                    public int advance(int target) throws IOException {
+                        return singleton.advance(target);
+                    }
+
+                    @Override
+                    public boolean advanceExact(int target) throws IOException {
+                        return singleton.advanceExact(target);
+                    }
+
+                    @Override
+                    public long nextValue() throws IOException {
+                        return (long) singleton.nextValue();
+                    }
+                };
+            }
+            return new IterableSortedNumericLongValues() {
+                @Override
+                public int docID() {
+                    return iterableDoubleValues.docID();
+                }
+
+                @Override
+                public int advance(int target) throws IOException {
+                    return iterableDoubleValues.advance(target);
+                }
+
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    return iterableDoubleValues.advanceExact(target);
+                }
+
+                @Override
+                public long nextValue() throws IOException {
+                    return (long) iterableDoubleValues.nextValue();
+                }
+
+                @Override
+                public int docValueCount() {
+                    return iterableDoubleValues.docValueCount();
+                }
+            };
+        }
         final DoubleValues singleton = unwrapSingleton(values);
         if (singleton != null) {
             return SortedNumericLongValues.singleton(new LongCastedValues(singleton));

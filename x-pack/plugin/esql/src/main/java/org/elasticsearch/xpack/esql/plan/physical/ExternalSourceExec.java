@@ -143,45 +143,6 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     }
 
     /**
-     * Convenience 12-arg overload for callers that do not have a planner-resolved per-file
-     * {@code schemaMap} — primarily plan-tree tests and optimizer-rule tests that construct
-     * synthetic execs. Defaults {@code schemaMap} to {@link Map#of()} so the runtime treats every
-     * file as if no per-file pin existed (reader self-infers). Production use goes through
-     * {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec()}, which
-     * always populates schemaMap via the 13-arg ctor.
-     */
-    public ExternalSourceExec(
-        Source source,
-        String sourcePath,
-        String sourceType,
-        List<Attribute> attributes,
-        Map<String, Object> config,
-        Map<String, Object> sourceMetadata,
-        Object pushedFilter,
-        List<Expression> pushedExpressions,
-        int pushedLimit,
-        Integer estimatedRowSize,
-        FileList fileList,
-        List<ExternalSplit> splits
-    ) {
-        this(
-            source,
-            sourcePath,
-            sourceType,
-            attributes,
-            config,
-            sourceMetadata,
-            pushedFilter,
-            pushedExpressions,
-            pushedLimit,
-            estimatedRowSize,
-            fileList,
-            Map.of(),
-            splits
-        );
-    }
-
-    /**
      * Longest public ctor; used by {@link #info()}, by
      * {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec()}, and by tree tests.
      */

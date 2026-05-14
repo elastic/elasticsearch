@@ -43,6 +43,7 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             null,
+            Map.of(),
             splits
         );
     }
@@ -149,6 +150,7 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             null,
+            Map.of(),
             splits
         );
     }

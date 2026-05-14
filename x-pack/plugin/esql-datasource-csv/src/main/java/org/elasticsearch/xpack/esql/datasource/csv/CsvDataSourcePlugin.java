@@ -40,9 +40,35 @@ import java.util.Set;
  */
 public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
+    /**
+     * Per-dataset configuration keys accepted by the CSV/TSV format reader.
+     * Must stay in sync with {@code CsvFormatReader.RECOGNIZED_KEYS}; verified
+     * by {@code CsvFormatReaderRecognizedKeysTests.testFormatSpecConfigKeysMatchRecognizedKeys}.
+     *
+     * <p>Note: {@code schema_sample_size} also appears as a base dataset field in
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator} —
+     * this duplication is intentional to maintain symmetry with the reader's
+     * {@code RECOGNIZED_KEYS}. At CRUD time, the base-field validation path handles it
+     * (with range checking); it is not passed through as a raw format option.
+     */
+    static final Set<String> FORMAT_CONFIG_KEYS = Set.of(
+        "delimiter",
+        "quote",
+        "escape",
+        "comment",
+        "null_value",
+        "encoding",
+        "datetime_format",
+        "max_field_size",
+        "multi_value_syntax",
+        "header_row",
+        "column_prefix",
+        "schema_sample_size"
+    );
+
     @Override
     public Set<FormatSpec> formatSpecs() {
-        return Set.of(FormatSpec.of("csv", ".csv"), FormatSpec.of("tsv", ".tsv"));
+        return Set.of(FormatSpec.of("csv", ".csv", FORMAT_CONFIG_KEYS), FormatSpec.of("tsv", ".tsv", FORMAT_CONFIG_KEYS));
     }
 
     @Override

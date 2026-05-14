@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.commits;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.WriteRequest;
@@ -25,6 +26,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
@@ -33,6 +35,7 @@ import org.elasticsearch.xpack.stateless.TestStatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
@@ -47,6 +50,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -57,6 +61,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExis
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTestUtils.logBlobReferences;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -88,10 +93,15 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessPluginIntegTe
             .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK.toString().toLowerCase(Locale.ROOT));
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.shard_files_deletes:debug",
+        reason = "log shard file deletions"
+    )
     public void testGenerationalFileBlobReferenceIsRetainedCorrectly() throws Exception {
         final String indexNode = startMasterAndIndexNode(
             Settings.builder()
                 .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 2)
+                .put(StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING.getKey(), "100ms")
                 .put(disableIndexingDiskAndMemoryControllersNodeSettings())
                 .build()
         );
@@ -130,10 +140,20 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessPluginIntegTe
             indexShard.shardId(),
             indexShard.getOperationPrimaryTerm()
         );
-        assertBusy(() -> {
-            final Set<String> blobFileNames = blobContainer.listBlobs(OperationPurpose.INDICES).keySet();
-            assertThat(blobFileNames, equalTo(Set.of(StatelessCompoundCommit.blobNameFromGeneration(generation))));
-        });
+        try {
+            assertBusy(() -> {
+                final Set<String> blobFileNames = blobContainer.listBlobs(OperationPurpose.INDICES).keySet();
+                assertThat(blobFileNames, equalTo(Set.of(StatelessCompoundCommit.blobNameFromGeneration(generation))));
+            }, 30, TimeUnit.SECONDS);
+        } catch (AssertionError e) {
+            try {
+                final var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+                logBlobReferences(statelessCommitService, indexShard.shardId(), Level.INFO);
+            } catch (Exception loggingException) {
+                e.addSuppressed(loggingException);
+            }
+            throw e;
+        }
     }
 
     public void testFlushAfterRelocationWillThrowOnlyExpectedError() {

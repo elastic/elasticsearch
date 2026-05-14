@@ -18,7 +18,6 @@ import org.elasticsearch.index.mapper.vectors.RankVectorsScriptDocValues;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.ShortBuffer;
 import java.util.Iterator;
 
 public class BFloat16RankVectorsDocValuesField extends RankVectorsDocValuesField {
@@ -113,7 +112,7 @@ public class BFloat16RankVectorsDocValuesField extends RankVectorsDocValuesField
 
     public static class BFloat16VectorIterator implements VectorIterator<float[]> {
         private final float[] buffer;
-        private final ShortBuffer vectorValues;
+        private final ByteBuffer vectorValues;
         private final BytesRef vectorValueBytesRef;
         private final int size;
         private int idx = 0;
@@ -122,8 +121,7 @@ public class BFloat16RankVectorsDocValuesField extends RankVectorsDocValuesField
             assert vectorValues.length == (buffer.length * BFloat16.BYTES * size);
             this.vectorValueBytesRef = vectorValues;
             this.vectorValues = ByteBuffer.wrap(vectorValues.bytes, vectorValues.offset, vectorValues.length)
-                .order(ByteOrder.LITTLE_ENDIAN)
-                .asShortBuffer();
+                .order(ByteOrder.LITTLE_ENDIAN);
             this.size = size;
             this.buffer = buffer;
         }

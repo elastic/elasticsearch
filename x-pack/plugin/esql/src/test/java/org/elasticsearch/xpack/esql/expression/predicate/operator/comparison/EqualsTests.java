@@ -254,6 +254,23 @@ public class EqualsTests extends AbstractScalarFunctionTestCase {
             );
         }
 
+        // Flattened cases
+        if (DataType.FLATTENED.supportedVersion().supportedLocally()) {
+            suppliers.addAll(
+                TestCaseSupplier.forBinaryNotCasting(
+                    "EqualsKeywordsEvaluator",
+                    "lhs",
+                    "rhs",
+                    Object::equals,
+                    DataType.BOOLEAN,
+                    TestCaseSupplier.flattenedCases(),
+                    TestCaseSupplier.flattenedCases(),
+                    List.of(),
+                    false
+                )
+            );
+        }
+
         // Dense vector cases
         suppliers.add(new TestCaseSupplier("<dense_vector>, <dense_vector>", List.of(DataType.DENSE_VECTOR, DataType.DENSE_VECTOR), () -> {
             int dimensions = between(64, 128);

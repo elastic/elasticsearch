@@ -28,10 +28,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <ul>
  *   <li><b>Simulation</b> ({@code GCP_PREEMPTION_SIMULATE_AFTER_SECONDS=N}): fires after N
  *       seconds. Use this for local testing — no GCP required.</li>
- *   <li><b>Real</b>: long-polls the GCP instance metadata server using the
- *       {@code wait_for_change} parameter so the server holds the connection open until the
- *       {@code preempted} flag flips. Single blocking request per poll cycle; much lower
- *       overhead than short-interval polling and responds within ~1s of the actual signal.</li>
+ *   <li><b>Real</b>: short-polls the GCP instance metadata server every
+ *       {@value #POLL_INTERVAL_SECONDS}s, checking whether the {@code preempted} flag has
+ *       flipped to {@code TRUE}.</li>
  * </ul>
  *
  * <p>Activated by setting {@code GCP_PREEMPTION_WATCHDOG=true}. No-op otherwise.
@@ -44,15 +43,9 @@ public final class GcpPreemptionWatchdog {
 
     private static final String METADATA_BASE_URL = "http://metadata.google.internal/computeMetadata/v1/instance/preempted";
 
-    // Long-poll: ask the metadata server to hold the connection until the value changes or
-    // the timeout elapses. This gives sub-second detection latency with a single open socket
-    // rather than a 1-second polling loop.
-    private static final int LONG_POLL_TIMEOUT_SECONDS = 60;
-    private static final String METADATA_LONG_POLL_URL = METADATA_BASE_URL
-        + "?wait_for_change=true&timeout_sec="
-        + LONG_POLL_TIMEOUT_SECONDS;
-    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
-    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(LONG_POLL_TIMEOUT_SECONDS + 15);
+    private static final int POLL_INTERVAL_SECONDS = 1;
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(3);
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(3);
 
     private static final String ENV_WATCHDOG = "GCP_PREEMPTION_WATCHDOG";
     private static final String ENV_SIMULATE = "GCP_PREEMPTION_SIMULATE_AFTER_SECONDS";
@@ -112,7 +105,7 @@ public final class GcpPreemptionWatchdog {
         watchThread = new Thread(GcpPreemptionWatchdog::metadataLoop, "gcp-preemption-watchdog");
         watchThread.setDaemon(true);
         watchThread.start();
-        LOGGER.lifecycle("[gcp-preemption-watchdog] started; long-polling {}", METADATA_LONG_POLL_URL);
+        LOGGER.lifecycle("[gcp-preemption-watchdog] started; polling {} every {}s", METADATA_BASE_URL, POLL_INTERVAL_SECONDS);
     }
 
     public static synchronized void stop() {
@@ -141,7 +134,7 @@ public final class GcpPreemptionWatchdog {
 
     private static void metadataLoop() {
         HttpClient client = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
-        HttpRequest request = HttpRequest.newBuilder(URI.create(METADATA_LONG_POLL_URL))
+        HttpRequest request = HttpRequest.newBuilder(URI.create(METADATA_BASE_URL))
             .header("Metadata-Flavor", "Google")
             .timeout(REQUEST_TIMEOUT)
             .GET()
@@ -156,8 +149,6 @@ public final class GcpPreemptionWatchdog {
                     signal("GCP metadata server reported preempted=TRUE");
                     return;
                 }
-                // Server returned FALSE after its hold period (timeout_sec elapsed without
-                // the value changing). Loop and reconnect — still not preempted.
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
@@ -168,13 +159,12 @@ public final class GcpPreemptionWatchdog {
                 } else {
                     LOGGER.debug("[gcp-preemption-watchdog] metadata poll failed: {}", e.toString());
                 }
-                // Back off briefly before retrying so we don't spin on a non-GCP host.
-                try {
-                    Thread.sleep(Duration.ofSeconds(10).toMillis());
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    return;
-                }
+            }
+            try {
+                Thread.sleep(Duration.ofSeconds(POLL_INTERVAL_SECONDS).toMillis());
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                return;
             }
         }
     }

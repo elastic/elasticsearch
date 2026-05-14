@@ -55,6 +55,9 @@ public class VectordbDocumentIndexModeTests extends ESTestCase {
 
         // Intra-merge parallelism is enabled by default.
         assertEquals("true", resolved.get(IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING.getKey()));
+
+        // Merge IO auto-throttling is disabled by default.
+        assertEquals("false", resolved.get(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey()));
     }
 
     public void testProviderRejectsExplicitFalseExcludeSourceVectors() {
@@ -85,6 +88,7 @@ public class VectordbDocumentIndexModeTests extends ESTestCase {
             .put(IndexSettings.MODE.getKey(), "vectordb_document")
             .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), "vex")
             .put(IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING.getKey(), false)
+            .put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), true)
             .build();
         Settings.Builder additional = Settings.builder();
         runProvider(userSettings, additional);
@@ -97,6 +101,10 @@ public class VectordbDocumentIndexModeTests extends ESTestCase {
         assertNull(
             "should not override user-provided intra-merge parallelism setting",
             resolved.get(IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING.getKey())
+        );
+        assertNull(
+            "should not override user-provided merge auto-throttle setting",
+            resolved.get(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey())
         );
     }
 

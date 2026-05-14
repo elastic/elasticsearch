@@ -1,0 +1,6 @@
+pr: 132166
+summary: Upgrade to log4j 2.26.0
+area: Infra/Logging
+type: upgrade
+issues:
+  - 132035

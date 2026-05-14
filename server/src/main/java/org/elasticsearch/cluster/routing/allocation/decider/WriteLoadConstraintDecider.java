@@ -245,7 +245,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                             ? "Max shard write-load proportion is disabled"
                             : Strings.format(
                                 "The max shard write-load proportion on this node is %.1f%%, below the single-hot-shard threshold of %s",
-                                maxShardWriteLoadProportionCalculated,
+                                maxShardWriteLoadProportionCalculated * 100,
                                 writeLoadConstraintSettings.getHotspotMaxShardWriteLoadProportionThresholdString()
                             )
                     );

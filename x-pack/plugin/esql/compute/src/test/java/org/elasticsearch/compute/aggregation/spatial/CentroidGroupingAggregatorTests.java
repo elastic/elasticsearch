@@ -47,16 +47,7 @@ public class CentroidGroupingAggregatorTests extends ComputeTestCase {
             IntVector selected = blockFactory.newIntArrayVector(new int[] { 0, 1 }, 2);
             var evaluationContext = new GroupingAggregatorEvaluationContext(driverContext)
         ) {
-            CentroidShapeAggregator.combineIntermediate(
-                state,
-                0,
-                10.0,
-                0.0,
-                20.0,
-                0.0,
-                1.0,
-                DimensionalShapeType.POINT.ordinal()
-            );
+            CentroidShapeAggregator.combineIntermediate(state, 0, 10.0, 0.0, 20.0, 0.0, 1.0, DimensionalShapeType.POINT.ordinal());
             try (Block result = CentroidShapeAggregator.evaluateFinal(state, selected, evaluationContext)) {
                 assertThat(result.getPositionCount(), equalTo(2));
                 assertThat(BlockUtils.toJavaObject(result, 0), notNullValue());

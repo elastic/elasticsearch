@@ -32,7 +32,7 @@ public class MockPageCacheRecyclerTests extends ESTestCase {
         assertSame(recycler, MockPageCacheRecycler.wrap(recycler));
 
         final var page = recycler.bytePage(randomBoolean());
-        final var leak = expectThrows(RuntimeException.class, MockPageCacheRecycler::ensureAllPagesAreReleased);
+        final var leak = expectThrows(AssertionError.class, MockPageCacheRecycler::ensureAllPagesAreReleased);
         assertThat(leak.getMessage(), containsString("pages have not been released"));
 
         page.close();

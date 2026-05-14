@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -290,6 +291,30 @@ public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTes
         );
         ActionRequestValidationException e = reindex.validate();
         assertEquals("Validation Failed: 1: reindex from remote source included password but not username;", e.getMessage());
+    }
+
+    public void testCreateOpTypeWithExternalVersioningIsRejected() {
+        ReindexRequest reindex = newRequest();
+        reindex.setDestOpType("create");
+        reindex.setDestVersionType(VersionType.EXTERNAL);
+        ActionRequestValidationException e = reindex.validate();
+        assertEquals("Validation Failed: 1: create operations only support internal versioning. use index instead;", e.getMessage());
+    }
+
+    public void testCreateOpTypeWithExternalGteVersioningIsRejected() {
+        ReindexRequest reindex = newRequest();
+        reindex.setDestOpType("create");
+        reindex.setDestVersionType(VersionType.EXTERNAL_GTE);
+        ActionRequestValidationException e = reindex.validate();
+        assertEquals("Validation Failed: 1: create operations only support internal versioning. use index instead;", e.getMessage());
+    }
+
+    public void testCreateOpTypeWithInternalVersioningIsAccepted() {
+        ReindexRequest reindex = newRequest();
+        reindex.setDestOpType("create");
+        reindex.setDestVersionType(VersionType.INTERNAL);
+        ActionRequestValidationException e = reindex.validate();
+        assertNull(e);
     }
 
     public void testNoSliceBuilderSetWithSlicedRequest() {

@@ -12,22 +12,22 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link RoundToLong}.
+ * {@link ExpressionEvaluator} implementation for {@link RoundToLong}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class RoundToLong2Evaluator implements EvalOperator.ExpressionEvaluator {
+public final class RoundToLong2Evaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToLong2Evaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator field;
+  private final ExpressionEvaluator field;
 
   private final long p0;
 
@@ -37,8 +37,8 @@ public final class RoundToLong2Evaluator implements EvalOperator.ExpressionEvalu
 
   private Warnings warnings;
 
-  public RoundToLong2Evaluator(Source source, EvalOperator.ExpressionEvaluator field, long p0,
-      long p1, DriverContext driverContext) {
+  public RoundToLong2Evaluator(Source source, ExpressionEvaluator field, long p0, long p1,
+      DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.p0 = p0;
@@ -67,16 +67,16 @@ public final class RoundToLong2Evaluator implements EvalOperator.ExpressionEvalu
   public LongBlock eval(int positionCount, LongBlock fieldBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (fieldBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (fieldBlock.getValueCount(p) != 1) {
-          if (fieldBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (fieldBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         long field = fieldBlock.getLong(fieldBlock.getFirstValueIndex(p));
         result.appendLong(RoundToLong.process(field, this.p0, this.p1));
@@ -107,27 +107,21 @@ public final class RoundToLong2Evaluator implements EvalOperator.ExpressionEvalu
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final ExpressionEvaluator.Factory field;
 
     private final long p0;
 
     private final long p1;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field, long p0,
-        long p1) {
+    public Factory(Source source, ExpressionEvaluator.Factory field, long p0, long p1) {
       this.source = source;
       this.field = field;
       this.p0 = p0;

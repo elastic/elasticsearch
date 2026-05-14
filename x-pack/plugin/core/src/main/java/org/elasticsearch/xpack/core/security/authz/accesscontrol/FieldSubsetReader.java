@@ -40,9 +40,13 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -55,6 +59,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * A {@link FilterLeafReader} that exposes only a subset
@@ -69,15 +74,18 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
      * Note that for convenience, the returned reader
      * can be used normally (e.g. passed to {@link DirectoryReader#openIfChanged(DirectoryReader)})
      * and so on.
-     * @param in reader to filter
-     * @param filter fields to filter.
+     *
+     * @param in       reader to filter
+     * @param filter   fields to filter.
+     * @param isMapped whether a field is mapped or not.
      */
     public static DirectoryReader wrap(
         DirectoryReader in,
         CharacterRunAutomaton filter,
-        IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
+        IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
+        Function<String, Boolean> isMapped
     ) throws IOException {
-        return new FieldSubsetDirectoryReader(in, filter, ignoredSourceFormat);
+        return new FieldSubsetDirectoryReader(in, filter, ignoredSourceFormat, isMapped);
     }
 
     // wraps subreaders with fieldsubsetreaders.
@@ -85,17 +93,19 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
 
         private final CharacterRunAutomaton filter;
         private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
+        private final Function<String, Boolean> isMapped;
 
         FieldSubsetDirectoryReader(
             DirectoryReader in,
             final CharacterRunAutomaton filter,
-            final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
+            final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
+            Function<String, Boolean> isMapped
         ) throws IOException {
             super(in, new FilterDirectoryReader.SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
                     try {
-                        return new FieldSubsetReader(reader, filter, ignoredSourceFormat);
+                        return new FieldSubsetReader(reader, filter, ignoredSourceFormat, isMapped);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
@@ -103,12 +113,13 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             });
             this.filter = filter;
             this.ignoredSourceFormat = ignoredSourceFormat;
+            this.isMapped = isMapped;
             verifyNoOtherFieldSubsetDirectoryReaderIsWrapped(in);
         }
 
         @Override
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-            return new FieldSubsetDirectoryReader(in, filter, ignoredSourceFormat);
+            return new FieldSubsetDirectoryReader(in, filter, ignoredSourceFormat, isMapped);
         }
 
         /** Return the automaton that is used to filter fields. */
@@ -145,12 +156,25 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     /**
      * Wrap a single segment, exposing a subset of its fields.
      */
-    FieldSubsetReader(LeafReader in, CharacterRunAutomaton filter, IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat)
-        throws IOException {
+    FieldSubsetReader(
+        LeafReader in,
+        CharacterRunAutomaton filter,
+        IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
+        Function<String, Boolean> isMapped
+    ) throws IOException {
         super(in);
         ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
         for (FieldInfo fi : in.getFieldInfos()) {
-            if (filter.run(fi.name)) {
+            String name = fi.name;
+            if (fi.getName().endsWith(TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX) && isMapped.apply(fi.getName()) == false) {
+                name = fi.getName().substring(0, fi.getName().length() - TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX.length());
+            }
+            if (fi.getName().endsWith(IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX)
+                && isMapped.apply(fi.getName()) == false) {
+                name = fi.getName()
+                    .substring(0, fi.getName().length() - IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX.length());
+            }
+            if (filter.run(name)) {
                 filteredInfos.add(fi);
             }
         }
@@ -284,7 +308,24 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
 
     @Override
     public BinaryDocValues getBinaryDocValues(String field) throws IOException {
-        return hasField(field) ? super.getBinaryDocValues(field) : null;
+        if (hasField(field) == false) {
+            return null;
+        }
+
+        BinaryDocValues dv = super.getBinaryDocValues(field);
+        if (isIgnoredSourceDocValues(dv, field)) {
+            return new FilteredIgnoredSourceDocValues(in, dv, ignoredSourceFormat, filter);
+        }
+        return dv;
+    }
+
+    /**
+     * Returns whether these binary doc values are for ignored source.
+     */
+    private boolean isIgnoredSourceDocValues(BinaryDocValues dv, String field) {
+        return dv != null
+            && IgnoredSourceFieldMapper.NAME.equals(field)
+            && ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE;
     }
 
     @Override
@@ -300,6 +341,92 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     @Override
     public SortedSetDocValues getSortedSetDocValues(String field) throws IOException {
         return hasField(field) ? super.getSortedSetDocValues(field) : null;
+    }
+
+    /**
+     * Wraps {@link BinaryDocValues} for the {@code _ignored_source} field to apply field-level security filtering.
+     * <p>
+     * Per-document values are decoded via {@link MultiValuedSortedBinaryDocValues} (which handles both
+     * {@link MultiValuedBinaryDocValuesField.SeparateCount} and {@link MultiValuedBinaryDocValuesField.IntegratedCount}
+     * formats), filtered through the FLS field automaton, and re-encoded in the
+     * {@link MultiValuedBinaryDocValuesField.IntegratedCount} format so that callers only observe field values
+     * the current user is authorised to see. Returning the integrated-count format allows the caller to treat
+     * the counts numeric field as absent, avoiding stale count mismatches after filtering.
+     */
+    private static final class FilteredIgnoredSourceDocValues extends BinaryDocValues {
+
+        private final BinaryDocValues delegate;
+        private final MultiValuedSortedBinaryDocValues multiValues;
+        private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
+        private final CharacterRunAutomaton filter;
+
+        private BytesRef filteredValue;
+
+        FilteredIgnoredSourceDocValues(
+            LeafReader reader,
+            BinaryDocValues dv,
+            IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
+            CharacterRunAutomaton filter
+        ) throws IOException {
+            this.delegate = dv;
+            this.ignoredSourceFormat = ignoredSourceFormat;
+            this.filter = filter;
+            // convert incoming binary doc values to reuse the code provided by MultiValuedSortedBinaryDocValues
+            this.multiValues = MultiValuedSortedBinaryDocValues.fromMultiValued(reader, IgnoredSourceFieldMapper.NAME, dv);
+        }
+
+        @Override
+        public boolean advanceExact(int target) throws IOException {
+            filteredValue = null;
+            if (multiValues.advanceExact(target) == false) {
+                return false;
+            }
+
+            // iterate over all ignored-source entries for this document and apply FLS filtering
+            List<BytesRef> filteredValues = new ArrayList<>();
+            int count = multiValues.docValueCount();
+            for (int i = 0; i < count; i++) {
+                BytesRef value = multiValues.nextValue();
+                BytesRef filtered = ignoredSourceFormat.filterValue(value, v -> filter(v, filter, 0));
+                if (filtered != null) {
+                    // deep copy because nextValue() reuses an internal scratch buffer
+                    filteredValues.add(BytesRef.deepCopyOf(filtered));
+                }
+            }
+
+            if (filteredValues.isEmpty()) {
+                return false;
+            }
+
+            // re-encode surviving values into IntegratedCount format
+            filteredValue = MultiValuedBinaryDocValuesField.IntegratedCount.encode(filteredValues);
+            return true;
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            return filteredValue;
+        }
+
+        @Override
+        public int docID() {
+            return delegate.docID();
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return delegate.nextDoc();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            return delegate.advance(target);
+        }
+
+        @Override
+        public long cost() {
+            return delegate.cost();
+        }
     }
 
     @Override

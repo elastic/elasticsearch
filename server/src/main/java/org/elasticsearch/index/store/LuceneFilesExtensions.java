@@ -11,8 +11,8 @@ package org.elasticsearch.index.store;
 
 import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.Collections;
 import java.util.Map;
@@ -40,6 +40,7 @@ public enum LuceneFilesExtensions {
     // cache, so we use mmap, which provides better performance.
     DVD("dvd", "DocValues", false, true),
     DVM("dvm", "DocValues Metadata", true, false),
+    DVS("dvs", "DocValues Skip data", true, false),
     FDM("fdm", "Field Metadata", true, false),
     FDT("fdt", "Field Data", false, false),
     FDX("fdx", "Field Index", false, false),
@@ -85,21 +86,21 @@ public enum LuceneFilesExtensions {
     VEQ("veq", "Scalar Quantized Vector Data", false, true),
     VEMB("vemb", "Binarized Vector Metadata", true, false),
     VEB("veb", "Binarized Vector Data", false, true),
+    VFI("vfi", "Vector Format Information", true, false),
     // ivf vectors format
     MIVF("mivf", "IVF Metadata", true, false),
     CENIVF("cenivf", "IVF Centroid Data", false, true),
-    CLIVF("clivf", "IVF Cluster Data", false, true);
+    CLIVF("clivf", "IVF Cluster Data", false, true),
+    SFBFM("sfbfm", "Stored field bloom filter metadata", true, false),
+    SFBF("sfbf", "Stored field bloom filter bitset", false, true);
 
     /**
      * Allow plugin developers of custom codecs to opt out of the assertion in {@link #fromExtension}
      * that checks that all encountered file extensions are known to this class.
      * In the future, we would like to add a proper plugin extension point for this.
      */
-    @SuppressForbidden(
-        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-    )
     private static boolean allowUnknownLuceneFileExtensions() {
-        return Boolean.parseBoolean(System.getProperty("es.allow_unknown_lucene_file_extensions", "false"));
+        return Booleans.parseBoolean(System.getProperty("es.allow_unknown_lucene_file_extensions", "false"));
     }
 
     /**

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.settings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,6 +19,7 @@ import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -27,28 +27,29 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 
 /**
  * Contains secret settings that are common to all services.
+ *
  * @param apiKey the key used to authenticate with the 3rd party service
  */
 public record DefaultSecretSettings(SecureString apiKey) implements SecretSettings, ApiKeySecrets {
     public static final String NAME = "default_secret_settings";
 
-    static final String API_KEY = "api_key";
+    public static final String API_KEY = "api_key";
 
-    public static DefaultSecretSettings fromMap(@Nullable Map<String, Object> map) {
+    public static DefaultSecretSettings fromMap(@Nullable Map<String, Object> map, ConfigurationParseContext parseContext) {
         if (map == null) {
             return null;
         }
 
         ValidationException validationException = new ValidationException();
-        SecureString secureApiToken = extractRequiredSecureString(map, API_KEY, ModelSecrets.SECRET_SETTINGS, validationException);
+        var scope = parseContext == ConfigurationParseContext.REQUEST ? SERVICE_SETTINGS : ModelSecrets.SECRET_SETTINGS;
+        SecureString secureApiToken = extractRequiredSecureString(map, API_KEY, scope, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new DefaultSecretSettings(secureApiToken);
     }
@@ -101,7 +102,7 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_12_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -111,6 +112,6 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
 
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
-        return fromMap(new HashMap<>(newSecrets));
+        return fromMap(newSecrets, ConfigurationParseContext.REQUEST);
     }
 }

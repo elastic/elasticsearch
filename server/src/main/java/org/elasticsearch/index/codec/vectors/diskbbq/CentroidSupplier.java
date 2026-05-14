@@ -9,32 +9,36 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
+import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
+import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
+
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * An interface for that supply centroids.
  */
-interface CentroidSupplier {
-    CentroidSupplier EMPTY = new CentroidSupplier() {
-        @Override
-        public int size() {
-            return 0;
-        }
-
-        @Override
-        public float[] centroid(int centroidOrdinal) {
-            throw new IllegalStateException("No centroids");
-        }
-    };
+public interface CentroidSupplier {
 
     int size();
 
     float[] centroid(int centroidOrdinal) throws IOException;
 
-    static CentroidSupplier fromArray(float[][] centroids) {
-        if (centroids.length == 0) {
-            return EMPTY;
-        }
+    default KMeansResult secondLevelClusters() throws IOException {
+        return null;
+    }
+
+    default CentroidSlices slices() throws IOException {
+        return null;
+    }
+
+    KMeansFloatVectorValues asKmeansFloatVectorValues() throws IOException;
+
+    static CentroidSupplier empty(int dims) {
+        return fromArray(new float[0][dims], KMeansResult.EMPTY, dims);
+    }
+
+    static CentroidSupplier fromArray(float[][] centroids, KMeansResult secondLevelClusters, int dims) {
         return new CentroidSupplier() {
             @Override
             public int size() {
@@ -45,6 +49,17 @@ interface CentroidSupplier {
             public float[] centroid(int centroidOrdinal) {
                 return centroids[centroidOrdinal];
             }
+
+            @Override
+            public KMeansResult secondLevelClusters() {
+                return secondLevelClusters;
+            }
+
+            @Override
+            public KMeansFloatVectorValues asKmeansFloatVectorValues() {
+                return KMeansFloatVectorValues.build(Arrays.asList(centroids), null, dims);
+            }
         };
     }
+
 }

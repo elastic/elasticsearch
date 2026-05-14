@@ -12,7 +12,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -43,7 +42,6 @@ public class KnnSemanticTextTestCase extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testKnnQueryWithSemanticText() throws IOException {
-        assumeTrue("knn with semantic text not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
         String knnQuery = """
             FROM semantic-test METADATA _score
             | WHERE knn(dense_semantic, [0, 1, 2])
@@ -65,7 +63,6 @@ public class KnnSemanticTextTestCase extends ESRestTestCase {
     }
 
     public void testKnnQueryOnTextField() throws IOException {
-        assumeTrue("knn with semantic text not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
         String knnQuery = """
             FROM semantic-test METADATA _score
             | WHERE knn(text, [0, 1, 2])
@@ -80,7 +77,6 @@ public class KnnSemanticTextTestCase extends ESRestTestCase {
     }
 
     public void testKnnQueryOnSparseSemanticTextField() throws IOException {
-        assumeTrue("knn with semantic text not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
         String knnQuery = """
             FROM semantic-test METADATA _score
             | WHERE knn(sparse_semantic, [0, 1, 2])
@@ -91,7 +87,7 @@ public class KnnSemanticTextTestCase extends ESRestTestCase {
 
         ResponseException re = expectThrows(ResponseException.class, () -> runEsqlQuery(knnQuery));
         assertThat(re.getResponse().getStatusLine().getStatusCode(), is(BAD_REQUEST.getStatus()));
-        assertThat(re.getMessage(), containsString("Field [sparse_semantic] does not use a [text_embedding] model"));
+        assertThat(re.getMessage(), containsString("Field [sparse_semantic] requires an embedding or text embedding model"));
     }
 
     @Before
@@ -141,21 +137,16 @@ public class KnnSemanticTextTestCase extends ESRestTestCase {
     }
 
     private void setupInferenceEndpoints() throws IOException {
-        CsvTestsDataLoader.createTextEmbeddingInferenceEndpoint(client());
-        CsvTestsDataLoader.createSparseEmbeddingInferenceEndpoint(client());
+        CsvTestsDataLoader.createInferenceEndpoint(client(), CsvTestsDataLoader.INFERENCE_CONFIGS.get("test_dense_inference"));
+        CsvTestsDataLoader.createInferenceEndpoint(client(), CsvTestsDataLoader.INFERENCE_CONFIGS.get("test_sparse_inference"));
     }
 
     @After
     public void tearDown() throws Exception {
         super.tearDown();
         client().performRequest(new Request("DELETE", "semantic-test"));
-
-        if (CsvTestsDataLoader.clusterHasTextEmbeddingInferenceEndpoint(client())) {
-            CsvTestsDataLoader.deleteTextEmbeddingInferenceEndpoint(client());
-        }
-        if (CsvTestsDataLoader.clusterHasSparseEmbeddingInferenceEndpoint(client())) {
-            CsvTestsDataLoader.deleteSparseEmbeddingInferenceEndpoint(client());
-        }
+        CsvTestsDataLoader.deleteInferenceEndpoint(client(), "test_dense_inference");
+        CsvTestsDataLoader.deleteInferenceEndpoint(client(), "test_sparse_inference");
     }
 
     private Map<String, Object> runEsqlQuery(String query) throws IOException {

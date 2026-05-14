@@ -10,12 +10,15 @@ package org.elasticsearch.compute.data;
 // begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 $endif$
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.ReleasableIterator;
+
+import java.util.Arrays;
 // end generated imports
 
 /**
@@ -40,12 +43,30 @@ $endif$
 
     @Override
 $if(BytesRef)$
-    public BytesRef getBytesRef(int position, BytesRef ignore) {
+    public BytesRef getBytesRef(int position, BytesRef scratch) {
+        scratch.bytes = value.bytes;
+        scratch.offset = value.offset;
+        scratch.length = value.length;
+        return scratch;
 $else$
     public $type$ get$Type$(int position) {
-$endif$
         return value;
+$endif$
     }
+
+$if(BytesRef)$
+    @Override
+    public PagedBytesCursor get(int position, PagedBytesCursor scratch) {
+        scratch.init(value.bytes, value.offset, value.length);
+        return scratch;
+    }
+
+$else$
+    @Override
+    public void copyTo(int srcPosition, $type$[] dst, int dstPosition, int length) {
+        Arrays.fill(dst, dstPosition, dstPosition + length, value);
+    }
+$endif$
 
     @Override
     public $Type$Block asBlock() {
@@ -60,7 +81,16 @@ $if(BytesRef)$
 $endif$
 
     @Override
-    public $Type$Vector filter(int... positions) {
+    public int valueMaxByteSize() {
+$if(BytesRef)$
+        return getPositionCount() == 0 ? 0 : value.length;
+$else$
+        return $BYTES$;
+$endif$
+    }
+
+    @Override
+    public $Type$Vector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstant$Type$Vector(value, positions.length);
     }
 
@@ -165,6 +195,15 @@ $elseif(boolean)$
 $endif$
 
     @Override
+    public $Type$Vector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return blockFactory().newConstant$Type$Vector(value, endExclusive - beginInclusive);
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.$TYPE$;
     }
@@ -180,13 +219,27 @@ $endif$
     }
 
 $if(BytesRef)$
-    public static long ramBytesUsed(BytesRef value) {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(value.bytes);
+    public static long ramBytesUsedWithLength(BytesRef value) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + value.length);
+    }
+
+    /**
+     * Estimates the RAM usage of this vector, applying an overestimate multiplier when the
+     * value's byte length exceeds {@code overestimateThreshold}. This compensates for heap
+     * overhead that {@link RamUsageEstimator} does not track, such as when loading large text
+     * fields from {@code _source}.
+     */
+    public static long ramBytesEstimated(BytesRef value, long overestimateThreshold, double overestimateFactor) {
+        long valueBytes = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + value.length);
+        if (value.length > overestimateThreshold) {
+            valueBytes = Math.round(valueBytes * overestimateFactor);
+        }
+        return BASE_RAM_BYTES_USED + valueBytes;
     }
 
     @Override
     public long ramBytesUsed() {
-        return ramBytesUsed(value);
+        return ramBytesEstimated(value, blockFactory().bytesRefRamOverestimateThreshold(), blockFactory().bytesRefRamOverestimateFactor());
     }
 
 $else$

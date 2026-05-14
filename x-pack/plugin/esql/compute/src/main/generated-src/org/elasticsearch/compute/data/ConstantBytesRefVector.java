@@ -9,11 +9,14 @@ package org.elasticsearch.compute.data;
 
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.ReleasableIterator;
+
+import java.util.Arrays;
 // end generated imports
 
 /**
@@ -32,8 +35,17 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
     }
 
     @Override
-    public BytesRef getBytesRef(int position, BytesRef ignore) {
-        return value;
+    public BytesRef getBytesRef(int position, BytesRef scratch) {
+        scratch.bytes = value.bytes;
+        scratch.offset = value.offset;
+        scratch.length = value.length;
+        return scratch;
+    }
+
+    @Override
+    public PagedBytesCursor get(int position, PagedBytesCursor scratch) {
+        scratch.init(value.bytes, value.offset, value.length);
+        return scratch;
     }
 
     @Override
@@ -47,7 +59,12 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
     }
 
     @Override
-    public BytesRefVector filter(int... positions) {
+    public int valueMaxByteSize() {
+        return getPositionCount() == 0 ? 0 : value.length;
+    }
+
+    @Override
+    public BytesRefVector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstantBytesRefVector(value, positions.length);
     }
 
@@ -103,6 +120,15 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
     }
 
     @Override
+    public BytesRefVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return blockFactory().newConstantBytesRefVector(value, endExclusive - beginInclusive);
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.BYTES_REF;
     }
@@ -117,13 +143,27 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
         return blockFactory.newConstantBytesRefVector(value, getPositionCount());
     }
 
-    public static long ramBytesUsed(BytesRef value) {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(value.bytes);
+    public static long ramBytesUsedWithLength(BytesRef value) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + value.length);
+    }
+
+    /**
+     * Estimates the RAM usage of this vector, applying an overestimate multiplier when the
+     * value's byte length exceeds {@code overestimateThreshold}. This compensates for heap
+     * overhead that {@link RamUsageEstimator} does not track, such as when loading large text
+     * fields from {@code _source}.
+     */
+    public static long ramBytesEstimated(BytesRef value, long overestimateThreshold, double overestimateFactor) {
+        long valueBytes = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + value.length);
+        if (value.length > overestimateThreshold) {
+            valueBytes = Math.round(valueBytes * overestimateFactor);
+        }
+        return BASE_RAM_BYTES_USED + valueBytes;
     }
 
     @Override
     public long ramBytesUsed() {
-        return ramBytesUsed(value);
+        return ramBytesEstimated(value, blockFactory().bytesRefRamOverestimateThreshold(), blockFactory().bytesRefRamOverestimateFactor());
     }
 
     @Override

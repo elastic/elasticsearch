@@ -30,14 +30,7 @@ public abstract class AbstractLinkedProjectConfigService implements LinkedProjec
         listeners.forEach(listener -> listener.updateLinkedProject(config));
     }
 
-    protected void handleSkipUnavailableChanged(
-        ProjectId originProjectId,
-        ProjectId linkedProjectId,
-        String linkedProjectAlias,
-        boolean skipUnavailable
-    ) {
-        listeners.forEach(
-            listener -> listener.skipUnavailableChanged(originProjectId, linkedProjectId, linkedProjectAlias, skipUnavailable)
-        );
+    protected void handleRemoved(ProjectId originProjectId, ProjectId linkedProjectId, String linkedProjectAlias) {
+        listeners.forEach(listener -> listener.remove(originProjectId, linkedProjectId, linkedProjectAlias));
     }
 }

@@ -9,45 +9,47 @@ package org.elasticsearch.xpack.inference.services.googlevertexai;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankingInferenceService;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.test.http.MockWebServer;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModelTests;
-import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModelTests;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -55,12 +57,13 @@ import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.inference.TaskType.CHAT_COMPLETION;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
+import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -68,37 +71,24 @@ import static org.mockito.Mockito.mock;
 
 public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
 
-    private final MockWebServer webServer = new MockWebServer();
-    private ThreadPool threadPool;
-
-    private HttpClientManager clientManager;
+    private static final String INFERENCE_ENTITY_ID_VALUE = "id";
+    private static final String API_KEY_VALUE = "api-key";
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
-
-    @Before
-    public void init() throws Exception {
-        webServer.start();
-        threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
-    }
-
-    @After
-    public void shutdown() throws IOException {
-        clientManager.close();
-        terminate(threadPool);
-        webServer.close();
-    }
 
     public void testParseRequestConfig_CreateGoogleVertexAiChatCompletionModel() throws IOException {
         var projectId = "project";
         var location = "location";
         var modelId = "model";
+        var provider = GoogleModelGardenProvider.ANTHROPIC.name();
+        var url = "https://non-streaming.url";
+        var streamingUrl = "https://streaming.url";
         var serviceAccountJson = """
             {
                 "some json"
             }
             """;
 
-        try (var service = createGoogleVertexAiService()) {
+        try (var service = createInferenceService()) {
             ActionListener<Model> modelListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(GoogleVertexAiChatCompletionModel.class));
 
@@ -107,6 +97,11 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                 assertThat(vertexAIModel.getServiceSettings().modelId(), is(modelId));
                 assertThat(vertexAIModel.getServiceSettings().location(), is(location));
                 assertThat(vertexAIModel.getServiceSettings().projectId(), is(projectId));
+
+                assertThat(vertexAIModel.getServiceSettings().provider(), is(GoogleModelGardenProvider.ANTHROPIC));
+                assertThat(vertexAIModel.getServiceSettings().uri(), is(new URI(url)));
+                assertThat(vertexAIModel.getServiceSettings().streamingUri(), is(new URI(streamingUrl)));
+
                 assertThat(vertexAIModel.getSecretSettings().serviceAccountJson().toString(), is(serviceAccountJson));
                 assertThat(vertexAIModel.getConfigurations().getTaskType(), equalTo(CHAT_COMPLETION));
                 assertThat(vertexAIModel.getServiceSettings().rateLimitSettings().requestsPerTimeUnit(), equalTo(1000L));
@@ -115,7 +110,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             }, e -> fail("Model parsing should succeeded, but failed: " + e.getMessage()));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ENTITY_ID_VALUE,
                 TaskType.CHAT_COMPLETION,
                 getRequestConfigMap(
                     new HashMap<>(
@@ -125,7 +120,13 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                             GoogleVertexAiServiceFields.LOCATION,
                             location,
                             GoogleVertexAiServiceFields.PROJECT_ID,
-                            projectId
+                            projectId,
+                            GoogleVertexAiServiceFields.PROVIDER_SETTING_NAME,
+                            provider,
+                            ServiceFields.URL,
+                            url,
+                            GoogleVertexAiServiceFields.STREAMING_URL_SETTING_NAME,
+                            streamingUrl
                         )
                     ),
                     getTaskSettingsMapEmpty(),
@@ -146,7 +147,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             }
             """;
 
-        try (var service = createGoogleVertexAiService()) {
+        try (var service = createInferenceService()) {
             ActionListener<Model> modelListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(GoogleVertexAiEmbeddingsModel.class));
 
@@ -159,7 +160,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             }, e -> fail("Model parsing should succeeded, but failed: " + e.getMessage()));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ENTITY_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
                     new HashMap<>(
@@ -190,7 +191,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             }
             """;
 
-        try (var service = createGoogleVertexAiService()) {
+        try (var service = createInferenceService()) {
             ActionListener<Model> modelListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(GoogleVertexAiEmbeddingsModel.class));
 
@@ -204,7 +205,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             }, e -> fail("Model parsing should succeeded, but failed: " + e.getMessage()));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ENTITY_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
                     new HashMap<>(
@@ -236,7 +237,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             }
             """;
 
-        try (var service = createGoogleVertexAiService()) {
+        try (var service = createInferenceService()) {
             ActionListener<Model> modelListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(GoogleVertexAiEmbeddingsModel.class));
 
@@ -250,7 +251,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             }, e -> fail("Model parsing should succeeded, but failed: " + e.getMessage()));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ENTITY_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
                     new HashMap<>(
@@ -279,7 +280,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             }
             """;
 
-        try (var service = createGoogleVertexAiService()) {
+        try (var service = createInferenceService()) {
             ActionListener<Model> modelListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(GoogleVertexAiRerankModel.class));
 
@@ -290,7 +291,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             }, e -> fail("Model parsing should succeeded, but failed: " + e.getMessage()));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ENTITY_ID_VALUE,
                 TaskType.RERANK,
                 getRequestConfigMap(
                     new HashMap<>(Map.of(GoogleVertexAiServiceFields.PROJECT_ID, projectId)),
@@ -303,14 +304,14 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_ThrowsUnsupportedModelType() throws IOException {
-        try (var service = createGoogleVertexAiService()) {
+        try (var service = createInferenceService()) {
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
                 "The [googlevertexai] service does not support task type [sparse_embedding]"
             );
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ENTITY_ID_VALUE,
                 TaskType.SPARSE_EMBEDDING,
                 getRequestConfigMap(
                     new HashMap<>(
@@ -332,7 +333,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
-        try (var service = createGoogleVertexAiService()) {
+        try (var service = createInferenceService()) {
             var config = getRequestConfigMap(
                 new HashMap<>(
                     Map.of(
@@ -353,12 +354,12 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                 ElasticsearchStatusException.class,
                 "Configuration contains settings [{extra_key=value}] unknown to the [googlevertexai] service"
             );
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
+            service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, config, failureListener);
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInServiceSettingsMap() throws IOException {
-        try (var service = createGoogleVertexAiService()) {
+        try (var service = createInferenceService()) {
             Map<String, Object> serviceSettings = new HashMap<>(
                 Map.of(
                     ServiceFields.MODEL_ID,
@@ -377,12 +378,12 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                 ElasticsearchStatusException.class,
                 "Configuration contains settings [{extra_key=value}] unknown to the [googlevertexai] service"
             );
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
+            service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, config, failureListener);
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInTaskSettingsMap() throws IOException {
-        try (var service = createGoogleVertexAiService()) {
+        try (var service = createInferenceService()) {
             Map<String, Object> taskSettingsMap = new HashMap<>();
             taskSettingsMap.put("extra_key", "value");
 
@@ -405,12 +406,12 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                 ElasticsearchStatusException.class,
                 "Configuration contains settings [{extra_key=value}] unknown to the [googlevertexai] service"
             );
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
+            service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, config, failureListener);
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInSecretSettingsMap() throws IOException {
-        try (var service = createGoogleVertexAiService()) {
+        try (var service = createInferenceService()) {
             Map<String, Object> secretSettings = getSecretSettingsMap("{}");
             secretSettings.put("extra_key", "value");
 
@@ -433,11 +434,11 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                 ElasticsearchStatusException.class,
                 "Configuration contains settings [{extra_key=value}] unknown to the [googlevertexai] service"
             );
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
+            service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, config, failureListener);
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesGoogleVertexAiEmbeddingsModel() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_CreatesGoogleVertexAiEmbeddingsModel() throws IOException {
         var projectId = "project";
         var location = "location";
         var modelId = "model";
@@ -448,7 +449,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             }
             """;
 
-        try (var service = createGoogleVertexAiService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 new HashMap<>(
                     Map.of(
@@ -458,7 +459,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         location,
                         GoogleVertexAiServiceFields.PROJECT_ID,
                         projectId,
-                        GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                        ServiceFields.DIMENSIONS_SET_BY_USER,
                         true
                     )
                 ),
@@ -466,11 +467,14 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                 getSecretSettingsMap(serviceAccountJson)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    GoogleVertexAiService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(GoogleVertexAiEmbeddingsModel.class));
@@ -485,10 +489,13 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesGoogleVertexAiChatCompletionModel() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_CreatesGoogleVertexAiChatCompletionModel() throws IOException, URISyntaxException {
         var projectId = "project";
         var location = "location";
         var modelId = "model";
+        var provider = GoogleModelGardenProvider.ANTHROPIC.name();
+        var url = "https://non-streaming.url";
+        var streamingUrl = "https://streaming.url";
         var autoTruncate = true;
         var serviceAccountJson = """
             {
@@ -496,7 +503,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             }
             """;
 
-        try (var service = createGoogleVertexAiService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 new HashMap<>(
                     Map.of(
@@ -505,18 +512,27 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         GoogleVertexAiServiceFields.LOCATION,
                         location,
                         GoogleVertexAiServiceFields.PROJECT_ID,
-                        projectId
+                        projectId,
+                        GoogleVertexAiServiceFields.PROVIDER_SETTING_NAME,
+                        provider,
+                        ServiceFields.URL,
+                        url,
+                        GoogleVertexAiServiceFields.STREAMING_URL_SETTING_NAME,
+                        streamingUrl
                     )
                 ),
                 getTaskSettingsMap(autoTruncate, InputType.INGEST),
                 getSecretSettingsMap(serviceAccountJson)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.CHAT_COMPLETION,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    CHAT_COMPLETION,
+                    GoogleVertexAiService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(GoogleVertexAiChatCompletionModel.class));
@@ -529,10 +545,15 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             assertThat(chatCompletionModel.getConfigurations().getTaskType(), equalTo(CHAT_COMPLETION));
             assertThat(chatCompletionModel.getServiceSettings().rateLimitSettings().requestsPerTimeUnit(), equalTo(1000L));
             assertThat(chatCompletionModel.getServiceSettings().rateLimitSettings().timeUnit(), equalTo(MINUTES));
+
+            assertThat(chatCompletionModel.getServiceSettings().provider(), is(GoogleModelGardenProvider.ANTHROPIC));
+            assertThat(chatCompletionModel.getServiceSettings().uri(), is(new URI(url)));
+            assertThat(chatCompletionModel.getServiceSettings().streamingUri(), is(new URI(streamingUrl)));
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesAGoogleVertexAiEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_CreatesAGoogleVertexAiEmbeddingsModelWhenChunkingSettingsProvided()
+        throws IOException {
         var projectId = "project";
         var location = "location";
         var modelId = "model";
@@ -543,7 +564,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             }
             """;
 
-        try (var service = createGoogleVertexAiService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 new HashMap<>(
                     Map.of(
@@ -553,7 +574,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         location,
                         GoogleVertexAiServiceFields.PROJECT_ID,
                         projectId,
-                        GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                        ServiceFields.DIMENSIONS_SET_BY_USER,
                         true
                     )
                 ),
@@ -562,11 +583,14 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                 getSecretSettingsMap(serviceAccountJson)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    GoogleVertexAiService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(GoogleVertexAiEmbeddingsModel.class));
@@ -582,7 +606,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         var projectId = "project";
         var location = "location";
         var modelId = "model";
@@ -593,7 +617,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             }
             """;
 
-        try (var service = createGoogleVertexAiService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 new HashMap<>(
                     Map.of(
@@ -603,7 +627,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         location,
                         GoogleVertexAiServiceFields.PROJECT_ID,
                         projectId,
-                        GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                        ServiceFields.DIMENSIONS_SET_BY_USER,
                         true
                     )
                 ),
@@ -611,11 +635,14 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                 getSecretSettingsMap(serviceAccountJson)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    GoogleVertexAiService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(GoogleVertexAiEmbeddingsModel.class));
@@ -631,7 +658,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesGoogleVertexAiRerankModel() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_CreatesGoogleVertexAiRerankModel() throws IOException {
         var projectId = "project";
         var topN = 1;
         var serviceAccountJson = """
@@ -640,14 +667,22 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             }
             """;
 
-        try (var service = createGoogleVertexAiService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 new HashMap<>(Map.of(GoogleVertexAiServiceFields.PROJECT_ID, projectId)),
                 getTaskSettingsMap(topN),
                 getSecretSettingsMap(serviceAccountJson)
             );
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.RERANK, persistedConfig.config(), persistedConfig.secrets());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.RERANK,
+                    GoogleVertexAiService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
+            );
 
             assertThat(model, instanceOf(GoogleVertexAiRerankModel.class));
 
@@ -658,7 +693,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         var projectId = "project";
         var location = "location";
         var modelId = "model";
@@ -669,7 +704,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             }
             """;
 
-        try (var service = createGoogleVertexAiService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 new HashMap<>(
                     Map.of(
@@ -679,7 +714,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         location,
                         GoogleVertexAiServiceFields.PROJECT_ID,
                         projectId,
-                        GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                        ServiceFields.DIMENSIONS_SET_BY_USER,
                         true
                     )
                 ),
@@ -688,11 +723,14 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             );
             persistedConfig.config().put("extra_key", "value");
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    GoogleVertexAiService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(GoogleVertexAiEmbeddingsModel.class));
@@ -707,7 +745,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
         var projectId = "project";
         var location = "location";
         var modelId = "model";
@@ -718,7 +756,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             }
             """;
 
-        try (var service = createGoogleVertexAiService()) {
+        try (var service = createInferenceService()) {
             var secretSettingsMap = getSecretSettingsMap(serviceAccountJson);
             secretSettingsMap.put("extra_key", "value");
 
@@ -731,7 +769,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         "location",
                         GoogleVertexAiServiceFields.PROJECT_ID,
                         "project",
-                        GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                        ServiceFields.DIMENSIONS_SET_BY_USER,
                         true
                     )
                 ),
@@ -739,11 +777,14 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                 secretSettingsMap
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    GoogleVertexAiService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(GoogleVertexAiEmbeddingsModel.class));
@@ -758,7 +799,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         var projectId = "project";
         var location = "location";
         var modelId = "model";
@@ -769,7 +810,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             }
             """;
 
-        try (var service = createGoogleVertexAiService()) {
+        try (var service = createInferenceService()) {
             var serviceSettingsMap = new HashMap<String, Object>(
                 Map.of(
                     ServiceFields.MODEL_ID,
@@ -778,7 +819,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                     "location",
                     GoogleVertexAiServiceFields.PROJECT_ID,
                     "project",
-                    GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                    ServiceFields.DIMENSIONS_SET_BY_USER,
                     true
                 )
             );
@@ -790,11 +831,14 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                 getSecretSettingsMap(serviceAccountJson)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    GoogleVertexAiService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(GoogleVertexAiEmbeddingsModel.class));
@@ -809,7 +853,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
         var projectId = "project";
         var location = "location";
         var modelId = "model";
@@ -820,7 +864,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             }
             """;
 
-        try (var service = createGoogleVertexAiService()) {
+        try (var service = createInferenceService()) {
             var taskSettings = getTaskSettingsMap(autoTruncate, InputType.SEARCH);
             taskSettings.put("extra_key", "value");
 
@@ -833,7 +877,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         "location",
                         GoogleVertexAiServiceFields.PROJECT_ID,
                         "project",
-                        GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                        ServiceFields.DIMENSIONS_SET_BY_USER,
                         true
                     )
                 ),
@@ -841,11 +885,14 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                 getSecretSettingsMap(serviceAccountJson)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    GoogleVertexAiService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(GoogleVertexAiEmbeddingsModel.class));
@@ -866,7 +913,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
         var modelId = "model";
         var autoTruncate = true;
 
-        try (var service = createGoogleVertexAiService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 new HashMap<>(
                     Map.of(
@@ -876,7 +923,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         location,
                         GoogleVertexAiServiceFields.PROJECT_ID,
                         projectId,
-                        GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                        ServiceFields.DIMENSIONS_SET_BY_USER,
                         true
                     )
                 ),
@@ -884,7 +931,15 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                 createRandomChunkingSettingsMap()
             );
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    GoogleVertexAiService.NAME,
+                    persistedConfig.config(),
+                    null
+                )
+            );
 
             assertThat(model, instanceOf(GoogleVertexAiEmbeddingsModel.class));
 
@@ -904,7 +959,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
         var modelId = "model";
         var autoTruncate = true;
 
-        try (var service = createGoogleVertexAiService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 new HashMap<>(
                     Map.of(
@@ -914,14 +969,22 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         location,
                         GoogleVertexAiServiceFields.PROJECT_ID,
                         projectId,
-                        GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                        ServiceFields.DIMENSIONS_SET_BY_USER,
                         true
                     )
                 ),
                 getTaskSettingsMap(autoTruncate, null)
             );
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    GoogleVertexAiService.NAME,
+                    persistedConfig.config(),
+                    null
+                )
+            );
 
             assertThat(model, instanceOf(GoogleVertexAiEmbeddingsModel.class));
 
@@ -935,42 +998,9 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
-        try (var service = createGoogleVertexAiService()) {
-            var model = GoogleVertexAiRerankModelTests.createModel(randomAlphaOfLength(10), randomNonNegativeInt());
-            assertThrows(
-                ElasticsearchStatusException.class,
-                () -> { service.updateModelWithEmbeddingDetails(model, randomNonNegativeInt()); }
-            );
-        }
-    }
-
-    public void testUpdateModelWithEmbeddingDetails_NullSimilarityInOriginalModel() throws IOException {
-        testUpdateModelWithEmbeddingDetails_Successful(null);
-    }
-
-    public void testUpdateModelWithEmbeddingDetails_NonNullSimilarityInOriginalModel() throws IOException {
-        testUpdateModelWithEmbeddingDetails_Successful(randomFrom(SimilarityMeasure.values()));
-    }
-
-    private void testUpdateModelWithEmbeddingDetails_Successful(SimilarityMeasure similarityMeasure) throws IOException {
-        try (var service = createGoogleVertexAiService()) {
-            var embeddingSize = randomNonNegativeInt();
-            var model = GoogleVertexAiEmbeddingsModelTests.createModel(randomAlphaOfLength(10), randomBoolean(), similarityMeasure);
-
-            Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
-
-            SimilarityMeasure expectedSimilarityMeasure = similarityMeasure == null ? SimilarityMeasure.DOT_PRODUCT : similarityMeasure;
-            assertEquals(expectedSimilarityMeasure, updatedModel.getServiceSettings().similarity());
-            assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
-        }
-    }
-
-    // testInfer tested via end-to-end notebook tests in AppEx repo
-
     @SuppressWarnings("checkstyle:LineLength")
     public void testGetConfiguration() throws Exception {
-        try (var service = createGoogleVertexAiService()) {
+        try (var service = createInferenceService()) {
             String content = XContentHelper.stripWhitespace(
                 """
                     {
@@ -1042,17 +1072,41 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    private GoogleVertexAiService createGoogleVertexAiService() {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+    public void testChunkedInfer_noInputs() throws IOException {
+        try (var service = createInferenceService()) {
 
-        return new GoogleVertexAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(
+                GoogleVertexAiEmbeddingsModelTests.createModel(randomAlphaOfLength(10), randomBoolean(), randomSimilarityMeasure()),
+                null,
+                List.of(),
+                new HashMap<>(),
+                InputType.INTERNAL_INGEST,
+                null,
+                listener
+            );
+
+            var results = listener.actionGet(TIMEOUT);
+            assertThat(results, empty());
+            assertThat(webServer.requests(), empty());
+        }
     }
 
     @Override
     public InferenceService createInferenceService() {
-        return createGoogleVertexAiService();
+        return new GoogleVertexAiService(
+            HttpRequestSenderTests.createSenderFactory(threadPool, clientManager),
+            createWithEmptySettings(threadPool),
+            mockClusterServiceEmpty()
+        );
     }
 
+    @Override
+    public Model createEmbeddingModel(SimilarityMeasure similarity) {
+        return GoogleVertexAiEmbeddingsModelTests.createModel(randomAlphaOfLength(8), null, similarity);
+    }
+
+    @Override
     protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
         assertThat(
             rerankingInferenceService.rerankerWindowSize("semantic-ranker-default-003"),
@@ -1096,7 +1150,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
     }
 
     private static ActionListener<Model> getModelListenerForException(Class<?> exceptionClass, String expectedMessage) {
-        return ActionListener.<Model>wrap((model) -> fail("Model parsing should have failed"), e -> {
+        return ActionListener.<Model>wrap(model -> fail("Model parsing should have failed"), e -> {
             assertThat(e, Matchers.instanceOf(exceptionClass));
             assertThat(e.getMessage(), CoreMatchers.is(expectedMessage));
         });
@@ -1120,5 +1174,89 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
         taskSettings.put(GoogleVertexAiRerankTaskSettings.TOP_N, topN);
 
         return taskSettings;
+    }
+
+    public void testBuildModelFromConfigAndSecrets_TextEmbedding() throws IOException {
+        var model = createTestModel(TaskType.TEXT_EMBEDDING);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_Completion() throws IOException {
+        var model = createTestModel(TaskType.COMPLETION);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_ChatCompletion() throws IOException {
+        var model = createTestModel(TaskType.CHAT_COMPLETION);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_Rerank() throws IOException {
+        var model = createTestModel(TaskType.RERANK);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
+        var modelConfigurations = new ModelConfigurations(
+            INFERENCE_ENTITY_ID_VALUE,
+            TaskType.SPARSE_EMBEDDING,
+            GoogleVertexAiService.NAME,
+            mock(ServiceSettings.class)
+        );
+        try (var inferenceService = createInferenceService()) {
+            var thrownException = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
+            );
+            assertThat(
+                thrownException.getMessage(),
+                CoreMatchers.is(
+                    Strings.format(
+                        "The [%s] service does not support task type [%s]",
+                        GoogleVertexAiService.NAME,
+                        TaskType.SPARSE_EMBEDDING
+                    )
+                )
+            );
+        }
+    }
+
+    private Model createTestModel(TaskType taskType) {
+        return switch (taskType) {
+            case TEXT_EMBEDDING -> GoogleVertexAiEmbeddingsModelTests.createModel(
+                randomAlphaOfLength(10),
+                randomBoolean(),
+                randomSimilarityMeasure()
+            );
+            case COMPLETION -> GoogleVertexAiChatCompletionModelTests.createCompletionModel(
+                null,
+                null,
+                null,
+                API_KEY_VALUE,
+                null,
+                null,
+                GoogleModelGardenProvider.GOOGLE,
+                null,
+                123
+            );
+            case CHAT_COMPLETION -> GoogleVertexAiChatCompletionModelTests.createGoogleModelGardenChatCompletionModel(
+                API_KEY_VALUE,
+                null,
+                null,
+                GoogleModelGardenProvider.ANTHROPIC,
+                null,
+                null,
+                123
+            );
+            case RERANK -> GoogleVertexAiRerankModelTests.createModel(null, null);
+            default -> throw new IllegalArgumentException("Unsupported task type: " + taskType);
+        };
+    }
+
+    private void validateModelBuilding(Model model) throws IOException {
+        try (var inferenceService = createInferenceService()) {
+            var resultModel = inferenceService.buildModelFromConfigAndSecrets(model.getConfigurations(), model.getSecrets());
+            assertThat(resultModel, CoreMatchers.is(model));
+        }
     }
 }

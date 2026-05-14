@@ -70,6 +70,7 @@ import org.elasticsearch.index.translog.Translog;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -139,12 +140,27 @@ final class TranslogDirectoryReader extends DirectoryReader {
     }
 
     @Override
+    protected DirectoryReader doOpenIfChanged(ExecutorService executorService) {
+        throw unsupported();
+    }
+
+    @Override
     protected DirectoryReader doOpenIfChanged(IndexCommit commit) {
         throw unsupported();
     }
 
     @Override
+    protected DirectoryReader doOpenIfChanged(IndexCommit commit, ExecutorService executorService) {
+        throw unsupported();
+    }
+
+    @Override
     protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes) {
+        throw unsupported();
+    }
+
+    @Override
+    protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes, ExecutorService executorService) {
         throw unsupported();
     }
 
@@ -182,8 +198,9 @@ final class TranslogDirectoryReader extends DirectoryReader {
         boolean rootDocOnly,
         Translog.Index operation
     ) {
+        final String id = Uid.decodeId(operation.uid());
         final ParsedDocument parsedDocs = documentParser.parseDocument(
-            new SourceToParse(operation.id(), operation.source(), XContentHelper.xContentType(operation.source()), operation.routing()),
+            new SourceToParse(id, operation.source(), XContentHelper.xContentType(operation.source()), operation.routing()),
             mappingLookup
         );
 
@@ -244,7 +261,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
                 }
             };
         } catch (IOException e) {
-            throw new EngineException(shardId, "failed to create an in-memory segment for get [" + operation.id() + "]", e);
+            throw new EngineException(shardId, "failed to create an in-memory segment for get [" + id + "]", e);
         }
     }
 
@@ -339,7 +356,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             this.engineConfig = engineConfig;
             this.onSegmentCreated = onSegmentCreated;
             this.directory = directory;
-            this.uid = Uid.encodeId(operation.id());
+            this.uid = operation.uid();
         }
 
         private LeafReader getDelegate() {

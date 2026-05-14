@@ -8,15 +8,30 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
+import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 public record LocalPhysicalOptimizerContext(
-    PhysicalSettings physicalSettings,
+    PlannerSettings plannerSettings,
     EsqlFlags flags,
     Configuration configuration,
     FoldContext foldCtx,
-    SearchStats searchStats
-) {}
+    SearchStats searchStats,
+    FormatReaderRegistry formatReaderRegistry
+) {
+    /**
+     * Convenience constructor without format reader registry (for backward compatibility and tests).
+     */
+    public LocalPhysicalOptimizerContext(
+        PlannerSettings plannerSettings,
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        SearchStats searchStats
+    ) {
+        this(plannerSettings, flags, configuration, foldCtx, searchStats, null);
+    }
+}

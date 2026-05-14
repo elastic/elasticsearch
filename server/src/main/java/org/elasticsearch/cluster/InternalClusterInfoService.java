@@ -29,7 +29,10 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WriteLoadDeciderShardWriteLoadType;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WriteLoadDeciderStatus;
+import org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -54,6 +57,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_TYPE_SETTING;
 import static org.elasticsearch.core.Strings.format;
 
 /**
@@ -97,15 +101,9 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private volatile boolean diskThresholdEnabled;
     private volatile boolean estimatedHeapThresholdEnabled;
     private volatile WriteLoadDeciderStatus writeLoadConstraintEnabled;
+    private volatile WriteLoadDeciderShardWriteLoadType writeLoadDeciderShardWriteLoadType;
     private volatile TimeValue updateFrequency;
     private volatile TimeValue fetchTimeout;
-
-    private volatile Map<String, DiskUsage> leastAvailableSpaceUsages;
-    private volatile Map<String, DiskUsage> mostAvailableSpaceUsages;
-    private volatile Map<String, ByteSizeValue> maxHeapPerNode;
-    private volatile Map<String, Long> estimatedHeapUsagePerNode;
-    private volatile Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolUsageStatsPerNode;
-    private volatile IndicesStatsSummary indicesStatsSummary;
 
     private final ThreadPool threadPool;
     private final Client client;
@@ -116,25 +114,23 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private final List<ActionListener<ClusterInfo>> nextRefreshListeners = new ArrayList<>();
     private final EstimatedHeapUsageCollector estimatedHeapUsageCollector;
     private final NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector;
+    private final WriteLoadConstraintSettings writeLoadConstraintSettings;
 
     private AsyncRefresh currentRefresh;
     private RefreshScheduler refreshScheduler;
 
+    private volatile ClusterInfo currentClusterInfo = ClusterInfo.EMPTY;
+
     @SuppressWarnings("this-escape")
     public InternalClusterInfoService(
         Settings settings,
+        WriteLoadConstraintSettings writeLoadConstraintSettings,
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
         EstimatedHeapUsageCollector estimatedHeapUsageCollector,
         NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector
     ) {
-        this.leastAvailableSpaceUsages = Map.of();
-        this.mostAvailableSpaceUsages = Map.of();
-        this.maxHeapPerNode = Map.of();
-        this.estimatedHeapUsagePerNode = Map.of();
-        this.nodeThreadPoolUsageStatsPerNode = Map.of();
-        this.indicesStatsSummary = IndicesStatsSummary.EMPTY;
         this.threadPool = threadPool;
         this.client = client;
         this.estimatedHeapUsageCollector = estimatedHeapUsageCollector;
@@ -143,6 +139,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         this.fetchTimeout = INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.get(settings);
         this.diskThresholdEnabled = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
         this.clusterStateSupplier = clusterService::state;
+        this.writeLoadConstraintSettings = writeLoadConstraintSettings;
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING, this::setFetchTimeout);
         clusterSettings.addSettingsUpdateConsumer(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING, this::setUpdateFrequency);
@@ -154,8 +151,11 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED,
             this::setEstimatedHeapThresholdEnabled
         );
-
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, this::setWriteLoadConstraintEnabled);
+        clusterSettings.initializeAndWatch(
+            WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_TYPE_SETTING,
+            this::setWriteLoadDeciderShardLevelWriteLoadType
+        );
     }
 
     private void setDiskThresholdEnabled(boolean diskThresholdEnabled) {
@@ -168,6 +168,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     private void setWriteLoadConstraintEnabled(WriteLoadDeciderStatus writeLoadConstraintEnabled) {
         this.writeLoadConstraintEnabled = writeLoadConstraintEnabled;
+    }
+
+    private void setWriteLoadDeciderShardLevelWriteLoadType(WriteLoadDeciderShardWriteLoadType type) {
+        this.writeLoadDeciderShardWriteLoadType = type;
     }
 
     private void setFetchTimeout(TimeValue fetchTimeout) {
@@ -208,6 +212,14 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     private class AsyncRefresh {
 
+        private volatile Map<String, DiskUsage> leastAvailableSpaceUsages;
+        private volatile Map<String, DiskUsage> mostAvailableSpaceUsages;
+        private volatile Map<String, ByteSizeValue> maxHeapPerNode;
+        private volatile Map<String, Long> estimatedHeapUsagePerNode;
+        private volatile ShardHeapUsageEstimates estimatedShardHeapUsageEstimates = ShardHeapUsageEstimates.empty();
+        private volatile Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolUsageStatsPerNode;
+        private volatile IndicesStatsSummary indicesStatsSummary;
+
         private final List<ActionListener<ClusterInfo>> thisRefreshListeners;
         private final RefCountingRunnable fetchRefs = new RefCountingRunnable(this::callListeners);
 
@@ -221,8 +233,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             try (var ignoredRefs = fetchRefs) {
                 maybeFetchIndicesStats(diskThresholdEnabled || writeLoadConstraintEnabled.atLeastLowThresholdEnabled());
                 maybeFetchNodeStats(diskThresholdEnabled || estimatedHeapThresholdEnabled);
-                maybeFetchNodesEstimatedHeapUsage(estimatedHeapThresholdEnabled);
-                maybeFetchNodesUsageStatsForThreadPools(writeLoadConstraintEnabled);
+                maybeFetchEstimatedHeapUsage(estimatedHeapThresholdEnabled);
+                fetchNodesUsageStatsForThreadPools();
             }
         }
 
@@ -250,48 +262,40 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             }
         }
 
-        private void maybeFetchNodesEstimatedHeapUsage(boolean shouldFetch) {
+        private void maybeFetchEstimatedHeapUsage(boolean shouldFetch) {
             if (shouldFetch) {
                 try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                    fetchNodesEstimatedHeapUsage();
+                    fetchEstimatedHeapUsage();
                 }
             } else {
                 logger.trace("skipping collecting estimated heap usage from cluster, notifying listeners with empty estimated heap usage");
                 estimatedHeapUsagePerNode = Map.of();
-            }
-        }
-
-        private void maybeFetchNodesUsageStatsForThreadPools(WriteLoadDeciderStatus writeLoadConstraintEnabled) {
-            if (writeLoadConstraintEnabled.atLeastLowThresholdEnabled()) {
-                try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                    fetchNodesUsageStatsForThreadPools();
-                }
-            } else {
-                logger.trace("skipping collecting shard/node write load estimates from cluster, feature currently disabled");
-                nodeThreadPoolUsageStatsPerNode = Map.of();
+                estimatedShardHeapUsageEstimates = ShardHeapUsageEstimates.empty();
             }
         }
 
         private void fetchNodesUsageStatsForThreadPools() {
-            nodeUsageStatsForThreadPoolsCollector.collectUsageStats(
-                client,
-                clusterStateSupplier.get(),
-                ActionListener.releaseAfter(new ActionListener<>() {
-                    @Override
-                    public void onResponse(Map<String, NodeUsageStatsForThreadPools> threadPoolStats) {
-                        nodeThreadPoolUsageStatsPerNode = threadPoolStats;
-                    }
+            try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                nodeUsageStatsForThreadPoolsCollector.collectUsageStats(
+                    client,
+                    clusterStateSupplier.get(),
+                    ActionListener.releaseAfter(new ActionListener<>() {
+                        @Override
+                        public void onResponse(Map<String, NodeUsageStatsForThreadPools> threadPoolStats) {
+                            nodeThreadPoolUsageStatsPerNode = threadPoolStats;
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.warn("failed to fetch thread pool usage estimates for nodes", e);
-                        nodeThreadPoolUsageStatsPerNode = Map.of();
-                    }
-                }, fetchRefs.acquire())
-            );
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.warn("failed to fetch thread pool usage estimates for nodes", e);
+                            nodeThreadPoolUsageStatsPerNode = Map.of();
+                        }
+                    }, fetchRefs.acquire())
+                );
+            }
         }
 
-        private void fetchNodesEstimatedHeapUsage() {
+        private void fetchEstimatedHeapUsage() {
             estimatedHeapUsageCollector.collectClusterHeapUsage(ActionListener.releaseAfter(new ActionListener<>() {
                 @Override
                 public void onResponse(Map<String, Long> currentEstimatedHeapUsages) {
@@ -302,6 +306,19 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 public void onFailure(Exception e) {
                     logger.warn("failed to fetch heap usage for nodes", e);
                     estimatedHeapUsagePerNode = Map.of();
+                }
+            }, fetchRefs.acquire()));
+
+            estimatedHeapUsageCollector.collectShardHeapUsage(ActionListener.releaseAfter(new ActionListener<>() {
+                @Override
+                public void onResponse(ShardHeapUsageEstimates currentEstimatedHeapUsages) {
+                    estimatedShardHeapUsageEstimates = currentEstimatedHeapUsages;
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn("failed to fetch heap usage for shards", e);
+                    estimatedShardHeapUsageEstimates = ShardHeapUsageEstimates.empty();
                 }
             }, fetchRefs.acquire()));
         }
@@ -377,7 +394,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                                     shardSizeByIdentifierBuilder,
                                     shardDataSetSizeBuilder,
                                     dataPath,
-                                    reservedSpaceBuilders
+                                    reservedSpaceBuilders,
+                                    writeLoadDeciderShardWriteLoadType
                                 );
 
                                 final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace = new HashMap<>();
@@ -453,7 +471,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private void callListeners() {
             try {
                 logger.trace("stats all received, computing cluster info and notifying listeners");
-                final ClusterInfo clusterInfo = getClusterInfo();
+                final ClusterInfo clusterInfo = updateAndGetCurrentClusterInfo();
                 boolean anyListeners = false;
                 for (final Consumer<ClusterInfo> listener : listeners) {
                     anyListeners = true;
@@ -472,6 +490,57 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             } finally {
                 onRefreshComplete(this);
             }
+        }
+
+        private ClusterInfo updateAndGetCurrentClusterInfo() {
+            final Map<String, EstimatedHeapUsage> estimatedHeapUsages = new HashMap<>(maxHeapPerNode.size());
+            maxHeapPerNode.forEach((nodeId, maxHeapSize) -> {
+                final Long estimatedHeapUsage = estimatedHeapUsagePerNode.get(nodeId);
+                if (estimatedHeapUsage != null) {
+                    estimatedHeapUsages.put(nodeId, new EstimatedHeapUsage(nodeId, maxHeapSize.getBytes(), estimatedHeapUsage));
+                }
+            });
+            final Set<String> nodeIdsWriteLoadHotspotting = buildNodeIdsWriteLoadHotspottingSet(
+                nodeThreadPoolUsageStatsPerNode,
+                writeLoadConstraintSettings.getQueueLatencyThreshold(),
+                writeLoadConstraintSettings.getHotspotUtilizationThreshold()
+            );
+
+            final var newClusterInfo = new ClusterInfo(
+                leastAvailableSpaceUsages,
+                mostAvailableSpaceUsages,
+                indicesStatsSummary.shardSizes,
+                indicesStatsSummary.shardDataSetSizes,
+                indicesStatsSummary.dataPath,
+                indicesStatsSummary.reservedSpace,
+                estimatedHeapUsages,
+                estimatedShardHeapUsageEstimates.perShard(),
+                estimatedShardHeapUsageEstimates.defaultForShardsWithoutMetrics(),
+                nodeThreadPoolUsageStatsPerNode,
+                indicesStatsSummary.shardWriteLoads(),
+                maxHeapPerNode,
+                nodeIdsWriteLoadHotspotting
+            );
+            currentClusterInfo = newClusterInfo;
+            return newClusterInfo;
+        }
+
+        private static Set<String> buildNodeIdsWriteLoadHotspottingSet(
+            Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolUsageStatsPerNode,
+            TimeValue hotspotQueueLatencyThreshold,
+            double hotspotUtilizationThreshold
+        ) {
+            final Set<String> nodeIdsWriteLoadHotspotting = new HashSet<>(nodeThreadPoolUsageStatsPerNode.size());
+            nodeThreadPoolUsageStatsPerNode.forEach((nodeId, nodeUsageStats) -> {
+                if (WriteLoadConstraintDecider.nodeIsHotspotting(
+                    nodeUsageStats,
+                    hotspotQueueLatencyThreshold,
+                    hotspotUtilizationThreshold
+                )) {
+                    nodeIdsWriteLoadHotspotting.add(nodeId);
+                }
+            });
+            return nodeIdsWriteLoadHotspotting;
         }
     }
 
@@ -537,27 +606,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     @Override
     public ClusterInfo getClusterInfo() {
-        final IndicesStatsSummary indicesStatsSummary = this.indicesStatsSummary; // single volatile read
-        final Map<String, EstimatedHeapUsage> estimatedHeapUsages = new HashMap<>();
-        final var currentMaxHeapPerNode = this.maxHeapPerNode; // Make sure we use a consistent view
-        currentMaxHeapPerNode.forEach((nodeId, maxHeapSize) -> {
-            final Long estimatedHeapUsage = estimatedHeapUsagePerNode.get(nodeId);
-            if (estimatedHeapUsage != null) {
-                estimatedHeapUsages.put(nodeId, new EstimatedHeapUsage(nodeId, maxHeapSize.getBytes(), estimatedHeapUsage));
-            }
-        });
-        return new ClusterInfo(
-            leastAvailableSpaceUsages,
-            mostAvailableSpaceUsages,
-            indicesStatsSummary.shardSizes,
-            indicesStatsSummary.shardDataSetSizes,
-            indicesStatsSummary.dataPath,
-            indicesStatsSummary.reservedSpace,
-            estimatedHeapUsages,
-            nodeThreadPoolUsageStatsPerNode,
-            indicesStatsSummary.shardWriteLoads(),
-            currentMaxHeapPerNode
-        );
+        return currentClusterInfo;
     }
 
     // allow tests to adjust the node stats on receipt
@@ -590,7 +639,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         Map<String, Long> shardSizes,
         Map<ShardId, Long> shardDataSetSizeBuilder,
         Map<ClusterInfo.NodeAndShard, String> dataPathByShard,
-        Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceByShard
+        Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceByShard,
+        WriteLoadDeciderShardWriteLoadType shardWriteLoadType
     ) {
         for (ShardStats s : stats) {
             final ShardRouting shardRouting = s.getShardRouting();
@@ -618,7 +668,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             }
             final IndexingStats indexingStats = s.getStats().getIndexing();
             if (indexingStats != null) {
-                final double shardWriteLoad = indexingStats.getTotal().getPeakWriteLoad();
+                final double shardWriteLoad = shardWriteLoadType.getWriteLoad(indexingStats);
                 if (shardWriteLoad > shardWriteLoads.getOrDefault(shardRouting.shardId(), -1.0)) {
                     shardWriteLoads.put(shardRouting.shardId(), shardWriteLoad);
                 }

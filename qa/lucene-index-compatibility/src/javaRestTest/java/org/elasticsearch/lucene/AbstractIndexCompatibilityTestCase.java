@@ -77,7 +77,6 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
         .setting("path.repo", () -> REPOSITORY_PATH.getRoot().getPath())
         .setting("xpack.security.enabled", "false")
         .setting("xpack.ml.enabled", "false")
-        .setting("path.repo", () -> REPOSITORY_PATH.getRoot().getPath())
         .apply(() -> clusterConfig)
         .build();
 

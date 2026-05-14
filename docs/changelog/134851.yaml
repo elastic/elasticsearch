@@ -1,5 +1,0 @@
-pr: 134851
-summary: Remove ingest conditionals `_type` deprecation warning
-area: Ingest Node
-type: enhancement
-issues: []

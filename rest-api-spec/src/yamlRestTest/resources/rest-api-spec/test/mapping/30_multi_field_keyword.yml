@@ -2,7 +2,7 @@
 Keyword with escaped characters as multi-field:
   - requires:
       cluster_features: [ "mapper.multi_field.unicode_optimisation_fix" ]
-      reason: "requires a fix (#134770)"
+      reason: "Captures the scenarios in #134770 & 135256"
   - do:
       indices.create:
         index: test
@@ -14,7 +14,12 @@ Keyword with escaped characters as multi-field:
                 fields:
                   bar:
                     type: keyword
+                  bar-text:
+                    type: text
+              my-ip:
+                type: ip
 
+  # Ensure the IP is correctly parsed after a multi-field mapping that combines optimised and non-optimised fields
   - do:
       index:
         index: test
@@ -22,6 +27,7 @@ Keyword with escaped characters as multi-field:
         refresh: true
         body:
           foo: "c:\\windows\\system32\\svchost.exe"
+          my-ip: "127.0.0.1"
 
   - do:
       search:

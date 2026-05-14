@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Objects;
 
 /**
  * An extension to {@link BytesReference} that requires releasing its content. This
@@ -49,6 +50,48 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
     public static ReleasableBytesReference wrap(BytesReference reference) {
         assert reference instanceof ReleasableBytesReference == false : "use #retain() instead of #wrap() on a " + reference.getClass();
         return reference.length() == 0 ? empty() : new ReleasableBytesReference(reference, ALWAYS_REFERENCED);
+    }
+
+    /**
+     * Take shared ownership of pooled bytes reachable from {@code reference} without copying the payload.
+     * <p>
+     * Retains {@link ReleasableBytesReference} leaves. For {@link CompositeBytesReference}, recursively adopts each
+     * component and ties a single release to all retained parts. Plain heap references (e.g. {@link BytesArray}) use
+     * {@link #wrap(BytesReference)} (no native buffer to release).
+     */
+    public static ReleasableBytesReference adopt(BytesReference reference) {
+        Objects.requireNonNull(reference);
+        if (reference.length() == 0) {
+            return empty();
+        }
+        if (reference instanceof ReleasableBytesReference r) {
+            return r.retain();
+        }
+        if (reference instanceof CompositeBytesReference composite) {
+            final BytesReference[] parts = composite.componentReferences();
+            final ReleasableBytesReference[] retained = new ReleasableBytesReference[parts.length];
+            int filled = 0;
+            try {
+                for (BytesReference part : parts) {
+                    retained[filled++] = adopt(part);
+                }
+            } catch (RuntimeException e) {
+                for (int j = 0; j < filled; j++) {
+                    Releasables.close(retained[j]);
+                }
+                throw e;
+            }
+            BytesReference joined = CompositeBytesReference.of(retained);
+            return new ReleasableBytesReference(joined, () -> Releasables.close(retained));
+        }
+        return wrap(reference);
+    }
+
+    public static BytesReference unwrap(BytesReference reference) {
+        if (reference instanceof ReleasableBytesReference releasable) {
+            return releasable.delegate;
+        }
+        return reference;
     }
 
     @Override
@@ -276,6 +319,11 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
     public int arrayOffset() {
         assert hasReferences();
         return delegate.arrayOffset();
+    }
+
+    public BytesReference delegate() {
+        assert hasReferences();
+        return delegate;
     }
 
     private static final class RefCountedReleasable extends AbstractRefCounted {

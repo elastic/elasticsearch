@@ -12,6 +12,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
@@ -22,12 +24,14 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptCompiler;
@@ -39,6 +43,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -46,14 +51,18 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.search.SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS;
 
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
  */
 public class QueryRewriteContext {
+
     protected final MapperService mapperService;
     protected final MappingLookup mappingLookup;
     protected final Map<String, MappedFieldType> runtimeMappings;
@@ -70,6 +79,7 @@ public class QueryRewriteContext {
     protected final Client client;
     protected final LongSupplier nowInMillis;
     private final List<BiConsumer<Client, ActionListener<?>>> asyncActions = new ArrayList<>();
+    protected final Map<QueryRewriteAsyncAction<?, ?>, List<Consumer<?>>> uniqueAsyncActions = new HashMap<>();
     protected boolean allowUnmappedFields;
     protected boolean mapUnmappedFieldAsString;
     protected Predicate<String> allowedFields;
@@ -78,6 +88,10 @@ public class QueryRewriteContext {
     private QueryRewriteInterceptor queryRewriteInterceptor;
     private final Boolean ccsMinimizeRoundTrips;
     private final boolean isExplain;
+    private final boolean isProfile;
+    private Long timeRangeFilterFromMillis;
+    private boolean trackTimeRangeFilterFrom = true;
+    private final boolean allowPartialSearchResults;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -99,9 +113,10 @@ public class QueryRewriteContext {
         final PointInTimeBuilder pit,
         final QueryRewriteInterceptor queryRewriteInterceptor,
         final Boolean ccsMinimizeRoundTrips,
-        final boolean isExplain
+        final boolean isExplain,
+        final boolean isProfile,
+        final boolean allowPartialSearchResults
     ) {
-
         this.parserConfiguration = parserConfiguration;
         this.client = client;
         this.nowInMillis = nowInMillis;
@@ -123,6 +138,57 @@ public class QueryRewriteContext {
         this.queryRewriteInterceptor = queryRewriteInterceptor;
         this.ccsMinimizeRoundTrips = ccsMinimizeRoundTrips;
         this.isExplain = isExplain;
+        this.isProfile = isProfile;
+        this.allowPartialSearchResults = allowPartialSearchResults;
+    }
+
+    public QueryRewriteContext(
+        final XContentParserConfiguration parserConfiguration,
+        final Client client,
+        final LongSupplier nowInMillis,
+        final MapperService mapperService,
+        final MappingLookup mappingLookup,
+        final Map<String, MappedFieldType> runtimeMappings,
+        final IndexSettings indexSettings,
+        final TransportVersion minTransportVersion,
+        final String localClusterAlias,
+        final Index fullyQualifiedIndex,
+        final Predicate<String> indexNameMatcher,
+        final NamedWriteableRegistry namedWriteableRegistry,
+        final ValuesSourceRegistry valuesSourceRegistry,
+        final BooleanSupplier allowExpensiveQueries,
+        final ScriptCompiler scriptService,
+        final ResolvedIndices resolvedIndices,
+        final PointInTimeBuilder pit,
+        final QueryRewriteInterceptor queryRewriteInterceptor,
+        final Boolean ccsMinimizeRoundTrips,
+        final boolean isExplain,
+        final boolean isProfile
+    ) {
+        this(
+            parserConfiguration,
+            client,
+            nowInMillis,
+            mapperService,
+            Objects.requireNonNull(mappingLookup),
+            runtimeMappings,
+            indexSettings,
+            minTransportVersion,
+            localClusterAlias,
+            fullyQualifiedIndex,
+            indexNameMatcher,
+            namedWriteableRegistry,
+            valuesSourceRegistry,
+            allowExpensiveQueries,
+            scriptService,
+            resolvedIndices,
+            pit,
+            queryRewriteInterceptor,
+            ccsMinimizeRoundTrips,
+            isExplain,
+            isProfile,
+            DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS
+        );
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
@@ -146,7 +212,9 @@ public class QueryRewriteContext {
             null,
             null,
             null,
-            false
+            false,
+            false,
+            DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS
         );
     }
 
@@ -171,7 +239,9 @@ public class QueryRewriteContext {
             pit,
             queryRewriteInterceptor,
             ccsMinimizeRoundTrips,
-            false
+            false,
+            false,
+            DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS
         );
     }
 
@@ -185,7 +255,9 @@ public class QueryRewriteContext {
         final PointInTimeBuilder pit,
         final QueryRewriteInterceptor queryRewriteInterceptor,
         final Boolean ccsMinimizeRoundTrips,
-        final boolean isExplain
+        final boolean isExplain,
+        final boolean isProfile,
+        final boolean allowPartialSearchResults
     ) {
         this(
             parserConfiguration,
@@ -207,7 +279,48 @@ public class QueryRewriteContext {
             pit,
             queryRewriteInterceptor,
             ccsMinimizeRoundTrips,
-            isExplain
+            isExplain,
+            isProfile,
+            allowPartialSearchResults
+        );
+    }
+
+    public QueryRewriteContext(
+        final XContentParserConfiguration parserConfiguration,
+        final Client client,
+        final LongSupplier nowInMillis,
+        final TransportVersion minTransportVersion,
+        final String localClusterAlias,
+        final ResolvedIndices resolvedIndices,
+        final PointInTimeBuilder pit,
+        final QueryRewriteInterceptor queryRewriteInterceptor,
+        final Boolean ccsMinimizeRoundTrips,
+        final boolean isExplain,
+        final boolean isProfile
+    ) {
+        this(
+            parserConfiguration,
+            client,
+            nowInMillis,
+            null,
+            MappingLookup.EMPTY,
+            Collections.emptyMap(),
+            null,
+            minTransportVersion,
+            localClusterAlias,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            resolvedIndices,
+            pit,
+            queryRewriteInterceptor,
+            ccsMinimizeRoundTrips,
+            isExplain,
+            isProfile,
+            DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS
         );
     }
 
@@ -279,8 +392,13 @@ public class QueryRewriteContext {
         if (allowedFields != null && false == allowedFields.test(name)) {
             return null;
         }
-        MappedFieldType fieldType = runtimeMappings.get(name);
-        return fieldType == null ? mappingLookup.getFieldType(name) : fieldType;
+        final String fieldName = resolveSliceAlias(name);
+        MappedFieldType fieldType = runtimeMappings.get(fieldName);
+        return fieldType == null ? mappingLookup.getFieldType(fieldName) : fieldType;
+    }
+
+    private String resolveSliceAlias(String fieldName) {
+        return isSliceFieldAlias(fieldName) ? RoutingFieldMapper.NAME : fieldName;
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -290,15 +408,18 @@ public class QueryRewriteContext {
         return mapperService.getIndexAnalyzers();
     }
 
+    /**
+     * @return a supplier that can be used to check whether loading field data from _id field's inverted index is allowed.
+     */
+    public BooleanSupplier idFieldDataEnabled() {
+        return mapperService.getIdFieldDataEnabled();
+    }
+
     MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
         if (fieldMapping != null || allowUnmappedFields) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
-            TextFieldMapper.Builder builder = new TextFieldMapper.Builder(
-                name,
-                getIndexAnalyzers(),
-                getIndexSettings() != null && SourceFieldMapper.isSynthetic(getIndexSettings())
-            );
+            TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, indexSettings, getIndexAnalyzers(), false);
             return builder.build(MapperBuilderContext.root(false, false)).fieldType();
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
@@ -322,6 +443,14 @@ public class QueryRewriteContext {
 
     public boolean isExplain() {
         return this.isExplain;
+    }
+
+    public boolean isProfile() {
+        return this.isProfile;
+    }
+
+    public boolean allowPartialSearchResults() {
+        return this.allowPartialSearchResults;
     }
 
     public NamedWriteableRegistry getWriteableRegistry() {
@@ -350,7 +479,7 @@ public class QueryRewriteContext {
      * Returns <code>true</code> if there are any registered async actions.
      */
     public boolean hasAsyncActions() {
-        return asyncActions.isEmpty() == false;
+        return asyncActions.isEmpty() == false || uniqueAsyncActions.isEmpty() == false;
     }
 
     /**
@@ -358,10 +487,12 @@ public class QueryRewriteContext {
      * <code>null</code>. The list of registered actions is cleared once this method returns.
      */
     public void executeAsyncActions(ActionListener<Void> listener) {
-        if (asyncActions.isEmpty()) {
+        if (hasAsyncActions() == false) {
             listener.onResponse(null);
         } else {
-            CountDown countDown = new CountDown(asyncActions.size());
+            final int actionCount = asyncActions.size() + uniqueAsyncActions.size();
+
+            CountDown countDown = new CountDown(actionCount);
             ActionListener<?> internalListener = new ActionListener<>() {
                 @Override
                 public void onResponse(Object o) {
@@ -377,11 +508,18 @@ public class QueryRewriteContext {
                     }
                 }
             };
+
             // make a copy to prevent concurrent modification exception
             List<BiConsumer<Client, ActionListener<?>>> biConsumers = new ArrayList<>(asyncActions);
             asyncActions.clear();
             for (BiConsumer<Client, ActionListener<?>> action : biConsumers) {
                 action.accept(client, internalListener);
+            }
+
+            var copyUniqueAsyncActions = new HashMap<>(uniqueAsyncActions);
+            uniqueAsyncActions.clear();
+            for (var entry : copyUniqueAsyncActions.keySet()) {
+                entry.execute(client, internalListener, copyUniqueAsyncActions.get(entry));
             }
         }
     }
@@ -440,6 +578,9 @@ public class QueryRewriteContext {
      * @param pattern the field name pattern
      */
     public Set<String> getMatchingFieldNames(String pattern) {
+        if (isSliceFieldAlias(pattern)) {
+            return Set.of(SliceIndexing.PARAM_NAME);
+        }
         Set<String> matches;
         if (runtimeMappings.isEmpty()) {
             matches = mappingLookup.getMatchingFieldNames(pattern);
@@ -462,6 +603,14 @@ public class QueryRewriteContext {
         }
         // If the field is not allowed, behave as if it is not mapped
         return allowedFields == null ? matches : matches.stream().filter(allowedFields).collect(Collectors.toSet());
+    }
+
+    protected final boolean isSliceFieldAlias(String fieldName) {
+        return isSliceFieldAliasEnabled() && SliceIndexing.PARAM_NAME.equals(fieldName);
+    }
+
+    private boolean isSliceFieldAliasEnabled() {
+        return SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && indexSettings != null && indexSettings.isSliceEnabled();
     }
 
     /**
@@ -500,16 +649,18 @@ public class QueryRewriteContext {
      */
     @Nullable
     public String getTierPreference() {
-        Settings settings = getIndexSettings().getSettings();
+        return getFirstTierPreference(getIndexSettings().getSettings(), null);
+    }
+
+    public static String getFirstTierPreference(Settings settings, String defaultTierPreference) {
         String value = DataTier.TIER_PREFERENCE_SETTING.get(settings);
-
         if (Strings.hasText(value) == false) {
-            return null;
+            return defaultTierPreference;
         }
-
         // Tier preference can be a comma-delimited list of tiers, ordered by preference
         // It was decided we should only test the first of these potentially multiple preferences.
-        return value.split(",")[0].trim();
+        int separatorPosition = value.indexOf(',');
+        return (separatorPosition != -1 ? value.substring(0, separatorPosition) : value).trim();
     }
 
     public QueryRewriteInterceptor getQueryRewriteInterceptor() {
@@ -520,4 +671,62 @@ public class QueryRewriteContext {
         this.queryRewriteInterceptor = queryRewriteInterceptor;
     }
 
+    /**
+     * Returns the minimum lower bound across the time ranges filters against the @timestamp field included in the query
+     */
+    public Long getTimeRangeFilterFromMillis() {
+        return timeRangeFilterFromMillis;
+    }
+
+    /**
+     * Optionally records the lower bound of a time range filter included in the query. For telemetry purposes.
+     */
+    public void setTimeRangeFilterFromMillis(String fieldName, long timeRangeFilterFromMillis, DateFieldMapper.Resolution resolution) {
+        if (trackTimeRangeFilterFrom) {
+            if (DataStream.TIMESTAMP_FIELD_NAME.equals(fieldName) || IndexMetadata.EVENT_INGESTED_FIELD_NAME.equals(fieldName)) {
+                // if we got a timestamp with nanoseconds precision, round it down to millis
+                if (resolution == DateFieldMapper.Resolution.NANOSECONDS) {
+                    timeRangeFilterFromMillis = timeRangeFilterFromMillis / 1_000_000;
+                }
+                if (this.timeRangeFilterFromMillis == null) {
+                    this.timeRangeFilterFromMillis = timeRangeFilterFromMillis;
+                } else {
+                    // if there's more range filters on timestamp, we'll take the lowest of the lower bounds
+                    this.timeRangeFilterFromMillis = Math.min(timeRangeFilterFromMillis, this.timeRangeFilterFromMillis);
+                }
+            }
+        }
+    }
+
+    /**
+     * Records the lower bound of a time range filter included in the query. For telemetry purposes.
+     * Similar to {@link #setTimeRangeFilterFromMillis(String, long, DateFieldMapper.Resolution)} but used to copy the value from
+     * another instance of the context, that had its value previously set.
+     */
+    public void setTimeRangeFilterFromMillis(long timeRangeFilterFromMillis) {
+        this.timeRangeFilterFromMillis = timeRangeFilterFromMillis;
+    }
+
+    /**
+     * Enables or disables the tracking of the lower bound for time range filters against the @timestamp field,
+     * done via {@link #setTimeRangeFilterFromMillis(String, long, DateFieldMapper.Resolution)}. Tracking is enabled by default,
+     * and explicitly disabled to ensure we don't record the bound for range queries within should and must_not clauses.
+     */
+    public void setTrackTimeRangeFilterFrom(boolean trackTimeRangeFilterFrom) {
+        this.trackTimeRangeFilterFrom = trackTimeRangeFilterFrom;
+    }
+
+    /**
+     * Registers an async action that must be executed only once before the next rewrite round.
+     * A {@link Consumer} argument is also required.
+     * When an async action is registered multiple times, we simply collect all the consumers associated with it.
+     * After the async action is executed, all consumers associated with it will be executed and receive as argument
+     * the result of the async action.
+     */
+    public <T, U extends QueryRewriteAsyncAction<T, U>> void registerUniqueAsyncAction(
+        QueryRewriteAsyncAction<T, U> action,
+        Consumer<T> consumer
+    ) {
+        uniqueAsyncActions.computeIfAbsent(action, k -> new ArrayList<>()).add(consumer);
+    }
 }

@@ -11,7 +11,7 @@
           "name" : "number",
           "type" : "double",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -23,7 +23,7 @@
           "name" : "number",
           "type" : "integer",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -35,7 +35,7 @@
           "name" : "number",
           "type" : "long",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -47,7 +47,7 @@
           "name" : "number",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,

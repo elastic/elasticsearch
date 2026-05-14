@@ -12,22 +12,22 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link RoundToInt}.
+ * {@link ExpressionEvaluator} implementation for {@link RoundToInt}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class RoundToInt4Evaluator implements EvalOperator.ExpressionEvaluator {
+public final class RoundToInt4Evaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToInt4Evaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator field;
+  private final ExpressionEvaluator field;
 
   private final int p0;
 
@@ -41,8 +41,8 @@ public final class RoundToInt4Evaluator implements EvalOperator.ExpressionEvalua
 
   private Warnings warnings;
 
-  public RoundToInt4Evaluator(Source source, EvalOperator.ExpressionEvaluator field, int p0, int p1,
-      int p2, int p3, DriverContext driverContext) {
+  public RoundToInt4Evaluator(Source source, ExpressionEvaluator field, int p0, int p1, int p2,
+      int p3, DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.p0 = p0;
@@ -73,16 +73,16 @@ public final class RoundToInt4Evaluator implements EvalOperator.ExpressionEvalua
   public IntBlock eval(int positionCount, IntBlock fieldBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (fieldBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (fieldBlock.getValueCount(p) != 1) {
-          if (fieldBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (fieldBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         int field = fieldBlock.getInt(fieldBlock.getFirstValueIndex(p));
         result.appendInt(RoundToInt.process(field, this.p0, this.p1, this.p2, this.p3));
@@ -113,20 +113,15 @@ public final class RoundToInt4Evaluator implements EvalOperator.ExpressionEvalua
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final ExpressionEvaluator.Factory field;
 
     private final int p0;
 
@@ -136,8 +131,8 @@ public final class RoundToInt4Evaluator implements EvalOperator.ExpressionEvalua
 
     private final int p3;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field, int p0, int p1,
-        int p2, int p3) {
+    public Factory(Source source, ExpressionEvaluator.Factory field, int p0, int p1, int p2,
+        int p3) {
       this.source = source;
       this.field = field;
       this.p0 = p0;

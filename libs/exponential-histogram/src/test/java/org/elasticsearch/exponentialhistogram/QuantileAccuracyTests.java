@@ -42,6 +42,7 @@ import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_IN
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.computeIndex;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notANumber;
@@ -61,6 +62,44 @@ public class QuantileAccuracyTests extends ExponentialHistogramTestCase {
         );
         double median = ExponentialHistogramQuantile.getQuantile(histogram, 0.5);
         assertThat(median, equalTo(0.0));
+    }
+
+    public void testPercentilesClampedToMinMax() {
+        ExponentialHistogram histogram = createAutoReleasedHistogram(
+            b -> b.scale(0).setNegativeBucket(1, 1).setPositiveBucket(1, 1).max(0.00001).min(-0.00002)
+        );
+        double p0 = ExponentialHistogramQuantile.getQuantile(histogram, 0.0);
+        double p100 = ExponentialHistogramQuantile.getQuantile(histogram, 1.0);
+        assertThat(p0, equalTo(-0.00002));
+        assertThat(p100, equalTo(0.00001));
+    }
+
+    public void testMinMaxClampedPercentileAccuracy() {
+        ExponentialHistogram histogram = createAutoReleasedHistogram(
+            b -> b.scale(0)
+                .setPositiveBucket(0, 1) // bucket 0 covers (1, 2]
+                .setPositiveBucket(1, 1) // bucket 1 covers (2, 4]
+                .min(1.1)
+                .max(2.1)
+        );
+
+        // The 0.5 percentile linearly interpolates between the two buckets.
+        // For the (1, 2] bucket, the point of least relative error will be used (1.33333)
+        // For the (2, 4] bucket, the max of the histogram should be used instead (2.1)
+        double expectedResult = (4.0 / 3 + 2.1) / 2;
+        double p50 = ExponentialHistogramQuantile.getQuantile(histogram, 0.5);
+        assertThat(p50, equalTo(expectedResult));
+
+        // Test the same for min instead of max
+        histogram = createAutoReleasedHistogram(
+            b -> b.scale(0)
+                .setNegativeBucket(0, 1) // bucket 0 covers (1, 2]
+                .setNegativeBucket(1, 1) // bucket 1 covers (2, 4]
+                .min(-2.1)
+                .max(-1.1)
+        );
+        p50 = ExponentialHistogramQuantile.getQuantile(histogram, 0.5);
+        assertThat(p50, equalTo(-expectedResult));
     }
 
     public void testUniformDistribution() {
@@ -159,7 +198,7 @@ public class QuantileAccuracyTests extends ExponentialHistogramTestCase {
     }
 
     public void testSingleValueHistogram() {
-        ExponentialHistogram histo = createAutoReleasedHistogram(1, 42.0);
+        ExponentialHistogram histo = createAutoReleasedHistogram(4, 42.0);
         for (double q : QUANTILES_TO_TEST) {
             assertThat(ExponentialHistogramQuantile.getQuantile(histo, q), closeTo(42, 0.0000001));
         }
@@ -237,6 +276,7 @@ public class QuantileAccuracyTests extends ExponentialHistogramTestCase {
         double maxError = 0;
         double allowedError = getMaximumRelativeError(values, bucketCount);
 
+        double lastQuantile = Double.NEGATIVE_INFINITY;
         // Compare histogram quantiles with exact quantiles
         for (double q : QUANTILES_TO_TEST) {
             double percentileRank = q * (values.length - 1);
@@ -244,14 +284,17 @@ public class QuantileAccuracyTests extends ExponentialHistogramTestCase {
             int upperRank = (int) Math.ceil(percentileRank);
             double upperFactor = percentileRank - lowerRank;
 
+            double histoValue = ExponentialHistogramQuantile.getQuantile(histogram, q);
+            // values should be monotonically increasing
+            assertThat(histoValue, greaterThanOrEqualTo(lastQuantile));
+            lastQuantile = histoValue;
+
             if (values[lowerRank] < 0 && values[upperRank] > 0) {
                 // the percentile lies directly between a sign change and we interpolate linearly in-between
                 // in this case the relative error bound does not hold
                 continue;
             }
             double exactValue = values[lowerRank] * (1 - upperFactor) + values[upperRank] * upperFactor;
-
-            double histoValue = ExponentialHistogramQuantile.getQuantile(histogram, q);
 
             // Skip comparison if exact value is close to zero to avoid false-positives due to numerical imprecision
             if (Math.abs(exactValue) < 1e-100) {

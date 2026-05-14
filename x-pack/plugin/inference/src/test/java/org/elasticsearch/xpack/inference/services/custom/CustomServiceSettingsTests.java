@@ -14,10 +14,12 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -26,11 +28,13 @@ import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.custom.response.CompletionResponseParser;
+import org.elasticsearch.xpack.inference.services.custom.response.CustomResponseParser;
+import org.elasticsearch.xpack.inference.services.custom.response.DenseEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.NoopResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.RerankResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddingResponseParser;
-import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -38,10 +42,57 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 import static org.hamcrest.Matchers.is;
 
 public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTestCase<CustomServiceSettings> {
-    public static CustomServiceSettings createRandom(String inputUrl) {
+    private static final SimilarityMeasure TEST_SIMILARITY_MEASURE = SimilarityMeasure.COSINE;
+    private static final SimilarityMeasure INITIAL_TEST_SIMILARITY_MEASURE = SimilarityMeasure.DOT_PRODUCT;
+    private static final Integer TEST_DIMENSIONS = 1536;
+    private static final Integer INITIAL_TEST_DIMENSIONS = 3072;
+    private static final Integer TEST_MAX_INPUT_TOKENS = 512;
+    private static final Integer INITIAL_TEST_MAX_INPUT_TOKENS = 1024;
+    private static final String TEST_URL = "https://www.test.com";
+    private static final String INITIAL_TEST_URL = "https://www.initial-test.com";
+    private static final Map<String, String> TEST_HEADERS = Map.of("test_header_key", "test_header_value");
+    private static final Map<String, String> INITIAL_TEST_HEADERS = Map.of("initial_test_header_key", "initial_test_header_value");
+    private static final QueryParameters TEST_QUERY_PARAMETERS = new QueryParameters(
+        List.of(new QueryParameters.Parameter("test_parameter_key", "test_parameter_value"))
+    );
+    private static final QueryParameters INITIAL_TEST_QUERY_PARAMETERS = new QueryParameters(
+        List.of(new QueryParameters.Parameter("initial_test_parameter_key", "initial_test_parameter_value"))
+    );
+    private static final String TEST_REQUEST_CONTENT_STRING = "test-request-content-string";
+    private static final String INITIAL_TEST_REQUEST_CONTENT_STRING = "initial-test-request-content-string";
+    private static final CustomResponseParser TEST_RESPONSE_PARSER = new DenseEmbeddingResponseParser(
+        "$.some.path.embeddings[*].embedding",
+        CustomServiceEmbeddingType.FLOAT
+    );
+    private static final CustomResponseParser INITIAL_TEST_RESPONSE_PARSER = new DenseEmbeddingResponseParser(
+        "$.some.other.path.embeddings[*].embedding",
+        CustomServiceEmbeddingType.FLOAT
+    );
+    private static final int TEST_RATE_LIMIT = 20;
+    private static final int INITIAL_TEST_RATE_LIMIT = 30;
+    private static final Integer INITIAL_TEST_BATCH_SIZE = 5;
+    private static final Integer TEST_BATCH_SIZE = 10;
+    private static final InputTypeTranslator INITIAL_TEST_INPUT_TYPE_TRANSLATOR = InputTypeTranslator.EMPTY_TRANSLATOR;
+    private static final InputTypeTranslator TEST_INPUT_TYPE_TRANSLATOR = new InputTypeTranslator(
+        Map.of(
+            InputType.CLASSIFICATION,
+            "test_value",
+            InputType.CLUSTERING,
+            "test_value_2",
+            InputType.INGEST,
+            "test_value_3",
+            InputType.SEARCH,
+            "test_value_4"
+        ),
+        "default_value"
+    );
+
+    public static CustomServiceSettings createRandom() {
+        var inputUrl = randomAlphaOfLength(5);
         var taskType = randomFrom(TaskType.TEXT_EMBEDDING, TaskType.RERANK, TaskType.SPARSE_EMBEDDING, TaskType.COMPLETION);
 
         SimilarityMeasure similarityMeasure = null;
@@ -60,7 +111,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         var requestContentString = randomAlphaOfLength(10);
 
         var responseJsonParser = switch (taskType) {
-            case TEXT_EMBEDDING -> new TextEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT);
+            case TEXT_EMBEDDING -> new DenseEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT);
             case SPARSE_EMBEDDING -> new SparseEmbeddingResponseParser(
                 "$.result.sparse_embeddings[*].embedding[*].token_id",
                 "$.result.sparse_embeddings[*].embedding[*].weights"
@@ -87,8 +138,228 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         );
     }
 
-    public static CustomServiceSettings createRandom() {
-        return createRandom(randomAlphaOfLength(5));
+    public void testUpdateServiceSettings_AllFields_UpdatesMutableFields() {
+        HashMap<String, Object> requestSettingsMap = createSettingsMap();
+
+        var originalServiceSettings = createInitialCustomServiceSettings();
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(requestSettingsMap);
+
+        assertThat(
+            updatedServiceSettings,
+            is(
+                new CustomServiceSettings(
+                    new CustomServiceSettings.TextEmbeddingSettings(
+                        INITIAL_TEST_SIMILARITY_MEASURE,
+                        INITIAL_TEST_DIMENSIONS,
+                        TEST_MAX_INPUT_TOKENS
+                    ),
+                    TEST_URL,
+                    TEST_HEADERS,
+                    TEST_QUERY_PARAMETERS,
+                    TEST_REQUEST_CONTENT_STRING,
+                    TEST_RESPONSE_PARSER,
+                    new RateLimitSettings(TEST_RATE_LIMIT),
+                    TEST_BATCH_SIZE,
+                    TEST_INPUT_TYPE_TRANSLATOR
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_ReturnsUnchangedSettings() {
+        var originalServiceSettings = createInitialCustomServiceSettings();
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
+
+        assertThat(updatedServiceSettings, is(originalServiceSettings));
+    }
+
+    public void testUpdateServiceSettings_ResponseOmitted_PreservesOriginalResponseParser() {
+        var originalServiceSettings = createInitialCustomServiceSettings();
+        var requestSettingsMap = createSettingsMap();
+        requestSettingsMap.remove(CustomServiceSettings.RESPONSE);
+
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(requestSettingsMap);
+
+        assertThat(
+            updatedServiceSettings,
+            is(
+                new CustomServiceSettings(
+                    new CustomServiceSettings.TextEmbeddingSettings(
+                        INITIAL_TEST_SIMILARITY_MEASURE,
+                        INITIAL_TEST_DIMENSIONS,
+                        TEST_MAX_INPUT_TOKENS
+                    ),
+                    TEST_URL,
+                    TEST_HEADERS,
+                    TEST_QUERY_PARAMETERS,
+                    TEST_REQUEST_CONTENT_STRING,
+                    INITIAL_TEST_RESPONSE_PARSER,
+                    new RateLimitSettings(TEST_RATE_LIMIT),
+                    TEST_BATCH_SIZE,
+                    TEST_INPUT_TYPE_TRANSLATOR
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_JsonParserOmitted_PreservesOriginalResponseParser() {
+        var originalServiceSettings = createInitialCustomServiceSettings();
+        var requestSettingsMap = createSettingsMap();
+        requestSettingsMap.replace(CustomServiceSettings.RESPONSE, new HashMap<>());
+
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(requestSettingsMap);
+
+        assertThat(
+            updatedServiceSettings,
+            is(
+                new CustomServiceSettings(
+                    new CustomServiceSettings.TextEmbeddingSettings(
+                        INITIAL_TEST_SIMILARITY_MEASURE,
+                        INITIAL_TEST_DIMENSIONS,
+                        TEST_MAX_INPUT_TOKENS
+                    ),
+                    TEST_URL,
+                    TEST_HEADERS,
+                    TEST_QUERY_PARAMETERS,
+                    TEST_REQUEST_CONTENT_STRING,
+                    INITIAL_TEST_RESPONSE_PARSER,
+                    new RateLimitSettings(TEST_RATE_LIMIT),
+                    TEST_BATCH_SIZE,
+                    TEST_INPUT_TYPE_TRANSLATOR
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_ReturnsError_IfJsonParserMapIsNotEmptyAfterParsing() {
+        var originalServiceSettings = createInitialCustomServiceSettings();
+        var requestSettingsMap = createSettingsMap();
+        requestSettingsMap.replace(
+            CustomServiceSettings.RESPONSE,
+            new HashMap<>(
+                Map.of(
+                    CustomServiceSettings.JSON_PARSER,
+                    new HashMap<>(
+                        Map.of(
+                            DenseEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS,
+                            "$.result.embeddings[*].embedding",
+                            "key",
+                            "value"
+                        )
+                    )
+                )
+            )
+        );
+
+        var exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> originalServiceSettings.updateServiceSettings(requestSettingsMap)
+        );
+
+        assertThat(exception.getMessage(), is("""
+            Configuration contains unknown settings [{key=value}] while parsing field [json_parser]\
+             for settings [custom_service_settings]"""));
+    }
+
+    public void testUpdateServiceSettings_ReturnsError_IfResponseMapIsNotEmptyAfterParsing() {
+        var originalServiceSettings = createInitialCustomServiceSettings();
+        var requestSettingsMap = createSettingsMap();
+        requestSettingsMap.replace(
+            CustomServiceSettings.RESPONSE,
+            new HashMap<>(
+                Map.of(
+                    CustomServiceSettings.JSON_PARSER,
+                    new HashMap<>(
+                        Map.of(DenseEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
+                    ),
+                    "key",
+                    "value"
+                )
+            )
+        );
+
+        var exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> originalServiceSettings.updateServiceSettings(requestSettingsMap)
+        );
+
+        assertThat(exception.getMessage(), is("""
+            Configuration contains unknown settings [{key=value}] while parsing field [response]\
+             for settings [custom_service_settings]"""));
+    }
+
+    private static CustomServiceSettings createInitialCustomServiceSettings() {
+        return new CustomServiceSettings(
+            new CustomServiceSettings.TextEmbeddingSettings(
+                INITIAL_TEST_SIMILARITY_MEASURE,
+                INITIAL_TEST_DIMENSIONS,
+                INITIAL_TEST_MAX_INPUT_TOKENS
+            ),
+            INITIAL_TEST_URL,
+            INITIAL_TEST_HEADERS,
+            INITIAL_TEST_QUERY_PARAMETERS,
+            INITIAL_TEST_REQUEST_CONTENT_STRING,
+            INITIAL_TEST_RESPONSE_PARSER,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
+            INITIAL_TEST_BATCH_SIZE,
+            INITIAL_TEST_INPUT_TYPE_TRANSLATOR
+        );
+    }
+
+    private static HashMap<String, Object> createSettingsMap() {
+        return new HashMap<>(
+            Map.ofEntries(
+                Map.entry(ServiceFields.SIMILARITY, TEST_SIMILARITY_MEASURE.toString()),
+                Map.entry(ServiceFields.DIMENSIONS, TEST_DIMENSIONS),
+                Map.entry(ServiceFields.MAX_INPUT_TOKENS, TEST_MAX_INPUT_TOKENS),
+                Map.entry(ServiceFields.URL, TEST_URL),
+                Map.entry(CustomServiceSettings.HEADERS, TEST_HEADERS),
+                Map.entry(QueryParameters.QUERY_PARAMETERS, List.of(List.of("test_parameter_key", "test_parameter_value"))),
+                Map.entry(CustomServiceSettings.REQUEST, TEST_REQUEST_CONTENT_STRING),
+                Map.entry(
+                    CustomServiceSettings.RESPONSE,
+                    new HashMap<>(
+                        Map.of(
+                            CustomServiceSettings.JSON_PARSER,
+                            new HashMap<>(
+                                Map.of(DenseEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.some.path.embeddings[*].embedding")
+                            )
+                        )
+                    )
+                ),
+                Map.entry(
+                    RateLimitSettings.FIELD_NAME,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
+                ),
+                Map.entry(
+                    CustomServiceSettings.BATCH_SIZE,
+                    TEST_BATCH_SIZE
+
+                ),
+                Map.entry(
+                    InputTypeTranslator.INPUT_TYPE_TRANSLATOR,
+                    new HashMap<>(
+                        Map.of(
+                            InputTypeTranslator.TRANSLATION,
+                            new HashMap<>(
+                                Map.of(
+                                    "CLASSIFICATION",
+                                    "test_value",
+                                    "CLUSTERING",
+                                    "test_value_2",
+                                    "INGEST",
+                                    "test_value_3",
+                                    "SEARCH",
+                                    "test_value_4"
+                                )
+                            ),
+                            InputTypeTranslator.DEFAULT,
+                            "default_value"
+                        )
+                    )
+                )
+            )
+        );
     }
 
     public void testFromMap() {
@@ -100,7 +371,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         var queryParameters = List.of(List.of("key", "value"));
         String requestContentString = "request body";
 
-        var responseParser = new TextEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT);
+        var responseParser = new DenseEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT);
 
         var settings = CustomServiceSettings.fromMap(
             new HashMap<>(
@@ -111,7 +382,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     dims,
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens,
-                    CustomServiceSettings.URL,
+                    ServiceFields.URL,
                     url,
                     CustomServiceSettings.HEADERS,
                     headers,
@@ -124,7 +395,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                         Map.of(
                             CustomServiceSettings.JSON_PARSER,
                             new HashMap<>(
-                                Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
+                                Map.of(DenseEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
                             )
                         )
                     ),
@@ -158,12 +429,12 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         String url = "http://www.abc.com";
         String requestContentString = "request body";
 
-        var responseParser = new TextEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.BIT);
+        var responseParser = new DenseEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.BIT);
 
         var settings = CustomServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
-                    CustomServiceSettings.URL,
+                    ServiceFields.URL,
                     url,
                     CustomServiceSettings.REQUEST,
                     requestContentString,
@@ -173,9 +444,9 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                             CustomServiceSettings.JSON_PARSER,
                             new HashMap<>(
                                 Map.of(
-                                    TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS,
+                                    DenseEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS,
                                     "$.result.embeddings[*].embedding",
-                                    TextEmbeddingResponseParser.EMBEDDING_TYPE,
+                                    DenseEmbeddingResponseParser.EMBEDDING_TYPE,
                                     CustomServiceEmbeddingType.BIT.toString()
                                 )
                             )
@@ -207,12 +478,12 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         String url = "http://www.abc.com";
         String requestContentString = "request body";
 
-        var responseParser = new TextEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.BINARY);
+        var responseParser = new DenseEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.BINARY);
 
         var settings = CustomServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
-                    CustomServiceSettings.URL,
+                    ServiceFields.URL,
                     url,
                     CustomServiceSettings.REQUEST,
                     requestContentString,
@@ -222,9 +493,9 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                             CustomServiceSettings.JSON_PARSER,
                             new HashMap<>(
                                 Map.of(
-                                    TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS,
+                                    DenseEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS,
                                     "$.result.embeddings[*].embedding",
-                                    TextEmbeddingResponseParser.EMBEDDING_TYPE,
+                                    DenseEmbeddingResponseParser.EMBEDDING_TYPE,
                                     CustomServiceEmbeddingType.BINARY.toString()
                                 )
                             )
@@ -256,12 +527,12 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         String url = "http://www.abc.com";
         String requestContentString = "request body";
 
-        var responseParser = new TextEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.BYTE);
+        var responseParser = new DenseEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.BYTE);
 
         var settings = CustomServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
-                    CustomServiceSettings.URL,
+                    ServiceFields.URL,
                     url,
                     CustomServiceSettings.REQUEST,
                     requestContentString,
@@ -271,9 +542,9 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                             CustomServiceSettings.JSON_PARSER,
                             new HashMap<>(
                                 Map.of(
-                                    TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS,
+                                    DenseEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS,
                                     "$.result.embeddings[*].embedding",
-                                    TextEmbeddingResponseParser.EMBEDDING_TYPE,
+                                    DenseEmbeddingResponseParser.EMBEDDING_TYPE,
                                     CustomServiceEmbeddingType.BYTE.toString()
                                 )
                             )
@@ -312,7 +583,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         var settings = CustomServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
-                    CustomServiceSettings.URL,
+                    ServiceFields.URL,
                     url,
                     CustomServiceSettings.REQUEST,
                     requestContentString,
@@ -355,7 +626,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             () -> CustomServiceSettings.fromMap(
                 new HashMap<>(
                     Map.of(
-                        CustomServiceSettings.URL,
+                        ServiceFields.URL,
                         url,
                         CustomServiceSettings.REQUEST,
                         requestContentString,
@@ -367,7 +638,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                                     Map.of(
                                         CompletionResponseParser.COMPLETION_PARSER_RESULT,
                                         "$.result.text",
-                                        TextEmbeddingResponseParser.EMBEDDING_TYPE,
+                                        DenseEmbeddingResponseParser.EMBEDDING_TYPE,
                                         "byte"
                                     )
                                 )
@@ -393,12 +664,12 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         String url = "http://www.abc.com";
         String requestContentString = "request body";
 
-        var responseParser = new TextEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT);
+        var responseParser = new DenseEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT);
 
         var settings = CustomServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
-                    CustomServiceSettings.URL,
+                    ServiceFields.URL,
                     url,
                     CustomServiceSettings.REQUEST,
                     requestContentString,
@@ -407,7 +678,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                         Map.of(
                             CustomServiceSettings.JSON_PARSER,
                             new HashMap<>(
-                                Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
+                                Map.of(DenseEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
                             )
                         )
                     )
@@ -445,7 +716,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
         String requestContentString = "request body";
 
-        var responseParser = new TextEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT);
+        var responseParser = new DenseEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT);
 
         var settings = CustomServiceSettings.fromMap(
             new HashMap<>(
@@ -456,7 +727,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     dims,
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens,
-                    CustomServiceSettings.URL,
+                    ServiceFields.URL,
                     url,
                     CustomServiceSettings.HEADERS,
                     headersWithNulls,
@@ -467,7 +738,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                         Map.of(
                             CustomServiceSettings.JSON_PARSER,
                             new HashMap<>(
-                                Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
+                                Map.of(DenseEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
                             )
                         )
                     )
@@ -508,7 +779,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 dims,
                 ServiceFields.MAX_INPUT_TOKENS,
                 maxInputTokens,
-                CustomServiceSettings.URL,
+                ServiceFields.URL,
                 url,
                 CustomServiceSettings.HEADERS,
                 new HashMap<>(Map.of("key", 1)),
@@ -519,7 +790,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     Map.of(
                         CustomServiceSettings.JSON_PARSER,
                         new HashMap<>(
-                            Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
+                            Map.of(DenseEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
                         )
                     )
                 )
@@ -535,7 +806,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             exception.getMessage(),
             is(
                 "Validation Failed: 1: Map field [headers] has an entry that is not valid, [key => 1]. "
-                    + "Value type of [1] is not one of [String].;"
+                    + "Value type of [Integer] is not one of [String].;"
             )
         );
     }
@@ -555,7 +826,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 dims,
                 ServiceFields.MAX_INPUT_TOKENS,
                 maxInputTokens,
-                CustomServiceSettings.URL,
+                ServiceFields.URL,
                 url,
                 QueryParameters.QUERY_PARAMETERS,
                 List.of(List.of("key", 1)),
@@ -566,7 +837,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     Map.of(
                         CustomServiceSettings.JSON_PARSER,
                         new HashMap<>(
-                            Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
+                            Map.of(DenseEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
                         )
                     )
                 )
@@ -593,7 +864,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
         var mapSettings = new HashMap<String, Object>(
             Map.of(
-                CustomServiceSettings.URL,
+                ServiceFields.URL,
                 url,
                 CustomServiceSettings.HEADERS,
                 new HashMap<>(Map.of("key", "value")),
@@ -604,7 +875,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     Map.of(
                         CustomServiceSettings.JSON_PARSER,
                         new HashMap<>(
-                            Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
+                            Map.of(DenseEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
                         )
                     )
                 )
@@ -625,7 +896,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
         var mapSettings = new HashMap<String, Object>(
             Map.of(
-                CustomServiceSettings.URL,
+                ServiceFields.URL,
                 url,
                 CustomServiceSettings.HEADERS,
                 new HashMap<>(Map.of("key", "value")),
@@ -636,7 +907,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     Map.of(
                         CustomServiceSettings.JSON_PARSER,
                         new HashMap<>(
-                            Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
+                            Map.of(DenseEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
                         )
                     )
                 )
@@ -663,7 +934,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
         var mapSettings = new HashMap<String, Object>(
             Map.of(
-                CustomServiceSettings.URL,
+                ServiceFields.URL,
                 url,
                 CustomServiceSettings.HEADERS,
                 new HashMap<>(Map.of("key", "value")),
@@ -675,7 +946,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                         CustomServiceSettings.JSON_PARSER,
                         new HashMap<>(
                             Map.of(
-                                TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS,
+                                DenseEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS,
                                 "$.result.embeddings[*].embedding",
                                 "key",
                                 "value"
@@ -706,7 +977,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
         var mapSettings = new HashMap<String, Object>(
             Map.of(
-                CustomServiceSettings.URL,
+                ServiceFields.URL,
                 url,
                 CustomServiceSettings.HEADERS,
                 new HashMap<>(Map.of("key", "value")),
@@ -717,7 +988,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     Map.of(
                         CustomServiceSettings.JSON_PARSER,
                         new HashMap<>(
-                            Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
+                            Map.of(DenseEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
                         ),
                         "key",
                         "value"
@@ -746,7 +1017,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
         var mapSettings = new HashMap<String, Object>(
             Map.of(
-                CustomServiceSettings.URL,
+                ServiceFields.URL,
                 url,
                 CustomServiceSettings.HEADERS,
                 new HashMap<>(Map.of("key", "value")),
@@ -757,7 +1028,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     Map.of(
                         CustomServiceSettings.JSON_PARSER,
                         new HashMap<>(
-                            Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
+                            Map.of(DenseEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
                         )
                     )
                 )
@@ -779,7 +1050,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             Map.of("key", "value"),
             null,
             "string",
-            new TextEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT),
+            new DenseEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT),
             null
         );
 
@@ -868,7 +1139,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             Map.of("key", "value"),
             null,
             "string",
-            new TextEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT),
+            new DenseEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT),
             null,
             null,
             new InputTypeTranslator(Map.of(InputType.SEARCH, "do_search", InputType.INGEST, "do_ingest"), "a_default")
@@ -915,7 +1186,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             Map.of("key", "value"),
             null,
             "string",
-            new TextEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT),
+            new DenseEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT),
             null,
             11,
             InputTypeTranslator.EMPTY_TRANSLATOR
@@ -964,12 +1235,76 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
     @Override
     protected CustomServiceSettings createTestInstance() {
-        return createRandom(randomAlphaOfLength(5));
+        return createRandom();
     }
 
     @Override
     protected CustomServiceSettings mutateInstance(CustomServiceSettings instance) {
-        return randomValueOtherThan(instance, CustomServiceSettingsTests::createRandom);
+        var textEmbeddingSettings = instance.getTextEmbeddingSettings();
+        var url = instance.getUrl();
+        var headers = instance.getHeaders();
+        var queryParameters = instance.getQueryParameters();
+        var requestContentString = instance.getRequestContentString();
+        var responseJsonParser = instance.getResponseJsonParser();
+        var rateLimitSettings = instance.rateLimitSettings();
+        var batchSize = instance.getBatchSize();
+        var inputTypeTranslator = instance.getInputTypeTranslator();
+        switch (randomInt(8)) {
+            case 0 -> textEmbeddingSettings = randomValueOtherThan(
+                textEmbeddingSettings,
+                CustomServiceSettingsTests::randomTextEmbeddingSettings
+            );
+            case 1 -> url = randomValueOtherThan(url, () -> randomAlphaOfLength(5));
+            case 2 -> headers = randomValueOtherThan(
+                headers,
+                () -> randomMap(0, 1, () -> new Tuple<>(randomAlphaOfLength(5), randomAlphaOfLength(5)))
+            );
+            case 3 -> queryParameters = randomValueOtherThan(queryParameters, QueryParametersTests::createRandom);
+            case 4 -> requestContentString = randomValueOtherThan(requestContentString, () -> randomAlphaOfLength(10));
+            case 5 -> responseJsonParser = randomValueOtherThan(responseJsonParser, CustomServiceSettingsTests::randomResponseParser);
+            case 6 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            case 7 -> batchSize = randomValueOtherThan(batchSize, ESTestCase::randomInt);
+            case 8 -> inputTypeTranslator = randomValueOtherThan(inputTypeTranslator, InputTypeTranslatorTests::createRandom);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new CustomServiceSettings(
+            textEmbeddingSettings,
+            url,
+            headers,
+            queryParameters,
+            requestContentString,
+            responseJsonParser,
+            rateLimitSettings,
+            batchSize,
+            inputTypeTranslator
+        );
+    }
+
+    private static CustomServiceSettings.TextEmbeddingSettings randomTextEmbeddingSettings() {
+        return new CustomServiceSettings.TextEmbeddingSettings(
+            randomBoolean() ? null : randomSimilarityMeasure(),
+            randomIntOrNull(),
+            randomIntOrNull()
+        );
+    }
+
+    private static CustomResponseParser randomResponseParser() {
+        return switch (randomInt(4)) {
+            case 0 -> new DenseEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT);
+            case 1 -> new SparseEmbeddingResponseParser(
+                "$.result.sparse_embeddings[*].embedding[*].token_id",
+                "$.result.sparse_embeddings[*].embedding[*].weights"
+            );
+            case 2 -> new RerankResponseParser(
+                "$.result.reranked_results[*].index",
+                "$.result.reranked_results[*].relevance_score",
+                "$.result.reranked_results[*].document_text"
+            );
+            case 3 -> new CompletionResponseParser("$.result.text");
+            case 4 -> new NoopResponseParser();
+            default -> throw new AssertionError("Illegal randomisation branch");
+        };
     }
 
     @Override

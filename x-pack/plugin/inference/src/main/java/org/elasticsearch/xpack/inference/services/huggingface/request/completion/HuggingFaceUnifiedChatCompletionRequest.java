@@ -10,11 +10,14 @@ package org.elasticsearch.xpack.inference.services.huggingface.request.completio
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundUnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceAccount;
 import org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionModel;
 
@@ -28,7 +31,7 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
  * This class is responsible for creating Hugging Face chat completions HTTP requests.
  * It handles the preparation of the HTTP request with the necessary headers and body.
  */
-public class HuggingFaceUnifiedChatCompletionRequest implements Request {
+public class HuggingFaceUnifiedChatCompletionRequest implements OutboundUnifiedCompletionRequest {
 
     private final HuggingFaceAccount account;
     private final HuggingFaceChatCompletionModel model;
@@ -43,21 +46,21 @@ public class HuggingFaceUnifiedChatCompletionRequest implements Request {
     /**
      * Creates an HTTP request to the Hugging Face API for chat completions.
      * The request includes the necessary headers and the input data as a JSON entity.
-     *
-     * @return an HttpRequest object containing the HTTP POST request
      */
-    public HttpRequest createHttpRequest() {
+    @Override
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(getURI());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new HuggingFaceUnifiedChatCompletionRequestEntity(unifiedChatInput, model)).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new HuggingFaceUnifiedChatCompletionRequestEntity(unifiedChatInput, model.getServiceSettings().modelId()))
+                .getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaTypeWithoutParameters());
         httpPost.setHeader(createAuthBearerHeader(model.apiKey()));
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     public URI getURI() {
@@ -70,7 +73,7 @@ public class HuggingFaceUnifiedChatCompletionRequest implements Request {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         // Truncation is not applicable for chat completion requests
         return this;
     }
@@ -84,5 +87,10 @@ public class HuggingFaceUnifiedChatCompletionRequest implements Request {
     @Override
     public boolean isStreaming() {
         return unifiedChatInput.stream();
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return model.getTaskType();
     }
 }

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.entitlement.qa.test;
 
-import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
+import org.elasticsearch.entitlement.bridge.NotEntitledException;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -30,6 +30,43 @@ public @interface EntitlementTest {
     ExpectedAccess expectedAccess();
 
     Class<? extends Exception> expectedExceptionIfDenied() default NotEntitledException.class;
+
+    /**
+     * When a denied entitlement strategy returns a non-null default value instead of throwing,
+     * this specifies the expected string representation of that default value as a single-element
+     * array. Test methods using this must return the actual result (any type); the infrastructure
+     * converts it via {@code toString()}. The test infrastructure will verify the returned value
+     * matches the element when running in a denied context.
+     * An empty array (the default) means no default value check is performed.
+     * Mutually exclusive with {@link #isExpectedDefaultNull()} and {@link #isExpectedNoOp()}.
+     */
+    String[] expectedDefaultIfDenied() default {};
+
+    /**
+     * When set, the test infrastructure will verify that the actual result type matches this class.
+     * This disambiguates cases where different types produce the same {@code toString()} output
+     * (e.g. empty {@link java.util.List} and empty {@link java.util.Set} both produce {@code "[]"}).
+     * Only meaningful when {@link #expectedDefaultIfDenied()} is also set.
+     * {@code void.class} (the default) means no type check is performed.
+     */
+    Class<?> expectedDefaultType() default void.class;
+
+    /**
+     * When a denied entitlement strategy returns {@code null} instead of throwing,
+     * set this to {@code true}. The test infrastructure will verify that the result
+     * is actually {@code null} when running in a denied context.
+     * Mutually exclusive with {@link #expectedDefaultIfDenied()} and {@link #isExpectedNoOp()}.
+     */
+    boolean isExpectedDefaultNull() default false;
+
+    /**
+     * When a denied entitlement strategy silently returns early (no-op) instead of throwing,
+     * set this to {@code true}. The test method must return {@code boolean} indicating whether
+     * the call actually changed state ({@code true}) or was effectively a no-op ({@code false}).
+     * The test infrastructure asserts the state changed when allowed and did not change when denied.
+     * Mutually exclusive with {@link #expectedDefaultIfDenied()} and {@link #isExpectedDefaultNull()}.
+     */
+    boolean isExpectedNoOp() default false;
 
     int fromJavaVersion() default -1;
 }

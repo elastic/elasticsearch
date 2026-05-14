@@ -16,14 +16,17 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.TokenSource;
 import org.antlr.v4.runtime.VocabularyImpl;
 import org.antlr.v4.runtime.atn.PredictionMode;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.QuerySetting;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.session.Configuration;
-import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.BitSet;
 import java.util.EmptyStackException;
@@ -33,6 +36,7 @@ import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.isInteger;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.nameOrPosition;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
@@ -89,52 +93,100 @@ public class EsqlParser {
         replaceSymbolWithLiteral(symbolReplacements, lexerVocab.getLiteralNames(), lexerVocab.getSymbolicNames());
     }
 
-    private EsqlConfig config = new EsqlConfig();
+    private final EsqlConfig config;
 
-    public EsqlConfig config() {
-        return config;
-    }
-
-    public void setEsqlConfig(EsqlConfig config) {
+    public EsqlParser(EsqlConfig config) {
         this.config = config;
     }
 
     // testing utility
-    public LogicalPlan createStatement(String query, Configuration configuration) {
-        return createStatement(query, new QueryParams(), configuration);
+    public LogicalPlan parseQuery(String query) {
+        return parseQuery(query, new QueryParams());
     }
 
     // testing utility
-    public LogicalPlan createStatement(String query, QueryParams params, Configuration configuration) {
-        return createStatement(query, params, new PlanTelemetry(new EsqlFunctionRegistry()), configuration);
-    }
-
-    public LogicalPlan createStatement(String query, QueryParams params, PlanTelemetry metrics, Configuration configuration) {
-        if (log.isDebugEnabled()) {
-            log.debug("Parsing as statement: {}", query);
-        }
-        return invokeParser(query, params, metrics, EsqlBaseParser::singleStatement, AstBuilder::plan, configuration);
+    public LogicalPlan parseQuery(String query, QueryParams params) {
+        return parseQuery(query, params, new InferenceSettings(Settings.EMPTY));
     }
 
     // testing utility
-    public EsqlStatement createQuery(String query, QueryParams params, Configuration configuration) {
-        return createQuery(query, params, new PlanTelemetry(new EsqlFunctionRegistry()), configuration);
-    }
-
-    public EsqlStatement createQuery(String query, QueryParams params, PlanTelemetry metrics, Configuration configuration) {
+    public LogicalPlan parseQuery(String query, QueryParams params, InferenceSettings inferenceSettings) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
-        return invokeParser(query, params, metrics, EsqlBaseParser::statements, AstBuilder::statement, configuration);
+        return invokeParser(query, params, inferenceSettings, null, EsqlBaseParser::singleStatement, AstBuilder::plan);
+    }
+
+    // testing utility
+    public EsqlStatement createStatement(String query) {
+        return createStatement(query, new QueryParams());
+    }
+
+    // testing utility
+    public EsqlStatement unvalidatedStatement(String query, QueryParams params) {
+        return createStatement(query, params, new InferenceSettings(Settings.EMPTY), null);
+    }
+
+    // testing utility
+    public EsqlStatement createStatement(String query, QueryParams params) {
+        var parsed = parse(query, params, new InferenceSettings(Settings.EMPTY));
+        QuerySettings.validate(parsed, new SettingsValidationContext(false, config.isDevVersion())); // TODO: wire CPS in
+        return parsed;
+    }
+
+    /**
+     * Parses the given query into an {@link EsqlStatement}. Note that query settings (accessible via
+     * {@link EsqlStatement#settings()}) are <em>not</em> validated by this method — the caller is responsible for
+     * performing any necessary validation before using them.
+     */
+    public EsqlStatement parse(String query, QueryParams params, InferenceSettings inferenceSettings) {
+        var parsed = createStatement(query, params, inferenceSettings, null);
+        if (log.isDebugEnabled()) {
+            log.debug("Parsed logical plan:\n{}", parsed.plan());
+            log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
+        }
+        return parsed;
+    }
+
+    /**
+     * Parse a view query with the given view name. The view name is used to tag all Source objects
+     * so they can be correctly deserialized when the view positions exceed the outer query's length.
+     *
+     * <p>Unlike the top-level query, which is validated inside {@link EsqlQueryRequest#parse}, view
+     * bodies are parsed inside a callback that has no request object — so settings validation is
+     * performed here, where the {@link SettingsValidationContext} is available, rather than at the
+     * call site.
+     */
+    public EsqlStatement parseView(
+        String query,
+        QueryParams params,
+        SettingsValidationContext settingsValidationCtx,
+        InferenceSettings inferenceSettings,
+        String viewName
+    ) {
+        var parsed = createStatement(query, params, inferenceSettings, viewName);
+        if (log.isDebugEnabled()) {
+            log.debug("Parsed view '{}' logical plan:\n{}", viewName, parsed.plan());
+            log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
+        }
+        QuerySettings.validate(parsed, settingsValidationCtx);
+        return parsed;
+    }
+
+    private EsqlStatement createStatement(String query, QueryParams params, InferenceSettings inferenceSettings, String viewName) {
+        if (log.isDebugEnabled()) {
+            log.debug("Parsing as statement: {}", query);
+        }
+        return invokeParser(query, params, inferenceSettings, viewName, EsqlBaseParser::statements, AstBuilder::statement);
     }
 
     private <T> T invokeParser(
         String query,
         QueryParams params,
-        PlanTelemetry metrics,
+        InferenceSettings inferenceSettings,
+        String viewName,
         Function<EsqlBaseParser, ParserRuleContext> parseFunction,
-        BiFunction<AstBuilder, ParserRuleContext, T> result,
-        Configuration configuration
+        BiFunction<AstBuilder, ParserRuleContext, T> result
     ) {
         if (query.length() > MAX_LENGTH) {
             throw new ParsingException("ESQL statement is too large [{} characters > {}]", query.length(), MAX_LENGTH);
@@ -166,7 +218,7 @@ public class EsqlParser {
                 log.trace("Parse tree: {}", tree.toStringTree());
             }
 
-            return result.apply(new AstBuilder(new ExpressionBuilder.ParsingContext(params, metrics)), tree);
+            return result.apply(new AstBuilder(new ExpressionBuilder.ParsingContext(params, inferenceSettings, viewName)), tree);
         } catch (StackOverflowError e) {
             throw new ParsingException("ESQL statement is too large, causing stack overflow when generating the parsing tree: [{}]", query);
             // likely thrown by an invalid popMode (such as extra closing parenthesis)

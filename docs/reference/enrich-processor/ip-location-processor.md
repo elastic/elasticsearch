@@ -10,7 +10,7 @@ mapped_pages:
 The `ip_location` processor adds information about the geographical location of an IPv4 or IPv6 address.
 
 $$$ip-location-automatic-updates$$$
-By default, the processor uses the GeoLite2 City, GeoLite2 Country, and GeoLite2 ASN IP geolocation databases from [MaxMind](http://dev.maxmind.com/geoip/geoip2/geolite2/), shared under the CC BY-SA 4.0 license. It automatically downloads these databases if your nodes can connect to `storage.googleapis.com` domain and either:
+By default, the processor uses the GeoLite2 City, GeoLite2 Country, and GeoLite2 ASN IP geolocation databases from [MaxMind](http://dev.maxmind.com/geoip/geoip2/geolite2/), shared under the CC BY-SA 4.0 license. It automatically downloads these databases if your nodes can connect to the `[*.]d24a988e385e0074d717b6bdaea58f0d.r2.cloudflarestorage.com` domains and either:
 
 * `ingest.geoip.downloader.eager.download` is set to true
 * your cluster has at least one pipeline with a `geoip` or `ip_location` processor
@@ -93,6 +93,7 @@ Which returns:
   }
 }
 ```
+% TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term":1/"_primary_term" : $body._primary_term/]
 
 Here is an example that uses the default country database and adds the geographical information to the `geo` field based on the `ip` field. Note that this database is downloaded automatically. So this:
 
@@ -137,6 +138,7 @@ returns this:
   }
 }
 ```
+% TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 Not all IP addresses find geo information from the database, When this occurs, no `target_field` is inserted into the document.
 
@@ -178,5 +180,6 @@ Which returns:
   }
 }
 ```
+% TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 

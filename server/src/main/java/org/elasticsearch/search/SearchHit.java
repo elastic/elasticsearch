@@ -11,9 +11,8 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.document.DocumentField;
@@ -52,7 +51,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -66,10 +64,18 @@ import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
  */
 public final class SearchHit implements Writeable, ToXContentObject, RefCounted {
 
+    private static final TransportVersion DOC_FIELDS_AS_LIST = TransportVersion.fromName("doc_fields_as_list");
+
     private final transient int docId;
 
     static final float DEFAULT_SCORE = Float.NaN;
     private float score;
+
+    /**
+     * ToXContent param key that, when set to {@code true}, causes {@code _seq_no} and {@code _primary_term} to be
+     * emitted even when they hold sentinel (unassigned) values. Used for indices with sequence numbers disabled.
+     */
+    public static final String SEQ_NO_PRIMARY_TERM_PARAMS_KEY = "seq_no_primary_term";
 
     static final int NO_RANK = -1;
     private int rank;
@@ -186,29 +192,22 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         this.shard = shard;
         this.index = index;
         this.clusterAlias = clusterAlias;
-        this.innerHits = innerHits;
+        this.innerHits = innerHits != null ? unmodifiableMap(innerHits) : null;
         this.documentFields = documentFields;
         this.metaFields = metaFields;
         this.refCounted = refCounted == null ? LeakTracker.wrap(new SimpleRefCounted()) : refCounted;
     }
 
-    public static SearchHit readFrom(StreamInput in, boolean pooled) throws IOException {
+    public static SearchHit readFrom(StreamInput in) throws IOException {
         final float score = in.readFloat();
         final int rank;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            rank = in.readVInt();
-        } else {
-            rank = NO_RANK;
-        }
+        rank = in.readVInt();
         final Text id = in.readOptionalText();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readOptionalText();
-        }
         final NestedIdentity nestedIdentity = in.readOptionalWriteable(NestedIdentity::new);
         final long version = in.readLong();
         final long seqNo = in.readZLong();
         final long primaryTerm = in.readVLong();
-        BytesReference source = pooled ? in.readReleasableBytesReference() : in.readBytesReference();
+        BytesReference source = in.readReleasableBytesReference();
         if (source.length() == 0) {
             source = null;
         }
@@ -218,7 +217,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         }
         final Map<String, DocumentField> documentFields;
         final Map<String, DocumentField> metaFields;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.DOC_FIELDS_AS_LIST)) {
+        if (in.getTransportVersion().supports(DOC_FIELDS_AS_LIST)) {
             documentFields = DocumentField.readFieldsFromMapValues(in);
             metaFields = DocumentField.readFieldsFromMapValues(in);
         } else {
@@ -231,15 +230,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         final SearchSortValues sortValues = SearchSortValues.readFrom(in);
 
         final Map<String, Float> matchedQueries;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            matchedQueries = in.readOrderedMap(StreamInput::readString, StreamInput::readFloat);
-        } else {
-            int size = in.readVInt();
-            matchedQueries = Maps.newLinkedHashMapWithExpectedSize(size);
-            for (int i = 0; i < size; i++) {
-                matchedQueries.put(in.readString(), Float.NaN);
-            }
-        }
+        matchedQueries = in.readOrderedMap(StreamInput::readString, StreamInput::readFloat);
 
         final SearchShardTarget shardTarget = in.readOptionalWriteable(SearchShardTarget::new);
         final String index;
@@ -252,14 +243,14 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             clusterAlias = shardTarget.getClusterAlias();
         }
 
-        boolean isPooled = pooled && source != null;
+        boolean isPooled = source != null;
         final Map<String, SearchHits> innerHits;
         int size = in.readVInt();
         if (size > 0) {
             innerHits = Maps.newMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
                 var key = in.readString();
-                var nestedHits = SearchHits.readFrom(in, pooled);
+                var nestedHits = SearchHits.readFrom(in);
                 innerHits.put(key, nestedHits);
                 isPooled = isPooled || nestedHits.isPooled();
             }
@@ -309,15 +300,8 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     public void writeTo(StreamOutput out) throws IOException {
         assert hasReferences();
         out.writeFloat(score);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeVInt(rank);
-        } else if (rank != NO_RANK) {
-            throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
-        }
+        out.writeVInt(rank);
         out.writeOptionalText(id);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeOptionalText(SINGLE_MAPPING_TYPE);
-        }
         out.writeOptionalWriteable(nestedIdentity);
         out.writeLong(version);
         out.writeZLong(seqNo);
@@ -329,7 +313,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             out.writeBoolean(true);
             writeExplanation(out, explanation);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.DOC_FIELDS_AS_LIST)) {
+        if (out.getTransportVersion().supports(DOC_FIELDS_AS_LIST)) {
             out.writeMapValues(documentFields);
             out.writeMapValues(metaFields);
         } else {
@@ -343,11 +327,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         }
         sortValues.writeTo(out);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeMap(matchedQueries, StreamOutput::writeFloat);
-        } else {
-            out.writeStringCollection(matchedQueries.keySet());
-        }
+        out.writeMap(matchedQueries, StreamOutput::writeFloat);
         out.writeOptionalWriteable(shard);
         if (innerHits == null) {
             out.writeVInt(0);
@@ -707,8 +687,28 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
 
     public void setInnerHits(Map<String, SearchHits> innerHits) {
         assert innerHits == null || innerHits.values().stream().noneMatch(h -> h.hasReferences() == false);
-        assert this.innerHits == null;
-        this.innerHits = innerHits;
+        if (this.innerHits == null) {
+            this.innerHits = innerHits != null ? unmodifiableMap(innerHits) : null;
+        } else {
+            // Merge: InnerHitsPhase and ExpandSearchPhase both contribute inner hits to the same hit.
+            // Keys are always disjoint (nested-query names vs collapse inner_hits names).
+            Map<String, SearchHits> merged = newDisjointMergeMap(this.innerHits, innerHits);
+            merged.putAll(this.innerHits);
+            merged.putAll(innerHits);
+            this.innerHits = unmodifiableMap(merged);
+        }
+    }
+
+    /**
+     * Asserts that {@code incoming} is non-null and has no keys in common with {@code existing},
+     * then returns a pre-sized mutable map ready for the caller to populate.
+     * Used by both {@link #setInnerHits} and {@link #withInnerHits} to merge disjoint inner-hit sets.
+     */
+    private static Map<String, SearchHits> newDisjointMergeMap(Map<String, SearchHits> existing, Map<String, SearchHits> incoming) {
+        assert incoming != null;
+        assert incoming.keySet().stream().noneMatch(existing::containsKey)
+            : "duplicate inner hits key: existing=" + existing.keySet() + " new=" + incoming.keySet();
+        return Maps.newMapWithExpectedSize(existing.size() + incoming.size());
     }
 
     @Override
@@ -759,10 +759,26 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         return refCounted.hasReferences();
     }
 
-    public SearchHit asUnpooled() {
-        assert hasReferences();
-        if (isPooled() == false) {
-            return this;
+    /**
+     * Creates a new pooled {@link SearchHit} with the given inner hits attached. Intended for hits where {@link #isPooled()} is
+     * {@code false} (e.g. hits without {@code _source}) that need to acquire ownership of pooled inner hits: since
+     * {@code refCounted} is final, a new hit object is required so that {@link #deallocate()} can release the inner hits
+     * when the hit is released.
+     */
+    public SearchHit withInnerHits(Map<String, SearchHits> innerHits) {
+        assert isPooled() == false;
+        final Map<String, SearchHits> combined;
+        if (this.innerHits == null) {
+            combined = innerHits;
+        } else {
+            // Merge: InnerHitsPhase already set inner hits on this non-pooled hit; ExpandSearchPhase
+            // adds collapse inner hits. The new pooled hit takes ownership of both sets via mustIncRef.
+            combined = newDisjointMergeMap(this.innerHits, innerHits);
+            for (Map.Entry<String, SearchHits> entry : this.innerHits.entrySet()) {
+                entry.getValue().mustIncRef();
+                combined.put(entry.getKey(), entry.getValue());
+            }
+            combined.putAll(innerHits);
         }
         return new SearchHit(
             docId,
@@ -773,7 +789,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             version,
             seqNo,
             primaryTerm,
-            source instanceof RefCounted ? new BytesArray(source.toBytesRef(), true) : source,
+            source,
             highlightFields,
             sortValues,
             matchedQueries,
@@ -781,12 +797,10 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             shard,
             index,
             clusterAlias,
-            innerHits == null
-                ? null
-                : innerHits.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().asUnpooled())),
+            combined,
             cloneIfHashMap(documentFields),
             cloneIfHashMap(metaFields),
-            ALWAYS_REFERENCED
+            null
         );
     }
 
@@ -856,7 +870,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             builder.field(Fields._VERSION, version);
         }
 
-        if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+        if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO || params.paramAsBoolean(SEQ_NO_PRIMARY_TERM_PARAMS_KEY, false)) {
             builder.field(Fields._SEQ_NO, seqNo);
             builder.field(Fields._PRIMARY_TERM, primaryTerm);
         }

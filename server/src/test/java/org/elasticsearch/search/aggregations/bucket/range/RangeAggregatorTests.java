@@ -14,14 +14,15 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LongScriptFieldType;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -63,7 +64,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     private static final String DATE_FIELD_NAME = "date";
 
     public void testNoMatchingField() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("bogus_field_name", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("bogus_field_name", 2)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("bogus_field_name", 3)));
@@ -77,7 +78,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMatchesSortedNumericDocValues() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(List.of(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 7), new IntPoint(NUMBER_FIELD_NAME, 7)));
             iw.addDocument(List.of(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 2), new IntPoint(NUMBER_FIELD_NAME, 2)));
             iw.addDocument(List.of(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 3), new IntPoint(NUMBER_FIELD_NAME, 3)));
@@ -91,7 +92,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMatchesNumericDocValues() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(List.of(new NumericDocValuesField(NUMBER_FIELD_NAME, 7), new IntPoint(NUMBER_FIELD_NAME, 7)));
             iw.addDocument(List.of(new NumericDocValuesField(NUMBER_FIELD_NAME, 2), new IntPoint(NUMBER_FIELD_NAME, 2)));
             iw.addDocument(List.of(new NumericDocValuesField(NUMBER_FIELD_NAME, 3), new IntPoint(NUMBER_FIELD_NAME, 3)));
@@ -234,7 +235,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         MappedFieldType field = new NumberFieldMapper.NumberFieldType(fieldName, NumberType.FLOAT);
         testCase(iw -> {
             LuceneDocument doc = new LuceneDocument();
-            NumberType.FLOAT.addFields(doc, fieldName, 0.04F, false, true, false);
+            NumberType.FLOAT.addFields(doc, fieldName, 0.04F, IndexType.points(false, true), false);
             iw.addDocument(doc);
         }, result -> {
             InternalRange<?, ?> range = (InternalRange<?, ?>) result;
@@ -258,7 +259,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         MappedFieldType field = new NumberFieldMapper.NumberFieldType(fieldName, NumberType.HALF_FLOAT);
         testCase(iw -> {
             LuceneDocument doc = new LuceneDocument();
-            NumberType.HALF_FLOAT.addFields(doc, fieldName, 0.0152F, false, true, false);
+            NumberType.HALF_FLOAT.addFields(doc, fieldName, 0.0152F, IndexType.points(false, true), false);
             iw.addDocument(doc);
         }, result -> {
             InternalRange<?, ?> range = (InternalRange<?, ?>) result;
@@ -302,9 +303,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 new NumberFieldMapper.NumberFieldType(
                     NUMBER_FIELD_NAME,
                     NumberType.INTEGER,
+                    IndexType.points(randomBoolean(), true),
                     randomBoolean(),
-                    randomBoolean(),
-                    true,
                     false,
                     null,
                     Collections.emptyMap(),
@@ -321,9 +321,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     public void testDateFieldMillisecondResolution() throws IOException {
         DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(
             DATE_FIELD_NAME,
+            IndexType.points(randomBoolean(), true),
             randomBoolean(),
-            randomBoolean(),
-            true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS,
             null,
@@ -351,9 +350,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     public void testDateFieldNanosecondResolution() throws IOException {
         DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(
             DATE_FIELD_NAME,
-            true,
+            IndexType.points(true, true),
             false,
-            true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             DateFieldMapper.Resolution.NANOSECONDS,
             null,
@@ -382,9 +380,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     public void testMissingDateWithDateNanosField() throws IOException {
         DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(
             DATE_FIELD_NAME,
-            true,
+            IndexType.points(true, true),
             false,
-            true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             DateFieldMapper.Resolution.NANOSECONDS,
             null,
@@ -415,21 +412,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNotFitIntoDouble() throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
-            NUMBER_FIELD_NAME,
-            NumberType.LONG,
-            true,
-            false,
-            true,
-            false,
-            null,
-            Collections.emptyMap(),
-            null,
-            false,
-            null,
-            null,
-            false
-        );
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberType.LONG);
 
         long start = 2L << 54; // Double stores 53 bits of mantissa, so we aggregate a bunch of bigger values
 
@@ -538,7 +521,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             .addRange(0d, 10d)
             .subAggregation(aggCardinalityUpperBound("c"));
 
-        simpleTestCase(aggregationBuilder, new MatchAllDocsQuery(), range -> {
+        simpleTestCase(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             InternalAggCardinalityUpperBound pc = ranges.get(0).getAggregations().get("c");
             assertThat(pc.cardinality(), equalTo(CardinalityUpperBound.ONE));
@@ -551,7 +534,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             .addRange(10d, 100d)
             .subAggregation(aggCardinalityUpperBound("c"));
 
-        simpleTestCase(aggregationBuilder, new MatchAllDocsQuery(), range -> {
+        simpleTestCase(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             InternalAggCardinalityUpperBound pc = ranges.get(0).getAggregations().get("c");
             assertThat(pc.cardinality().map(i -> i), equalTo(2));
@@ -658,7 +641,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         MappedFieldType numberFt = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
         debugTestCase(
             new RangeAggregationBuilder("r").field("dummy").addRange(0, 1).addRange(1, 2).addRange(2, 3),
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             iw -> {
                 for (int d = 0; d < totalDocs; d++) {
                     iw.addDocument(List.of(new IntPoint(NUMBER_FIELD_NAME, 0), new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 0)));
@@ -701,9 +684,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
             NUMBER_FIELD_NAME,
             NumberFieldMapper.NumberType.INTEGER,
+            IndexType.points(randomBoolean(), true),
             randomBoolean(),
-            randomBoolean(),
-            true,
             false,
             null,
             Collections.emptyMap(),

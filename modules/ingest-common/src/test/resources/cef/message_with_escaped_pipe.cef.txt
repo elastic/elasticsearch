@@ -1,0 +1,1 @@
+CEF:1|vendor|product\|pipe|version space|class\\slash|name|severity|ext1=some value   ext2=pipe|value

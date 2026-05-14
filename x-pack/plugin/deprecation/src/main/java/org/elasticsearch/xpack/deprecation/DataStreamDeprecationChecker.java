@@ -88,9 +88,25 @@ public class DataStreamDeprecationChecker implements ResourceDeprecationChecker 
 
     static DeprecationIssue oldIndicesCheck(DataStream dataStream, ProjectMetadata project) {
         List<Index> backingIndices = dataStream.getIndices();
-
+        Set<String> percolatorIndicesNeedingUpgrade = getReindexRequiredIndicesWithPercolatorFields(backingIndices, project, false);
+        if (percolatorIndicesNeedingUpgrade.isEmpty() == false) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                "Field mappings with incompatible percolator type",
+                "https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/percolator#_reindexing_your_percolator_queries",
+                "The data stream was created before 9.latest and contains mappings that must be reindexed due to containing percolator "
+                    + "fields.",
+                false,
+                ofEntries(
+                    entry("reindex_required", true),
+                    entry("excluded_actions", List.of("readOnly")),
+                    entry("total_backing_indices", backingIndices.size()),
+                    entry("indices_requiring_upgrade_count", percolatorIndicesNeedingUpgrade.size()),
+                    entry("indices_requiring_upgrade", percolatorIndicesNeedingUpgrade)
+                )
+            );
+        }
         Set<String> indicesNeedingUpgrade = getReindexRequiredIndices(backingIndices, project, false);
-
         if (indicesNeedingUpgrade.isEmpty() == false) {
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
@@ -112,6 +128,24 @@ public class DataStreamDeprecationChecker implements ResourceDeprecationChecker 
 
     static DeprecationIssue ignoredOldIndicesCheck(DataStream dataStream, ProjectMetadata project) {
         List<Index> backingIndices = dataStream.getIndices();
+        Set<String> percolatorIgnoredIndices = getReindexRequiredIndicesWithPercolatorFields(backingIndices, project, true);
+        if (percolatorIgnoredIndices.isEmpty() == false) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                "Field mappings with incompatible percolator type",
+                "https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/percolator#_reindexing_your_percolator_queries",
+                "The data stream was created before 9.latest and contains mappings that must be reindexed due to containing percolator "
+                    + "fields.",
+                false,
+                ofEntries(
+                    entry("reindex_required", true),
+                    entry("excluded_actions", List.of("readOnly")),
+                    entry("total_backing_indices", backingIndices.size()),
+                    entry("ignored_indices_requiring_upgrade_count", percolatorIgnoredIndices.size()),
+                    entry("ignored_indices_requiring_upgrade", percolatorIgnoredIndices)
+                )
+            );
+        }
         Set<String> ignoredIndices = getReindexRequiredIndices(backingIndices, project, true);
         if (ignoredIndices.isEmpty() == false) {
             return new DeprecationIssue(
@@ -140,6 +174,20 @@ public class DataStreamDeprecationChecker implements ResourceDeprecationChecker 
     ) {
         return backingIndices.stream()
             .filter(DeprecatedIndexPredicate.getReindexRequiredPredicate(project, filterToBlockedStatus, false))
+            .map(Index::getName)
+            .collect(Collectors.toUnmodifiableSet());
+    }
+
+    private static Set<String> getReindexRequiredIndicesWithPercolatorFields(
+        List<Index> backingIndices,
+        ProjectMetadata project,
+        boolean filterToBlockedStatus
+    ) {
+        return backingIndices.stream()
+            .filter(
+                index -> DeprecatedIndexPredicate.reindexRequiredForPecolatorFields(project.index(index), filterToBlockedStatus, false)
+                    .isEmpty() == false
+            )
             .map(Index::getName)
             .collect(Collectors.toUnmodifiableSet());
     }

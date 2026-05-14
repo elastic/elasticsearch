@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.application.connector.ConnectorSyncInfo;
 import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
 
 import java.io.IOException;
@@ -38,7 +39,22 @@ public class UpdateConnectorLastSyncStatsActionRequestBWCSerializingTests extend
     @Override
     protected UpdateConnectorLastSyncStatsAction.Request mutateInstance(UpdateConnectorLastSyncStatsAction.Request instance)
         throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String originalConnectorId = instance.getConnectorId();
+        ConnectorSyncInfo syncInfo = instance.getSyncInfo();
+        Object syncCursor = instance.getSyncCursor();
+        switch (between(0, 2)) {
+            case 0 -> originalConnectorId = randomValueOtherThan(originalConnectorId, () -> randomUUID());
+            case 1 -> syncInfo = randomValueOtherThan(syncInfo, ConnectorTestUtils::getRandomConnectorSyncInfo);
+            case 2 -> syncCursor = randomValueOtherThan(
+                syncCursor,
+                () -> randomMap(0, 3, () -> new Tuple<>(randomAlphaOfLength(4), randomAlphaOfLength(4)))
+            );
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new UpdateConnectorLastSyncStatsAction.Request.Builder().setConnectorId(originalConnectorId)
+            .setSyncInfo(syncInfo)
+            .setSyncCursor(syncCursor)
+            .build();
     }
 
     @Override

@@ -15,6 +15,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -23,11 +24,18 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
@@ -47,6 +55,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean profile;
     private Boolean includeCCSMetadata;
     private Boolean includeExecutionMetadata;
+    private ZoneId timeZone;
     private Locale locale;
     private QueryBuilder filter;
     private QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
@@ -57,23 +66,57 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean onSnapshotBuild = Build.current().isSnapshot();
     private boolean acceptedPragmaRisks = false;
     private Boolean allowPartialResults = null;
+    private String projectRouting;
+    private ApproximationSettings approximation;
 
     /**
      * "Tables" provided in the request for use with things like {@code LOOKUP}.
      */
     private final Map<String, Map<String, Column>> tables = new TreeMap<>();
 
-    public static EsqlQueryRequest syncEsqlQueryRequest() {
-        return new EsqlQueryRequest(false);
+    public static EsqlQueryRequest syncEsqlQueryRequest(String query) {
+        return new EsqlQueryRequest(false, query);
     }
 
-    public static EsqlQueryRequest asyncEsqlQueryRequest() {
-        return new EsqlQueryRequest(true);
+    public static EsqlQueryRequest asyncEsqlQueryRequest(String query) {
+        return new EsqlQueryRequest(true, query);
     }
 
-    private EsqlQueryRequest(boolean async) {
+    EsqlQueryRequest(boolean async, String query) {
         this.async = async;
+        this.query = query;
     }
+
+    /**
+     * Copy constructor. Copies all fields from {@code source}. Subclasses that need to override
+     * specific fields (e.g. {@link PreparedEsqlQueryRequest} overrides {@code query}) should do
+     * so after calling this constructor. If a new field is added to this class, it must also be
+     * added here.
+     */
+    EsqlQueryRequest(EsqlQueryRequest source) {
+        this.async = source.async;
+        this.query = source.query;
+        this.columnar = source.columnar;
+        this.profile = source.profile;
+        this.includeCCSMetadata = source.includeCCSMetadata;
+        this.includeExecutionMetadata = source.includeExecutionMetadata;
+        this.timeZone = source.timeZone;
+        this.locale = source.locale;
+        this.filter = source.filter;
+        this.pragmas = source.pragmas;
+        this.params = source.params;
+        this.waitForCompletionTimeout = source.waitForCompletionTimeout;
+        this.keepAlive = source.keepAlive;
+        this.keepOnCompletion = source.keepOnCompletion;
+        this.onSnapshotBuild = source.onSnapshotBuild;
+        this.acceptedPragmaRisks = source.acceptedPragmaRisks;
+        this.allowPartialResults = source.allowPartialResults;
+        this.projectRouting = source.projectRouting;
+        this.approximation = source.approximation;
+        this.tables.putAll(source.tables);
+    }
+
+    public EsqlQueryRequest() {}
 
     public EsqlQueryRequest(StreamInput in) throws IOException {
         super(in);
@@ -81,11 +124,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-        if (Strings.hasText(query) == false) {
-            validationException = addValidationError("[" + RequestXContent.QUERY_FIELD + "] is required", validationException);
-        }
-
+        ActionRequestValidationException validationException = validateQuery();
         if (onSnapshotBuild == false) {
             if (pragmas.isEmpty() == false && acceptedPragmaRisks == false) {
                 validationException = addValidationError(
@@ -103,7 +142,12 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return validationException;
     }
 
-    public EsqlQueryRequest() {}
+    protected ActionRequestValidationException validateQuery() {
+        if (Strings.hasText(query) == false) {
+            return addValidationError("[" + RequestXContent.QUERY_FIELD + "] is required", null);
+        }
+        return null;
+    }
 
     public EsqlQueryRequest query(String query) {
         this.query = query;
@@ -111,16 +155,37 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     }
 
     @Override
+    @Nullable
     public String query() {
         return query;
+    }
+
+    /**
+     * Returns a non-null human-readable description of the query for logging, task descriptions, and error messages.
+     * For regular requests this is the same as {@link #query()}. Overridden by {@link PreparedEsqlQueryRequest}
+     * to return a display string when there is no query text.
+     */
+    public String queryDescription() {
+        return query();
+    }
+
+    /**
+     * Parses the query string into an {@link EsqlStatement} and validates its settings.
+     * Overridden by {@link PreparedEsqlQueryRequest} to return a pre-built statement directly.
+     */
+    public EsqlStatement parse(EsqlParser parser, SettingsValidationContext settingsValidationCtx, InferenceSettings inferenceSettings) {
+        EsqlStatement statement = parser.parse(query(), params(), inferenceSettings);
+        QuerySettings.validate(statement, settingsValidationCtx);
+        return statement;
     }
 
     public boolean async() {
         return async;
     }
 
-    public void columnar(boolean columnar) {
+    public EsqlQueryRequest columnar(boolean columnar) {
         this.columnar = columnar;
+        return this;
     }
 
     public boolean columnar() {
@@ -131,20 +196,23 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      * Enable profiling, sacrificing performance to return information about
      * what operations are taking the most time.
      */
-    public void profile(boolean profile) {
+    public EsqlQueryRequest profile(boolean profile) {
         this.profile = profile;
+        return this;
     }
 
-    public void includeCCSMetadata(Boolean include) {
+    public EsqlQueryRequest includeCCSMetadata(Boolean include) {
         this.includeCCSMetadata = include;
+        return this;
     }
 
     public Boolean includeCCSMetadata() {
         return includeCCSMetadata;
     }
 
-    public void includeExecutionMetadata(Boolean include) {
+    public EsqlQueryRequest includeExecutionMetadata(Boolean include) {
         this.includeExecutionMetadata = include;
+        return this;
     }
 
     public Boolean includeExecutionMetadata() {
@@ -156,6 +224,14 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      */
     public boolean profile() {
         return profile;
+    }
+
+    public void timeZone(ZoneId timeZone) {
+        this.timeZone = timeZone;
+    }
+
+    public ZoneId timeZone() {
+        return timeZone;
     }
 
     public void locale(Locale locale) {
@@ -197,24 +273,27 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return waitForCompletionTimeout;
     }
 
-    public void waitForCompletionTimeout(TimeValue waitForCompletionTimeout) {
+    public EsqlQueryRequest waitForCompletionTimeout(TimeValue waitForCompletionTimeout) {
         this.waitForCompletionTimeout = waitForCompletionTimeout;
+        return this;
     }
 
     public TimeValue keepAlive() {
         return keepAlive;
     }
 
-    public void keepAlive(TimeValue keepAlive) {
+    public EsqlQueryRequest keepAlive(TimeValue keepAlive) {
         this.keepAlive = keepAlive;
+        return this;
     }
 
     public boolean keepOnCompletion() {
         return keepOnCompletion;
     }
 
-    public void keepOnCompletion(boolean keepOnCompletion) {
+    public EsqlQueryRequest keepOnCompletion(boolean keepOnCompletion) {
         this.keepOnCompletion = keepOnCompletion;
+        return this;
     }
 
     /**
@@ -258,8 +337,8 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     @Override
     public Task createTask(TaskId taskId, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        var status = new EsqlQueryStatus(new AsyncExecutionId(UUIDs.randomBase64UUID(), taskId));
-        return new EsqlQueryRequestTask(query, taskId.getId(), type, action, parentTaskId, headers, status);
+        var status = new EsqlQueryStatus(new AsyncExecutionId(UUIDs.randomBase64UUID(), taskId), keepAlive);
+        return new EsqlQueryRequestTask(queryDescription(), taskId.getId(), type, action, parentTaskId, headers, status);
     }
 
     private static class EsqlQueryRequestTask extends CancellableTask {
@@ -292,5 +371,23 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     void acceptedPragmaRisks(boolean accepted) {
         this.acceptedPragmaRisks = accepted;
+    }
+
+    public EsqlQueryRequest projectRouting(String projectRouting) {
+        this.projectRouting = projectRouting;
+        return this;
+    }
+
+    public String projectRouting() {
+        return projectRouting;
+    }
+
+    public EsqlQueryRequest approximation(ApproximationSettings approximation) {
+        this.approximation = approximation;
+        return this;
+    }
+
+    public ApproximationSettings approximation() {
+        return approximation;
     }
 }

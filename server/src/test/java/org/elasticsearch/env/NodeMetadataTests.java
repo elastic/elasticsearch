@@ -35,7 +35,7 @@ public class NodeMetadataTests extends ESTestCase {
     // (Index)VersionUtils.randomVersion() only returns known versions, which are necessarily no later than (Index)Version.CURRENT;
     // however we want to also consider our behaviour with all versions, so occasionally pick up a truly random version.
     private Version randomVersion() {
-        return rarely() ? Version.fromId(randomNonNegativeInt()) : VersionUtils.randomVersion(random());
+        return rarely() ? Version.fromId(randomNonNegativeInt()) : VersionUtils.randomVersion();
     }
 
     private BuildVersion randomBuildVersion() {
@@ -155,7 +155,7 @@ public class NodeMetadataTests extends ESTestCase {
 
     public void testUpgradeMarksPreviousVersion() {
         final String nodeId = randomAlphaOfLength(10);
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_9_0_0);
+        final Version version = VersionUtils.randomVersionBetween(Version.CURRENT.minimumCompatibilityVersion(), Version.V_9_0_0);
         final BuildVersion buildVersion = BuildVersion.fromVersionId(version.id());
 
         final NodeMetadata nodeMetadata = new NodeMetadata(nodeId, buildVersion, IndexVersion.current()).upgradeToCurrentVersion();

@@ -21,6 +21,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.replaceStub;
+import static org.elasticsearch.xpack.esql.plan.logical.join.StubRelation.computeOutput;
+
 /**
  * Replace any evaluation from the inlined aggregation side (right side) to the left side (source) to perform the matching.
  * In INLINE STATS m = MIN(x) BY a + b the right side contains STATS m = MIN(X) BY a + b.
@@ -79,12 +82,21 @@ public class PropagateInlineEvals extends OptimizerRules.OptimizerRule<InlineJoi
             return p;
         });
 
+        // If no evals were moved, there is nothing to propagate. In particular, INLINE STATS without groupings (or after other rewrites
+        // that removed the stubbed source) can have no StubRelation on the right side, and attempting to replace it would fail.
+        if (groupingAlias.isEmpty()) {
+            return plan;
+        }
+
         // copy found evals on the left side
-        if (groupingAlias.size() > 0) {
-            left = new Eval(plan.source(), plan.left(), groupingAlias);
+        left = new Eval(plan.source(), plan.left(), groupingAlias);
+        // if the StubRelation has been optimized away, remove the inline join altogether. This can happen when the aggregation is a
+        // SurrogateExpression and the aggregation itself is replaced usually by an Eval and Project.
+        if (right.anyMatch(p -> p instanceof StubRelation) == false) {
+            return plan.replaceChildren(left, right);
         }
 
         // replace the old stub with the new out to capture the new output
-        return plan.replaceChildren(left, InlineJoin.replaceStub(new StubRelation(right.source(), left.output()), right));
+        return plan.replaceChildren(left, replaceStub(new StubRelation(right.source(), computeOutput(right, left)), right));
     }
 }

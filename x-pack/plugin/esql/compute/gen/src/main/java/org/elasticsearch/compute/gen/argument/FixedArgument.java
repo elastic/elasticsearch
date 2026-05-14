@@ -16,6 +16,7 @@ import com.squareup.javapoet.TypeSpec;
 import org.elasticsearch.compute.ann.Fixed;
 
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import javax.lang.model.element.Modifier;
@@ -84,7 +85,7 @@ public record FixedArgument(TypeName type, String name, boolean includeInToStrin
     }
 
     @Override
-    public void resolveVectors(MethodSpec.Builder builder, String invokeBlockEval) {
+    public void resolveVectors(MethodSpec.Builder builder, Consumer<MethodSpec.Builder> onBlock, Consumer<MethodSpec.Builder> onAllNull) {
         // nothing to do
     }
 

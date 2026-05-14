@@ -17,12 +17,15 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -40,9 +43,9 @@ import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -53,7 +56,6 @@ import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -65,6 +67,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.retention.WritableIndexExpander;
@@ -147,7 +150,7 @@ public class JobDataDeleter {
     private static BulkByScrollResponse emptyBulkByScrollResponse() {
         return new BulkByScrollResponse(
             TimeValue.ZERO,
-            new BulkByScrollTask.Status(Collections.emptyList(), null),
+            new BulkByPaginatedSearchTask.Status(Collections.emptyList(), null, 0f),
             Collections.emptyList(),
             Collections.emptyList(),
             false
@@ -205,7 +208,7 @@ public class JobDataDeleter {
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRefresh(true)
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
 
         // _doc is the most efficient sort order and will also disable scoring
         dbqRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
@@ -251,6 +254,7 @@ public class JobDataDeleter {
      */
     public void deleteResultsFromTime(long cutoffEpochMs, ActionListener<Boolean> listener) {
         QueryBuilder query = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
             .filter(
                 QueryBuilders.termsQuery(
                     Result.RESULT_TYPE.getPreferredName(),
@@ -262,6 +266,7 @@ public class JobDataDeleter {
                 )
             )
             .filter(QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).gte(cutoffEpochMs));
+
         String[] indicesToQuery = removeReadOnlyIndices(
             List.of(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)),
             listener,
@@ -273,7 +278,7 @@ public class JobDataDeleter {
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRefresh(true)
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
 
         // _doc is the most efficient sort order and will also disable scoring
         dbqRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
@@ -296,7 +301,7 @@ public class JobDataDeleter {
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRefresh(false)
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
 
         // _doc is the most efficient sort order and will also disable scoring
         dbqRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
@@ -309,7 +314,10 @@ public class JobDataDeleter {
     }
 
     /**
-     * Delete the datafeed timing stats document from all the job results indices
+     * Delete the datafeed timing stats document from the job results index.
+     * Uses a direct delete-by-ID rather than delete-by-query to avoid the two-phase
+     * search-then-delete race where an un-refreshed document can be missed by the
+     * search phase.
      *
      * @param listener Response listener
      */
@@ -321,14 +329,17 @@ public class JobDataDeleter {
             () -> listener.onResponse(emptyBulkByScrollResponse())
         );
         if (indicesToQuery.length == 0) return;
-        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(indicesToQuery).setRefresh(true)
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-            .setQuery(QueryBuilders.idsQuery().addIds(DatafeedTimingStats.documentId(jobId)));
 
-        // _doc is the most efficient sort order and will also disable scoring
-        deleteByQueryRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
+        DeleteRequest deleteRequest = new DeleteRequest(indicesToQuery[0], DatafeedTimingStats.documentId(jobId));
+        deleteRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener);
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            TransportDeleteAction.TYPE,
+            deleteRequest,
+            listener.delegateFailureAndWrap((l, deleteResponse) -> l.onResponse(emptyBulkByScrollResponse()))
+        );
     }
 
     /**
@@ -390,8 +401,6 @@ public class JobDataDeleter {
                 deleteByQueryExecutor.onResponse(true); // We need to run DBQ and alias deletion
                 return;
             }
-            String defaultSharedIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX
-                + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
             List<String> indicesToDelete = new ArrayList<>();
             boolean needToRunDBQTemp = false;
             assert multiSearchResponse.getResponses().length == indexNames.get().length;
@@ -408,7 +417,7 @@ public class JobDataDeleter {
                     }
                 }
                 SearchResponse searchResponse = item.getResponse();
-                if (searchResponse.getHits().getTotalHits().value() > 0 || indexNames.get()[i].equals(defaultSharedIndex)) {
+                if (searchResponse.getHits().getTotalHits().value() > 0 || MlIndexAndAlias.isAnomaliesSharedIndex(indexNames.get()[i])) {
                     needToRunDBQTemp = true;
                 } else {
                     indicesToDelete.add(indexNames.get()[i]);
@@ -520,7 +529,7 @@ public class JobDataDeleter {
             if (indicesToQuery.length == 0) return;
             DeleteByQueryRequest request = new DeleteByQueryRequest(indicesToQuery).setQuery(query)
                 .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpenHidden()))
-                .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
+                .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES)
                 .setAbortOnVersionConflict(false)
                 .setRefresh(true);
 

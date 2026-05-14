@@ -899,6 +899,19 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
     }
 
     /**
+     * Checks if all settings start with the specified prefix and renames any that do not. Returns the current instance if nothing needs
+     * to be done. See {@link Builder#normalizePrefix(String)} for more info.
+     */
+    public Settings maybeNormalizePrefix(String prefix) {
+        for (String key : settings.keySet()) {
+            if (key.startsWith(prefix) == false && key.endsWith("*") == false) {
+                return builder().put(this).normalizePrefix(prefix).build();
+            }
+        }
+        return this;
+    }
+
+    /**
      * A builder allowing to put different settings and then {@link #build()} an immutable
      * settings implementation. Use {@link Settings#builder()} in order to
      * construct it.
@@ -919,10 +932,19 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
         }
 
         /**
-         * Removes the provided setting from the internal map holding the current list of settings.
+         * Removes the provided setting from the internal map holding the current list of settings,
+         * and returns the setting's value.
          */
-        public String remove(String key) {
+        public String removeAndGet(String key) {
             return Settings.toString(map.remove(key));
+        }
+
+        /**
+         * Removes the provided setting from the internal map holding the current list of settings
+         */
+        public Builder remove(String key) {
+            map.remove(key);
+            return this;
         }
 
         /**

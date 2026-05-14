@@ -26,7 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class Dissect extends RegexExtract implements TelemetryAware {
+public class Dissect extends RegexExtract implements TelemetryAware, SortPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Dissect", Dissect::new);
 
     private final Parser parser;
@@ -69,6 +69,19 @@ public class Dissect extends RegexExtract implements TelemetryAware {
         public int hashCode() {
             return Objects.hash(pattern, appendSeparator);
         }
+
+        // Needed for consistent output since parser's toString isn't overriden.
+        @Override
+        public String toString() {
+            return "Parser[pattern="
+                + pattern
+                + ", appendSeparator="
+                + appendSeparator
+                + ", parser="
+                + parser.getClass().getSimpleName()
+                + "]";
+        }
+
     }
 
     public Dissect(Source source, LogicalPlan child, Expression input, Parser parser, List<Attribute> extracted) {

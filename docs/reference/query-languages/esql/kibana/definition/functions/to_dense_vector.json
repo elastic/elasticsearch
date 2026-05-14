@@ -3,10 +3,59 @@
   "type" : "scalar",
   "name" : "to_dense_vector",
   "description" : "Converts a multi-valued input of numbers, or a hexadecimal string, to a dense_vector.",
-  "signatures" : [ ],
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "multi-valued input of numbers or hexadecimal string to convert."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "dense_vector"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "multi-valued input of numbers or hexadecimal string to convert."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "dense_vector"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "multi-valued input of numbers or hexadecimal string to convert."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "dense_vector"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "multi-valued input of numbers or hexadecimal string to convert."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "dense_vector"
+    }
+  ],
   "examples" : [
     "row ints = [1, 2, 3]\n| eval vector = to_dense_vector(ints)\n| keep vector"
   ],
-  "preview" : false,
-  "snapshot_only" : true
+  "preview" : true,
+  "snapshot_only" : false
 }

@@ -12,10 +12,8 @@ package org.elasticsearch.ingest.geoip;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -24,14 +22,12 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.ingest.IngestMetadata;
@@ -42,10 +38,8 @@ import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
-import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -55,7 +49,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.DATABASES_INDEX;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
@@ -63,22 +56,28 @@ import static org.elasticsearch.ingest.geoip.GeoIpProcessor.Factory.downloadData
 import static org.elasticsearch.ingest.geoip.GeoIpProcessor.GEOIP_TYPE;
 import static org.elasticsearch.ingest.geoip.GeoIpProcessor.IP_LOCATION_TYPE;
 
-/**
- * Persistent task executor that is responsible for starting {@link GeoIpDownloader} after task is allocated by master node.
- * Also bootstraps GeoIP download task on clean cluster and handles changes to the 'ingest.geoip.downloader.enabled' setting
- */
+/// Persistent task executor that is responsible for starting [GeoIpDownloader] after task is allocated by master node.
+///
+/// Task lifecycle (start/stop) is managed externally by the [PersistentTaskLifecycleManager], which reconciles the
+/// task presence in cluster state based on [#ENABLED_SETTING].
+///
+/// This executor additionally tracks geoip processor presence across projects. The `.geoip_databases` index is
+/// cleaned up by [#deleteGeoIpDatabasesIndex] when the lifecycle manager removes the task from cluster state.
 public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<GeoIpTaskParams> implements ClusterStateListener {
 
     private static final boolean ENABLED_DEFAULT = "false".equals(
         System.getProperty("ingest.geoip.downloader.enabled.default", "true")
     ) == false;
+
     public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting(
         "ingest.geoip.downloader.enabled",
         ENABLED_DEFAULT,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope,
+        // Until ProjectScopedSettings#get is implemented, this is just a placeholder
         Setting.Property.ProjectScope
     );
+
     public static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting(
         "ingest.geoip.downloader.poll.interval",
         TimeValue.timeValueDays(3),
@@ -94,20 +93,18 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         Setting.Property.NodeScope
     );
 
-    private static final Logger logger = LogManager.getLogger(GeoIpDownloader.class);
+    private static final Logger logger = LogManager.getLogger(GeoIpDownloaderTaskExecutor.class);
 
     private final Client client;
     private final HttpClient httpClient;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final Settings settings;
-    private final PersistentTasksService persistentTasksService;
+
     @FixForMultiProject(description = "These settings need to be project-scoped")
     private volatile TimeValue pollInterval;
     private volatile boolean eagerDownload;
-
-    private final ConcurrentHashMap<ProjectId, Boolean> atLeastOneGeoipProcessorByProject = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<ProjectId, AtomicBoolean> taskIsBootstrappedByProject = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<ProjectId, Boolean> atLeastOneGeoIpProcessorByProject = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<ProjectId, GeoIpDownloader> tasks = new ConcurrentHashMap<>();
     private final ProjectResolver projectResolver;
 
@@ -118,33 +115,26 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.settings = clusterService.getSettings();
-        this.persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
         this.pollInterval = POLL_INTERVAL_SETTING.get(settings);
         this.eagerDownload = EAGER_DOWNLOAD_SETTING.get(settings);
         this.projectResolver = client.projectResolver();
     }
 
-    /**
-     * This method completes the initialization of the GeoIpDownloaderTaskExecutor by registering several listeners.
-     */
+    /// Completes the initialization of the GeoIpDownloaderTaskExecutor by registering several listeners.
     public void init() {
         clusterService.addListener(this);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(ENABLED_SETTING, this::setEnabled);
+        setUpSettingsConsumers(clusterService);
+    }
+
+    @FixForMultiProject(description = "Should execute in the context of the current project after settings are project-aware")
+    private void setUpSettingsConsumers(ClusterService clusterService) {
         clusterService.getClusterSettings().addSettingsUpdateConsumer(EAGER_DOWNLOAD_SETTING, this::setEagerDownload);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(POLL_INTERVAL_SETTING, this::setPollInterval);
     }
 
-    @FixForMultiProject(description = "Should execute in the context of the current project after settings are project-aware")
-    private void setEnabled(boolean enabled) {
-        if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
-            // we should only start/stop task from single node, master is the best as it will go through it anyway
-            return;
-        }
-        if (enabled) {
-            startTask(ProjectId.DEFAULT, () -> {});
-        } else {
-            stopTask(ProjectId.DEFAULT, () -> {});
-        }
+    /// Returns the task ID used for the geoip downloader task within a given project.
+    public String getTaskIdForProject(ProjectId projectId) {
+        return getTaskId(projectId, projectResolver.supportsMultipleProjects());
     }
 
     @FixForMultiProject(description = "Should execute in the context of the current project after settings are project-aware")
@@ -153,7 +143,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             this.eagerDownload = eagerDownload;
             GeoIpDownloader currentDownloader = getTask(ProjectId.DEFAULT);
             if (currentDownloader != null && Objects.equals(eagerDownload, Boolean.TRUE)) {
-                currentDownloader.requestReschedule();
+                currentDownloader.requestRunOnDemand();
             }
         }
     }
@@ -164,7 +154,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             this.pollInterval = pollInterval;
             GeoIpDownloader currentDownloader = getTask(ProjectId.DEFAULT);
             if (currentDownloader != null) {
-                currentDownloader.requestReschedule();
+                currentDownloader.restartPeriodicRun();
             }
         }
     }
@@ -175,9 +165,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         GeoIpTaskState geoIpTaskState = (state == null) ? GeoIpTaskState.EMPTY : (GeoIpTaskState) state;
         downloader.setState(geoIpTaskState);
         tasks.put(projectResolver.getProjectId(), downloader);
-        if (ENABLED_SETTING.get(clusterService.state().metadata().settings(), settings)) {
-            downloader.runDownloader();
-        }
+        downloader.restartPeriodicRun();
     }
 
     @Override
@@ -204,44 +192,33 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             headers,
             () -> pollInterval,
             () -> eagerDownload,
-            () -> atLeastOneGeoipProcessorByProject.getOrDefault(projectId, false),
+            () -> atLeastOneGeoIpProcessorByProject.getOrDefault(projectId, false),
             projectId
         );
     }
 
-    @FixForMultiProject(description = "Make sure removed project tasks are cancelled: https://elasticco.atlassian.net/browse/ES-12054")
+    /// On each cluster state update, tracks per-project geoip processor presence and schedules on-demand downloader
+    /// runs when pipelines or indices change.
+    ///
+    /// The persistent task is started and stopped by [PersistentTaskLifecycleManager]. After the task is removed from
+    /// cluster state (successfully or already absent), that manager invokes [#deleteGeoIpDatabasesIndex] to drop the
+    /// `.geoip_databases` index when appropriate.
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            // wait for state recovered
+        if (event.state().nodes().getMasterNode() == null || event.state().clusterRecovered() == false) {
             return;
         }
-
-        DiscoveryNode masterNode = event.state().nodes().getMasterNode();
-        if (masterNode == null) {
-            // no master yet
-            return;
-        }
-
         if (event.metadataChanged() == false) {
             return;
         }
 
-        for (var projectMetadata : event.state().metadata().projects().values()) {
-            ProjectId projectId = projectMetadata.id();
+        final var projects = event.state().metadata().projects();
 
-            // bootstrap task once iff it is not already bootstrapped
-            AtomicBoolean taskIsBootstrapped = taskIsBootstrappedByProject.computeIfAbsent(projectId, k -> new AtomicBoolean(false));
-            if (taskIsBootstrapped.getAndSet(true) == false) {
-                atLeastOneGeoipProcessorByProject.computeIfAbsent(projectId, k -> hasAtLeastOneGeoipProcessor(projectMetadata));
-                if (ENABLED_SETTING.get(event.state().getMetadata().settings(), settings)) {
-                    logger.debug("Bootstrapping geoip downloader task for project [{}]", projectId);
-                    startTask(projectId, () -> taskIsBootstrapped.set(false));
-                } else {
-                    logger.debug("Stopping geoip downloader task for project [{}]", projectId);
-                    stopTask(projectId, () -> taskIsBootstrapped.set(false));
-                }
-            }
+        // Runs on all nodes: tracks geoip processor presence per project.
+        // Downloader scheduling via requestRunOnDemand only fires on the node hosting the task.
+        for (var projectMetadata : projects.values()) {
+            ProjectId projectId = projectMetadata.id();
+            atLeastOneGeoIpProcessorByProject.computeIfAbsent(projectId, k -> hasAtLeastOneGeoipProcessor(projectMetadata));
 
             boolean hasIngestPipelineChanges = event.customMetadataChanged(projectId, IngestMetadata.TYPE);
             boolean hasIndicesChanges = false;
@@ -255,33 +232,72 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             }
 
             if (hasIngestPipelineChanges || hasIndicesChanges) {
-                boolean atLeastOneGeoipProcessor = atLeastOneGeoipProcessorByProject.getOrDefault(projectId, false);
-                boolean newAtLeastOneGeoipProcessor = hasAtLeastOneGeoipProcessor(projectMetadata);
+                boolean atLeastOneGeoIpProcessor = atLeastOneGeoIpProcessorByProject.getOrDefault(projectId, false);
+                boolean newAtLeastOneGeoIpProcessor = hasAtLeastOneGeoipProcessor(projectMetadata);
                 // update if necessary
-                if (newAtLeastOneGeoipProcessor != atLeastOneGeoipProcessor) {
-                    atLeastOneGeoipProcessorByProject.put(projectId, newAtLeastOneGeoipProcessor);
+                if (newAtLeastOneGeoIpProcessor != atLeastOneGeoIpProcessor) {
+                    atLeastOneGeoIpProcessorByProject.put(projectId, newAtLeastOneGeoIpProcessor);
                 }
-                if (newAtLeastOneGeoipProcessor && atLeastOneGeoipProcessor == false) {
+                if (newAtLeastOneGeoIpProcessor && atLeastOneGeoIpProcessor == false) {
                     logger.trace("Scheduling runDownloader for project [{}] because a geoip processor has been added", projectId);
                     GeoIpDownloader currentDownloader = getTask(projectId);
                     if (currentDownloader != null) {
-                        currentDownloader.requestReschedule();
+                        currentDownloader.requestRunOnDemand();
                     }
                 }
             }
         }
+
+        // Cleanup
+        atLeastOneGeoIpProcessorByProject.keySet().removeIf(p -> projects.containsKey(p) == false);
+        tasks.keySet()
+            .removeIf(
+                p -> projects.containsKey(p) == false
+                    || PersistentTasksCustomMetadata.getTaskWithId(projects.get(p), getTaskIdForProject(p)) == null
+            );
+    }
+
+    /// Deletes the `.geoip_databases` index for the given project after the geoip downloader task has
+    /// been removed. Called from the `onRemove` callback of [PersistentTaskLifecycleManager].
+    ///
+    /// TODO (See #144443 discussion): The current implementation has a potential race condition where the master
+    /// may trigger the index cleanup before the downloader task has finished.
+    @FixForMultiProject(
+        description = "When a project is deleted, the onRemove callback (this method) is never invoked because "
+            + "PersistentTaskLifecycleManager only reconciles projects that still exist in cluster state. "
+            + "As a result, the .geoip_databases index is left behind as an orphan. "
+            + "See https://elasticco.atlassian.net/browse/ES-12054"
+    )
+    void deleteGeoIpDatabasesIndex(ProjectId projectId) {
+        ProjectMetadata project = clusterService.state().metadata().projects().get(projectId);
+        if (project == null) {
+            return;
+        }
+        IndexAbstraction databasesAbstraction = project.getIndicesLookup().get(DATABASES_INDEX);
+        if (databasesAbstraction == null) {
+            return;
+        }
+        Index databasesIndex = databasesAbstraction.getWriteIndex();
+        client.projectClient(projectId)
+            .admin()
+            .indices()
+            .prepareDelete(databasesIndex.getName())
+            .execute(ActionListener.wrap(rr -> {}, e -> {
+                Throwable t = ExceptionsHelper.unwrapCause(e);
+                if (t instanceof ResourceNotFoundException == false) {
+                    logger.warn("failed to remove " + databasesIndex, e);
+                }
+            }));
     }
 
     static boolean hasAtLeastOneGeoipProcessor(ProjectMetadata projectMetadata) {
         if (pipelinesWithGeoIpProcessor(projectMetadata, true).isEmpty() == false) {
             return true;
         }
-
         final Set<String> checkReferencedPipelines = pipelinesWithGeoIpProcessor(projectMetadata, false);
         if (checkReferencedPipelines.isEmpty()) {
             return false;
         }
-
         for (IndexMetadata indexMetadata : projectMetadata.indices().values()) {
             String defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexMetadata.getSettings());
             String finalPipeline = IndexSettings.FINAL_PIPELINE.get(indexMetadata.getSettings());
@@ -530,73 +546,11 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         return false;
     }
 
-    // starts GeoIP downloader task for a single project
-    private void startTask(ProjectId projectId, Runnable onFailure) {
-        persistentTasksService.sendProjectStartRequest(
-            projectId,
-            getTaskId(projectId, projectResolver.supportsMultipleProjects()),
-            GEOIP_DOWNLOADER,
-            new GeoIpTaskParams(),
-            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
-            ActionListener.wrap(r -> logger.debug("Started geoip downloader task"), e -> {
-                Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;
-                if (t instanceof ResourceAlreadyExistsException == false) {
-                    logger.error("failed to create geoip downloader task", e);
-                    onFailure.run();
-                }
-            })
-        );
-    }
-
-    // stops GeoIP downloader task for a single project
-    private void stopTask(ProjectId projectId, Runnable onFailure) {
-        ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener = ActionListener.wrap(
-            r -> logger.debug("Stopped geoip downloader task"),
-            e -> {
-                Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;
-                if (t instanceof ResourceNotFoundException == false) {
-                    logger.error("failed to remove geoip downloader task", e);
-                    onFailure.run();
-                }
-            }
-        );
-        persistentTasksService.sendProjectRemoveRequest(
-            projectId,
-            getTaskId(projectId, projectResolver.supportsMultipleProjects()),
-            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
-            ActionListener.runAfter(listener, () -> {
-                IndexAbstraction databasesAbstraction = clusterService.state()
-                    .metadata()
-                    .getProject(projectId)
-                    .getIndicesLookup()
-                    .get(DATABASES_INDEX);
-                if (databasesAbstraction != null) {
-                    // regardless of whether DATABASES_INDEX is an alias, resolve it to a concrete index
-                    Index databasesIndex = databasesAbstraction.getWriteIndex();
-                    client.projectClient(projectId)
-                        .admin()
-                        .indices()
-                        .prepareDelete(databasesIndex.getName())
-                        .execute(ActionListener.wrap(rr -> {
-                            // remove task reference in the map so it can be garbage collected
-                            tasks.remove(projectId);
-                            taskIsBootstrappedByProject.remove(projectId);
-                            atLeastOneGeoipProcessorByProject.remove(projectId);
-                        }, e -> {
-                            Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;
-                            if (t instanceof ResourceNotFoundException == false) {
-                                logger.warn("failed to remove " + databasesIndex, e);
-                            }
-                        }));
-                }
-            })
-        );
-    }
-
     public GeoIpDownloader getTask(ProjectId projectId) {
         return tasks.get(projectId);
     }
 
+    /// TODO (ES-14525): no need to include project id in the task id, we should just use the same name for all tasks
     public static String getTaskId(ProjectId projectId, boolean supportsMultipleProjects) {
         return supportsMultipleProjects ? projectId + "/" + GEOIP_DOWNLOADER : GEOIP_DOWNLOADER;
     }

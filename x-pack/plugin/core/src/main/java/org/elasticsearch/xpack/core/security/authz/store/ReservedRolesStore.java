@@ -52,6 +52,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     /** Alerts, Rules, Cases (RAC) index used by multiple solutions */
     public static final String ALERTS_INDEX_ALIAS = ".alerts*";
 
+    /** Alerting V2 - alert events and action indexes used by multiple solutions */
+    public static final String ALERTING_V2_ALERT_INDEX_ALIAS = ".alert*";
+    public static final String ALERTING_V2_RULE_INDEX_ALIAS = ".rule*";
+    public static final String ALERTING_V2_ALERT_VIEWS = "$.alert*";
+    public static final String ALERTING_V2_RULE_VIEWS = "$.rule*";
+
     /** Cases analytics indexes and aliases */
     public static final String CASES_ANALYTICS_INDEXES = ".internal.cases*";
     public static final String CASES_ANALYTICS_ALIASES = ".cases*";
@@ -79,6 +85,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     public static final String ENTITY_STORE_V1_LATEST_INDEX = ".entities.v1.latest.security_*";
     public static final String ENTITY_STORE_HISTORY_INDEX = ".entities.*.history.*";
     public static final String ASSET_CRITICALITY_INDEX = ".asset-criticality.asset-criticality-*";
+    public static final String PRIVILEGED_USER_MONITORING_INDEX = ".entity_analytics.monitoring*";
 
     /** Index pattern for Universal Profiling */
     public static final String UNIVERSAL_PROFILING_ALIASES = "profiling-*";
@@ -781,8 +788,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ReservedRolesStore.LISTS_INDEX_REINDEXED_V8,
                         ReservedRolesStore.LISTS_ITEMS_INDEX_REINDEXED_V8,
                         ReservedRolesStore.ENTITY_STORE_V1_LATEST_INDEX,
-                        ReservedRolesStore.ENTITY_STORE_HISTORY_INDEX,
-                        ReservedRolesStore.ASSET_CRITICALITY_INDEX
+                        ReservedRolesStore.ASSET_CRITICALITY_INDEX,
+                        ReservedRolesStore.PRIVILEGED_USER_MONITORING_INDEX,
+                        ReservedRolesStore.ENTITY_STORE_HISTORY_INDEX
                     )
                     .privileges("read", "view_index_metadata")
                     .build(),
@@ -851,7 +859,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .build(),
                 // Security - Entity Store is view only
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(ReservedRolesStore.ENTITY_STORE_V1_LATEST_INDEX, ReservedRolesStore.ENTITY_STORE_HISTORY_INDEX)
+                    .indices(
+                        ReservedRolesStore.ENTITY_STORE_V1_LATEST_INDEX,
+                        ReservedRolesStore.PRIVILEGED_USER_MONITORING_INDEX,
+                        ReservedRolesStore.ENTITY_STORE_HISTORY_INDEX
+                    )
                     .privileges("read", "view_index_metadata")
                     .build(),
                 // Alerts-as-data

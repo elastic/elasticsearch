@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.blockloader;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.datageneration.FieldType;
+import org.elasticsearch.index.mapper.BinaryDVBlockLoaderTestCase;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 
 import java.util.ArrayList;
@@ -20,7 +21,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
+public class TextFieldBlockLoaderTests extends BinaryDVBlockLoaderTestCase {
+
     public TextFieldBlockLoaderTests(Params params) {
         super(FieldType.TEXT.toString(), params);
     }
@@ -30,11 +32,17 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
         logger.info("field mapping={}", fieldMapping);
         logger.info("value={}", value);
         logger.info("params={}", params.toString());
-        return expectedValue(fieldMapping, value, params, testContext);
+        return expectedValue(fieldMapping, value, params.blTestCaseParams(), testContext, params.binaryDocValues());
     }
 
     @SuppressWarnings("unchecked")
-    public static Object expectedValue(Map<String, Object> fieldMapping, Object value, Params params, TestContext testContext) {
+    public static Object expectedValue(
+        Map<String, Object> fieldMapping,
+        Object value,
+        BlockLoaderTestCase.Params params,
+        TestContext testContext,
+        boolean useBinaryDocValues
+    ) {
         if (fieldMapping.getOrDefault("store", false).equals(true)) {
             return valuesInSourceOrder(value);
         }
@@ -106,8 +114,27 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
             }
         }
 
+        // Loading from binary doc values
+        if (params.syntheticSource() && useBinaryDocValues) {
+            return valuesInSortedOrder(value);
+        }
+
         // Loading from stored field, _ignored_source or stored _source
         return valuesInSourceOrder(value);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Object valuesInSortedOrder(Object value) {
+        if (value == null) {
+            return null;
+        }
+
+        if (value instanceof String s) {
+            return new BytesRef(s);
+        }
+
+        var resultList = ((List<String>) value).stream().filter(Objects::nonNull).map(BytesRef::new).sorted().toList();
+        return maybeFoldList(resultList);
     }
 
     @SuppressWarnings("unchecked")

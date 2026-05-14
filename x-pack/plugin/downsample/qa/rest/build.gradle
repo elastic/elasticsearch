@@ -5,9 +5,9 @@
  * 2.0.
  */
 
+apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
-apply plugin: 'elasticsearch.internal-test-artifact'
 
 dependencies {
   testImplementation project(':test:test-clusters')
@@ -25,7 +25,7 @@ dependencies {
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'cluster', 'indices', 'search', 'ingest.put_pipeline', 'ingest.delete_pipeline'
+    include '_common', 'bulk', 'cluster', 'indices', 'search', 'ingest.put_pipeline', 'ingest.delete_pipeline', 'capabilities'
   }
 }
 
@@ -49,3 +49,15 @@ configurations {
 artifacts {
   basicRestSpecs(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
+
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  // Expected deprecation warning to compat yaml tests:
+  task.addAllowedWarningRegex("Parameter \\[default_metric\\] is deprecated and will be removed in a future version")
+  task.skipTest("downsample/10_basic/Downsample a downsampled index", "Default metric has been removed")
+  task.skipTest("downsample/10_basic/Downsample histogram as label", "Default metric has been removed")
+  task.skipTest("downsample/10_basic/Downsample index", "Default metric has been removed")
+  task.skipTest("downsample/10_basic/Downsample index with multi-value dimensions", "Counter downsampling has changed")
+  task.skipTest("downsample-with-security/10_basic/Downsample index", "Default metric has been removed")
+  task.skipTest("downsample/40_runtime_fields/Runtime fields accessing metric fields in downsample target index", "Using average as the value of an aggregate metric double")
+  task.skipTest("downsample-with-security/40_runtime_fields/Runtime fields accessing metric fields in downsample target index", "Using average as the value of an aggregate metric double")
+})

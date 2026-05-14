@@ -9,6 +9,8 @@
 
 package org.elasticsearch.action.admin.indices.resolve;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -18,10 +20,13 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RemoteClusterActionType;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -43,6 +48,9 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -57,6 +65,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -69,6 +78,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
+import static org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout;
 
 public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> {
 
@@ -90,6 +100,10 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         private String[] names;
         private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
         private EnumSet<IndexMode> indexModes = EnumSet.noneOf(IndexMode.class);
+        private ResolvedIndexExpressions resolvedIndexExpressions = null;
+        @Nullable
+        private transient TargetProjects resolvedTargetProjects = null;
+        private String projectRouting;
 
         public Request(String[] names) {
             this.names = names;
@@ -101,11 +115,21 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
 
         public Request(String[] names, IndicesOptions indicesOptions, @Nullable EnumSet<IndexMode> indexModes) {
+            this(names, indicesOptions, indexModes, null);
+        }
+
+        public Request(
+            String[] names,
+            IndicesOptions indicesOptions,
+            @Nullable EnumSet<IndexMode> indexModes,
+            @Nullable String projectRouting
+        ) {
             this.names = names;
             this.indicesOptions = indicesOptions;
             if (indexModes != null) {
                 this.indexModes = indexModes;
             }
+            this.projectRouting = projectRouting;
         }
 
         @Override
@@ -169,9 +193,40 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
 
         @Override
+        public boolean allowsCrossProject() {
+            return true;
+        }
+
+        @Override
+        public void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {
+            this.resolvedIndexExpressions = expressions;
+        }
+
+        @Override
+        public ResolvedIndexExpressions getResolvedIndexExpressions() {
+            return resolvedIndexExpressions;
+        }
+
+        @Override
+        public void setResolvedTargetProjects(TargetProjects targetProjects) {
+            this.resolvedTargetProjects = targetProjects;
+        }
+
+        @Override
+        @Nullable
+        public TargetProjects getResolvedTargetProjects() {
+            return resolvedTargetProjects;
+        }
+
+        @Override
         public boolean includeDataStreams() {
             // request must allow data streams because the index name expression resolver for the action handler assumes it
             return true;
+        }
+
+        @Override
+        public String getProjectRouting() {
+            return projectRouting;
         }
     }
 
@@ -461,17 +516,34 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         private final List<ResolvedIndex> indices;
         private final List<ResolvedAlias> aliases;
         private final List<ResolvedDataStream> dataStreams;
+        @Nullable
+        private final ResolvedIndexExpressions resolvedIndexExpressions;
 
         public Response(List<ResolvedIndex> indices, List<ResolvedAlias> aliases, List<ResolvedDataStream> dataStreams) {
+            this(indices, aliases, dataStreams, null);
+        }
+
+        public Response(
+            List<ResolvedIndex> indices,
+            List<ResolvedAlias> aliases,
+            List<ResolvedDataStream> dataStreams,
+            ResolvedIndexExpressions resolvedIndexExpressions
+        ) {
             this.indices = indices;
             this.aliases = aliases;
             this.dataStreams = dataStreams;
+            this.resolvedIndexExpressions = resolvedIndexExpressions;
         }
 
         public Response(StreamInput in) throws IOException {
             this.indices = in.readCollectionAsList(ResolvedIndex::new);
             this.aliases = in.readCollectionAsList(ResolvedAlias::new);
             this.dataStreams = in.readCollectionAsList(ResolvedDataStream::new);
+            if (in.getTransportVersion().supports(ResolvedIndexExpressions.RESOLVED_INDEX_EXPRESSIONS)) {
+                this.resolvedIndexExpressions = in.readOptionalWriteable(ResolvedIndexExpressions::new);
+            } else {
+                this.resolvedIndexExpressions = null;
+            }
         }
 
         public List<ResolvedIndex> getIndices() {
@@ -491,6 +563,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             out.writeCollection(indices);
             out.writeCollection(aliases);
             out.writeCollection(dataStreams);
+            if (out.getTransportVersion().supports(ResolvedIndexExpressions.RESOLVED_INDEX_EXPRESSIONS)) {
+                out.writeOptionalWriteable(resolvedIndexExpressions);
+            }
         }
 
         @Override
@@ -515,15 +590,22 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         public int hashCode() {
             return Objects.hash(indices, aliases, dataStreams);
         }
+
+        @Nullable
+        public ResolvedIndexExpressions getResolvedIndexExpressions() {
+            return resolvedIndexExpressions;
+        }
     }
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
+        private static final Logger logger = LogManager.getLogger(TransportAction.class);
 
         private final ClusterService clusterService;
         private final RemoteClusterService remoteClusterService;
         private final ProjectResolver projectResolver;
         private final IndexNameExpressionResolver indexNameExpressionResolver;
         private final boolean ccsCheckCompatibility;
+        private final CrossProjectModeDecider crossProjectModeDecider;
 
         @Inject
         public TransportAction(
@@ -531,13 +613,15 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             ClusterService clusterService,
             ActionFilters actionFilters,
             ProjectResolver projectResolver,
-            IndexNameExpressionResolver indexNameExpressionResolver
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            CrossProjectModeDecider crossProjectModeDecider
         ) {
             super(NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.clusterService = clusterService;
             this.remoteClusterService = transportService.getRemoteClusterService();
             this.projectResolver = projectResolver;
             this.indexNameExpressionResolver = indexNameExpressionResolver;
+            this.crossProjectModeDecider = crossProjectModeDecider;
             this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
         }
 
@@ -547,8 +631,16 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 checkCCSVersionCompatibility(request);
             }
             final ProjectState projectState = projectResolver.getProjectState(clusterService.state());
+            final ClusterBlockException blockException = projectState.blocks()
+                .globalBlockedException(projectState.projectId(), ClusterBlockLevel.METADATA_READ);
+            if (blockException != null) {
+                listener.onFailure(blockException);
+                return;
+            }
+            final IndicesOptions originalIndicesOptions = request.indicesOptions();
+            final boolean resolveCrossProject = crossProjectModeDecider.resolvesCrossProject(request);
             final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
-                request.indicesOptions(),
+                resolveCrossProject ? indicesOptionsForCrossProjectFanout(originalIndicesOptions) : originalIndicesOptions,
                 request.indices()
             );
             final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
@@ -557,12 +649,27 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             List<ResolvedDataStream> dataStreams = new ArrayList<>();
             resolveIndices(localIndices, projectState, indexNameExpressionResolver, indices, aliases, dataStreams, request.indexModes);
 
+            final ResolvedIndexExpressions localResolvedIndexExpressions = request.getResolvedIndexExpressions();
             if (remoteClusterIndices.size() > 0) {
                 final int remoteRequests = remoteClusterIndices.size();
                 final CountDown completionCounter = new CountDown(remoteRequests);
                 final SortedMap<String, Response> remoteResponses = Collections.synchronizedSortedMap(new TreeMap<>());
+                final Map<String, Exception> remoteExceptions = Collections.synchronizedMap(new HashMap<>());
                 final Runnable terminalHandler = () -> {
                     if (completionCounter.countDown()) {
+                        if (resolveCrossProject) {
+                            final Exception ex = CrossProjectIndexResolutionValidator.validate(
+                                originalIndicesOptions,
+                                request.getProjectRouting(),
+                                localResolvedIndexExpressions,
+                                getResolvedExpressionsByRemote(remoteResponses),
+                                remoteExceptions
+                            );
+                            if (ex != null) {
+                                listener.onFailure(ex);
+                                return;
+                            }
+                        }
                         mergeResults(remoteResponses, indices, aliases, dataStreams, request.indexModes);
                         listener.onResponse(new Response(indices, aliases, dataStreams));
                     }
@@ -581,11 +688,39 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     remoteClusterClient.execute(ResolveIndexAction.REMOTE_TYPE, remoteRequest, ActionListener.wrap(response -> {
                         remoteResponses.put(clusterAlias, response);
                         terminalHandler.run();
-                    }, failure -> terminalHandler.run()));
+                    }, failure -> {
+                        logger.info("failed to resolve indices on remote cluster [" + clusterAlias + "]", failure);
+                        remoteExceptions.put(clusterAlias, failure);
+                        terminalHandler.run();
+                    }));
                 }
             } else {
-                listener.onResponse(new Response(indices, aliases, dataStreams));
+                if (resolveCrossProject) {
+                    // we still need to call response validation for local results, since qualified expressions like `_origin:index` or
+                    // `<alias-pattern-matching-origin-only>:index` also get deferred validation
+                    final Exception ex = CrossProjectIndexResolutionValidator.validate(
+                        originalIndicesOptions,
+                        request.getProjectRouting(),
+                        localResolvedIndexExpressions,
+                        Map.of(),
+                        Map.of()
+                    );
+                    if (ex != null) {
+                        listener.onFailure(ex);
+                        return;
+                    }
+                }
+                listener.onResponse(new Response(indices, aliases, dataStreams, localResolvedIndexExpressions));
             }
+        }
+
+        private Map<String, ResolvedIndexExpressions> getResolvedExpressionsByRemote(Map<String, Response> remoteResponses) {
+            return remoteResponses.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> {
+                final ResolvedIndexExpressions resolvedIndexExpressions = e.getValue().getResolvedIndexExpressions();
+                assert resolvedIndexExpressions != null
+                    : "remote response from cluster [" + e.getKey() + "] is missing resolved index expressions";
+                return resolvedIndexExpressions;
+            }));
         }
 
         /**
@@ -620,19 +755,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 dataStreams,
                 indexModes
             );
-        }
-
-        // Shortcut for tests that don't need index mode filtering
-        static void resolveIndices(
-            String[] names,
-            IndicesOptions indicesOptions,
-            ProjectState projectState,
-            IndexNameExpressionResolver resolver,
-            List<ResolvedIndex> indices,
-            List<ResolvedAlias> aliases,
-            List<ResolvedDataStream> dataStreams
-        ) {
-            resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams, Collections.emptySet());
         }
 
         /**
@@ -670,10 +792,14 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             if (names.length == 1 && (Metadata.ALL.equals(names[0]) || Regex.isMatchAllPattern(names[0]))) {
                 names = new String[] { "**" };
             }
+            assert indicesOptions.indexAbstractionOptions().resolveViews() == false
+                && indicesOptions.indexAbstractionOptions().resolveDatasets() == false
+                : "Views and datasets are not supported in ResolveIndexAction";
             Set<ResolvedExpression> resolvedIndexAbstractions = resolver.resolveExpressions(
                 projectState.metadata(),
                 indicesOptions,
                 true,
+                false,
                 names
             );
             for (ResolvedExpression s : resolvedIndexAbstractions) {

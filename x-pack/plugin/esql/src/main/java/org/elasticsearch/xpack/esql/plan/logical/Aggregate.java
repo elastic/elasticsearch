@@ -6,10 +6,11 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sparkline;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
@@ -40,6 +42,11 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLATTENED;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 import static org.elasticsearch.xpack.esql.plan.logical.Filter.checkFilterConditionDataType;
 
@@ -55,6 +62,7 @@ public class Aggregate extends UnaryPlan
         "Aggregate",
         Aggregate::new
     );
+    private static final TransportVersion ESQL_REMOVE_AGGREGATE_TYPE = TransportVersion.fromName("esql_remove_aggregate_type");
 
     protected final List<Expression> groupings;
     protected final List<? extends NamedExpression> aggregates;
@@ -69,7 +77,7 @@ public class Aggregate extends UnaryPlan
 
     public Aggregate(StreamInput in) throws IOException {
         super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class));
-        if (in.getTransportVersion().before(TransportVersions.ESQL_REMOVE_AGGREGATE_TYPE)) {
+        if (in.getTransportVersion().supports(ESQL_REMOVE_AGGREGATE_TYPE) == false) {
             in.readString();
         }
         this.groupings = in.readNamedWriteableCollectionAsList(Expression.class);
@@ -80,7 +88,7 @@ public class Aggregate extends UnaryPlan
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
-        if (out.getTransportVersion().before(TransportVersions.ESQL_REMOVE_AGGREGATE_TYPE)) {
+        if (out.getTransportVersion().supports(ESQL_REMOVE_AGGREGATE_TYPE) == false) {
             out.writeString("STANDARD");
         }
         out.writeNamedWriteableCollection(groupings);
@@ -223,9 +231,7 @@ public class Aggregate extends UnaryPlan
             if (attr != null) {
                 groupRefsBuilder.add(attr);
             }
-            if (e instanceof FieldAttribute f && f.dataType().isCounter()) {
-                failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", f.dataType().typeName(), e.sourceText()));
-            }
+            checkUnsupportedStatsGroupingType(e, failures);
         });
         var groupRefs = groupRefsBuilder.build();
 
@@ -246,7 +252,33 @@ public class Aggregate extends UnaryPlan
         checkMultipleScoreAggregations(failures);
     }
 
+    static void checkUnsupportedGroupingType(Expression e, Failures failures) {
+        if ((e instanceof FieldAttribute f && f.dataType().isCounter())
+            || e.dataType() == AGGREGATE_METRIC_DOUBLE
+            || e.dataType() == DATE_RANGE
+            || e.dataType() == EXPONENTIAL_HISTOGRAM
+            || e.dataType() == FLATTENED) {
+            failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", e.dataType().typeName(), e.sourceText()));
+        }
+    }
+
+    private static void checkUnsupportedStatsGroupingType(Expression e, Failures failures) {
+        checkUnsupportedGroupingType(e, failures);
+        if (e.dataType() == DENSE_VECTOR) {
+            failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", e.dataType().typeName(), e.sourceText()));
+        }
+    }
+
     protected void checkTimeSeriesAggregates(Failures failures) {
+        Holder<Boolean> isTimeSeries = new Holder<>(false);
+        child().forEachDown(p -> {
+            if (p instanceof EsRelation er && er.indexMode() == IndexMode.TIME_SERIES) {
+                isTimeSeries.set(true);
+            }
+        });
+        if (isTimeSeries.get()) {
+            return;
+        }
         forEachExpression(
             TimeSeriesAggregateFunction.class,
             r -> failures.add(fail(r, "time_series aggregate[{}] can only be used with the TS command", r.sourceText()))
@@ -353,7 +385,7 @@ public class Aggregate extends UnaryPlan
 
     // traverse the expression and look either for an agg function or a grouping match
     // stop either when no children are left, the leafs are literals or a reference attribute is given
-    private static void checkInvalidNamedExpressionUsage(
+    private void checkInvalidNamedExpressionUsage(
         Expression e,
         List<Expression> groups,
         AttributeSet groupRefs,
@@ -388,7 +420,7 @@ public class Aggregate extends UnaryPlan
             });
         }
         // found an aggregate, constant or a group, bail out
-        if (e instanceof AggregateFunction af) {
+        if (e instanceof AggregateFunction af && af instanceof Sparkline == false) {
             af.field().forEachDown(AggregateFunction.class, f -> {
                 // rate aggregate is allowed to be inside another aggregate
                 if (f instanceof TimeSeriesAggregateFunction == false) {
@@ -427,9 +459,12 @@ public class Aggregate extends UnaryPlan
                     break;
                 }
             }
-            if (foundInGrouping == false) {
+            // TimeSeriesAggregates allow bare named expressions as they are implicitly wrapped in a time series aggregate function
+            if (foundInGrouping == false && (this instanceof TimeSeriesAggregate) == false) {
                 failures.add(fail(e, "column [{}] must appear in the STATS BY clause or be used in an aggregate function", ne.name()));
             }
+        } else if (e instanceof Sparkline) {
+            // don't do anything
         }
         // other keep on going
         else {

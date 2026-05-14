@@ -150,6 +150,59 @@ public class LogstashSystemIndexIT extends ESRestTestCase {
         assertThat(listResponseMap.size(), is(ids.size()));
     }
 
+    public void testValidPipelineIds() throws IOException {
+        final String pipelineJson = getPipelineJson();
+        final List<String> validIds = List.of(
+            "main",
+            "_internal",
+            "my_pipeline",
+            "my-pipeline",
+            "pipeline123",
+            "A1",
+            "_pipeline_1",
+            "MyPipeline-123",
+            "main_pipeline_v2"
+        );
+
+        for (String id : validIds) {
+            createPipeline(id, pipelineJson);
+        }
+
+        refreshAllIndices();
+
+        // fetch all pipeline IDs
+        Request listAll = new Request("GET", "/_logstash/pipeline");
+        Response listAllResponse = client().performRequest(listAll);
+        assertThat(listAllResponse.getStatusLine().getStatusCode(), is(200));
+        Map<String, Object> listResponseMap = XContentHelper.convertToMap(
+            XContentType.JSON.xContent(),
+            EntityUtils.toString(listAllResponse.getEntity()),
+            false
+        );
+        for (String id : validIds) {
+            assertTrue(listResponseMap.containsKey(id));
+        }
+        assertThat(listResponseMap.size(), is(validIds.size()));
+    }
+
+    public void testInvalidPipelineIds() throws IOException {
+        final String pipelineJson = getPipelineJson();
+        final List<String> invalidPipelineIds = List.of("123pipeline", "-pipeline", "*-pipeline");
+
+        for (String id : invalidPipelineIds) {
+            Request putRequest = new Request("PUT", "/_logstash/pipeline/" + id);
+            putRequest.setJsonEntity(pipelineJson);
+
+            ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(putRequest));
+
+            Response response = exception.getResponse();
+            assertThat(response.getStatusLine().getStatusCode(), is(400));
+
+            String responseBody = EntityUtils.toString(response.getEntity());
+            assertThat(responseBody, containsString("Invalid pipeline [" + id + "] ID received"));
+        }
+    }
+
     private void createPipeline(String id, String json) throws IOException {
         Request putRequest = new Request("PUT", "/_logstash/pipeline/" + id);
         putRequest.setJsonEntity(json);

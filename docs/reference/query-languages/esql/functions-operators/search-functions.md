@@ -14,12 +14,13 @@ Get started with {{esql}} for search use cases with
 our [hands-on tutorial](/reference/query-languages/esql/esql-search-tutorial.md).
 
 For a high-level overview of search functionalities in {{esql}}, and to learn about relevance scoring, refer to [{{esql}} for search](docs-content://solutions/search/esql-for-search.md#esql-for-search-scoring).
+
+For information regarding dense vector search functions,
+including [KNN](dense-vector-functions/knn.md), please refer to
+the [Dense vector functions](dense-vector-functions.md) documentation.
 :::
 
-{{esql}} provides a set of functions for performing searching on text fields.
-
-Use these functions
-for [full-text search](docs-content://solutions/search/full-text.md)
+Use these functions for [full-text search](docs-content://solutions/search/full-text.md)
 and [semantic search](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md).
 
 Full text functions can be used to
@@ -38,28 +39,3 @@ for information on the limitations of full text search.
 
 :::{include} ../_snippets/lists/search-functions.md
 :::
-
-
-:::{include} ../_snippets/functions/layout/kql.md
-:::
-
-:::{include} ../_snippets/functions/layout/match.md
-:::
-
-:::{include} ../_snippets/functions/layout/match_phrase.md
-:::
-
-:::{include} ../_snippets/functions/layout/qstr.md
-:::
-
-% TERM is currently a hidden feature
-% To make it visible again, uncomment this and the line in
-lists/search-functions.md
-% :::{include} ../_snippets/functions/layout/term.md
-% :::
-
-% DECAY is currently a hidden feature
-% To make it visible again, uncomment this and the line in
-lists/search-functions.md
-% :::{include} ../_snippets/functions/layout/decay.md
-% :::

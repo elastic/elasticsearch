@@ -2,6 +2,7 @@
  
  magnitudeWithVectorField
  required_capability: magnitude_scalar_vector_function
+ required_capability: dense_vector_field_type_released
  
 // tag::vector-magnitude[]
  from colors
@@ -27,15 +28,16 @@ linen      | 415.93267822265625
 // end::vector-magnitude-result[] 
 ;
 
- magnitudeAsPartOfExpression
- required_capability: magnitude_scalar_vector_function
- 
- from colors
- | eval score = round((1 + v_magnitude(rgb_vector) / 2), 3) 
- | sort score desc, color asc 
- | limit 10
- | keep color, score
- ;
+magnitudeAsPartOfExpression
+required_capability: magnitude_scalar_vector_function
+required_capability: dense_vector_field_type_released
+
+from colors
+| eval score = round((1 + v_magnitude(rgb_vector) / 2), 3) 
+| sort score desc, color asc 
+| limit 10
+| keep color, score
+;
 
 color:text | score:double
 white      | 221.836
@@ -52,6 +54,7 @@ linen      | 208.966
 
 magnitudeWithLiteralVectors
 required_capability: magnitude_scalar_vector_function
+required_capability: dense_vector_field_type_released
  
 row a = 1
 | eval magnitude = round(v_magnitude([1, 2, 3]), 3) 
@@ -64,6 +67,7 @@ magnitude:double
 
  magnitudeWithStats
  required_capability: magnitude_scalar_vector_function
+ required_capability: dense_vector_field_type_released
  
  from colors
  | eval magnitude = round(v_magnitude(rgb_vector), 3) 
@@ -76,7 +80,8 @@ avg:double | min:double | max:double
 
 magnitudeWithNull
 required_capability: magnitude_scalar_vector_function
-
+required_capability: dense_vector_field_type_released
+ 
 row a = 1
 | eval magnitude = v_magnitude(null) 
 | keep magnitude
@@ -89,6 +94,7 @@ null
 magnitudeWithRow
 required_capability: magnitude_scalar_vector_function
 required_capability: to_dense_vector_function
+required_capability: dense_vector_field_type_released
  
 row vector = to_dense_vector([1, 2, 3]) 
 | eval magnitude = round(v_magnitude(vector), 3) 

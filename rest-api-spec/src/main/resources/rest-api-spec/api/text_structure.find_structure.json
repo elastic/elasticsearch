@@ -80,6 +80,7 @@
       },
       "ecs_compatibility": {
         "type": "string",
+        "default": "disabled",
         "description": "Optional parameter to specify the compatibility mode with ECS Grok patterns - may be either 'v1' or 'disabled'"
       },
       "timestamp_field": {

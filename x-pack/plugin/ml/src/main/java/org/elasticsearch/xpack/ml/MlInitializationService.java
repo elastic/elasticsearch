@@ -26,6 +26,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
@@ -33,6 +34,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.Collections;
 import java.util.Map;
@@ -64,12 +66,15 @@ public final class MlInitializationService implements ClusterStateListener {
         Settings settings,
         ThreadPool threadPool,
         ClusterService clusterService,
+        AnomalyDetectionAuditor auditor,
         Client client,
         AdaptiveAllocationsScalerService adaptiveAllocationsScalerService,
         MlAssignmentNotifier mlAssignmentNotifier,
+        IndexNameExpressionResolver indexNameExpressionResolver,
         boolean isAnomalyDetectionEnabled,
         boolean isDataFrameAnalyticsEnabled,
-        boolean isNlpEnabled
+        boolean isNlpEnabled,
+        boolean isIlmEnabled
     ) {
         this(
             client,
@@ -80,10 +85,13 @@ public final class MlInitializationService implements ClusterStateListener {
                 threadPool,
                 client,
                 clusterService,
+                auditor,
                 mlAssignmentNotifier,
+                indexNameExpressionResolver,
                 isAnomalyDetectionEnabled,
                 isDataFrameAnalyticsEnabled,
-                isNlpEnabled
+                isNlpEnabled,
+                isIlmEnabled
             ),
             adaptiveAllocationsScalerService,
             clusterService
@@ -111,6 +119,17 @@ public final class MlInitializationService implements ClusterStateListener {
                         MachineLearning.NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND,
                         mlDailyMaintenanceService::setDeleteExpiredDataRequestsPerSecond
                     );
+                clusterService.getClusterSettings()
+                    .addSettingsUpdateConsumer(
+                        MachineLearning.RESULTS_INDEX_ROLLOVER_MAX_SIZE,
+                        mlDailyMaintenanceService::setRolloverMaxSize
+                    );
+                clusterService.getClusterSettings()
+                    .addSettingsUpdateConsumer(
+                        MachineLearning.IDLE_JOB_AUTO_CLOSE_TIMEOUT,
+                        mlDailyMaintenanceService::setIdleJobAutoCloseTimeout
+                    );
+
             }
 
             @Override

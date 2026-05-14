@@ -83,6 +83,11 @@ tasks.register("generateDependenciesReport", ConcatFilesTask) {
     'https://oss-dependencies.elastic.co/red-hat-universal-base-image-minimal/9/ubi-minimal-9-source.tar.gz'
   ]
   additionalLines << rhelUbiFields.join(',')
+  doLast {
+    if(target.text.readLines().size() < 100) {
+      throw new GradleException("Suspiciously low number of dependencies. Double check.")
+    }
+  }
 }
 
 /*****************************************************************************
@@ -178,8 +183,8 @@ def buildDefaultLog4jConfigTaskProvider = tasks.register("buildDefaultLog4jConfi
     inputFiles = inputFiles + it.fileTree('src/main/config').matching { include 'log4j2.properties' }
   }
 
-  inputs.files(inputFiles)
-  outputs.file outputFile
+  inputs.files(inputFiles).withPathSensitivity(PathSensitivity.RELATIVE)
+  outputs.file(outputFile)
 
   doLast {
     outputFile.setText('', 'UTF-8')
@@ -224,17 +229,19 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
 // use licenses from each of the bundled xpack plugins
 Project xpack = project(':x-pack:plugin')
 xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
-  File licenses = new File(xpackModule.projectDir, 'licenses')
-  if (licenses.exists()) {
-    buildDefaultNoticeTaskProvider.configure {
-      licensesDir licenses
-      source xpackModule.file('src/main/java')
+  if (xpackModule.name.contains("stateless") == false && xpackModule.name.contains("secure-settings") == false) {
+    File licenses = new File(xpackModule.projectDir, 'licenses')
+    if (licenses.exists()) {
+      buildDefaultNoticeTaskProvider.configure {
+        licensesDir licenses
+        source xpackModule.file('src/main/java')
+      }
     }
-  }
-  distro.copyModule(processDefaultOutputsTaskProvider, xpackModule)
-  dependencies.add('featuresMetadata', xpackModule)
-  if (xpackModule.name.equals('core') || xpackModule.name.equals('security')) {
-    distro.copyModule(processIntegTestOutputsTaskProvider, xpackModule)
+    distro.copyModule(processDefaultOutputsTaskProvider, xpackModule)
+    dependencies.add('featuresMetadata', xpackModule)
+    if (xpackModule.name.equals('core') || xpackModule.name.equals('security')) {
+      distro.copyModule(processIntegTestOutputsTaskProvider, xpackModule)
+    }
   }
 }
 
@@ -290,7 +297,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative', 'libsEntitlementAgent'].each {
+    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsServerLauncher', 'libsServerLauncherNativeX64', 'libsServerLauncherNativeAarch64', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative', 'libsEntitlementAgent'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -330,6 +337,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsVersionChecker project(':distribution:tools:java-version-checker')
     libsCliLauncher project(':distribution:tools:cli-launcher')
     libsServerCli project(':distribution:tools:server-cli')
+    libsServerLauncher project(':distribution:tools:server-launcher')
+    libsServerLauncherNativeX64 project(path: ':distribution:tools:server-launcher', configuration: 'nativeLinuxX64')
+    libsServerLauncherNativeAarch64 project(path: ':distribution:tools:server-launcher', configuration: 'nativeLinuxAarch64')
     libsWindowsServiceCli project(':distribution:tools:windows-service-cli')
     libsAnsiConsole project(':distribution:tools:ansi-console')
     libsPluginCli project(':distribution:tools:plugin-cli')
@@ -358,6 +368,22 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
         into('tools/server-cli') {
           from(configurations.libsServerCli)
+        }
+        into('tools/server-launcher') {
+          from(configurations.libsServerLauncher)
+          // Linux-only: include native binary for the matching architecture
+          if (os == 'linux') {
+            if (architecture == 'x64') {
+              from(configurations.libsServerLauncherNativeX64)
+            } else if (architecture == 'aarch64') {
+              from(configurations.libsServerLauncherNativeAarch64)
+            }
+          }
+          eachFile {
+            if (it.name == 'server-launcher' || it.name == 'server-launcher.exe') {
+              it.permissions.unix(0755)
+            }
+          }
         }
         into('tools/windows-service-cli') {
           from(configurations.libsWindowsServiceCli)

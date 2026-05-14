@@ -13,8 +13,8 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -25,15 +25,15 @@ public class ToStringFromAggregateMetricDoubleEvaluator extends AbstractConvertF
         ToStringFromAggregateMetricDoubleEvaluator.class
     );
 
-    private final EvalOperator.ExpressionEvaluator field;
+    private final ExpressionEvaluator field;
 
-    public ToStringFromAggregateMetricDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator field, DriverContext driverContext) {
+    public ToStringFromAggregateMetricDoubleEvaluator(Source source, ExpressionEvaluator field, DriverContext driverContext) {
         super(driverContext, source);
         this.field = field;
     }
 
     @Override
-    protected EvalOperator.ExpressionEvaluator next() {
+    protected ExpressionEvaluator next() {
         return field;
     }
 
@@ -77,18 +77,23 @@ public class ToStringFromAggregateMetricDoubleEvaluator extends AbstractConvertF
         Releasables.closeExpectNoException(field);
     }
 
-    public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    public static class Factory implements ExpressionEvaluator.Factory {
         private final Source source;
-        private final EvalOperator.ExpressionEvaluator.Factory field;
+        private final ExpressionEvaluator.Factory field;
 
-        public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field) {
+        public Factory(Source source, ExpressionEvaluator.Factory field) {
             this.source = source;
             this.field = field;
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext context) {
             return new ToStringFromAggregateMetricDoubleEvaluator(source, field.get(context), context);
+        }
+
+        @Override
+        public String toString() {
+            return "ToStringFromAggregateMetricDoubleEvaluator[field=" + field + "]";
         }
     }
 }

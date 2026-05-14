@@ -14,14 +14,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
 
@@ -47,6 +48,9 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
         "DateFormat",
         DateFormat::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(DateFormat.class)
+        .binaryConfig(DateFormat::new)
+        .name("date_format");
 
     private final Expression field;
     private final Expression format;
@@ -58,7 +62,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
     )
     public DateFormat(
         Source source,
-        @Param(optional = true, name = "dateFormat", type = { "keyword", "text", "date", "date_nanos" }, description = """
+        @Param(optional = true, name = "dateFormat", type = { "keyword", "text" }, description = """
             Date format (optional).  If no format is specified, the `yyyy-MM-dd'T'HH:mm:ss.SSSZ` format is used.
             If `null`, the function returns `null`.""") Expression format,
         @Param(
@@ -142,8 +146,8 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
     }
 
     @Evaluator(extraName = "Millis")
-    static BytesRef processMillis(long val, BytesRef formatter, @Fixed Locale locale) {
-        return new BytesRef(dateTimeToString(val, toFormatter(formatter, locale)));
+    static BytesRef processMillis(long val, BytesRef formatter, @Fixed ZoneId zoneId, @Fixed Locale locale) {
+        return new BytesRef(dateTimeToString(val, toFormatter(formatter, zoneId, locale)));
     }
 
     @Evaluator(extraName = "NanosConstant")
@@ -152,13 +156,13 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
     }
 
     @Evaluator(extraName = "Nanos")
-    static BytesRef processNanos(long val, BytesRef formatter, @Fixed Locale locale) {
-        return new BytesRef(nanoTimeToString(val, toFormatter(formatter, locale)));
+    static BytesRef processNanos(long val, BytesRef formatter, @Fixed ZoneId zoneId, @Fixed Locale locale) {
+        return new BytesRef(nanoTimeToString(val, toFormatter(formatter, zoneId, locale)));
     }
 
     private ExpressionEvaluator.Factory getConstantEvaluator(
         DataType dateType,
-        EvalOperator.ExpressionEvaluator.Factory fieldEvaluator,
+        ExpressionEvaluator.Factory fieldEvaluator,
         DateFormatter formatter
     ) {
         if (dateType == DATE_NANOS) {
@@ -169,35 +173,51 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
 
     private ExpressionEvaluator.Factory getEvaluator(
         DataType dateType,
-        EvalOperator.ExpressionEvaluator.Factory fieldEvaluator,
-        EvalOperator.ExpressionEvaluator.Factory formatEvaluator
+        ExpressionEvaluator.Factory fieldEvaluator,
+        ExpressionEvaluator.Factory formatEvaluator
     ) {
         if (dateType == DATE_NANOS) {
-            return new DateFormatNanosEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, configuration().locale());
+            return new DateFormatNanosEvaluator.Factory(
+                source(),
+                fieldEvaluator,
+                formatEvaluator,
+                configuration().zoneId(),
+                configuration().locale()
+            );
         }
-        return new DateFormatMillisEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, configuration().locale());
+        return new DateFormatMillisEvaluator.Factory(
+            source(),
+            fieldEvaluator,
+            formatEvaluator,
+            configuration().zoneId(),
+            configuration().locale()
+        );
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(field);
         if (format == null) {
-            return getConstantEvaluator(field().dataType(), fieldEvaluator, DEFAULT_DATE_TIME_FORMATTER);
+            return getConstantEvaluator(
+                field().dataType(),
+                fieldEvaluator,
+                DEFAULT_DATE_TIME_FORMATTER.withZone(configuration().zoneId()).withLocale(configuration().locale())
+            );
         }
         if (DataType.isString(format.dataType()) == false) {
             throw new IllegalArgumentException("unsupported data type for format [" + format.dataType() + "]");
         }
         if (format.foldable()) {
-            DateFormatter formatter = toFormatter(format.fold(toEvaluator.foldCtx()), configuration().locale());
+            DateFormatter formatter = toFormatter(format.fold(toEvaluator.foldCtx()), configuration().zoneId(), configuration().locale());
             return getConstantEvaluator(field.dataType(), fieldEvaluator, formatter);
         }
         var formatEvaluator = toEvaluator.apply(format);
         return getEvaluator(field().dataType(), fieldEvaluator, formatEvaluator);
     }
 
-    private static DateFormatter toFormatter(Object format, Locale locale) {
+    private static DateFormatter toFormatter(Object format, ZoneId zoneId, Locale locale) {
         DateFormatter result = format == null ? DEFAULT_DATE_TIME_FORMATTER : DateFormatter.forPattern(((BytesRef) format).utf8ToString());
-        return result.withLocale(locale);
+        return result.withZone(zoneId).withLocale(locale);
     }
 
     @Override

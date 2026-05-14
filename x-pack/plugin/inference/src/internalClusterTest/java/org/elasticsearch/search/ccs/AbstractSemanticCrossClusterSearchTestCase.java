@@ -7,47 +7,44 @@
 
 package org.elasticsearch.search.ccs;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
+import org.elasticsearch.action.admin.cluster.remote.RemoteInfoResponse;
+import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
-import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
-import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
-import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
+import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteConnectionInfo;
+import org.elasticsearch.xpack.inference.FakeMlPlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
+import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
-import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
-import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
-import org.elasticsearch.xpack.ml.action.TransportCoordinatedInferenceAction;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -56,16 +53,27 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.inference.integration.IntegrationTestUtils.createInferenceEndpoint;
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public abstract class AbstractSemanticCrossClusterSearchTestCase extends AbstractMultiClustersTestCase {
     protected static final String REMOTE_CLUSTER = "cluster_a";
+
+    protected static final String LOCAL_INDEX_NAME = "local-index";
+    protected static final String REMOTE_INDEX_NAME = "remote-index";
+    protected static final String FULLY_QUALIFIED_REMOTE_INDEX_NAME = fullyQualifiedIndexName(REMOTE_CLUSTER, REMOTE_INDEX_NAME);
+
+    protected static final List<String> QUERY_INDICES = List.of(LOCAL_INDEX_NAME, FULLY_QUALIFIED_REMOTE_INDEX_NAME);
 
     @Override
     protected List<String> remoteClusterAlias() {
@@ -92,14 +100,16 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
         return List.of(LocalStateInferencePlugin.class, TestInferenceServicePlugin.class, FakeMlPlugin.class);
     }
 
-    protected void setupTwoClusters(TestIndexInfo localIndexInfo, TestIndexInfo remoteIndexInfo) throws IOException {
+    protected void setupTwoClusters(TestIndexInfo localIndexInfo, TestIndexInfo remoteIndexInfo) throws Exception {
         setupCluster(LOCAL_CLUSTER, localIndexInfo);
         setupCluster(REMOTE_CLUSTER, remoteIndexInfo);
+        waitUntilRemoteClusterConnected(REMOTE_CLUSTER);
     }
 
     protected void setupCluster(String clusterAlias, TestIndexInfo indexInfo) throws IOException {
         final Client client = client(clusterAlias);
         final String indexName = indexInfo.name();
+        final int dataNodeCount = cluster(clusterAlias).numDataNodes();
 
         for (var entry : indexInfo.inferenceEndpoints().entrySet()) {
             String inferenceId = entry.getKey();
@@ -108,7 +118,7 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
             Map<String, Object> serviceSettings = new HashMap<>();
             serviceSettings.put("model", randomAlphaOfLength(5));
             serviceSettings.put("api_key", randomAlphaOfLength(5));
-            if (minimalServiceSettings.taskType() == TaskType.TEXT_EMBEDDING) {
+            if (minimalServiceSettings.taskType() == TaskType.TEXT_EMBEDDING || minimalServiceSettings.taskType() == TaskType.EMBEDDING) {
                 serviceSettings.put("dimensions", minimalServiceSettings.dimensions());
                 serviceSettings.put("similarity", minimalServiceSettings.similarity());
                 serviceSettings.put("element_type", minimalServiceSettings.elementType());
@@ -117,13 +127,13 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
             createInferenceEndpoint(client, minimalServiceSettings.taskType(), inferenceId, serviceSettings);
         }
 
-        Settings indexSettings = indexSettings(randomIntBetween(2, 5), randomIntBetween(0, 1)).build();
+        Settings indexSettings = indexSettings(randomIntBetween(1, dataNodeCount), 0).build();
         assertAcked(client.admin().indices().prepareCreate(indexName).setSettings(indexSettings).setMapping(indexInfo.mappings()));
         assertFalse(
             client.admin()
                 .cluster()
                 .prepareHealth(TEST_REQUEST_TIMEOUT, indexName)
-                .setWaitForYellowStatus()
+                .setWaitForGreenStatus()
                 .setTimeout(TimeValue.timeValueSeconds(10))
                 .get()
                 .isTimedOut()
@@ -140,58 +150,42 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
         assertThat(refreshResponse.getStatus(), is(RestStatus.OK));
     }
 
-    protected BytesReference openPointInTime(String[] indices, TimeValue keepAlive) {
-        OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).keepAlive(keepAlive);
+    protected void waitUntilRemoteClusterConnected(String clusterAlias) throws Exception {
+        RemoteInfoRequest request = new RemoteInfoRequest();
+        assertBusy(() -> {
+            RemoteInfoResponse response = client().execute(TransportRemoteInfoAction.TYPE, request).actionGet(TEST_REQUEST_TIMEOUT);
+            boolean connected = response.getInfos()
+                .stream()
+                .filter(i -> i.getClusterAlias().equals(clusterAlias))
+                .anyMatch(RemoteConnectionInfo::isConnected);
+            assertThat(connected, is(true));
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    protected BytesReference openPointInTime(List<String> indices, TimeValue keepAlive) {
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices.toArray(new String[0])).keepAlive(keepAlive);
         final OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
         return response.getPointInTimeId();
     }
 
-    protected static void createInferenceEndpoint(Client client, TaskType taskType, String inferenceId, Map<String, Object> serviceSettings)
-        throws IOException {
-        final String service = switch (taskType) {
-            case TEXT_EMBEDDING -> TestDenseInferenceServiceExtension.TestInferenceService.NAME;
-            case SPARSE_EMBEDDING -> TestSparseInferenceServiceExtension.TestInferenceService.NAME;
-            default -> throw new IllegalArgumentException("Unhandled task type [" + taskType + "]");
-        };
-
-        final BytesReference content;
-        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            builder.startObject();
-            builder.field("service", service);
-            builder.field("service_settings", serviceSettings);
-            builder.endObject();
-
-            content = BytesReference.bytes(builder);
-        }
-
-        PutInferenceModelAction.Request request = new PutInferenceModelAction.Request(
-            taskType,
-            inferenceId,
-            content,
-            XContentType.JSON,
-            TEST_REQUEST_TIMEOUT
-        );
-        var responseFuture = client.execute(PutInferenceModelAction.INSTANCE, request);
-        assertThat(responseFuture.actionGet(TEST_REQUEST_TIMEOUT).getModel().getInferenceEntityId(), equalTo(inferenceId));
-    }
-
-    protected void assertSearchResponse(QueryBuilder queryBuilder, List<IndexWithBoost> indices, List<SearchResult> expectedSearchResults)
+    protected void assertSearchResponse(QueryBuilder queryBuilder, List<String> indices, List<SearchResult> expectedSearchResults)
         throws Exception {
         assertSearchResponse(queryBuilder, indices, expectedSearchResults, null, null);
     }
 
     protected void assertSearchResponse(
         QueryBuilder queryBuilder,
-        List<IndexWithBoost> indices,
+        @Nullable List<String> indices,
         List<SearchResult> expectedSearchResults,
-        ClusterFailure expectedRemoteFailure,
-        Consumer<SearchRequest> searchRequestModifier
+        @Nullable ClusterFailure expectedRemoteFailure,
+        @Nullable Consumer<SearchRequest> searchRequestModifier
     ) throws Exception {
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder).size(expectedSearchResults.size());
-        indices.forEach(i -> searchSourceBuilder.indexBoost(i.index(), i.boost()));
-
-        SearchRequest searchRequest = new SearchRequest(convertToArray(indices), searchSourceBuilder);
-        searchRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+        QueryBuilder boostedQueryBuilder = boostLocalIndex(queryBuilder);
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(boostedQueryBuilder).size(expectedSearchResults.size());
+        SearchRequest searchRequest = new SearchRequest().source(searchSourceBuilder);
+        if (indices != null) {
+            searchRequest.indices(indices.toArray(new String[0]));
+        }
         if (searchRequestModifier != null) {
             searchRequestModifier.accept(searchRequest);
         }
@@ -211,24 +205,49 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
             }
 
             SearchResponse.Clusters clusters = response.getClusters();
-            assertThat(clusters.getCluster(LOCAL_CLUSTER).getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
-            assertThat(clusters.getCluster(LOCAL_CLUSTER).getFailures().isEmpty(), is(true));
+            Set<String> clusterAliases = clusters.getClusterAliases();
+            for (String clusterAlias : clusterAliases) {
+                SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
+                if (REMOTE_CLUSTER.equals(clusterAlias) && expectedRemoteFailure != null) {
+                    assertThat(cluster.getStatus(), equalTo(expectedRemoteFailure.status()));
 
-            SearchResponse.Cluster remoteCluster = clusters.getCluster(REMOTE_CLUSTER);
-            if (expectedRemoteFailure != null) {
-                assertThat(remoteCluster.getStatus(), equalTo(expectedRemoteFailure.status()));
-
-                Set<FailureCause> expectedFailures = expectedRemoteFailure.failures();
-                Set<FailureCause> actualFailures = remoteCluster.getFailures()
-                    .stream()
-                    .map(f -> new FailureCause(f.getCause().getClass(), f.getCause().getMessage()))
-                    .collect(Collectors.toSet());
-                assertThat(actualFailures, equalTo(expectedFailures));
-            } else {
-                assertThat(remoteCluster.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
-                assertThat(remoteCluster.getFailures().isEmpty(), is(true));
+                    Set<FailureCause> expectedFailures = expectedRemoteFailure.failures();
+                    Set<FailureCause> actualFailures = cluster.getFailures()
+                        .stream()
+                        .map(f -> new FailureCause(f.getCause().getClass(), f.getCause().getMessage()))
+                        .collect(Collectors.toSet());
+                    assertThat(actualFailures, equalTo(expectedFailures));
+                } else {
+                    assertThat(cluster.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+                    assertThat(cluster.getFailures().isEmpty(), is(true));
+                }
             }
         });
+    }
+
+    protected <T extends Exception> void assertSearchFailure(
+        QueryBuilder queryBuilder,
+        @Nullable List<String> indices,
+        Class<T> expectedExceptionClass,
+        String expectedMessage,
+        @Nullable Consumer<SearchRequest> searchRequestModifier
+    ) {
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder);
+        SearchRequest searchRequest = new SearchRequest().source(searchSourceBuilder);
+        if (indices != null) {
+            searchRequest.indices(indices.toArray(new String[0]));
+        }
+        if (searchRequestModifier != null) {
+            searchRequestModifier.accept(searchRequest);
+        }
+
+        ExecutionException executionException = assertThrows(
+            ExecutionException.class,
+            () -> assertResponse(client().search(searchRequest), response -> {})
+        );
+        Throwable cause = ExceptionsHelper.unwrapCause(executionException.getCause());
+        assertThat(cause, instanceOf(expectedExceptionClass));
+        assertThat(cause.getMessage(), containsString(expectedMessage));
     }
 
     protected static MinimalServiceSettings sparseEmbeddingServiceSettings() {
@@ -243,8 +262,20 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
         return new MinimalServiceSettings(null, TaskType.TEXT_EMBEDDING, dimensions, similarity, elementType);
     }
 
+    protected static MinimalServiceSettings embeddingServiceSettings(
+        int dimensions,
+        SimilarityMeasure similarity,
+        DenseVectorFieldMapper.ElementType elementType
+    ) {
+        return new MinimalServiceSettings(null, TaskType.EMBEDDING, dimensions, similarity, elementType);
+    }
+
     protected static Map<String, Object> semanticTextMapping(String inferenceId) {
         return Map.of("type", SemanticTextFieldMapper.CONTENT_TYPE, "inference_id", inferenceId);
+    }
+
+    protected static Map<String, Object> semanticFieldMapping(String inferenceId) {
+        return Map.of("type", SemanticFieldMapper.CONTENT_TYPE, "inference_id", inferenceId);
     }
 
     protected static Map<String, Object> textMapping() {
@@ -260,7 +291,7 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
     }
 
     protected static String fullyQualifiedIndexName(String clusterAlias, String indexName) {
-        return clusterAlias + ":" + indexName;
+        return RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexName);
     }
 
     protected static float[] generateDenseVectorFieldValue(int dimensions, DenseVectorFieldMapper.ElementType elementType, float value) {
@@ -284,31 +315,15 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
         return Map.of("feature_0", weight);
     }
 
-    protected static String[] convertToArray(List<IndexWithBoost> indices) {
-        return indices.stream().map(IndexWithBoost::index).toArray(String[]::new);
+    protected static QueryBuilder boostLocalIndex(QueryBuilder queryBuilder) {
+        BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
+        boolQueryBuilder.must(queryBuilder);
+        boolQueryBuilder.should(new TermQueryBuilder("_index", LOCAL_INDEX_NAME).boost(10.0f));
+        return boolQueryBuilder;
     }
 
-    public static class FakeMlPlugin extends Plugin implements ActionPlugin, SearchPlugin {
-        @Override
-        public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-            return new MlInferenceNamedXContentProvider().getNamedWriteables();
-        }
-
-        @Override
-        public List<QueryVectorBuilderSpec<?>> getQueryVectorBuilders() {
-            return List.of(
-                new QueryVectorBuilderSpec<>(
-                    TextEmbeddingQueryVectorBuilder.NAME,
-                    TextEmbeddingQueryVectorBuilder::new,
-                    TextEmbeddingQueryVectorBuilder.PARSER
-                )
-            );
-        }
-
-        @Override
-        public Collection<ActionHandler> getActions() {
-            return List.of(new ActionHandler(CoordinatedInferenceAction.INSTANCE, TransportCoordinatedInferenceAction.class));
-        }
+    protected static String getExpectedLocalClusterAlias(boolean ccsMinimizeRoundTrips) {
+        return ccsMinimizeRoundTrips ? LOCAL_CLUSTER : null;
     }
 
     protected record TestIndexInfo(
@@ -328,10 +343,4 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
     protected record FailureCause(Class<? extends Throwable> causeClass, String message) {}
 
     protected record ClusterFailure(SearchResponse.Cluster.Status status, Set<FailureCause> failures) {}
-
-    protected record IndexWithBoost(String index, float boost) {
-        public IndexWithBoost(String index) {
-            this(index, 1.0f);
-        }
-    }
 }

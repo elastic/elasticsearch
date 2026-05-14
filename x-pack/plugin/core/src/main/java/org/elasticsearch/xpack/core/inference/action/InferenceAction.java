@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -18,24 +16,18 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
-import org.elasticsearch.xpack.core.inference.results.LegacyTextEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -55,7 +47,6 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
     public static class Request extends BaseInferenceActionRequest {
 
-        public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30);
         public static final ParseField INPUT = new ParseField("input");
         public static final ParseField INPUT_TYPE = new ParseField("input_type");
         public static final ParseField TASK_SETTINGS = new ParseField("task_settings");
@@ -79,12 +70,6 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             PARSER.declareString(Builder::setInferenceTimeout, TIMEOUT);
         }
 
-        private static final EnumSet<InputType> validEnumsBeforeUnspecifiedAdded = EnumSet.of(InputType.INGEST, InputType.SEARCH);
-        private static final EnumSet<InputType> validEnumsBeforeClassificationClusteringAdded = EnumSet.range(
-            InputType.INGEST,
-            InputType.UNSPECIFIED
-        );
-
         public static Builder parseRequest(String inferenceEntityId, TaskType taskType, InferenceContext context, XContentParser parser)
             throws IOException {
             Request.Builder builder = PARSER.apply(parser, null);
@@ -93,6 +78,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             builder.setContext(context);
             return builder;
         }
+
+        private static final TransportVersion RERANK_COMMON_OPTIONS_ADDED = TransportVersion.fromName("rerank_common_options_added");
 
         private final TaskType taskType;
         private final String inferenceEntityId;
@@ -105,16 +92,32 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         private final TimeValue inferenceTimeout;
         private final boolean stream;
 
+        /**
+         * Constructor that uses an empty {@link InferenceContext}
+         *
+         * @param taskType the {@link TaskType} of the inference request. May be {@link TaskType#ANY}, which will result in the task type
+         *                 being determined after parsing the stored model
+         * @param inferenceEntityId the endpoint ID
+         * @param query for {@link TaskType#RERANK}, the query to use
+         * @param returnDocuments for {@link TaskType#RERANK}, whether the request should return the input values as part of the results
+         * @param topN for {@link TaskType#RERANK}, the number of results to return
+         * @param input the inputs to use for the inference request
+         * @param taskSettings the task settings to use for the inference request
+         * @param inputType the {@link InputType} of the request
+         * @param inferenceTimeout the timeout to use. If null, a placeholder timeout will be used until the appropriate timeout for the
+         *                         task type and input type can be determined by the inference service implementation
+         * @param stream whether the request should use streaming
+         */
         public Request(
             TaskType taskType,
             String inferenceEntityId,
-            String query,
-            Boolean returnDocuments,
-            Integer topN,
+            @Nullable String query,
+            @Nullable Boolean returnDocuments,
+            @Nullable Integer topN,
             List<String> input,
             Map<String, Object> taskSettings,
             InputType inputType,
-            TimeValue inferenceTimeout,
+            @Nullable TimeValue inferenceTimeout,
             boolean stream
         ) {
             this(
@@ -132,16 +135,33 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             );
         }
 
+        /**
+         * Constructor that allows an {@link InferenceContext} to be specified
+         *
+         * @param taskType the {@link TaskType} of the inference request. May be {@link TaskType#ANY}, which will result in the task type
+         *                 being determined after parsing the stored model
+         * @param inferenceEntityId the endpoint ID
+         * @param query for {@link TaskType#RERANK}, the query to use
+         * @param returnDocuments for {@link TaskType#RERANK}, whether the request should return the input values as part of the results
+         * @param topN for {@link TaskType#RERANK}, the number of results to return
+         * @param input the inputs to use for the inference request
+         * @param taskSettings the task settings to use for the inference request
+         * @param inputType the {@link InputType} of the request
+         * @param inferenceTimeout the timeout to use. If null, a placeholder timeout will be used until the appropriate timeout for the
+         *                         task type and input type can be determined by the inference service implementation
+         * @param stream whether the request should use streaming
+         * @param context the {@link InferenceContext} to use, if {@code null} then an empty context will be used
+         */
         public Request(
             TaskType taskType,
             String inferenceEntityId,
-            String query,
-            Boolean returnDocuments,
-            Integer topN,
+            @Nullable String query,
+            @Nullable Boolean returnDocuments,
+            @Nullable Integer topN,
             List<String> input,
             Map<String, Object> taskSettings,
             InputType inputType,
-            TimeValue inferenceTimeout,
+            @Nullable TimeValue inferenceTimeout,
             boolean stream,
             InferenceContext context
         ) {
@@ -154,7 +174,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             this.input = input;
             this.taskSettings = taskSettings;
             this.inputType = inputType;
-            this.inferenceTimeout = inferenceTimeout;
+            this.inferenceTimeout = Objects.requireNonNullElse(inferenceTimeout, TIMEOUT_NOT_DETERMINED);
             this.stream = stream;
         }
 
@@ -162,28 +182,13 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             super(in);
             this.taskType = TaskType.fromStream(in);
             this.inferenceEntityId = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                this.input = in.readStringCollectionAsList();
-            } else {
-                this.input = List.of(in.readString());
-            }
+            this.input = in.readStringCollectionAsList();
             this.taskSettings = in.readGenericMap();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                this.inputType = in.readEnum(InputType.class);
-            } else {
-                this.inputType = InputType.UNSPECIFIED;
-            }
+            this.inputType = in.readEnum(InputType.class);
+            this.query = in.readOptionalString();
+            this.inferenceTimeout = in.readTimeValue();
 
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                this.query = in.readOptionalString();
-                this.inferenceTimeout = in.readTimeValue();
-            } else {
-                this.query = null;
-                this.inferenceTimeout = DEFAULT_TIMEOUT;
-            }
-
-            if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_COMMON_OPTIONS_ADDED)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.RERANK_COMMON_OPTIONS_ADDED_8_19)) {
+            if (in.getTransportVersion().supports(RERANK_COMMON_OPTIONS_ADDED)) {
                 this.returnDocuments = in.readOptionalBoolean();
                 this.topN = in.readOptionalInt();
             } else {
@@ -297,40 +302,21 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             super.writeTo(out);
             taskType.writeTo(out);
             out.writeString(inferenceEntityId);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeStringCollection(input);
-            } else {
-                out.writeString(input.get(0));
-            }
+            out.writeStringCollection(input);
             out.writeGenericMap(taskSettings);
-
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                out.writeEnum(getInputTypeToWrite(inputType, out.getTransportVersion()));
-            }
-
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                out.writeOptionalString(query);
+            out.writeEnum(inputType);
+            out.writeOptionalString(query);
+            if (inferenceTimeout.equals(TIMEOUT_NOT_DETERMINED)
+                && out.getTransportVersion().supports(INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED) == false) {
+                out.writeTimeValue(OLD_DEFAULT_TIMEOUT);
+            } else {
                 out.writeTimeValue(inferenceTimeout);
             }
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.RERANK_COMMON_OPTIONS_ADDED)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.RERANK_COMMON_OPTIONS_ADDED_8_19)) {
+            if (out.getTransportVersion().supports(RERANK_COMMON_OPTIONS_ADDED)) {
                 out.writeOptionalBoolean(returnDocuments);
                 out.writeOptionalInt(topN);
             }
-        }
-
-        // default for easier testing
-        static InputType getInputTypeToWrite(InputType inputType, TransportVersion version) {
-            if (version.before(TransportVersions.V_8_13_0)) {
-                if (validEnumsBeforeUnspecifiedAdded.contains(inputType) == false) {
-                    return InputType.INGEST;
-                } else if (validEnumsBeforeClassificationClusteringAdded.contains(inputType) == false) {
-                    return InputType.UNSPECIFIED;
-                }
-            }
-
-            return inputType;
         }
 
         @Override
@@ -378,9 +364,9 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             private String query;
             private Boolean returnDocuments;
             private Integer topN;
-            private TimeValue timeout = DEFAULT_TIMEOUT;
+            private TimeValue timeout = TIMEOUT_NOT_DETERMINED;
             private boolean stream = false;
-            private InferenceContext context;
+            private InferenceContext context = InferenceContext.EMPTY_INSTANCE;
 
             private Builder() {}
 
@@ -443,8 +429,13 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 return this;
             }
 
+            /**
+             * Sets the {@link InferenceContext} for this request. If not set, an empty context will be used.
+             * If the context is set to {@code null}, an empty context will also be used.
+             * @param context the context to set
+             */
             public Builder setContext(InferenceContext context) {
-                this.context = context;
+                this.context = Objects.requireNonNullElse(context, InferenceContext.EMPTY_INSTANCE);
                 return this;
             }
 
@@ -509,63 +500,10 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         }
 
         public Response(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                results = in.readNamedWriteable(InferenceServiceResults.class);
-            } else {
-                // It should only be InferenceResults aka TextEmbeddingResults from ml plugin for
-                // hugging face elser and elser
-                results = transformToServiceResults(List.of(in.readNamedWriteable(InferenceResults.class)));
-            }
+            this.results = in.readNamedWriteable(InferenceServiceResults.class);
             // streaming isn't supported via Writeable yet
             this.isStreaming = false;
             this.publisher = null;
-        }
-
-        @SuppressWarnings("deprecation")
-        public static InferenceServiceResults transformToServiceResults(List<? extends InferenceResults> parsedResults) {
-            if (parsedResults.isEmpty()) {
-                throw new ElasticsearchStatusException(
-                    "Failed to transform results to response format, expected a non-empty list, please remove and re-add the service",
-                    RestStatus.INTERNAL_SERVER_ERROR
-                );
-            }
-
-            if (parsedResults.get(0) instanceof LegacyTextEmbeddingResults openaiResults) {
-                if (parsedResults.size() > 1) {
-                    throw new ElasticsearchStatusException(
-                        "Failed to transform results to response format, malformed text embedding result,"
-                            + " please remove and re-add the service",
-                        RestStatus.INTERNAL_SERVER_ERROR
-                    );
-                }
-
-                return openaiResults.transformToTextEmbeddingResults();
-            } else if (parsedResults.get(0) instanceof TextExpansionResults) {
-                return transformToSparseEmbeddingResult(parsedResults);
-            } else {
-                throw new ElasticsearchStatusException(
-                    "Failed to transform results to response format, unknown embedding type received,"
-                        + " please remove and re-add the service",
-                    RestStatus.INTERNAL_SERVER_ERROR
-                );
-            }
-        }
-
-        private static SparseEmbeddingResults transformToSparseEmbeddingResult(List<? extends InferenceResults> parsedResults) {
-            List<TextExpansionResults> textExpansionResults = new ArrayList<>(parsedResults.size());
-
-            for (InferenceResults result : parsedResults) {
-                if (result instanceof TextExpansionResults textExpansion) {
-                    textExpansionResults.add(textExpansion);
-                } else {
-                    throw new ElasticsearchStatusException(
-                        "Failed to transform results to response format, please remove and re-add the service",
-                        RestStatus.INTERNAL_SERVER_ERROR
-                    );
-                }
-            }
-
-            return SparseEmbeddingResults.of(textExpansionResults);
         }
 
         public InferenceServiceResults getResults() {

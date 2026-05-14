@@ -39,7 +39,7 @@
       "cause": {
         "type": "string",
         "description": "User defined reason for dry-run creating the new template for simulation purposes",
-        "default": false
+        "default": "false"
       },
       "master_timeout": {
         "type": "time",
@@ -48,6 +48,7 @@
       },
       "include_defaults": {
         "type": "boolean",
+        "default": false,
         "description": "Return all relevant default configurations for this index template simulation (default: false)"
       }
     },

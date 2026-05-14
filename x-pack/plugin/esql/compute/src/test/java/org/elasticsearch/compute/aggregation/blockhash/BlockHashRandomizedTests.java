@@ -7,15 +7,17 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
+import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -26,20 +28,16 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeTests;
 import org.elasticsearch.compute.test.BlockTestUtils;
-import org.elasticsearch.compute.test.MockBlockFactory;
+import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.ListMatcher;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -47,63 +45,60 @@ import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.compute.test.BlockTestUtils.valuesAtPositions;
-import static org.elasticsearch.test.ListMatcher.matchesList;
-import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.core.TimeValue.timeValueNanos;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 //@TestLogging(value = "org.elasticsearch.compute:TRACE", reason = "debug")
-public class BlockHashRandomizedTests extends ESTestCase {
+@TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
+public class BlockHashRandomizedTests extends ComputeTestCase {
     @ParametersFactory
     public static List<Object[]> params() {
-        List<List<? extends Type>> allowedTypesChoices = List.of(
-            /*
-             * Run with only `LONG` elements because we have some
-             * optimizations that hit if you only have those.
-             */
-            List.of(new Basic(ElementType.LONG)),
-            /*
-             * Run with only `BYTES_REF` elements because we have some
-             * optimizations that hit if you only have those.
-             */
-            List.of(new Basic(ElementType.BYTES_REF)),
-            /*
-             * Run with only `BYTES_REF` elements in an OrdinalBytesRefBlock
-             * because we have a few optimizations that use it.
-             */
-            List.of(new Ordinals(10)),
-            /*
-             * Run with only `LONG` and `BYTES_REF` elements because
-             * we have some optimizations that hit if you only have
-             * those.
-             */
-            List.of(new Basic(ElementType.LONG), new Basic(ElementType.BYTES_REF)),
-            /*
-             * Any random source.
-             */
-            Stream.concat(Stream.of(new Ordinals(10)), MultivalueDedupeTests.supportedTypes().stream().map(Basic::new)).toList()
-        );
-
         List<Object[]> params = new ArrayList<>();
-        for (boolean forcePackedHash : new boolean[] { false, true }) {
-            for (int groups : new int[] { 1, 2, 3, 4, 5, 10 }) {
-                for (int maxValuesPerPosition : new int[] { 1, 3 }) {
-                    for (int dups : new int[] { 0, 2 }) {
-                        for (List<? extends Type> allowedTypes : allowedTypesChoices) {
-                            params.add(new Object[] { forcePackedHash, groups, maxValuesPerPosition, dups, allowedTypes });
-                        }
-                    }
-                }
-            }
+        /*
+         * Run with only `LONG` elements because we have some
+         * optimizations that hit if you only have those.
+         */
+        new ParamsBuilder().allowedType(new Basic(ElementType.LONG)).groups(1, 2, 3, 4, 5, 10).add(params);
+        /*
+         * Run with only `BYTES_REF` elements because we have some
+         * optimizations that hit if you only have those.
+         */
+        new ParamsBuilder().allowedType(new Basic(ElementType.BYTES_REF)).groups(1, 2, 3, 4, 5).add(params);
+        /*
+         * Run with only `BYTES_REF` elements in an OrdinalBytesRefBlock
+         * because we have a few optimizations that use it.
+         */
+        new ParamsBuilder().allowedType(new Ordinals(10)).groups(1, 2, 3, 4, 5).add(params);
+        /*
+         * Run with only `LONG` and `BYTES_REF` elements because
+         * we have some optimizations that hit if you only have those.
+         */
+        new ParamsBuilder().allowedType(new Basic(ElementType.LONG))
+            .allowedType(new Basic(ElementType.BYTES_REF))
+            .groups(1, 2, 3, 4, 5)
+            .add(params);
+        /*
+         * Run with only `LONG` and `INT` elements because
+         * we have some optimizations that hit if you only have those.
+         */
+        new ParamsBuilder().allowedType(new Basic(ElementType.LONG))
+            .allowedType(new Basic(ElementType.INT))
+            .groups(1, 2, 3, 4, 5, 10)
+            .add(params);
+        /*
+         * Any random source.
+         */
+        ParamsBuilder builder = new ParamsBuilder().groups(1, 2, 3, 4, 5);
+        for (ElementType t : MultivalueDedupeTests.supportedTypes()) {
+            builder.allowedType(new Basic(t));
         }
+        builder.allowedType(new Ordinals(10)).add(params);
         return params;
     }
 
@@ -143,17 +138,19 @@ public class BlockHashRandomizedTests extends ESTestCase {
     }
 
     public void test() {
-        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
-        test(new MockBlockFactory(breaker, bigArrays));
+        CircuitBreakerService breakerService = newLimitedBreakerService(ByteSizeValue.ofGb(1));
+        /*
+         * We don't use MockBigArrays or MockBlockFactory here because it slows the
+         * test down a ton. If the test is failing in sneaky ways you can use it, but
+         * try not to commit it.
+         */
+        BigArrays bigArrays = new BigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService, CircuitBreaker.REQUEST);
+        test(BlockFactory.builder(bigArrays).build());
     }
 
     public void testWithCranky() {
-        CircuitBreakerService service = new CrankyCircuitBreakerService();
-        CircuitBreaker breaker = service.getBreaker(CircuitBreaker.REQUEST);
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, service);
         try {
-            test(new MockBlockFactory(breaker, bigArrays));
+            test(crankyBlockFactory());
             logger.info("cranky let us finish!");
         } catch (CircuitBreakingException e) {
             logger.info("cranky", e);
@@ -161,15 +158,22 @@ public class BlockHashRandomizedTests extends ESTestCase {
         }
     }
 
-    private void test(MockBlockFactory blockFactory) {
+    private void test(BlockFactory blockFactory) {
+        /*
+         * Expected ordinals for checking lookup. Skipped if we have more than 5 groups because
+         * it'd be too expensive to calculate.
+         */
+        Map<List<Object>, IntHashSet> expectedOrds = groups > 5 ? null : new HashMap<>();
+
         List<Type> types = randomList(groups, groups, () -> randomFrom(allowedTypes));
-        List<ElementType> elementTypes = types.stream().map(Type::elementType).toList();
+        List<ElementType> elementTypes = randomElementTypes(types);
         RandomBlock[] randomBlocks = new RandomBlock[types.size()];
         Block[] blocks = new Block[types.size()];
         int pageCount = between(1, groups < 10 ? 10 : 5);
-        int positionCount = 100;
-        int emitBatchSize = 100;
+        int positionCount = randomPositionsPerPage(expectedOrds != null, pageCount, elementTypes);
+        int emitBatchSize = randomFrom(100, 1_000, 10_000);
         try (BlockHash blockHash = newBlockHash(blockFactory, emitBatchSize, elementTypes)) {
+            logger.info("checking {}", blockHash);
             /*
              * Only the long/long, long/bytes_ref, and bytes_ref/long implementations don't collect nulls.
              */
@@ -179,11 +183,6 @@ public class BlockHashRandomizedTests extends ESTestCase {
                         || elementTypes.equals(List.of(ElementType.LONG, ElementType.BYTES_REF))
                         || elementTypes.equals(List.of(ElementType.BYTES_REF, ElementType.LONG)))
             );
-            /*
-             * Expected ordinals for checking lookup. Skipped if we have more than 5 groups because
-             * it'd be too expensive to calculate.
-             */
-            Map<List<Object>, Set<Integer>> expectedOrds = groups > 5 ? null : new HashMap<>();
 
             for (int p = 0; p < pageCount; p++) {
                 for (int g = 0; g < blocks.length; g++) {
@@ -196,7 +195,15 @@ public class BlockHashRandomizedTests extends ESTestCase {
                 boolean usingSingle = forcePackedHash == false && types.size() == 1;
                 BlockHashTests.hash(false, blockHash, ordsAndKeys -> {
                     if (usingSingle == false) {
-                        assertThat(ordsAndKeys.ords().getTotalValueCount(), lessThanOrEqualTo(emitBatchSize));
+                        /*
+                         * Either we chunk to emitBatchSize, or we emit one entry per input
+                         * page (the vector/vector fast path). Page sizes are assumed safe, so
+                         * emitting exactly positionCount in one shot is acceptable.
+                         */
+                        assertThat(
+                            ordsAndKeys.ords().getTotalValueCount(),
+                            either(lessThanOrEqualTo(emitBatchSize)).or(equalTo(positionCount))
+                        );
                     }
                     batchCount[0]++;
                     if (expectedOrds != null) {
@@ -208,45 +215,61 @@ public class BlockHashRandomizedTests extends ESTestCase {
                 }
             }
 
-            Block[] keyBlocks = blockHash.getKeys();
-            try {
-                Set<List<Object>> keys = new TreeSet<>(new KeyComparator());
-                for (int p = 0; p < keyBlocks[0].getPositionCount(); p++) {
-                    List<Object> key = new ArrayList<>(keyBlocks.length);
-                    for (Block keyBlock : keyBlocks) {
-                        if (keyBlock.isNull(p)) {
-                            key.add(null);
-                        } else {
-                            key.add(valuesAtPositions(keyBlock, p, p + 1).get(0).get(0));
-                            assertThat(keyBlock.getValueCount(p), equalTo(1));
-                        }
-                    }
-                    boolean contained = keys.add(key);
-                    assertTrue(contained);
+            try (BlockHashKeysTestHelper helper = new BlockHashKeysTestHelper(blockHash)) {
+                helper.assertKeys(helper.nonEmpty, oracle.keys);
+                // It's slow to check a lot of subsets
+                int subsetsToCheck = groups < 10 ? 5 : 2;
+                for (int i = 0; i < subsetsToCheck; i++) {
+                    helper.assertRandomKeySubset();
                 }
+            }
 
-                if (false == keys.equals(oracle.keys)) {
-                    List<List<Object>> keyList = new ArrayList<>();
-                    keyList.addAll(keys);
-                    ListMatcher keyMatcher = matchesList();
-                    for (List<Object> k : oracle.keys) {
-                        keyMatcher = keyMatcher.item(k);
-                    }
-                    assertMap(keyList, keyMatcher);
-                }
-
-                if (blockHash instanceof LongLongBlockHash == false
-                    && blockHash instanceof BytesRefLongBlockHash == false
-                    && blockHash instanceof BytesRef2BlockHash == false
-                    && blockHash instanceof BytesRef3BlockHash == false) {
-                    assertLookup(blockFactory, expectedOrds, types, blockHash, oracle);
-                }
-            } finally {
-                Releasables.closeExpectNoException(keyBlocks);
-                blockFactory.ensureAllBlocksAreReleased();
+            if (blockHash instanceof LongLongBlockHash == false
+                && blockHash instanceof BytesRefLongBlockHash == false
+                && blockHash instanceof BytesRef2BlockHash == false
+                && blockHash instanceof BytesRef3BlockHash == false) {
+                assertLookup(blockFactory, expectedOrds, types, blockHash, oracle);
             }
         }
         assertThat(blockFactory.breaker().getUsed(), is(0L));
+    }
+
+    /**
+     * Pick a position count that keeps {@link Oracle} from growing too large.
+     * {@link Oracle#add} builds the full cross-product of values across all
+     * groups per position — up to {@code maxValuesPerPosition^groups} combinations —
+     * and large element sizes (e.g. {@code BYTES_REF}) multiply the cost, so we
+     * scale down using {@link #elementSize(ElementType)}.
+     */
+    private int randomPositionsPerPage(boolean trackGroupIds, int pageCount, List<ElementType> elementTypes) {
+        long maxCombosPerPosition = (long) Math.pow(maxValuesPerPosition, groups);
+        long totalElementSize = elementTypes.stream().mapToLong(BlockHashRandomizedTests::elementSize).sum();
+        // Per-key cost: ArrayList wrapper + all elements + TreeMap.Entry
+        long bytesPerOracleKey = 56 + totalElementSize + 40;
+        // expectedOrds holds a second copy of every key when groups <= 5
+        long bytesPerKey = trackGroupIds ? bytesPerOracleKey * 2 : bytesPerOracleKey;
+        long targetBytes = ByteSizeValue.ofMb(200).getBytes();
+        long maxPositions = targetBytes / (pageCount * maxCombosPerPosition * bytesPerKey);
+        if (maxPositions >= 10_000) {
+            return randomFrom(100, 1_000, 10_000);
+        }
+        if (maxPositions >= 1_000) {
+            return randomFrom(100, 1_000);
+        }
+        return 100;
+    }
+
+    private static List<ElementType> randomElementTypes(List<Type> types) {
+        return types.stream().map(Type::elementType).toList();
+    }
+
+    private static long elementSize(ElementType elementType) {
+        return switch (elementType) {
+            case LONG, DOUBLE -> 24;  // boxed Long/Double
+            case INT -> 16;           // boxed Integer
+            case BYTES_REF -> 48;     // BytesRef(24) + byte[](~24)
+            default -> 0;             // BOOLEAN (interned singleton), NULL
+        };
     }
 
     private BlockHash newBlockHash(BlockFactory blockFactory, int emitBatchSize, List<ElementType> types) {
@@ -263,7 +286,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
 
     private void assertLookup(
         BlockFactory blockFactory,
-        Map<List<Object>, Set<Integer>> expectedOrds,
+        Map<List<Object>, IntHashSet> expectedOrds,
         List<Type> types,
         BlockHash blockHash,
         Oracle oracle
@@ -302,7 +325,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
                                 }
                                 assertThat(ords.getValueCount(p), equalTo(1));
                                 if (expectedOrds != null) {
-                                    assertThat(ords.getInt(ords.getFirstValueIndex(p)), in(expectedOrds.get(key)));
+                                    assertTrue(expectedOrds.get(key).contains(ords.getInt(ords.getFirstValueIndex(p))));
                                 }
                             }
                             positionOffset += ords.getPositionCount();
@@ -329,15 +352,11 @@ public class BlockHashRandomizedTests extends ESTestCase {
         return key;
     }
 
-    private void recordExpectedOrds(
-        Map<List<Object>, Set<Integer>> expectedOrds,
-        Block[] keyBlocks,
-        BlockHashTests.OrdsAndKeys ordsAndKeys
-    ) {
+    private void recordExpectedOrds(Map<List<Object>, IntHashSet> expectedOrds, Block[] keyBlocks, BlockHashTests.OrdsAndKeys ordsAndKeys) {
         long start = System.nanoTime();
         for (int p = 0; p < ordsAndKeys.ords().getPositionCount(); p++) {
             for (List<Object> key : readKeys(keyBlocks, p + ordsAndKeys.positionOffset())) {
-                Set<Integer> ords = expectedOrds.computeIfAbsent(key, k -> new TreeSet<>());
+                IntHashSet ords = expectedOrds.computeIfAbsent(key, k -> new IntHashSet(1));
                 int firstOrd = ordsAndKeys.ords().getFirstValueIndex(p);
                 int endOrd = ordsAndKeys.ords().getValueCount(p) + firstOrd;
                 for (int i = firstOrd; i < endOrd; i++) {
@@ -345,7 +364,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
                 }
             }
         }
-        logger.info("finished collecting ords {} {}", expectedOrds.size(), TimeValue.timeValueNanos(System.nanoTime() - start));
+        logger.info("finished collecting ords {} {}", expectedOrds.size(), timeValueNanos(System.nanoTime() - start));
     }
 
     private static List<List<Object>> readKeys(Block[] keyBlocks, int position) {
@@ -366,34 +385,8 @@ public class BlockHashRandomizedTests extends ESTestCase {
         return keys.stream().distinct().toList();
     }
 
-    static class KeyComparator implements Comparator<List<?>> {
-        @Override
-        public int compare(List<?> lhs, List<?> rhs) {
-            for (int i = 0; i < lhs.size(); i++) {
-                @SuppressWarnings("unchecked")
-                Comparable<Object> l = (Comparable<Object>) lhs.get(i);
-                Object r = rhs.get(i);
-                if (l == null) {
-                    if (r == null) {
-                        continue;
-                    } else {
-                        return 1;
-                    }
-                }
-                if (r == null) {
-                    return -1;
-                }
-                int cmp = l.compareTo(r);
-                if (cmp != 0) {
-                    return cmp;
-                }
-            }
-            return 0;
-        }
-    }
-
     private static class Oracle {
-        private final NavigableSet<List<Object>> keys = new TreeSet<>(new KeyComparator());
+        private final NavigableSet<List<Object>> keys = new TreeSet<>(new BlockHashKeysTestHelper.KeyComparator());
 
         private final boolean collectsNullLongs;
 
@@ -430,13 +423,6 @@ public class BlockHashRandomizedTests extends ESTestCase {
         }
     }
 
-    // A breaker service that always returns the given breaker for getBreaker(CircuitBreaker.REQUEST)
-    static CircuitBreakerService mockBreakerService(CircuitBreaker breaker) {
-        CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
-        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
-        return breakerService;
-    }
-
     private static List<Object> randomKey(List<Type> types) {
         return types.stream().map(t -> randomKeyElement(t.elementType())).toList();
     }
@@ -459,13 +445,14 @@ public class BlockHashRandomizedTests extends ESTestCase {
             return RandomBlock.randomBlock(
                 elementType,
                 positionCount,
-                elementType == ElementType.NULL | randomBoolean(),
+                (elementType == ElementType.NULL) || randomBoolean(),
                 1,
                 maxValuesPerPosition,
                 0,
                 dups
             );
         }
+
     }
 
     private record Ordinals(int dictionarySize) implements Type {
@@ -479,6 +466,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
             Map<String, Integer> dictionary = new HashMap<>();
             Set<String> keys = dictionary(maxValuesPerPosition);
             List<List<Object>> values = new ArrayList<>(positionCount);
+            int valueMaxByteSize = 0;
             try (
                 IntBlock.Builder ordinals = TestBlockFactory.getNonBreakingInstance()
                     .newIntBlockBuilder(positionCount * maxValuesPerPosition);
@@ -500,7 +488,9 @@ public class BlockHashRandomizedTests extends ESTestCase {
                             bytes.appendBytesRef(new BytesRef(k));
                             return dictionary.size();
                         });
-                        valuesAtPosition.add(new BytesRef(key));
+                        BytesRef keyBytesRef = new BytesRef(key);
+                        valuesAtPosition.add(keyBytesRef);
+                        valueMaxByteSize = Math.max(valueMaxByteSize, keyBytesRef.length);
                         ordinals.appendInt(ordinal);
                         ordsAtPosition.add(ordinal);
                     }
@@ -511,7 +501,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
                         ordinals.endPositionEntry();
                     }
                 }
-                return new RandomBlock(values, new OrdinalBytesRefBlock(ordinals.build(), bytes.build()));
+                return new RandomBlock(values, new OrdinalBytesRefBlock(ordinals.build(), bytes.build()), valueMaxByteSize);
             }
         }
 
@@ -522,6 +512,39 @@ public class BlockHashRandomizedTests extends ESTestCase {
                 values.add(randomAlphaOfLength(5));
             }
             return values;
+        }
+    }
+
+    private static class ParamsBuilder {
+        private final List<Type> allowedTypes = new ArrayList<>();
+        private final List<Integer> groups = new ArrayList<>();
+
+        ParamsBuilder allowedType(Type t) {
+            allowedTypes.add(t);
+            return this;
+        }
+
+        ParamsBuilder allowedType(ElementType elementType) {
+            return allowedType(new Basic(elementType));
+        }
+
+        ParamsBuilder groups(int... groups) {
+            for (int g : groups) {
+                this.groups.add(g);
+            }
+            return this;
+        }
+
+        void add(List<Object[]> params) {
+            for (boolean forcePackedHash : new boolean[] { false, true }) {
+                for (int g : groups) {
+                    for (int maxValuesPerPosition : new int[] { 1, 3 }) {
+                        for (int dups : new int[] { 0, 2 }) {
+                            params.add(new Object[] { forcePackedHash, g, maxValuesPerPosition, dups, allowedTypes });
+                        }
+                    }
+                }
+            }
         }
     }
 }

@@ -8,17 +8,21 @@
 package org.elasticsearch.xpack.inference.services.azureaistudio.response;
 
 import org.apache.http.HttpResponse;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.services.azureaistudio.request.AzureAiStudioEmbeddingsRequest;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Note - the underlying AzureAiStudioEmbeddingsResponseEntity uses the same
@@ -50,11 +54,19 @@ public class AzureAiStudioEmbeddingsResponseEntityTests extends ESTestCase {
 
         var entity = new AzureAiStudioEmbeddingsResponseEntity();
 
-        var parsedResults = (TextEmbeddingFloatResults) entity.apply(
-            mock(Request.class),
+        var requestMock = mock(AzureAiStudioEmbeddingsRequest.class);
+        when(requestMock.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+        var parsedResults = entity.apply(
+            requestMock,
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(parsedResults.embeddings(), is(List.of(TextEmbeddingFloatResults.Embedding.of(List.of(0.014539449F, -0.015288644F)))));
+        assertThat(parsedResults, instanceOf(DenseEmbeddingFloatResults.class));
+
+        assertThat(
+            ((EmbeddingFloatResults) parsedResults).embeddings(),
+            is(List.of(EmbeddingFloatResults.Embedding.of(List.of(0.014539449F, -0.015288644F))))
+        );
     }
+
 }

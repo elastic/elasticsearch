@@ -226,10 +226,11 @@ azure       | [240.0, 255.0, 255.0]
 
 knnWithNonPushableConjunction
 required_capability: knn_function_v5
+required_capability: knn_function_options_k_visit_percentage
 
 from colors metadata _score
 | eval composed_name = locate(color, " ") > 0 
-| where knn(rgb_vector, [128,128,0], {"min_candidates": 100}) and composed_name == false
+| where knn(rgb_vector, [128,128,0], {"k": 100}) and composed_name == false
 | sort _score desc, color asc
 | keep color, composed_name
 | limit 10
@@ -337,6 +338,7 @@ golden rod
 
 testKnnWithSemanticText
 required_capability: knn_function_v5
+required_capability: semantic_text_field_caps
 
 from semantic_text
 | where knn(semantic_text_dense_field, [0, 1, 2])
@@ -352,6 +354,7 @@ live long and prosper
 
 testKnnWithSemanticTextAndKeyword
 required_capability: knn_function_v5
+required_capability: semantic_text_field_caps
 
 from semantic_text
 | where knn(semantic_text_dense_field, [0, 1, 2])
@@ -368,6 +371,7 @@ be excellent to each other                                            | host3
 
 testKnnWithSemanticTextMultiValueField
 required_capability: knn_function_v5
+required_capability: semantic_text_field_caps
 
 from semantic_text metadata _id
 | where match(st_multi_value, "something") AND match(host, "host1")
@@ -380,6 +384,7 @@ _id: keyword | st_multi_value:text
 
 testKnnWithSemanticTextWithEvalsAndOtherFunctionsAndStats
 required_capability: knn_function_v5
+required_capability: semantic_text_field_caps
 
 from semantic_text
 | where qstr("description:some*")
@@ -396,6 +401,7 @@ result:long
 testKnnWithSemanticTextAndKql
 required_capability: knn_function_v5
 required_capability: kql_function
+required_capability: semantic_text_field_caps
 
 from semantic_text
 | where kql("host:host1") AND knn(semantic_text_dense_field, [0, 1, 2])
@@ -454,4 +460,139 @@ maroon     | [128.0, 0.0, 0.0]
 navy       | [0.0, 0.0, 128.0]
 gray       | [128.0, 128.0, 128.0]
 chartreuse | [127.0, 255.0, 0.0]
+;
+
+knnWithUnionAll
+required_capability: knn_function_v5
+required_capability: subquery_in_from_command
+required_capability: full_text_functions_accept_null_field
+
+from colors, (from hosts) metadata _score
+| where knn(rgb_vector, "007800") 
+| sort _score desc, color asc
+| keep color, rgb_vector, host
+| limit 10
+;
+
+color:text | rgb_vector:dense_vector  | host:keyword  
+green      | [0.0, 128.0, 0.0]        | null          
+black      | [0.0, 0.0, 0.0]          | null          
+olive      | [128.0, 128.0, 0.0]      | null          
+teal       | [0.0, 128.0, 128.0]      | null  
+lime       | [0.0, 255.0, 0.0]        | null          
+sienna     | [160.0, 82.0, 45.0]      | null          
+maroon     | [128.0, 0.0, 0.0]        | null          
+navy       | [0.0, 0.0, 128.0]        | null
+gray       | [128.0, 128.0, 128.0]    | null          
+chartreuse | [127.0, 255.0, 0.0]      | null          
+;
+
+knnBeforeMvExpand
+required_capability: knn_function_v5
+
+from colors metadata _score
+| where knn(rgb_vector, [0, 120, 0]) and color == "green"
+| eval x = [1, 2, 3]
+| mv_expand x
+| keep color, x
+;
+
+color:text | x:integer
+green      | 1
+green      | 2
+green      | 3
+;
+
+knnBeforeMvExpandWithStats
+required_capability: knn_function_v5
+
+from colors metadata _score
+| where knn(rgb_vector, [0, 120, 0])
+| sort _score desc, color asc
+| limit 3
+| eval x = [1, 2]
+| mv_expand x
+| stats count = count(*) by color
+| sort color
+;
+
+count:long | color:text
+2          | black
+2          | green
+2          | olive
+;
+
+knnAfterSimpleRename
+required_capability: knn_function_v5
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from colors metadata _score
+| rename rgb_vector as vec
+| where knn(vec, [0, 120, 0])
+| sort _score desc, color asc
+| keep color, vec
+| limit 3
+;
+
+color:text | vec:dense_vector
+green      | [0.0, 128.0, 0.0]
+black      | [0.0, 0.0, 0.0]
+olive      | [128.0, 128.0, 0.0]
+;
+
+knnAfterChainedRename
+required_capability: knn_function_v5
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from colors metadata _score
+| rename rgb_vector as x
+| rename x as vec
+| where knn(vec, [0, 120, 0])
+| sort _score desc, color asc
+| keep color, vec
+| limit 3
+;
+
+color:text | vec:dense_vector
+green      | [0.0, 128.0, 0.0]
+black      | [0.0, 0.0, 0.0]
+olive      | [128.0, 128.0, 0.0]
+;
+
+knnAfterEvalAndRename
+required_capability: knn_function_v5
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from colors metadata _score
+| eval x = 1
+| rename rgb_vector as vec
+| where knn(vec, [0, 120, 0])
+| sort _score desc, color asc
+| keep color, vec
+| limit 3
+;
+
+color:text | vec:dense_vector
+green      | [0.0, 128.0, 0.0]
+black      | [0.0, 0.0, 0.0]
+olive      | [128.0, 128.0, 0.0]
+;
+
+knnAfterRenameWithEval
+required_capability: knn_function_v5
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from colors metadata _score
+| rename rgb_vector as vec
+| eval x = 1
+| where knn(vec, [0, 120, 0])
+| sort _score desc, color asc
+| keep color, vec
+| limit 3
+;
+
+color:text | vec:dense_vector
+green      | [0.0, 128.0, 0.0]
+black      | [0.0, 0.0, 0.0]
+olive      | [128.0, 128.0, 0.0]
 ;

@@ -10,7 +10,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KeywordField;
-import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
@@ -18,7 +17,6 @@ import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
@@ -29,8 +27,10 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -113,7 +113,7 @@ public class SearchExecutionContextTests extends ESTestCase {
     public void testFailIfFieldMappingNotFound() {
         SearchExecutionContext context = createSearchExecutionContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
         context.setAllowUnmappedFields(false);
-        MappedFieldType fieldType = new TextFieldMapper.TextFieldType("text", randomBoolean());
+        MappedFieldType fieldType = new TextFieldMapper.TextFieldType("text", randomBoolean(), false);
         MappedFieldType result = context.failIfFieldMappingNotFound("name", fieldType);
         assertThat(result, sameInstance(fieldType));
         QueryShardException e = expectThrows(QueryShardException.class, () -> context.failIfFieldMappingNotFound("name", null));
@@ -223,17 +223,26 @@ public class SearchExecutionContextTests extends ESTestCase {
     }
 
     public void testFielddataLookupSometimesLoop() throws IOException {
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
-            // simulate a runtime field cycle in the second doc: 1: doc['2'] 2: doc['3'] 3: doc['4'] 4: doc['4']
+        // create this field so we can use it to make sure we're escaping the loop on only the "first" document
+        var concreteField = new KeywordFieldMapper.KeywordFieldType("indexed_field", true, true, Collections.emptyMap());
+
+        // simulate a runtime field cycle in the second doc: 1: doc['2'] 2: doc['3'] 3: doc['4'] 4: doc['4']
+        var runtimeFields = List.of(
             runtimeField("1", leafLookup -> leafLookup.doc().get("2").get(0).toString()),
             runtimeField("2", leafLookup -> leafLookup.doc().get("3").get(0).toString()),
             runtimeField("3", leafLookup -> leafLookup.doc().get("4").get(0).toString()),
-            runtimeField("4", (leafLookup, docId) -> {
-                if (docId == 0) {
+            runtimeField("4", leafLookup -> {
+                if (leafLookup.doc().get("indexed_field").getFirst().equals("first")) {
                     return "escape!";
                 }
-                return leafLookup.doc().get("4").get(0).toString();
+                return leafLookup.doc().get("4").getFirst().toString();
             })
+        );
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+            "uuid",
+            null,
+            createMappingLookup(List.of(concreteField), runtimeFields),
+            Collections.emptyMap()
         );
         List<String> values = collect("1", searchExecutionContext, new TermQuery(new Term("indexed_field", "first")));
         assertEquals(List.of("escape!"), values);
@@ -297,7 +306,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             new MetadataFieldMapper[0],
             Collections.emptyMap()
         );
-        return MappingLookup.fromMappers(mapping, mappers, Collections.emptyList());
+        return MappingLookup.fromMappers(mapping, mappers, Collections.emptyList(), IndexMode.STANDARD);
     }
 
     public void testSearchRequestRuntimeFields() {
@@ -469,10 +478,10 @@ public class SearchExecutionContextTests extends ESTestCase {
         // Build a mapping using synthetic source
         SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null, Settings.EMPTY, false, false, false).setSynthetic().build();
         RootObjectMapper root = new RootObjectMapper.Builder("_doc").add(
-            new KeywordFieldMapper.Builder("cat", IndexVersion.current()).ignoreAbove(100)
+            new KeywordFieldMapper.Builder("cat", defaultIndexSettings()).ignoreAbove(100)
         ).build(MapperBuilderContext.root(true, false));
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
-        MappingLookup lookup = MappingLookup.fromMapping(mapping);
+        MappingLookup lookup = MappingLookup.fromMapping(mapping, randomFrom(IndexMode.availableModes()));
 
         SearchExecutionContext sec = createSearchExecutionContext("index", "", lookup, Map.of());
         assertTrue(sec.isSourceSynthetic());
@@ -620,7 +629,9 @@ public class SearchExecutionContextTests extends ESTestCase {
             () -> true,
             null,
             runtimeMappings,
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
     }
 
@@ -630,7 +641,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         RootObjectMapperNamespaceValidator namespaceValidator
     ) {
         IndexAnalyzers indexAnalyzers = IndexAnalyzers.of(singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, null)));
-        IndicesModule indicesModule = new IndicesModule(Collections.emptyList(), namespaceValidator);
+        IndicesModule indicesModule = new IndicesModule(Collections.emptyList(), Collections.emptyList(), namespaceValidator);
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
         Supplier<SearchExecutionContext> searchExecutionContextSupplier = () -> { throw new UnsupportedOperationException(); };
         MapperService mapperService = mock(MapperService.class);
@@ -646,11 +657,12 @@ public class SearchExecutionContextTests extends ESTestCase {
                 ScriptCompiler.NONE,
                 indexAnalyzers,
                 indexSettings,
-                indexSettings.getMode().buildIdFieldMapper(() -> true),
                 query -> {
                     throw new UnsupportedOperationException();
                 },
-                namespaceValidator
+                null,
+                namespaceValidator,
+                null
             )
         );
         when(mapperService.isMultiField(anyString())).then(
@@ -726,11 +738,6 @@ public class SearchExecutionContextTests extends ESTestCase {
                             public long ramBytesUsed() {
                                 throw new UnsupportedOperationException();
                             }
-
-                            @Override
-                            public void close() {
-                                throw new UnsupportedOperationException();
-                            }
                         };
                     }
 
@@ -769,14 +776,14 @@ public class SearchExecutionContextTests extends ESTestCase {
     }
 
     private static List<String> collect(String field, SearchExecutionContext searchExecutionContext) throws IOException {
-        return collect(field, searchExecutionContext, new MatchAllDocsQuery());
+        return collect(field, searchExecutionContext, Queries.ALL_DOCS_INSTANCE);
     }
 
     private static List<String> collect(String field, SearchExecutionContext searchExecutionContext, Query query) throws IOException {
         List<String> result = new ArrayList<>();
         try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-            indexWriter.addDocument(List.of(new StringField("indexed_field", "first", Field.Store.NO)));
-            indexWriter.addDocument(List.of(new StringField("indexed_field", "second", Field.Store.NO)));
+            indexWriter.addDocument(List.of(new KeywordField("indexed_field", "first", Field.Store.YES)));
+            indexWriter.addDocument(List.of(new KeywordField("indexed_field", "second", Field.Store.YES)));
             try (DirectoryReader reader = indexWriter.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 MappedFieldType fieldType = searchExecutionContext.getFieldType(field);

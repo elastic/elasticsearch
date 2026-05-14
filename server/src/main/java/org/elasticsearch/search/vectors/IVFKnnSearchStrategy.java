@@ -16,11 +16,15 @@ import java.util.concurrent.atomic.LongAccumulator;
 
 public class IVFKnnSearchStrategy extends KnnSearchStrategy {
     private final float visitRatio;
+    private final int numCands;
+    private final int k;
     private final SetOnce<AbstractMaxScoreKnnCollector> collector = new SetOnce<>();
     private final LongAccumulator accumulator;
 
-    IVFKnnSearchStrategy(float visitRatio, LongAccumulator accumulator) {
+    public IVFKnnSearchStrategy(float visitRatio, int numCands, int k, LongAccumulator accumulator) {
         this.visitRatio = visitRatio;
+        this.numCands = numCands;
+        this.k = k;
         this.accumulator = accumulator;
     }
 
@@ -35,17 +39,25 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
         return visitRatio;
     }
 
+    public int getNumCands() {
+        return numCands;
+    }
+
+    public int getK() {
+        return k;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IVFKnnSearchStrategy that = (IVFKnnSearchStrategy) o;
-        return visitRatio == that.visitRatio;
+        return visitRatio == that.visitRatio && numCands == that.numCands && k == that.k;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(visitRatio);
+        return Objects.hash(visitRatio, numCands, k);
     }
 
     /**

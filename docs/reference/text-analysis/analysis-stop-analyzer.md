@@ -110,6 +110,7 @@ PUT /stop_example
   }
 }
 ```
+% TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: stop_example, first: stop, second: rebuilt_stop}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. You’d add any token filters after `english_stop`.

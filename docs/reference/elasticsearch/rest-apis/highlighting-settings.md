@@ -51,10 +51,10 @@ encoder
 :   Indicates if the snippet should be HTML encoded: `default` (no encoding) or `html` (HTML-escape the snippet text and then insert the highlighting tags)
 
 fields
-:   Specifies the fields to retrieve highlights for. You can use wildcards to specify fields. For example, you could specify `comment_*` to get highlights for all [text](/reference/elasticsearch/mapping-reference/text.md), [match_only_text](/reference/elasticsearch/mapping-reference/text.md#match-only-text-field-type), and [keyword](/reference/elasticsearch/mapping-reference/keyword.md) fields that start with `comment_`.
+:   Specifies the fields to retrieve highlights for. You can use wildcards to specify fields. For example, you could specify `comment_*` to get highlights for all [text](/reference/elasticsearch/mapping-reference/text.md), [match_only_text](/reference/elasticsearch/mapping-reference/match-only-text.md), [pattern_text](/reference/elasticsearch/mapping-reference/pattern-text.md), and [keyword](/reference/elasticsearch/mapping-reference/keyword.md) fields that start with `comment_`.
 
     ::::{note}
-    Only text, match_only_text, and keyword fields are highlighted when you use wildcards. If you use a custom mapper and want to highlight on a field anyway, you must explicitly specify that field name.
+    Only text, match_only_text, pattern_text, and keyword fields are highlighted when you use wildcards. If you use a custom mapper and want to highlight on a field anyway, you must explicitly specify that field name.
     ::::
 
 $$$fragmenter$$$

@@ -57,9 +57,16 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     @Override
+    protected Settings getIndexSettings() {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .build();
+    }
+
+    @Override
     protected IndexVersion getVersion() {
         return IndexVersionUtils.randomVersionBetween(
-            random(),
             IndexVersions.V_8_8_0,
             IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_ID_HASHING)
         );
@@ -83,8 +90,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         ).documentMapper();
     }
 
-    private static ParsedDocument parseDocument(DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f)
-        throws IOException {
+    private ParsedDocument parseDocument(DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f) throws IOException {
         // Add the @timestamp field required by DataStreamTimestampFieldMapper for all time series indices
         return docMapper.parse(source(null, b -> {
             f.accept(b);
@@ -92,7 +98,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         }, null));
     }
 
-    private static BytesRef parseAndGetTsid(DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f) throws IOException {
+    private BytesRef parseAndGetTsid(DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f) throws IOException {
         return parseDocument(docMapper, f).rootDoc().getBinaryValue(TimeSeriesIdFieldMapper.NAME);
     }
 
@@ -114,10 +120,10 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testDisabledInStandardMode() throws Exception {
-        DocumentMapper docMapper = createMapperService(
-            getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name()).build(),
-            mapping(b -> {})
-        ).documentMapper();
+        Settings.Builder builder = getIndexSettingsBuilder();
+        builder.put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name());
+        builder.remove(IndexMetadata.INDEX_ROUTING_PATH.getKey());
+        DocumentMapper docMapper = createMapperService(builder.build(), mapping(b -> {})).documentMapper();
         assertThat(docMapper.metadataMapper(TimeSeriesIdFieldMapper.class), is(nullValue()));
 
         ParsedDocument doc = docMapper.parse(source("id", b -> b.field("field", "value"), null));
@@ -767,5 +773,24 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             );
         });
         assertThat(failure.getMessage(), equalTo("[5:1] failed to parse: Illegal base64 character 20"));
+    }
+
+    public void testValueForDisplay() throws Exception {
+        DocumentMapper docMapper = createDocumentMapper("a", mapping(b -> {
+            b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("b").field("type", "long").field("time_series_dimension", true).endObject();
+        }));
+
+        ParsedDocument doc = parseDocument(docMapper, b -> b.field("a", "value").field("b", 100));
+        BytesRef tsidBytes = doc.rootDoc().getBinaryValue("_tsid");
+        assertThat(tsidBytes, not(nullValue()));
+
+        TimeSeriesIdFieldMapper.TimeSeriesIdFieldType fieldType = TimeSeriesIdFieldMapper.FIELD_TYPE;
+        Object displayValue = fieldType.valueForDisplay(tsidBytes);
+        Object encodedValue = TimeSeriesIdFieldMapper.encodeTsid(tsidBytes);
+
+        assertThat(displayValue, equalTo(encodedValue));
+        assertThat(displayValue.getClass(), is(String.class));
+        assertThat(fieldType.valueForDisplay(null), nullValue());
     }
 }

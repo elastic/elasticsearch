@@ -150,7 +150,7 @@ public abstract class AbstractUrlEncodeDecodeTestCase extends AbstractScalarFunc
             }
         }
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(false, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
 
     }
 

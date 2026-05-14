@@ -245,8 +245,8 @@ non-default sort settings with presence of nested:
 ---
 override sort order settings:
   - requires:
-      cluster_features: [ "index.logsdb_no_host_name_field" ]
-      reason: "Change in default sort config for logsdb"
+      cluster_features: [ "index.logsdb_no_host_name_field", "mapper.provide_index_sort_setting_defaults"]
+      reason: "Change in default sort config for logsdb, changed error message output"
   - do:
       catch: bad_request
       indices.create:
@@ -276,13 +276,13 @@ override sort order settings:
                 type: text
 
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "index.sort.fields:[] index.sort.order:[asc, asc], size mismatch" }
+  - match: { error.reason: "setting [index.sort.order] requires [index.sort.field] to be configured" }
 
 ---
 override sort missing settings:
   - requires:
-      cluster_features: [ "index.logsdb_no_host_name_field" ]
-      reason: "Change in default sort config for logsdb"
+      cluster_features: [ "index.logsdb_no_host_name_field", "mapper.provide_index_sort_setting_defaults"]
+      reason: "Change in default sort config for logsdb, changed error message output"
   - do:
       catch: bad_request
       indices.create:
@@ -312,13 +312,13 @@ override sort missing settings:
                 type: text
 
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "index.sort.fields:[] index.sort.missing:[_last, _first], size mismatch" }
+  - match: { error.reason: "setting [index.sort.missing] requires [index.sort.field] to be configured" }
 
 ---
 override sort mode settings:
   - requires:
-      cluster_features: [ "index.logsdb_no_host_name_field" ]
-      reason: "Change in default sort config for logsdb"
+      cluster_features: [ "index.logsdb_no_host_name_field", "mapper.provide_index_sort_setting_defaults"]
+      reason: "Change in default sort config for logsdb, changed error message output"
   - do:
       catch: bad_request
       indices.create:
@@ -348,7 +348,7 @@ override sort mode settings:
                 type: text
 
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "index.sort.fields:[] index.sort.mode:[MAX, MAX], size mismatch" }
+  - match: { error.reason: "setting [index.sort.mode] requires [index.sort.field] to be configured" }
 
 ---
 override sort field using nested field type in sorting:

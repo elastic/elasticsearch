@@ -13,22 +13,22 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateTrunc}.
+ * {@link ExpressionEvaluator} implementation for {@link DateTrunc}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class DateTruncDatetimeEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class DateTruncDatetimeEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DateTruncDatetimeEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator fieldVal;
+  private final ExpressionEvaluator fieldVal;
 
   private final Rounding.Prepared rounding;
 
@@ -36,7 +36,7 @@ public final class DateTruncDatetimeEvaluator implements EvalOperator.Expression
 
   private Warnings warnings;
 
-  public DateTruncDatetimeEvaluator(Source source, EvalOperator.ExpressionEvaluator fieldVal,
+  public DateTruncDatetimeEvaluator(Source source, ExpressionEvaluator fieldVal,
       Rounding.Prepared rounding, DriverContext driverContext) {
     this.source = source;
     this.fieldVal = fieldVal;
@@ -65,16 +65,16 @@ public final class DateTruncDatetimeEvaluator implements EvalOperator.Expression
   public LongBlock eval(int positionCount, LongBlock fieldValBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (fieldValBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (fieldValBlock.getValueCount(p) != 1) {
-          if (fieldValBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (fieldValBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         long fieldVal = fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p));
         result.appendLong(DateTrunc.processDatetime(fieldVal, this.rounding));
@@ -105,24 +105,19 @@ public final class DateTruncDatetimeEvaluator implements EvalOperator.Expression
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory fieldVal;
+    private final ExpressionEvaluator.Factory fieldVal;
 
     private final Rounding.Prepared rounding;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory fieldVal,
+    public Factory(Source source, ExpressionEvaluator.Factory fieldVal,
         Rounding.Prepared rounding) {
       this.source = source;
       this.fieldVal = fieldVal;

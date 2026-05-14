@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.CustomDocValuesField;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -109,15 +110,19 @@ public class CountedKeywordFieldMapper extends FieldMapper {
 
         CountedKeywordFieldType(
             String name,
-            boolean isIndexed,
+            IndexType indexType,
             boolean isStored,
-            boolean hasDocValues,
             TextSearchInfo textSearchInfo,
             Map<String, String> meta,
             MappedFieldType countFieldType
         ) {
-            super(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta);
+            super(name, indexType, isStored, textSearchInfo, meta);
             this.countFieldType = countFieldType;
+        }
+
+        @Override
+        public boolean isSearchable() {
+            return indexType.hasTerms();
         }
 
         @Override
@@ -175,7 +180,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
                     XFieldComparatorSource.Nested nested,
                     boolean reverse
                 ) {
-                    throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
+                    throw new IllegalArgumentException("can't sort on the [" + CONTENT_TYPE + "] field");
                 }
 
                 @Override
@@ -272,18 +277,26 @@ public class CountedKeywordFieldMapper extends FieldMapper {
     }
 
     public static class Builder extends FieldMapper.Builder {
-        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).mappedFieldType.isIndexed(), true);
+        private final Parameter<Boolean> indexed;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final SourceKeepMode indexSourceKeepMode;
+        private final boolean indexDisabledByDefault;
 
-        protected Builder(String name, SourceKeepMode indexSourceKeepMode) {
+        protected Builder(String name, SourceKeepMode indexSourceKeepMode, boolean indexDisabledByDefault) {
             super(name);
+            this.indexed = Parameter.indexParam(m -> toType(m).fieldType == FIELD_TYPE_INDEXED, indexDisabledByDefault == false);
             this.indexSourceKeepMode = indexSourceKeepMode;
+            this.indexDisabledByDefault = indexDisabledByDefault;
         }
 
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { meta, indexed };
+        }
+
+        @Override
+        public String contentType() {
+            return CONTENT_TYPE;
         }
 
         @Override
@@ -300,16 +313,16 @@ public class CountedKeywordFieldMapper extends FieldMapper {
                 ft,
                 new CountedKeywordFieldType(
                     context.buildFullName(leafName()),
-                    isIndexed,
+                    IndexType.terms(isIndexed, true),
                     false,
-                    true,
                     new TextSearchInfo(ft, null, KEYWORD_ANALYZER, KEYWORD_ANALYZER),
                     meta.getValue(),
                     countFieldMapper.fieldType()
                 ),
                 builderParams(this, context),
                 countFieldMapper,
-                indexSourceKeepMode
+                indexSourceKeepMode,
+                indexDisabledByDefault
             );
         }
     }
@@ -390,12 +403,17 @@ public class CountedKeywordFieldMapper extends FieldMapper {
     }
 
     public static TypeParser PARSER = new TypeParser(
-        (n, c) -> new CountedKeywordFieldMapper.Builder(n, c.getIndexSettings().sourceKeepMode())
+        (n, c) -> new CountedKeywordFieldMapper.Builder(
+            n,
+            c.getIndexSettings().sourceKeepMode(),
+            c.getIndexSettings().isIndexDisabledByDefault()
+        )
     );
 
     private final FieldType fieldType;
     private final BinaryFieldMapper countFieldMapper;
     private final SourceKeepMode indexSourceKeepMode;
+    private final boolean indexDisabledByDefault;
 
     protected CountedKeywordFieldMapper(
         String simpleName,
@@ -403,12 +421,14 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         MappedFieldType mappedFieldType,
         BuilderParams builderParams,
         BinaryFieldMapper countFieldMapper,
-        SourceKeepMode indexSourceKeepMode
+        SourceKeepMode indexSourceKeepMode,
+        boolean indexDisabledByDefault
     ) {
         super(simpleName, mappedFieldType, builderParams);
         this.fieldType = fieldType;
         this.countFieldMapper = countFieldMapper;
         this.indexSourceKeepMode = indexSourceKeepMode;
+        this.indexDisabledByDefault = indexDisabledByDefault;
     }
 
     @Override
@@ -492,7 +512,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexSourceKeepMode).init(this);
+        return new Builder(leafName(), indexSourceKeepMode, indexDisabledByDefault).init(this);
     }
 
     @Override

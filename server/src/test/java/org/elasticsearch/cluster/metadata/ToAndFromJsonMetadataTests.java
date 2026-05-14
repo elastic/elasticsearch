@@ -251,7 +251,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                   ],
                   "voting_config_exclusions" : [
                     {
-                      "node_id" : "exlucdedNodeId",
+                      "node_id" : "excludedNodeId",
                       "node_name" : "excludedNodeName"
                     }
                   ]
@@ -320,7 +320,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                   ],
                   "voting_config_exclusions" : [
                     {
-                      "node_id" : "exlucdedNodeId",
+                      "node_id" : "excludedNodeId",
                       "node_name" : "excludedNodeName"
                     }
                   ]
@@ -398,6 +398,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 "indices" : {
                   "index" : {
                     "version" : 2,
+                    "transport_version" : "0",
                     "mapping_version" : 1,
                     "settings_version" : 1,
                     "aliases_version" : 1,
@@ -475,7 +476,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                   ],
                   "voting_config_exclusions" : [
                     {
-                      "node_id" : "exlucdedNodeId",
+                      "node_id" : "excludedNodeId",
                       "node_name" : "excludedNodeName"
                     }
                   ]
@@ -541,7 +542,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                   ],
                   "voting_config_exclusions" : [
                     {
-                      "node_id" : "exlucdedNodeId",
+                      "node_id" : "excludedNodeId",
                       "node_name" : "excludedNodeName"
                     }
                   ]
@@ -565,6 +566,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 "indices" : {
                   "index" : {
                     "version" : 2,
+                    "transport_version" : "0",
                     "mapping_version" : 1,
                     "settings_version" : 1,
                     "aliases_version" : 1,
@@ -649,7 +651,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                   ],
                   "voting_config_exclusions" : [
                     {
-                      "node_id" : "exlucdedNodeId",
+                      "node_id" : "excludedNodeId",
                       "node_name" : "excludedNodeName"
                     }
                   ]
@@ -675,6 +677,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 "indices" : {
                   "index" : {
                     "version" : 2,
+                    "transport_version" : "0",
                     "mapping_version" : 1,
                     "settings_version" : 1,
                     "aliases_version" : 1,
@@ -789,7 +792,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                   ],
                   "voting_config_exclusions" : [
                     {
-                      "node_id" : "exlucdedNodeId",
+                      "node_id" : "excludedNodeId",
                       "node_name" : "excludedNodeName"
                     }
                   ]
@@ -815,6 +818,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 "indices" : {
                   "index" : {
                     "version" : 2,
+                    "transport_version" : "0",
                     "mapping_version" : 1,
                     "settings_version" : 1,
                     "aliases_version" : 1,
@@ -924,7 +928,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     .term(1)
                     .lastCommittedConfiguration(new CoordinationMetadata.VotingConfiguration(Set.of("commitedConfigurationNodeId")))
                     .lastAcceptedConfiguration(new CoordinationMetadata.VotingConfiguration(Set.of("acceptedConfigurationNodeId")))
-                    .addVotingConfigExclusion(new CoordinationMetadata.VotingConfigExclusion("exlucdedNodeId", "excludedNodeName"))
+                    .addVotingConfigExclusion(new CoordinationMetadata.VotingConfigExclusion("excludedNodeId", "excludedNodeName"))
                     .build()
             )
             .persistentSettings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()).build())

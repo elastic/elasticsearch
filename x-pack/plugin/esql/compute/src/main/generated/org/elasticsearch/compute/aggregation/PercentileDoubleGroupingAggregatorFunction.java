@@ -38,17 +38,12 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
 
   private final double percentile;
 
-  public PercentileDoubleGroupingAggregatorFunction(List<Integer> channels,
-      QuantileStates.GroupingState state, DriverContext driverContext, double percentile) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
+  PercentileDoubleGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
+      double percentile) {
     this.percentile = percentile;
-  }
-
-  public static PercentileDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, double percentile) {
-    return new PercentileDoubleGroupingAggregatorFunction(channels, PercentileDoubleAggregator.initGrouping(driverContext, percentile), driverContext, percentile);
+    this.channels = channels;
+    this.state = PercentileDoubleAggregator.initGrouping(driverContext, percentile);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -64,6 +59,15 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     DoubleBlock vBlock = page.getBlock(channels.get(0));
+    if (vBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block. But we
+       * still need to track that some groups may not have been seen
+       * so that they are initialized to null when we read their values.
+       */
+      state.enableGroupIdTracking(seenGroupIds);
+      return null;
+    }
     DoubleVector vVector = vBlock.asVector();
     if (vVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, vBlock);
@@ -155,10 +159,19 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
     assert channels.size() == intermediateBlockCount();
     Block quartUncast = page.getBlock(channels.get(0));
     if (quartUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
-    BytesRef scratch = new BytesRef();
+    BytesRef quartScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -168,7 +181,7 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        PercentileDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, scratch));
+        PercentileDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, quartScratch));
       }
     }
   }
@@ -218,10 +231,19 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
     assert channels.size() == intermediateBlockCount();
     Block quartUncast = page.getBlock(channels.get(0));
     if (quartUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
-    BytesRef scratch = new BytesRef();
+    BytesRef quartScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -231,7 +253,7 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        PercentileDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, scratch));
+        PercentileDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, quartScratch));
       }
     }
   }
@@ -267,19 +289,33 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
     assert channels.size() == intermediateBlockCount();
     Block quartUncast = page.getBlock(channels.get(0));
     if (quartUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
-    BytesRef scratch = new BytesRef();
+    BytesRef quartScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      PercentileDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, scratch));
+      PercentileDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, quartScratch));
     }
   }
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, DoubleBlock vBlock) {
     if (vBlock.mayHaveNulls()) {
+      /*
+       * Some values in the block are null so some group ids may not
+       * be seen. We need to track which ones so we can initialize
+       * them to null when we read their values.
+       */
       state.enableGroupIdTracking(seenGroupIds);
     }
   }
@@ -290,14 +326,24 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = PercentileDoubleAggregator.evaluateFinal(state, selected, ctx);
+    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = PercentileDoubleAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

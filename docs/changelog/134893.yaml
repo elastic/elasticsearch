@@ -1,5 +1,0 @@
-pr: 134893
-summary: Add trust configuration for cross cluster api keys
-area: Security
-type: enhancement
-issues: []

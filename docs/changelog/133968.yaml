@@ -1,5 +1,0 @@
-pr: 133968
-summary: Extend kibana-system permissions to manage security entities
-area: Infra/Core
-type: enhancement
-issues: []

@@ -12,31 +12,31 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Atan2}.
+ * {@link ExpressionEvaluator} implementation for {@link Atan2}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
+public final class Atan2Evaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Atan2Evaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator y;
+  private final ExpressionEvaluator y;
 
-  private final EvalOperator.ExpressionEvaluator x;
+  private final ExpressionEvaluator x;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public Atan2Evaluator(Source source, EvalOperator.ExpressionEvaluator y,
-      EvalOperator.ExpressionEvaluator x, DriverContext driverContext) {
+  public Atan2Evaluator(Source source, ExpressionEvaluator y, ExpressionEvaluator x,
+      DriverContext driverContext) {
     this.source = source;
     this.y = y;
     this.x = x;
@@ -71,27 +71,27 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
   public DoubleBlock eval(int positionCount, DoubleBlock yBlock, DoubleBlock xBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (yBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (yBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (yBlock.getValueCount(p) != 1) {
-          if (yBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        if (xBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (xBlock.getValueCount(p) != 1) {
-          if (xBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (xBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         double y = yBlock.getDouble(yBlock.getFirstValueIndex(p));
         double x = xBlock.getDouble(xBlock.getFirstValueIndex(p));
@@ -124,25 +124,19 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory y;
+    private final ExpressionEvaluator.Factory y;
 
-    private final EvalOperator.ExpressionEvaluator.Factory x;
+    private final ExpressionEvaluator.Factory x;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory y,
-        EvalOperator.ExpressionEvaluator.Factory x) {
+    public Factory(Source source, ExpressionEvaluator.Factory y, ExpressionEvaluator.Factory x) {
       this.source = source;
       this.y = y;
       this.x = x;

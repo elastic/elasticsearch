@@ -13,9 +13,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
@@ -399,6 +401,14 @@ public class ValuesSourceConfig {
     }
 
     /**
+     * Like {@link #roundingPreparer(AggregationContext)} but for use under a {@code global} agg,
+     * which ignores the top-level query.
+     */
+    public Function<Rounding, Rounding.Prepared> roundingPreparerForGlobal(AggregationContext context) throws IOException {
+        return valuesSource.roundingPreparerForGlobal(context);
+    }
+
+    /**
      * Check if this values source supports segment ordinals. Global ordinals might or might not be supported.
      * <p>
      * If this returns {@code true} then it is safe to cast it to {@link ValuesSource.Bytes.WithOrdinals}.
@@ -419,7 +429,7 @@ public class ValuesSourceConfig {
      */
     @Nullable
     public Function<byte[], Number> getPointReaderOrNull() {
-        return alignesWithSearchIndex() ? fieldType().pointReaderIfPossible() : null;
+        return alignsWithSearchIndex() ? fieldType().pointReaderIfPossible() : null;
     }
 
     /**
@@ -428,8 +438,16 @@ public class ValuesSourceConfig {
      * is searchable and there aren't missing values or a script to confuse
      * the ordering.
      */
-    public boolean alignesWithSearchIndex() {
-        return script() == null && missing() == null && fieldType() != null && fieldType().isIndexed();
+    public boolean alignsWithSearchIndex() {
+        var ft = fieldType();
+        // Text fields have doc values that don't align with the search index because the indexed form is tokenized (ex. "foo", "bar")
+        // while doc values store the raw string (ex. "foo bar")
+        boolean isTextField = ft instanceof TextFieldMapper.TextFieldType;
+        return script() == null
+            && missing() == null
+            && ft != null
+            && (ft instanceof ConstantFieldType || ft.indexType().supportsSortShortcuts())
+            && isTextField == false;
     }
 
     /**

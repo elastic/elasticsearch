@@ -11,11 +11,14 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundDenseEmbeddingRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchAccount;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsTaskSettings;
@@ -29,7 +32,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
-public class AlibabaCloudSearchEmbeddingsRequest extends AlibabaCloudSearchRequest {
+public class AlibabaCloudSearchEmbeddingsRequest extends AlibabaCloudSearchRequest implements OutboundDenseEmbeddingRequest {
 
     private final AlibabaCloudSearchAccount account;
     private final List<String> input;
@@ -41,6 +44,7 @@ public class AlibabaCloudSearchEmbeddingsRequest extends AlibabaCloudSearchReque
     private final String workspaceName;
     private final String httpSchema;
     private final String inferenceEntityId;
+    private final TaskType taskType;
 
     public AlibabaCloudSearchEmbeddingsRequest(
         AlibabaCloudSearchAccount account,
@@ -62,10 +66,11 @@ public class AlibabaCloudSearchEmbeddingsRequest extends AlibabaCloudSearchReque
             : "https";
         uri = buildUri(null, AlibabaCloudSearchUtils.SERVICE_NAME, this::buildDefaultUri);
         inferenceEntityId = embeddingsModel.getInferenceEntityId();
+        taskType = embeddingsModel.getTaskType();
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(uri);
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
@@ -76,7 +81,7 @@ public class AlibabaCloudSearchEmbeddingsRequest extends AlibabaCloudSearchReque
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
         httpPost.setHeader(createAuthBearerHeader(account.apiKey()));
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     @Override
@@ -90,13 +95,18 @@ public class AlibabaCloudSearchEmbeddingsRequest extends AlibabaCloudSearchReque
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         return this;
     }
 
     @Override
     public boolean[] getTruncationInfo() {
         return null;
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return taskType;
     }
 
     URI buildDefaultUri() throws URISyntaxException {

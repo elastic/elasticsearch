@@ -15,6 +15,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
@@ -29,12 +31,15 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+
 public class MockGcsBlobStore {
 
     private static final int RESUME_INCOMPLETE = 308;
     // we use skip-list map so we can do paging right
     private final ConcurrentMap<String, BlobVersion> blobs = new ConcurrentSkipListMap<>();
     private final ConcurrentMap<String, ResumableUpload> resumableUploads = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Rewrite> ongoingRewrites = new ConcurrentHashMap<>();
 
     record BlobVersion(String path, long generation, BytesReference contents) {}
 
@@ -215,8 +220,57 @@ public class MockGcsBlobStore {
 
     record UpdateResponse(int statusCode, HttpHeaderParser.Range rangeHeader, long storedContentLength) {}
 
-    void deleteBlob(String path) {
-        blobs.remove(path);
+    boolean deleteBlob(String path) {
+        return blobs.remove(path) != null;
+    }
+
+    record Rewrite(String srcPath, String dstPath, BytesReference srcContents, long totalBytesRewritten, long maxBytesRewrittenPerCall) {}
+
+    record RewriteResponse(long totalBytesRewritten, long objectSize, String rewriteToken, BlobVersion dstBlob) {}
+
+    RewriteResponse rewrite(String srcPath, String dstPath, final String rewriteToken, long maxBytesRewrittenPerCall) {
+        final AtomicReference<RewriteResponse> rewriteResponse = new AtomicReference<>();
+        boolean newRewrite = rewriteToken == null;
+        var newRewriteToken = newRewrite ? UUIDs.randomBase64UUID() : rewriteToken;
+        ongoingRewrites.compute(newRewriteToken, (token, rewrite) -> {
+            if (rewrite == null) {
+                if (!newRewrite) {
+                    throw failAndThrow("rewrite token not found");
+                } else if (maxBytesRewrittenPerCall % ByteSizeValue.of(1, ByteSizeUnit.MB).getBytes() != 0) {
+                    throw failAndThrow("maxBytesRewrittenPerCall must be an integral multiple of 1 MiB (1048576)");
+                }
+                BlobVersion srcBlob = getBlob(srcPath, null, null);
+                rewrite = new Rewrite(srcPath, dstPath, srcBlob.contents, 0, maxBytesRewrittenPerCall);
+            } else {
+                if (!srcPath.equals(rewrite.srcPath)
+                    || !dstPath.equals(rewrite.dstPath)
+                    || maxBytesRewrittenPerCall != rewrite.maxBytesRewrittenPerCall) {
+                    throw failAndThrow("rewrite parameters mismatch");
+                }
+                if (rewrite.totalBytesRewritten == rewrite.srcContents.length()) {
+                    throw failAndThrow("rewrite already completed");
+                }
+            }
+            long objectSize = rewrite.srcContents.length();
+            long bytesRewritten = randomLongBetween(1, maxBytesRewrittenPerCall);
+            long totalBytesRewritten = Math.min(rewrite.totalBytesRewritten + bytesRewritten, objectSize);
+            boolean done = totalBytesRewritten == objectSize;
+            rewriteResponse.set(
+                new RewriteResponse(
+                    totalBytesRewritten,
+                    objectSize,
+                    done ? null : newRewriteToken,
+                    done ? updateBlob(dstPath, null, rewrite.srcContents) : null
+                )
+            );
+            // Save entry if not done or previously was saved with rewrite token
+            return newRewrite && done
+                ? null
+                : new Rewrite(rewrite.srcPath, rewrite.dstPath, rewrite.srcContents, totalBytesRewritten, maxBytesRewrittenPerCall);
+        });
+        RewriteResponse response = rewriteResponse.get();
+        assert response != null : "rewrite must always produce a response";
+        return response;
     }
 
     private String stripPrefixIfPresent(@Nullable String prefix, String toStrip) {

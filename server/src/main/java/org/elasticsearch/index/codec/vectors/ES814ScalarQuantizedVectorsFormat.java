@@ -9,16 +9,15 @@
 
 package org.elasticsearch.index.codec.vectors;
 
-import org.apache.lucene.codecs.hnsw.DefaultFlatVectorScorer;
+import org.apache.lucene.backward_codecs.lucene99.Lucene99ScalarQuantizedVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
+import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.hnsw.ScalarQuantizedVectorScorer;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
-import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsReader;
-import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsWriter;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
@@ -40,7 +39,6 @@ import org.elasticsearch.simdvec.VectorSimilarityType;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsFormat.DYNAMIC_CONFIDENCE_INTERVAL;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 
 public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
@@ -48,10 +46,12 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     static final String NAME = "ES814ScalarQuantizedVectorsFormat";
     private static final int ALLOWED_BITS = (1 << 8) | (1 << 7) | (1 << 4);
 
-    private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(DefaultFlatVectorScorer.INSTANCE);
+    private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(
+        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
+    );
 
     static final FlatVectorsScorer flatVectorScorer = new ESFlatVectorsScorer(
-        new ScalarQuantizedVectorScorer(DefaultFlatVectorScorer.INSTANCE)
+        new ScalarQuantizedVectorScorer(FlatVectorScorerUtil.getLucene99FlatVectorsScorer())
     );
 
     /** The minimum confidence interval */
@@ -59,6 +59,9 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
     /** The maximum confidence interval */
     private static final float MAXIMUM_CONFIDENCE_INTERVAL = 1f;
+
+    /** Dynamic confidence interval */
+    public static final float DYNAMIC_CONFIDENCE_INTERVAL = 0f;
 
     /**
      * Controls the confidence interval used to scalar quantize the vectors the default value is
@@ -125,12 +128,14 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
+        FlatVectorsReader rawDelegate = rawVectorFormat.fieldsReader(state);
         return new ES814ScalarQuantizedVectorsReader(
-            new Lucene99ScalarQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), flatVectorScorer)
+            new Lucene99ScalarQuantizedVectorsReader(state, rawDelegate, flatVectorScorer),
+            rawDelegate
         );
     }
 
-    static final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
+    public static final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
 
         final Lucene99ScalarQuantizedVectorsWriter delegate;
 
@@ -178,10 +183,12 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     static final class ES814ScalarQuantizedVectorsReader extends FlatVectorsReader implements QuantizedVectorsReader {
 
         final Lucene99ScalarQuantizedVectorsReader delegate;
+        final FlatVectorsReader rawDelegate;
 
-        ES814ScalarQuantizedVectorsReader(Lucene99ScalarQuantizedVectorsReader delegate) {
+        ES814ScalarQuantizedVectorsReader(Lucene99ScalarQuantizedVectorsReader delegate, FlatVectorsReader rawDelegate) {
             super(delegate.getFlatVectorScorer());
             this.delegate = delegate;
+            this.rawDelegate = rawDelegate;
         }
 
         @Override
@@ -201,7 +208,13 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
         @Override
         public FloatVectorValues getFloatVectorValues(String field) throws IOException {
-            return delegate.getFloatVectorValues(field);
+            FloatVectorValues floatVectorValues = delegate.getFloatVectorValues(field);
+            if (floatVectorValues == null) {
+                return null;
+            }
+            // Its critical that we use this for later rescoring to ensure that the HasSlice, and byte size information relates to the
+            // raw vectors
+            return new QuantizedAndRawFloatVectorValues(floatVectorValues, rawDelegate.getFloatVectorValues(field));
         }
 
         @Override

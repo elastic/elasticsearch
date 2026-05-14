@@ -77,6 +77,12 @@ public class DesiredBalanceReconcilerMetricsIT extends ESIntegTestCase {
         assertThat(telemetryPlugin.getLongGaugeMeasurement(DesiredBalanceMetrics.TOTAL_SHARDS_METRIC_NAME), not(empty()));
         assertThat(telemetryPlugin.getLongGaugeMeasurement(DesiredBalanceMetrics.UNDESIRED_ALLOCATION_COUNT_METRIC_NAME), not(empty()));
         assertThat(telemetryPlugin.getDoubleGaugeMeasurement(DesiredBalanceMetrics.UNDESIRED_ALLOCATION_RATIO_METRIC_NAME), not(empty()));
+        assertThat(telemetryPlugin.getLongAsyncCounterMeasurement(DesiredBalanceMetrics.COMPUTATIONS_SUBMITTED_METRIC_NAME), not(empty()));
+        assertThat(telemetryPlugin.getLongAsyncCounterMeasurement(DesiredBalanceMetrics.COMPUTATIONS_EXECUTED_METRIC_NAME), not(empty()));
+        assertThat(telemetryPlugin.getLongAsyncCounterMeasurement(DesiredBalanceMetrics.COMPUTATIONS_CONVERGED_METRIC_NAME), not(empty()));
+        assertThat(telemetryPlugin.getLongAsyncCounterMeasurement(DesiredBalanceMetrics.COMPUTATIONS_ITERATIONS_METRIC_NAME), not(empty()));
+        assertThat(telemetryPlugin.getLongAsyncCounterMeasurement(DesiredBalanceMetrics.COMPUTATIONS_TIME_METRIC_NAME), not(empty()));
+        assertThat(telemetryPlugin.getLongAsyncCounterMeasurement(DesiredBalanceMetrics.RECONCILIATIONS_TIME_METRIC_NAME), not(empty()));
 
         var nodeIds = internalCluster().clusterService().state().nodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
         var nodeNames = internalCluster().clusterService().state().nodes().stream().map(DiscoveryNode::getName).collect(Collectors.toSet());
@@ -192,6 +198,12 @@ public class DesiredBalanceReconcilerMetricsIT extends ESIntegTestCase {
         assertThat(testTelemetryPlugin.getLongGaugeMeasurement(DesiredBalanceMetrics.TOTAL_SHARDS_METRIC_NAME), matcher);
         assertThat(testTelemetryPlugin.getLongGaugeMeasurement(DesiredBalanceMetrics.UNDESIRED_ALLOCATION_COUNT_METRIC_NAME), matcher);
         assertThat(testTelemetryPlugin.getDoubleGaugeMeasurement(DesiredBalanceMetrics.UNDESIRED_ALLOCATION_RATIO_METRIC_NAME), matcher);
+        assertThat(testTelemetryPlugin.getLongAsyncCounterMeasurement(DesiredBalanceMetrics.COMPUTATIONS_SUBMITTED_METRIC_NAME), matcher);
+        assertThat(testTelemetryPlugin.getLongAsyncCounterMeasurement(DesiredBalanceMetrics.COMPUTATIONS_EXECUTED_METRIC_NAME), matcher);
+        assertThat(testTelemetryPlugin.getLongAsyncCounterMeasurement(DesiredBalanceMetrics.COMPUTATIONS_CONVERGED_METRIC_NAME), matcher);
+        assertThat(testTelemetryPlugin.getLongAsyncCounterMeasurement(DesiredBalanceMetrics.COMPUTATIONS_ITERATIONS_METRIC_NAME), matcher);
+        assertThat(testTelemetryPlugin.getLongAsyncCounterMeasurement(DesiredBalanceMetrics.COMPUTATIONS_TIME_METRIC_NAME), matcher);
+        assertThat(testTelemetryPlugin.getLongAsyncCounterMeasurement(DesiredBalanceMetrics.RECONCILIATIONS_TIME_METRIC_NAME), matcher);
         assertThat(testTelemetryPlugin.getDoubleGaugeMeasurement(DesiredBalanceMetrics.DESIRED_BALANCE_NODE_WEIGHT_METRIC_NAME), matcher);
         assertThat(
             testTelemetryPlugin.getDoubleGaugeMeasurement(DesiredBalanceMetrics.DESIRED_BALANCE_NODE_WRITE_LOAD_METRIC_NAME),

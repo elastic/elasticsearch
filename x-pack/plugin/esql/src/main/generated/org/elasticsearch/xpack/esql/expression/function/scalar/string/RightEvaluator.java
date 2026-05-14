@@ -17,17 +17,17 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Right}.
+ * {@link ExpressionEvaluator} implementation for {@link Right}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class RightEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class RightEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RightEvaluator.class);
 
   private final Source source;
@@ -36,17 +36,16 @@ public final class RightEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private final UnicodeUtil.UTF8CodePoint cp;
 
-  private final EvalOperator.ExpressionEvaluator str;
+  private final ExpressionEvaluator str;
 
-  private final EvalOperator.ExpressionEvaluator length;
+  private final ExpressionEvaluator length;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public RightEvaluator(Source source, BytesRef out, UnicodeUtil.UTF8CodePoint cp,
-      EvalOperator.ExpressionEvaluator str, EvalOperator.ExpressionEvaluator length,
-      DriverContext driverContext) {
+      ExpressionEvaluator str, ExpressionEvaluator length, DriverContext driverContext) {
     this.source = source;
     this.out = out;
     this.cp = cp;
@@ -84,27 +83,27 @@ public final class RightEvaluator implements EvalOperator.ExpressionEvaluator {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (strBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (strBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (strBlock.getValueCount(p) != 1) {
-          if (strBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        if (lengthBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (lengthBlock.getValueCount(p) != 1) {
-          if (lengthBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (lengthBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
         int length = lengthBlock.getInt(lengthBlock.getFirstValueIndex(p));
@@ -138,31 +137,25 @@ public final class RightEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
     private final Function<DriverContext, BytesRef> out;
 
     private final Function<DriverContext, UnicodeUtil.UTF8CodePoint> cp;
 
-    private final EvalOperator.ExpressionEvaluator.Factory str;
+    private final ExpressionEvaluator.Factory str;
 
-    private final EvalOperator.ExpressionEvaluator.Factory length;
+    private final ExpressionEvaluator.Factory length;
 
     public Factory(Source source, Function<DriverContext, BytesRef> out,
-        Function<DriverContext, UnicodeUtil.UTF8CodePoint> cp,
-        EvalOperator.ExpressionEvaluator.Factory str,
-        EvalOperator.ExpressionEvaluator.Factory length) {
+        Function<DriverContext, UnicodeUtil.UTF8CodePoint> cp, ExpressionEvaluator.Factory str,
+        ExpressionEvaluator.Factory length) {
       this.source = source;
       this.out = out;
       this.cp = cp;

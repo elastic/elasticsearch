@@ -10,10 +10,10 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
+import org.elasticsearch.cluster.metadata.Template.NamedTemplateDecorator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -46,7 +46,7 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
     private static final ParseField MODIFIED_DATE_MILLIS = new ParseField("modified_date_millis");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<ComponentTemplate, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<ComponentTemplate, NamedTemplateDecorator> PARSER = new ConstructingObjectParser<>(
         "component_template",
         false,
         a -> new ComponentTemplate((Template) a[0], (Long) a[1], (Map<String, Object>) a[2], (Boolean) a[3], (Long) a[4], (Long) a[5])
@@ -80,7 +80,11 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
     }
 
     public static ComponentTemplate parse(XContentParser parser) {
-        return PARSER.apply(parser, null);
+        return PARSER.apply(parser, NamedTemplateDecorator.DEFAULT);
+    }
+
+    public static ComponentTemplate parse(XContentParser parser, String templateName, Template.TemplateDecorator decorator) {
+        return PARSER.apply(parser, new NamedTemplateDecorator(templateName, decorator));
     }
 
     public ComponentTemplate(Template template, @Nullable Long version, @Nullable Map<String, Object> metadata) {
@@ -111,11 +115,7 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
         } else {
             this.metadata = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            this.deprecated = in.readOptionalBoolean();
-        } else {
-            deprecated = null;
-        }
+        this.deprecated = in.readOptionalBoolean();
         if (in.getTransportVersion().supports(COMPONENT_TEMPLATE_TRACKING_INFO)) {
             this.createdDateMillis = in.readOptionalLong();
             this.modifiedDateMillis = in.readOptionalLong();
@@ -165,9 +165,7 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
             out.writeBoolean(true);
             out.writeGenericMap(this.metadata);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalBoolean(this.deprecated);
-        }
+        out.writeOptionalBoolean(this.deprecated);
         if (out.getTransportVersion().supports(COMPONENT_TEMPLATE_TRACKING_INFO)) {
             out.writeOptionalLong(this.createdDateMillis);
             out.writeOptionalLong(this.modifiedDateMillis);
@@ -188,12 +186,23 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
             return false;
         }
         ComponentTemplate other = (ComponentTemplate) obj;
+        return contentEquals(other)
+            && Objects.equals(createdDateMillis, other.createdDateMillis)
+            && Objects.equals(modifiedDateMillis, other.modifiedDateMillis);
+    }
+
+    /**
+     * Check whether the content of this component template is equal to another component template. Can be used to determine if a template
+     * already exists.
+     */
+    public boolean contentEquals(ComponentTemplate other) {
+        if (other == null) {
+            return false;
+        }
         return Objects.equals(template, other.template)
             && Objects.equals(version, other.version)
             && Objects.equals(metadata, other.metadata)
-            && Objects.equals(deprecated, other.deprecated)
-            && Objects.equals(createdDateMillis, other.createdDateMillis)
-            && Objects.equals(modifiedDateMillis, other.modifiedDateMillis);
+            && Objects.equals(deprecated, other.deprecated);
     }
 
     @Override

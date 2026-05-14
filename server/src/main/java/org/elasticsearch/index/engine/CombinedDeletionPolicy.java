@@ -29,7 +29,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.lucene.Lucene.additionalFileNames;
 
 /**
  * An {@link IndexDeletionPolicy} that coordinates between Lucene's commits and the retention of translog generation files,
@@ -130,7 +131,7 @@ public class CombinedDeletionPolicy extends ElasticsearchIndexDeletionPolicy {
         assert assertSafeCommitUnchanged(safeCommit);
         if (commitsListener != null) {
             if (newCommit != null) {
-                final Set<String> additionalFiles = listOfNewFileNames(previousLastCommit, newCommit);
+                final Set<String> additionalFiles = additionalFileNames(previousLastCommit, newCommit);
                 commitsListener.onNewAcquiredCommit(newCommit, additionalFiles);
             }
             if (deletedCommits != null) {
@@ -301,11 +302,6 @@ public class CombinedDeletionPolicy extends ElasticsearchIndexDeletionPolicy {
         // If an index was created before 6.2 or recovered from remote, we might not have a safe commit.
         // In this case, we return the oldest index commit instead.
         return 0;
-    }
-
-    private static Set<String> listOfNewFileNames(IndexCommit previous, IndexCommit current) throws IOException {
-        final Set<String> previousFiles = previous != null ? new HashSet<>(previous.getFileNames()) : Set.of();
-        return current.getFileNames().stream().filter(f -> previousFiles.contains(f) == false).collect(Collectors.toUnmodifiableSet());
     }
 
     /**

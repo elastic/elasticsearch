@@ -7,10 +7,17 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 
 import java.util.List;
@@ -28,17 +35,23 @@ import static org.elasticsearch.xpack.esql.core.expression.Attribute.dataTypeEqu
  */
 public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> {
 
+    // Are we verifying the global plan (coordinator) or a local plan (data node)?
+    protected final boolean isLocal;
+
+    protected PostOptimizationPhasePlanVerifier(boolean isLocal) {
+        this.isLocal = isLocal;
+    }
+
     /** Verifies the optimized plan */
-    public Failures verify(P optimizedPlan, boolean skipRemoteEnrichVerification, List<Attribute> expectedOutputAttributes) {
+    public Failures verify(P optimizedPlan, List<Attribute> expectedOutputAttributes) {
         Failures failures = new Failures();
         Failures depFailures = new Failures();
-        if (skipVerification(optimizedPlan, skipRemoteEnrichVerification)) {
-            return failures;
-        }
 
         checkPlanConsistency(optimizedPlan, failures, depFailures);
 
         verifyOutputNotChanged(optimizedPlan, expectedOutputAttributes, failures);
+
+        ConfigurationAware.verifyNoMarkerConfiguration(optimizedPlan, failures);
 
         if (depFailures.hasFailures()) {
             throw new IllegalStateException(depFailures.toString());
@@ -46,8 +59,6 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
 
         return failures;
     }
-
-    abstract boolean skipVerification(P optimizedPlan, boolean skipRemoteEnrichVerification);
 
     abstract void checkPlanConsistency(P optimizedPlan, Failures failures, Failures depFailures);
 
@@ -67,12 +78,37 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
                 .stream()
                 .anyMatch(x -> x.name().equals(ProjectAwayColumns.ALL_FIELDS_PROJECTED));
             // LookupJoinExec represents the lookup index with EsSourceExec and this is turned into EsQueryExec by
-            // ReplaceSourceAttributes. Because InsertFieldExtractions doesn't apply to lookup indices, the
+            // ReplaceSourceAttributes. Because InsertFieldExtraction doesn't apply to lookup indices, the
             // right hand side will only have the EsQueryExec providing the _doc attribute and nothing else.
             // We perform an optimizer run on every fragment. LookupJoinExec also contains such a fragment,
             // and currently it only contains an EsQueryExec after optimization.
             boolean hasLookupJoinExec = optimizedPlan instanceof EsQueryExec esQueryExec && esQueryExec.indexMode() == LOOKUP;
-            boolean ignoreError = hasProjectAwayColumns || hasLookupJoinExec;
+            // If we group on a text field when using the TS command, we create an Alias that wraps the text field
+            // in a Values aggregation. Aggregations will return Keywords as opposed to Text types, so we want to
+            // permit the output type changing here.
+            boolean hasTextGroupingInTimeSeries = optimizedPlan.anyMatch(
+                a -> a instanceof TimeSeriesAggregate ts
+                    && ts.aggregates().stream().anyMatch(g -> Alias.unwrap(g) instanceof Values v && v.field().dataType() == DataType.TEXT)
+            );
+            // TranslateTimeSeriesAggregate may add a _timeseries attribute into the projection.
+            boolean hasTimeSeriesReplacingTsId = optimizedPlan.output().stream().anyMatch(MetadataAttribute::isTimeSeriesAttribute)
+                && expectedOutputAttributes.stream().noneMatch(MetadataAttribute::isTimeSeriesAttribute);
+            // Query approximation can add columns to the output with the confidence intervals.
+            boolean hasQueryApproximationAddingColumns = optimizedPlan.output().size() > expectedOutputAttributes.size()
+                && dataTypeEquals(expectedOutputAttributes, optimizedPlan.output().subList(0, expectedOutputAttributes.size()))
+                && optimizedPlan.output()
+                    .subList(expectedOutputAttributes.size(), optimizedPlan.output().size())
+                    .stream()
+                    .allMatch(
+                        a -> a.name().startsWith(ApproximationPlan.CONFIDENCE_INTERVAL_COLUMN_PREFIX)
+                            || a.name().startsWith(ApproximationPlan.CERTIFIED_COLUMN_PREFIX)
+                    );
+
+            boolean ignoreError = hasProjectAwayColumns
+                || hasLookupJoinExec
+                || hasTextGroupingInTimeSeries
+                || hasTimeSeriesReplacingTsId
+                || hasQueryApproximationAddingColumns;
             if (ignoreError == false) {
                 failures.add(
                     fail(

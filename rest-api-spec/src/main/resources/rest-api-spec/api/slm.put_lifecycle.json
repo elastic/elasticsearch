@@ -38,11 +38,13 @@
       },
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Explicit operation timeout"
       }
     },
     "body": {
-      "description": "The snapshot lifecycle policy definition to register"
+      "description": "The snapshot lifecycle policy definition to register",
+      "required": true
     }
   }
 }

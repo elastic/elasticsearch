@@ -7,25 +7,39 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -39,14 +53,14 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), DataStreamsPlugin.class);
+        return CollectionUtils.concatLists(List.of(MapperExtrasPlugin.class, DataStreamsPlugin.class), super.nodePlugins());
     }
 
     public void testResolvesConcreteIndex() {
         assertAcked(client().admin().indices().prepareCreate("index-1"));
         indexRandom(true, "index-1", 1);
 
-        try (var response = run(syncEsqlQueryRequest().query("FROM index-1"))) {
+        try (var response = run(syncEsqlQueryRequest("FROM index-1"))) {
             assertOk(response);
         }
     }
@@ -56,7 +70,7 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         indexRandom(true, "index-1", 1);
         assertAcked(client().admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("index-1", "alias-1"));
 
-        try (var response = run(syncEsqlQueryRequest().query("FROM alias-1"))) {
+        try (var response = run(syncEsqlQueryRequest("FROM alias-1"))) {
             assertOk(response);
         }
     }
@@ -68,6 +82,10 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
                 new TransportPutComposableIndexTemplateAction.Request("data-stream-1-template").indexTemplate(
                     ComposableIndexTemplate.builder()
                         .indexPatterns(List.of("data-stream-1*"))
+                        .template(
+                            Template.builder()
+                                .dataStreamOptions(new DataStreamOptions.Template(new DataStreamFailureStore.Template(true, null)))
+                        )
                         .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                         .build()
                 )
@@ -80,8 +98,45 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
             )
         );
 
-        try (var response = run(syncEsqlQueryRequest().query("FROM data-stream-1"))) {
+        client().bulk(
+            new BulkRequest() // create a valid and invalid document to initialize failure store
+                .add(prepareIndex("data-stream-1").setOpType(OpType.CREATE).setSource("@timestamp", 1).request())
+                .add(prepareIndex("data-stream-1").setOpType(OpType.CREATE).setSource("@timestamp", "invalid").request())
+        ).actionGet();
+
+        try (var response = run(syncEsqlQueryRequest("FROM data-stream-1"))) {
             assertOk(response);
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM data-stream-1::data"))) {
+            assertOk(response);
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM data-stream-1::failures"))) {
+            assertOk(response);
+        }
+        expectThrows(
+            org.elasticsearch.xpack.esql.parser.ParsingException.class,
+            containsString("Invalid index name [data-stream-1::fake]"),
+            () -> run(syncEsqlQueryRequest("FROM data-stream-1::fake"))
+        );
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index [no-such-data-stream::data]"),
+            () -> run(syncEsqlQueryRequest("FROM no-such-data-stream::data"))
+        );
+    }
+
+    public void testResolvesDateMath() {
+        var date = LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC);
+        var index = DateTimeFormatter.ofPattern("'index-'yyyy.MM", Locale.ROOT).format(date);
+        assertAcked(client().admin().indices().prepareCreate(index));
+        indexRandom(true, index, 1);
+
+        try (var response = run(syncEsqlQueryRequest("FROM <index-{now/M{yyyy.MM}}> METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, index);
+        } catch (AssertionError e) {
+            assumeTrue("Date must stay the same during the test", Objects.equals(date, LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC)));
+            throw e;
         }
     }
 
@@ -91,24 +146,60 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("index-2"));
         indexRandom(true, "index-2", 1);
 
-        try (var response = run(syncEsqlQueryRequest().query("FROM index-*"))) {
+        try (var response = run(syncEsqlQueryRequest("FROM index-*"))) {
             assertOk(response);
         }
     }
 
-    public void testDoesNotResolveMissingIndex() {
+    public void testResolvesExclusionPattern() {
+        assertAcked(client().admin().indices().prepareCreate("index-1"));
+        indexRandom(true, "index-1", 1);
+        assertAcked(client().admin().indices().prepareCreate("index-2"));
+        indexRandom(true, "index-2", 1);
+
+        try (var response = run(syncEsqlQueryRequest("FROM index*,-index-2 METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, "index-1");// excludes concrete index from pattern
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM index*,-*2 METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, "index-1");// excludes pattern from pattern
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM index-*,-* METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response);// exclude all resolves to empty
+        }
+    }
+
+    public void testResolveEmptyPattern() {
+        assertAcked(client().admin().indices().prepareCreate("data"));
+        indexRandom(true, "data", 1);
+
+        try (var response = run(syncEsqlQueryRequest("FROM index-* METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response);
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM data,index-* METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, "data");
+        }
+    }
+
+    public void testDoesNotResolveUnknownIndex() {
         expectThrows(
             VerificationException.class,
             containsString("Unknown index [no-such-index]"),
-            () -> run(syncEsqlQueryRequest().query("FROM no-such-index"))
+            () -> run(syncEsqlQueryRequest("FROM no-such-index"))
         );
-    }
-
-    public void testDoesNotResolveEmptyPattern() {
         expectThrows(
             VerificationException.class,
-            containsString("Unknown index [index-*]"),
-            () -> run(syncEsqlQueryRequest().query("FROM index-*"))
+            containsString("Unknown index"),
+            () -> run(syncEsqlQueryRequest("FROM no-such-index-1,no-such-index-2"))
+        );
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index"),
+            () -> run(syncEsqlQueryRequest("FROM no-such-index,no-such-*"))
         );
     }
 
@@ -125,14 +216,14 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         expectThrows(
             ClusterBlockException.class,
             containsString("index [index-1] blocked by: [FORBIDDEN/4/index closed]"),
-            () -> run(syncEsqlQueryRequest().query("FROM index-1"))
+            () -> run(syncEsqlQueryRequest("FROM index-1"))
         );
         expectThrows(
             ClusterBlockException.class,
             containsString("index [index-1] blocked by: [FORBIDDEN/4/index closed]"),
-            () -> run(syncEsqlQueryRequest().query("FROM index-1,index-2"))
+            () -> run(syncEsqlQueryRequest("FROM index-1,index-2"))
         );
-        try (var response = run(syncEsqlQueryRequest().query("FROM index-* METADATA _index"))) {
+        try (var response = run(syncEsqlQueryRequest("FROM index-* METADATA _index"))) {
             assertOk(response);
             assertResultConcreteIndices(response, "index-2"); // only open index-2 matches
         }
@@ -149,15 +240,15 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         );
         indexRandom(true, ".hidden-index-1", 1);
 
-        try (var response = run(syncEsqlQueryRequest().query("FROM .hidden-index-1 METADATA _index"))) {
+        try (var response = run(syncEsqlQueryRequest("FROM .hidden-index-1 METADATA _index"))) {
             assertOk(response);
             assertResultConcreteIndices(response, ".hidden-index-1");
         }
-        try (var response = run(syncEsqlQueryRequest().query("FROM *-index-1 METADATA _index"))) {
+        try (var response = run(syncEsqlQueryRequest("FROM *-index-1 METADATA _index"))) {
             assertOk(response);
             assertResultConcreteIndices(response, "regular-index-1"); // only non-hidden index matches when specifying pattern
         }
-        try (var response = run(syncEsqlQueryRequest().query("FROM .hidden-* METADATA _index"))) {
+        try (var response = run(syncEsqlQueryRequest("FROM .hidden-* METADATA _index"))) {
             assertOk(response);
             assertResultConcreteIndices(response, ".hidden-index-1"); // hidden indices do match when specifying hidden/dot pattern
         }
@@ -177,38 +268,84 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         expectThrows(
             NoShardAvailableActionException.class,
             containsString("index [unavailable-index-1] has no active shard copy"),
-            () -> run(syncEsqlQueryRequest().query("FROM unavailable-index-1"))
+            () -> run(syncEsqlQueryRequest("FROM unavailable-index-1"))
         );
         expectThrows(
             NoShardAvailableActionException.class,
             containsString("index [unavailable-index-1] has no active shard copy"),
-            () -> run(syncEsqlQueryRequest().query("FROM unavailable-index-1,available-index-1"))
+            () -> run(syncEsqlQueryRequest("FROM unavailable-index-1,available-index-1"))
         );
         expectThrows(
             NoShardAvailableActionException.class,
             containsString("index [unavailable-index-1] has no active shard copy"),
-            () -> run(syncEsqlQueryRequest().query("FROM *-index-1"))
+            () -> run(syncEsqlQueryRequest("FROM *-index-1"))
+        );
+        expectThrows(
+            NoShardAvailableActionException.class,
+            containsString("index [unavailable-index-1] has no active shard copy"),
+            () -> run(syncEsqlQueryRequest("FROM unavailable-index-1").allowPartialResults(true))
         );
     }
 
     public void testPartialResolution() {
         assertAcked(client().admin().indices().prepareCreate("index-1"));
-        assertAcked(client().admin().indices().prepareCreate("index-2"));
-        indexRandom(true, "index-2", 10);
+        indexRandom(true, "index-1", 1);
 
-        try (var response = run(syncEsqlQueryRequest().query("FROM index-1,nonexisting-1"))) {
-            assertOk(response); // okay when present index is empty
-        }
         expectThrows(
             IndexNotFoundException.class,
             equalTo("no such index [nonexisting-1]"), // fails when present index is non-empty
-            () -> run(syncEsqlQueryRequest().query("FROM index-2,nonexisting-1"))
+            () -> run(syncEsqlQueryRequest("FROM index-1,nonexisting-1"))
+        );
+        expectThrows(
+            IndexNotFoundException.class,
+            equalTo("no such index [nonexisting-1]"), // fails when present index is non-empty even if allow_partial=true
+            () -> run(syncEsqlQueryRequest("FROM index-1,nonexisting-1").allowPartialResults(true))
         );
         expectThrows(
             IndexNotFoundException.class,
             equalTo("no such index [nonexisting-1]"), // only the first missing index is reported
-            () -> run(syncEsqlQueryRequest().query("FROM index-2,nonexisting-1,nonexisting-2"))
+            () -> run(syncEsqlQueryRequest("FROM index-1,nonexisting-1,nonexisting-2"))
         );
+
+        assertAcked(client().admin().indices().prepareCreate("index-2").setMapping("field", "type=keyword"));
+        expectThrows(
+            IndexNotFoundException.class,
+            equalTo("no such index [nonexisting-1]"), // fails when present index has no documents and non-empty mapping
+            () -> run(syncEsqlQueryRequest("FROM index-2,nonexisting-1"))
+        );
+
+        assertAcked(client().admin().indices().prepareCreate("index-3"));
+        try (var response = run(syncEsqlQueryRequest("FROM index-3,nonexisting-1"))) {
+            assertOk(response); // passes when the present index has no fields and no documents
+        }
+    }
+
+    public void testResolutionWithFilter() {
+        assertAcked(client().admin().indices().prepareCreate("data"));
+        indexRandom(true, "data", 1);
+
+        try (var response = run(syncEsqlQueryRequest("FROM data METADATA _index").filter(new MatchAllQueryBuilder()))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, "data");
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM data METADATA _index").filter(new MatchNoneQueryBuilder()))) {
+            assertOk(response);
+            assertResultConcreteIndices(response);
+        }
+    }
+
+    public void testSubqueryResolution() {
+        assumeTrue("Requires subqueries feature", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        assertAcked(client().admin().indices().prepareCreate("index-1"));
+        indexRandom(true, "index-1", 1);
+        assertAcked(client().admin().indices().prepareCreate("index-2"));
+        indexRandom(true, "index-2", 1);
+
+        try (var response = run(syncEsqlQueryRequest("FROM (FROM index-1 METADATA _index), (FROM index-2 METADATA _index)"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, "index-1", "index-2");
+        }
     }
 
     private static void assertOk(EsqlQueryResponse response) {

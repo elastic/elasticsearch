@@ -50,17 +50,7 @@ public class DenseVectorFieldIndexTypeUpdateIT extends ESIntegTestCase {
 
     @ParametersFactory
     public static Collection<Object[]> params() {
-        List<String> types = List.of(
-            "flat",
-            "int8_flat",
-            "int4_flat",
-            "bbq_flat",
-            "hnsw",
-            "int8_hnsw",
-            "int4_hnsw",
-            "bbq_hnsw",
-            "bbq_disk"
-        );
+        List<String> types = List.of("flat", "int8_flat", "int4_flat", "bbq_flat", "hnsw", "int8_hnsw", "int4_hnsw", "bbq_hnsw");
 
         // A type can be upgraded to types that follow in the list...
         List<Object[]> params = new java.util.ArrayList<>();

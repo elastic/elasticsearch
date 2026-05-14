@@ -37,17 +37,12 @@ public final class SampleDoubleGroupingAggregatorFunction implements GroupingAgg
 
   private final int limit;
 
-  public SampleDoubleGroupingAggregatorFunction(List<Integer> channels,
-      SampleDoubleAggregator.GroupingState state, DriverContext driverContext, int limit) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
+  SampleDoubleGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
+      int limit) {
     this.limit = limit;
-  }
-
-  public static SampleDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, int limit) {
-    return new SampleDoubleGroupingAggregatorFunction(channels, SampleDoubleAggregator.initGrouping(driverContext.bigArrays(), limit), driverContext, limit);
+    this.channels = channels;
+    this.state = SampleDoubleAggregator.initGrouping(driverContext.bigArrays(), limit);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -63,6 +58,15 @@ public final class SampleDoubleGroupingAggregatorFunction implements GroupingAgg
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     DoubleBlock valueBlock = page.getBlock(channels.get(0));
+    if (valueBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block. But we
+       * still need to track that some groups may not have been seen
+       * so that they are initialized to null when we read their values.
+       */
+      state.enableGroupIdTracking(seenGroupIds);
+      return null;
+    }
     DoubleVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, valueBlock);
@@ -154,10 +158,19 @@ public final class SampleDoubleGroupingAggregatorFunction implements GroupingAgg
     assert channels.size() == intermediateBlockCount();
     Block sampleUncast = page.getBlock(channels.get(0));
     if (sampleUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BytesRefBlock sample = (BytesRefBlock) sampleUncast;
-    BytesRef scratch = new BytesRef();
+    BytesRef sampleScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -217,10 +230,19 @@ public final class SampleDoubleGroupingAggregatorFunction implements GroupingAgg
     assert channels.size() == intermediateBlockCount();
     Block sampleUncast = page.getBlock(channels.get(0));
     if (sampleUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BytesRefBlock sample = (BytesRefBlock) sampleUncast;
-    BytesRef scratch = new BytesRef();
+    BytesRef sampleScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -266,10 +288,19 @@ public final class SampleDoubleGroupingAggregatorFunction implements GroupingAgg
     assert channels.size() == intermediateBlockCount();
     Block sampleUncast = page.getBlock(channels.get(0));
     if (sampleUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BytesRefBlock sample = (BytesRefBlock) sampleUncast;
-    BytesRef scratch = new BytesRef();
+    BytesRef sampleScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
@@ -279,6 +310,11 @@ public final class SampleDoubleGroupingAggregatorFunction implements GroupingAgg
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, DoubleBlock valueBlock) {
     if (valueBlock.mayHaveNulls()) {
+      /*
+       * Some values in the block are null so some group ids may not
+       * be seen. We need to track which ones so we can initialize
+       * them to null when we read their values.
+       */
       state.enableGroupIdTracking(seenGroupIds);
     }
   }
@@ -289,14 +325,24 @@ public final class SampleDoubleGroupingAggregatorFunction implements GroupingAgg
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = SampleDoubleAggregator.evaluateFinal(state, selected, ctx);
+    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = SampleDoubleAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

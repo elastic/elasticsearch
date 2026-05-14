@@ -11,34 +11,41 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
+import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.inference.model.TestModel;
 
-import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
+import java.util.concurrent.Executor;
 
 public class MockInferenceClient extends NoOpClient {
     private final Map<String, MinimalServiceSettings> inferenceEndpoints;
+    private final MockInferenceGenerator inferenceGenerator;
+    private final Map<String, MockInferenceRemoteClusterClient> remoteClusterClients;
 
-    protected MockInferenceClient(ThreadPool threadPool, Map<String, MinimalServiceSettings> inferenceEndpoints) {
+    public MockInferenceClient(
+        ThreadPool threadPool,
+        Map<String, MinimalServiceSettings> inferenceEndpoints,
+        Map<String, MockInferenceRemoteClusterClient.RemoteClusterConfig> remoteClusterConfigs
+    ) {
         super(threadPool);
         this.inferenceEndpoints = inferenceEndpoints;
+        this.inferenceGenerator = new MockInferenceGenerator(inferenceEndpoints);
+        this.remoteClusterClients = generateRemoteClusterClients(remoteClusterConfigs);
     }
 
     @Override
@@ -47,35 +54,83 @@ public class MockInferenceClient extends NoOpClient {
         Request request,
         ActionListener<Response> listener
     ) {
-        if (action instanceof InferenceAction && request instanceof InferenceAction.Request inferenceRequest) {
+        if (action instanceof GetInferenceModelAction && request instanceof GetInferenceModelAction.Request getModelRequest) {
+            @SuppressWarnings("unchecked")
+            ActionListener<GetInferenceModelAction.Response> getModelListener = (ActionListener<GetInferenceModelAction.Response>) listener;
+            String inferenceId = getModelRequest.getInferenceEntityId();
+            MinimalServiceSettings settings = inferenceEndpoints.get(inferenceId);
+            if (settings == null) {
+                getModelListener.onFailure(new IllegalArgumentException("Inference endpoint [" + inferenceId + "] does not exist"));
+            } else {
+                ModelConfigurations modelConfig = new ModelConfigurations(
+                    inferenceId,
+                    settings.taskType(),
+                    "mock-service",
+                    new TestModel.TestServiceSettings("mock", settings.dimensions(), settings.similarity(), settings.elementType())
+                );
+                getModelListener.onResponse(new GetInferenceModelAction.Response(List.of(modelConfig)));
+            }
+        } else if (action instanceof EmbeddingAction && request instanceof EmbeddingAction.Request embeddingRequest) {
             @SuppressWarnings("unchecked")
             ActionListener<InferenceAction.Response> inferenceListener = (ActionListener<InferenceAction.Response>) listener;
-
-            String inferenceId = inferenceRequest.getInferenceEntityId();
-            String input = inferenceRequest.getInput().getFirst();
-            try {
-                InferenceServiceResults inferenceServiceResults;
-                InferenceResults inferenceResults = generateInferenceResults(inferenceId, input);
-                if (inferenceResults instanceof TextExpansionResults textExpansionResults) {
-                    inferenceServiceResults = SparseEmbeddingResults.of(List.of(textExpansionResults));
-                } else if (inferenceResults instanceof MlTextEmbeddingResults mlTextEmbeddingResults) {
-                    inferenceServiceResults = TextEmbeddingFloatResults.of(List.of(mlTextEmbeddingResults));
-                } else {
-                    throw new IllegalStateException("Unexpected inference results type [" + inferenceResults.getWriteableName() + "]");
-                }
-
-                inferenceListener.onResponse(new InferenceAction.Response(inferenceServiceResults));
-            } catch (Exception e) {
-                inferenceListener.onFailure(e);
+            String inferenceId = embeddingRequest.getInferenceEntityId();
+            MinimalServiceSettings settings = inferenceEndpoints.get(inferenceId);
+            if (settings != null && settings.taskType().isAnyOrSame(TaskType.EMBEDDING) == false) {
+                inferenceListener.onFailure(
+                    new IllegalArgumentException(
+                        "Inference endpoint ["
+                            + inferenceId
+                            + "] with task type ["
+                            + settings.taskType()
+                            + "] does not support EmbeddingAction; expected task type [embedding]"
+                    )
+                );
+                return;
             }
+            var firstInput = embeddingRequest.getEmbeddingRequest().inputs().getFirst().value();
+            // Use the string representation of the value as the mock input key, regardless of input type
+            String input = firstInput.isText() ? firstInput.value() : firstInput.dataType() + ":" + firstInput.value();
+            executeInferenceAction(inferenceId, input, inferenceListener);
+        } else if (action instanceof InferenceAction && request instanceof InferenceAction.Request inferenceRequest) {
+            @SuppressWarnings("unchecked")
+            ActionListener<InferenceAction.Response> inferenceListener = (ActionListener<InferenceAction.Response>) listener;
+            String inferenceId = inferenceRequest.getInferenceEntityId();
+            MinimalServiceSettings settings = inferenceEndpoints.get(inferenceId);
+            if (settings != null && settings.taskType() != TaskType.SPARSE_EMBEDDING && settings.taskType() != TaskType.TEXT_EMBEDDING) {
+                inferenceListener.onFailure(
+                    new IllegalArgumentException(
+                        "Inference endpoint ["
+                            + inferenceId
+                            + "] with task type ["
+                            + settings.taskType()
+                            + "] does not support InferenceAction; expected task type [sparse_embedding] or [text_embedding]"
+                    )
+                );
+                return;
+            }
+            executeInferenceAction(inferenceId, inferenceRequest.getInput().getFirst(), inferenceListener);
         } else if (action instanceof CoordinatedInferenceAction && request instanceof CoordinatedInferenceAction.Request inferenceRequest) {
             @SuppressWarnings("unchecked")
             ActionListener<InferModelAction.Response> inferenceListener = (ActionListener<InferModelAction.Response>) listener;
 
             String inferenceId = inferenceRequest.getModelId();
+            MinimalServiceSettings settings = inferenceEndpoints.get(inferenceId);
+            if (settings != null && settings.taskType() != TaskType.TEXT_EMBEDDING && settings.taskType() != TaskType.SPARSE_EMBEDDING) {
+                inferenceListener.onFailure(
+                    new IllegalArgumentException(
+                        "Inference endpoint ["
+                            + inferenceId
+                            + "] with task type ["
+                            + settings.taskType()
+                            + "] does not support CoordinatedInferenceAction; expected task type [text_embedding] or [sparse_embedding]"
+                    )
+                );
+                return;
+            }
             String input = inferenceRequest.getInputs().getFirst();
+
             try {
-                InferenceResults inferenceResults = generateInferenceResults(inferenceId, input);
+                InferenceResults inferenceResults = inferenceGenerator.generate(inferenceId, input);
                 inferenceListener.onResponse(new InferModelAction.Response(List.of(inferenceResults), inferenceId, true));
             } catch (Exception e) {
                 inferenceListener.onFailure(e);
@@ -85,47 +140,37 @@ public class MockInferenceClient extends NoOpClient {
         }
     }
 
-    private InferenceResults generateInferenceResults(String inferenceId, String input) {
-        MinimalServiceSettings inferenceEndpointSettings = inferenceEndpoints.get(inferenceId);
-
-        InferenceResults inferenceResults;
-        if (inferenceEndpointSettings == null) {
-            throw new IllegalArgumentException("Inference endpoint [" + inferenceId + "] does not exist");
-        } else if (inferenceEndpointSettings.taskType() == TaskType.SPARSE_EMBEDDING) {
-            inferenceResults = generateTextExpansionResults(input);
-        } else if (inferenceEndpointSettings.taskType() == TaskType.TEXT_EMBEDDING) {
-            inferenceResults = generateTextEmbeddingResults(inferenceEndpointSettings);
-        } else {
-            throw new IllegalArgumentException(
-                "Invalid task type [" + inferenceEndpointSettings.taskType() + "] for inference endpoint [" + inferenceId + "]"
-            );
+    @Override
+    public RemoteClusterClient getRemoteClusterClient(
+        String clusterAlias,
+        Executor responseExecutor,
+        RemoteClusterService.DisconnectedStrategy disconnectedStrategy
+    ) {
+        RemoteClusterClient remoteClusterClient = remoteClusterClients.get(clusterAlias);
+        if (remoteClusterClient == null) {
+            throw new NoSuchRemoteClusterException(clusterAlias);
         }
 
-        return inferenceResults;
+        return remoteClusterClient;
     }
 
-    /**
-     * Generate text expansion results. Use a static token weight so that the results are deterministic for the same query.
-     */
-    private static InferenceResults generateTextExpansionResults(String input) {
-        List<WeightedToken> weightedTokens = Arrays.stream(input.split("\\s+")).map(token -> new WeightedToken(token, 1.0f)).toList();
-        return new TextExpansionResults(DEFAULT_RESULTS_FIELD, weightedTokens, false);
-    }
-
-    /**
-     * Generate text embedding results. Use static embedding values so that the results are deterministic for the same dimension count.
-     */
-    private static InferenceResults generateTextEmbeddingResults(MinimalServiceSettings settings) {
-        assert settings.dimensions() != null && settings.elementType() != null;
-
-        int embeddingSize = settings.dimensions();
-        if (settings.elementType() == DenseVectorFieldMapper.ElementType.BIT) {
-            embeddingSize /= 8;
+    private void executeInferenceAction(String inferenceId, String input, ActionListener<InferenceAction.Response> listener) {
+        try {
+            listener.onResponse(new InferenceAction.Response(inferenceGenerator.generateServiceResults(inferenceId, input)));
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
+    }
 
-        double[] embedding = new double[embeddingSize];
-        Arrays.fill(embedding, Byte.MIN_VALUE);  // Always use a byte value so that the embedding is valid regardless of the element type
+    private static Map<String, MockInferenceRemoteClusterClient> generateRemoteClusterClients(
+        Map<String, MockInferenceRemoteClusterClient.RemoteClusterConfig> remoteClusterConfigs
+    ) {
+        Map<String, MockInferenceRemoteClusterClient> remoteClusterClients = new HashMap<>();
+        remoteClusterConfigs.forEach((clusterAlias, remoteClusterConfig) -> {
+            MockInferenceRemoteClusterClient remoteClusterClient = new MockInferenceRemoteClusterClient(remoteClusterConfig);
+            remoteClusterClients.put(clusterAlias, remoteClusterClient);
+        });
 
-        return new MlTextEmbeddingResults(DEFAULT_RESULTS_FIELD, embedding, false);
+        return remoteClusterClients;
     }
 }

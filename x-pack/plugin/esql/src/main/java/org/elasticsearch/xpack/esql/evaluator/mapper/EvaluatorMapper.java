@@ -7,13 +7,15 @@
 
 package org.elasticsearch.xpack.esql.evaluator.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
@@ -23,8 +25,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.Layout;
-
-import java.util.List;
 
 import static org.elasticsearch.compute.data.BlockUtils.fromArrayRow;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
@@ -38,8 +38,17 @@ public interface EvaluatorMapper {
 
         FoldContext foldCtx();
 
-        default List<EsPhysicalOperationProviders.ShardContext> shardContexts() {
+        default IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts() {
             throw new UnsupportedOperationException("Shard contexts should only be needed for evaluation operations");
+        }
+
+        /**
+         * Returns the {@link Analyzer} registered (prebuilt or plugin-contributed) under the given name.
+         * Implementations that have access to an analysis registry resolve the name; the default
+         * throws because no registry is available (e.g. during folding or in tests).
+         */
+        default Analyzer getAnalyzer(String name) {
+            throw new UnsupportedOperationException("Analyzer lookup is not available in this evaluator context");
         }
     }
 
@@ -149,7 +158,7 @@ public interface EvaluatorMapper {
                 throw new UnsupportedOperationException();
             }
         }, CircuitBreaker.REQUEST).withCircuitBreaking();
-        DriverContext driverCtx = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
+        DriverContext driverCtx = new DriverContext(bigArrays, BlockFactory.builder(bigArrays).breaker(breaker).build(), null);
 
         /*
          * Finally we can call toEvaluator on ourselves! It'll fold our children,

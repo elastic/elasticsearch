@@ -16,19 +16,20 @@ public class NodeDecisionsWireSerializationTests extends AbstractWireSerializing
 
     @Override
     protected NodeDecisions mutateInstance(NodeDecisions instance) throws IOException {
-        if (randomBoolean()) {
-            return new NodeDecisions(
-                randomValueOtherThan(instance.canAllocateDecisions(), () -> randomNodeDecisions()),
-                instance.canRemainDecision()
+        List<NodeDecision> canAllocateDecisions = instance.canAllocateDecisions();
+        NodeDecision canRemainDecision = instance.canRemainDecision();
+        switch (between(0, 1)) {
+            case 0 -> canAllocateDecisions = randomValueOtherThan(
+                canAllocateDecisions,
+                NodeDecisionsWireSerializationTests::randomNodeDecisions
             );
-        } else if (randomBoolean()) {
-            return new NodeDecisions(
-                instance.canAllocateDecisions(),
-                randomValueOtherThan(instance.canRemainDecision(), () -> NodeDecisionTestUtils.randomNodeDecision())
+            case 1 -> canRemainDecision = randomValueOtherThan(
+                canRemainDecision,
+                () -> randomBoolean() ? NodeDecisionTestUtils.randomNodeDecision() : null
             );
-        } else {
-            return randomValueOtherThan(instance, this::createTestInstance);
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
+        return new NodeDecisions(canAllocateDecisions, canRemainDecision);
     }
 
     @Override

@@ -18,6 +18,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 public class BulkPutRolesRequest extends LegacyActionRequest {
 
     private List<RoleDescriptor> roles;
@@ -34,8 +36,11 @@ public class BulkPutRolesRequest extends LegacyActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        // Handle validation where put role is handled to produce partial success if validation fails
-        return null;
+        ActionRequestValidationException validationException = null;
+        if (roles.isEmpty()) {
+            validationException = addValidationError("roles cannot be empty", validationException);
+        }
+        return validationException;
     }
 
     public List<RoleDescriptor> getRoles() {

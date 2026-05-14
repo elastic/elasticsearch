@@ -13,13 +13,14 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 import java.io.Closeable;
 
 public interface Sender extends Closeable {
-    void start();
-
+    /**
+     * Send the inference request to the inference service.
+     */
     void send(
         RequestManager requestCreator,
         InferenceInputs inferenceInputs,
@@ -27,9 +28,14 @@ public interface Sender extends Closeable {
         ActionListener<InferenceServiceResults> listener
     );
 
+    /**
+     * Send the inference request to the inference service without queuing.
+     * This should only be used for infrequent requests that should not be queued
+     * (e.g. {@link org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceAuthorizationRequest})
+     */
     void sendWithoutQueuing(
         Logger logger,
-        Request request,
+        OutboundRequest outboundRequest,
         ResponseHandler responseHandler,
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener

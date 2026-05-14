@@ -15,8 +15,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
@@ -27,22 +27,19 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankingInferenceService;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.test.http.MockResponse;
-import org.elasticsearch.test.http.MockWebServer;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
-import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModelTests;
@@ -53,10 +50,9 @@ import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerank
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -64,19 +60,19 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
-import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
-import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
+import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -88,43 +84,30 @@ import static org.mockito.Mockito.when;
 
 public class VoyageAIServiceTests extends InferenceServiceTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
-    private final MockWebServer webServer = new MockWebServer();
-    private ThreadPool threadPool;
-    private HttpClientManager clientManager;
-
-    @Before
-    public void init() throws Exception {
-        webServer.start();
-        threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
-    }
-
-    @After
-    public void shutdown() throws IOException {
-        clientManager.close();
-        terminate(threadPool);
-        webServer.close();
-    }
+    private static final String INFERENCE_ENTITY_ID_VALUE = "id";
+    private static final String MODEL_ID_VALUE = "model_id";
+    private static final String API_KEY_VALUE = "secret";
+    private static final String URL_VALUE = "url";
 
     public void testParseRequestConfig_CreatesAVoyageAIEmbeddingsModel() throws IOException {
-        try (var service = createVoyageAIService()) {
+        try (var service = createInferenceService()) {
             ActionListener<Model> modelListener = ActionListener.wrap(model -> {
                 MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
                 var embeddingsModel = (VoyageAIEmbeddingsModel) model;
                 MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
                 MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null)));
-                MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+                MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("Model parsing should have succeeded " + e.getMessage()));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ENTITY_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
+                    VoyageAIEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model"),
                     VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.INGEST),
-                    getSecretSettingsMap("secret")
+                    getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelListener
             );
@@ -132,27 +115,27 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_CreatesAVoyageAIEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
-        try (var service = createVoyageAIService()) {
+        try (var service = createInferenceService()) {
             ActionListener<Model> modelListener = ActionListener.wrap(model -> {
                 MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
                 var embeddingsModel = (VoyageAIEmbeddingsModel) model;
                 MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
                 MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null)));
                 MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-                MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+                MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("Model parsing should have succeeded " + e.getMessage()));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ENTITY_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
+                    VoyageAIEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model"),
                     VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.INGEST),
                     createRandomChunkingSettingsMap(),
-                    getSecretSettingsMap("secret")
+                    getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelListener
             );
@@ -161,26 +144,26 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_CreatesAVoyageAIEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
-        try (var service = createVoyageAIService()) {
+        try (var service = createInferenceService()) {
             ActionListener<Model> modelListener = ActionListener.wrap(model -> {
                 MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
                 var embeddingsModel = (VoyageAIEmbeddingsModel) model;
                 MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
                 MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null)));
                 MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-                MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+                MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("Model parsing should have succeeded " + e.getMessage()));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ENTITY_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
+                    VoyageAIEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model"),
                     VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.INGEST),
-                    getSecretSettingsMap("secret")
+                    getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelListener
             );
@@ -189,22 +172,25 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_OptionalTaskSettings() throws IOException {
-        try (var service = createVoyageAIService()) {
+        try (var service = createInferenceService()) {
 
             ActionListener<Model> modelListener = ActionListener.wrap(model -> {
                 MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
                 var embeddingsModel = (VoyageAIEmbeddingsModel) model;
                 MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
                 MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), equalTo(VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS));
-                MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+                MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("Model parsing should have succeeded " + e.getMessage()));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ENTITY_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"), getSecretSettingsMap("secret")),
+                getRequestConfigMap(
+                    VoyageAIEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model"),
+                    getSecretSettingsMap(API_KEY_VALUE)
+                ),
                 modelListener
             );
 
@@ -212,19 +198,19 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_ThrowsUnsupportedTaskType() throws IOException {
-        try (var service = createVoyageAIService()) {
+        try (var service = createInferenceService()) {
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
                 "The [voyageai] service does not support task type [sparse_embedding]"
             );
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ENTITY_ID_VALUE,
                 TaskType.SPARSE_EMBEDDING,
                 getRequestConfigMap(
-                    VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
+                    VoyageAIEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model"),
                     VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty(),
-                    getSecretSettingsMap("secret")
+                    getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 failureListener
             );
@@ -239,11 +225,11 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
-        try (var service = createVoyageAIService()) {
+        try (var service = createInferenceService()) {
             var config = getRequestConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
+                VoyageAIEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model"),
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty(),
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
             config.put("extra_key", "value");
 
@@ -251,56 +237,56 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 ElasticsearchStatusException.class,
                 "Configuration contains settings [{extra_key=value}] unknown to the [voyageai] service"
             );
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
+            service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, config, failureListener);
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInServiceSettingsMap() throws IOException {
-        try (var service = createVoyageAIService()) {
-            var serviceSettings = VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model");
+        try (var service = createInferenceService()) {
+            var serviceSettings = VoyageAIEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model");
             serviceSettings.put("extra_key", "value");
 
             var config = getRequestConfigMap(
                 serviceSettings,
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
                 "Configuration contains settings [{extra_key=value}] unknown to the [voyageai] service"
             );
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
+            service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, config, failureListener);
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInTaskSettingsMap() throws IOException {
-        try (var service = createVoyageAIService()) {
+        try (var service = createInferenceService()) {
             var taskSettingsMap = VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.INGEST);
             taskSettingsMap.put("extra_key", "value");
 
             var config = getRequestConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
+                VoyageAIEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model"),
                 taskSettingsMap,
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
                 "Configuration contains settings [{extra_key=value}] unknown to the [voyageai] service"
             );
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
+            service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, config, failureListener);
 
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInSecretSettingsMap() throws IOException {
-        try (var service = createVoyageAIService()) {
-            var secretSettingsMap = getSecretSettingsMap("secret");
+        try (var service = createInferenceService()) {
+            var secretSettingsMap = getSecretSettingsMap(API_KEY_VALUE);
             secretSettingsMap.put("extra_key", "value");
 
             var config = getRequestConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
+                VoyageAIEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model"),
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty(),
                 secretSettingsMap
             );
@@ -309,283 +295,327 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 ElasticsearchStatusException.class,
                 "Configuration contains settings [{extra_key=value}] unknown to the [voyageai] service"
             );
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
+            service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, config, failureListener);
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesAVoyageAIEmbeddingsModel() throws IOException {
-        try (var service = createVoyageAIService()) {
+    public void testParsePersistedConfig_WithSecrets_CreatesAVoyageAIEmbeddingsModel() throws IOException {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
+                VoyageAIEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model"),
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
-            );
-
-            MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
-
-            var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
-            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
-            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-        }
-    }
-
-    public void testParsePersistedConfigWithSecrets_CreatesAVoyageAIEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
-        try (var service = createVoyageAIService()) {
-            var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
-                VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
-                createRandomChunkingSettingsMap(),
-                getSecretSettingsMap("secret")
-            );
-
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
-            );
-
-            MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
-
-            var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
-            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
-            MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-        }
-    }
-
-    public void testParsePersistedConfigWithSecrets_CreatesAVoyageAIEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
-        try (var service = createVoyageAIService()) {
-            var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
-                VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
-                getSecretSettingsMap("secret")
-            );
-
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
-            );
-
-            MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
-
-            var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
-            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
-            MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-        }
-    }
-
-    public void testParsePersistedConfigWithSecrets_ThrowsErrorTryingToParseInvalidModel() throws IOException {
-        try (var service = createVoyageAIService()) {
-            var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("oldmodel"),
-                VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty(),
-                getSecretSettingsMap("secret")
-            );
-
-            var thrownException = expectThrows(
-                ElasticsearchStatusException.class,
-                () -> service.parsePersistedConfigWithSecrets(
-                    "id",
-                    TaskType.SPARSE_EMBEDDING,
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    VoyageAIService.NAME,
                     persistedConfig.config(),
                     persistedConfig.secrets()
                 )
             );
 
-            MatcherAssert.assertThat(
-                thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [voyageai] service, please delete and add the service again")
-            );
+            MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
+
+            var embeddingsModel = (VoyageAIEmbeddingsModel) model;
+            MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
+            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
-        try (var service = createVoyageAIService()) {
+    public void testParsePersistedConfig_WithSecrets_CreatesAVoyageAIEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
-                VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.SEARCH),
-                getSecretSettingsMap("secret")
+                VoyageAIEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model"),
+                VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
+                createRandomChunkingSettingsMap(),
+                getSecretSettingsMap(API_KEY_VALUE)
             );
-            persistedConfig.config().put("extra_key", "value");
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    VoyageAIService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
-            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.SEARCH, null)));
-            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
+            MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
-        try (var service = createVoyageAIService()) {
-            var secretSettingsMap = getSecretSettingsMap("secret");
+    public void testParsePersistedConfig_WithSecrets_CreatesAVoyageAIEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
+        try (var service = createInferenceService()) {
+            var persistedConfig = getPersistedConfigMap(
+                VoyageAIEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model"),
+                VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
+                getSecretSettingsMap(API_KEY_VALUE)
+            );
+
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    VoyageAIService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
+            );
+
+            MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
+
+            var embeddingsModel = (VoyageAIEmbeddingsModel) model;
+            MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
+            MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+        }
+    }
+
+    public void testParsePersistedConfig_WithSecrets_ThrowsErrorTryingToParseInvalidModel() throws IOException {
+        try (var service = createInferenceService()) {
+            var persistedConfig = getPersistedConfigMap(
+                VoyageAIEmbeddingsServiceSettingsTests.buildServiceSettingsMap("oldmodel"),
+                VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty(),
+                getSecretSettingsMap(API_KEY_VALUE)
+            );
+
+            var thrownException = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> service.parsePersistedConfig(
+                    new UnparsedModel(
+                        INFERENCE_ENTITY_ID_VALUE,
+                        TaskType.SPARSE_EMBEDDING,
+                        VoyageAIService.NAME,
+                        persistedConfig.config(),
+                        persistedConfig.secrets()
+                    )
+                )
+            );
+
+            assertThat(thrownException.getMessage(), containsString("Failed to parse stored model [id] for [voyageai] service"));
+            assertThat(
+                thrownException.getMessage(),
+                containsString("The [voyageai] service does not support task type [sparse_embedding]")
+            );
+        }
+    }
+
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
+        try (var service = createInferenceService()) {
+            var persistedConfig = getPersistedConfigMap(
+                VoyageAIEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model"),
+                VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.SEARCH),
+                getSecretSettingsMap(API_KEY_VALUE)
+            );
+            persistedConfig.config().put("extra_key", "value");
+
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    VoyageAIService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
+            );
+
+            MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
+
+            var embeddingsModel = (VoyageAIEmbeddingsModel) model;
+            MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.SEARCH, null)));
+            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+        }
+    }
+
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
+        try (var service = createInferenceService()) {
+            var secretSettingsMap = getSecretSettingsMap(API_KEY_VALUE);
             secretSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
+                VoyageAIEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model"),
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty(),
                 secretSettingsMap
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    VoyageAIService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS));
-            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInSecrets() throws IOException {
-        try (var service = createVoyageAIService()) {
+    public void testParsePersistedConfig_WithSecrets_NotThrowWhenAnExtraKeyExistsInSecrets() throws IOException {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
+                VoyageAIEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model"),
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
             persistedConfig.secrets().put("extra_key", "value");
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    VoyageAIService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
-            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
-        try (var service = createVoyageAIService()) {
-            var serviceSettingsMap = VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model");
+    public void testParsePersistedConfig_WithSecrets_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
+        try (var service = createInferenceService()) {
+            var serviceSettingsMap = VoyageAIEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model");
             serviceSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
                 serviceSettingsMap,
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty(),
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    VoyageAIService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
-
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS));
-            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
-        try (var service = createVoyageAIService()) {
+    public void testParsePersistedConfig_WithSecrets_NotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
+        try (var service = createInferenceService()) {
             var taskSettingsMap = VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.SEARCH);
             taskSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
+                VoyageAIEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model"),
                 taskSettingsMap,
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    VoyageAIService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.SEARCH, null)));
-            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
     public void testParsePersistedConfig_CreatesAVoyageAIEmbeddingsModel() throws IOException {
-        try (var service = createVoyageAIService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
+                VoyageAIEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model"),
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(null)
             );
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    VoyageAIService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
+            );
 
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             assertNull(embeddingsModel.getSecretSettings());
         }
     }
 
     public void testParsePersistedConfig_CreatesAVoyageAIEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
-        try (var service = createVoyageAIService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
+                VoyageAIEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model"),
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
-                createRandomChunkingSettingsMap()
+                createRandomChunkingSettingsMap(),
+                null
             );
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    VoyageAIService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
+            );
 
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertNull(embeddingsModel.getSecretSettings());
@@ -593,19 +623,27 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_CreatesAVoyageAIEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
-        try (var service = createVoyageAIService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
+                VoyageAIEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model"),
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(null)
             );
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    VoyageAIService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
+            );
 
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertNull(embeddingsModel.getSecretSettings());
@@ -613,65 +651,90 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_ThrowsErrorTryingToParseInvalidModel() throws IOException {
-        try (var service = createVoyageAIService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model_old"),
+                VoyageAIEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model_old"),
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty()
             );
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> service.parsePersistedConfig("id", TaskType.SPARSE_EMBEDDING, persistedConfig.config())
+                () -> service.parsePersistedConfig(
+                    new UnparsedModel(
+                        INFERENCE_ENTITY_ID_VALUE,
+                        TaskType.SPARSE_EMBEDDING,
+                        VoyageAIService.NAME,
+                        persistedConfig.config(),
+                        new HashMap<>()
+                    )
+                )
             );
 
-            MatcherAssert.assertThat(
+            assertThat(thrownException.getMessage(), containsString("Failed to parse stored model [id] for [voyageai] service"));
+            assertThat(
                 thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [voyageai] service, please delete and add the service again")
+                containsString("The [voyageai] service does not support task type [sparse_embedding]")
             );
         }
     }
 
     public void testParsePersistedConfig_CreatesAVoyageAIEmbeddingsModelWithoutUrl() throws IOException {
-        try (var service = createVoyageAIService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
+                VoyageAIEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model"),
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(null)
             );
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    VoyageAIService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
+            );
 
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             assertNull(embeddingsModel.getSecretSettings());
         }
     }
 
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
-        try (var service = createVoyageAIService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
+                VoyageAIEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model"),
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty()
             );
             persistedConfig.config().put("extra_key", "value");
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    VoyageAIService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
+            );
 
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS));
             assertNull(embeddingsModel.getSecretSettings());
         }
     }
 
     public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
-        try (var service = createVoyageAIService()) {
-            var serviceSettingsMap = VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model");
+        try (var service = createInferenceService()) {
+            var serviceSettingsMap = VoyageAIEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model");
             serviceSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
@@ -679,86 +742,65 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.SEARCH)
             );
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    VoyageAIService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
+            );
 
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.SEARCH, null)));
             assertNull(embeddingsModel.getSecretSettings());
         }
     }
 
     public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
-        try (var service = createVoyageAIService()) {
+        try (var service = createInferenceService()) {
             var taskSettingsMap = VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.INGEST);
             taskSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
+                VoyageAIEmbeddingsServiceSettingsTests.buildServiceSettingsMap("model"),
                 taskSettingsMap
             );
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    VoyageAIService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
+            );
+
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null)));
             assertNull(embeddingsModel.getSecretSettings());
         }
     }
 
-    public void testInfer_ThrowsErrorWhenModelIsNotVoyageAIModel() throws IOException {
-        var sender = mock(Sender.class);
-
-        var factory = mock(HttpRequestSender.Factory.class);
-        when(factory.createSender()).thenReturn(sender);
-
-        var mockModel = getInvalidModel("model_id", "service_name");
-
-        try (var service = new VoyageAIService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                mockModel,
-                null,
-                null,
-                null,
-                List.of(""),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
-
-            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-            MatcherAssert.assertThat(
-                thrownException.getMessage(),
-                is("The internal model was invalid, please delete the service [service_name] with id [model_id] and add it again.")
-            );
-
-            verify(factory, times(1)).createSender();
-            verify(sender, times(1)).start();
-        }
-
-        verify(sender, times(1)).close();
-        verifyNoMoreInteractions(factory);
-        verifyNoMoreInteractions(sender);
-    }
-
     public void testInfer_ThrowsValidationErrorForInvalidInputType() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
         var model = VoyageAIEmbeddingsModelTests.createModel(
             getUrl(webServer),
-            "secret",
+            API_KEY_VALUE,
             VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
             10,
             1,
@@ -768,66 +810,20 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
         try (var service = new VoyageAIService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
-            var thrownException = expectThrows(
-                ValidationException.class,
-                () -> service.infer(
-                    model,
-                    null,
-                    null,
-                    null,
-                    List.of(""),
-                    false,
-                    new HashMap<>(),
-                    InputType.CLUSTERING,
-                    InferenceAction.Request.DEFAULT_TIMEOUT,
-                    listener
-                )
-            );
+            service.infer(model, null, null, null, List.of(""), false, new HashMap<>(), InputType.CLUSTERING, null, listener);
+
+            var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
             MatcherAssert.assertThat(
                 thrownException.getMessage(),
                 is("Validation Failed: 1: Input type [clustering] is not supported for [Voyage AI];")
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).start();
         }
 
         verify(sender, times(1)).close();
         verifyNoMoreInteractions(factory);
         verifyNoMoreInteractions(sender);
-    }
-
-    public void testUpdateModelWithEmbeddingDetails_NullSimilarityInOriginalModel() throws IOException {
-        testUpdateModelWithEmbeddingDetails_Successful(null);
-    }
-
-    public void testUpdateModelWithEmbeddingDetails_NonNullSimilarityInOriginalModel() throws IOException {
-        testUpdateModelWithEmbeddingDetails_Successful(randomFrom(SimilarityMeasure.values()));
-    }
-
-    private void testUpdateModelWithEmbeddingDetails_Successful(SimilarityMeasure similarityMeasure) throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            var embeddingSize = randomNonNegativeInt();
-            var model = VoyageAIEmbeddingsModelTests.createModel(
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                randomNonNegativeInt(),
-                randomNonNegativeInt(),
-                randomAlphaOfLength(10),
-                similarityMeasure
-            );
-
-            Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
-
-            SimilarityMeasure expectedSimilarityMeasure = similarityMeasure == null
-                ? VoyageAIService.defaultSimilarity()
-                : similarityMeasure;
-            assertEquals(expectedSimilarityMeasure, updatedModel.getServiceSettings().similarity());
-            assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
-        }
     }
 
     public void testInfer_Embedding_UnauthorisedResponse() throws IOException {
@@ -844,7 +840,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
             var model = VoyageAIEmbeddingsModelTests.createModel(
                 getUrl(webServer),
-                "secret",
+                API_KEY_VALUE,
                 VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
                 1024,
                 1024,
@@ -852,18 +848,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 (SimilarityMeasure) null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("abc"),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             MatcherAssert.assertThat(error.getMessage(), containsString("Received an authentication error status code for request"));
@@ -886,18 +871,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
             var model = VoyageAIRerankModelTests.createModel(getUrl(webServer), "model", 1024, false, false);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                "query",
-                null,
-                null,
-                List.of("candidate1", "candidate2"),
-                false,
-                new HashMap<>(),
-                null,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, "query", null, null, List.of("candidate1", "candidate2"), false, new HashMap<>(), null, null, listener);
 
             var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             MatcherAssert.assertThat(error.getMessage(), containsString("Received an authentication error status code for request"));
@@ -934,7 +908,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
             var model = VoyageAIEmbeddingsModelTests.createModel(
                 getUrl(webServer),
-                "secret",
+                API_KEY_VALUE,
                 VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
                 1024,
                 1024,
@@ -942,18 +916,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 (SimilarityMeasure) null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("abc"),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -1016,7 +979,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
             var model = VoyageAIEmbeddingsModelTests.createModel(
                 getUrl(webServer),
-                "secret",
+                API_KEY_VALUE,
                 VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
                 1024,
                 1024,
@@ -1024,18 +987,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 (SimilarityMeasure) null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("abc"),
-                false,
-                new HashMap<>(),
-                InputType.SEARCH,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.SEARCH, null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -1098,7 +1050,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
             var model = VoyageAIEmbeddingsModelTests.createModel(
                 getUrl(webServer),
-                "secret",
+                API_KEY_VALUE,
                 VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
                 1024,
                 1024,
@@ -1106,18 +1058,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 (SimilarityMeasure) null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("abc"),
-                false,
-                new HashMap<>(),
-                null,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), null, null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -1167,7 +1108,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
         try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-            var model = VoyageAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", null, false, false);
+            var model = VoyageAIRerankModelTests.createModel(getUrl(webServer), API_KEY_VALUE, "model", null, false, false);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
@@ -1178,7 +1119,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 false,
                 new HashMap<>(),
                 null,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1255,7 +1196,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
         try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-            var model = VoyageAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", 3, false, false);
+            var model = VoyageAIRerankModelTests.createModel(getUrl(webServer), API_KEY_VALUE, "model", 3, false, false);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
@@ -1266,7 +1207,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 false,
                 new HashMap<>(),
                 null,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1349,7 +1290,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
         try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-            var model = VoyageAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", null, null, null);
+            var model = VoyageAIRerankModelTests.createModel(getUrl(webServer), API_KEY_VALUE, "model", null, null, null);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
@@ -1360,7 +1301,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 false,
                 new HashMap<>(),
                 null,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1427,7 +1368,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
         try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-            var model = VoyageAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", 3, true, true);
+            var model = VoyageAIRerankModelTests.createModel(getUrl(webServer), API_KEY_VALUE, "model", 3, true, true);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
@@ -1438,7 +1379,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 false,
                 new HashMap<>(),
                 null,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1517,7 +1458,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
             var model = VoyageAIEmbeddingsModelTests.createModel(
                 getUrl(webServer),
-                "secret",
+                API_KEY_VALUE,
                 new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null),
                 1024,
                 1024,
@@ -1525,18 +1466,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 (SimilarityMeasure) null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("abc"),
-                false,
-                new HashMap<>(),
-                InputType.UNSPECIFIED,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.UNSPECIFIED, null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -1573,7 +1503,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
     public void test_Embedding_ChunkedInfer_BatchesCallsChunkingSettingsSet() throws IOException {
         var model = VoyageAIEmbeddingsModelTests.createModel(
             getUrl(webServer),
-            "secret",
+            API_KEY_VALUE,
             new VoyageAIEmbeddingsTaskSettings((InputType) null, null),
             createRandomChunkingSettings(),
             1024,
@@ -1587,7 +1517,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
     public void test_Embedding_ChunkedInfer_ChunkingSettingsNotSet() throws IOException {
         var model = VoyageAIEmbeddingsModelTests.createModel(
             getUrl(webServer),
-            "secret",
+            API_KEY_VALUE,
             new VoyageAIEmbeddingsTaskSettings((InputType) null, null),
             null,
             1024,
@@ -1596,6 +1526,20 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
         );
 
         test_Embedding_ChunkedInfer_BatchesCalls(model);
+    }
+
+    public void test_Embedding_ChunkedInfer_noInputs() throws IOException {
+        var model = VoyageAIEmbeddingsModelTests.createModel(getUrl(webServer), API_KEY_VALUE, 1024, "voyage-3-large");
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.UNSPECIFIED, null, listener);
+
+            var results = listener.actionGet(TIMEOUT);
+            assertThat(results, empty());
+            MatcherAssert.assertThat(webServer.requests(), empty());
+        }
     }
 
     private void test_Embedding_ChunkedInfer_BatchesCalls(VoyageAIEmbeddingsModel model) throws IOException {
@@ -1641,7 +1585,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
                 new HashMap<>(),
                 InputType.UNSPECIFIED,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1652,10 +1596,10 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 var floatResult = (ChunkedInferenceEmbedding) results.getFirst();
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals(new ChunkedInference.TextOffset(0, 1), floatResult.chunks().getFirst().offset());
-                assertThat(floatResult.chunks().get(0).embedding(), CoreMatchers.instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                assertThat(floatResult.chunks().get(0).embedding(), CoreMatchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
                 assertArrayEquals(
                     new float[] { 0.123f, -0.123f },
-                    ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
+                    ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
                     0.0f
                 );
             }
@@ -1664,10 +1608,13 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals(new ChunkedInference.TextOffset(0, 2), floatResult.chunks().getFirst().offset());
-                assertThat(floatResult.chunks().getFirst().embedding(), CoreMatchers.instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                assertThat(
+                    floatResult.chunks().getFirst().embedding(),
+                    CoreMatchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class)
+                );
                 assertArrayEquals(
                     new float[] { 0.223f, -0.223f },
-                    ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
+                    ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
                     0.0f
                 );
             }
@@ -1694,7 +1641,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
 
     @SuppressWarnings("checkstyle:LineLength")
     public void testGetConfiguration() throws Exception {
-        try (var service = createVoyageAIService()) {
+        try (var service = createInferenceService()) {
             String content = XContentHelper.stripWhitespace("""
                 {
                         "service": "voyageai",
@@ -1746,13 +1693,6 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testDoesNotSupportsStreaming() throws IOException {
-        try (var service = new VoyageAIService(mock(), createWithEmptySettings(mock()), mockClusterServiceEmpty())) {
-            assertFalse(service.canStream(TaskType.COMPLETION));
-            assertFalse(service.canStream(TaskType.ANY));
-        }
-    }
-
     private Map<String, Object> getRequestConfigMap(
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
@@ -1787,17 +1727,81 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
         return new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, builtServiceSettings));
     }
 
-    private VoyageAIService createVoyageAIService() {
-        return new VoyageAIService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), mockClusterServiceEmpty());
+    @Override
+    public InferenceService createInferenceService() {
+        return new VoyageAIService(
+            HttpRequestSenderTests.createSenderFactory(threadPool, clientManager),
+            createWithEmptySettings(threadPool),
+            mockClusterServiceEmpty()
+        );
     }
 
     @Override
-    public InferenceService createInferenceService() {
-        return createVoyageAIService();
+    public Model createEmbeddingModel(SimilarityMeasure similarity) {
+        return VoyageAIEmbeddingsModelTests.createModel(
+            randomAlphaOfLength(8),
+            randomAlphaOfLength(8),
+            VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
+            null,
+            null,
+            randomAlphaOfLength(8),
+            similarity
+        );
     }
 
+    @Override
+    public EnumSet<TaskType> expectedStreamingTasks() {
+        return EnumSet.noneOf(TaskType.class);
+    }
+
+    @Override
     protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
         assertThat(rerankingInferenceService.rerankerWindowSize("rerank-lite-1"), is(2800));
         assertThat(rerankingInferenceService.rerankerWindowSize("any other model"), is(5500));
+    }
+
+    public void testBuildModelFromConfigAndSecrets_TextEmbedding() throws IOException {
+        var model = createTestModel(TaskType.TEXT_EMBEDDING);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_Rerank() throws IOException {
+        var model = createTestModel(TaskType.RERANK);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
+        var modelConfigurations = new ModelConfigurations(
+            INFERENCE_ENTITY_ID_VALUE,
+            TaskType.CHAT_COMPLETION,
+            VoyageAIService.NAME,
+            mock(ServiceSettings.class)
+        );
+        try (var inferenceService = createInferenceService()) {
+            var thrownException = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
+            );
+            assertThat(
+                thrownException.getMessage(),
+                is(Strings.format("The [%s] service does not support task type [%s]", VoyageAIService.NAME, TaskType.CHAT_COMPLETION))
+
+            );
+        }
+    }
+
+    private Model createTestModel(TaskType taskType) {
+        return switch (taskType) {
+            case TEXT_EMBEDDING -> VoyageAIEmbeddingsModelTests.createModel(URL_VALUE, API_KEY_VALUE, null, MODEL_ID_VALUE);
+            case RERANK -> VoyageAIRerankModelTests.createModel(MODEL_ID_VALUE, null);
+            default -> throw new IllegalArgumentException("Unsupported task type: " + taskType);
+        };
+    }
+
+    private void validateModelBuilding(Model model) throws IOException {
+        try (var inferenceService = createInferenceService()) {
+            var resultModel = inferenceService.buildModelFromConfigAndSecrets(model.getConfigurations(), model.getSecrets());
+            assertThat(resultModel, is(model));
+        }
     }
 }

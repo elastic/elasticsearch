@@ -12,16 +12,21 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiEmbeddingsRequest;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils.API_KEY_HEADER;
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -31,6 +36,20 @@ import static org.hamcrest.Matchers.is;
 
 public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
 
+    private static final String INFERENCE_ID = "id";
+
+    private ThreadPool threadPool;
+
+    @Before
+    public void init() throws Exception {
+        threadPool = createThreadPool(inferenceUtilityExecutors());
+    }
+
+    @After
+    public void shutdown() throws IOException {
+        terminate(threadPool);
+    }
+
     public void testCreateRequest_WithApiKeyDefined() throws IOException {
         var input = "input";
         var user = "user";
@@ -38,7 +57,7 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         var inputType = InputTypeTests.randomWithNull();
 
         var request = createRequest("resource", "deployment", "2024", apiKey, null, input, user, inputType);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -67,7 +86,7 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         var inputType = InputTypeTests.randomWithNull();
 
         var request = createRequest("resource", "deployment", "2024", null, entraId, input, user, inputType);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -93,7 +112,7 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         var request = createRequest("resource", "deployment", "apiVersion", "apikey", null, "abcd", null, null);
         var truncatedRequest = request.truncate();
 
-        var httpRequest = truncatedRequest.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -118,7 +137,22 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         @Nullable String entraId,
         String input,
         @Nullable String user,
-        InputType inputType
+        @Nullable InputType inputType
+    ) {
+        return createRequest(INFERENCE_ID, resourceName, deploymentId, apiVersion, apiKey, entraId, input, user, inputType, threadPool);
+    }
+
+    public static AzureOpenAiEmbeddingsRequest createRequest(
+        String inferenceId,
+        String resourceName,
+        String deploymentId,
+        String apiVersion,
+        @Nullable String apiKey,
+        @Nullable String entraId,
+        String input,
+        @Nullable String user,
+        @Nullable InputType inputType,
+        ThreadPool threadPool
     ) {
         var embeddingsModel = AzureOpenAiEmbeddingsModelTests.createModel(
             resourceName,
@@ -127,7 +161,8 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
             user,
             apiKey,
             entraId,
-            "id"
+            inferenceId,
+            threadPool
         );
         return new AzureOpenAiEmbeddingsRequest(
             TruncatorTests.createTruncator(),

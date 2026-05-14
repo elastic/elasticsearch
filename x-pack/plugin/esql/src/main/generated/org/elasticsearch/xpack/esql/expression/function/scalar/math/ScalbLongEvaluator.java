@@ -15,31 +15,31 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Scalb}.
+ * {@link ExpressionEvaluator} implementation for {@link Scalb}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class ScalbLongEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class ScalbLongEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ScalbLongEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator d;
+  private final ExpressionEvaluator d;
 
-  private final EvalOperator.ExpressionEvaluator scaleFactor;
+  private final ExpressionEvaluator scaleFactor;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public ScalbLongEvaluator(Source source, EvalOperator.ExpressionEvaluator d,
-      EvalOperator.ExpressionEvaluator scaleFactor, DriverContext driverContext) {
+  public ScalbLongEvaluator(Source source, ExpressionEvaluator d, ExpressionEvaluator scaleFactor,
+      DriverContext driverContext) {
     this.source = source;
     this.d = d;
     this.scaleFactor = scaleFactor;
@@ -74,27 +74,27 @@ public final class ScalbLongEvaluator implements EvalOperator.ExpressionEvaluato
   public DoubleBlock eval(int positionCount, DoubleBlock dBlock, LongBlock scaleFactorBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (dBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (dBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (dBlock.getValueCount(p) != 1) {
-          if (dBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        if (scaleFactorBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (scaleFactorBlock.getValueCount(p) != 1) {
-          if (scaleFactorBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (scaleFactorBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         double d = dBlock.getDouble(dBlock.getFirstValueIndex(p));
         long scaleFactor = scaleFactorBlock.getLong(scaleFactorBlock.getFirstValueIndex(p));
@@ -137,25 +137,20 @@ public final class ScalbLongEvaluator implements EvalOperator.ExpressionEvaluato
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory d;
+    private final ExpressionEvaluator.Factory d;
 
-    private final EvalOperator.ExpressionEvaluator.Factory scaleFactor;
+    private final ExpressionEvaluator.Factory scaleFactor;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory d,
-        EvalOperator.ExpressionEvaluator.Factory scaleFactor) {
+    public Factory(Source source, ExpressionEvaluator.Factory d,
+        ExpressionEvaluator.Factory scaleFactor) {
       this.source = source;
       this.d = d;
       this.scaleFactor = scaleFactor;

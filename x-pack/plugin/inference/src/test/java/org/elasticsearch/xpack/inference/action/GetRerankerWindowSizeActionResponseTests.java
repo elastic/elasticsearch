@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.action.GetRerankerWindowSizeAction;
 
 import java.io.IOException;
@@ -26,6 +27,6 @@ public class GetRerankerWindowSizeActionResponseTests extends AbstractWireSerial
 
     @Override
     protected GetRerankerWindowSizeAction.Response mutateInstance(GetRerankerWindowSizeAction.Response instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new GetRerankerWindowSizeAction.Response(randomValueOtherThan(instance.getWindowSize(), ESTestCase::randomNonNegativeInt));
     }
 }

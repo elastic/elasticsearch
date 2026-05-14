@@ -36,6 +36,7 @@ import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.rules.ErrorCollector;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -54,7 +55,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
 
 /**
  * Runs a suite of yaml tests shared with all the official Elasticsearch
@@ -69,6 +69,14 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     /**
      * Property that allows to control which REST tests get run. Supports comma separated list of tests
      * or directories that contain tests e.g. -Dtests.rest.suite=index,get,create/10_with_id
+     * <p>
+     * A per-task variant {@code tests.rest.suite.<task path>} is also recognised and takes precedence
+     * over the unscoped property when set; this lets a single Gradle invocation supply different suite
+     * lists to different {@code yamlRestTest} tasks via the {@code tests.task} system property each task
+     * already exposes (see {@code GradleTestPolicySetupPlugin}). For example, running
+     * {@code :modules:reindex:yamlRestTest :rest-api-spec:yamlRestTest} in one invocation can use:
+     * {@code -Dtests.rest.suite.:modules:reindex:yamlRestTest=reindex/51_routing}
+     * {@code -Dtests.rest.suite.:rest-api-spec:yamlRestTest=get/41_routing_doc_values}.
      */
     public static final String REST_TESTS_SUITE = "tests.rest.suite";
     /**
@@ -109,6 +117,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     private static ClientYamlSuiteRestSpec restSpecification;
 
+    private ESClientYamlSuiteErrorCollector errorCollector;
+
     protected ESClientYamlSuiteTestCase(ClientYamlTestCandidate testCandidate) {
         this.testCandidate = testCandidate;
     }
@@ -127,13 +137,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
             logger.info("initializing client, node versions [{}], hosts {}, os [{}]", nodesVersions, hosts, os);
 
-            var semanticNodeVersions = nodesVersions.stream()
-                .map(ESRestTestCase::parseLegacyVersion)
-                .flatMap(Optional::stream)
-                .collect(Collectors.toSet());
             final TestFeatureService testFeatureService = createTestFeatureService(
                 getClusterStateFeatures(adminClient()),
-                semanticNodeVersions
+                fromSemanticVersions(nodesVersions)
             );
 
             logger.info("initializing client, node versions [{}], hosts {}, os [{}]", nodesVersions, hosts, os);
@@ -172,6 +178,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         adminExecutionContext.clear();
 
         restTestExecutionContext.clear();
+
+        errorCollector = new ESClientYamlSuiteErrorCollector();
     }
 
     /**
@@ -227,7 +235,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * Create parameters for this parameterized test.
      */
     public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry) throws Exception {
-        return createParameters(executeableSectionRegistry, Map.of(), resolvePathsProperty(REST_TESTS_SUITE, ""));
+        return createParameters(executeableSectionRegistry, Map.of(), resolveRestTestsSuitePaths());
     }
 
     /**
@@ -235,7 +243,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * @param yamlParameters map or parameters used within the yaml specs to be replaced at parsing time.
      */
     public static Iterable<Object[]> createParameters(Map<String, Object> yamlParameters) throws Exception {
-        return createParameters(ExecutableSection.XCONTENT_REGISTRY, yamlParameters, resolvePathsProperty(REST_TESTS_SUITE, ""));
+        return createParameters(ExecutableSection.XCONTENT_REGISTRY, yamlParameters, resolveRestTestsSuitePaths());
     }
 
     /**
@@ -244,7 +252,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * @param testPaths      list of paths to explicitly search for tests.
      */
     public static Iterable<Object[]> createParameters(Map<String, Object> yamlParameters, String... testPaths) throws Exception {
-        if (System.getProperty(REST_TESTS_SUITE) != null) {
+        if (resolveRestTestsSuiteProperty() != null) {
             throw new IllegalArgumentException("The '" + REST_TESTS_SUITE + "' system property is not supported with explicit test paths.");
         }
         return createParameters(ExecutableSection.XCONTENT_REGISTRY, yamlParameters, testPaths);
@@ -255,7 +263,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * @param testPaths list of paths to explicitly search for tests.
      */
     public static Iterable<Object[]> createParameters(String... testPaths) throws Exception {
-        if (System.getProperty(REST_TESTS_SUITE) != null) {
+        if (resolveRestTestsSuiteProperty() != null) {
             throw new IllegalArgumentException("The '" + REST_TESTS_SUITE + "' system property is not supported with explicit test paths.");
         }
         return createParameters(ExecutableSection.XCONTENT_REGISTRY, Map.of(), testPaths);
@@ -270,7 +278,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      */
     public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry, String... testPaths)
         throws Exception {
-        if (System.getProperty(REST_TESTS_SUITE) != null) {
+        if (resolveRestTestsSuiteProperty() != null) {
             throw new IllegalArgumentException("The '" + REST_TESTS_SUITE + "' system property is not supported with explicit test paths.");
         }
         return createParameters(executeableSectionRegistry, Map.of(), testPaths);
@@ -400,6 +408,30 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
     }
 
+    /**
+     * Resolves the value of {@link #REST_TESTS_SUITE}, preferring the per-task scoped form
+     * {@code tests.rest.suite.<task path>} when {@code tests.task} is set and a matching property
+     * exists. Returns {@code null} if neither form is set.
+     */
+    private static String resolveRestTestsSuiteProperty() {
+        String task = System.getProperty("tests.task");
+        if (task != null) {
+            String scoped = System.getProperty(REST_TESTS_SUITE + "." + task);
+            if (scoped != null) {
+                return scoped;
+            }
+        }
+        return System.getProperty(REST_TESTS_SUITE);
+    }
+
+    private static String[] resolveRestTestsSuitePaths() {
+        String value = resolveRestTestsSuiteProperty();
+        if (Strings.hasLength(value) == false) {
+            return new String[] { "" };
+        }
+        return value.split(PATHS_SEPARATOR);
+    }
+
     protected ClientYamlTestExecutionContext getAdminExecutionContext() {
         return adminExecutionContext;
     }
@@ -432,7 +464,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
     }
 
-    static String readOsFromNodesInfo(RestClient restClient) throws IOException {
+    public static String readOsFromNodesInfo(RestClient restClient) throws IOException {
         final Request request = new Request("GET", "/_nodes/os");
         Response response = restClient.performRequest(request);
         ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
@@ -501,26 +533,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             for (ExecutableSection executableSection : testCandidate.getTestSection().getExecutableSections()) {
                 executeSection(executableSection);
             }
-        } finally {
-            logger.debug("start teardown test [{}]", testCandidate.getTestPath());
-            for (ExecutableSection doSection : testCandidate.getTeardownSection().getDoSections()) {
-                executeSection(doSection);
-            }
-            logger.debug("end teardown test [{}]", testCandidate.getTestPath());
-        }
-    }
-
-    protected boolean skipSetupSections() {
-        return false;
-    }
-
-    /**
-     * Execute an {@link ExecutableSection}, careful to log its place of origin on failure.
-     */
-    private void executeSection(ExecutableSection executableSection) {
-        try {
-            executableSection.execute(restTestExecutionContext);
-        } catch (AssertionError | Exception e) {
+            errorCollector.verify();
+        } catch (AssertionError e) {
             // Dump the original yaml file, if available, for reference.
             Optional<Path> file = testCandidate.getRestTestSuite().getFile();
             if (file.isPresent()) {
@@ -538,16 +552,41 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                     .replace("\\r", "\r")
                     .replace("\\t", "\t")
             );
-            if (e instanceof AssertionError) {
-                throw new AssertionError(errorMessage(executableSection, e), e);
-            } else {
-                throw new RuntimeException(errorMessage(executableSection, e), e);
+            throw e;
+        } finally {
+            logger.debug("start teardown test [{}]", testCandidate.getTestPath());
+            for (ExecutableSection doSection : testCandidate.getTeardownSection().getDoSections()) {
+                executeSection(doSection);
             }
+            logger.debug("end teardown test [{}]", testCandidate.getTestPath());
         }
     }
 
-    private String errorMessage(ExecutableSection executableSection, Throwable t) {
-        return "Failure at [" + testCandidate.getSuitePath() + ":" + executableSection.getLocation().lineNumber() + "]: " + t.getMessage();
+    private void executeSection(ExecutableSection executableSection) {
+        errorCollector.checkSucceeds(() -> {
+            try {
+                executableSection.execute(restTestExecutionContext);
+                return null;
+            } catch (Throwable t) {
+                if (t instanceof AssertionError) {
+                    throw t;
+                } else {
+                    throw new AssertionError(
+                        "Error executing section at ["
+                            + testCandidate.getSuitePath()
+                            + ":"
+                            + executableSection.getLocation().lineNumber()
+                            + "]: "
+                            + t.getMessage(),
+                        t
+                    );
+                }
+            }
+        });
+    }
+
+    protected boolean skipSetupSections() {
+        return false;
     }
 
     protected boolean randomizeContentType() {
@@ -572,5 +611,16 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     public ClientYamlTestCandidate getTestCandidate() {
         return testCandidate;
+    }
+
+    private static class ESClientYamlSuiteErrorCollector extends ErrorCollector {
+
+        public void verify() throws AssertionError {
+            try {
+                super.verify();
+            } catch (Throwable e) {
+                throw new AssertionError(e);
+            }
+        }
     }
 }

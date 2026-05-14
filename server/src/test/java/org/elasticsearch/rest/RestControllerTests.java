@@ -640,8 +640,8 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean supportsBulkContent() {
-                return true;
+            public boolean mediaTypesValid(RestRequest request) {
+                return RestHandler.super.mediaTypesValid(request) && XContentType.supportsDelimitedBulkRequests(request.getXContentType());
             }
         });
 
@@ -679,8 +679,8 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean supportsBulkContent() {
-                return true;
+            public boolean mediaTypesValid(RestRequest request) {
+                return RestHandler.super.mediaTypesValid(request) && XContentType.supportsDelimitedBulkRequests(request.getXContentType());
             }
         });
 
@@ -704,8 +704,8 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean supportsBulkContent() {
-                return true;
+            public boolean mediaTypesValid(RestRequest request) {
+                return RestHandler.super.mediaTypesValid(request) && XContentType.supportsDelimitedBulkRequests(request.getXContentType());
             }
         });
 
@@ -730,8 +730,8 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean supportsBulkContent() {
-                return true;
+            public boolean mediaTypesValid(RestRequest request) {
+                return RestHandler.super.mediaTypesValid(request) && XContentType.supportsDelimitedBulkRequests(request.getXContentType());
             }
         });
         assertFalse(channel.getSendResponseCalled());
@@ -755,8 +755,8 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean supportsBulkContent() {
-                return true;
+            public boolean mediaTypesValid(RestRequest request) {
+                return RestHandler.super.mediaTypesValid(request) && XContentType.supportsDelimitedBulkRequests(request.getXContentType());
             }
         });
         assertFalse(channel.getSendResponseCalled());
@@ -1186,6 +1186,19 @@ public class RestControllerTests extends ESTestCase {
         restController.getApiProtections().setEnabled(false);
         checkUnprotected.accept(accessiblePaths);
         checkUnprotected.accept(inaccessiblePaths);
+    }
+
+    public void testGetAllHandlersPreservesMultiValueParams() {
+        restController.registerHandler(new Route(GET, "/{index}"), (request, channel, client) -> {});
+
+        var params = RequestParams.of(Map.of("format", List.of("json", "yaml")));
+        var it = restController.getAllHandlers(params, "/my-index");
+        while (it.hasNext()) {
+            it.next();
+        }
+
+        // Multi-values must survive the per-iteration reset that PathTrie triggers
+        assertThat(params.getAll("format"), equalTo(List.of("json", "yaml")));
     }
 
     @ServerlessScope(Scope.PUBLIC)

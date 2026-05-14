@@ -55,7 +55,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.persistent.PersistentTasksClusterService.needsReassignment;
+import static org.elasticsearch.persistent.PersistentTasksClusterService.isUnassignedOrMisassigned;
 import static org.elasticsearch.test.NodeRoles.addRoles;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.NodeRoles.removeRoles;
@@ -78,7 +78,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         awaitJobOpenedAndAssigned(job.getId(), null);
-        assertRecentLastTaskStateChangeTime(MlTasks.jobTaskId(job.getId()), Duration.of(10, ChronoUnit.SECONDS), null);
+        assertRecentLastTaskStateChangeTime(MlTasks.jobTaskId(job.getId()), Duration.of(30, ChronoUnit.SECONDS), null);
 
         setMlIndicesDelayedNodeLeftTimeoutToZero();
 
@@ -86,16 +86,15 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         internalCluster().stopRandomDataNode();
         ensureStableCluster(3);
         awaitJobOpenedAndAssigned(job.getId(), null);
-        assertRecentLastTaskStateChangeTime(MlTasks.jobTaskId(job.getId()), Duration.of(10, ChronoUnit.SECONDS), null);
+        assertRecentLastTaskStateChangeTime(MlTasks.jobTaskId(job.getId()), Duration.of(30, ChronoUnit.SECONDS), null);
 
         ensureGreen(); // replicas must be assigned, otherwise we could lose a whole index
         internalCluster().stopRandomDataNode();
         ensureStableCluster(2);
         awaitJobOpenedAndAssigned(job.getId(), null);
-        assertRecentLastTaskStateChangeTime(MlTasks.jobTaskId(job.getId()), Duration.of(10, ChronoUnit.SECONDS), null);
+        assertRecentLastTaskStateChangeTime(MlTasks.jobTaskId(job.getId()), Duration.of(30, ChronoUnit.SECONDS), null);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82591")
     public void testFailOverBasics_withDataFeeder() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(4);
         ensureStableCluster(4);
@@ -168,6 +167,12 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             assertEquals(1, statsResponse.getResponse().results().size());
             assertEquals(DatafeedState.STARTED, statsResponse.getResponse().results().get(0).getDatafeedState());
         });
+
+        // Ensure all nodes have a consistent view of the cluster state before cleanup
+        // runs, otherwise the stop-datafeed request during cleanup may be routed to a
+        // node that hasn't yet received the state update showing the datafeed as started.
+        // See https://github.com/elastic/elasticsearch/issues/82591
+        waitNoPendingTasksOnAll();
     }
 
     public void testJobAutoClose() throws Exception {
@@ -369,7 +374,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
         // Create the indices (using installed templates) and set the routing to specific nodes
         // State and results go on the state-and-results node, config goes on the config node
-        indicesAdmin().prepareCreate(".ml-anomalies-shared")
+        indicesAdmin().prepareCreate(".ml-anomalies-shared-000001")
             .setSettings(
                 Settings.builder()
                     .put("index.routing.allocation.include.ml-indices", "state-and-results")
@@ -435,7 +440,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         );
         assertThat(detailedMessage, containsString("because not all primary shards are active for the following indices"));
         assertThat(detailedMessage, containsString(".ml-state"));
-        assertThat(detailedMessage, containsString(".ml-anomalies-shared"));
+        assertThat(detailedMessage, containsString(".ml-anomalies-shared-000001"));
 
         logger.info("Start data node");
         String nonMlNode = internalCluster().startNode(
@@ -511,7 +516,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
         if (hasExecutorNode) {
             assertNotNull(task.getExecutorNode());
-            assertFalse(needsReassignment(task.getAssignment(), clusterState.nodes()));
+            assertFalse(isUnassignedOrMisassigned(task.getAssignment(), clusterState.nodes()));
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
             assertThat(node.getAttributes(), hasEntry(equalTo(MachineLearning.MACHINE_MEMORY_NODE_ATTR), notNullValue()));
 

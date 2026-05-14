@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -134,11 +133,7 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
         this.withSpecialTokens = in.readBoolean();
         this.maxSequenceLength = in.readVInt();
         this.truncate = in.readEnum(Truncate.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            this.span = in.readInt();
-        } else {
-            this.span = UNSET_SPAN_VALUE;
-        }
+        this.span = in.readInt();
     }
 
     /**
@@ -177,9 +172,7 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
         out.writeBoolean(withSpecialTokens);
         out.writeVInt(maxSequenceLength);
         out.writeEnum(truncate);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            out.writeInt(span);
-        }
+        out.writeInt(span);
     }
 
     public abstract String getMaskToken();

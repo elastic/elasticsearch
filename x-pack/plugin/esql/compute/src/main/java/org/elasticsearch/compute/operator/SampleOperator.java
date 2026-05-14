@@ -97,10 +97,13 @@ public class SampleOperator implements Operator {
     @Override
     public void addInput(Page page) {
         long startTime = System.nanoTime();
-        createOutputPage(page);
-        rowsReceived += page.getPositionCount();
-        page.releaseBlocks();
-        pagesProcessed++;
+        try {
+            createOutputPage(page);
+            rowsReceived += page.getPositionCount();
+            pagesProcessed++;
+        } finally {
+            page.releaseBlocks();
+        }
         collectNanos += System.nanoTime() - startTime;
     }
 
@@ -111,7 +114,7 @@ public class SampleOperator implements Operator {
             sampledPositions[sampledIdx++] = Math.toIntExact(i - rowsReceived);
         }
         if (sampledIdx > 0) {
-            outputPages.add(page.filter(Arrays.copyOf(sampledPositions, sampledIdx)));
+            outputPages.add(page.filter(false, Arrays.copyOf(sampledPositions, sampledIdx)));
         }
     }
 
@@ -129,6 +132,11 @@ public class SampleOperator implements Operator {
     @Override
     public boolean isFinished() {
         return finished && outputPages.isEmpty();
+    }
+
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return outputPages.isEmpty() == false;
     }
 
     @Override

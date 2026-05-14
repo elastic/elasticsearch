@@ -16,6 +16,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
@@ -132,6 +133,13 @@ public class BigArrays {
             ref.offset = (int) index;
             ref.length = len;
             return false;
+        }
+
+        @Override
+        public PagedBytesCursor get(long index, int len, PagedBytesCursor scratch) {
+            assert indexIsInt(index);
+            scratch.init(array, (int) index, len);
+            return scratch;
         }
 
         @Override
@@ -538,7 +546,7 @@ public class BigArrays {
                 }
             } else {
                 // even if we are not checking the breaker, we need to adjust
-                // its' totals, so add without breaking
+                // its totals, so add without breaking
                 breaker.addWithoutBreaking(delta);
             }
         }
@@ -595,6 +603,11 @@ public class BigArrays {
         return bytesRefRecycler;
     }
 
+    /** Returns the page cache recycler, may be null */
+    public PageCacheRecycler recycler() {
+        return recycler;
+    }
+
     /**
      * Allocate a new {@link ByteArray}.
      * @param size          the initial length of the array
@@ -612,6 +625,10 @@ public class BigArrays {
         } else {
             return validate(new ByteArrayWrapper(this, new byte[(int) size], size, null, clearOnResize));
         }
+    }
+
+    public ByteArray newByteArrayWrapper(byte[] bytes) {
+        return validate(new ByteArrayWrapper(this, bytes, bytes.length, null, false));
     }
 
     /**

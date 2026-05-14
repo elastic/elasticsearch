@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -19,7 +20,6 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -39,19 +39,28 @@ public class AzureAiStudioRerankTaskSettingsTests extends AbstractBWCWireSeriali
 
     public void testUpdatedTaskSettings_WithAllValues() {
         final AzureAiStudioRerankTaskSettings initialSettings = createRandom();
-        AzureAiStudioRerankTaskSettings newSettings = createRandom(initialSettings);
+        AzureAiStudioRerankTaskSettings newSettings = new AzureAiStudioRerankTaskSettings(
+            randomValueOtherThan(initialSettings.returnDocuments(), ESTestCase::randomBoolean),
+            randomValueOtherThan(initialSettings.topN(), ESTestCase::randomNonNegativeInt)
+        );
         assertUpdateSettings(newSettings, initialSettings);
     }
 
     public void testUpdatedTaskSettings_WithReturnDocumentsValue() {
         final AzureAiStudioRerankTaskSettings initialSettings = createRandom();
-        AzureAiStudioRerankTaskSettings newSettings = createRandom(initialSettings);
+        AzureAiStudioRerankTaskSettings newSettings = new AzureAiStudioRerankTaskSettings(
+            randomValueOtherThan(initialSettings.returnDocuments(), ESTestCase::randomBoolean),
+            null
+        );
         assertUpdateSettings(newSettings, initialSettings);
     }
 
     public void testUpdatedTaskSettings_WithTopNValue() {
         final AzureAiStudioRerankTaskSettings initialSettings = createRandom();
-        AzureAiStudioRerankTaskSettings newSettings = createRandom(initialSettings);
+        AzureAiStudioRerankTaskSettings newSettings = new AzureAiStudioRerankTaskSettings(
+            null,
+            randomValueOtherThan(initialSettings.topN(), ESTestCase::randomNonNegativeInt)
+        );
         assertUpdateSettings(newSettings, initialSettings);
     }
 
@@ -67,7 +76,7 @@ public class AzureAiStudioRerankTaskSettingsTests extends AbstractBWCWireSeriali
         if (newSettings.topN() != null) settingsMap.put(TOP_N_FIELD, newSettings.topN());
 
         final AzureAiStudioRerankTaskSettings updatedSettings = (AzureAiStudioRerankTaskSettings) initialSettings.updatedTaskSettings(
-            Collections.unmodifiableMap(settingsMap)
+            settingsMap
         );
         assertEquals(
             newSettings.returnDocuments() == null ? initialSettings.returnDocuments() : newSettings.returnDocuments(),
@@ -186,7 +195,13 @@ public class AzureAiStudioRerankTaskSettingsTests extends AbstractBWCWireSeriali
 
     @Override
     protected AzureAiStudioRerankTaskSettings mutateInstance(AzureAiStudioRerankTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, AzureAiStudioRerankTaskSettingsTests::createRandom);
+        if (randomBoolean()) {
+            Boolean newReturnDocuments = instance.returnDocuments() == null ? randomBoolean() : instance.returnDocuments() == false;
+            return new AzureAiStudioRerankTaskSettings(newReturnDocuments, instance.topN());
+        } else {
+            Integer topN = randomValueOtherThan(instance.topN(), ESTestCase::randomNonNegativeIntOrNull);
+            return new AzureAiStudioRerankTaskSettings(instance.returnDocuments(), topN);
+        }
     }
 
     @Override
@@ -195,17 +210,7 @@ public class AzureAiStudioRerankTaskSettingsTests extends AbstractBWCWireSeriali
     }
 
     private static AzureAiStudioRerankTaskSettings createRandom() {
-        return new AzureAiStudioRerankTaskSettings(
-            randomFrom(new Boolean[] { null, randomBoolean() }),
-            randomFrom(new Integer[] { null, randomNonNegativeInt() })
-        );
-    }
-
-    private static AzureAiStudioRerankTaskSettings createRandom(AzureAiStudioRerankTaskSettings settings) {
-        return new AzureAiStudioRerankTaskSettings(
-            randomValueOtherThan(settings.returnDocuments(), () -> randomFrom(new Boolean[] { null, randomBoolean() })),
-            randomValueOtherThan(settings.topN(), () -> randomFrom(new Integer[] { null, randomNonNegativeInt() }))
-        );
+        return new AzureAiStudioRerankTaskSettings(randomOptionalBoolean(), randomNonNegativeIntOrNull());
     }
 
     private void assertThrowsValidationExceptionIfStringValueProvidedFor(String field) {

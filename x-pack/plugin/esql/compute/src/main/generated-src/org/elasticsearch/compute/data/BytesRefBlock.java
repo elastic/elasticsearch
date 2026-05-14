@@ -9,7 +9,7 @@ package org.elasticsearch.compute.data;
 
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
@@ -23,20 +23,79 @@ import java.io.IOException;
  * This class is generated. Edit {@code X-Block.java.st} instead.
  */
 public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, BytesRefVectorBlock, ConstantNullBlock,
-    OrdinalBytesRefBlock {
+    OrdinalBytesRefBlock, org.elasticsearch.compute.data.arrow.BytesRefArrowBufBlock {
     BytesRef NULL_VALUE = new BytesRef();
 
     /**
-     * Retrieves the BytesRef value stored at the given value index.
-     *
-     * <p> Values for a given position are between getFirstValueIndex(position) (inclusive) and
-     * getFirstValueIndex(position) + getValueCount(position) (exclusive).
-     *
+     * Build a contiguous array of bytes for the value stored at the given
+     * position. The underlying data is generally stored in pages that look
+     * like {@code byte[][]} with some data spanning more than one of the
+     * inner {@code byte[]} arrays. In that case, this builds a
+     * {@code byte[]} in the {@link BytesRef}, copies the bytes, and returns
+     * it. Otherwise, this returns a zero-copy snapshot of the
+     * underlying data. Except arrow. Arrow always copies.
+     * <p>
+     *    If possible, use {@link #get} because it only needs to copy
+     *    in the arrow implementation.
+     * </p>
+     * <p>
+     *    There are {@link #getValueCount} values in each position. You can
+     *    access them all with something like:
+     * </p>
+     * {@snippet lang="java":
+     *    int start = getFirstValueIndex(position);
+     *    int end = start + getValueCount(position);
+     *    for (int i = start; i < end; i++) {
+     *       BytesRef v = getBytesRef(i, scratch);
+     *       // do stuff
+     *    }
+     * }
      * @param valueIndex the value index
-     * @param dest the destination
      * @return the data value (as a BytesRef)
      */
     BytesRef getBytesRef(int valueIndex, BytesRef dest);
+
+    /**
+     * Retrieves the bytes value stored at the given value index using a
+     * {@link PagedBytesCursor} for zero-copy access to the underlying paged
+     * byte storage. Except arrow. Arrow always copies.
+     * <p>
+     *    There are {@link #getValueCount} values in each position. You can
+     *    access them all with something like:
+     * </p>
+     * {@snippet lang="java":
+     *    int start = getFirstValueIndex(position);
+     *    int end = start + getValueCount(position);
+     *    for (int i = start; i < end; i++) {
+     *       PagedBytesCursor v = get(i, scratch);
+     *       // do stuff
+     *    }
+     * }
+     * @param valueIndex the value index
+     * @param scratch the cursor to initialize and return
+     * @return the initialized cursor pointing to the value's bytes
+     */
+    PagedBytesCursor get(int valueIndex, PagedBytesCursor scratch);
+
+    /**
+     * Checks if this block has the given value at position. If at this index we have a
+     * multivalue, then it returns true if any values match.
+     *
+     * @param position the index at which we should check the value(s)
+     * @param value the value to check against
+     * @param scratch the scratch BytesRef to use for this operation
+     */
+    default boolean hasValue(int position, BytesRef value, BytesRef scratch) {
+        final var count = getValueCount(position);
+        final var startIndex = getFirstValueIndex(position);
+        for (int index = startIndex; index < startIndex + count; index++) {
+            var ref = getBytesRef(index, scratch);
+            if (value.equals(ref)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     @Override
     BytesRefVector asVector();
@@ -48,7 +107,19 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
     OrdinalBytesRefBlock asOrdinals();
 
     @Override
-    BytesRefBlock filter(int... positions);
+    default BytesRefBlock slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (BytesRefBlock.Builder builder = blockFactory().newBytesRefBlockBuilder(endExclusive - beginInclusive)) {
+            builder.copyFrom(this, beginInclusive, endExclusive);
+            return builder.build();
+        }
+    }
+
+    @Override
+    BytesRefBlock filter(boolean mayContainDuplicates, int... positions);
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
@@ -71,6 +142,12 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
 
     @Override
     BytesRefBlock expand();
+
+    /**
+     * The maximum size in bytes of any single value stored in this block, or {@code 0} if there are no values.
+     * Scans all value indices to find the maximum.
+     */
+    int valueMaxByteSize();
 
     static BytesRefBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();
@@ -223,6 +300,11 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
          */
         @Override
         Builder appendBytesRef(BytesRef value);
+
+        /**
+         * Appends a BytesRef to the current entry using a {@link PagedBytesCursor}.
+         */
+        Builder append(PagedBytesCursor value);
 
         /**
          * Copy the values in {@code block} from {@code beginInclusive} to

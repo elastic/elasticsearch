@@ -33,6 +33,12 @@
         }
       ]
     },
-    "params": {}
+    "params": {
+      "include_implicit": {
+        "type": "boolean",
+        "default": false,
+        "description": "If true, include privileges that are implicitly granted by registered ImplicitPrivilegesProviders alongside the explicitly configured privileges."
+      }
+    }
   }
 }

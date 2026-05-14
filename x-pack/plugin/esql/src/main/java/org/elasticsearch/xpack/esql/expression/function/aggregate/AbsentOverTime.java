@@ -14,34 +14,47 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 
 import java.io.IOException;
 import java.util.List;
-
-import static java.util.Collections.emptyList;
+import java.util.Objects;
 
 /**
  * Similar to {@link Absent}, but it is used to check the absence of values over a time series in the given field.
  */
-public class AbsentOverTime extends TimeSeriesAggregateFunction {
+public class AbsentOverTime extends TimeSeriesAggregateFunction implements AggregateMetricDoubleNativeSupport, SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "AbsentOverTime",
         AbsentOverTime::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(AbsentOverTime.class)
+        .binary(AbsentOverTime::new)
+        .name("absent_over_time");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .withinSeriesOverTime(AbsentOverTime::new)
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .description("Returns 1 if the range vector has no elements, otherwise returns an empty vector.")
+        .example("absent_over_time(nonexistent_metric[5m])")
+        .name("absent_over_time");
 
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "boolean" },
-        description = "The absence of a field in the output result over time range.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
-        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds",
+        description = "Calculates the absence of a field in the output result over time range.",
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = { @Example(file = "k8s-timeseries", tag = "absent_over_time") }
     )
     public AbsentOverTime(
@@ -61,20 +74,30 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction {
                 "geohash",
                 "geotile",
                 "geohex",
+                "histogram",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
                 "text",
                 "unsigned_long",
-                "version" }
-        ) Expression field
+                "version",
+                "exponential_histogram",
+                "tdigest" },
+            description = "the metric field to calculate the value for"
+        ) Expression field,
+        @Param(
+            name = "window",
+            type = { "time_duration" },
+            description = "the time window over which to compute the absent over time",
+            optional = true
+        ) Expression window
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
     }
 
-    public AbsentOverTime(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public AbsentOverTime(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, List.of());
     }
 
     private AbsentOverTime(StreamInput in) throws IOException {
@@ -88,17 +111,17 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction {
 
     @Override
     public AbsentOverTime withFilter(Expression filter) {
-        return new AbsentOverTime(source(), field(), filter);
+        return new AbsentOverTime(source(), field(), filter, window());
     }
 
     @Override
     protected NodeInfo<AbsentOverTime> info() {
-        return NodeInfo.create(this, AbsentOverTime::new, field(), filter());
+        return NodeInfo.create(this, AbsentOverTime::new, field(), filter(), window());
     }
 
     @Override
     public AbsentOverTime replaceChildren(List<Expression> newChildren) {
-        return new AbsentOverTime(source(), newChildren.get(0), newChildren.get(1));
+        return new AbsentOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
@@ -112,7 +135,12 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction {
     }
 
     @Override
+    public Expression surrogate() {
+        return perTimeSeriesAggregation();
+    }
+
+    @Override
     public Absent perTimeSeriesAggregation() {
-        return new Absent(source(), field(), filter());
+        return new Absent(source(), field(), filter(), window());
     }
 }

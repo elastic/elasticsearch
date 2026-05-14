@@ -14,9 +14,9 @@ import org.elasticsearch.xpack.inference.services.openai.OpenAiTaskSettingsTests
 
 import java.util.Map;
 
-import static org.elasticsearch.TransportVersions.INFERENCE_API_OPENAI_HEADERS;
-
 public class OpenAiChatCompletionTaskSettingsTests extends OpenAiTaskSettingsTests<OpenAiChatCompletionTaskSettings> {
+
+    private static final TransportVersion INFERENCE_API_OPENAI_HEADERS = TransportVersion.fromName("inference_api_openai_headers");
 
     @Override
     protected Writeable.Reader<OpenAiChatCompletionTaskSettings> instanceReader() {
@@ -33,7 +33,7 @@ public class OpenAiChatCompletionTaskSettingsTests extends OpenAiTaskSettingsTes
         OpenAiChatCompletionTaskSettings instance,
         TransportVersion version
     ) {
-        if (version.onOrAfter(INFERENCE_API_OPENAI_HEADERS)) {
+        if (version.supports(INFERENCE_API_OPENAI_HEADERS)) {
             return instance;
         }
 

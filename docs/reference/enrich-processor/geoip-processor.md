@@ -10,7 +10,7 @@ mapped_pages:
 The `geoip` processor adds information about the geographical location of an IPv4 or IPv6 address.
 
 $$$geoip-automatic-updates$$$
-By default, the processor uses the GeoLite2 City, GeoLite2 Country, and GeoLite2 ASN IP geolocation databases from [MaxMind](http://dev.maxmind.com/geoip/geoip2/geolite2/), shared under the CC BY-SA 4.0 license. It automatically downloads these databases if your nodes can connect to `storage.googleapis.com` domain and either:
+By default, the processor uses the GeoLite2 City, GeoLite2 Country, and GeoLite2 ASN IP geolocation databases from [MaxMind](http://dev.maxmind.com/geoip/geoip2/geolite2/), shared under the CC BY-SA 4.0 license. It automatically downloads these databases if your nodes can connect to the `[*.]d24a988e385e0074d717b6bdaea58f0d.r2.cloudflarestorage.com` domains and either:
 
 * `ingest.geoip.downloader.eager.download` is set to true
 * your cluster has at least one pipeline with a `geoip` or `ip_location` processor
@@ -93,6 +93,7 @@ Which returns:
   }
 }
 ```
+% TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term":1/"_primary_term" : $body._primary_term/]
 
 Here is an example that uses the default country database and adds the geographical information to the `geo` field based on the `ip` field. Note that this database is downloaded automatically. So this:
 
@@ -137,6 +138,8 @@ returns this:
   }
 }
 ```
+% TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
+
 
 Not all IP addresses find geo information from the database, When this occurs, no `target_field` is inserted into the document.
 
@@ -178,6 +181,7 @@ Which returns:
   }
 }
 ```
+% TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 ### Recognizing Location as a Geopoint [ingest-geoip-mappings-note]
 
@@ -206,22 +210,25 @@ PUT my_ip_locations
 
 If you can’t [automatically update](#geoip-automatic-updates) your IP geolocation databases from the Elastic endpoint, you have a few other options:
 
-* [Use a proxy endpoint](#use-proxy-geoip-endpoint)
+* [Use a reverse proxy endpoint](#use-proxy-geoip-endpoint)
 * [Use a custom endpoint](#use-custom-geoip-endpoint)
 * [Manually update your IP geolocation databases](#manually-update-geoip-databases)
 
-$$$use-proxy-geoip-endpoint$$$
-**Use a proxy endpoint**
+### Use a reverse proxy endpoint [use-proxy-geoip-endpoint]
 
-If you can’t connect directly to the Elastic GeoIP endpoint, consider setting up a secure proxy. You can then specify the proxy endpoint URL in the [`ingest.geoip.downloader.endpoint`](#ingest-geoip-downloader-endpoint) setting of each node’s `elasticsearch.yml` file.
+If you can’t connect directly to the Elastic GeoIP endpoint, consider setting up a secure reverse proxy. You can then specify the reverse proxy endpoint URL in the [`ingest.geoip.downloader.endpoint`](#ingest-geoip-downloader-endpoint) setting of each node’s `elasticsearch.yml` file.
+
+:::{note}
+True HTTP proxy support for GeoIP database downloads is not currently available in {{es}}.
+:::
 
 In a strict setup the following domains may need to be added to the allowed domains list:
 
 * `geoip.elastic.co`
-* `storage.googleapis.com`
+* `d24a988e385e0074d717b6bdaea58f0d.r2.cloudflarestorage.com`
+* `*.d24a988e385e0074d717b6bdaea58f0d.r2.cloudflarestorage.com`
 
-$$$use-custom-geoip-endpoint$$$
-**Use a custom endpoint**
+### Use a custom endpoint [use-custom-geoip-endpoint]
 
 You can create a service that mimics the Elastic GeoIP endpoint. You can then get automatic updates from this service.
 
@@ -236,16 +243,21 @@ You can create a service that mimics the Elastic GeoIP endpoint. You can then ge
 4. Serve the static database files from your directory. For example, you can use Docker to serve the files from an nginx server:
 
     ```sh
-    docker run -v my/source/dir:/usr/share/nginx/html:ro nginx
+    docker run -p <host port>:80 -v my/source/dir:/usr/share/nginx/html:ro nginx
     ```
+
+:::{note}
+- You can bind any host port to the nginx default port (http 80) for public access. Nginx must [autoindex](https://nginx.org/en/docs/http/ngx_http_autoindex_module.html) files in its root folder to serve them.
+
+- Alternatively, you can use a S3 bucket instead of nginx. The files generated in step 3 above must be placed inside a prefix in the bucket. The ACL policy for the bucket should allow `s3:GetObject` on the bucket prefix.
+::: 
 
 5. Specify the service’s endpoint URL in the [`ingest.geoip.downloader.endpoint`](#ingest-geoip-downloader-endpoint) setting of each node’s `elasticsearch.yml` file.
 
     By default, {{es}} checks the endpoint for updates every three days. To use another polling interval, use the [cluster update settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings) to set [`ingest.geoip.downloader.poll.interval`](#ingest-geoip-downloader-poll-interval).
 
 
-$$$manually-update-geoip-databases$$$
-**Manually update your IP geolocation databases**
+### Manually update your IP geolocation databases [manually-update-geoip-databases]
 
 1. Use the [cluster update settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings) to set `ingest.geoip.downloader.enabled` to `false`. This disables automatic updates that may overwrite your database changes. This also deletes all downloaded databases.
 2. Download your `.mmdb` database files from the [MaxMind site](http://dev.maxmind.com/geoip/geoip2/geolite2).
@@ -256,7 +268,11 @@ $$$manually-update-geoip-databases$$$
 4. On self-managed deployments copy the database files to `$ES_CONFIG/ingest-geoip`.
 5. In your `geoip` processors, configure the `database_file` parameter to use a custom database file.
 
-### Node Settings [ingest-geoip-settings]
+### Troubleshooting geolocation database updates
+
+{{es}} ensures that only one node in the cluster downloads geolocation database updates at once. The node responsible for each download will record messages in its logs if it encounters any problems during the download. When troubleshooting problems with geolocation database updates, consult the logs from all the nodes in the cluster to gather accurate troubleshooting information.
+
+## Node Settings [ingest-geoip-settings]
 
 The `geoip` processor supports the following setting:
 
@@ -266,7 +282,7 @@ The `geoip` processor supports the following setting:
 Note that these settings are node settings and apply to all `geoip` and `ip_location` processors, i.e. there is a single cache for all such processors.
 
 
-### Cluster settings [geoip-cluster-settings]
+## Cluster settings [geoip-cluster-settings]
 
 $$$ingest-geoip-downloader-enabled$$$
 

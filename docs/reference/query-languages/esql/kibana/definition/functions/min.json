@@ -8,6 +8,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "aggregate_metric_double",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "boolean",
           "optional" : false,
           "description" : ""
@@ -45,6 +57,18 @@
         {
           "name" : "field",
           "type" : "double",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "exponential_histogram",
           "optional" : false,
           "description" : ""
         }
@@ -104,6 +128,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "text",
           "optional" : false,
           "description" : ""
@@ -139,7 +175,9 @@
   ],
   "examples" : [
     "FROM employees\n| STATS MIN(languages)",
-    "FROM employees\n| STATS min_avg_salary_change = MIN(MV_AVG(salary_change))"
+    "FROM employees\n| STATS min_avg_salary_change = MIN(MV_AVG(salary_change))",
+    "TS exp_histo_sample\n| WHERE instance == \"instance-0\"\n| STATS minimum = ROUND(MIN(responseTime), 4)",
+    "TS histogram_timeseries_index\n| WHERE instance == \"instance-0\"\n| STATS minimum = ROUND(MIN(responseTime::tdigest), 4)"
   ],
   "preview" : false,
   "snapshot_only" : false

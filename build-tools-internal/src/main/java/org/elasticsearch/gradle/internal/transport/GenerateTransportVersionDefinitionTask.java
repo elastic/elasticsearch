@@ -9,28 +9,21 @@
 
 package org.elasticsearch.gradle.internal.transport;
 
-import org.gradle.api.DefaultTask;
+import org.elasticsearch.gradle.internal.transport.TransportVersionResourcesService.IdAndDefinition;
 import org.gradle.api.file.ConfigurableFileCollection;
-import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.Property;
-import org.gradle.api.services.ServiceReference;
 import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
-import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.options.Option;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -42,7 +35,7 @@ import java.util.Set;
  * Additionally, when definition files are added or updated, the upper bounds files
  * for each relevant branch's upper bound file are also updated.
  */
-public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask {
+public abstract class GenerateTransportVersionDefinitionTask extends AbstractGenerateTransportVersionDefinitionTask {
 
     /**
      * Files that contain the references to the transport version names.
@@ -50,9 +43,6 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
     public abstract ConfigurableFileCollection getReferencesFiles();
-
-    @ServiceReference("transportVersionResources")
-    abstract Property<TransportVersionResourcesService> getResourceService();
 
     @Input
     @Optional
@@ -67,99 +57,36 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     )
     public abstract Property<String> getBackportBranches();
 
-    @Input
-    @Optional
-    @Option(option = "increment", description = "The amount to increment the id from the current upper bounds file by")
-    public abstract Property<Integer> getIncrement();
+    @Override
+    protected void runGeneration(
+        TransportVersionResourcesService resources,
+        List<TransportVersionUpperBound> upstreamUpperBounds,
+        boolean onReleaseBranch
+    ) throws IOException {
+        if (onReleaseBranch) {
+            throw new IllegalArgumentException("Transport version generation cannot run on release branches");
+        }
 
-    @Input
-    @Optional
-    abstract Property<Boolean> getResolveConflict();
-
-    /**
-     * The name of the upper bounds file which will be used at runtime on the current branch. Normally
-     * this equates to VersionProperties.getElasticsearchVersion().
-     */
-    @Input
-    public abstract Property<String> getCurrentUpperBoundName();
-
-    /**
-     * An additional upper bound file that will be consulted when generating a transport version.
-     * The larger of this and the current upper bound will be used to create the new primary id.
-     */
-    @InputFile
-    @Optional
-    public abstract RegularFileProperty getAlternateUpperBoundFile();
-
-    @TaskAction
-    public void run() throws IOException {
-        TransportVersionResourcesService resources = getResourceService().get();
         Set<String> referencedNames = TransportVersionReference.collectNames(getReferencesFiles());
-        List<String> changedDefinitionNames = resources.getChangedReferableDefinitionNames();
+        Set<String> changedDefinitionNames = resources.getChangedReferableDefinitionNames();
         String targetDefinitionName = getTargetDefinitionName(resources, referencedNames, changedDefinitionNames);
 
-        getLogger().lifecycle("Generating transport version name: " + targetDefinitionName);
-        if (targetDefinitionName.isEmpty()) {
-            // TODO: resetting upper bounds needs to be done locally, otherwise it pulls in some (incomplete) changes from upstream main
-            // resetAllUpperBounds(resources);
-        } else {
-            List<TransportVersionUpperBound> upstreamUpperBounds = resources.getUpperBoundsFromUpstream();
-            Set<String> targetUpperBoundNames = getTargetUpperBoundNames(resources, upstreamUpperBounds, targetDefinitionName);
-
-            List<TransportVersionId> ids = updateUpperBounds(resources, upstreamUpperBounds, targetUpperBoundNames, targetDefinitionName);
-            // (Re)write the definition file.
-            resources.writeDefinition(new TransportVersionDefinition(targetDefinitionName, ids, true));
-        }
-
+        // First check for any unused definitions. This later generation to not get confused by a definition that can't be used.
         removeUnusedNamedDefinitions(resources, referencedNames, changedDefinitionNames);
-    }
 
-    private List<TransportVersionId> updateUpperBounds(
-        TransportVersionResourcesService resources,
-        List<TransportVersionUpperBound> existingUpperBounds,
-        Set<String> targetUpperBoundNames,
-        String definitionName
-    ) throws IOException {
-        String currentUpperBoundName = getCurrentUpperBoundName().get();
-        int increment = getIncrement().get();
-        if (increment <= 0) {
-            throw new IllegalArgumentException("Invalid increment " + increment + ", must be a positive integer");
+        Map<Integer, List<IdAndDefinition>> idsByBase = resources.getIdsByBase();
+        if (targetDefinitionName.isEmpty()) {
+            getLogger().lifecycle("No transport version name detected, resetting upper bounds");
+            resetAllUpperBounds(resources, idsByBase);
+        } else {
+            generateTransportVersionDefinition(resources, targetDefinitionName, upstreamUpperBounds, idsByBase);
         }
-        if (increment > 1000) {
-            throw new IllegalArgumentException("Invalid increment " + increment + ", must be no larger than 1000");
-        }
-        List<TransportVersionId> ids = new ArrayList<>();
-        boolean stageInGit = getResolveConflict().getOrElse(false);
-
-        TransportVersionDefinition existingDefinition = resources.getReferableDefinitionFromUpstream(definitionName);
-        for (TransportVersionUpperBound existingUpperBound : existingUpperBounds) {
-            String upperBoundName = existingUpperBound.name();
-
-            if (targetUpperBoundNames.contains(upperBoundName)) {
-                // Case: targeting this upper bound, find an existing id if it exists
-                TransportVersionId targetId = maybeGetExistingId(existingUpperBound, existingDefinition, definitionName);
-                if (targetId == null) {
-                    // Case: an id doesn't yet exist for this upper bound, so create one
-                    int targetIncrement = upperBoundName.equals(currentUpperBoundName) ? increment : 1;
-                    targetId = createTargetId(existingUpperBound, targetIncrement);
-                    var newUpperBound = new TransportVersionUpperBound(upperBoundName, definitionName, targetId);
-                    resources.writeUpperBound(newUpperBound, stageInGit);
-                }
-                ids.add(targetId);
-            } else {
-                // Default case: we're not targeting this branch so reset it
-                resources.writeUpperBound(existingUpperBound, false);
-            }
-        }
-
-        Collections.sort(ids);
-        return ids;
     }
 
     private String getTargetDefinitionName(
         TransportVersionResourcesService resources,
         Set<String> referencedNames,
-        List<String> changedDefinitions
+        Set<String> changedDefinitions
     ) {
         if (getDefinitionName().isPresent()) {
             // an explicit name was passed in, so use it
@@ -180,7 +107,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         if (changedDefinitions.isEmpty()) {
             return "";
         } else {
-            String changedDefinitionName = changedDefinitions.getFirst();
+            String changedDefinitionName = changedDefinitions.iterator().next();
             if (referencedNames.contains(changedDefinitionName)) {
                 return changedDefinitionName;
             } else {
@@ -189,19 +116,12 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         }
     }
 
-    private Set<String> getTargetUpperBoundNames(
+    @Override
+    protected Set<String> getTargetUpperBoundNames(
         TransportVersionResourcesService resources,
         List<TransportVersionUpperBound> upstreamUpperBounds,
         String targetDefinitionName
     ) throws IOException {
-        if (getResolveConflict().getOrElse(false)) {
-            if (getBackportBranches().isPresent()) {
-                throw new IllegalArgumentException("Cannot use --resolve-conflict with --backport-branches");
-            }
-
-            return getUpperBoundNamesFromDefinition(resources, upstreamUpperBounds, targetDefinitionName);
-        }
-
         Set<String> targetUpperBoundNames = new HashSet<>();
         targetUpperBoundNames.add(getCurrentUpperBoundName().get());
         if (getBackportBranches().isPresent()) {
@@ -225,39 +145,38 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         return targetUpperBoundNames;
     }
 
-    private Set<String> getUpperBoundNamesFromDefinition(
-        TransportVersionResourcesService resources,
-        List<TransportVersionUpperBound> upstreamUpperBounds,
-        String targetDefinitionName
-    ) throws IOException {
-        TransportVersionDefinition definition = resources.getReferableDefinition(targetDefinitionName);
-        Set<String> upperBoundNames = new HashSet<>();
-        upperBoundNames.add(getCurrentUpperBoundName().get());
-
-        // skip the primary id as that is current, which we always add
-        for (int i = 1; i < definition.ids().size(); ++i) {
-            TransportVersionId id = definition.ids().get(i);
-            // we have a small number of upper bound files, so just scan for the ones we want
-            for (TransportVersionUpperBound upperBound : upstreamUpperBounds) {
-                if (upperBound.definitionId().base() == id.base()) {
-                    upperBoundNames.add(upperBound.name());
-                }
-            }
+    private void resetAllUpperBounds(TransportVersionResourcesService resources, Map<Integer, List<IdAndDefinition>> idsByBase)
+        throws IOException {
+        for (String upperBoundName : resources.getChangedUpperBoundNames()) {
+            TransportVersionUpperBound upstreamUpperBound = resources.getUpperBoundFromGitBase(upperBoundName);
+            resetUpperBound(resources, upstreamUpperBound, idsByBase, null);
         }
-
-        return upperBoundNames;
     }
 
-    private void resetAllUpperBounds(TransportVersionResourcesService resources) throws IOException {
-        for (TransportVersionUpperBound upperBound : resources.getUpperBoundsFromUpstream()) {
-            resources.writeUpperBound(upperBound, false);
+    private void resetUpperBound(
+        TransportVersionResourcesService resources,
+        TransportVersionUpperBound upperBound,
+        Map<Integer, List<IdAndDefinition>> idsByBase,
+        String ignoreDefinitionName
+    ) throws IOException {
+        List<IdAndDefinition> idsForUpperBound = idsByBase.get(upperBound.definitionId().base());
+        if (idsForUpperBound == null) {
+            throw new RuntimeException("Could not find base id: " + upperBound.definitionId().base());
         }
+        IdAndDefinition resetValue = idsForUpperBound.getLast();
+        if (resetValue.definition().name().equals(ignoreDefinitionName)) {
+            // there must be another definition in this base since the ignored definition is new
+            assert idsForUpperBound.size() >= 2;
+            resetValue = idsForUpperBound.get(idsForUpperBound.size() - 2);
+        }
+        var resetUpperBound = new TransportVersionUpperBound(upperBound.name(), resetValue.definition().name(), resetValue.id());
+        resources.writeUpperBound(resetUpperBound);
     }
 
     private void removeUnusedNamedDefinitions(
         TransportVersionResourcesService resources,
         Set<String> referencedNames,
-        List<String> changedDefinitions
+        Set<String> changedDefinitions
     ) throws IOException {
         for (String definitionName : changedDefinitions) {
             if (referencedNames.contains(definitionName) == false) {
@@ -268,47 +187,9 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         }
     }
 
-    private TransportVersionId maybeGetExistingId(
-        TransportVersionUpperBound upperBound,
-        TransportVersionDefinition existingDefinition,
-        String name
-    ) {
-        if (existingDefinition == null) {
-            // the name doesn't yet exist, so there is no id to return
-            return null;
-        }
-        if (upperBound.definitionName().equals(name)) {
-            // the name exists and this upper bound already points at it
-            return upperBound.definitionId();
-        }
-        if (upperBound.name().equals(getCurrentUpperBoundName().get())) {
-            // this is the upper bound of the current branch, so use the primary id
-            return existingDefinition.ids().getFirst();
-        }
-        // the upper bound is for a non-current branch, so find the id with the same base
-        for (TransportVersionId id : existingDefinition.ids()) {
-            if (id.base() == upperBound.definitionId().base()) {
-                return id;
-            }
-        }
-        return null; // no existing id for this upper bound
+    @Override
+    protected void writeUpperBound(TransportVersionResourcesService resources, TransportVersionUpperBound newUpperBound)
+        throws IOException {
+        resources.writeUpperBound(newUpperBound);
     }
-
-    private TransportVersionId createTargetId(TransportVersionUpperBound existingUpperBound, int increment) throws IOException {
-        int currentId = existingUpperBound.definitionId().complete();
-
-        // allow for an alternate upper bound file to be consulted. This supports Serverless basing its
-        // own transport version ids on the greater of server or serverless
-        if (getAlternateUpperBoundFile().isPresent()) {
-            Path altUpperBoundPath = getAlternateUpperBoundFile().get().getAsFile().toPath();
-            String contents = Files.readString(altUpperBoundPath, StandardCharsets.UTF_8);
-            var altUpperBound = TransportVersionUpperBound.fromString(altUpperBoundPath, contents);
-            if (altUpperBound.definitionId().complete() > currentId) {
-                currentId = altUpperBound.definitionId().complete();
-            }
-        }
-
-        return TransportVersionId.fromInt(currentId + increment);
-    }
-
 }

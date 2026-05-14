@@ -1,26 +1,25 @@
 ---
 navigation_title: "Configuration"
 applies_to:
-  deployment:
-    ess:
-    ece:
-    self:
-    eck:
-  serverless:
+  stack:
 ---
 
 # Elasticsearch configuration reference
 
-:::{note}
-This section provides detailed **reference information** for Elasticsearch configuration.
+Configuration settings enable you to customize the behavior of {{es}} features.
+This reference provides details about each setting, such as its purpose, default behavior, and availability in various deployment contexts.
 
-Refer to [Elasticsearch configuration](docs-content://deploy-manage/deploy/cloud-on-k8s/elasticsearch-configuration.md) in the **Deploy and manage** section for overview, getting started and conceptual information.
+To learn how to update these settings on your cluster, including on ECH, ECE, ECK, and self-managed deployments, refer to [Elastic Stack settings](docs-content://deploy-manage/stack-settings.md).
+
+This section provides detailed **reference information** for {{es}} configuration. Refer to the [Deploy and manage](docs-content://deploy-manage/index.md) section to get started with deploying and configuring {{es}}, and to learn when and how to use some of these settings.
+
+:::{admonition} Serverless manages these settings for you
+In {{serverless-full}}, cluster-level settings and node-level settings are not required by end users, and are fully managed by Elastic.
+
+Certain [project settings](docs-content://deploy-manage/deploy/elastic-cloud/project-settings.md) allow you to customize your project’s performance and general data retention, and enable or disable project features.
 :::
 
-Configuration settings enable you to customize the behavior of Elasticsearch features.
-This reference provides details about each setting, such as its purpose, default behavior, and availability in Elastic Cloud environments.
-
-For details on updating user settings, see [Edit Elastic Stack settings](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md) for {{ech}} deployments, [Add Elasticsearch user settings](docs-content://deploy-manage/deploy/cloud-enterprise/edit-stack-settings-elasticsearch.md) for {{ece}} deployments and [Differences from other Elasticsearch offerings](docs-content://deploy-manage/deploy/elastic-cloud/differences-from-other-elasticsearch-offerings.md) for {{serverless-short}}.
+For information about index-level settings, refer to [](/reference/elasticsearch/index-settings/index.md).
 
 The settings are grouped by feature or purpose, for example:
 
@@ -36,6 +35,7 @@ The settings are grouped by feature or purpose, for example:
 - [Index management](/reference/elasticsearch/configuration-reference/index-management-settings.md)
 - [Index recovery](/reference/elasticsearch/configuration-reference/index-recovery-settings.md)
 - [Index buffer](/reference/elasticsearch/configuration-reference/indexing-buffer-settings.md)
+- [Indexing pressure](/reference/elasticsearch/configuration-reference/indexing-pressure-settings.md)
 - [Inference](/reference/elasticsearch/configuration-reference/inference-settings.md)
 - [License](/reference/elasticsearch/configuration-reference/license-settings.md)
 - [Local gateway](/reference/elasticsearch/configuration-reference/local-gateway.md)
@@ -43,7 +43,9 @@ The settings are grouped by feature or purpose, for example:
 - [Monitoring](/reference/elasticsearch/configuration-reference/monitoring-settings.md)
 - [Networking](/reference/elasticsearch/configuration-reference/networking-settings.md)
 - [Nodes](/reference/elasticsearch/configuration-reference/node-settings.md)
+- [Path](/reference/elasticsearch/configuration-reference/path.md)
 - [Node query cache](/reference/elasticsearch/configuration-reference/node-query-cache-settings.md)
+- [Remote clusters](/reference/elasticsearch/configuration-reference/remote-clusters.md)
 - [Search](/reference/elasticsearch/configuration-reference/search-settings.md)
 - [Security](/reference/elasticsearch/configuration-reference/security-settings.md)
 - [Shard request cache](/reference/elasticsearch/configuration-reference/shard-request-cache-settings.md)

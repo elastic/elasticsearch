@@ -22,9 +22,11 @@ record TransportVersionDefinition(String name, List<TransportVersionId> ids, boo
 
         String idsLine = null;
         if (contents.isEmpty() == false) {
-            String[] lines = contents.split(System.lineSeparator());
+            // Regardless of whether windows newlines exist (they could be added by git), we split on line feed.
+            // All we care about skipping lines with the comment character, so the remaining \r won't matter
+            String[] lines = contents.split("\n");
             for (String line : lines) {
-                line = line.replaceAll("\\s+", "");
+                line = line.strip();
                 if (line.startsWith("#") == false) {
                     idsLine = line;
                     break;

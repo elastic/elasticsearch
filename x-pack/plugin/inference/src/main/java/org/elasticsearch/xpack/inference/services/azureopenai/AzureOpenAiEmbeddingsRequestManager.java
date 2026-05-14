@@ -33,11 +33,11 @@ public class AzureOpenAiEmbeddingsRequestManager extends AzureOpenAiRequestManag
 
     private static final Logger logger = LogManager.getLogger(AzureOpenAiEmbeddingsRequestManager.class);
 
-    private static final ResponseHandler HANDLER = createEmbeddingsHandler();
-
-    private static ResponseHandler createEmbeddingsHandler() {
-        return new AzureOpenAiResponseHandler("azure openai text embedding", OpenAiEmbeddingsResponseEntity::fromResponse, false);
-    }
+    private static final ResponseHandler HANDLER = new AzureOpenAiResponseHandler(
+        "azure openai embedding",
+        OpenAiEmbeddingsResponseEntity::fromResponse,
+        false
+    );
 
     public static AzureOpenAiEmbeddingsRequestManager of(AzureOpenAiEmbeddingsModel model, Truncator truncator, ThreadPool threadPool) {
         return new AzureOpenAiEmbeddingsRequestManager(
@@ -64,7 +64,7 @@ public class AzureOpenAiEmbeddingsRequestManager extends AzureOpenAiRequestManag
         ActionListener<InferenceServiceResults> listener
     ) {
         EmbeddingsInput input = inferenceInputs.castTo(EmbeddingsInput.class);
-        List<String> docsInput = input.getInputs();
+        List<String> docsInput = input.getTextInputs();
         InputType inputType = input.getInputType();
 
         var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());

@@ -13,8 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ResultDeduplicator;
@@ -51,7 +49,6 @@ public class TaskCancellationService {
     public static final String REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME = "cluster:internal/admin/tasks/ban";
     public static final String CANCEL_CHILD_ACTION_NAME = "internal:admin/tasks/cancel_child";
     public static final String REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME = "cluster:internal/admin/tasks/cancel_child";
-    public static final TransportVersion VERSION_SUPPORTING_CANCEL_CHILD_ACTION = TransportVersions.V_8_8_0;
     private static final Logger logger = LogManager.getLogger(TaskCancellationService.class);
     private final TransportService transportService;
     private final TaskManager taskManager;
@@ -424,18 +421,16 @@ public class TaskCancellationService {
      * Sends an action to cancel a child task, associated with the given request ID and parent task.
      */
     public void cancelChildRemote(TaskId parentTask, long childRequestId, Transport.Connection childConnection, String reason) {
-        if (childConnection.getTransportVersion().onOrAfter(VERSION_SUPPORTING_CANCEL_CHILD_ACTION)) {
-            DiscoveryNode childNode = childConnection.getNode();
-            logger.debug(
-                "sending cancellation of child of parent task [{}] with request ID [{}] to node [{}] because of [{}]",
-                parentTask,
-                childRequestId,
-                childNode,
-                reason
-            );
-            final CancelChildRequest request = CancelChildRequest.createCancelChildRequest(parentTask, childRequestId, reason);
-            transportService.sendRequest(childConnection, CANCEL_CHILD_ACTION_NAME, request, TransportRequestOptions.EMPTY, NOOP_HANDLER);
-        }
+        DiscoveryNode childNode = childConnection.getNode();
+        logger.debug(
+            "sending cancellation of child of parent task [{}] with request ID [{}] to node [{}] because of [{}]",
+            parentTask,
+            childRequestId,
+            childNode,
+            reason
+        );
+        final CancelChildRequest request = CancelChildRequest.createCancelChildRequest(parentTask, childRequestId, reason);
+        transportService.sendRequest(childConnection, CANCEL_CHILD_ACTION_NAME, request, TransportRequestOptions.EMPTY, NOOP_HANDLER);
     }
 
 }

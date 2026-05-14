@@ -23,15 +23,13 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -44,7 +42,6 @@ import static org.mockito.Mockito.when;
 
 public class InferenceResolverTests extends ESTestCase {
     private TestThreadPool threadPool;
-    private EsqlFunctionRegistry functionRegistry;
 
     @Before
     public void setThreadPool() {
@@ -59,11 +56,6 @@ public class InferenceResolverTests extends ESTestCase {
                 EsExecutors.TaskTrackingConfig.DEFAULT
             )
         );
-    }
-
-    @Before
-    public void setUpFunctionRegistry() {
-        functionRegistry = new EsqlFunctionRegistry();
     }
 
     @After
@@ -84,25 +76,23 @@ public class InferenceResolverTests extends ESTestCase {
             List.of("completion-inference-id")
         );
 
-        if (EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled()) {
-            // Text embedding inference plan
-            assertCollectInferenceIds(
-                "FROM books METADATA _score | EVAL embedding = TEXT_EMBEDDING(\"description\", \"text-embedding-inference-id\")",
-                List.of("text-embedding-inference-id")
-            );
+        // Text embedding function
+        assertCollectInferenceIds(
+            "FROM books METADATA _score | EVAL embedding = TEXT_EMBEDDING(\"description\", \"text-embedding-inference-id\")",
+            List.of("text-embedding-inference-id")
+        );
 
-            // Test inference ID collection from an inference function
-            assertCollectInferenceIds(
-                "FROM books METADATA _score | EVAL embedding = TEXT_EMBEDDING(\"description\", \"text-embedding-inference-id\")",
-                List.of("text-embedding-inference-id")
-            );
+        // Test inference ID collection from an inference function
+        assertCollectInferenceIds(
+            "FROM books METADATA _score | EVAL embedding = TEXT_EMBEDDING(\"description\", \"text-embedding-inference-id\")",
+            List.of("text-embedding-inference-id")
+        );
 
-            // Test inference ID collection with nested functions
-            assertCollectInferenceIds(
-                "FROM books METADATA _score | EVAL embedding = TEXT_EMBEDDING(TEXT_EMBEDDING(\"nested\", \"nested-id\"), \"outer-id\")",
-                List.of("nested-id", "outer-id")
-            );
-        }
+        // Test inference ID collection with nested functions
+        assertCollectInferenceIds(
+            "FROM books METADATA _score | EVAL embedding = TEXT_EMBEDDING(TEXT_EMBEDDING(\"nested\", \"nested-id\"), \"outer-id\")",
+            List.of("nested-id", "outer-id")
+        );
 
         // Multiple inference plans
         assertCollectInferenceIds("""
@@ -117,7 +107,7 @@ public class InferenceResolverTests extends ESTestCase {
 
     private void assertCollectInferenceIds(String query, List<String> expectedInferenceIds) {
         InferenceResolver inferenceResolver = inferenceResolver();
-        List<String> inferenceIds = inferenceResolver.collectInferenceIds(new EsqlParser().createStatement(query, configuration(query)));
+        List<String> inferenceIds = inferenceResolver.collectInferenceIds(TEST_PARSER.parseQuery(query));
         assertThat(inferenceIds, containsInAnyOrder(expectedInferenceIds.toArray(new String[0])));
     }
 
@@ -229,7 +219,7 @@ public class InferenceResolverTests extends ESTestCase {
     }
 
     private InferenceResolver inferenceResolver() {
-        return new InferenceResolver(mockClient(), functionRegistry, threadPool);
+        return new InferenceResolver(mockClient(), TEST_FUNCTION_REGISTRY, threadPool);
     }
 
     private static ModelConfigurations mockModelConfig(String inferenceId, TaskType taskType) {

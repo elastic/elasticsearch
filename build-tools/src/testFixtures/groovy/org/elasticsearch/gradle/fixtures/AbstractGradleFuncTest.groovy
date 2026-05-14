@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.fixtures
 
 import spock.lang.Specification
 import spock.lang.TempDir
+import com.github.tomakehurst.wiremock.WireMockServer
 
 import org.apache.commons.io.FileUtils
 import org.apache.commons.io.IOUtils
@@ -20,7 +21,7 @@ import org.elasticsearch.gradle.internal.test.NormalizeOutputGradleRunner
 import org.elasticsearch.gradle.internal.test.TestResultExtension
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
-import org.gradle.tooling.BuildException
+import org.junit.After
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 
@@ -31,6 +32,7 @@ import java.util.jar.JarOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 
+import static com.github.tomakehurst.wiremock.client.WireMock.*
 import static org.elasticsearch.gradle.internal.test.TestUtils.normalizeString
 
 abstract class AbstractGradleFuncTest extends Specification {
@@ -106,6 +108,7 @@ abstract class AbstractGradleFuncTest extends Specification {
         subProjectBuild
     }
 
+
     GradleRunner gradleRunner(Object... arguments) {
         return gradleRunner(testProjectDir.root, arguments)
     }
@@ -120,6 +123,7 @@ abstract class AbstractGradleFuncTest extends Specification {
                                 )
                                 .withProjectDir(projectDir)
                                 .withPluginClasspath()
+                                .withTestKitDir(gradleUserHome)
                                 .forwardOutput()
             ), configurationCacheCompatible,
                 buildApiRestrictionsDisabled)
@@ -171,13 +175,13 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     File internalBuild(
-            List<String> extraPlugins = [],
-            String maintenance = "7.16.10",
-            String major4 = "8.1.3",
-            String major3 = "8.2.1",
-            String major2 = "8.3.0",
-            String major1 = "8.4.0",
-            String current = "9.0.0"
+        List<String> extraPlugins = [],
+        String maintenance = "7.16.10",
+        String major4 = "8.1.3",
+        String major3 = "8.2.1",
+        String major2 = "8.3.0",
+        String major1 = "8.4.0",
+        String current = "9.0.0"
     ) {
         buildFile << """plugins {
           id 'elasticsearch.global-build-info'
@@ -211,10 +215,10 @@ abstract class AbstractGradleFuncTest extends Specification {
         """
     }
 
-    String execute(String command, File workingDir = testProjectDir.root) {
+    String execute(String command, File workingDir = testProjectDir.root, boolean ignoreFailure = false) {
         def proc = command.execute(Collections.emptyList(), workingDir)
         proc.waitFor()
-        if (proc.exitValue()) {
+        if (proc.exitValue() && ignoreFailure == false) {
             String msg = """Error running command ${command}:
                 Sysout: ${proc.inputStream.text}
                 Syserr: ${proc.errorStream.text}
@@ -244,14 +248,74 @@ checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
               }
             }
             '''
+    }
 
+    /**
+     * Parses the Gradle Problems API report and returns the diagnostics as a list of maps.
+     * Each diagnostic has: problemId (list of {name, displayName}), severity, contextualLabel, solutions, locations.
+     */
+    List<Map> problemsReportDiagnostics() {
+        def reportFile = new File(projectDir, "build/reports/problems/problems-report.html")
+        if (!reportFile.exists()) {
+            return []
+        }
+        def content = reportFile.text
+        def matcher = content =~ /\/\/ begin-report-data\n(.*)\n\/\/ end-report-data/
+        if (!matcher.find()) {
+            return []
+        }
+        def json = new groovy.json.JsonSlurper().parseText(matcher.group(1))
+        return json.diagnostics ?: []
+    }
+
+    /**
+     * Asserts that problems were reported with the given group name in the problem ID hierarchy.
+     */
+    def assertProblemsReportContains(String groupName) {
+        def diagnostics = problemsReportDiagnostics()
+        assert diagnostics.any { diag ->
+            diag.problemId.any { id -> id.name == groupName }
+        } : "Expected problems report to contain group '${groupName}', but found: ${diagnostics.collect { it.problemId*.name }.flatten().unique()}"
+        true
+    }
+
+    /**
+     * Asserts that problems were reported with the given problem name (leaf ID) in the report.
+     */
+    def assertProblemsReportContainsProblem(String problemName) {
+        def diagnostics = problemsReportDiagnostics()
+        assert diagnostics.any { diag ->
+            diag.problemId.last().name == problemName
+        } : "Expected problems report to contain problem '${problemName}', but found: ${diagnostics.collect { it.problemId.last().name }.unique()}"
+        true
+    }
+
+    /**
+     * Asserts that the problems report contains at least the expected number of diagnostics.
+     */
+    def assertProblemsReportHasAtLeast(int expectedCount) {
+        def diagnostics = problemsReportDiagnostics()
+        assert diagnostics.size() >= expectedCount : "Expected at least ${expectedCount} problems, but found ${diagnostics.size()}"
+        true
+    }
+
+    /**
+     * Asserts that problems have the expected severity.
+     */
+    def assertProblemsReportSeverity(String problemName, String expectedSeverity) {
+        def diagnostics = problemsReportDiagnostics()
+        def matching = diagnostics.findAll { diag -> diag.problemId.last().name == problemName }
+        assert matching.every { it.severity == expectedSeverity } : \
+            "Expected severity '${expectedSeverity}' for problem '${problemName}', but found: ${matching.collect { it.severity }.unique()}"
+        true
     }
 
     boolean featureFailed() {
         specificationContext.currentSpec.listeners
             .findAll { it instanceof TestResultExtension.ErrorListener }
             .any {
-                (it as TestResultExtension.ErrorListener).errorInfo != null }
+                (it as TestResultExtension.ErrorListener).errorInfo != null
+            }
     }
 
     ZipAssertion zip(String relativePath) {
@@ -303,7 +367,7 @@ checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
         }
 
         String read() {
-            try(ZipFile zipFile1 = new ZipFile(zipFile)) {
+            try (ZipFile zipFile1 = new ZipFile(zipFile)) {
                 def inputStream = zipFile1.getInputStream(entry)
                 return IOUtils.toString(inputStream, StandardCharsets.UTF_8.name())
             } catch (IOException e) {
@@ -329,5 +393,72 @@ checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
         File getBuildFile() {
             return new File(projectDir, 'build.gradle')
         };
+
+        File file(String path) {
+            def file = new File(projectDir, path)
+            file.parentFile.mkdirs()
+            file
+        }
+
+        File createTest(String clazzName, String content = testMethodContent(false, false, 1)) {
+            def file = new File(projectDir, "src/test/java/org/acme/${clazzName}.java")
+            file.parentFile.mkdirs()
+            file << """
+            package org.acme;
+
+            import org.junit.Test;
+            import org.junit.Before;
+            import org.junit.After;
+            import org.junit.Assert;
+            import java.nio.*;
+            import java.nio.file.*;
+            import java.io.IOException;
+
+            public class $clazzName {
+
+                @Before
+                public void beforeTest() {
+                }
+
+                @After
+                public void afterTest() {
+                }
+
+                @Test
+                public void someTest1() {
+                    ${content}
+                }
+
+                @Test
+                public void someTest2() {
+                    ${content}
+                }
+            }
+        """
+        }
+
+        String testMethodContent(boolean withSystemExit, boolean fail, int timesFailing = 1) {
+            return """
+            System.out.println(getClass().getSimpleName() + " executing");
+
+            ${withSystemExit ? """
+                    if(count <= ${timesFailing}) {
+                        System.exit(1);
+                    }
+                    """ : ''
+            }
+
+            ${fail ? """
+                    if(count <= ${timesFailing}) {
+                        try {
+                            Thread.sleep(2000);
+                        } catch(Exception e) {}
+                        Assert.fail();
+                    }
+                    """ : ''
+            }
+        """
+        }
+
     }
 }

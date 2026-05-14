@@ -12,6 +12,7 @@ package org.elasticsearch;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.SliceMissingException;
 import org.elasticsearch.action.search.ReduceSearchPhaseException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -902,6 +903,32 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertThat(cause.getMetadata("es.index_uuid"), hasItem("_na_"));
     }
 
+    public void testFromXContentWithSliceMissingCause() throws IOException {
+        ElasticsearchException e = new ElasticsearchException("foo", new SliceMissingException("_test", "_id"));
+
+        final XContent xContent = randomFrom(XContentType.values()).xContent();
+        XContentBuilder builder = XContentBuilder.builder(xContent).startObject().value(e).endObject();
+        builder = shuffleXContent(builder);
+
+        ElasticsearchException parsed;
+        try (XContentParser parser = createParser(builder)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            parsed = ElasticsearchException.fromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertNull(parser.nextToken());
+        }
+
+        assertNotNull(parsed);
+        assertEquals(parsed.getMessage(), "Elasticsearch exception [type=exception, reason=foo]");
+        ElasticsearchException cause = (ElasticsearchException) parsed.getCause();
+        assertEquals(
+            cause.getMessage(),
+            "Elasticsearch exception [type=slice_missing_exception, reason=_slice is required for [_test]/[_id]]"
+        );
+        assertThat(cause.getMetadata("es.index"), hasItem("_test"));
+        assertThat(cause.getMetadata("es.index_uuid"), hasItem("_na_"));
+    }
+
     public void testFromXContentWithHeadersAndMetadata() throws IOException {
         RoutingMissingException routing = new RoutingMissingException("_test", "_id");
         ElasticsearchException baz = new ElasticsearchException("baz", routing);
@@ -1258,6 +1285,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 DiscoveryNode node = DiscoveryNodeUtils.create("node_g");
                 failureCause = new NodeClosedException(node);
                 failureCause = new NoShardAvailableActionException(new ShardId("_index_g", "_uuid_g", 6), "node_g", failureCause);
+                ShardSearchContextId shardSearchContextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), 0, null);
                 ShardSearchFailure[] shardFailures = new ShardSearchFailure[] {
                     new ShardSearchFailure(
                         new ParsingException(0, 0, "Parsing g", null),
@@ -1267,10 +1295,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                         new RepositoryException("repository_g", "Repo"),
                         new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 62), null)
                     ),
-                    new ShardSearchFailure(
-                        new SearchContextMissingException(new ShardSearchContextId(UUIDs.randomBase64UUID(), 0L)),
-                        null
-                    ) };
+                    new ShardSearchFailure(new SearchContextMissingException(shardSearchContextId), null) };
                 failure = new SearchPhaseExecutionException("phase_g", "G", failureCause, shardFailures);
                 expectedCause = new ElasticsearchException(
                     "Elasticsearch exception [type=node_closed_exception, " + "reason=node closed " + node + "]"
@@ -1293,7 +1318,10 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 );
                 expected.addSuppressed(
                     new ElasticsearchException(
-                        "Elasticsearch exception [type=search_context_missing_exception, " + "reason=No search context found for id [0]]"
+                        "Elasticsearch exception [type=search_context_missing_exception, "
+                            + "reason=No search context found for id ["
+                            + shardSearchContextId
+                            + "]]"
                     )
                 );
             }

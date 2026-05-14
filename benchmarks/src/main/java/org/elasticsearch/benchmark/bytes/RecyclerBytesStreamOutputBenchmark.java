@@ -10,6 +10,7 @@
 package org.elasticsearch.benchmark.bytes;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.benchmark.common.util.UTF8StringBytesBenchmark;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -36,7 +37,8 @@ import java.util.concurrent.atomic.AtomicReference;
 @Fork(value = 1)
 public class RecyclerBytesStreamOutputBenchmark {
 
-    private final AtomicReference<BytesRef> bytesRef = new AtomicReference<>(new BytesRef(16384));
+    private final AtomicReference<BytesRef> bytesRef = new AtomicReference<>(new BytesRef(new byte[16384], 0, 16384));
+
     private RecyclerBytesStreamOutput streamOutput;
     private String shortString;
     private String longString;
@@ -65,10 +67,10 @@ public class RecyclerBytesStreamOutputBenchmark {
         // We use weights to generate certain sized UTF-8 characters and vInts. However, there is still some non-determinism which could
         // impact direct comparisons run-to-run
 
-        shortString = generateAsciiString(20);
-        longString = generateAsciiString(100);
-        nonAsciiString = generateUtf8String(200);
-        veryLongString = generateAsciiString(800);
+        shortString = UTF8StringBytesBenchmark.generateAsciiString(20);
+        longString = UTF8StringBytesBenchmark.generateAsciiString(100);
+        nonAsciiString = UTF8StringBytesBenchmark.generateUTF8String(200);
+        veryLongString = UTF8StringBytesBenchmark.generateAsciiString(800);
         // vint values for benchmarking
         vints = new int[1000];
         for (int i = 0; i < vints.length; i++) {
@@ -143,49 +145,6 @@ public class RecyclerBytesStreamOutputBenchmark {
         }
     }
 
-    public static String generateAsciiString(int n) {
-        ThreadLocalRandom random = ThreadLocalRandom.current();
-        StringBuilder sb = new StringBuilder(n);
-
-        for (int i = 0; i < n; i++) {
-            int ascii = random.nextInt(128);
-            sb.append((char) ascii);
-        }
-
-        return sb.toString();
-    }
-
-    public static String generateUtf8String(int n) {
-        ThreadLocalRandom random = ThreadLocalRandom.current();
-        StringBuilder sb = new StringBuilder(n);
-
-        for (int i = 0; i < n; i++) {
-            int codePoint;
-            int probability = random.nextInt(100);
-
-            if (probability < 85) {
-                // 1-byte UTF-8 (ASCII range)
-                // 0x0000 to 0x007F
-                codePoint = random.nextInt(0x0080);
-            } else if (probability < 95) {
-                // 2-byte UTF-8
-                // 0x0080 to 0x07FF
-                codePoint = random.nextInt(0x0080, 0x0800);
-            } else {
-                // 3-byte UTF-8
-                // 0x0800 to 0xFFFF
-                do {
-                    codePoint = random.nextInt(0x0800, 0x10000);
-                    // Skip surrogate pairs (0xD800-0xDFFF)
-                } while (codePoint >= 0xD800 && codePoint <= 0xDFFF);
-            }
-
-            sb.appendCodePoint(codePoint);
-        }
-
-        return sb.toString();
-    }
-
     private record BenchmarkRecycler(AtomicReference<BytesRef> bytesRef) implements Recycler<BytesRef> {
 
         @Override
@@ -198,7 +157,7 @@ public class RecyclerBytesStreamOutputBenchmark {
                 localBytesRef = recycledBytesRef;
             } else {
                 recycled = false;
-                localBytesRef = new BytesRef(16384);
+                localBytesRef = new BytesRef(new byte[16384], 0, 16384);
             }
             return new V<>() {
                 @Override

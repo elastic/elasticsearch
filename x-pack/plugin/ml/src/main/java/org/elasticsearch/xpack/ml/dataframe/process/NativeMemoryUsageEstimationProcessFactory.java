@@ -54,7 +54,7 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
     }
 
     void setProcessConnectTimeout(TimeValue processConnectTimeout) {
-        this.processConnectTimeout = Duration.ofMillis(processConnectTimeout.getMillis());
+        this.processConnectTimeout = processConnectTimeout.toDuration();
     }
 
     @Override

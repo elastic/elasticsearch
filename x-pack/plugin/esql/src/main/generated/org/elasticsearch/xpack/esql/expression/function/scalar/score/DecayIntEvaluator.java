@@ -14,22 +14,22 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Decay}.
+ * {@link ExpressionEvaluator} implementation for {@link Decay}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class DecayIntEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class DecayIntEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DecayIntEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator value;
+  private final ExpressionEvaluator value;
 
   private final int origin;
 
@@ -45,9 +45,8 @@ public final class DecayIntEvaluator implements EvalOperator.ExpressionEvaluator
 
   private Warnings warnings;
 
-  public DecayIntEvaluator(Source source, EvalOperator.ExpressionEvaluator value, int origin,
-      int scale, int offset, double decay, Decay.DecayFunction decayFunction,
-      DriverContext driverContext) {
+  public DecayIntEvaluator(Source source, ExpressionEvaluator value, int origin, int scale,
+      int offset, double decay, Decay.DecayFunction decayFunction, DriverContext driverContext) {
     this.source = source;
     this.value = value;
     this.origin = origin;
@@ -79,16 +78,16 @@ public final class DecayIntEvaluator implements EvalOperator.ExpressionEvaluator
   public DoubleBlock eval(int positionCount, IntBlock valueBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (valueBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (valueBlock.getValueCount(p) != 1) {
-          if (valueBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (valueBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         int value = valueBlock.getInt(valueBlock.getFirstValueIndex(p));
         result.appendDouble(Decay.process(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction));
@@ -119,20 +118,15 @@ public final class DecayIntEvaluator implements EvalOperator.ExpressionEvaluator
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory value;
+    private final ExpressionEvaluator.Factory value;
 
     private final int origin;
 
@@ -144,8 +138,8 @@ public final class DecayIntEvaluator implements EvalOperator.ExpressionEvaluator
 
     private final Decay.DecayFunction decayFunction;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory value, int origin,
-        int scale, int offset, double decay, Decay.DecayFunction decayFunction) {
+    public Factory(Source source, ExpressionEvaluator.Factory value, int origin, int scale,
+        int offset, double decay, Decay.DecayFunction decayFunction) {
       this.source = source;
       this.value = value;
       this.origin = origin;

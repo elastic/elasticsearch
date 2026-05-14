@@ -10,7 +10,6 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -45,7 +44,13 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         int numResponse = randomIntBetween(0, 10);
         for (int i = 0; i < numResponse; i++) {
             responses.add(
-                new FieldCapabilitiesIndexResponse("index_" + i, null, randomFieldCaps(), randomBoolean(), randomFrom(IndexMode.values()))
+                new FieldCapabilitiesIndexResponse(
+                    "index_" + i,
+                    null,
+                    randomFieldCaps(),
+                    randomBoolean(),
+                    randomFrom(IndexMode.availableModes())
+                )
             );
         }
         int numUnmatched = randomIntBetween(0, 3);
@@ -67,7 +72,13 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         int mutation = response.getIndexResponses().isEmpty() ? 0 : randomIntBetween(0, 3);
         switch (mutation) {
             case 0 -> newResponses.add(
-                new FieldCapabilitiesIndexResponse("extra_index", null, randomFieldCaps(), randomBoolean(), randomFrom(IndexMode.values()))
+                new FieldCapabilitiesIndexResponse(
+                    "extra_index",
+                    null,
+                    randomFieldCaps(),
+                    randomBoolean(),
+                    randomFrom(IndexMode.availableModes())
+                )
             );
             case 1 -> {
                 int toRemove = randomInt(newResponses.size() - 1);
@@ -82,7 +93,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                         null,
                         randomFieldCaps(),
                         randomBoolean(),
-                        randomFrom(IndexMode.values())
+                        randomFrom(IndexMode.availableModes())
                     )
                 );
             }
@@ -96,7 +107,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                         UUIDs.randomBase64UUID(),
                         resp.get(),
                         true,
-                        randomFrom(IndexMode.values())
+                        randomFrom(IndexMode.availableModes())
                     )
                 );
             }
@@ -112,10 +123,17 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         );
         Randomness.shuffle(indexResponses);
         FieldCapabilitiesNodeResponse inNode = randomNodeResponse(indexResponses);
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_8_2_0,
-            TransportVersion.current()
+        final TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
+        final boolean hasColumnarMode = indexResponses.stream()
+            .anyMatch(r -> r.getIndexMode() == IndexMode.COLUMNAR || r.getIndexMode() == IndexMode.LOGSDB_COLUMNAR);
+        assumeTrue(
+            "columnar index modes require transport version " + IndexMode.COLUMNAR_INDEX_MODES_ADDED,
+            hasColumnarMode == false || version.supports(IndexMode.COLUMNAR_INDEX_MODES_ADDED)
+        );
+        final boolean hasVectordbMode = indexResponses.stream().anyMatch(r -> r.getIndexMode() == IndexMode.VECTORDB_DOCUMENT);
+        assumeTrue(
+            "vectordb_document index mode requires transport version " + IndexMode.VECTORDB_DOCUMENT_INDEX_MODE,
+            hasVectordbMode == false || version.supports(IndexMode.VECTORDB_DOCUMENT_INDEX_MODE)
         );
         final FieldCapabilitiesNodeResponse outNode = copyInstance(inNode, version);
         assertThat(outNode.getFailures().keySet(), equalTo(inNode.getFailures().keySet()));

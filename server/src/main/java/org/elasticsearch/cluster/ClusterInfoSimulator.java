@@ -9,12 +9,16 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.cluster.ClusterInfo.NodeAndShard;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardMovementWriteLoadSimulator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CopyOnFirstWriteMap;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.HashMap;
@@ -25,18 +29,21 @@ import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.shouldReserveSpaceForInitializingShard;
 import static org.elasticsearch.cluster.routing.ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
+import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.REINITIALIZED;
 
 public class ClusterInfoSimulator {
+
+    private static final Logger logger = LogManager.getLogger(ClusterInfoSimulator.class);
 
     private final RoutingAllocation allocation;
 
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
     private final CopyOnFirstWriteMap<String, Long> shardSizes;
-    private final Map<ShardId, Long> shardDataSetSizes;
-    private final Map<NodeAndShard, String> dataPath;
+    // Maps node id to heap usage.
     private final Map<String, EstimatedHeapUsage> estimatedHeapUsages;
-    private final Map<String, ByteSizeValue> maxHeapSizePerNode;
+    private final Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages;
+    private final ShardAndIndexHeapUsage defaultShardHeapUsageForShardsWithoutMetrics;
     private final ShardMovementWriteLoadSimulator shardMovementWriteLoadSimulator;
 
     public ClusterInfoSimulator(RoutingAllocation allocation) {
@@ -44,10 +51,9 @@ public class ClusterInfoSimulator {
         this.leastAvailableSpaceUsage = getAdjustedDiskSpace(allocation, allocation.clusterInfo().getNodeLeastAvailableDiskUsages());
         this.mostAvailableSpaceUsage = getAdjustedDiskSpace(allocation, allocation.clusterInfo().getNodeMostAvailableDiskUsages());
         this.shardSizes = new CopyOnFirstWriteMap<>(allocation.clusterInfo().shardSizes);
-        this.shardDataSetSizes = Map.copyOf(allocation.clusterInfo().shardDataSetSizes);
-        this.dataPath = Map.copyOf(allocation.clusterInfo().dataPath);
-        this.estimatedHeapUsages = allocation.clusterInfo().getEstimatedHeapUsages();
-        this.maxHeapSizePerNode = Map.copyOf(allocation.clusterInfo().maxHeapSizePerNode);
+        this.estimatedHeapUsages = new HashMap<>(allocation.clusterInfo().getEstimatedHeapUsages());
+        this.estimatedShardHeapUsages = allocation.clusterInfo().getEstimatedShardHeapUsages();
+        this.defaultShardHeapUsageForShardsWithoutMetrics = allocation.clusterInfo().getDefaultShardHeapUsageForShardsWithoutMetrics();
         this.shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation);
     }
 
@@ -86,6 +92,10 @@ public class ClusterInfoSimulator {
         return diskUsageCopy;
     }
 
+    public void simulateShardStarted(ShardRouting shard) {
+        simulateShardStarted(shard, true);
+    }
+
     /**
      * This method updates disk usage to reflect shard relocations and new replica initialization.
      * In case of a single data path both mostAvailableSpaceUsage and leastAvailableSpaceUsage are update to reflect the change.
@@ -93,15 +103,18 @@ public class ClusterInfoSimulator {
      * {@link org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider} for allocating new shards.
      * This assumes the worst case (all shards are placed on a single most used disk) and prevents node overflow.
      * Balance is later recalculated with a refreshed cluster info containing actual shards placement.
+     *
+     * A relocating shard will have the current node ID set for the new node, and the relocating ID set for the previous node.
+     * A new shard will have the current ID set for the new node, and relocating ID will be null.
      */
-    public void simulateShardStarted(ShardRouting shard) {
-        assert shard.initializing();
+    public void simulateShardStarted(ShardRouting shard, boolean includeIndexUsage) {
+        assert shard.initializing() : "expected an initializing shard, but got: " + shard;
 
         var project = allocation.metadata().projectFor(shard.index());
         var size = getExpectedShardSize(
             shard,
             shard.getExpectedShardSize(),
-            getClusterInfo(),
+            (shardId, primary) -> shardSizes.get(shardIdentifierFromRouting(shardId, primary)),
             allocation.snapshotShardSizeInfo(),
             project,
             allocation.routingTable(project.id())
@@ -119,7 +132,132 @@ public class ClusterInfoSimulator {
                 shardSizes.put(shardIdentifierFromRouting(shard), project.getIndexSafe(shard.index()).ignoreDiskWatermarks() ? 0 : size);
             }
         }
+
+        simulateHeapUsageChangeAfterShardStarted(shard, includeIndexUsage);
         shardMovementWriteLoadSimulator.simulateShardStarted(shard);
+    }
+
+    public void simulateAddIndexToNode(String nodeId, Index index) {
+        var nodeHeap = estimatedHeapUsages.get(nodeId);
+        // Use any shard ID since index stats are the same.
+        if (nodeHeap != null) {
+            var shardAndIndexHeap = estimatedShardHeapUsages.getOrDefault(
+                new ShardId(index, 0),
+                defaultShardHeapUsageForShardsWithoutMetrics
+            );
+            estimatedHeapUsages.put(nodeId, nodeHeap.updateEstimatedUsage(shardAndIndexHeap.indexHeapUsageBytes()));
+        }
+    }
+
+    public void simulateRemoveIndexFromNode(String nodeId, Index index) {
+        var nodeHeap = estimatedHeapUsages.get(nodeId);
+        // Use any shard ID since index stats are the same.
+        if (nodeHeap != null) {
+            var shardAndIndexHeap = estimatedShardHeapUsages.getOrDefault(
+                new ShardId(index, 0),
+                defaultShardHeapUsageForShardsWithoutMetrics
+            );
+            estimatedHeapUsages.put(nodeId, nodeHeap.updateEstimatedUsage(-1 * shardAndIndexHeap.indexHeapUsageBytes()));
+        }
+    }
+
+    /**
+     * Handles the simulated node heap usage change when a shard relocates / is newly assigned.
+     */
+    private void simulateHeapUsageChangeAfterShardStarted(ShardRouting shard, boolean includeIndexUsage) {
+        // Started on, or relocate to, the current node assignment.
+        modifyHeapUsage(allocation.routingNodes().node(shard.currentNodeId()), shard.shardId(), Modification.ADD, includeIndexUsage);
+
+        if (shard.relocatingNodeId() != null) {
+            // Shard relocation from another node, so remove the stats from the previous node.
+            modifyHeapUsage(
+                allocation.routingNodes().node(shard.relocatingNodeId()),
+                shard.shardId(),
+                Modification.REMOVE,
+                includeIndexUsage
+            );
+        }
+    }
+
+    private enum Modification {
+        ADD,
+        REMOVE;
+    };
+
+    private void modifyHeapUsage(RoutingNode routingNode, ShardId shardId, Modification modification, boolean includeIndexUsage) {
+        var nodeHeap = estimatedHeapUsages.get(routingNode.nodeId());
+        if (nodeHeap == null) {
+            return;
+        }
+
+        var shardAndIndexHeap = estimatedShardHeapUsages.getOrDefault(shardId, defaultShardHeapUsageForShardsWithoutMetrics);
+
+        var numberOfShardsForIndex = routingNode.numberOfOwningShardsForIndex(shardId.getIndex());
+        switch (modification) {
+            case ADD: {
+                estimatedHeapUsages.put(routingNode.nodeId(), nodeHeap.updateEstimatedUsage(shardAndIndexHeap.shardHeapUsageBytes()));
+                if (includeIndexUsage && numberOfShardsForIndex == 1) {
+                    // This node's index only has the initializing shard, which is now being added in simulation. This is the node's first
+                    // shard for the index, and the index-level heap usage overhead must be added.
+                    var updatedNodeHeap = estimatedHeapUsages.get(routingNode.nodeId());
+                    assert updatedNodeHeap != null;
+                    estimatedHeapUsages.put(
+                        routingNode.nodeId(),
+                        updatedNodeHeap.updateEstimatedUsage(shardAndIndexHeap.indexHeapUsageBytes())
+                    );
+                }
+                break;
+            }
+            case REMOVE: {
+                estimatedHeapUsages.put(routingNode.nodeId(), nodeHeap.updateEstimatedUsage(-1 * shardAndIndexHeap.shardHeapUsageBytes()));
+                if (includeIndexUsage && numberOfShardsForIndex == 0) {
+                    // This node only had one shard of the index, which is now being relocated away in simulation. The index-level heap
+                    // usage overhead must be subtracted, since the node will no longer have the index.
+                    var updatedNodeHeap = estimatedHeapUsages.get(routingNode.nodeId());
+                    assert updatedNodeHeap != null;
+                    estimatedHeapUsages.put(
+                        routingNode.nodeId(),
+                        updatedNodeHeap.updateEstimatedUsage(-1 * shardAndIndexHeap.indexHeapUsageBytes())
+                    );
+                }
+                break;
+            }
+        }
+    }
+
+    // Visible for testing
+    public Map<String, EstimatedHeapUsage> getEstimatedHeapUsages() {
+        return estimatedHeapUsages;
+    }
+
+    /**
+     * This method simulates starting an already started shard with an optional {@code sourceNodeId} in case of a relocation.
+     * @param startedShard The shard to simulate. Must be started already.
+     * @param sourceNodeId The source node ID if the shard started as a result of relocation. {@code null} otherwise.
+     */
+    public void simulateAlreadyStartedShard(ShardRouting startedShard, @Nullable String sourceNodeId) {
+        assert startedShard.started() : "expected an already started shard, but got: " + startedShard;
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "simulated started shard {} on node [{}] as a {}",
+                startedShard.shardId(),
+                startedShard.currentNodeId(),
+                sourceNodeId != null ? "relocating shard from node [" + sourceNodeId + "]" : "new shard"
+            );
+        }
+        final long expectedShardSize = startedShard.getExpectedShardSize();
+        if (sourceNodeId != null) {
+            final var relocatingShard = startedShard.moveToUnassigned(new UnassignedInfo(REINITIALIZED, "simulation"))
+                .initialize(sourceNodeId, null, expectedShardSize)
+                .moveToStarted(expectedShardSize)
+                .relocate(startedShard.currentNodeId(), expectedShardSize)
+                .getTargetRelocatingShard();
+            simulateShardStarted(relocatingShard, false);
+        } else {
+            final var initializingShard = startedShard.moveToUnassigned(new UnassignedInfo(REINITIALIZED, "simulation"))
+                .initialize(startedShard.currentNodeId(), null, expectedShardSize);
+            simulateShardStarted(initializingShard, false);
+        }
     }
 
     private void modifyDiskUsage(String nodeId, long freeDelta) {
@@ -156,17 +294,15 @@ public class ClusterInfoSimulator {
     }
 
     public ClusterInfo getClusterInfo() {
-        return new ClusterInfo(
-            leastAvailableSpaceUsage,
-            mostAvailableSpaceUsage,
-            shardSizes.toImmutableMap(),
-            shardDataSetSizes,
-            dataPath,
-            Map.of(),
-            estimatedHeapUsages,
-            shardMovementWriteLoadSimulator.simulatedNodeUsageStatsForThreadPools(),
-            allocation.clusterInfo().getShardWriteLoads(),
-            maxHeapSizePerNode
-        );
+        return allocation.clusterInfo()
+            .updateWith(
+                leastAvailableSpaceUsage,
+                mostAvailableSpaceUsage,
+                shardSizes.toImmutableMap(),
+                Map.of(),
+                estimatedHeapUsages,
+                estimatedShardHeapUsages,
+                shardMovementWriteLoadSimulator.simulatedNodeUsageStatsForThreadPools()
+            );
     }
 }

@@ -10,8 +10,8 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 
 import java.io.IOException;
@@ -32,9 +32,9 @@ final class LatLonPointDVLeafFieldData extends LeafGeoPointFieldData {
     }
 
     @Override
-    public SortedNumericDocValues getSortedNumericDocValues() {
+    public SortedNumericLongValues getSortedNumericLongValues() {
         try {
-            return DocValues.getSortedNumeric(reader, fieldName);
+            return SortedNumericLongValues.wrap(DocValues.getSortedNumeric(reader, fieldName));
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }

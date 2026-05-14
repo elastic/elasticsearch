@@ -14,9 +14,9 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -50,14 +50,31 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PAT
  */
 public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
 
-    public static final boolean INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG = new FeatureFlag("index_dimensions_tsid_optimization")
-        .isEnabled();
     static final DateFormatter FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 
+    public static final Setting<Boolean> SUPPORT_SEQ_NO_DISABLED = Setting.boolSetting(
+        "cluster.time_series.support_seq_no_disabled",
+        true,
+        Setting.Property.NodeScope
+    );
+    public static final Setting<Boolean> SUPPORT_SYNTHETIC_ID = Setting.boolSetting(
+        "cluster.time_series.support_synthetic_id",
+        true,
+        Setting.Property.NodeScope
+    );
+
     private final CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory;
+    private final boolean supportSeqNoDisabled;
+    private final boolean supportSyntheticId;
 
     DataStreamIndexSettingsProvider(CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory) {
+        this(mapperServiceFactory, Settings.EMPTY);
+    }
+
+    DataStreamIndexSettingsProvider(CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory, Settings settings) {
         this.mapperServiceFactory = mapperServiceFactory;
+        this.supportSeqNoDisabled = SUPPORT_SEQ_NO_DISABLED.get(settings);
+        this.supportSyntheticId = SUPPORT_SYNTHETIC_ID.get(settings);
     }
 
     @Override
@@ -122,6 +139,16 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                     assert start.isBefore(end) : "data stream backing index's start time is not before end time";
                     additionalSettings.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
                     additionalSettings.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
+                    if (supportSeqNoDisabled
+                        && indexVersion.onOrAfter(IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT)
+                        && indexTemplateAndCreateRequestSettings.hasValue(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey()) == false) {
+                        additionalSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
+                    }
+
+                    if (indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD)
+                        && indexTemplateAndCreateRequestSettings.hasValue(IndexSettings.SYNTHETIC_ID.getKey()) == false) {
+                        additionalSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), supportSyntheticId);
+                    }
 
                     if (indexTemplateAndCreateRequestSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false
                         && combinedTemplateMappings.isEmpty() == false) {
@@ -134,7 +161,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                         );
                         if (dimensions.isEmpty() == false) {
                             if (matchesAllDimensions
-                                && INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG
+                                && IndexMetadata.INDEX_DIMENSIONS_TSID_STRATEGY_ENABLED.get(indexTemplateAndCreateRequestSettings)
                                 && indexVersion.onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING)) {
                                 // Only set index.dimensions if the paths in the dimensions list match all potential dimension fields.
                                 // This is not the case e.g. if a dynamic template matches by match_mapping_type instead of path_match
@@ -154,11 +181,15 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     }
 
     /**
-     * This is called when mappings are updated, so that the {@link IndexMetadata#getTimeSeriesDimensions()}
-     * and {@link IndexMetadata#INDEX_ROUTING_PATH} settings are updated to match the new mappings.
-     * Updates {@link IndexMetadata#getTimeSeriesDimensions} if a new dimension field is added to the mappings,
-     * or sets {@link IndexMetadata#INDEX_ROUTING_PATH} if a new dimension field is added that doesn't allow for matching all
-     * dimension fields via a wildcard pattern.
+     * This is called when mappings are updated, so that the {@link IndexMetadata#INDEX_DIMENSIONS}
+     * setting is updated if a new dimension field is added to the mappings.
+     *
+     * @throws IllegalArgumentException If a dynamic template that defines dimension fields is added to an existing index with
+     *                                  {@link IndexMetadata#getTimeSeriesDimensions()}.
+     *                                  Changing fom {@link IndexMetadata#INDEX_DIMENSIONS} to {@link IndexMetadata#INDEX_ROUTING_PATH}
+     *                                  is not allowed because it would violate the invariant that the same input document always results
+     *                                  in the same _id and _tsid.
+     *                                  Otherwise, data duplication or translog replay issues could occur.
      */
     @Override
     public void onUpdateMappings(IndexMetadata indexMetadata, DocumentMapper documentMapper, Settings.Builder additionalSettings) {
@@ -172,11 +203,13 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         boolean hasChanges = indexDimensions.size() != newIndexDimensions.size()
             && new HashSet<>(indexDimensions).equals(new HashSet<>(newIndexDimensions)) == false;
         if (matchesAllDimensions == false) {
-            // If the new dimensions don't match all potential dimension fields, we need to unset index.dimensions
-            // and set index.routing_path instead.
-            // This can happen if a new dynamic template with time_series_dimension: true is added to an existing index.
-            additionalSettings.putList(INDEX_DIMENSIONS.getKey(), List.of());
-            additionalSettings.putList(INDEX_ROUTING_PATH.getKey(), newIndexDimensions);
+            throw new IllegalArgumentException(
+                "Cannot add dynamic templates that define dimension fields on an existing index with "
+                    + INDEX_DIMENSIONS.getKey()
+                    + ". "
+                    + "Please change the index template and roll over the data stream "
+                    + "instead of modifying the mappings of the backing indices."
+            );
         } else if (hasChanges) {
             additionalSettings.putList(INDEX_DIMENSIONS.getKey(), newIndexDimensions);
         }

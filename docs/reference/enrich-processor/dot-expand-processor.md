@@ -29,6 +29,7 @@ $$$dot-expander-options$$$
   }
 }
 ```
+% NOTCONSOLE
 
 For example the dot expand processor would turn this document:
 
@@ -37,6 +38,7 @@ For example the dot expand processor would turn this document:
   "foo.bar" : "value"
 }
 ```
+% NOTCONSOLE
 
 into:
 
@@ -47,6 +49,7 @@ into:
   }
 }
 ```
+% NOTCONSOLE
 
 If there is already a `bar` field nested under `foo` then this processor merges the `foo.bar` field into it. If the field is a scalar value then it will turn that field into an array field.
 
@@ -60,6 +63,7 @@ For example, the following document:
   }
 }
 ```
+% NOTCONSOLE
 
 is transformed by the `dot_expander` processor into:
 
@@ -70,6 +74,7 @@ is transformed by the `dot_expander` processor into:
   }
 }
 ```
+% NOTCONSOLE
 
 Contrast that with when the `override` option is set to `true`.
 
@@ -81,6 +86,7 @@ Contrast that with when the `override` option is set to `true`.
   }
 }
 ```
+% NOTCONSOLE
 
 In that case, the value of the expanded field overrides the value of the nested object.
 
@@ -91,6 +97,7 @@ In that case, the value of the expanded field overrides the value of the nested 
   }
 }
 ```
+% NOTCONSOLE
 
 <hr>
 The value of `field` can also be set to a `*` to expand all top-level dotted field names:
@@ -102,6 +109,7 @@ The value of `field` can also be set to a `*` to expand all top-level dotted fie
   }
 }
 ```
+% NOTCONSOLE
 
 The dot expand processor would turn this document:
 
@@ -111,6 +119,7 @@ The dot expand processor would turn this document:
   "baz.qux" : "value"
 }
 ```
+% NOTCONSOLE
 
 into:
 
@@ -124,6 +133,7 @@ into:
   }
 }
 ```
+% NOTCONSOLE
 
 <hr>
 If the dotted field is nested within a non-dotted structure, then use the `path` option to navigate the non-dotted structure:
@@ -136,6 +146,7 @@ If the dotted field is nested within a non-dotted structure, then use the `path`
   }
 }
 ```
+% NOTCONSOLE
 
 The dot expand processor would turn this document:
 
@@ -147,6 +158,7 @@ The dot expand processor would turn this document:
   }
 }
 ```
+% NOTCONSOLE
 
 into:
 
@@ -160,6 +172,7 @@ into:
   }
 }
 ```
+% NOTCONSOLE
 
 <hr>
 If any field outside of the leaf field conflicts with a pre-existing field of the same name, then that field needs to be renamed first.
@@ -172,6 +185,7 @@ Consider the following document:
   "foo.bar": "value2"
 }
 ```
+% NOTCONSOLE
 
 Then the `foo` needs to be renamed first before the `dot_expander` processor is applied. So in order for the `foo.bar` field to properly be expanded into the `bar` field under the `foo` field the following pipeline should be used:
 
@@ -192,6 +206,7 @@ Then the `foo` needs to be renamed first before the `dot_expander` processor is 
   ]
 }
 ```
+% NOTCONSOLE
 
 The reason for this is that Ingest doesn’t know how to automatically cast a scalar field to an object field.
 

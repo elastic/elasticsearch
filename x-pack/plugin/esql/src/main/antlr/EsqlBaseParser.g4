@@ -21,11 +21,11 @@ options {
 }
 
 import Expression,
-       Join;
+       Join,
+       Promql;
 
 statements
-    : {this.isDevVersion()}? setCommand+ singleStatement EOF
-    | singleStatement EOF
+    : setCommand* singleStatement EOF
     ;
 
 singleStatement
@@ -42,8 +42,10 @@ sourceCommand
     | rowCommand
     | showCommand
     | timeSeriesCommand
+    | promqlCommand
     // in development
     | {this.isDevVersion()}? explainCommand
+    | {this.isExternalDataSourcesEnabled()}? externalCommand
     ;
 
 processingCommand
@@ -66,10 +68,16 @@ processingCommand
     | forkCommand
     | rerankCommand
     | inlineStatsCommand
+    | fuseCommand
+    | uriPartsCommand
+    | metricsInfoCommand
+    | registeredDomainCommand
+    | tsInfoCommand
+    | userAgentCommand
+    | mmrCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
-    | {this.isDevVersion()}? fuseCommand
     ;
 
 whereCommand
@@ -92,14 +100,6 @@ field
     : (qualifiedName ASSIGN)? booleanExpression
     ;
 
-rerankFields
-    : rerankField (COMMA rerankField)*
-    ;
-
-rerankField
-    : qualifiedName (ASSIGN booleanExpression)?
-    ;
-
 fromCommand
     : FROM indexPatternAndMetadataFields
     ;
@@ -108,13 +108,25 @@ timeSeriesCommand
     : TS indexPatternAndMetadataFields
     ;
 
-indexPatternAndMetadataFields:
-    indexPattern (COMMA indexPattern)* metadata?
+externalCommand
+    : DEV_EXTERNAL stringOrParameter commandNamedParameters
+    ;
+
+indexPatternAndMetadataFields
+    : indexPatternOrSubquery (COMMA indexPatternOrSubquery)* metadata?
+    ;
+
+indexPatternOrSubquery
+    : indexPattern
+    | subquery
+    ;
+
+subquery
+    : LP fromCommand (PIPE processingCommand)* RP
     ;
 
 indexPattern
-    : clusterString COLON unquotedIndexString
-    | unquotedIndexString CAST_OP selectorString
+    : (clusterString COLON)? unquotedIndexString (CAST_OP selectorString)?
     | indexString
     ;
 
@@ -204,8 +216,17 @@ identifierOrParameter
     | doubleParameter
     ;
 
+stringOrParameter
+    : string
+    | parameter
+    ;
+
 limitCommand
-    : LIMIT constant
+    : LIMIT constant limitByGroupKey?
+    ;
+
+limitByGroupKey:
+    BY booleanExpression (COMMA booleanExpression)*
     ;
 
 sortCommand
@@ -251,7 +272,7 @@ commandNamedParameters
     ;
 
 grokCommand
-    : GROK primaryExpression string
+    : GROK primaryExpression string (COMMA string)*
     ;
 
 mvExpandCommand
@@ -288,7 +309,7 @@ sampleCommand
     ;
 
 changePointCommand
-    : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
+    : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)? (BY groupings+=booleanExpression (COMMA groupings+=booleanExpression)*)?
     ;
 
 forkCommand
@@ -313,7 +334,7 @@ forkSubQueryProcessingCommand
     ;
 
 rerankCommand
-    : RERANK (targetField=qualifiedName ASSIGN)? queryText=constant ON rerankFields commandNamedParameters
+    : RERANK (targetField=qualifiedName ASSIGN)? queryText=constant ON rerankFields=fields commandNamedParameters
     ;
 
 completionCommand
@@ -324,6 +345,29 @@ inlineStatsCommand
     : INLINE INLINE_STATS stats=aggFields (BY grouping=fields)?
     // TODO: drop after next minor release
     | INLINESTATS stats=aggFields (BY grouping=fields)?
+    ;
+
+fuseCommand
+    : FUSE (fuseType=identifier)? (fuseConfiguration)*
+    ;
+
+fuseConfiguration
+    : SCORE BY score=qualifiedName
+    | KEY BY key=fuseKeyByFields
+    | GROUP BY group=qualifiedName
+    | WITH options=mapExpression
+    ;
+
+fuseKeyByFields
+   : qualifiedName (COMMA qualifiedName)*
+   ;
+
+metricsInfoCommand
+    : METRICS_INFO
+    ;
+
+tsInfoCommand
+    : TS_INFO
     ;
 
 //
@@ -337,15 +381,16 @@ insistCommand
     : DEV_INSIST qualifiedNamePatterns
     ;
 
-fuseCommand
-    : DEV_FUSE (fuseType=identifier)? (fuseConfiguration)*
+uriPartsCommand
+    : URI_PARTS qualifiedName ASSIGN primaryExpression
     ;
 
-fuseConfiguration
-    : SCORE BY score=qualifiedName
-    | KEY BY key=fields
-    | GROUP BY group=qualifiedName
-    | WITH options=mapExpression
+registeredDomainCommand
+    : REGISTERED_DOMAIN qualifiedName ASSIGN primaryExpression
+    ;
+
+userAgentCommand
+    : USER_AGENT qualifiedName ASSIGN primaryExpression commandNamedParameters
     ;
 
 setCommand
@@ -353,6 +398,14 @@ setCommand
     ;
 
 setField
-    : identifier ASSIGN constant
+    : identifier ASSIGN ( constant | mapExpression )
     ;
 
+mmrCommand
+    :  MMR (queryVector=mmrQueryVectorParams)? ON diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
+    ;
+
+mmrQueryVectorParams
+    : parameter                           # mmrQueryVectorParameter
+    | primaryExpression                   # mmrQueryVectorExpression
+    ;

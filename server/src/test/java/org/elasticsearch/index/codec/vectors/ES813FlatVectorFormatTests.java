@@ -31,11 +31,15 @@ import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
 public class ES813FlatVectorFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
-    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES813FlatVectorFormat());
+    @Override
+    protected boolean supportsFloatVectorFallback() {
+        return false;
+    }
+
+    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES813FlatRWVectorFormat());
 
     @Override
     protected Codec getCodec() {

@@ -9,9 +9,8 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.painless.Compiler.Loader;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
@@ -28,7 +27,6 @@ import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
-import java.security.Permissions;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -48,14 +46,6 @@ public final class PainlessScriptEngine implements ScriptEngine {
      * Standard name of the Painless language.
      */
     public static final String NAME = "painless";
-
-    /*
-     * Setup the allowed permissions.
-     */
-    static {
-        final Permissions none = new Permissions();
-        none.setReadOnly();
-    }
 
     /**
      * Default compiler settings to be used. Note that {@link CompilerSettings} is mutable but this instance shouldn't be mutated outside
@@ -110,10 +100,6 @@ public final class PainlessScriptEngine implements ScriptEngine {
     public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
         Compiler compiler = contextsToCompilers.get(context);
 
-        // Check we ourselves are not being called by unprivileged code.
-        SpecialPermission.check();
-
-        // Create our loader (which loads compiled code with no permissions).
         final Loader loader = compiler.createLoader(getClass().getClassLoader());
 
         ScriptScope scriptScope = compile(contextsToCompilers.get(context), loader, scriptName, scriptSource, params);
@@ -415,7 +401,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
             value = copy.remove(CompilerSettings.PICKY);
             if (value != null) {
-                compilerSettings.setPicky(parseBoolean(value));
+                compilerSettings.setPicky(Booleans.parseBoolean(value));
             }
 
             value = copy.remove(CompilerSettings.INITIAL_CALL_SITE_DEPTH);
@@ -438,13 +424,6 @@ public final class PainlessScriptEngine implements ScriptEngine {
             }
         }
         return compilerSettings;
-    }
-
-    @SuppressForbidden(
-        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-    )
-    private static boolean parseBoolean(String value) {
-        return Boolean.parseBoolean(value);
     }
 
     private static ScriptException convertToScriptException(String scriptSource, Throwable t) {

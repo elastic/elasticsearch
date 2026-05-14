@@ -54,6 +54,8 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
 import org.elasticsearch.script.ScriptCompiler;
 
 import java.io.IOException;
@@ -95,6 +97,20 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("bar", MOCK_CONTEXT));
         assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
+    }
+
+    public void testTermQueryHighCardinality() {
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", defaultIndexSettings());
+        builder.docValues(FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
+        MappedFieldType ft = new KeywordFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            TextSearchInfo.SIMPLE_MATCH_ONLY,
+            null,
+            builder,
+            true
+        );
+        assertEquals(new SlowCustomBinaryDocValuesTermQuery("field", new BytesRef("foo")), ft.termQuery("foo", MOCK_CONTEXT));
     }
 
     public void testTermQueryWithNormalizer() {
@@ -143,7 +159,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         {
             FieldType fieldType = new FieldType();
             fieldType.setOmitNorms(false);
-            KeywordFieldType ft = new KeywordFieldType("field", fieldType);
+            KeywordFieldType ft = new KeywordFieldType("field", fieldType, false);
             // updated in #130531 so that a field that is neither indexed nor has doc values will generate a TermQuery
             // to avoid ISE from FieldExistsQuery
             assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "field")), ft.existsQuery(MOCK_CONTEXT));
@@ -175,6 +191,20 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             "[range] queries on [text] or [keyword] fields cannot be executed when " + "'search.allow_expensive_queries' is set to false.",
             ee.getMessage()
         );
+    }
+
+    public void testWildcardQueryHighCardinality() {
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", defaultIndexSettings());
+        builder.docValues(FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
+        MappedFieldType ft = new KeywordFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            TextSearchInfo.SIMPLE_MATCH_ONLY,
+            null,
+            builder,
+            true
+        );
+        assertEquals(new SlowCustomBinaryDocValuesWildcardQuery("field", "foo*", false), ft.wildcardQuery("foo*", null, MOCK_CONTEXT));
     }
 
     public void testRegexpQuery() {
@@ -231,7 +261,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new KeywordFieldMapper.Builder("field", IndexVersion.current()).build(
+        MappedFieldType mapper = new KeywordFieldMapper.Builder("field", defaultIndexSettings()).build(
             MapperBuilderContext.root(false, false)
         ).fieldType();
         assertEquals(List.of("value"), fetchSourceValue(mapper, "value"));
@@ -241,25 +271,36 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fetchSourceValue(mapper, "value", "format"));
         assertEquals("Field [field] of type [keyword] doesn't support formats.", e.getMessage());
 
-        MappedFieldType ignoreAboveMapper = new KeywordFieldMapper.Builder("field", IndexVersion.current()).ignoreAbove(4)
+        MappedFieldType ignoreAboveMapper = new KeywordFieldMapper.Builder("field", defaultIndexSettings()).ignoreAbove(4)
             .build(MapperBuilderContext.root(false, false))
             .fieldType();
         assertEquals(List.of(), fetchSourceValue(ignoreAboveMapper, "value"));
         assertEquals(List.of("42"), fetchSourceValue(ignoreAboveMapper, 42L));
         assertEquals(List.of("true"), fetchSourceValue(ignoreAboveMapper, true));
 
+        IndexMetadata indexMetadata = IndexMetadata.builder("index")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(
+            indexMetadata,
+            Settings.builder().put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), randomFrom("arrays", "none").toString()).build()
+        );
+
         MappedFieldType normalizerMapper = new KeywordFieldMapper.Builder(
             "field",
             createIndexAnalyzers(),
             ScriptCompiler.NONE,
-            IndexVersion.current(),
-            randomFrom(Mapper.SourceKeepMode.values())
+            indexSettings,
+            false,
+            false
         ).normalizer("lowercase").build(MapperBuilderContext.root(false, false)).fieldType();
         assertEquals(List.of("value"), fetchSourceValue(normalizerMapper, "VALUE"));
         assertEquals(List.of("42"), fetchSourceValue(normalizerMapper, 42L));
         assertEquals(List.of("value"), fetchSourceValue(normalizerMapper, "value"));
 
-        MappedFieldType nullValueMapper = new KeywordFieldMapper.Builder("field", IndexVersion.current()).nullValue("NULL")
+        MappedFieldType nullValueMapper = new KeywordFieldMapper.Builder("field", defaultIndexSettings()).nullValue("NULL")
             .build(MapperBuilderContext.root(false, false))
             .fieldType();
         assertEquals(List.of("NULL"), fetchSourceValue(nullValueMapper, null));
@@ -297,7 +338,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         }
     }
 
-    public void test_ignore_above_index_level_setting() {
+    public void testIgnoreAboveIndexLevelSetting() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -316,9 +357,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
             "field",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
+            IndexType.terms(true, true),
+            new TextSearchInfo(mock(FieldType.class), null, mock(NamedAnalyzer.class), mock(NamedAnalyzer.class)),
             mock(NamedAnalyzer.class),
             builder,
             true
@@ -329,7 +369,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(123, fieldType.ignoreAbove().get());
     }
 
-    public void test_ignore_above_isSet_returns_true_when_ignore_above_is_given() {
+    public void testIgnoreAboveIsSetReturnsTrueWhenIgnoreAboveIsGiven() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -348,9 +388,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
             "field",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
+            IndexType.terms(true, true),
+            new TextSearchInfo(mock(FieldType.class), null, mock(NamedAnalyzer.class), mock(NamedAnalyzer.class)),
             mock(NamedAnalyzer.class),
             builder,
             true
@@ -361,7 +400,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(123, fieldType.ignoreAbove().get());
     }
 
-    public void test_ignore_above_isSet_returns_false_when_ignore_above_is_not_given() {
+    public void testIgnoreAboveIsSetReturnsFalseWhenIgnoreAboveIsNotGiven() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -379,9 +418,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
             "field",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
+            IndexType.terms(true, true),
+            new TextSearchInfo(mock(FieldType.class), null, mock(NamedAnalyzer.class), mock(NamedAnalyzer.class)),
             mock(NamedAnalyzer.class),
             builder,
             true
@@ -392,7 +430,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE, fieldType.ignoreAbove().get());
     }
 
-    public void test_ignore_above_isSet_returns_false_when_ignore_above_is_given_but_its_the_same_as_default() {
+    public void testIgnoreAboveIsSetReturnsFalseWhenIgnoreAboveIsGivenButItsTheSameAsDefault() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -411,9 +449,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
             "field",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
+            IndexType.terms(true, true),
+            new TextSearchInfo(mock(FieldType.class), null, mock(NamedAnalyzer.class), mock(NamedAnalyzer.class)),
             mock(NamedAnalyzer.class),
             builder,
             true
@@ -424,7 +461,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE, fieldType.ignoreAbove().get());
     }
 
-    public void test_ignore_above_isSet_returns_false_when_ignore_above_is_given_but_its_the_same_as_default_for_logsdb_indices() {
+    public void testIgnoreAboveIsSetReturnsFalseWhenIgnoreAboveIsGivenButItsTheSameAsDefaultForLogsdbIndices() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -443,9 +480,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
             "field",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
+            IndexType.terms(true, true),
+            new TextSearchInfo(mock(FieldType.class), null, mock(NamedAnalyzer.class), mock(NamedAnalyzer.class)),
             mock(NamedAnalyzer.class),
             builder,
             true
@@ -456,7 +492,39 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE_FOR_LOGSDB_INDICES, fieldType.ignoreAbove().get());
     }
 
-    public void test_ignore_above_isSet_returns_true_when_ignore_above_is_given_as_logsdb_default_but_index_mod_is_not_logsdb() {
+    public void testIgnoreAboveIsSetReturnsFalseWhenIgnoreAboveIsGivenButItsTheSameAsDefaultForColumnarLogsdbIndices() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        // given
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
+        MappingParserContext mappingParserContext = mock(MappingParserContext.class);
+        doReturn(settings).when(mappingParserContext).getSettings();
+        doReturn(indexSettings).when(mappingParserContext).getIndexSettings();
+        doReturn(mock(ScriptCompiler.class)).when(mappingParserContext).scriptCompiler();
+
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", mappingParserContext);
+        builder.ignoreAbove(Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE_FOR_LOGSDB_INDICES);
+
+        KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
+            "field",
+            IndexType.terms(true, true),
+            new TextSearchInfo(mock(FieldType.class), null, mock(NamedAnalyzer.class), mock(NamedAnalyzer.class)),
+            mock(NamedAnalyzer.class),
+            builder,
+            true
+        );
+
+        // when/then
+        assertFalse(fieldType.ignoreAbove().isSet());
+        assertEquals(Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE_FOR_LOGSDB_INDICES, fieldType.ignoreAbove().get());
+    }
+
+    public void testIgnoreAboveIsSetReturnsTrueWhenIgnoreAboveIsGivenAsLogsdbDefaultButIndexModIsNotLogsdb() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -475,9 +543,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
             "field",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
+            IndexType.terms(true, true),
+            new TextSearchInfo(mock(FieldType.class), null, mock(NamedAnalyzer.class), mock(NamedAnalyzer.class)),
             mock(NamedAnalyzer.class),
             builder,
             true
@@ -488,7 +555,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE_FOR_LOGSDB_INDICES, fieldType.ignoreAbove().get());
     }
 
-    public void test_ignore_above_isSet_returns_true_when_ignore_above_is_configured_at_index_level() {
+    public void testIgnoreAboveIsSetReturnsTrueWhenIgnoreAboveIsConfiguredAtIndexLevel() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -507,9 +574,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
             "field",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
+            IndexType.terms(true, true),
+            new TextSearchInfo(mock(FieldType.class), null, mock(NamedAnalyzer.class), mock(NamedAnalyzer.class)),
             mock(NamedAnalyzer.class),
             builder,
             true
@@ -520,10 +586,10 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(123, fieldType.ignoreAbove().get());
     }
 
-    public void test_ignore_above_isSet_returns_false_for_non_primary_constructor() {
+    public void testIgnoreAboveIsSetReturnsFalseForNonPrimaryConstructor() {
         // given
         KeywordFieldType fieldType1 = new KeywordFieldType("field");
-        KeywordFieldType fieldType2 = new KeywordFieldType("field", mock(FieldType.class));
+        KeywordFieldType fieldType2 = new KeywordFieldType("field", mock(FieldType.class), false);
         KeywordFieldType fieldType3 = new KeywordFieldType("field", true, true, Collections.emptyMap());
         KeywordFieldType fieldType4 = new KeywordFieldType("field", mock(NamedAnalyzer.class));
 

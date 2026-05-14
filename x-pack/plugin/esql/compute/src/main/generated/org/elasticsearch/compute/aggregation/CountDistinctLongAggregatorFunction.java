@@ -36,17 +36,12 @@ public final class CountDistinctLongAggregatorFunction implements AggregatorFunc
 
   private final int precision;
 
-  public CountDistinctLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      HllStates.SingleState state, int precision) {
+  CountDistinctLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      int precision) {
+    this.precision = precision;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-    this.precision = precision;
-  }
-
-  public static CountDistinctLongAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, int precision) {
-    return new CountDistinctLongAggregatorFunction(driverContext, channels, CountDistinctLongAggregator.initSingle(driverContext.bigArrays(), precision), precision);
+    this.state = CountDistinctLongAggregator.initSingle(driverContext, precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -73,6 +68,18 @@ public final class CountDistinctLongAggregatorFunction implements AggregatorFunc
     LongBlock vBlock = page.getBlock(channels.get(0));
     LongVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock, mask);
       return;
     }
@@ -83,6 +90,18 @@ public final class CountDistinctLongAggregatorFunction implements AggregatorFunc
     LongBlock vBlock = page.getBlock(channels.get(0));
     LongVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock);
       return;
     }
@@ -108,11 +127,12 @@ public final class CountDistinctLongAggregatorFunction implements AggregatorFunc
 
   private void addRawBlock(LongBlock vBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         long vValue = vBlock.getLong(vOffset);
         CountDistinctLongAggregator.combine(state, vValue);
@@ -125,11 +145,12 @@ public final class CountDistinctLongAggregatorFunction implements AggregatorFunc
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         long vValue = vBlock.getLong(vOffset);
         CountDistinctLongAggregator.combine(state, vValue);
@@ -143,12 +164,21 @@ public final class CountDistinctLongAggregatorFunction implements AggregatorFunc
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block hllUncast = page.getBlock(channels.get(0));
     if (hllUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
     assert hll.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    CountDistinctLongAggregator.combineIntermediate(state, hll.getBytesRef(0, scratch));
+    BytesRef hllScratch = new BytesRef();
+    CountDistinctLongAggregator.combineIntermediate(state, hll.getBytesRef(0, hllScratch));
   }
 
   @Override

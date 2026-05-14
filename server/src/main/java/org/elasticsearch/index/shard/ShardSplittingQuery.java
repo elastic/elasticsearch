@@ -8,10 +8,13 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Terms;
@@ -43,6 +46,7 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 
 import java.io.IOException;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
@@ -54,13 +58,13 @@ import java.util.function.Predicate;
  */
 public final class ShardSplittingQuery extends Query {
     private final IndexMetadata indexMetadata;
-    private final IndexRouting indexRouting;
+    private final BiPredicate<String, String> shardMatcher;
     private final int shardId;
     private final BitSetProducer nestedParentBitSetProducer;
 
     public ShardSplittingQuery(IndexMetadata indexMetadata, int shardId, boolean hasNested) {
         this.indexMetadata = indexMetadata;
-        this.indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
+        this.shardMatcher = IndexRouting.fromIndexMetadata(indexMetadata).shardMatcherForSplit(shardId);
         this.shardId = shardId;
         this.nestedParentBitSetProducer = hasNested ? newParentDocBitSetProducer(indexMetadata.getCreationVersion()) : null;
     }
@@ -77,22 +81,34 @@ public final class ShardSplittingQuery extends Query {
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 LeafReader leafReader = context.reader();
                 FixedBitSet bitSet = new FixedBitSet(leafReader.maxDoc());
-                Terms terms = leafReader.terms(RoutingFieldMapper.NAME);
-                Predicate<BytesRef> includeInShard = ref -> {
+                // Detect whether routing is stored as sorted doc values (no inverted index).
+                FieldInfo routingFieldInfo = leafReader.getFieldInfos().fieldInfo(RoutingFieldMapper.NAME);
+                boolean routingStoredAsDocValues = routingFieldInfo != null && routingFieldInfo.getDocValuesType() == DocValuesType.SORTED;
+
+                Terms terms;
+                DocValuesSkipper routingSkipper;
+                if (routingStoredAsDocValues) {
+                    routingSkipper = leafReader.getDocValuesSkipper(RoutingFieldMapper.NAME);
+                    terms = null;
+                } else {
+                    routingSkipper = null;
+                    terms = leafReader.terms(RoutingFieldMapper.NAME);
+                }
+                Predicate<BytesRef> idOnlyPredicate = ref -> {
                     // TODO IndexRouting should build the query somehow
-                    int targetShardId = indexRouting.getShard(Uid.decodeId(ref.bytes, ref.offset, ref.length), null);
-                    return shardId == targetShardId;
+                    String id = Uid.decodeId(ref.bytes, ref.offset, ref.length);
+                    return shardMatcher.test(id, null);
                 };
 
                 return new ScorerSupplier() {
                     @Override
                     public Scorer get(long leadCost) throws IOException {
-                        if (terms == null) {
+                        if (terms == null && routingSkipper == null) {
                             // this is the common case - no partitioning and no _routing values
                             // in this case we also don't do anything special with regards to nested docs since we basically delete
                             // by ID and parent and nested all have the same id.
                             assert indexMetadata.isRoutingPartitionedIndex() == false;
-                            findSplitDocs(IdFieldMapper.NAME, includeInShard, leafReader, bitSet::set);
+                            findSplitDocsBasedOnId((idOnlyPredicate), leafReader, bitSet::set);
                         } else {
                             final BitSet parentBitSet;
                             if (nestedParentBitSetProducer == null) {
@@ -127,10 +143,13 @@ public final class ShardSplittingQuery extends Query {
                                 };
                                 // in the _routing case we first go and find all docs that have a routing value and mark the ones we have to
                                 // delete
-                                findSplitDocs(RoutingFieldMapper.NAME, ref -> {
-                                    int targetShardId = indexRouting.getShard(null, ref.utf8ToString());
-                                    return shardId == targetShardId;
-                                }, leafReader, maybeWrapConsumer.apply(bitSet::set));
+                                Predicate<BytesRef> routingOnlyPredicate = bytes -> shardMatcher.test(null, bytes.utf8ToString());
+                                findSplitDocsBasedOnRouting(
+                                    routingStoredAsDocValues,
+                                    routingOnlyPredicate,
+                                    leafReader,
+                                    maybeWrapConsumer.apply(bitSet::set)
+                                );
 
                                 // TODO have the IndexRouting build the query and pass routingRequired in
                                 boolean routingRequired = indexMetadata.mapping() == null
@@ -139,7 +158,8 @@ public final class ShardSplittingQuery extends Query {
                                 // now if we have a mixed index where some docs have a _routing value and some don't we have to exclude the
                                 // ones
                                 // with a routing value from the next iteration and delete / select based on the ID.
-                                if (routingRequired == false && terms.getDocCount() != leafReader.maxDoc()) {
+                                int docCount = terms != null ? terms.getDocCount() : routingSkipper.docCount();
+                                if (routingRequired == false && docCount != leafReader.maxDoc()) {
                                     /*
                                      * This is a special case where some docs don't have routing values.
                                      * It's annoying, but it's allowed to build an index where some documents
@@ -151,14 +171,14 @@ public final class ShardSplittingQuery extends Query {
                                      * of the document that contains them.
                                      */
                                     FixedBitSet hasRoutingValue = new FixedBitSet(leafReader.maxDoc());
-                                    findSplitDocs(
-                                        RoutingFieldMapper.NAME,
+                                    findSplitDocsBasedOnRouting(
+                                        routingStoredAsDocValues,
                                         Predicates.never(),
                                         leafReader,
                                         maybeWrapConsumer.apply(hasRoutingValue::set)
                                     );
                                     IntConsumer bitSetConsumer = maybeWrapConsumer.apply(bitSet::set);
-                                    findSplitDocs(IdFieldMapper.NAME, includeInShard, leafReader, docId -> {
+                                    findSplitDocsBasedOnId(idOnlyPredicate, leafReader, docId -> {
                                         if (hasRoutingValue.get(docId) == false) {
                                             bitSetConsumer.accept(docId);
                                         }
@@ -230,9 +250,34 @@ public final class ShardSplittingQuery extends Query {
         visitor.visitLeaf(this);
     }
 
-    private static void findSplitDocs(String idField, Predicate<BytesRef> includeInShard, LeafReader leafReader, IntConsumer consumer)
-        throws IOException {
-        Terms terms = leafReader.terms(idField);
+    static void findSplitDocsBasedOnId(Predicate<BytesRef> includeInShard, LeafReader leafReader, IntConsumer consumer) throws IOException {
+        Terms terms = leafReader.terms(IdFieldMapper.NAME);
+        consumeLocalDocIds(includeInShard, consumer, terms);
+    }
+
+    static void findSplitDocsBasedOnRouting(
+        boolean useDocValues,
+        Predicate<BytesRef> includeInShard,
+        LeafReader leafReader,
+        IntConsumer consumer
+    ) throws IOException {
+        if (useDocValues) {
+            SortedDocValues routingDocValues = leafReader.getSortedDocValues(RoutingFieldMapper.NAME);
+            assert routingDocValues != null;
+            for (int docID = routingDocValues.nextDoc(); docID != DocIdSetIterator.NO_MORE_DOCS; docID = routingDocValues.nextDoc()) {
+                int ordinal = routingDocValues.ordValue();
+                BytesRef value = routingDocValues.lookupOrd(ordinal);
+                if (includeInShard.test(value) == false) {
+                    consumer.accept(docID);
+                }
+            }
+        } else {
+            Terms terms = leafReader.terms(RoutingFieldMapper.NAME);
+            consumeLocalDocIds(includeInShard, consumer, terms);
+        }
+    }
+
+    private static void consumeLocalDocIds(Predicate<BytesRef> includeInShard, IntConsumer consumer, Terms terms) throws IOException {
         TermsEnum iterator = terms.iterator();
         BytesRef idTerm;
         PostingsEnum postingsEnum = null;
@@ -248,55 +293,131 @@ public final class ShardSplittingQuery extends Query {
     }
 
     /* this class is a stored fields visitor that reads _id and/or _routing from the stored fields which is necessary in the case
-       of a routing partitioned index sine otherwise we would need to un-invert the _id and _routing field which is memory heavy */
-    private final class Visitor extends StoredFieldVisitor {
+       of a routing partitioned index sine otherwise we would need to un-invert the _id and _routing field which is memory heavy.
+       When routing is stored as sorted doc values (doc_values: true), it is read from doc values instead of stored fields. */
+    private final class Visitor {
         final LeafReader leafReader;
         final StoredFields storedFields;
-        private int leftToVisit = 2;
+        final BaseFieldVisitor storedFieldVisitor;
+        final RoutingDocValuesReader routingDocValuesReader;
         private String routing;
         private String id;
 
         Visitor(LeafReader leafReader) throws IOException {
             this.leafReader = leafReader;
             this.storedFields = leafReader.storedFields();
-        }
-
-        @Override
-        public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
-            switch (fieldInfo.name) {
-                case IdFieldMapper.NAME -> id = Uid.decodeId(value);
-                default -> throw new IllegalStateException("Unexpected field: " + fieldInfo.name);
-            }
-        }
-
-        @Override
-        public void stringField(FieldInfo fieldInfo, String value) throws IOException {
-            switch (fieldInfo.name) {
-                case RoutingFieldMapper.NAME -> routing = value;
-                default -> throw new IllegalStateException("Unexpected field: " + fieldInfo.name);
-            }
-        }
-
-        @Override
-        public Status needsField(FieldInfo fieldInfo) throws IOException {
-            // we don't support 5.x so no need for the uid field
-            switch (fieldInfo.name) {
-                case IdFieldMapper.NAME:
-                case RoutingFieldMapper.NAME:
-                    leftToVisit--;
-                    return Status.YES;
-                default:
-                    return leftToVisit == 0 ? Status.STOP : Status.NO;
+            FieldInfo routingFieldInfo = leafReader.getFieldInfos().fieldInfo(RoutingFieldMapper.NAME);
+            boolean routingHasDocValues = routingFieldInfo != null && routingFieldInfo.getDocValuesType() == DocValuesType.SORTED;
+            if (routingHasDocValues) {
+                this.storedFieldVisitor = new IdStoredFieldVisitor();
+                this.routingDocValuesReader = new RoutingDocValuesReader(leafReader);
+            } else {
+                this.storedFieldVisitor = new IdAndRoutingStoredFieldVisitor();
+                this.routingDocValuesReader = null;
             }
         }
 
         boolean matches(int doc) throws IOException {
             routing = id = null;
-            leftToVisit = 2;
-            storedFields.document(doc, this);
+            storedFieldVisitor.reset();
+            storedFields.document(doc, storedFieldVisitor);
             assert id != null : "docID must not be null - we might have hit a nested document";
-            int targetShardId = indexRouting.getShard(id, routing);
-            return targetShardId != shardId;
+            if (routingDocValuesReader != null) {
+                assert routing == null;
+                routing = routingDocValuesReader.read(doc);
+            }
+            return shardMatcher.test(id, routing) == false;
+        }
+
+        abstract class BaseFieldVisitor extends StoredFieldVisitor {
+
+            final int fieldsToVisit;
+            int leftToVisit;
+
+            BaseFieldVisitor(int leftToVisit) {
+                this.fieldsToVisit = leftToVisit;
+                this.leftToVisit = leftToVisit;
+            }
+
+            void reset() {
+                this.leftToVisit = fieldsToVisit;
+            }
+
+            @Override
+            public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
+                switch (fieldInfo.name) {
+                    case IdFieldMapper.NAME -> id = Uid.decodeId(value);
+                    default -> throw new IllegalStateException("Unexpected field: " + fieldInfo.name);
+                }
+            }
+        }
+
+        final class IdStoredFieldVisitor extends BaseFieldVisitor {
+
+            IdStoredFieldVisitor() {
+                super(1);
+            }
+
+            @Override
+            public Status needsField(FieldInfo fieldInfo) throws IOException {
+                // we don't support 5.x so no need for the uid field
+                switch (fieldInfo.name) {
+                    case IdFieldMapper.NAME:
+                        leftToVisit--;
+                        return Status.YES;
+                    default:
+                        return leftToVisit == 0 ? Status.STOP : Status.NO;
+                }
+            }
+
+        }
+
+        final class IdAndRoutingStoredFieldVisitor extends BaseFieldVisitor {
+
+            IdAndRoutingStoredFieldVisitor() {
+                super(2);
+            }
+
+            @Override
+            public void stringField(FieldInfo fieldInfo, String value) throws IOException {
+                switch (fieldInfo.name) {
+                    case RoutingFieldMapper.NAME -> routing = value;
+                    default -> throw new IllegalStateException("Unexpected field: " + fieldInfo.name);
+                }
+            }
+
+            @Override
+            public Status needsField(FieldInfo fieldInfo) throws IOException {
+                // we don't support 5.x so no need for the uid field
+                switch (fieldInfo.name) {
+                    case IdFieldMapper.NAME:
+                    case RoutingFieldMapper.NAME:
+                        leftToVisit--;
+                        return Status.YES;
+                    default:
+                        return leftToVisit == 0 ? Status.STOP : Status.NO;
+                }
+            }
+
+        }
+
+        static final class RoutingDocValuesReader {
+
+            final SortedDocValues docValues;
+
+            RoutingDocValuesReader(LeafReader leafReader) throws IOException {
+                this.docValues = leafReader.getSortedDocValues(RoutingFieldMapper.NAME);
+            }
+
+            public String read(int docId) throws IOException {
+                if (docValues.advanceExact(docId)) {
+                    // TODO: maybe cache looking up ordinal and converting to utf8 string?
+                    int ordinal = docValues.ordValue();
+                    return docValues.lookupOrd(ordinal).utf8ToString();
+                }
+                return null;
+            }
+
         }
     }
 

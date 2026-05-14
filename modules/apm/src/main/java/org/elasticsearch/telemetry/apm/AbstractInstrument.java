@@ -12,7 +12,7 @@ package org.elasticsearch.telemetry.apm;
 import io.opentelemetry.api.metrics.Meter;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.telemetry.apm.internal.MetricNameValidator;
+import org.elasticsearch.telemetry.apm.internal.MetricValidator;
 import org.elasticsearch.telemetry.metric.Instrument;
 
 import java.util.Objects;
@@ -27,9 +27,9 @@ import java.util.function.Function;
  * @param <T> delegated instrument
  */
 public abstract class AbstractInstrument<T> implements Instrument {
-    private final AtomicReference<T> delegate = new AtomicReference<>();
+    protected final AtomicReference<T> delegate = new AtomicReference<>();
     private final String name;
-    private final Function<Meter, T> instrumentBuilder;
+    protected final Function<Meter, T> instrumentBuilder;
 
     public AbstractInstrument(Meter meter, Builder<T> builder) {
         this.name = builder.getName();
@@ -57,7 +57,7 @@ public abstract class AbstractInstrument<T> implements Instrument {
         protected final String unit;
 
         public Builder(String name, String description, String unit) {
-            this.name = MetricNameValidator.validate(name);
+            this.name = MetricValidator.validateMetricName(name);
             this.description = Objects.requireNonNull(description);
             this.unit = Objects.requireNonNull(unit);
         }

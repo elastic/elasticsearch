@@ -38,16 +38,11 @@ public final class SpatialExtentGeoShapeDocValuesAggregatorFunction implements A
 
   private final List<Integer> channels;
 
-  public SpatialExtentGeoShapeDocValuesAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, SpatialExtentStateWrappedLongitudeState state) {
+  SpatialExtentGeoShapeDocValuesAggregatorFunction(DriverContext driverContext,
+      List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static SpatialExtentGeoShapeDocValuesAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new SpatialExtentGeoShapeDocValuesAggregatorFunction(driverContext, channels, SpatialExtentGeoShapeDocValuesAggregator.initSingle());
+    this.state = SpatialExtentGeoShapeDocValuesAggregator.initSingle();
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -72,37 +67,40 @@ public final class SpatialExtentGeoShapeDocValuesAggregatorFunction implements A
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
     IntBlock valuesBlock = page.getBlock(channels.get(0));
-    IntVector valuesVector = valuesBlock.asVector();
-    if (valuesVector == null) {
-      addRawBlock(valuesBlock, mask);
+    if (valuesBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
-    addRawVector(valuesVector, mask);
+    addRawBlock(valuesBlock, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
     IntBlock valuesBlock = page.getBlock(channels.get(0));
-    IntVector valuesVector = valuesBlock.asVector();
-    if (valuesVector == null) {
-      addRawBlock(valuesBlock);
+    if (valuesBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
-    addRawVector(valuesVector);
-  }
-
-  private void addRawVector(IntVector valuesVector) {
-    // This type does not support vectors because all values are multi-valued
-  }
-
-  private void addRawVector(IntVector valuesVector, BooleanVector mask) {
-    // This type does not support vectors because all values are multi-valued
+    addRawBlock(valuesBlock);
   }
 
   private void addRawBlock(IntBlock valuesBlock) {
     for (int p = 0; p < valuesBlock.getPositionCount(); p++) {
-      if (valuesBlock.isNull(p)) {
-        continue;
-      }
       SpatialExtentGeoShapeDocValuesAggregator.combine(state, p, valuesBlock);
     }
   }
@@ -110,9 +108,6 @@ public final class SpatialExtentGeoShapeDocValuesAggregatorFunction implements A
   private void addRawBlock(IntBlock valuesBlock, BooleanVector mask) {
     for (int p = 0; p < valuesBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
-        continue;
-      }
-      if (valuesBlock.isNull(p)) {
         continue;
       }
       SpatialExtentGeoShapeDocValuesAggregator.combine(state, p, valuesBlock);
@@ -125,36 +120,90 @@ public final class SpatialExtentGeoShapeDocValuesAggregatorFunction implements A
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block topUncast = page.getBlock(channels.get(0));
     if (topUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     IntVector top = ((IntBlock) topUncast).asVector();
     assert top.getPositionCount() == 1;
     Block bottomUncast = page.getBlock(channels.get(1));
     if (bottomUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     IntVector bottom = ((IntBlock) bottomUncast).asVector();
     assert bottom.getPositionCount() == 1;
     Block negLeftUncast = page.getBlock(channels.get(2));
     if (negLeftUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     IntVector negLeft = ((IntBlock) negLeftUncast).asVector();
     assert negLeft.getPositionCount() == 1;
     Block negRightUncast = page.getBlock(channels.get(3));
     if (negRightUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     IntVector negRight = ((IntBlock) negRightUncast).asVector();
     assert negRight.getPositionCount() == 1;
     Block posLeftUncast = page.getBlock(channels.get(4));
     if (posLeftUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     IntVector posLeft = ((IntBlock) posLeftUncast).asVector();
     assert posLeft.getPositionCount() == 1;
     Block posRightUncast = page.getBlock(channels.get(5));
     if (posRightUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     IntVector posRight = ((IntBlock) posRightUncast).asVector();

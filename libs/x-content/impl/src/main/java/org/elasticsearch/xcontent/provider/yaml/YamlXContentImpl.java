@@ -62,6 +62,11 @@ public final class YamlXContentImpl implements XContent {
     }
 
     @Override
+    public boolean hasBulkSeparator() {
+        return false;
+    }
+
+    @Override
     public byte bulkSeparator() {
         throw new UnsupportedOperationException("yaml does not support bulk parsing...");
     }

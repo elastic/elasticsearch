@@ -15,18 +15,18 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.Element;
@@ -135,6 +135,11 @@ public class RankVectorsFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public RankVectorsFieldMapper build(MapperBuilderContext context) {
             // Validate on Mapping creation
             if (RANK_VECTORS_FEATURE.check(licenseState) == false) {
@@ -173,7 +178,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
             XPackLicenseState licenseState,
             Map<String, String> meta
         ) {
-            super(name, false, false, true, TextSearchInfo.NONE, meta);
+            super(name, IndexType.docValuesOnly(), false, meta);
             this.element = Element.getElement(elementType);
             this.dims = dims;
             this.licenseState = licenseState;
@@ -182,6 +187,11 @@ public class RankVectorsFieldMapper extends FieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public boolean isSearchable() {
+            return false;
         }
 
         @Override
@@ -316,8 +326,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
             }
             var builder = (Builder) getMergeBuilder();
             builder.dimensions(currentDims);
-            Mapper update = builder.build(context.createDynamicMapperBuilderContext());
-            context.addDynamicMapper(update);
+            context.addDynamicMapper(builder, fullPath());
             return;
         }
         int dims = fieldType().dims;
@@ -337,7 +346,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
         ByteBuffer buffer = ByteBuffer.allocate(bufferSize).order(ByteOrder.LITTLE_ENDIAN);
         ByteBuffer magnitudeBuffer = ByteBuffer.allocate(vectors.size() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         for (VectorData vector : vectors) {
-            vector.addToBuffer(buffer);
+            vector.addToBuffer(element, buffer);
             magnitudeBuffer.putFloat((float) Math.sqrt(element.computeSquaredMagnitude(vector)));
         }
         String vectorFieldName = fieldType().name();
@@ -486,6 +495,13 @@ public class RankVectorsFieldMapper extends FieldMapper {
                         List<Float> vec = new ArrayList<>(dims);
                         for (int dim = 0; dim < dims; dim++) {
                             vec.add(byteBuffer.getFloat());
+                        }
+                        vectors.add(vec);
+                    }
+                    case BFLOAT16 -> {
+                        List<Float> vec = new ArrayList<>(dims);
+                        for (int dim = 0; dim < dims; dim++) {
+                            vec.add(BFloat16.bFloat16ToFloat(byteBuffer.getShort()));
                         }
                         vectors.add(vec);
                     }

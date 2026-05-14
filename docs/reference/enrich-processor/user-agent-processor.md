@@ -9,17 +9,17 @@ mapped_pages:
 
 The `user_agent` processor extracts details from the user agent string a browser sends with its web requests. This processor adds this information by default under the `user_agent` field.
 
-The ingest-user-agent module ships by default with the regexes.yaml made available by uap-java with an Apache 2.0 license. For more details see [https://github.com/ua-parser/uap-core](https://github.com/ua-parser/uap-core).
+The user-agent module ships by default with the regexes.yaml made available by uap-java with an Apache 2.0 license. For more details see [https://github.com/ua-parser/uap-core](https://github.com/ua-parser/uap-core).
 
-## Using the user_agent Processor in a Pipeline [using-ingest-user-agent]
+## Using the user_agent Processor in a Pipeline [using-user-agent]
 
-$$$ingest-user-agent-options$$$
+$$$user-agent-options$$$
 
 | Name | Required | Default | Description |
 | --- | --- | --- | --- |
 | `field` | yes | - | The field containing the user agent string. |
 | `target_field` | no | user_agent | The field that will be filled with the user agent details. |
-| `regex_file` | no | - | The name of the file in the `config/ingest-user-agent` directory containing the regular expressions for parsing the user agent string. Both the directory and the file have to be created before starting Elasticsearch. If not specified, ingest-user-agent will use the regexes.yaml from uap-core it ships with (see below). |
+| `regex_file` | no | - | The name of the file in the `config/user-agent`\* directory containing the regular expressions for parsing the user agent string. Both the directory and the file have to be created before starting {{es}}. If not specified, the `user-agent` module uses the `regexes.yaml` file from the `uap-core` package that it ships with (see below). <br><br>\* Before version 9.4, this directory was named `config/ingest-user-agent`. |
 | `properties` | no | [`name`, `os`, `device`, `original`, `version`] | Controls what properties are added to `target_field`. |
 | `extract_device_type` | no | `false` | {applies_to}`stack: beta` {applies_to}`serverless: beta` Extracts device type from the user agent string on a best-effort basis. |
 | `ignore_missing` | no | `false` | If `true` and `field` does not exist, the processor quietly exits without modifying the document |
@@ -73,22 +73,34 @@ Which returns
   }
 }
 ```
+% TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term": 1/"_primary_term" : $body._primary_term/]
 
 ### Using a custom regex file [_using_a_custom_regex_file]
 
-To use a custom regex file for parsing the user agents, that file has to be put into the `config/ingest-user-agent` directory and has to have a `.yml` filename extension. The file has to be present at node startup, any changes to it or any new files added while the node is running will not have any effect.
+To use a custom regex file for parsing the user agents, that file has to be put into the `config/user-agent` directory and has to have a `.yml` filename extension. The file has to be present at node startup, any changes to it or any new files added while the node is running will not have any effect.
+
+::::{note}
+Before version 9.4, this directory was named `config/ingest-user-agent`. The old directory name is still supported as a fallback but is deprecated.
+::::
 
 In practice, it will make most sense for any custom regex file to be a variant of the default file, either a more recent version or a customised version.
 
-The default file included in `ingest-user-agent` is the `regexes.yaml` from uap-core: [https://github.com/ua-parser/uap-core/blob/master/regexes.yaml](https://github.com/ua-parser/uap-core/blob/master/regexes.yaml)
+The default file included in the `user-agent` module is `regexes.yaml` from the uap-core package: [https://github.com/ua-parser/uap-core/blob/master/regexes.yaml](https://github.com/ua-parser/uap-core/blob/master/regexes.yaml)
 
 
-### Node Settings [ingest-user-agent-settings]
+### Node Settings [user-agent-settings]
 
-The `user_agent` processor supports the following setting:
+The `user_agent` processor supports the following settings:
 
-`ingest.user_agent.cache_size`
+`user_agent.cache_size` {applies_to}`stack: ga 9.4`
 :   The maximum number of results that should be cached. Defaults to `1000`.
+
+`ingest.user_agent.cache_size` {applies_to}`stack: deprecated 9.4`
+:   :::{admonition} Deprecated in 9.4
+    Use `user_agent.cache_size` instead.
+    :::
+
+    The maximum number of results that should be cached. Defaults to `1000`.
 
 Note that these settings are node settings and apply to all `user_agent` processors, i.e. there is one cache for all defined `user_agent` processors.
 

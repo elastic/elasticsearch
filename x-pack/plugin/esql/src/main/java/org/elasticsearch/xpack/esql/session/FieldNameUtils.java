@@ -16,13 +16,18 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Earliest;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Latest;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -33,33 +38,39 @@ import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PreAnalysisResult;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 
 public class FieldNameUtils {
 
-    private static final Set<String> FUNCTIONS_REQUIRING_TIMESTAMP = Set.of(TBucket.NAME.toLowerCase(Locale.ROOT));
+    private static final Set<String> FUNCTIONS_REQUIRING_TIMESTAMP = Set.of(
+        TBucket.NAME.toLowerCase(Locale.ROOT),
+        TRange.NAME.toLowerCase(Locale.ROOT),
+        Earliest.NAME.toLowerCase(Locale.ROOT),
+        Latest.NAME.toLowerCase(Locale.ROOT)
+    );
 
-    public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches) {
+    public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
 
         // get the field names from the parsed plan combined with the ENRICH match fields from the ENRICH policy
         List<LogicalPlan> inlinestats = parsed.collect(InlineStats.class::isInstance);
@@ -97,6 +108,7 @@ public class FieldNameUtils {
         // NOTE: the grammar allows wildcards to be used in other commands as well, but these are forbidden in the LogicalPlanBuilder
         // Except in KEEP and DROP.
         var keepRefs = AttributeSet.builder();
+        var currentBranchKeepRefs = new Holder<>(AttributeSet.builder());
         var dropWildcardRefs = AttributeSet.builder();
         // fields required to request for lookup joins to work
         var joinRefs = AttributeSet.builder();
@@ -106,22 +118,62 @@ public class FieldNameUtils {
         var canRemoveAliases = new Holder<>(true);
 
         var forEachDownProcessor = new Holder<BiConsumer<LogicalPlan, Holder<Boolean>>>();
+        Holder<LogicalPlan> lastSeenFork = new Holder<>(null);
+        // Track if there are plans after FORK that reduce columns to a known set (e.g., Project, Aggregate)
+        Holder<Boolean> reduceColumnsAfterFork = new Holder<>(false);
         forEachDownProcessor.set((LogicalPlan p, Holder<Boolean> breakEarly) -> {// go over each plan top-down
+            // Check if we see a column-reducing plan before encountering a Fork
+            if (lastSeenFork.get() == null && shouldCollectReferencedFields(p, inlinestatsAggs)) {
+                reduceColumnsAfterFork.set(true);
+            }
+
             if (p instanceof Fork fork) {
+                lastSeenFork.set(fork);
+
                 // Early return from forEachDown. We will iterate over the children manually and end the recursion via forEachDown early.
                 var forkRefsResult = AttributeSet.builder();
                 forkRefsResult.addAll(referencesBuilder.get());
+                var parentKeepRefs = AttributeSet.builder();
+                parentKeepRefs.addAll(keepRefs);
 
                 for (var forkBranch : fork.children()) {
+                    // Reset branch-specific state for each fork branch
+                    currentBranchKeepRefs.set(AttributeSet.builder());
+                    currentBranchKeepRefs.get().addAll(parentKeepRefs);
                     referencesBuilder.set(AttributeSet.builder());
+
                     var isNestedFork = forkBranch.forEachDownMayReturnEarly(forEachDownProcessor.get());
+
                     // This assert is just for good measure. FORKs within FORKs is yet not supported.
-                    assert isNestedFork == false : "Nested FORKs are not yet supported";
-                    // This is a safety measure for fork where the list of fields returned is empty.
-                    // It can be empty for a branch that does need all the fields. For example "fork (where true) (where a is not null)"
-                    // but it can also be empty for queries where NO fields are needed from ES,
-                    // for example "fork (eval x = 1 | keep x) (eval y = 1 | keep y)" but we cannot establish this yet.
-                    if (referencesBuilder.get().isEmpty()) {
+                    LogicalPlan lastFork = lastSeenFork.get();
+                    if (lastFork != null && fork instanceof UnionAll == false && lastFork instanceof UnionAll == false) {
+                        // UnionAll is a special case of FORK, fork inside subquery or fork after subquery or nested subqueries can
+                        // be flattened and supported by LogicalPlanOptimizer and ComputeService in the future, defer this assertion
+                        // LogicalPlanOptimizer verifier. Add the check here to avoid assertion on subqueries nested with fork.
+                        // TODO consider deferring the nested fork check to Analyzer verifier or LogicalPlanOptimizer verifier.
+                        assert isNestedFork == false : "Nested FORKs are not yet supported";
+                    }
+
+                    // Determine if this fork branch requires all fields from the index (projectAll = true).
+                    // This happens when a branch has no explicit field selection and no KEEP constraints.
+                    //
+                    // We trigger projectAll when ALL the following conditions are met:
+                    // 1. No KEEP commands in this branch (currentBranchKeepRefs is empty)
+                    // 2. AND either:
+                    // a) No field references were collected (referencesBuilder is empty), OR
+                    // b) The branch contains no commands that require explicit field collection
+                    // (e.g., no PROJECT or STATS commands that would limit field selection)
+                    //
+                    // Examples:
+                    // - "fork (where true) (where a is not null)" → needs all fields (no KEEP, only filters)
+                    // - "fork (eval x = 1 | keep x) (where true)" → needs all fields (second branch has no KEEP)
+                    // UNLESS there's a column-reducing command after FORK (e.g., stats)
+                    // - "fork (eval x = 1 | keep x) (eval y = 2 | keep y)" → specific fields only (both branches have KEEP)
+                    // - "fork (eval x = 1 | keep x) (where true) | stats c = count(*)" → specific fields (stats reduces columns)
+                    if (currentBranchKeepRefs.get().isEmpty()
+                        && (referencesBuilder.get().isEmpty()
+                            || false == forkBranch.anyMatch(forkPlan -> shouldCollectReferencedFields(forkPlan, inlinestatsAggs)))
+                        && false == reduceColumnsAfterFork.get()) {
                         projectAll.set(true);
                         // Return early, we'll be returning all references no matter what the remainder of the query is.
                         breakEarly.set(true);
@@ -139,6 +191,9 @@ public class FieldNameUtils {
             } else if (p instanceof RegexExtract re) { // for Grok and Dissect
                 // keep the inputs needed by Grok/Dissect
                 referencesBuilder.get().addAll(re.input().references());
+            } else if (p instanceof CompoundOutputEval<?> coe) {
+                // keep the input field needed by the CompoundOutputEval
+                referencesBuilder.get().addAll(coe.getInput().references());
             } else if (p instanceof Enrich enrich) {
                 AttributeSet enrichFieldRefs = Expressions.references(enrich.enrichFields());
                 AttributeSet.Builder enrichRefs = enrichFieldRefs.combine(enrich.matchField().references()).asBuilder();
@@ -147,8 +202,9 @@ public class FieldNameUtils {
                 enrichRefs.removeIf(attr -> attr instanceof EmptyAttribute);
                 referencesBuilder.get().addAll(enrichRefs);
             } else if (p instanceof LookupJoin join) {
-                if (join.config().type() instanceof JoinTypes.UsingJoinType usingJoinType) {
-                    joinRefs.addAll(usingJoinType.columns());
+                joinRefs.addAll(join.config().leftFields());
+                if (join.config().joinOnConditions() != null) {
+                    joinRefs.addAll(join.config().joinOnConditions().references());
                 }
                 if (keepRefs.isEmpty()) {
                     // No KEEP commands after the JOIN, so we need to mark this index for "*" field resolution
@@ -161,21 +217,22 @@ public class FieldNameUtils {
                 referencesBuilder.get().addAll(p.references());
                 if (p instanceof UnresolvedRelation ur && ur.isTimeSeriesMode()) {
                     // METRICS aggs generally rely on @timestamp without the user having to mention it.
-                    referencesBuilder.get().add(new UnresolvedAttribute(ur.source(), MetadataAttribute.TIMESTAMP_FIELD));
+                    referencesBuilder.get().add(UnresolvedTimestamp.withSource(ur.source()));
                 }
 
                 p.forEachExpression(UnresolvedFunction.class, uf -> {
                     if (FUNCTIONS_REQUIRING_TIMESTAMP.contains(uf.name().toLowerCase(Locale.ROOT))) {
-                        referencesBuilder.get().add(new UnresolvedAttribute(uf.source(), MetadataAttribute.TIMESTAMP_FIELD));
+                        referencesBuilder.get().add(UnresolvedTimestamp.withSource(uf.source()));
                     }
                 });
 
                 // special handling for UnresolvedPattern (which is not an UnresolvedAttribute)
                 p.forEachExpression(UnresolvedNamePattern.class, up -> {
-                    var ua = new UnresolvedAttribute(up.source(), up.name());
+                    var ua = new UnresolvedPattern(up.source(), up.name());
                     referencesBuilder.get().add(ua);
                     if (p instanceof Keep) {
                         keepRefs.add(ua);
+                        currentBranchKeepRefs.get().add(ua);
                     } else if (p instanceof Drop) {
                         dropWildcardRefs.add(ua);
                     } else {
@@ -184,6 +241,7 @@ public class FieldNameUtils {
                 });
                 if (p instanceof Keep) {
                     keepRefs.addAll(p.references());
+                    currentBranchKeepRefs.get().addAll(p.references());
                 }
             }
 
@@ -244,19 +302,60 @@ public class FieldNameUtils {
             // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index
             return new PreAnalysisResult(IndexResolver.INDEX_METADATA_FIELD, wildcardJoinIndices);
         } else {
-            return new PreAnalysisResult(fieldNames.stream().flatMap(FieldNameUtils::withSubfields).collect(toSet()), wildcardJoinIndices);
+            Set<String> allFields = new HashSet<>();
+            for (String name : fieldNames) {
+                addRelatedFields(includePrefixFields, allFields, name);
+            }
+            allFields.add(MetadataAttribute.INDEX);
+            return new PreAnalysisResult(allFields, wildcardJoinIndices);
         }
     }
 
-    private static Stream<String> withSubfields(String name) {
-        return name.endsWith(WILDCARD) ? Stream.of(name) : Stream.of(name, name + ".*");
+    /**
+     * Expands a field name into a set of names to request from field caps. For example, "a.b.c" will be expanded to:
+     * <ul>
+     * <li>The field itself: "a.b.c"</li>
+     * <li>Its multi-fields: "a.b.c.*". A sample case where this is required is TEXT fields that may have a ".keyword" subfield that's
+     * implicitly used in some queries.</li>
+     * <li>(Only when {@code unmapped_fields="load"}) All dot-delimited parent prefixes: ["a", "a.b"]. This is needed to get back flattened
+     * parents, so the verifier can detect subfields of flattened.</li>
+     * </ul>
+     */
+    private static void addRelatedFields(boolean includeFieldParentPrefixes, Set<String> allFields, String name) {
+        allFields.add(name);
+
+        if (name.endsWith(WILDCARD) == false) {
+            allFields.add(name + ".*");
+        }
+
+        if (includeFieldParentPrefixes) {
+            allFields.addAll(parentPrefixes(name));
+        }
+    }
+
+    /**
+     * Returns the dot-delimited parent prefixes of a field name. For example, "a.b.c" will return ["a", "a.b"].
+     */
+    public static List<String> parentPrefixes(String name) {
+        List<String> prefixes = new ArrayList<>();
+        int pos = name.indexOf('.');
+
+        while (pos != -1) {
+            prefixes.add(name.substring(0, pos));
+            pos = name.indexOf('.', pos + 1);
+        }
+
+        return prefixes;
     }
 
     /**
      * Indicates whether the given plan gives an exact list of fields that we need to collect from field_caps.
      */
     private static boolean shouldCollectReferencedFields(LogicalPlan plan, Set<Aggregate> inlinestatsAggs) {
-        return plan instanceof Project || (plan instanceof Aggregate agg && inlinestatsAggs.contains(agg) == false);
+        return plan instanceof Project || (plan instanceof Aggregate agg && inlinestatsAggs.contains(agg) == false)
+        // no need to collect fields for metrics_info or ts_info
+            || plan instanceof MetricsInfo
+            || plan instanceof TsInfo;
     }
 
     /**
@@ -281,6 +380,7 @@ public class FieldNameUtils {
             || p instanceof OrderBy
             || p instanceof Project
             || p instanceof RegexExtract
+            || p instanceof CompoundOutputEval<?>
             || p instanceof Rename
             || p instanceof TopN
             || p instanceof UnresolvedRelation) == false;

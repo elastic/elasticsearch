@@ -8,15 +8,12 @@ package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.settings.SecureString;
@@ -174,6 +171,11 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                     request.addParameter("wait_for_status", "yellow");
                 }));
             } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+                // Wait for the cluster to recover to yellow at least before checking index status
+                ensureHealth((request -> {
+                    request.addParameter("timeout", "30s");
+                    request.addParameter("wait_for_status", "yellow");
+                }));
                 ensureHealth("logs-barbaz", (request -> {
                     request.addParameter("wait_for_nodes", "3");
                     request.addParameter("wait_for_status", "green");
@@ -541,25 +543,6 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             indexTemplate.replace("$TEMPLATE", templateWithNoTimestamp).replace("$PATTERN", dataStreamFromNonDataStreamIndices + "-*")
         );
         String indexName = dataStreamFromNonDataStreamIndices + "-01";
-        if (minimumTransportVersion().before(TransportVersions.V_8_0_0)) {
-            /*
-             * It is not possible to create a 7.x index template with a type. And you can't create an empty index with a type. But you can
-             * create the index with a type by posting a document to an index with a type. We do that here so that we test that the type is
-             * removed when we reindex into 8.x.
-             */
-            String typeName = "test-type";
-            Request createIndexRequest = new Request("POST", indexName + "/" + typeName);
-            createIndexRequest.setJsonEntity("""
-                {
-                  "@timestamp": "2099-11-15T13:12:00",
-                  "message": "GET /search HTTP/1.1 200 1070000",
-                  "user": {
-                    "id": "kimchy"
-                  }
-                }""");
-            createIndexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
-            assertOK(client().performRequest(createIndexRequest));
-        }
         assertOK(client().performRequest(putIndexTemplateRequest));
         bulkLoadDataMissingTimestamp(indexName);
         /*

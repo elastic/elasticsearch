@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.ssl.SslUtil;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.logging.LogManager;
@@ -34,6 +35,7 @@ import java.util.stream.Collectors;
 public final class X509CertificateSignature implements Writeable {
 
     private static final Logger logger = LogManager.getLogger(X509CertificateSignature.class);
+    public static final String CROSS_CLUSTER_ACCESS_SIGNATURE_HEADER_KEY = "_cross_cluster_access_signature";
 
     private final X509Certificate[] certificateChain;
     private final String algorithm;
@@ -72,6 +74,15 @@ public final class X509CertificateSignature implements Writeable {
         return certificateChain;
     }
 
+    public X509Certificate leafCertificate() {
+        assert certificateChain.length > 0;
+        return certificateChain[0];
+    }
+
+    public X509Certificate topCertificate() {
+        return certificateChain[certificateChain.length - 1];
+    }
+
     public String algorithm() {
         return algorithm;
     }
@@ -99,7 +110,7 @@ public final class X509CertificateSignature implements Writeable {
     public String toString() {
         return "X509CertificateSignature["
             + "certificates="
-            + Arrays.stream(certificateChain).map(this::certificateToString).collect(Collectors.joining(","))
+            + Arrays.stream(certificateChain).map(X509CertificateSignature::certificateToString).collect(Collectors.joining(","))
             + ", "
             + "algorithm="
             + algorithm
@@ -109,11 +120,11 @@ public final class X509CertificateSignature implements Writeable {
             + ']';
     }
 
-    private String certificateToString(X509Certificate certificate) {
+    public static String certificateToString(X509Certificate certificate) {
         return "(" + certificate.getSubjectX500Principal() + ";" + certificate.getType() + ";" + fingerprint(certificate) + ")";
     }
 
-    private String fingerprint(X509Certificate certificate) {
+    private static String fingerprint(X509Certificate certificate) {
         try {
             return "SHA1:" + SslUtil.calculateFingerprint(certificate, "SHA-1");
         } catch (CertificateEncodingException e) {
@@ -140,6 +151,15 @@ public final class X509CertificateSignature implements Writeable {
         final String encoded = encode(this);
         logger.trace("Encoding {} as [{}]", this, encoded);
         return encoded;
+    }
+
+    public static void writeToContext(ThreadContext ctx, X509CertificateSignature signature) throws IOException {
+        ctx.putHeader(CROSS_CLUSTER_ACCESS_SIGNATURE_HEADER_KEY, signature.encodeToString());
+    }
+
+    public static X509CertificateSignature readFromContext(ThreadContext ctx) throws IOException {
+        var encodedSignature = ctx.getHeader(CROSS_CLUSTER_ACCESS_SIGNATURE_HEADER_KEY);
+        return encodedSignature != null ? X509CertificateSignature.decode(encodedSignature) : null;
     }
 
     public static X509CertificateSignature decode(String encoded) throws IOException {

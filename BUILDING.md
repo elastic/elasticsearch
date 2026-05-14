@@ -3,7 +3,7 @@ Building Elasticsearch with Gradle
 
 Elasticsearch is built using the [Gradle](https://gradle.org/) open source build tools.
 
-This document provides a general guidelines for using and working on the Elasticsearch build logic.
+This document provides general guidelines for using and working on the Elasticsearch build logic.
 
 ## Build logic organisation
 
@@ -27,8 +27,59 @@ These build tools are also used by the `elasticsearch-hadoop` project maintained
 
 ### `build-tools-internal`
 
-This project contains all Elasticsearch project specific build logic that is not meant to be shared
+This project contains all Elasticsearch project specific build logic not meant to be shared
 with other internal or external projects.
+
+## Third-Party Gradle Plugins
+
+The Elasticsearch build uses several third-party Gradle plugins. All versions are centralized in
+`/gradle/build.versions.toml` (version catalog).
+
+### Build Infrastructure Plugins
+
+| Plugin ID | Purpose |
+|-----------|---------|
+| `com.gradle.develocity` | Enables build scans and integration with Gradle Enterprise at `gradle-enterprise.elastic.co`. Provides build performance metrics, failure diagnostics, and CI integration for Buildkite. |
+| `com.gradleup.nmcp.aggregation` | Aggregates all Maven artifacts from projects applying `elasticsearch.publish` for publishing to Maven Central via DRA infrastructure. |
+
+### Packaging & Distribution Plugins
+
+| Plugin ID | Purpose |
+|-----------|---------|
+| `com.netflix.nebula.ospackage-base` | Creates DEB and RPM Linux packages for Elasticsearch distribution. Handles package metadata, install/remove scripts, file permissions, and package signing. |
+| `com.gradleup.shadow` | Creates fat JARs (uber-jars) by merging dependencies into a single JAR. Used for standalone CLI tools (`plugin-cli`, `sql-cli`) and the JDBC driver. |
+
+### Code Quality & Precommit Plugins
+
+| Plugin ID | Purpose |
+|-----------|---------|
+| `de.thetaphi:forbiddenapis` | Static bytecode analysis that detects invocations of forbidden API methods. Ensures code doesn't use unsafe or deprecated JDK APIs. Integrated via `ForbiddenApisPrecommitPlugin`. |
+| `org.apache.rat:apache-rat` | License header validation (Apache RAT - Release Audit Tool). Ensures all source files have proper license headers. |
+| `com.diffplug.spotless` | Code formatting enforcement using Eclipse JDT formatter. Provides `spotlessJavaCheck` and `spotlessApply` tasks. Configuration in `build-conventions/formatterConfig.xml`. |
+
+### Build Metadata & Tooling Plugins
+
+| Plugin ID | Purpose |
+|-----------|---------|
+| `com.netflix.nebula:gradle-info-plugin` | Automatically includes build metadata (git info, build time, Java version) in JAR manifests. Applied as `nebula.info-broker`, `nebula.info-basic`, `nebula.info-java`, `nebula.info-jar`. |
+| `com.avast.gradle:docker-compose` | Manages Docker Compose environments for integration testing fixtures. Used by `TestFixturesPlugin` for test infrastructure (AWS, Azure, GCS, HDFS mocks). |
+| `org.jetbrains.gradle.plugin.idea-ext` | Enhanced IntelliJ IDEA project configuration. Customizes IDE settings, JUnit configurations, and post-sync tasks. |
+
+## Internal Plugin Selection Guide
+
+When creating a new subproject, choose the appropriate Elasticsearch plugin based on your project type:
+
+| Project Type | Plugin to Apply | Example Projects |
+|--------------|-----------------|------------------|
+| Core library | `elasticsearch.build` | `server`, `libs/*` |
+| Module shipped with ES | `elasticsearch.internal-es-plugin` | `modules/*` |
+| External plugin | `elasticsearch.internal-es-plugin` + `elasticsearch.publish` | `plugins/*` |
+| X-Pack plugin | `elasticsearch.internal-es-plugin` + `elasticsearch.publish` | `x-pack/plugin/*` |
+| YAML REST tests | `elasticsearch.internal-yaml-rest-test` | modules/plugins with REST APIs |
+| Java REST tests | `elasticsearch.internal-java-rest-test` | modules/plugins needing Java test flexibility |
+| Cluster integration tests | `elasticsearch.internal-cluster-test` | Projects testing cluster behavior |
+| BWC/upgrade tests | `elasticsearch.bwc-test` or `elasticsearch.fwc-test` | `qa/rolling-upgrade`, `qa/full-cluster-restart` |
+| Standalone QA project | `elasticsearch.standalone-rest-test` | `qa/*` subprojects |
 
 ## Build guidelines
 
@@ -55,7 +106,7 @@ Gradle build logic at http://autonomousapps.com/blog/rules-for-gradle-plugin-aut
 Our current build does not yet tick off all those rules everywhere but the ultimate goal is to follow these principles.
 The reasons for following those rules besides better readability or maintenance are also the goal to support newer Gradle
 features that we will benefit from in terms of performance and reliability.
-E.g. [configuration-cache support](https://github.com/elastic/elasticsearch/issues/57918), [Project Isolation]([https://gradle.github.io/configuration-cache/#project_isolation) or
+E.g. [configuration-cache support](https://github.com/elastic/elasticsearch/issues/57918), [Project Isolation](https://gradle.github.io/configuration-cache/#project_isolation) or
 [predictive test selection](https://gradle.com/gradle-enterprise-solutions/predictive-test-selection/)
 
 ### Make a change in the build
@@ -118,7 +169,7 @@ We use two main types of component metadata rules at this point to manage transi
 - **`ExcludeAllTransitivesRule`** - Excludes all transitive dependencies for libraries where we want complete control over dependencies or the transitive dependencies are unused.
 
 - **`ExcludeOtherGroupsTransitiveRule`** - Excludes transitive dependencies that don't belong to the same group as the direct dependency, while keeping same-group dependencies.
--
+
 - **`ExcludeByGroup`** - Excludes transitive dependencies that match a specific groupId while keeping all other transitive dependencies with different groupIds.
 
 Examples from the `ComponentMetadataRulesPlugin`:
@@ -161,16 +212,25 @@ When adding or updating dependencies, ensure that any required transitive depend
 2. Added as direct dependencies if they're actually used by our code
 3. Properly excluded if they're not needed
 
-#### Custom plugin and task implementations
+#### Custom Gradle plugin and Gradle task implementations
 
-Build logic that is used across multiple subprojects should be considered to be moved into a Gradle plugin with according Gradle task implementation.
-Elasticsearch specific build logic is located in the `build-tools-internal` subproject including integration tests.
+Build logic that is used across multiple subprojects should be considered to be
+moved into a Gradle plugin with according Gradle task implementation.
+Elasticsearch specific build logic is located in the `build-tools-internal`
+subproject including integration tests.
 
 - Gradle plugins and Tasks should be written in Java
 - We use a groovy and spock for setting up Gradle integration tests.
-  (see https://github.com/elastic/elasticsearch/blob/main/build-tools/src/testFixtures/groovy/org/elasticsearch/gradle/fixtures/AbstractGradleFuncTest.groovy)
+- For each Gradle Plugin and Gradle Task implementation (e.g.
+  org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin) we aim for
+  a dedicated
+    - unit test class containing all relaed unit tests in src/test (e.g. GlobalBuildInfoPluginSpec) for basic unit testing of
+      the plugin logic and
+    - integration test containing all related Gradle TestKit based integration tests in src/integTest (e.g. GlobalBuildInfoPluginFuncTest) for testing the
+      plugin in a real Gradle build based on
+      src/main/build-tools/src/testFixtures/groovy/org/elasticsearch/gradle/fixtures/AbstractGradleFuncTest.groovy)
 
-#### Declaring tasks
+#### Declaring Gradle tasks
 
 The Elasticsearch build makes use of the [task avoidance API](https://docs.gradle.org/current/userguide/task_configuration_avoidance.html) to keep the configuration time of the build low.
 
@@ -214,32 +274,109 @@ The benefit of a dedicated project for these tests are:
 
 #### Using test fixtures
 
-Sometimes we want to share test fixtures to set up the code under test across multiple projects. There are basically two ways doing so.
+Sometimes we want to share fixture code used by tests across multiple Gradle projects. There are two supported approaches, depending on where the shared classes live:
 
-Ideally we would use the build-in [java-test-fixtures](https://docs.gradle.org/current/userguide/java_testing.html#sec:java_test_fixtures) Gradle plugin.
-This plugin relies on having a separate sourceSet for the test fixtures code.
+- Prefer the built-in [java-test-fixtures](https://docs.gradle.org/current/userguide/java_testing.html#sec:java_test_fixtures) Gradle plugin **when and only when** the shared fixtures are placed in the dedicated `testFixtures` source set (for example `src/testFixtures/java`).
 
-In the Elasticsearch codebase we have test fixtures and actual tests within the same sourceSet. Therefore we introduced the `elasticsearch.internal-test-artifact` plugin to provides another build artifact of your project based on the `test` sourceSet.
+  In the providing project apply the plugin and place shared code under `src/testFixtures/...`:
 
+  ```groovy
+  plugins {
+    id 'java-test-fixtures'
+  }
+  ```
 
-This artifact can be resolved by the consumer project as shown in the example below:
+  In the consumer project you can then depend on those fixtures like this:
 
-```
+  ```groovy
+  dependencies {
+    testImplementation(testFixtures(project(":fixture-providing-project")))
+  }
+  ```
+
+- Use `elasticsearch.internal-test-artifact` for the common Elasticsearch case where fixtures and tests live in the same source set (for example `src/test/java`) and you need to share those `test` classes/resources with another project. This plugin provides an additional test artifact derived from the `test` source set, which can be resolved by the consumer project as shown below:
+
+  ```groovy
+  dependencies {
+    // Add the `test` source set classes/resources from `:fixture-providing-project`.
+    testImplementation(testArtifact(project(":fixture-providing-project")))
+  }
+  ```
+
+This test artifact mechanism makes use of the concept of [component capabilities](https://docs.gradle.org/current/userguide/component_capabilities.html)
+similar to how the Gradle built-in `java-test-fixtures` plugin works.
+
+`testArtifact(...)` is a shortcut declared in the Elasticsearch build. Alternatively you can declare the dependency via an explicit capability requirement:
+
+```groovy
 dependencies {
-  //add the test fixtures of `:providing-project` to testImplementation configuration.
-  testImplementation(testArtifact(project(":fixture-providing-project')))
+  testImplementation(project(":fixture-providing-project")) {
+    capabilities {
+      requireCapabilities("${project(':fixture-providing-project').group}:fixture-providing-project-test-artifacts")
+    }
+  }
 }
 ```
 
-This test artifact mechanism makes use of the concept of [component capabilities](https://docs.gradle.org/current/userguide/component_capabilities.html)
-similar to how the Gradle build-in `java-test-fixtures` plugin works.
+#### Configuring precommit tasks
 
-`testArtifact` is a shortcut declared in the Elasticsearch build. Alternatively you can declare the dependency via
+Several precommit tasks support project-specific configuration. Use the task avoidance API when configuring them.
 
+##### thirdPartyAudit
+
+Configure missing class and violation ignores when third-party dependencies use optional APIs:
+
+```groovy
+tasks.named("thirdPartyAudit").configure {
+  // Ignore classes that are optional dependencies of our dependencies
+  ignoreMissingClasses(
+    'javax.servlet.ServletContextEvent',
+    'org.apache.log.Logger'
+  )
+
+  // Ignore known-safe internal API usage in dependencies
+  ignoreViolations(
+    'com.google.common.hash.Striped64'
+  )
+}
 ```
-dependencies {
-  testImplementation(project(":fixture-providing-project')) {
-    requireCapabilities("org.elasticsearch.gradle:fixture-providing-project-test-artifacts")
+
+##### dependencyLicenses
+
+Map related artifacts to a single license when dependencies are published as multiple JARs:
+
+```groovy
+tasks.named("dependencyLicenses").configure {
+  mapping from: /lucene-.*/, to: 'lucene'
+  mapping from: /netty-.*/, to: 'netty'
+  mapping from: /jackson-.*/, to: 'jackson'
+}
+```
+
+##### forbiddenPatterns
+
+Exclude files that legitimately contain patterns detected as forbidden:
+
+```groovy
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.key'     // Test certificates
+  exclude '**/*.p12'     // PKCS12 keystores
+  exclude '**/*.json'    // Test data files
+}
+```
+
+#### Configuring REST resources
+
+Projects with REST APIs should declare which specs and tests they need:
+
+```groovy
+restResources {
+  restApi {
+    include '_common', 'cluster', 'indices', 'your_api_name'
+  }
+  restTests {
+    includeCore 'your_api_tests'  // For core APIs
+    includeXpack 'your_xpack_tests'  // For X-Pack APIs
   }
 }
 ```
@@ -288,7 +425,7 @@ To run against a specific build number of the EA build you can pass a second sys
 #### How to use a Maven built based third party dependency with JitPack repository?
 
 https://jitpack.io is an adhoc repository that supports building Maven projects transparently in the background when
-resolving unreleased snapshots from a GitHub repository. This approach also works as temporally solution
+resolving unreleased snapshots from a GitHub repository. This approach also works as a temporary solution
 and is compliant with our CI builds.
 
 1. Add the JitPack repository to the root build file:
@@ -314,7 +451,7 @@ by JitPack in the background before we can resolve the adhoc built dependency.
 
 > [!Note]
 > You should only use that approach locally or on a developer branch for production dependencies as we do
-not want to ship unreleased libraries into our releases.
+> not want to ship unreleased libraries into our releases.
 
 #### How to use a custom third party artifact?
 
@@ -344,9 +481,15 @@ allprojects {
   ```
 4. Run the Gradle build as needed with `--write-verification-metadata` to ensure the Gradle dependency verification does not fail on your custom dependency.
 
+```bash
+
+# write verification metadata and run the precommit task
+./gradlew --write-verification-metadata sha256 precommit
+```
+
 > [!Note]
 > As Gradle prefers to use modules whose descriptor has been created from real meta-data rather than being generated,
-flat directory repositories cannot be used to override artifacts with real meta-data from other repositories declared in the build.
+> flat directory repositories cannot be used to override artifacts with real meta-data from other repositories declared in the build.
 > For example, if Gradle finds only `jmxri-1.2.1.jar` in a flat directory repository, but `jmxri-1.2.1.pom` in another repository
-that supports meta-data, it will use the second repository to provide the module.
+> that supports meta-data, it will use the second repository to provide the module.
 > Therefore, it is recommended to declare a version that is not resolvable from public repositories we use (e.g. Maven Central)

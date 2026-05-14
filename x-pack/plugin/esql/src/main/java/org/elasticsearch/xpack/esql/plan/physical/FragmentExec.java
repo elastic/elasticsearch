@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -53,11 +52,7 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         super(Source.readFrom((PlanStreamInput) in));
         this.fragment = in.readNamedWriteable(LogicalPlan.class);
         this.esFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REMOVE_NODE_LEVEL_PLAN)) {
-            this.estimatedRowSize = in.readVInt();
-        } else {
-            this.estimatedRowSize = Objects.requireNonNull(in.readOptionalVInt());
-        }
+        this.estimatedRowSize = in.readVInt();
     }
 
     @Override
@@ -65,11 +60,7 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(fragment());
         out.writeOptionalNamedWriteable(esFilter());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_REMOVE_NODE_LEVEL_PLAN)) {
-            out.writeVInt(estimatedRowSize);
-        } else {
-            out.writeOptionalVInt(estimatedRowSize());
-        }
+        out.writeVInt(estimatedRowSize);
     }
 
     @Override
@@ -137,8 +128,7 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
     }
 
     @Override
-    public String nodeString() {
-        StringBuilder sb = new StringBuilder();
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
         sb.append(nodeName());
         sb.append("[filter=");
         sb.append(esFilter);
@@ -146,8 +136,7 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         sb.append(estimatedRowSize);
         sb.append(", reducer=[");
         sb.append("], fragment=[<>\n");
-        sb.append(fragment.toString());
+        sb.append(fragment.toString(format));
         sb.append("<>]]");
-        return sb.toString();
     }
 }

@@ -30,6 +30,8 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
+import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 
 import java.io.Closeable;
@@ -40,97 +42,127 @@ import java.util.List;
 import java.util.Map;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
-import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO;
 
 /**
  * Reader for IVF vectors. This reader is used to read the IVF vectors from the index.
  */
-public abstract class IVFVectorsReader extends KnnVectorsReader {
+public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> extends KnnVectorsReader {
 
-    private final IndexInput ivfCentroids, ivfClusters;
+    // Two-Signal Model constants for dynamic visit ratio computation.
+    // Computes a visit ratio from the num_candidates/k ratio and k magnitude.
+    private static final double V_MIN = 0.003;
+    private static final double V_MAX = 0.04;
+    private static final double LOG1P_R_MAX = Math.log1p(10.0);
+    private static final double LOG1P_K_MAX = Math.log1p(10_000.0);
+    private static final double RATIO_WEIGHT = 0.85;
+    private static final double K_WEIGHT = 0.15;
+
+    // Segment-size cap constants.
+    // Empirical power-law curve calibrated on GIST-1M, Wiki-Cohere-1M, and MSMarco-130M datasets.
+    // Caps the visit ratio for large segments where fewer clusters need visiting to achieve the target recall.
+    // Produces ~10% cap for small segments (100K), ~4.5% at 1M, and ~2-3% for large segments (5-10M).
+    private static final double CAP_COEFFICIENT = 0.045;
+    private static final int CAP_REF_SIZE = 1_000_000;
+    private static final double CAP_EXPONENT = 0.35;
+    static final float DEFAULT_TARGET_RECALL = 0.9f;
+
+    protected final IndexInput ivfCentroids, ivfClusters;
     private final SegmentReadState state;
     private final FieldInfos fieldInfos;
-    protected final IntObjectHashMap<FieldEntry> fields;
-    private final Map<String, FlatVectorsReader> rawVectorReaders;
+    protected final IntObjectHashMap<E> fields;
+    private final GenericFlatVectorReaders genericReaders;
+    private final String centroidExtension;
+    private final String clusterExtension;
+    private final int versionDirectIo;
+    private final float dynamicVisitRatio;
+    protected int versionMeta = -1;
 
     @SuppressWarnings("this-escape")
-    protected IVFVectorsReader(SegmentReadState state, Map<String, FlatVectorsReader> rawVectorReaders) throws IOException {
+    protected IVFVectorsReader(
+        SegmentReadState state,
+        GenericFlatVectorReaders.LoadFlatVectorsReader loadReader,
+        String codecName,
+        String centroidExtension,
+        String clusterExtension,
+        String metaExtension,
+        int versionStart,
+        int versionCurrent,
+        int versionDirectIo,
+        float dynamicVisitRatio
+    ) throws IOException {
         this.state = state;
         this.fieldInfos = state.fieldInfos;
         this.fields = new IntObjectHashMap<>();
-        this.rawVectorReaders = rawVectorReaders;
-        String meta = IndexFileNames.segmentFileName(
-            state.segmentInfo.name,
-            state.segmentSuffix,
-            ES920DiskBBQVectorsFormat.IVF_META_EXTENSION
-        );
+        this.genericReaders = new GenericFlatVectorReaders();
+        this.centroidExtension = centroidExtension;
+        this.clusterExtension = clusterExtension;
+        this.versionDirectIo = versionDirectIo;
+        this.dynamicVisitRatio = dynamicVisitRatio;
+        String meta = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaExtension);
 
         int versionMeta = -1;
-        boolean success = false;
         try (ChecksumIndexInput ivfMeta = state.directory.openChecksumInput(meta)) {
             Throwable priorE = null;
             try {
                 versionMeta = CodecUtil.checkIndexHeader(
                     ivfMeta,
-                    ES920DiskBBQVectorsFormat.NAME,
-                    ES920DiskBBQVectorsFormat.VERSION_START,
-                    ES920DiskBBQVectorsFormat.VERSION_CURRENT,
+                    codecName,
+                    versionStart,
+                    versionCurrent,
                     state.segmentInfo.getId(),
                     state.segmentSuffix
                 );
-                readFields(ivfMeta);
+                this.versionMeta = versionMeta;
+                readFields(ivfMeta, versionMeta, genericReaders, loadReader);
             } catch (Throwable exception) {
                 priorE = exception;
             } finally {
                 CodecUtil.checkFooter(ivfMeta, priorE);
             }
-            ivfCentroids = openDataInput(
-                state,
-                versionMeta,
-                ES920DiskBBQVectorsFormat.CENTROID_EXTENSION,
-                ES920DiskBBQVectorsFormat.NAME,
-                state.context
-            );
-            ivfClusters = openDataInput(
-                state,
-                versionMeta,
-                ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION,
-                ES920DiskBBQVectorsFormat.NAME,
-                state.context
-            );
-            success = true;
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(this);
-            }
+            ivfCentroids = openDataInput(state, versionMeta, centroidExtension, codecName, versionStart, versionCurrent, state.context);
+            ivfClusters = openDataInput(state, versionMeta, clusterExtension, codecName, versionStart, versionCurrent, state.context);
+        } catch (Throwable t) {
+            IOUtils.closeWhileHandlingException(this);
+            throw t;
         }
     }
 
-    abstract CentroidIterator getCentroidIterator(
+    public abstract CentroidIterator getCentroidIterator(
         FieldInfo fieldInfo,
         int numCentroids,
         IndexInput centroids,
         float[] target,
         IndexInput postingListSlice,
+        AcceptDocs acceptDocs,
+        float approximateCost,
+        FloatVectorValues values,
         float visitRatio
     ) throws IOException;
 
-    private static IndexInput openDataInput(
+    /** Get the number of vectors to search, which is typically the total number of vectors in the segment or the
+     *  number of vectors in a slice if the segment is sliced.*/
+    protected int getNumberOfVectors(E entry, FloatVectorValues values, IndexInput centroidSlice, ESAcceptDocs esAcceptDocs)
+        throws IOException {
+        return values.size();
+    }
+
+    protected static IndexInput openDataInput(
         SegmentReadState state,
         int versionMeta,
         String fileExtension,
         String codecName,
+        int versionStart,
+        int versionCurrent,
         IOContext context
     ) throws IOException {
         final String fileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, fileExtension);
         final IndexInput in = state.directory.openInput(fileName, context);
-        boolean success = false;
         try {
             final int versionVectorData = CodecUtil.checkIndexHeader(
                 in,
                 codecName,
-                ES920DiskBBQVectorsFormat.VERSION_START,
-                ES920DiskBBQVectorsFormat.VERSION_CURRENT,
+                versionStart,
+                versionCurrent,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
@@ -141,27 +173,35 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 );
             }
             CodecUtil.retrieveChecksum(in);
-            success = true;
             return in;
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(in);
-            }
+        } catch (Throwable t) {
+            IOUtils.closeWhileHandlingException(in);
+            throw t;
         }
     }
 
-    private void readFields(ChecksumIndexInput meta) throws IOException {
+    private void readFields(
+        ChecksumIndexInput meta,
+        int versionMeta,
+        GenericFlatVectorReaders genericFields,
+        GenericFlatVectorReaders.LoadFlatVectorsReader loadReader
+    ) throws IOException {
         for (int fieldNumber = meta.readInt(); fieldNumber != -1; fieldNumber = meta.readInt()) {
             final FieldInfo info = fieldInfos.fieldInfo(fieldNumber);
             if (info == null) {
                 throw new CorruptIndexException("Invalid field number: " + fieldNumber, meta);
             }
-            fields.put(info.number, readField(meta, info));
+
+            E fieldEntry = readField(meta, info, versionMeta);
+            genericFields.loadField(fieldNumber, fieldEntry, loadReader);
+
+            fields.put(info.number, fieldEntry);
         }
     }
 
-    private FieldEntry readField(IndexInput input, FieldInfo info) throws IOException {
+    private E readField(IndexInput input, FieldInfo info, int versionMeta) throws IOException {
         final String rawVectorFormat = input.readString();
+        final boolean useDirectIOReads = versionMeta >= versionDirectIo && input.readByte() == 1;
         final VectorEncoding vectorEncoding = readVectorEncoding(input);
         final VectorSimilarityFunction similarityFunction = readSimilarityFunction(input);
         if (similarityFunction != info.getVectorSimilarityFunction()) {
@@ -179,7 +219,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         final long centroidLength = input.readLong();
         final float[] globalCentroid = new float[info.getVectorDimension()];
         long postingListOffset = -1;
-        long postingListLength = -1;
+        long postingListLength = 0;
         float globalCentroidDp = 0;
         if (centroidLength > 0) {
             postingListOffset = input.readLong();
@@ -187,8 +227,10 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             input.readFloats(globalCentroid, 0, globalCentroid.length);
             globalCentroidDp = Float.intBitsToFloat(input.readInt());
         }
-        return new FieldEntry(
+        return doReadField(
+            input,
             rawVectorFormat,
+            useDirectIOReads,
             similarityFunction,
             vectorEncoding,
             numCentroids,
@@ -200,6 +242,21 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             globalCentroidDp
         );
     }
+
+    protected abstract E doReadField(
+        IndexInput input,
+        String rawVectorFormat,
+        boolean useDirectIOReads,
+        VectorSimilarityFunction similarityFunction,
+        VectorEncoding vectorEncoding,
+        int numCentroids,
+        long centroidOffset,
+        long centroidLength,
+        long postingListOffset,
+        long postingListLength,
+        float[] globalCentroid,
+        float globalCentroidDp
+    ) throws IOException;
 
     private static VectorSimilarityFunction readSimilarityFunction(DataInput input) throws IOException {
         final int i = input.readInt();
@@ -219,29 +276,17 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
     @Override
     public final void checkIntegrity() throws IOException {
-        for (var reader : rawVectorReaders.values()) {
+        for (var reader : genericReaders.allReaders()) {
             reader.checkIntegrity();
         }
         CodecUtil.checksumEntireFile(ivfCentroids);
         CodecUtil.checksumEntireFile(ivfClusters);
     }
 
-    private FieldEntry getFieldEntryOrThrow(String field) {
-        final FieldInfo info = fieldInfos.fieldInfo(field);
-        final FieldEntry entry;
-        if (info == null || (entry = fields.get(info.number)) == null) {
-            throw new IllegalArgumentException("field=\"" + field + "\" not found");
-        }
-        return entry;
-    }
-
-    private FlatVectorsReader getReaderForField(String field) {
-        var formatName = getFieldEntryOrThrow(field).rawVectorFormatName;
-        FlatVectorsReader reader = rawVectorReaders.get(formatName);
-        if (reader == null) throw new IllegalArgumentException(
-            "Could not find raw vector format [" + formatName + "] for field [" + field + "]"
-        );
-        return reader;
+    protected FlatVectorsReader getReaderForField(String field) {
+        FieldInfo info = fieldInfos.fieldInfo(field);
+        if (info == null) throw new IllegalArgumentException("Could not find field [" + field + "]");
+        return genericReaders.getReaderForField(info.number);
     }
 
     @Override
@@ -257,8 +302,15 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     @Override
     public final void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
+        if (fieldInfo == null || fieldInfo.getVectorDimension() == 0) {
+            return;
+        }
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32) == false) {
             getReaderForField(field).search(field, target, knnCollector, acceptDocs);
+            return;
+        }
+        final E entry = fields.get(fieldInfo.number);
+        if (hasNoVectors(fieldInfo, entry)) {
             return;
         }
         if (fieldInfo.getVectorDimension() != target.length) {
@@ -266,24 +318,39 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 "vector query dimension: " + target.length + " differs from field dimension: " + fieldInfo.getVectorDimension()
             );
         }
-        int numVectors = getReaderForField(field).getFloatVectorValues(field).size();
-        float percentFiltered = Math.max(0f, Math.min(1f, (float) acceptDocs.cost() / numVectors));
-        float visitRatio = DYNAMIC_VISIT_RATIO;
+
+        final ESAcceptDocs esAcceptDocs;
+        if (acceptDocs instanceof ESAcceptDocs) {
+            esAcceptDocs = (ESAcceptDocs) acceptDocs;
+        } else {
+            esAcceptDocs = null;
+        }
+
+        final FloatVectorValues values = getFloatVectorValues(field);
+        final IndexInput centroids = entry.centroidSlice(ivfCentroids);
+        final int numVectors = getNumberOfVectors(entry, values, centroids, esAcceptDocs);
+        if (numVectors == 0) {
+            return; // nothing more to do if there are no vectors in this segment / slice
+        }
+        final float approximateCost;
+        if (esAcceptDocs instanceof ESAcceptDocs.ESAcceptDocsAll) {
+            approximateCost = numVectors;
+        } else {
+            approximateCost = esAcceptDocs == null ? acceptDocs.cost() : esAcceptDocs.approximateCost();
+        }
+        float percentFiltered = Math.max(0f, Math.min(1f, approximateCost / numVectors));
+        int k = knnCollector.k();
+        int numCands = k;
+        float visitRatio = dynamicVisitRatio;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)
         if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
             visitRatio = ivfSearchStrategy.getVisitRatio();
+            numCands = ivfSearchStrategy.getNumCands();
+            k = ivfSearchStrategy.getK();
         }
 
-        FieldEntry entry = fields.get(fieldInfo.number);
-        if (visitRatio == DYNAMIC_VISIT_RATIO) {
-            // empirically based, and a good dynamic to get decent recall while scaling a la "efSearch"
-            // scaling by the number of vectors vs. the nearest neighbors requested
-            // not perfect, but a comparative heuristic.
-            // TODO: we might want to consider the density of the centroids as experiments shows that for fewer vectors per centroid,
-            // the least vectors we need to score to get a good recall.
-            float estimated = Math.round(Math.log10(numVectors) * Math.log10(numVectors) * (knnCollector.k()));
-            // clip so we visit at least one vector
-            visitRatio = estimated / numVectors;
+        if (visitRatio == dynamicVisitRatio) {
+            visitRatio = Math.min(computeDynamicVisitRatio(numCands, k), computeSegmentSizeCap(numVectors));
         }
         // we account for soar vectors here. We can potentially visit a vector twice so we multiply by 2 here.
         long maxVectorVisited = (long) (2.0 * visitRatio * numVectors);
@@ -291,13 +358,24 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         CentroidIterator centroidPrefetchingIterator = getCentroidIterator(
             fieldInfo,
             entry.numCentroids,
-            entry.centroidSlice(ivfCentroids),
+            centroids,
             target,
             postListSlice,
+            acceptDocs,
+            approximateCost,
+            values,
             visitRatio
         );
         Bits acceptDocsBits = acceptDocs.bits();
-        PostingVisitor scorer = getPostingVisitor(fieldInfo, postListSlice, target, acceptDocsBits);
+        PostingVisitor scorer = getPostingVisitor(
+            fieldInfo,
+            values,
+            postListSlice,
+            target,
+            acceptDocsBits,
+            entry.centroidSlice(ivfCentroids),
+            esAcceptDocs
+        );
         long expectedDocs = 0;
         long actualDocs = 0;
         // initially we visit only the "centroids to search"
@@ -306,29 +384,67 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         // filtering? E.g. keep exploring until we hit an expected number of parent documents vs. child vectors?
         while (centroidPrefetchingIterator.hasNext()
             && (maxVectorVisited > expectedDocs || knnCollector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
-            // todo do we actually need to know the score???
-            CentroidOffsetAndLength offsetAndLength = centroidPrefetchingIterator.nextPostingListOffsetAndLength();
-            // todo do we need direct access to the raw centroid???, this is used for quantizing, maybe hydrating and quantizing
-            // is enough?
-            expectedDocs += scorer.resetPostingsScorer(offsetAndLength.offset());
+            PostingMetadata postingMetadata = centroidPrefetchingIterator.nextPosting();
+            expectedDocs += scorer.resetPostingsScorer(postingMetadata);
             actualDocs += scorer.visit(knnCollector);
             if (knnCollector.getSearchStrategy() != null) {
                 knnCollector.getSearchStrategy().nextVectorsBlock();
             }
         }
         if (acceptDocsBits != null) {
+            // TODO Adjust the value here when using centroid filtering
             float unfilteredRatioVisited = (float) expectedDocs / numVectors;
             int filteredVectors = (int) Math.ceil(numVectors * percentFiltered);
             float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
             while (centroidPrefetchingIterator.hasNext() && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
-                CentroidOffsetAndLength offsetAndLength = centroidPrefetchingIterator.nextPostingListOffsetAndLength();
-                scorer.resetPostingsScorer(offsetAndLength.offset());
+                PostingMetadata postingMetadata = centroidPrefetchingIterator.nextPosting();
+                scorer.resetPostingsScorer(postingMetadata);
                 actualDocs += scorer.visit(knnCollector);
                 if (knnCollector.getSearchStrategy() != null) {
                     knnCollector.getSearchStrategy().nextVectorsBlock();
                 }
             }
         }
+    }
+
+    private static boolean hasNoVectors(FieldInfo fieldInfo, FieldEntry fieldEntry) {
+        return fieldInfo.getVectorDimension() == 0
+            || fieldEntry == null
+            || (fieldEntry.numCentroids() == 0 && fieldEntry.postingListLength == 0L && fieldEntry.centroidLength == 0L);
+    }
+
+    /**
+     * Computes the dynamic visit ratio using the Two-Signal model.
+     * The formula blends the num_candidates/k ratio signal with the k magnitude signal.
+     */
+    static float computeDynamicVisitRatio(int numCands, int k) {
+        double r = (double) numCands / Math.max(k, 1);
+        double z = RATIO_WEIGHT * logScale(r - 1.0, LOG1P_R_MAX) + K_WEIGHT * logScale(k, LOG1P_K_MAX);
+        return (float) (V_MIN + (V_MAX - V_MIN) * z);
+    }
+
+    private static double logScale(double value, double log1pMax) {
+        return Math.max(0.0, Math.min(1.0, Math.log1p(value) / log1pMax));
+    }
+
+    /**
+     * Computes a segment-size-aware cap on the visit ratio.
+     * Larger segments have better-formed IVF clusters and need a lower visit ratio to achieve the target recall.
+     * The power-law curve is calibrated on multi-dataset experiments (GIST-1M, Wiki-Cohere, MSMarco-130M).
+     * <p>
+     * Formula: cap = {@link #CAP_COEFFICIENT} * ({@link #CAP_REF_SIZE} / numVectors)^{@link #CAP_EXPONENT}
+     *              * (0.1 / (1 - targetRecall))
+     *
+     * @param numVectors number of vectors in the segment
+     * @return the upper-bound visit ratio for this segment size
+     */
+    static float computeSegmentSizeCap(int numVectors) {
+        if (numVectors <= 0) {
+            return (float) V_MAX;
+        }
+        double sizeScale = Math.pow((double) CAP_REF_SIZE / numVectors, CAP_EXPONENT);
+        double recallScale = 0.1 / (1.0 - DEFAULT_TARGET_RECALL);
+        return (float) Math.min(1.0, CAP_COEFFICIENT * sizeScale * recallScale);
     }
 
     @Override
@@ -352,58 +468,115 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             assert fieldInfo.getVectorEncoding() == VectorEncoding.BYTE;
             return raw;
         }
-        return raw;  // for now just return the size of raw
 
-        // TODO: determine desired off off-heap requirements
-        // var centroids = Map.of(EXTENSION, fe.xxxLength());
-        // var clusters = Map.of(EXTENSION, fe.yyyLength());
-        // return KnnVectorsReader.mergeOffHeapByteSizeMaps(raw, centroids, clusters);
+        var centroidsClusters = Map.of(centroidExtension, fe.centroidLength, clusterExtension, fe.postingListLength);
+        return KnnVectorsReader.mergeOffHeapByteSizeMaps(raw, centroidsClusters);
     }
 
     @Override
     public void close() throws IOException {
-        List<Closeable> closeables = new ArrayList<>(rawVectorReaders.values());
+        List<Closeable> closeables = new ArrayList<>(genericReaders.allReaders());
         Collections.addAll(closeables, ivfCentroids, ivfClusters);
         IOUtils.close(closeables);
     }
 
-    protected record FieldEntry(
-        String rawVectorFormatName,
-        VectorSimilarityFunction similarityFunction,
-        VectorEncoding vectorEncoding,
-        int numCentroids,
-        long centroidOffset,
-        long centroidLength,
-        long postingListOffset,
-        long postingListLength,
-        float[] globalCentroid,
-        float globalCentroidDp
-    ) {
-        IndexInput centroidSlice(IndexInput centroidFile) throws IOException {
+    protected static class FieldEntry implements GenericFlatVectorReaders.Field {
+        protected final String rawVectorFormatName;
+        protected final boolean useDirectIOReads;
+        protected final VectorSimilarityFunction similarityFunction;
+        protected final VectorEncoding vectorEncoding;
+        protected final int numCentroids;
+        protected final long centroidOffset;
+        protected final long centroidLength;
+        protected final long postingListOffset;
+        protected final long postingListLength;
+        protected final float[] globalCentroid;
+        protected final float globalCentroidDp;
+        protected final int bulkSize;
+
+        public FieldEntry(
+            String rawVectorFormatName,
+            boolean useDirectIOReads,
+            VectorSimilarityFunction similarityFunction,
+            VectorEncoding vectorEncoding,
+            int numCentroids,
+            long centroidOffset,
+            long centroidLength,
+            long postingListOffset,
+            long postingListLength,
+            float[] globalCentroid,
+            float globalCentroidDp,
+            int bulkSize
+        ) {
+            this.rawVectorFormatName = rawVectorFormatName;
+            this.useDirectIOReads = useDirectIOReads;
+            this.similarityFunction = similarityFunction;
+            this.vectorEncoding = vectorEncoding;
+            this.numCentroids = numCentroids;
+            this.centroidOffset = centroidOffset;
+            this.centroidLength = centroidLength;
+            this.postingListOffset = postingListOffset;
+            this.postingListLength = postingListLength;
+            this.globalCentroid = globalCentroid;
+            this.globalCentroidDp = globalCentroidDp;
+            this.bulkSize = bulkSize;
+        }
+
+        @Override
+        public String rawVectorFormatName() {
+            return rawVectorFormatName;
+        }
+
+        @Override
+        public boolean useDirectIOReads() {
+            return useDirectIOReads;
+        }
+
+        public int numCentroids() {
+            return numCentroids;
+        }
+
+        public float[] globalCentroid() {
+            return globalCentroid;
+        }
+
+        public float globalCentroidDp() {
+            return globalCentroidDp;
+        }
+
+        public VectorSimilarityFunction similarityFunction() {
+            return similarityFunction;
+        }
+
+        public IndexInput centroidSlice(IndexInput centroidFile) throws IOException {
             return centroidFile.slice("centroids", centroidOffset, centroidLength);
         }
 
-        IndexInput postingListSlice(IndexInput postingListFile) throws IOException {
+        public IndexInput postingListSlice(IndexInput postingListFile) throws IOException {
             return postingListFile.slice("postingLists", postingListOffset, postingListLength);
+        }
+
+        public int getBulkSize() {
+            return bulkSize;
         }
     }
 
-    abstract PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput postingsLists, float[] target, Bits needsScoring)
-        throws IOException;
+    public abstract PostingVisitor getPostingVisitor(
+        FieldInfo fieldInfo,
+        FloatVectorValues values,
+        IndexInput postingsLists,
+        float[] target,
+        Bits needsScoring,
+        IndexInput centroidSlice,
+        ESAcceptDocs acceptDocs
+    ) throws IOException;
 
-    record CentroidOffsetAndLength(long offset, long length) {}
-
-    interface CentroidIterator {
-        boolean hasNext();
-
-        CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException;
-    }
-
-    interface PostingVisitor {
+    public interface PostingVisitor {
         /** returns the number of documents in the posting list */
-        int resetPostingsScorer(long offset) throws IOException;
+        int resetPostingsScorer(PostingMetadata metadata) throws IOException;
 
         /** returns the number of scored documents */
         int visit(KnnCollector collector) throws IOException;
     }
+
 }

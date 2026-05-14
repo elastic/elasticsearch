@@ -1,0 +1,6 @@
+area: Distributed
+issues:
+ - 147957
+pr: 148198
+summary: '`DoHandleStartHandoff` runs allocation-ID check even when PIT is disabled'
+type: bug

@@ -21,6 +21,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.spatial.XYQueriesUtils;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -132,6 +133,16 @@ public class SpatialRelatesQuery extends Query {
             return buildShapeQuery(context, fieldType);
         }
 
+        @Override
+        public org.apache.lucene.search.Query toQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor visitor)
+            throws IOException {
+            org.apache.lucene.search.Query query = toQuery(context);
+            if (query != null) {
+                query.visit(visitor);
+            }
+            return query;
+        }
+
         abstract org.apache.lucene.search.Query buildShapeQuery(SearchExecutionContext context, MappedFieldType fieldType);
 
         @Override
@@ -231,7 +242,7 @@ public class SpatialRelatesQuery extends Query {
         ) {
             final MappedFieldType fieldType = context.getFieldType(fieldName);
             try {
-                return XYQueriesUtils.toXYPointQuery(geometry, fieldName, relation, fieldType.isIndexed(), fieldType.hasDocValues());
+                return XYQueriesUtils.toXYPointQuery(geometry, fieldName, relation, fieldType.indexType());
             } catch (IllegalArgumentException e) {
                 throw new QueryShardException(context, "Exception creating query on Field [" + fieldName + "] " + e.getMessage(), e);
             }
@@ -249,7 +260,7 @@ public class SpatialRelatesQuery extends Query {
             }
             final MappedFieldType fieldType = context.getFieldType(fieldName);
             try {
-                return XYQueriesUtils.toXYShapeQuery(geometry, fieldName, relation, fieldType.isIndexed(), fieldType.hasDocValues());
+                return XYQueriesUtils.toXYShapeQuery(geometry, fieldName, relation, fieldType.indexType());
             } catch (IllegalArgumentException e) {
                 throw new QueryShardException(context, "Exception creating query on Field [" + fieldName + "] " + e.getMessage(), e);
             }

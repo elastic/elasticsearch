@@ -150,7 +150,6 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             .put(ObjectStoreService.BUCKET_SETTING.getKey(), "bucket")
             .put(ObjectStoreService.CLIENT_SETTING.getKey(), "test")
             .put("s3.client.test.max_retries", maxRetries)
-            .put("s3.client.test.tenacious_retries.enabled", "true")
             .setSecureSettings(mockSecureSettings);
     }
 
@@ -679,7 +678,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
         }
     }
 
-    public void testTenaciousRetries() throws Exception {
+    public void testTenaciousRetriesAgainstTransientCSPError() throws Exception {
         AtomicLong getBlobAttempted = new AtomicLong(0);
         AtomicLong listBlobsAttempted = new AtomicLong(0);
         var getBlobPredicate = new AtomicReference<Predicate<String>>(Predicates.never());
@@ -720,9 +719,14 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             }
         });
 
-        final String masterNode = startMasterAndIndexNode();
-        final String indexNode1 = startIndexNode();
-        final String searchNode = startSearchNode();
+        final var settings = Settings.builder()
+            .put("s3.client.test.max_retries", 0) // disable sdk client retries
+            .put("s3.client.test.tenacious_retries.enabled", true)
+            .build();
+
+        final String masterNode = startMasterAndIndexNode(settings);
+        final String indexNode1 = startIndexNode(settings);
+        final String searchNode = startSearchNode(settings);
         ensureStableCluster(3);
 
         String indexNode2 = null;
@@ -760,7 +764,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
                 listBlobsAttempted.set(0);
             }
 
-            indexNode2 = startIndexNode();
+            indexNode2 = startIndexNode(settings);
             ensureStableCluster(4);
 
             updateIndexSettings(

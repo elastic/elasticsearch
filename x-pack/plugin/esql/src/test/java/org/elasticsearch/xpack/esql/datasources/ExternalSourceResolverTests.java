@@ -355,6 +355,35 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(0L, fileList.size(0));
     }
 
+    /**
+     * Single-file resolution must populate a one-entry schemaMap with the metadata schema and an
+     * identity ColumnMapping, mirroring the multi-file FFW case. Closest-layer assertion that the
+     * single-file path is not an elision — downstream readers honor readSchema uniformly across
+     * single-file and multi-file queries.
+     */
+    public void testSingleFileResolutionPopulatesSchemaMap() throws Exception {
+        List<Attribute> schema = List.of(attr("col0", DataType.KEYWORD), attr("col1", DataType.INTEGER));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/single.parquet", schema);
+
+        ExternalSourceResolution resolution = resolveSingleFile("s3://bucket/data/single.parquet", schemasByPath);
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/single.parquet");
+        assertNotNull(resolved);
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = resolved.schemaMap();
+        assertEquals("single-file schemaMap must have exactly one entry", 1, schemaMap.size());
+        SchemaReconciliation.FileSchemaInfo info = schemaMap.values().iterator().next();
+        assertEquals("fileSchema must equal metadata schema verbatim", schema, info.fileSchema());
+        SchemaReconciliation.ColumnMapping mapping = info.mapping();
+        assertNotNull("single-file entry carries an identity ColumnMapping", mapping);
+        assertEquals("identity mapping length matches schema width", schema.size(), mapping.columnCount());
+        for (int i = 0; i < mapping.columnCount(); i++) {
+            assertEquals("identity mapping localIndex(" + i + ") = " + i, i, mapping.localIndex(i));
+            assertNull("identity mapping has no casts at position " + i, mapping.cast(i));
+        }
+    }
+
     // ===== Schema type preservation =====
 
     public void testSchemaTypesPreserved() throws Exception {

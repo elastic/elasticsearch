@@ -49,6 +49,24 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
         assertEquals(resolver.resolve(context), resolver.resolve(context));
     }
 
+    public void testCachedBlockSizesReturnSameInstance() {
+        final StaticPipelineConfigResolver resolver = new StaticPipelineConfigResolver();
+        final int blockSize = randomFrom(128, 512);
+
+        final PipelineConfig first = resolver.resolve(new FieldContext(blockSize, randomFieldName()));
+        final PipelineConfig second = resolver.resolve(new FieldContext(blockSize, randomFieldName()));
+        assertSame(first, second);
+    }
+
+    public void testUncachedBlockSizeStillResolves() {
+        final StaticPipelineConfigResolver resolver = new StaticPipelineConfigResolver();
+        final int blockSize = 1 << randomIntBetween(4, 6);
+
+        final PipelineConfig config = resolver.resolve(new FieldContext(blockSize, randomFieldName()));
+        assertEquals(blockSize, config.blockSize());
+        assertEquals("delta>offset>gcd>bitPack", config.describeStages());
+    }
+
     private static int randomBlockSize() {
         return 1 << randomIntBetween(4, 10);
     }

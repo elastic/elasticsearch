@@ -29,9 +29,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -115,6 +113,44 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
         return false;
     }
 
+    // -- Hooks for SEMI vs ANTI variation in the inlineData transformation. --
+    // Each hook captures one place where the SQL semantics of IN vs NOT IN diverge. AntiJoin
+    // overrides them; SemiJoin's defaults implement IN.
+
+    /**
+     * Filter condition to substitute when the right side has no rows. {@code x IN ()} ≡ FALSE
+     * for SEMI; {@code x NOT IN ()} ≡ TRUE for ANTI.
+     */
+    protected Expression emptyRightSideCondition() {
+        return Literal.FALSE;
+    }
+
+    /**
+     * Whether any NULL on the right side makes the predicate non-TRUE for every left row. For
+     * ANTI ({@code x NOT IN (..., NULL, ...)}) this is always the case, so we short-circuit to
+     * {@code Filter(FALSE)} without dedup. For SEMI we instead drop the NULLs from the dedup
+     * input since {@code x IN (a, b, NULL)} ≡ {@code x IN (a, b)} under WHERE semantics.
+     */
+    protected boolean shortCircuitOnAnyRightNull() {
+        return false;
+    }
+
+    /**
+     * Wraps the {@code In} expression built from the dedup keys for the inline-filter path.
+     * SEMI returns it as-is; ANTI wraps it in {@code Not}.
+     */
+    protected Expression wrapInExpression(Source source, Expression in) {
+        return in;
+    }
+
+    /**
+     * Sentinel-column filter that drives the hash-join path. SEMI keeps matched rows
+     * ({@code IS NOT NULL} on the sentinel); ANTI keeps unmatched rows ({@code IS NULL}).
+     */
+    protected Expression sentinelFilterCondition(Source source, Attribute sentinel) {
+        return new IsNotNull(source, sentinel);
+    }
+
     @Override
     public void postAnalysisVerification(Failures failures) {
         for (int i = 0; i < config().leftFields().size(); i++) {
@@ -169,21 +205,48 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
     /**
      * Converts this SemiJoin/AntiJoin into an executable plan once the subquery result is available.
      * <p>
-     * For small result sets ({@code <= HASH_JOIN_THRESHOLD} values), builds a {@code Filter(IN(...))} or
-     * {@code Filter(NOT IN(...))} expression with literal values.
+     * The subquery key column is always run through a {@link BlockHash} (backed by the supplied
+     * {@code blockFactory}, so the dedup blocks are tracked by the request circuit breaker)
+     * <em>before</em> deciding the output shape. Doing dedup up-front lets duplicate-heavy subqueries
+     * collapse to the cheaper inline-filter path even when their raw position count exceeds the
+     * threshold, and it shrinks the IN list (and therefore both the planning and runtime cost)
+     * for the filter path itself.
      * <p>
-     * For large result sets, creates a LEFT {@link Join} with the deduplicated subquery result as a
-     * {@link LocalRelation}, followed by a {@link Filter} on the left and right join key
-     * ({@code IS NOT NULL} for SEMI, {@code IS NULL} for ANTI) and a {@link Project} to drop the
-     * right-side column. The mapper converts the LEFT Join + LocalRelation into a HashJoinExec.
+     * Once dedup is done:
+     * <ul>
+     *   <li>If the deduplicated key count is {@code <= hashJoinThreshold}, the dedup keys are
+     *       converted to {@link Literal}s and the join becomes {@code Filter(IN(...))} (or
+     *       {@code Filter(NOT IN(...))} for ANTI). The dedup blocks are released immediately.</li>
+     *   <li>Otherwise, the dedup keys plus a constant TRUE sentinel become a {@link LocalRelation}
+     *       on the right of a LEFT {@link Join}; a {@link Filter} on the sentinel
+     *       ({@code IS NOT NULL} for SEMI, {@code IS NULL} for ANTI) and a {@link Project} that
+     *       drops the right-side column complete the rewrite. The mapper turns this into a
+     *       {@code HashJoinExec}.</li>
+     * </ul>
      * <p>
-     * Memory tracking: the hash-join path deduplicates via {@link BlockHash} using the supplied
-     * {@code blockFactory}, so the new key column is accounted for by the request circuit breaker.
-     * The sentinel column is built as a tiny constant boolean block (also CB-tracked). When a
-     * non-null {@code pageHolder} is supplied, the source page held there is released eagerly
-     * (its values were copied into either {@link Literal}s or the new dedup blocks) and the
-     * reference is swapped to point at the new dedup page so callers can release it at end of
-     * the main plan execution.
+     * <b>SQL NULL semantics for IN / NOT IN.</b> Under {@code WHERE}, {@code x IN (...)} returns
+     * NULL (filtered out) when {@code x} is NULL or when {@code x} matches no non-null value and
+     * the list contains a NULL; {@code x NOT IN (..., NULL, ...)} is never TRUE for any row. The
+     * filter path inherits these semantics from the {@link In} operator. The hash-join path needs
+     * extra work because its runtime {@link BlockHash} (inside {@code RowInTableLookupOperator})
+     * treats {@code null = null} as a match, and a non-match always yields sentinel NULL (kept by
+     * ANTI). We close every gap as part of dedup canonicalization and join construction:
+     * <ul>
+     *   <li><b>Right side:</b> strip NULLs from the dedup input. For SEMI,
+     *       {@code x IN (a, b, NULL)} ≡ {@code x IN (a, b)} once {@code WHERE} drops NULLs, so
+     *       the NULL term is redundant. For ANTI, any NULL on the right makes the predicate
+     *       non-TRUE for every row, so we short-circuit to {@code Filter(FALSE)} without even
+     *       running the dedup.</li>
+     *   <li><b>Left side (hash-join path only):</b> insert {@code IsNotNull(leftField)} above
+     *       {@code semiJoin.left()} so NULL-keyed left rows can never reach the lookup. The
+     *       filter path doesn't need this because {@link In} already drops them.</li>
+     * </ul>
+     * <p>
+     * Page lifecycle: when a non-null {@code pageHolder} is supplied, the source page held there
+     * is released eagerly (the dedup step copied every distinct value into a fresh, CB-tracked
+     * block), and the holder is either cleared (filter / empty / short-circuit paths) or swapped
+     * to point at the new dedup page (hash-join path) so the caller's existing cleanup releases
+     * the right page at end of plan execution.
      *
      * @param blockFactory CB-tracked factory used to allocate the dedup key column and sentinel
      * @param pageHolder   optional holder that initially references the source page from
@@ -207,88 +270,23 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
 
         if (page == null || page.getBlockCount() == 0 || schema.isEmpty() || page.getPositionCount() == 0) {
             releaseSourcePage(pageHolder);
-            Expression condition = semiJoin.isAntiJoin() ? Literal.TRUE : Literal.FALSE;
-            return new Filter(source, semiJoin.left(), condition);
+            return new Filter(source, semiJoin.left(), semiJoin.emptyRightSideCondition());
         }
 
         Block keyBlock = page.getBlock(0);
-        int positionCount = keyBlock.getPositionCount();
+        DataType keyType = schema.get(0).dataType();
 
-        if (positionCount <= hashJoinThreshold) {
-            LogicalPlan plan = inlineAsFilter(semiJoin, keyBlock, schema.get(0).dataType(), leftField, source);
-            // Literals own their values; the source page is no longer needed.
-            releaseSourcePage(pageHolder);
-            return plan;
-        }
-
-        return inlineAsHashJoin(semiJoin, keyBlock, schema, source, blockFactory, pageHolder);
-    }
-
-    private static LogicalPlan inlineAsFilter(SemiJoin semiJoin, Block block, DataType dataType, Attribute leftField, Source source) {
-        int positionCount = block.getPositionCount();
-        List<Expression> literals = new ArrayList<>(positionCount);
-        for (int i = 0; i < positionCount; i++) {
-            literals.add(new Literal(source, toJavaObject(block, i), dataType));
-        }
-        Expression condition = new In(source, leftField, literals);
-        if (semiJoin.isAntiJoin()) {
-            condition = new Not(source, condition);
-        }
-        return new Filter(source, semiJoin.left(), condition);
-    }
-
-    /**
-     * Deduplicates the subquery key column using a {@link BlockHash} backed by the request
-     * {@link BlockFactory}, so the resulting dedup blocks are tracked by the circuit breaker.
-     * <p>
-     * <b>SQL NULL semantics for IN / NOT IN.</b> Under {@code WHERE}, {@code x IN (...)} returns
-     * NULL (filtered out) when {@code x} is NULL or when {@code x} matches no non-null value and
-     * the list contains a NULL; {@code x NOT IN (..., NULL, ...)} is never TRUE for any row. The
-     * LEFT join used here can't honor that on its own: its runtime {@link BlockHash} (inside
-     * {@code RowInTableLookupOperator}) treats {@code null = null} as a match, and a non-match
-     * always yields sentinel NULL (kept by ANTI). Two complementary fixes close every gap:
-     * <ul>
-     *   <li><b>Left side:</b> insert {@code IsNotNull(leftField)} above {@code semiJoin.left()}
-     *       so NULL-keyed left rows can never reach the lookup. Handled below this method, at
-     *       the LEFT-join construction site.</li>
-     *   <li><b>Right side:</b> strip NULL from the dedup output before building the right-side
-     *       {@code LocalRelation}. For SEMI, {@code x IN (a, b, NULL)} ≡ {@code x IN (a, b)}
-     *       once {@code WHERE} drops NULLs, so the NULL term is redundant. For ANTI, any NULL on
-     *       the right makes the predicate non-TRUE for every row, so we short-circuit to
-     *       {@code Filter(FALSE)} without even building the join.</li>
-     * </ul>
-     * Together these match the filter path's {@code Filter(In(...))} which inherits SQL NULL
-     * semantics from the {@code In} operator.
-     * <p>
-     * After the dedup page is built, the original source page is released eagerly via
-     * {@code pageHolder} (so the breaker bytes for the pre-dedup page are returned immediately),
-     * and {@code pageHolder} is swapped to point at the new dedup page so the caller's existing
-     * cleanup releases it at the end of the main plan execution.
-     */
-    private static LogicalPlan inlineAsHashJoin(
-        SemiJoin semiJoin,
-        Block keyBlock,
-        List<Attribute> schema,
-        Source source,
-        BlockFactory blockFactory,
-        AtomicReference<Page> pageHolder
-    ) {
-        // NULL canonicalization of the right side (see Javadoc). mayHaveNulls() is
-        // conservative ("may"), so we still need a precise scan when it's true; when it's false
-        // we skip both the scan and the filter() copy entirely.
+        // NULL canonicalization of the right side (see SQL NULL semantics note in the Javadoc).
+        // mayHaveNulls() is conservative ("may"), so we still need a precise scan when it's true;
+        // when it's false we skip both the scan and the filter() copy entirely.
         Block dedupInput = keyBlock;
         Block filteredKeyBlock = null;
         if (keyBlock.mayHaveNulls()) {
             int[] nonNullPositions = collectNonNullPositions(keyBlock);
-            boolean rightHasNull = nonNullPositions.length < keyBlock.getPositionCount();
-            if (rightHasNull) {
-                if (semiJoin.isAntiJoin()) {
-                    // NOT IN with any NULL on the right is never TRUE — empty result.
-                    releaseSourcePage(pageHolder);
-                    return new Filter(source, semiJoin.left(), Literal.FALSE);
-                }
-                if (nonNullPositions.length == 0) {
-                    // SEMI: every right value was NULL — no left row can match.
+            if (nonNullPositions.length < keyBlock.getPositionCount()) {
+                // ANTI: any NULL on the right is fatal. SEMI: only fatal when every value is NULL
+                // (no candidate match key remains). Both collapse to Filter(FALSE).
+                if (semiJoin.shortCircuitOnAnyRightNull() || nonNullPositions.length == 0) {
                     releaseSourcePage(pageHolder);
                     return new Filter(source, semiJoin.left(), Literal.FALSE);
                 }
@@ -299,60 +297,118 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
         }
 
         Block[] dedupKeys = null;
-        Block sentinel = null;
-        Page dedupPage = null;
-        int dedupPositions;
-        boolean success = false;
         try {
-            // emitBatchSize is the ordinal-flush chunk size used by composite hashes when
-            // streaming AddInput callbacks. It is unused for the single-column hashes
-            // (Int/Long/BytesRef/Double/Boolean/Null BlockHash) that we always end up
-            // with here, so the exact value is cosmetic. We match HashAggregationOperator's
-            // default (Operator.TARGET_PAGE_SIZE / Long.SIZE = 4096 positions) for consistency.
-            int emitBatchSize = Operator.TARGET_PAGE_SIZE / Long.SIZE;
-            try (
-                BlockHash hash = BlockHash.build(
-                    List.of(new BlockHash.GroupSpec(0, dedupInput.elementType())),
-                    blockFactory,
-                    emitBatchSize,
-                    false
-                )
-            ) {
-                hash.add(new Page(dedupInput), new GroupingAggregatorFunction.AddInput() {
-                    @Override
-                    public void add(int positionOffset, IntArrayBlock groupIds) {}
+            try {
+                dedupKeys = dedupViaBlockHash(dedupInput, blockFactory);
+            } finally {
+                // The null-filtered intermediate is only needed by BlockHash.add(); BlockHash
+                // retained copies of every distinct value internally before getKeys returned, so
+                // we can release it now whether or not dedup succeeded.
+                Releasables.closeExpectNoException(filteredKeyBlock);
+            }
+            int dedupPositions = dedupKeys[0].getPositionCount();
 
-                    @Override
-                    public void add(int positionOffset, IntBigArrayBlock groupIds) {}
-
-                    @Override
-                    public void add(int positionOffset, IntVector groupIds) {}
-
-                    @Override
-                    public void close() {}
-                });
-                try (IntVector selected = hash.nonEmpty()) {
-                    dedupKeys = hash.getKeys(selected);
-                    dedupPositions = selected.getPositionCount();
-                }
+            if (dedupPositions <= hashJoinThreshold) {
+                // Filter path: copy dedup keys into Java-object Literals; dedup blocks are released
+                // by the outer finally and the source page is released eagerly here.
+                LogicalPlan plan = inlineAsFilter(semiJoin, dedupKeys[0], keyType, leftField, source);
+                releaseSourcePage(pageHolder);
+                return plan;
             }
 
+            // Hash-join path: hands ownership of dedupKeys[0] off to the new dedup page (and
+            // nulls dedupKeys[0] on success), so the outer finally is a no-op for it.
+            return inlineAsHashJoin(semiJoin, dedupKeys, dedupPositions, schema, source, blockFactory, pageHolder);
+        } finally {
+            if (dedupKeys != null) {
+                Releasables.closeExpectNoException(dedupKeys);
+            }
+        }
+    }
+
+    /**
+     * Runs {@code input} through a single-column {@link BlockHash} and returns the deduplicated
+     * keys as freshly allocated blocks owned by the caller.
+     * <p>
+     * Lifecycle: the {@link BlockHash} (and the {@link IntVector} returned by
+     * {@link BlockHash#nonEmpty()}) are released by their try-with-resources blocks before this
+     * method returns. {@link BlockHash#getKeys} allocates a brand-new block per group column via
+     * the supplied {@code blockFactory}, so the returned blocks survive the BlockHash close and
+     * are tracked by the request circuit breaker independently. On any thrown exception, the
+     * BlockHash and its internal state are released by its try-with-resources before propagation.
+     * <p>
+     * Caller is responsible for releasing the returned {@code Block[]} (each element is a
+     * {@link Block} the caller now owns).
+     */
+    private static Block[] dedupViaBlockHash(Block input, BlockFactory blockFactory) {
+        // emitBatchSize is the ordinal-flush chunk size used by composite hashes when streaming
+        // AddInput callbacks. It is unused for the single-column hashes (Int/Long/BytesRef/Double
+        // /Boolean/Null BlockHash) that we always end up with here, so the exact value is
+        // cosmetic. We match HashAggregationOperator's default (TARGET_PAGE_SIZE / Long.SIZE =
+        // 4096 positions) for consistency.
+        int emitBatchSize = Operator.TARGET_PAGE_SIZE / Long.SIZE;
+        try (
+            BlockHash hash = BlockHash.build(List.of(new BlockHash.GroupSpec(0, input.elementType())), blockFactory, emitBatchSize, false)
+        ) {
+            hash.add(new Page(input), new GroupingAggregatorFunction.AddInput() {
+                @Override
+                public void add(int positionOffset, IntArrayBlock groupIds) {}
+
+                @Override
+                public void add(int positionOffset, IntBigArrayBlock groupIds) {}
+
+                @Override
+                public void add(int positionOffset, IntVector groupIds) {}
+
+                @Override
+                public void close() {}
+            });
+            try (IntVector selected = hash.nonEmpty()) {
+                return hash.getKeys(selected);
+            }
+        }
+    }
+
+    private static LogicalPlan inlineAsFilter(SemiJoin semiJoin, Block block, DataType dataType, Attribute leftField, Source source) {
+        int positionCount = block.getPositionCount();
+        List<Expression> literals = new ArrayList<>(positionCount);
+        for (int i = 0; i < positionCount; i++) {
+            literals.add(new Literal(source, toJavaObject(block, i), dataType));
+        }
+        Expression condition = semiJoin.wrapInExpression(source, new In(source, leftField, literals));
+        return new Filter(source, semiJoin.left(), condition);
+    }
+
+    /**
+     * Wraps the already-deduplicated key block from {@code dedupKeys[0]} into a {@link LocalRelation}
+     * with a sentinel TRUE column, builds a LEFT {@link Join} on the original join keys, and filters
+     * on the sentinel ({@code IS NOT NULL} for SEMI, {@code IS NULL} for ANTI). On success
+     * {@code dedupKeys[0]} is set to {@code null} so the caller's cleanup doesn't double-release the
+     * key block now owned by the new page. See {@link #inlineData} for SQL NULL semantics.
+     */
+    private static LogicalPlan inlineAsHashJoin(
+        SemiJoin semiJoin,
+        Block[] dedupKeys,
+        int dedupPositions,
+        List<Attribute> schema,
+        Source source,
+        BlockFactory blockFactory,
+        AtomicReference<Page> pageHolder
+    ) {
+        Block sentinel = null;
+        Page dedupPage;
+        boolean success = false;
+        try {
             // The LEFT join strips the right-side key column from its output, so we attach a
             // constant TRUE sentinel column to detect matches via IS NOT NULL / IS NULL.
             sentinel = blockFactory.newConstantBooleanBlockWith(true, dedupPositions);
-            Block[] pageBlocks = new Block[] { dedupKeys[0], sentinel };
-            dedupPage = new Page(pageBlocks);
+            dedupPage = new Page(dedupKeys[0], sentinel);
             // Ownership of dedupKeys[0] and sentinel has been handed off to dedupPage.
             dedupKeys[0] = null;
             sentinel = null;
             success = true;
         } finally {
-            // The null-filtered intermediate is only needed for BlockHash.add(); BlockHash retained
-            // copies of every distinct value internally, so we can release it now whether or not
-            // dedup succeeded.
-            Releasables.closeExpectNoException(filteredKeyBlock);
             if (success == false) {
-                Releasables.closeExpectNoException(dedupKeys);
                 Releasables.closeExpectNoException(sentinel);
             }
         }
@@ -375,7 +431,7 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
         JoinConfig leftJoinConfig = new JoinConfig(LEFT, semiJoin.config().leftFields(), semiJoin.config().rightFields(), null);
         // Drop NULL-keyed left rows before the LEFT join so the runtime BlockHash lookup can
         // never spuriously match `null = null` against a NULL group on the right side. See the
-        // SQL NULL semantics note on this method.
+        // SQL NULL semantics note on inlineData.
         LogicalPlan filteredLeft = semiJoin.left();
         for (Attribute leftField : semiJoin.config().leftFields()) {
             filteredLeft = new Filter(source, filteredLeft, new IsNotNull(source, leftField));
@@ -383,8 +439,7 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
         Join leftJoin = new Join(source, filteredLeft, deduplicatedData, leftJoinConfig);
 
         // Filter on sentinel: IS NOT NULL for SEMI (keep matches), IS NULL for ANTI (keep non-matches)
-        Expression filterCondition = semiJoin.isAntiJoin() ? new IsNull(source, sentinelAttr) : new IsNotNull(source, sentinelAttr);
-        Filter filter = new Filter(source, leftJoin, filterCondition);
+        Filter filter = new Filter(source, leftJoin, semiJoin.sentinelFilterCondition(source, sentinelAttr));
 
         // Project: drop the right-side columns to preserve semi-join output semantics
         List<NamedExpression> leftOutput = new ArrayList<>(semiJoin.left().output());
@@ -405,7 +460,7 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
      * Returns the position indices of {@code block} that are not null, in input order. Caller is
      * responsible for using the result in a single pass — the array is small (bounded by the
      * subquery output size that already passes {@code intermediate_local_relation_max_size}) and
-     * untracked, but only lives for the duration of {@code inlineAsHashJoin}.
+     * untracked, but only lives for the duration of {@code inlineData}.
      */
     private static int[] collectNonNullPositions(Block block) {
         int positionCount = block.getPositionCount();

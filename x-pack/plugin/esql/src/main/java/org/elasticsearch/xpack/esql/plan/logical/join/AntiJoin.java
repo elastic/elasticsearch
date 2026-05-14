@@ -8,8 +8,12 @@
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
@@ -43,5 +47,25 @@ public class AntiJoin extends SemiJoin {
     @Override
     public boolean isAntiJoin() {
         return true;
+    }
+
+    @Override
+    protected Expression emptyRightSideCondition() {
+        return Literal.TRUE;
+    }
+
+    @Override
+    protected boolean shortCircuitOnAnyRightNull() {
+        return true;
+    }
+
+    @Override
+    protected Expression wrapInExpression(Source source, Expression in) {
+        return new Not(source, in);
+    }
+
+    @Override
+    protected Expression sentinelFilterCondition(Source source, Attribute sentinel) {
+        return new IsNull(source, sentinel);
     }
 }

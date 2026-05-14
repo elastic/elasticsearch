@@ -269,7 +269,8 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
     // ---- forced hash-join path correctness ----
     //
     // These tests pin {@code in_subquery_hash_join_threshold=0} so SemiJoin.inlineData always
-    // routes through inlineAsHashJoin (BlockHash dedup + LEFT-join on sentinel + IS NOT NULL filter).
+    // routes through the hash-join branch (LEFT-join on sentinel + IS NOT NULL filter) once dedup
+    // produces at least one key, instead of folding into Filter(IN(literals...)).
     // They cover the cases the default-threshold tests above cannot — small subquery results that
     // would otherwise be inlined as Filter(IN(literals...)).
 
@@ -353,8 +354,9 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
     /**
      * SQL semantics for {@code NOT IN} with a NULL on the right: the predicate is FALSE for
      * matches and NULL for non-matches (because {@code x = NULL} is NULL), so every row is
-     * filtered out. {@code SemiJoin#inlineAsHashJoin} short-circuits this to {@code Filter(FALSE)}
-     * as soon as it sees a NULL in the subquery output, without ever building the LEFT join.
+     * filtered out. {@code SemiJoin#inlineData} short-circuits this to {@code Filter(FALSE)}
+     * as soon as it sees a NULL in the subquery output, without ever running BlockHash or
+     * building the LEFT join.
      */
     public void testNotInSubqueryHashJoinNullOnBothSides() {
         assumeTrue("requires query pragmas", canUseQueryPragmas());

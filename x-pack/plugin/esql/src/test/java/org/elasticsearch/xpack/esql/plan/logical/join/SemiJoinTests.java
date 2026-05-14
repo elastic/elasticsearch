@@ -68,7 +68,8 @@ public class SemiJoinTests extends ESTestCase {
 
         SemiJoin semiJoin = makeSemiJoin(leftField, rightField, JoinTypes.SEMI);
 
-        Block[] blocks = new Block[] { BlockUtils.constantBlock(TestBlockFactory.getNonBreakingInstance(), 10, 3) };
+        // 3 distinct values so the dedup-first filter path produces an IN list of size 3.
+        Block[] blocks = new Block[] { intBlock(1, 2, 3) };
         LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(blocks)));
 
         LogicalPlan inlined = SemiJoin.inlineData(semiJoin, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
@@ -76,6 +77,28 @@ public class SemiJoinTests extends ESTestCase {
         var inExpr = as(filter.condition(), In.class);
         assertThat(inExpr.value(), equalTo(leftField));
         assertThat(inExpr.list().size(), equalTo(3));
+    }
+
+    /**
+     * BlockHash dedup runs before the threshold check, so a subquery with many duplicates of a
+     * single value collapses to a 1-literal IN list even when its raw position count exceeds the
+     * threshold. This is the core of the "dedup-first" optimization.
+     */
+    public void testInlineDataDuplicatesAboveRawThresholdStillUsesFilter() {
+        FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
+        FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
+
+        SemiJoin semiJoin = makeSemiJoin(leftField, rightField, JoinTypes.SEMI);
+
+        // Many duplicates of one value: raw count > threshold, dedup count == 1.
+        int count = HASH_JOIN_THRESHOLD + 1;
+        Block[] blocks = new Block[] { BlockUtils.constantBlock(TestBlockFactory.getNonBreakingInstance(), 10, count) };
+        LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(blocks)));
+
+        LogicalPlan inlined = SemiJoin.inlineData(semiJoin, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
+        var filter = as(inlined, Filter.class);
+        var inExpr = as(filter.condition(), In.class);
+        assertThat(inExpr.list().size(), equalTo(1));
     }
 
     public void testInlineDataAntiJoinProducesNotIn() {
@@ -118,8 +141,9 @@ public class SemiJoinTests extends ESTestCase {
 
         SemiJoin semiJoin = makeSemiJoin(leftField, rightField, JoinTypes.SEMI);
 
+        // Distinct values so dedup count exceeds the threshold and the hash-join branch is taken.
         int count = HASH_JOIN_THRESHOLD + 1;
-        Block[] blocks = new Block[] { BlockUtils.constantBlock(TestBlockFactory.getNonBreakingInstance(), 10, count) };
+        Block[] blocks = new Block[] { distinctIntBlock(count) };
         LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(blocks)));
 
         LogicalPlan inlined = SemiJoin.inlineData(semiJoin, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
@@ -138,7 +162,7 @@ public class SemiJoinTests extends ESTestCase {
         SemiJoin antiJoin = makeSemiJoin(leftField, rightField, JoinTypes.ANTI);
 
         int count = HASH_JOIN_THRESHOLD + 1;
-        Block[] blocks = new Block[] { BlockUtils.constantBlock(TestBlockFactory.getNonBreakingInstance(), 10, count) };
+        Block[] blocks = new Block[] { distinctIntBlock(count) };
         LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(blocks)));
 
         LogicalPlan inlined = SemiJoin.inlineData(antiJoin, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
@@ -156,14 +180,15 @@ public class SemiJoinTests extends ESTestCase {
 
         SemiJoin semiJoin = makeSemiJoin(leftField, rightField, JoinTypes.SEMI);
 
-        int count = HASH_JOIN_THRESHOLD;
-        Block[] blocks = new Block[] { BlockUtils.constantBlock(TestBlockFactory.getNonBreakingInstance(), 10, count) };
+        // Distinct values: dedup count == threshold, still uses filter path.
+        Block[] blocks = new Block[] { distinctIntBlock(HASH_JOIN_THRESHOLD) };
         LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(blocks)));
 
         LogicalPlan inlined = SemiJoin.inlineData(semiJoin, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
 
         var filter = as(inlined, Filter.class);
-        as(filter.condition(), In.class);
+        var inExpr = as(filter.condition(), In.class);
+        assertThat(inExpr.list().size(), equalTo(HASH_JOIN_THRESHOLD));
     }
 
     // -- inlineAsHashJoin dedup correctness tests --
@@ -649,6 +674,15 @@ public class SemiJoinTests extends ESTestCase {
         assertThat("sentinel must be dense (no nulls)", sentinel.mayHaveNulls(), equalTo(false));
         for (int i = 0; i < sentinel.getPositionCount(); i++) {
             assertThat("sentinel at position " + i, sentinel.getBoolean(sentinel.getFirstValueIndex(i)), equalTo(true));
+        }
+    }
+
+    private static IntBlock distinctIntBlock(int count) {
+        try (IntBlock.Builder builder = TestBlockFactory.getNonBreakingInstance().newIntBlockBuilder(count)) {
+            for (int i = 0; i < count; i++) {
+                builder.appendInt(i);
+            }
+            return builder.build();
         }
     }
 

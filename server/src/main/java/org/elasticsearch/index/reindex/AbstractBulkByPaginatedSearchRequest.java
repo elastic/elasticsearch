@@ -543,7 +543,7 @@ public abstract class AbstractBulkByPaginatedSearchRequest<Self extends Abstract
 
     @Override
     public Task createTask(TaskId id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new BulkByScrollTask(
+        return new BulkByPaginatedSearchTask(
             id,
             type,
             action,

@@ -30,11 +30,11 @@ import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 
 /**
- * Response used for actions that index many documents using a scroll request.
+ * Response used for actions that index many documents using a paginated search request.
  */
 public class BulkByScrollResponse extends ActionResponse implements ToXContentFragment {
     private final TimeValue took;
-    private final BulkByScrollTask.Status status;
+    private final BulkByPaginatedSearchTask.Status status;
     private final List<Failure> bulkFailures;
     private final List<PaginatedSearchFailure> searchFailures;
     private boolean timedOut;
@@ -49,7 +49,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
 
     public BulkByScrollResponse(StreamInput in) throws IOException {
         took = in.readTimeValue();
-        status = new BulkByScrollTask.Status(in);
+        status = new BulkByPaginatedSearchTask.Status(in);
         bulkFailures = in.readCollectionAsList(Failure::new);
         searchFailures = in.readCollectionAsList(PaginatedSearchFailure::new);
         timedOut = in.readBoolean();
@@ -59,7 +59,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
 
     public BulkByScrollResponse(
         TimeValue took,
-        BulkByScrollTask.Status status,
+        BulkByPaginatedSearchTask.Status status,
         List<Failure> bulkFailures,
         List<PaginatedSearchFailure> searchFailures,
         boolean timedOut
@@ -69,7 +69,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
 
     public BulkByScrollResponse(
         TimeValue took,
-        BulkByScrollTask.Status status,
+        BulkByPaginatedSearchTask.Status status,
         List<Failure> bulkFailures,
         List<PaginatedSearchFailure> searchFailures,
         boolean timedOut,
@@ -80,7 +80,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
 
     public BulkByScrollResponse(
         TimeValue took,
-        BulkByScrollTask.Status status,
+        BulkByPaginatedSearchTask.Status status,
         List<Failure> bulkFailures,
         List<PaginatedSearchFailure> searchFailures,
         boolean timedOut,
@@ -103,18 +103,18 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         float requestsPerSecond
     ) {
         long mergedTook = 0;
-        List<BulkByScrollTask.StatusOrException> statuses = new ArrayList<>();
+        List<BulkByPaginatedSearchTask.StatusOrException> statuses = new ArrayList<>();
         bulkFailures = new ArrayList<>();
         searchFailures = new ArrayList<>();
         for (BulkByScrollResponse response : toMerge) {
             mergedTook = max(mergedTook, response.getTook().millis());
-            statuses.add(new BulkByScrollTask.StatusOrException(response.status));
+            statuses.add(new BulkByPaginatedSearchTask.StatusOrException(response.status));
             bulkFailures.addAll(response.getBulkFailures());
             searchFailures.addAll(response.getSearchFailures());
             timedOut |= response.isTimedOut();
         }
         took = timeValueMillis(mergedTook);
-        status = new BulkByScrollTask.Status(statuses, reasonCancelled, requestsPerSecond);
+        status = new BulkByPaginatedSearchTask.Status(statuses, reasonCancelled, requestsPerSecond);
         resumeInfo = null;
         this.pitId = pitId;
     }
@@ -123,7 +123,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         return took;
     }
 
-    public BulkByScrollTask.Status getStatus() {
+    public BulkByPaginatedSearchTask.Status getStatus() {
         return status;
     }
 

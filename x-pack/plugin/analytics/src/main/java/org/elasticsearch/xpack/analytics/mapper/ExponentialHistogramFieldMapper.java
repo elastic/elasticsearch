@@ -466,9 +466,10 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             BlockLoader.Block result;
             boolean success = false;
             try {
-                minima = minimaReader.read(factory, docs, offset, nullsFiltered);
-                maxima = maximaReader.read(factory, docs, offset, nullsFiltered);
-                sums = sumsReader.read(factory, docs, offset, nullsFiltered);
+                // min, max and sum may be absent for empty histograms even if the field itself is present
+                minima = minimaReader.read(factory, docs, offset, false);
+                maxima = maximaReader.read(factory, docs, offset, false);
+                sums = sumsReader.read(factory, docs, offset, false);
                 valueCounts = valueCountsReader.read(factory, docs, offset, nullsFiltered);
                 zeroThresholds = zeroThresholdsReader.read(factory, docs, offset, nullsFiltered);
                 encodedBytes = bytesReader.read(factory, docs, offset, nullsFiltered);

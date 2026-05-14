@@ -191,7 +191,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
      *
      * @return the number of newly resolved UIDs
      */
-    int batchLookupVersion(BytesRef[] sortedUids, boolean[] loadSeqNo, DocIdAndVersion[] results, LeafReaderContext context)
+    int batchLookupVersion(LeafReaderContext context, BytesRef[] sortedUids, boolean[] loadSeqNo, DocIdAndVersion[] results)
         throws IOException {
         if (termsEnum == null) {
             return 0;

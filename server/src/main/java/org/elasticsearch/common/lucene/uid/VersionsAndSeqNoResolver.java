@@ -194,7 +194,7 @@ public final class VersionsAndSeqNoResolver {
         // Iterate backwards: the most recently written segment is most likely to contain the current version.
         for (int s = leaves.size() - 1; s >= 0 && remaining > 0; s--) {
             final LeafReaderContext leaf = leaves.get(s);
-            remaining -= lookups[leaf.ord].batchLookupVersion(sortedUids, sortedLoadSeqNo, sortedResults, leaf);
+            remaining -= lookups[leaf.ord].batchLookupVersion(leaf, sortedUids, sortedLoadSeqNo, sortedResults);
         }
 
         // Map sorted results back to the caller's original index order.

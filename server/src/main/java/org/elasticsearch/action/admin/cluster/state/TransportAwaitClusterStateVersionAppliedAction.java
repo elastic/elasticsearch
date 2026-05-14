@@ -55,7 +55,7 @@ public class TransportAwaitClusterStateVersionAppliedAction extends TransportNod
     TransportAwaitClusterStateVersionAppliedAction.NodeResponse,
     Void> {
 
-    static final TransportVersion AWAIT_CLUSTER_STATE_VERSION_APPLIED_ACTION = TransportVersion.fromName(
+    public static final TransportVersion AWAIT_CLUSTER_STATE_VERSION_APPLIED_ACTION = TransportVersion.fromName(
         "await_cluster_state_version_applied_action"
     );
 

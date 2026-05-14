@@ -18,6 +18,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.state.TransportAwaitClusterStateVersionAppliedAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -133,6 +134,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Boolean> ASYNC_CLUSTER_STATE_APPLIER_ENABLED = Setting.boolSetting(
+        "indices.cluster_state.async_applier.enabled",
+        true,
+        Setting.Property.NodeScope
+    );
+
     final AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>> indicesService;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
@@ -160,6 +167,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     private final Executor shardCloseExecutor;
     private final AsyncClusterStateApplier asyncClusterStateApplier;
+
+    private volatile boolean usingAsyncApplier = false;
 
     @Inject
     public IndicesClusterStateService(
@@ -234,13 +243,34 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     protected void doStart() {
         // Doesn't make sense to manage shards on non-data nodes
         if (DiscoveryNode.canContainData(settings)) {
-            clusterService.addHighPriorityApplier(asyncClusterStateApplier);
+            // Switch to async applier once we confirm the cluster supports it
+            logger.info("Starting IndicesClusterStateService in synchronous mode");
+            clusterService.addHighPriorityApplier(this);
         }
+    }
+
+    /// Returns `true` if all nodes in the cluster supports async appliers, `false` otherwise.
+    private boolean clusterSupportsAsyncApplier(ClusterState clusterState) {
+        if (usingAsyncApplier) {
+            return true;
+        }
+        if (ASYNC_CLUSTER_STATE_APPLIER_ENABLED.get(settings) == false) {
+            return false;
+        }
+        if (clusterState == null) {
+            return false;
+        }
+        if (clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            return false;
+        }
+        final var minTransportVersion = clusterState.getMinTransportVersion();
+        return minTransportVersion.supports(TransportAwaitClusterStateVersionAppliedAction.AWAIT_CLUSTER_STATE_VERSION_APPLIED_ACTION);
     }
 
     @Override
     protected void doStop() {
         if (DiscoveryNode.canContainData(settings)) {
+            clusterService.removeApplier(this);
             clusterService.removeApplier(asyncClusterStateApplier);
             final var finalApplyFuture = new PlainActionFuture<Void>();
             addApplyListener(finalApplyFuture);
@@ -285,13 +315,26 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      *               thread, or on the thread that completed the closing of the last such shard.
      */
     public void onClusterStateShardsClosed(Runnable action) {
-        SubscribableListener.newForked(asyncClusterStateApplier::awaitCurrentStateApplication)
-            .<Void>andThen(l -> lastClusterStateShardsClosedListener.addListener(l))
-            .andThenAccept(ignored -> action.run());
+        if (usingAsyncApplier) {
+            SubscribableListener.newForked(asyncClusterStateApplier::awaitCurrentStateApplication)
+                .<Void>andThen(l -> lastClusterStateShardsClosedListener.addListener(l))
+                .andThenAccept(ignored -> action.run());
+        } else {
+            // In synchronous mode, cluster state is already applied, so just wait for shards to close
+            lastClusterStateShardsClosedListener.addListener(ActionListener.running(action));
+        }
     }
 
     @Override
     public synchronized void applyClusterState(final ClusterChangedEvent event) {
+        if (usingAsyncApplier == false && clusterSupportsAsyncApplier(event.state())) {
+            usingAsyncApplier = true;
+            clusterService.removeApplier(this);
+            clusterService.addHighPriorityApplier(asyncClusterStateApplier);
+            asyncClusterStateApplier.applyClusterState(event);
+            return;
+        }
+
         final var previousShardsClosedListener = lastClusterStateShardsClosedListener;
         lastClusterStateShardsClosedListener = new SubscribableListener<>();
         final var newStateVersion = event == null || event.state() == null ? -1L : event.state().version();
@@ -1114,7 +1157,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      * - setting updates
      */
     public void addApplyListener(ActionListener<Void> listener) {
-        asyncClusterStateApplier.awaitCurrentStateApplication(listener);
+        if (usingAsyncApplier) {
+            asyncClusterStateApplier.awaitCurrentStateApplication(listener);
+        } else {
+            // In synchronous mode, cluster state application completes before ack,
+            // so there's nothing to wait for.
+            listener.onResponse(null);
+        }
     }
 
     private record PendingShardCreation(String clusterStateUUID, long startTimeMillis) {}

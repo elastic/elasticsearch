@@ -529,7 +529,10 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(mock(ExecutorService.class));
         final MockIndicesService indicesService = indicesServiceSupplier.get();
-        final Settings settings = Settings.builder().put("node.name", discoveryNode.getName()).build();
+        final Settings settings = Settings.builder()
+            .put("node.name", discoveryNode.getName())
+            .put(IndicesClusterStateService.ASYNC_CLUSTER_STATE_APPLIER_ENABLED.getKey(), false)
+            .build();
         final TransportService transportService = new TransportService(
             settings,
             mock(Transport.class),

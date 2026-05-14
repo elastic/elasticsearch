@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
 
 import java.io.IOException;
 
@@ -19,8 +20,8 @@ import java.io.IOException;
  *
  * <p>{@link #writeFieldEntry} owns the entire field lifecycle: it iterates the doc values source,
  * accumulates statistics, and emits both the per-field metadata and the encoded value blocks.
- * {@link #encoder()} exposes the per-block {@link Encoder} so callers can drive block encoding
- * directly when needed.
+ * {@link #encoder(FieldContext)} exposes the per-block {@link Encoder} so callers can drive block
+ * encoding directly when needed.
  */
 public interface NumericFieldWriter {
 
@@ -43,11 +44,17 @@ public interface NumericFieldWriter {
     ) throws IOException;
 
     /**
-     * Returns the per-block encoder used to encode the field's value blocks.
+     * Returns the per-block encoder used to encode a field's value blocks.
+     * Implementations that select the pipeline based on the field (e.g. ES95) use
+     * {@code context} to resolve it. Implementations that use the same pipeline
+     * for every field (e.g. ES819) ignore the parameter; callers may pass
+     * {@code null} in that case.
      *
+     * @param context the field context whose encoder is requested, or {@code null} when
+     *                no field is in scope (only allowed for static pipelines)
      * @return the block encoder
      */
-    Encoder encoder();
+    Encoder encoder(FieldContext context);
 
     /**
      * Encodes one block of numeric values.

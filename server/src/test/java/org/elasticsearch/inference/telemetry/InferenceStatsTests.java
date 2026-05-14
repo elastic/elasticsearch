@@ -135,14 +135,7 @@ public class InferenceStatsTests extends ESTestCase {
             longCounter,
             mock(),
             mock(),
-            Map.of(
-                ES_STACK_VERSION,
-                TEST_STACK_VERSION,
-                ES_PRODUCTION_RELEASE,
-                TEST_IS_PRODUCTION_RELEASE,
-                ES_PLUGIN_NAME,
-                ES_PLUGIN_VALUE
-            )
+            Map.of(ES_STACK_VERSION, TEST_STACK_VERSION, ES_PRODUCTION_RELEASE, TEST_IS_PRODUCTION_RELEASE, ES_PLUGIN_NAME, ES_PLUGIN_VALUE)
         );
 
         stats.requestCount().withModel(model(TEST_SERVICE, TaskType.ANY)).withSuccess().incrementBy(1);
@@ -361,14 +354,7 @@ public class InferenceStatsTests extends ESTestCase {
             mock(),
             longHistogram,
             mock(),
-            Map.of(
-                ES_STACK_VERSION,
-                TEST_STACK_VERSION,
-                ES_PRODUCTION_RELEASE,
-                TEST_IS_PRODUCTION_RELEASE,
-                ES_PLUGIN_NAME,
-                ES_PLUGIN_VALUE
-            )
+            Map.of(ES_STACK_VERSION, TEST_STACK_VERSION, ES_PRODUCTION_RELEASE, TEST_IS_PRODUCTION_RELEASE, ES_PLUGIN_NAME, ES_PLUGIN_VALUE)
         );
 
         stats.inferenceDuration().withModel(model(TEST_SERVICE, TaskType.ANY)).withSuccess().record(expectedDuration);

@@ -111,7 +111,6 @@ public class S3HttpHandler implements HttpHandler {
      */
     public static final String DEFAULT_LIST_OBJECT_LAST_MODIFIED = "1970-01-01T00:00:00.000Z";
 
-
     public List<RequestEntry> requestLog() {
         return Collections.unmodifiableList(requestLog);
     }
@@ -254,7 +253,11 @@ public class S3HttpHandler implements HttpHandler {
                             }
                         } else {
                             final var blobContents = upload.complete(extractPartEtags(Streams.readFully(exchange.getRequestBody())));
-                            responseCode = updateBlobContents(exchange, request.path(), new BlobEntry(blobContents, upload.getStorageClass()));
+                            responseCode = updateBlobContents(
+                                exchange,
+                                request.path(),
+                                new BlobEntry(blobContents, upload.getStorageClass())
+                            );
                             if (responseCode == RestStatus.OK) {
                                 responseBody = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                                     + "<CompleteMultipartUploadResult>\n"

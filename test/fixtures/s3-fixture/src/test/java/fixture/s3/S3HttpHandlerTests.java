@@ -243,10 +243,7 @@ public class S3HttpHandlerTests extends ESTestCase {
         // PUT without storage class header defaults to STANDARD
         assertEquals(RestStatus.OK, handleRequest(handler, "PUT", standardPath, body).status());
         // PUT with an explicit storage class
-        assertEquals(
-            RestStatus.OK,
-            handleRequest(handler, "PUT", tieredPath, body, storageClassHeader(storageClass)).status()
-        );
+        assertEquals(RestStatus.OK, handleRequest(handler, "PUT", tieredPath, body, storageClassHeader(storageClass)).status());
 
         // GET: STANDARD objects do not carry the x-amz-storage-class header
         assertNull(handleRequest(handler, "GET", standardPath).headers().getFirst("X-amz-storage-class"));
@@ -263,11 +260,15 @@ public class S3HttpHandlerTests extends ESTestCase {
             </ListBucketResult>""", storageClass));
 
         // Multipart upload with explicit storage class
-        final var createUploadResponse = handleRequest(handler, "POST", "/bucket/path/mp-blob?uploads", BytesArray.EMPTY,
-            storageClassHeader(storageClass));
+        final var createUploadResponse = handleRequest(
+            handler,
+            "POST",
+            "/bucket/path/mp-blob?uploads",
+            BytesArray.EMPTY,
+            storageClassHeader(storageClass)
+        );
         final var uploadId = getUploadId(createUploadResponse.body());
-        final var partResponse = handleRequest(handler, "PUT",
-            "/bucket/path/mp-blob?uploadId=" + uploadId + "&partNumber=1", body);
+        final var partResponse = handleRequest(handler, "PUT", "/bucket/path/mp-blob?uploadId=" + uploadId + "&partNumber=1", body);
         final var partEtag = Objects.requireNonNull(partResponse.etag());
         handleRequest(handler, "POST", "/bucket/path/mp-blob?uploadId=" + uploadId, new BytesArray(Strings.format("""
             <?xml version="1.0" encoding="UTF-8"?>

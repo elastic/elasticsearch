@@ -18,7 +18,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.common.SecretsApplier;
+import org.elasticsearch.xpack.inference.common.secrets.SecretsApplier;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceSettings;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;

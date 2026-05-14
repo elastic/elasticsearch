@@ -15,7 +15,7 @@ import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
-import static org.elasticsearch.xpack.inference.services.openai.secrets.OpenAiSecretsFactory.NOOP_SECRETS_APPLIER;
+import org.elasticsearch.xpack.inference.common.secrets.NoopSecretsApplier;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
@@ -25,7 +25,7 @@ public class OpenAiSecretsFactoryTests extends ESTestCase {
     public void testCreateSecretsApplier_NullSecrets_ReturnsNoopSecretsApplier() {
         var secretsApplier = OpenAiSecretsFactory.createSecretsApplier(null);
 
-        assertThat(secretsApplier, sameInstance(NOOP_SECRETS_APPLIER));
+        assertThat(secretsApplier, sameInstance(NoopSecretsApplier.INSTANCE));
 
         var listener = new TestPlainActionFuture<HttpRequestBase>();
         var httpPost = new HttpPost();

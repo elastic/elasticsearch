@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.common;
+package org.elasticsearch.xpack.inference.common.secrets;
 
 import org.apache.http.client.methods.HttpRequestBase;
 import org.elasticsearch.action.ActionListener;

@@ -111,7 +111,7 @@ public class Warnings {
      *     Instead, it asks only the required pieces to build the warning.
      * </p>
      */
-    public void registerException(Class<? extends Exception> exceptionClass, String message) {
+    public synchronized void registerException(Class<? extends Exception> exceptionClass, String message) {
         if (addedWarnings < MAX_ADDED_WARNINGS) {
             if (addedWarnings == 0) {
                 addWarning(first);

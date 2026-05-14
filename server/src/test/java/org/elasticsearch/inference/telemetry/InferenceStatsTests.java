@@ -33,7 +33,7 @@ import static org.elasticsearch.inference.telemetry.InferenceStats.STATUS_CODE_A
 import static org.elasticsearch.inference.telemetry.InferenceStats.TASK_TYPE_ATTRIBUTE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.create;
 import static org.elasticsearch.telemetry.metric.MetricAttributes.ERROR_TYPE;
-import static org.elasticsearch.telemetry.metric.MetricAttributes.ES_PLUGIN;
+import static org.elasticsearch.telemetry.metric.MetricAttributes.ES_PLUGIN_NAME;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -132,7 +132,7 @@ public class InferenceStatsTests extends ESTestCase {
                 TEST_STACK_VERSION,
                 PRODUCTION_RELEASE_ATTRIBUTE,
                 TEST_IS_PRODUCTION_RELEASE,
-                ES_PLUGIN,
+                ES_PLUGIN_NAME,
                 ES_PLUGIN_VALUE
             )
         );
@@ -153,7 +153,7 @@ public class InferenceStatsTests extends ESTestCase {
                     TEST_IS_PRODUCTION_RELEASE,
                     STATUS_CODE_ATTRIBUTE,
                     200,
-                    ES_PLUGIN,
+                    ES_PLUGIN_NAME,
                     ES_PLUGIN_VALUE
                 )
             )
@@ -355,7 +355,7 @@ public class InferenceStatsTests extends ESTestCase {
                 TEST_STACK_VERSION,
                 PRODUCTION_RELEASE_ATTRIBUTE,
                 TEST_IS_PRODUCTION_RELEASE,
-                ES_PLUGIN,
+                ES_PLUGIN_NAME,
                 ES_PLUGIN_VALUE
             )
         );
@@ -376,7 +376,7 @@ public class InferenceStatsTests extends ESTestCase {
                     TEST_IS_PRODUCTION_RELEASE,
                     STATUS_CODE_ATTRIBUTE,
                     200,
-                    ES_PLUGIN,
+                    ES_PLUGIN_NAME,
                     ES_PLUGIN_VALUE
                 )
             )

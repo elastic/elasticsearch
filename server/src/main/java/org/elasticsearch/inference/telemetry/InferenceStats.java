@@ -91,7 +91,7 @@ public class InferenceStats {
                 stackVersion,
                 PRODUCTION_RELEASE_ATTRIBUTE,
                 isProductionRelease,
-                MetricAttributes.ES_PLUGIN,
+                MetricAttributes.ES_PLUGIN_NAME,
                 ES_PLUGIN_VALUE
             )
         );

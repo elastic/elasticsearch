@@ -20,7 +20,7 @@ public interface MetricAttributes {
     String ES_NODE_TIER = "es_node_tier";
 
     /** Plugin name (e.g. "inference") to be used to identify the source of the metric. */
-    String ES_PLUGIN = "es_plugin";
+    String ES_PLUGIN_NAME = "es_plugin_name";
 
     // refers to https://opentelemetry.io/docs/specs/semconv/registry/attributes/error/#error-type
     String ERROR_TYPE = "error_type";

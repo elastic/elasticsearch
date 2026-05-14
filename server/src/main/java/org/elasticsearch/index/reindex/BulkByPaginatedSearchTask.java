@@ -45,19 +45,19 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
 
 /**
- * Task storing information about a currently running BulkByScroll request.
+ * Task storing information about a currently running BulkByPaginatedSearch request.
  *
  * <p>When the request is not sliced, this task is the only task created, and starts an action to perform search requests.
  *
  * <p>When the request is sliced, this task can either represent a coordinating task (using
- * {@link BulkByScrollTask#setWorkerCount(int, float)}) or a worker task that performs search queries (using
- * {@link BulkByScrollTask#setWorker(float, Integer)}).
+ * {@link BulkByPaginatedSearchTask#setWorkerCount(int, float)}) or a worker task that performs search queries (using
+ * {@link BulkByPaginatedSearchTask#setWorker(float, Integer)}).
  *
  * <p>We don't always know if this task will be a leader or worker task when it's created, because if slices is set to "auto" it may
  * be either depending on the number of shards in the source indices. We figure that out when the request is handled and set it on this
  * class with {@link #setWorkerCount(int, float)} or {@link #setWorker(float, Integer)}.
  */
-public class BulkByScrollTask extends CancellableTask {
+public class BulkByPaginatedSearchTask extends CancellableTask {
 
     private final boolean eligibleForRelocationOnShutdown;
     private final boolean relocatedTask;
@@ -68,7 +68,7 @@ public class BulkByScrollTask extends CancellableTask {
     private volatile WorkerBulkByScrollTaskState workerState;
     private volatile boolean relocationRequested = false;
 
-    public BulkByScrollTask(
+    public BulkByPaginatedSearchTask(
         TaskId taskId,
         String type,
         String action,
@@ -85,7 +85,7 @@ public class BulkByScrollTask extends CancellableTask {
     }
 
     @Override
-    public BulkByScrollTask.Status getStatus() {
+    public BulkByPaginatedSearchTask.Status getStatus() {
         if (isLeader()) {
             return leaderState.getStatus();
         }
@@ -106,18 +106,18 @@ public class BulkByScrollTask extends CancellableTask {
             throw new IllegalStateException("This task is not set to be a leader of other slice subtasks");
         }
 
-        List<BulkByScrollTask.StatusOrException> sliceStatuses = Arrays.asList(
-            new BulkByScrollTask.StatusOrException[leaderState.getSlices()]
+        List<BulkByPaginatedSearchTask.StatusOrException> sliceStatuses = Arrays.asList(
+            new BulkByPaginatedSearchTask.StatusOrException[leaderState.getSlices()]
         );
         for (TaskInfo t : sliceInfo) {
-            BulkByScrollTask.Status status = (BulkByScrollTask.Status) t.status();
-            sliceStatuses.set(status.getSliceId(), new BulkByScrollTask.StatusOrException(status));
+            BulkByPaginatedSearchTask.Status status = (BulkByPaginatedSearchTask.Status) t.status();
+            sliceStatuses.set(status.getSliceId(), new BulkByPaginatedSearchTask.StatusOrException(status));
         }
         Status status = leaderState.getStatus(sliceStatuses);
         return taskInfo(localNodeId, getDescription(), status);
     }
 
-    private BulkByScrollTask.Status emptyStatus() {
+    private BulkByPaginatedSearchTask.Status emptyStatus() {
         return new Status(Collections.emptyList(), getReasonCancelled(), 0f);
     }
 
@@ -999,9 +999,9 @@ public class BulkByScrollTask extends CancellableTask {
         @Override
         public String toString() {
             if (exception != null) {
-                return "BulkByScrollTask{error=" + Strings.toString(this) + "}";
+                return "BulkByPaginatedSearchTask{error=" + Strings.toString(this) + "}";
             } else {
-                return "BulkByScrollTask{status=" + Strings.toString(this) + "}";
+                return "BulkByPaginatedSearchTask{status=" + Strings.toString(this) + "}";
             }
         }
 
@@ -1010,10 +1010,10 @@ public class BulkByScrollTask extends CancellableTask {
             if (obj == null) {
                 return false;
             }
-            if (obj.getClass() != BulkByScrollTask.StatusOrException.class) {
+            if (obj.getClass() != BulkByPaginatedSearchTask.StatusOrException.class) {
                 return false;
             }
-            BulkByScrollTask.StatusOrException other = (StatusOrException) obj;
+            BulkByPaginatedSearchTask.StatusOrException other = (StatusOrException) obj;
             return Objects.equals(status, other.status) && Objects.equals(exception, other.exception);
         }
 

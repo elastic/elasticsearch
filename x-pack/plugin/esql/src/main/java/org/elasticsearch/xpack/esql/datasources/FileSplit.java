@@ -355,12 +355,13 @@ public class FileSplit implements ExternalSplit {
                 out.writeBoolean(true);
                 // Primitive (name, typeName, nullable). writeNamedWriteableCollection(Attribute) can't
                 // be used: FileSplit travels on RecyclerBytesStreamOutput, not PlanStreamOutput.
-                // Nullability is binarized to TRUE/FALSE; UNKNOWN is planner-internal and shouldn't survive analysis.
+                // Anything not provably non-null is written as nullable: UNKNOWN (planner-internal) maps to TRUE
+                // on the wire so it can't be reconstituted as a stronger non-null guarantee than the source carried.
                 out.writeVInt(readSchema.size());
                 for (Attribute attr : readSchema) {
                     out.writeString(attr.name());
                     out.writeString(attr.dataType().typeName());
-                    out.writeBoolean(attr.nullable() == Nullability.TRUE);
+                    out.writeBoolean(attr.nullable() != Nullability.FALSE);
                 }
             } else {
                 out.writeBoolean(false);

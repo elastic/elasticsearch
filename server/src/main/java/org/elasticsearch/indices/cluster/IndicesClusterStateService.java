@@ -328,6 +328,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     @Override
     public synchronized void applyClusterState(final ClusterChangedEvent event) {
         if (usingAsyncApplier == false && clusterSupportsAsyncApplier(event.state())) {
+            logger.info("---> Switching to async applier");
             usingAsyncApplier = true;
             clusterService.removeApplier(this);
             clusterService.addHighPriorityApplier(asyncClusterStateApplier);

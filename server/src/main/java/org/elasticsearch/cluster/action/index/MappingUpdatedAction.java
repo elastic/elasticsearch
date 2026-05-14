@@ -110,10 +110,9 @@ public class MappingUpdatedAction {
         putMappingRequest.setConcreteIndex(index);
         putMappingRequest.source(mappingUpdate.string(), XContentType.JSON);
         putMappingRequest.masterNodeTimeout(dynamicMappingUpdateTimeout);
-        // TODO: I think tests were implicitly relying on the mapping being processed before the caller moved on.
-        // With async apply, having this timeout set to 0 bypasses the AwaitClusterStateVersionAppliedRequest and
-        // is surfacing a bunch of broken assumptions. This needs to be fixed at the test level, not in prod (this is
-        // cheating right now). Or we would need to re-evaluate if this optimization is still valid with async.
+        // TODO: This is only in TransportShardBulkAction#performSequentialOnPrimary. We previously had a 0 ackTimeout
+        // and then only waited for the primary to apply the mapping changes. But what guaranteed replicas would not fail?
+        // Keeping this to 0 broke a bunch of tests. I need to investigate this more.
         putMappingRequest.ackTimeout(dynamicMappingUpdateTimeout);
         putMappingRequest.origin("bulk");
         client.execute(

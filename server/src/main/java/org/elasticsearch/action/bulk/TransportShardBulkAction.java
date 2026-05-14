@@ -23,7 +23,6 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
@@ -252,13 +251,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         }, (mappingUpdateListener, initialMappingVersion) -> observer.waitForState(new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
-                // The cluster state now contains the new mapping, but ICSS applies mappings asynchronously.
-                // Wait for async appliers to finish so that mapperService reflects the new mapping before retrying.
-                // TODO: switch this to watching for a specific version
-                clusterService.getClusterApplierService()
-                    .awaitAllAsyncAppliers(
-                        ContextPreservingActionListener.wrapPreservingContext(mappingUpdateListener, threadPool.getThreadContext())
-                    );
+                mappingUpdateListener.onResponse(null);
             }
 
             @Override

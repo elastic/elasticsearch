@@ -24,6 +24,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IterableSortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -541,7 +542,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             };
         }
 
-        private static class AggregateMetricValues extends SortedNumericDoubleValues {
+        private static class AggregateMetricValues extends IterableSortedNumericDoubleValues {
             final SortedNumericDocValues values;
             final Metric metric;
 
@@ -570,6 +571,16 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                     // All other metrics are encoded as doubles
                     return NumericUtils.sortableLongToDouble(v);
                 }
+            }
+
+            @Override
+            public int docID() {
+                return values.docID();
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                return values.advance(target);
             }
         }
 

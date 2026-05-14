@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -25,6 +26,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -63,8 +65,45 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
         this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
     }
 
+    // Should only be used for testing
+    GoogleVertexAiChatCompletionModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        GoogleVertexAiChatCompletionServiceSettings serviceSettings,
+        GoogleVertexAiChatCompletionTaskSettings taskSettings,
+        @Nullable GoogleVertexAiSecretSettings secrets,
+        BiConsumer<HttpPost, GoogleVertexAiModel> authHeaderDecorator
+    ) {
+        this(
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelSecrets(secrets),
+            authHeaderDecorator
+        );
+    }
+
     public GoogleVertexAiChatCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
         super(modelConfigurations, modelSecrets, (GoogleVertexAiRateLimitServiceSettings) modelConfigurations.getServiceSettings());
+        this.streamingURI = setUris(modelConfigurations);
+    }
+
+    // Should only be used for testing
+    public GoogleVertexAiChatCompletionModel(
+        ModelConfigurations modelConfigurations,
+        ModelSecrets modelSecrets,
+        BiConsumer<HttpPost, GoogleVertexAiModel> authHeaderDecorator
+    ) {
+        super(
+            modelConfigurations,
+            modelSecrets,
+            (GoogleVertexAiRateLimitServiceSettings) modelConfigurations.getServiceSettings(),
+            authHeaderDecorator
+        );
+        this.streamingURI = setUris(modelConfigurations);
+    }
+
+    private URI setUris(ModelConfigurations modelConfigurations) {
+        final URI streamingURI;
         try {
             var serviceSettings = (GoogleVertexAiChatCompletionServiceSettings) modelConfigurations.getServiceSettings();
             var uri = serviceSettings.uri();
@@ -76,18 +115,19 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
                 // Some providers require both (e.g. Anthropic, Mistral, Ai21).
                 // Some providers work fine with a single URL (e.g. Meta, Hugging Face).
                 this.nonStreamingUri = Objects.requireNonNullElse(uri, streamingUri);
-                this.streamingURI = Objects.requireNonNullElse(streamingUri, uri);
+                streamingURI = Objects.requireNonNullElse(streamingUri, uri);
             } else {
                 // If neither uri nor streamingUri is provided, build them from location, projectId, and modelId.
                 var location = serviceSettings.location();
                 var projectId = serviceSettings.projectId();
                 var model = serviceSettings.modelId();
-                this.streamingURI = buildUriStreaming(location, projectId, model);
+                streamingURI = buildUriStreaming(location, projectId, model);
                 this.nonStreamingUri = buildUriNonStreaming(location, projectId, model);
             }
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
+        return streamingURI;
     }
 
     private GoogleVertexAiChatCompletionModel(

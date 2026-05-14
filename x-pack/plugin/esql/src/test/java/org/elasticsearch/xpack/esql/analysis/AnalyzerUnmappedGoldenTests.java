@@ -626,6 +626,52 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """, STAGES);
     }
 
+    public void testTypeConflictTimeseriesLongUnmappedWithCast() throws Exception {
+        runTests("""
+            FROM k8s, k8s_unmapped
+            | EVAL bytes = network.bytes_in::long
+            | KEEP bytes
+            """);
+    }
+
+    public void testTSTypeConflictTimeseriesLongUnmappedWithCast() throws Exception {
+        runTests("""
+            TS k8s, k8s_unmapped
+            | EVAL bytes = network.bytes_in::long
+            | KEEP bytes
+            """);
+    }
+
+    public void testTypeConflictTimeseriesDoubleUnmappedWithCast() throws Exception {
+        runTests("""
+            FROM k8s, k8s_unmapped
+            | EVAL cost = network.cost::double
+            | KEEP cost
+            """);
+    }
+
+    public void testTypeConflictTimeseriesStatsWithCast() throws Exception {
+        runTests("""
+            FROM k8s, k8s_unmapped
+            | STATS s = SUM(network.bytes_in::long) BY cluster
+            """);
+    }
+
+    public void testTSTypeConflictTimeseriesStatsWithCast() throws Exception {
+        runTests("""
+            TS k8s, k8s_unmapped
+            | STATS s = SUM(network.bytes_in::long) BY cluster
+            """);
+    }
+
+    public void testTypeConflictTimeseriesWhereWithCast() throws Exception {
+        runTests("""
+            FROM k8s, k8s_unmapped
+            | WHERE network.cost::double > 10.0
+            | KEEP cluster, network.cost
+            """);
+    }
+
     public void testPartiallyMappedField() throws Exception {
         runTests("""
             FROM sample_data, partial_mapping_sample_data

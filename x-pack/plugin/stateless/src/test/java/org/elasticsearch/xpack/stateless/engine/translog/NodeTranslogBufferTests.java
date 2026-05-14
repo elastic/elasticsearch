@@ -113,8 +113,9 @@ public class NodeTranslogBufferTests extends ESTestCase {
 
         TranslogReplicator.CompoundTranslog translog = translogBuffer.complete(0, Set.of(activeShard, activeButNoBufferedDataShard));
         assertTrue(translog.metadata().totalOps().containsKey(activeShardId));
-        assertTrue(translog.metadata().totalOps().containsKey(activeButNoBufferedShardId));
-        assertThat(translog.metadata().totalOps().size(), equalTo(2));
+        // The active but not buffered ShardId should not be in the totalOps
+        assertFalse(translog.metadata().totalOps().containsKey(activeButNoBufferedShardId));
+        assertThat(translog.metadata().totalOps().size(), equalTo(1));
         assertThat(translog.metadata().syncedLocations().keySet(), hasItems(activeShardId));
         assertThat(translog.metadata().syncedLocations().size(), equalTo(1));
     }

@@ -221,7 +221,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         }
 
         private static boolean diffIgnoreAboveDefaultForLogs(final IndexMode indexMode, final IndexVersion indexCreatedVersion) {
-            return (indexMode == IndexMode.LOGSDB || indexMode == IndexMode.COLUMNAR_LOGSDB)
+            return (indexMode == IndexMode.LOGSDB || indexMode == IndexMode.LOGSDB_COLUMNAR)
                 && (indexCreatedVersion != null && indexCreatedVersion.onOrAfter(IndexVersions.ENABLE_IGNORE_ABOVE_LOGSDB));
         }
 

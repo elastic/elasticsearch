@@ -20,6 +20,7 @@ import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.completion.Azure
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.azureaistudio.rerank.AzureAiStudioRerankModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.rerank.AzureAiStudioRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -49,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs.fromRerankRequest;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
@@ -122,6 +125,23 @@ public class AzureAiStudioService extends SenderService<AzureAiStudioModel> impl
     @Override
     protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
         ServiceUtils.validateInputTypeAgainstAllowlist(inputType, VALID_INPUT_TYPE_VALUES, SERVICE_NAME, validationException);
+    }
+
+    @Override
+    protected void doRerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        if (!(model instanceof AzureAiStudioRerankModel azureAiStudioRerankModel)) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+        var actionCreator = new AzureAiStudioActionCreator(getSender(), getServiceComponents());
+
+        var action = azureAiStudioRerankModel.accept(actionCreator, request.taskSettings());
+        action.execute(fromRerankRequest(request), timeout, listener);
+    }
+
+    @Override
+    public boolean supportsNewRerankCodePath() {
+        return true;
     }
 
     @Override

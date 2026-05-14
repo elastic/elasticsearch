@@ -44,6 +44,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -373,15 +374,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             return DateTrunc.evaluator(field.dataType(), source(), toEvaluator.apply(field), preparedRounding);
         }
         if (field.dataType().isNumeric()) {
-            double roundTo;
-            if (from != null) {
-                int b = ((Number) buckets.fold(toEvaluator.foldCtx())).intValue();
-                double f = ((Number) from.fold(toEvaluator.foldCtx())).doubleValue();
-                double t = ((Number) to.fold(toEvaluator.foldCtx())).doubleValue();
-                roundTo = pickRounding(b, f, t);
-            } else {
-                roundTo = ((Number) buckets.fold(toEvaluator.foldCtx())).doubleValue();
-            }
+            double roundTo = getNumberRoundTo(toEvaluator.foldCtx());
             Literal rounding = new Literal(source(), roundTo, DataType.DOUBLE);
 
             // We could make this more efficient, either by generating the evaluators with byte code or hand rolling this one.
@@ -424,11 +417,19 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         }
     }
 
-    private double pickRounding(int buckets, double from, double to) {
-        double precise = (to - from) / buckets;
-        double nextPowerOfTen = Math.pow(10, Math.ceil(Math.log10(precise)));
-        double halfPower = nextPowerOfTen / 2;
-        return precise < halfPower ? halfPower : nextPowerOfTen;
+    private double getNumberRoundTo(FoldContext foldContext) {
+        if (from != null) {
+            assert to != null : "Both from and to must be set";
+            int b = ((Number) buckets.fold(foldContext)).intValue();
+            double f = ((Number) from.fold(foldContext)).doubleValue();
+            double t = ((Number) to.fold(foldContext)).doubleValue();
+            double precise = (t - f) / b;
+            double nextPowerOfTen = Math.pow(10, Math.ceil(Math.log10(precise)));
+            double halfPower = nextPowerOfTen / 2;
+            return precise < halfPower ? halfPower : nextPowerOfTen;
+        } else {
+            return ((Number) buckets.fold(foldContext)).doubleValue();
+        }
     }
 
     // supported parameter type combinations (1st, 2nd, 3rd, 4th):
@@ -583,5 +584,37 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         Bucket other = (Bucket) obj;
 
         return configuration.equals(other.configuration) && offset == other.offset;
+    }
+
+    protected Map<String, Object> getIntervalMetadata(FoldContext foldContext) {
+        if ((buckets.foldable() && (from == null || from.foldable()) && (to == null || to.foldable())) == false) {
+            return null;
+        }
+        DataType fieldType = field.dataType();
+        if (fieldType == DataType.DATETIME || fieldType == DataType.DATE_NANOS) {
+            // Auto-mode date BUCKET (whole-number bucket count + range): a non-positive count is nonsensical.
+            // The picker would silently fall through to YEAR_OF_CENTURY and surface a misleading "1 year" interval;
+            // skip metadata emission instead. Period/duration spans go through createRounding which already rejects
+            // zero/negative values at fold time, so they don't reach here in an impossible state.
+            if (buckets.dataType().isWholeNumber() && ((Number) buckets.fold(foldContext)).intValue() <= 0) {
+                return null;
+            }
+            Rounding rounding = getDateRounding(foldContext).getUnprepared();
+            Rounding.Interval interval = rounding.getInterval();
+            return Map.of("bucket", Map.of("interval", interval.size(), "unit", interval.unit()));
+        }
+        if (fieldType.isNumeric()) {
+            double roundTo = getNumberRoundTo(foldContext);
+            // Impossible bucket configurations (zero/negative buckets count, zero/inverted ranges) yield NaN,
+            // ±Infinity, or non-positive widths. Skip metadata emission in those cases — the query itself fails
+            // at runtime, and surfacing garbage values on the column descriptor would be misleading.
+            if (Double.isFinite(roundTo) == false || roundTo <= 0.0) {
+                return null;
+            }
+            return Map.of("bucket", Map.of("interval", roundTo));
+        }
+        // BUCKET only supports date/date_nanos and numeric fields. Any new type added to BUCKET that hasn't been
+        // taught to this metadata path should fail loudly rather than silently dropping metadata.
+        throw new IllegalStateException("BUCKET metadata not implemented for field type [" + fieldType + "]");
     }
 }

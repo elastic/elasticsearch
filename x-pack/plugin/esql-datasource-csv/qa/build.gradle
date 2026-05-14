@@ -63,6 +63,29 @@ tasks.register('syncCsvIcebergFixtures', Sync) {
   into file("${csvIcebergFixtureRoot}/iceberg-fixtures/standalone")
 }
 
+// Two-file headerless fixture set with anchor-vs-other type-drift on col1. Used by the
+// csv-headerless.csv-spec multi-file glob test to prove the anchor schema is honored end-to-end.
+tasks.register('syncCsvIcebergMultifileFixtures', Sync) {
+  dependsOn testFixturesProject.tasks.named('processResources')
+  duplicatesStrategy = DuplicatesStrategy.FAIL
+  from(testFixturesProject.file('src/main/resources/data')) {
+    include 'multifile_a_anchor.csv', 'multifile_b_other.csv'
+  }
+  into file("${csvIcebergFixtureRoot}/iceberg-fixtures/multifile")
+}
+
+// UNION_BY_NAME fixture set with divergent schemas across files: a has [name, age:int],
+// b has [age:long, name, city]. Used by csv-headerless.csv-spec to prove the UBN recipe
+// (reorder + null-fill + widening cast) works end-to-end across the full pipeline.
+tasks.register('syncCsvIcebergMultifileUbnFixtures', Sync) {
+  dependsOn testFixturesProject.tasks.named('processResources')
+  duplicatesStrategy = DuplicatesStrategy.FAIL
+  from(testFixturesProject.file('src/main/resources/data')) {
+    include 'multifile_ubn_a.csv', 'multifile_ubn_b.csv'
+  }
+  into file("${csvIcebergFixtureRoot}/iceberg-fixtures/multifile_ubn")
+}
+
 // Same basenames as syncCsvIcebergFixtures — external-basic.csv-spec uses {{employees}}, {{web_logs}}, {{books}}.
 def csvBasenamesForTsv = ['employees', 'web_logs', 'books']
 
@@ -96,11 +119,11 @@ sourceSets.javaRestTest.resources {
 }
 
 tasks.named('processJavaRestTestResources').configure {
-  dependsOn 'syncCsvIcebergFixtures', 'generateStandaloneTsvFixtures'
+  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'syncCsvIcebergMultifileUbnFixtures', 'generateStandaloneTsvFixtures'
 }
 
 tasks.named('javaRestTest') {
-  dependsOn 'syncCsvIcebergFixtures', 'generateStandaloneTsvFixtures'
+  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'syncCsvIcebergMultifileUbnFixtures', 'generateStandaloneTsvFixtures'
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
   enabled = buildParams.snapshotBuild

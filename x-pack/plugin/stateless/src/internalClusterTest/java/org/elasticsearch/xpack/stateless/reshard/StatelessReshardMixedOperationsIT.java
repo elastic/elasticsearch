@@ -107,6 +107,13 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
         }
     }
 
+    @Override
+    protected boolean addMockFsRepository() {
+        // This test is pretty involved, creating up to 10 index nodes, and can hit the 10-second timeout in
+        // ConcurrentMultiPartUploadsMockFsRepository when using a 5-thread thread pool to write chunks
+        return false;
+    }
+
     private static class IndexedDocument {
         String id;
         // We need to keep a ledger of all field value updates since untracked refreshes can occur, such as during handoff

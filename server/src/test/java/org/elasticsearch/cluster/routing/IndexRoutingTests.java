@@ -892,7 +892,7 @@ public class IndexRoutingTests extends ESTestCase {
             IndexMetadata.builder("test")
                 .settings(
                     settings(IndexVersion.current()).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
-                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR)
                         .build()
                 )
                 .numberOfShards(shards)
@@ -918,7 +918,7 @@ public class IndexRoutingTests extends ESTestCase {
         IndexMetadata startingMetadata = IndexMetadata.builder("test")
             .settings(
                 settings(IndexVersion.current()).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
-                    .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB)
+                    .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR)
                     .build()
             )
             .numberOfShards(shards)

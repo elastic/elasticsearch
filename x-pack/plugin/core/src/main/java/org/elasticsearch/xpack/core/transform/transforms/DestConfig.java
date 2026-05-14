@@ -23,11 +23,13 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -39,7 +41,15 @@ public class DestConfig implements Writeable, ToXContentObject {
     public static final ParseField PIPELINE = new ParseField("pipeline");
     public static final ParseField OP_TYPE = new ParseField("op_type");
 
-    private static final Set<DocWriteRequest.OpType> VALID_OP_TYPES = Set.of(DocWriteRequest.OpType.INDEX, DocWriteRequest.OpType.CREATE);
+    private static final Set<DocWriteRequest.OpType> VALID_OP_TYPES = EnumSet.of(
+        DocWriteRequest.OpType.INDEX,
+        DocWriteRequest.OpType.CREATE
+    );
+
+    // Precomputed for use in error messages — EnumSet iterates in enum declaration order, keeping the listing stable.
+    private static final String VALID_OP_TYPES_DISPLAY = VALID_OP_TYPES.stream()
+        .map(DocWriteRequest.OpType::getLowercase)
+        .collect(joining(", "));
 
     // The registered name must not change — it is the key used to look up the transport version at startup.
     static final TransportVersion TRANSFORM_DEST_OP_TYPE = TransportVersion.fromName("transform_dest_op_type");
@@ -70,13 +80,15 @@ public class DestConfig implements Writeable, ToXContentObject {
         try {
             return requireValidOpType(DocWriteRequest.OpType.fromString(opTypeStr));
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("invalid op_type [" + opTypeStr + "], must be one of [index, create]");
+            throw new IllegalArgumentException("invalid op_type [" + opTypeStr + "], must be one of [" + VALID_OP_TYPES_DISPLAY + "]");
         }
     }
 
     private static DocWriteRequest.OpType requireValidOpType(DocWriteRequest.OpType opType) {
         if (VALID_OP_TYPES.contains(opType) == false) {
-            throw new IllegalArgumentException("invalid op_type [" + opType.getLowercase() + "], must be one of [index, create]");
+            throw new IllegalArgumentException(
+                "invalid op_type [" + opType.getLowercase() + "], must be one of [" + VALID_OP_TYPES_DISPLAY + "]"
+            );
         }
         return opType;
     }

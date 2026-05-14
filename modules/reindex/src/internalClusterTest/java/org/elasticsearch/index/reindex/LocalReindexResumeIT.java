@@ -431,7 +431,6 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         assertSlicedResponse(getTaskResponse.getTask(), sliceStatus, sliceFirstBatchDocs, totalDocs, batchSize);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/148664")
     public void testResumeReindexFromPit_slicedN_partialCompleted() {
         assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
         String sourceIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
@@ -444,7 +443,8 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         final float totalRPS = randomFloatBetween(1000, 10000, true);
         final float perSliceRPS = totalRPS / activeSlices;
 
-        createIndex(sourceIndex);
+        // force source to one shard so that the initial manual slicing is compatible with auto slicing in the resumed task
+        createIndex(sourceIndex, 1, 1);
         indexRandom(true, sourceIndex, totalDocs);
 
         Map<Integer, SliceStatus> sliceStatus = new HashMap<>();

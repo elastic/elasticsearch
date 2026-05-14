@@ -138,7 +138,7 @@ public class S3HttpHandler implements HttpHandler {
                     // HEAD response must include Content-Length header for S3 clients (AWS SDK) that read file size
                     exchange.getResponseHeaders().add("Content-Length", String.valueOf(blobEntry.contents().length()));
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                    if (BlobEntry.DEFAULT_STORAGE_CLASS.equals(blobEntry.storageClass()) == false) {
+                    if (!BlobEntry.DEFAULT_STORAGE_CLASS.equals(blobEntry.storageClass())) {
                         exchange.getResponseHeaders().add("x-amz-storage-class", blobEntry.storageClass());
                     }
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
@@ -749,10 +749,6 @@ public class S3HttpHandler implements HttpHandler {
         }
 
         throw new AssertionError("multiple If-Match headers found: " + ifMatch);
-    }
-
-    MultipartUpload putUpload(String path) {
-        return putUpload(path, BlobEntry.DEFAULT_STORAGE_CLASS);
     }
 
     MultipartUpload putUpload(String path, String storageClass) {

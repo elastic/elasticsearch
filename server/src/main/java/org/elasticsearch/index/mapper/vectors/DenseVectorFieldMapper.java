@@ -1275,7 +1275,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (byteBuffer.remaining() == dims * Float.BYTES) {
                 byteBuffer.asFloatBuffer().get(decodedVector);
             } else if (byteBuffer.remaining() == dims * BFloat16.BYTES) {
-                BFloat16.bFloat16ToFloat(byteBuffer.asShortBuffer(), decodedVector);
+                BFloat16.bFloat16ToFloat(byteBuffer, decodedVector);
             } else {
                 throw new ParsingException(
                     context.parser().getTokenLocation(),
@@ -1341,7 +1341,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public void writeValues(ByteBuffer byteBuffer, float[] values) {
-            BFloat16.floatToBFloat16(values, byteBuffer.asShortBuffer());
+            // ByteBuffer created by FloatElement.createByteBuffer, so will always wrap an array
+            BFloat16.floatToBFloat16(values, 0, byteBuffer.array(), byteBuffer.position(), values.length, byteBuffer.order());
             byteBuffer.position(byteBuffer.position() + (values.length * BFloat16.BYTES));
         }
 

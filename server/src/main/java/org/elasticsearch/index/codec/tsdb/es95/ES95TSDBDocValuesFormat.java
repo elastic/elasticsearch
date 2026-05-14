@@ -71,7 +71,7 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
     static final int ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL = 512;
     static final int ORDINAL_RANGE_ENCODING_BLOCK_SHIFT = 12;
 
-    static final PipelineConfigResolver PIPELINE_CONFIG_RESOLVER = new StaticPipelineConfigResolver();
+    static final PipelineConfigResolver PIPELINE_CONFIG_RESOLVER = StaticPipelineConfigResolver.INSTANCE;
     static final OrdinalBlockCodec ORDINAL_CODEC = new TSDBOrdinalBlockCodec();
 
     static final TermsDictConfig TERMS_DICT_CONFIG = new TermsDictConfig(

@@ -23,8 +23,13 @@ package org.elasticsearch.index.codec.tsdb.pipeline;
  */
 public final class StaticPipelineConfigResolver implements PipelineConfigResolver {
 
+    /** Shared stateless instance; mirrors the {@code INSTANCE} pattern used by stage classes. */
+    public static final StaticPipelineConfigResolver INSTANCE = new StaticPipelineConfigResolver();
+
     private static final PipelineConfig BLOCK_128 = build(128);
     private static final PipelineConfig BLOCK_512 = build(512);
+
+    private StaticPipelineConfigResolver() {}
 
     @Override
     public PipelineConfig resolve(final FieldContext context) {

@@ -14,7 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 public class StaticPipelineConfigResolverTests extends ESTestCase {
 
     public void testResolvesBaselinePipelineShape() {
-        final StaticPipelineConfigResolver resolver = new StaticPipelineConfigResolver();
+        final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
         final PipelineConfig config = resolver.resolve(new FieldContext(randomBlockSize(), randomFieldName()));
 
         assertEquals("delta>offset>gcd>bitPack", config.describeStages());
@@ -24,7 +24,7 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
     }
 
     public void testPropagatesBlockSizeFromContext() {
-        final StaticPipelineConfigResolver resolver = new StaticPipelineConfigResolver();
+        final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
         final int blockSize = randomBlockSize();
 
         final PipelineConfig config = resolver.resolve(new FieldContext(blockSize, randomFieldName()));
@@ -33,7 +33,7 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
     }
 
     public void testIgnoresFieldName() {
-        final StaticPipelineConfigResolver resolver = new StaticPipelineConfigResolver();
+        final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
         final int blockSize = randomBlockSize();
 
         final PipelineConfig first = resolver.resolve(new FieldContext(blockSize, "@timestamp"));
@@ -43,14 +43,14 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
     }
 
     public void testRepeatedResolveReturnsEqualConfigs() {
-        final StaticPipelineConfigResolver resolver = new StaticPipelineConfigResolver();
+        final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
         final FieldContext context = new FieldContext(randomBlockSize(), randomFieldName());
 
         assertEquals(resolver.resolve(context), resolver.resolve(context));
     }
 
     public void testCachedBlockSizesReturnSameInstance() {
-        final StaticPipelineConfigResolver resolver = new StaticPipelineConfigResolver();
+        final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
         final int blockSize = randomFrom(128, 512);
 
         final PipelineConfig first = resolver.resolve(new FieldContext(blockSize, randomFieldName()));
@@ -59,7 +59,7 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
     }
 
     public void testUncachedBlockSizeStillResolves() {
-        final StaticPipelineConfigResolver resolver = new StaticPipelineConfigResolver();
+        final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
         final int blockSize = 1 << randomIntBetween(4, 6);
 
         final PipelineConfig config = resolver.resolve(new FieldContext(blockSize, randomFieldName()));

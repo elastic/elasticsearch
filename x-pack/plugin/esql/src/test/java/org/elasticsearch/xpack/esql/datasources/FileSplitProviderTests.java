@@ -23,9 +23,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
@@ -37,6 +39,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -869,8 +872,14 @@ public class FileSplitProviderTests extends ESTestCase {
         SplitRange range3 = new SplitRange(4, 196, Map.of("_stats.row_count", 200L));
 
         RangeAwareFormatReader mockReader = new RangeAwareFormatReader() {
+
             private int callCount = 0;
             private final List<List<SplitRange>> perFileRanges = List.of(List.of(range1), List.of(range2), List.of(range3));
+
+            @Override
+            public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+                return Configured.empty(this);
+            }
 
             @Override
             public List<SplitRange> discoverSplitRanges(StorageObject object) {
@@ -945,6 +954,12 @@ public class FileSplitProviderTests extends ESTestCase {
 
     private static RangeAwareFormatReader createMockRangeReader(List<SplitRange> ranges) {
         return new RangeAwareFormatReader() {
+
+            @Override
+            public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+                return Configured.empty(this);
+            }
+
             @Override
             public List<SplitRange> discoverSplitRanges(StorageObject object) {
                 return ranges;
@@ -982,7 +997,7 @@ public class FileSplitProviderTests extends ESTestCase {
 
     private static StorageProviderRegistry createMockStorageRegistry() {
         StorageProviderRegistry registry = new StorageProviderRegistry(Settings.EMPTY);
-        registry.registerFactory("s3", settings -> new StorageProvider() {
+        StorageProvider mockProvider = new StorageProvider() {
             @Override
             public StorageObject newObject(StoragePath path) {
                 return newObject(path, 0);
@@ -1058,14 +1073,15 @@ public class FileSplitProviderTests extends ESTestCase {
 
             @Override
             public void close() {}
-        });
+        };
+        registry.registerFactory("s3", StorageProviderFactory.noConfigKeys(() -> mockProvider));
         return registry;
     }
 
     /** S3 mock that serves {@code payload} for range reads (newline boundary scanning during split discovery). */
     private static StorageProviderRegistry createPayloadStorageRegistry(byte[] payload) {
         StorageProviderRegistry registry = new StorageProviderRegistry(Settings.EMPTY);
-        registry.registerFactory("s3", settings -> new StorageProvider() {
+        StorageProvider payloadProvider = new StorageProvider() {
             @Override
             public StorageObject newObject(StoragePath path) {
                 return newObject(path, payload.length);
@@ -1144,7 +1160,8 @@ public class FileSplitProviderTests extends ESTestCase {
 
             @Override
             public void close() {}
-        });
+        };
+        registry.registerFactory("s3", StorageProviderFactory.noConfigKeys(() -> payloadProvider));
         return registry;
     }
 
@@ -1170,11 +1187,10 @@ public class FileSplitProviderTests extends ESTestCase {
             new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("id"), refAttr("name"), refAttr("bonus")), null, null)
         );
         schemaInfo.put(pathC, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("bonus")), null, null));
-        fileList = GlobExpander.withSchemaInfo(fileList, schemaInfo);
-
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(
             null,
             fileList,
+            schemaInfo,
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(),
@@ -1198,11 +1214,10 @@ public class FileSplitProviderTests extends ESTestCase {
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = new HashMap<>();
         schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("id"), refAttr("name")), null, null));
         schemaInfo.put(pathB, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("bonus"), refAttr("name")), null, null));
-        fileList = GlobExpander.withSchemaInfo(fileList, schemaInfo);
-
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(
             null,
             fileList,
+            schemaInfo,
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(),
@@ -1226,9 +1241,15 @@ public class FileSplitProviderTests extends ESTestCase {
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = new HashMap<>();
         schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("id")), null, null));
         schemaInfo.put(pathB, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("bonus")), null, null));
-        fileList = GlobExpander.withSchemaInfo(fileList, schemaInfo);
-
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of(), Set.of());
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemaInfo,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            Set.of()
+        );
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
         assertEquals("All files retained when projected set is empty (e.g. COUNT(*))", 2, splits.size());
@@ -1271,9 +1292,7 @@ public class FileSplitProviderTests extends ESTestCase {
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = new HashMap<>();
         schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("id")), null, null));
         schemaInfo.put(pathB, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("bonus")), null, null));
-        fileList = GlobExpander.withSchemaInfo(fileList, schemaInfo);
-
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), partitions, List.of(), Set.of("year"));
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, schemaInfo, Map.of(), partitions, List.of(), Set.of("year"));
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
         assertEquals("All files retained when projection is only partition columns", 2, splits.size());
@@ -1290,11 +1309,10 @@ public class FileSplitProviderTests extends ESTestCase {
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = new HashMap<>();
         schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("id"), refAttr("name")), null, null));
         // pathB intentionally has no entry in schemaInfo
-        fileList = GlobExpander.withSchemaInfo(fileList, schemaInfo);
-
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(
             null,
             fileList,
+            schemaInfo,
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(),
@@ -1327,12 +1345,11 @@ public class FileSplitProviderTests extends ESTestCase {
         schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("id"), refAttr("name")), null, null));
         schemaInfo.put(pathB, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("bonus")), null, null));
         schemaInfo.put(pathC, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("id"), refAttr("name")), null, null));
-        fileList = GlobExpander.withSchemaInfo(fileList, schemaInfo);
-
         Expression yearFilter = new Equals(SRC, fieldAttr("year"), intLiteral(2024));
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(
             null,
             fileList,
+            schemaInfo,
             Map.of(),
             partitions,
             List.of(yearFilter),
@@ -1422,10 +1439,16 @@ public class FileSplitProviderTests extends ESTestCase {
 
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = new HashMap<>();
         schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("id"), refAttr("name")), null, null));
-        fileList = GlobExpander.withSchemaInfo(fileList, schemaInfo);
-
         Expression yearFilter = new Equals(SRC, fieldAttr("year"), intLiteral(2024));
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), partitions, List.of(yearFilter), Set.of("id"));
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemaInfo,
+            Map.of(),
+            partitions,
+            List.of(yearFilter),
+            Set.of("id")
+        );
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
         assertEquals("Partition column should not be treated as missing — file should NOT be skipped", 1, splits.size());
@@ -1477,14 +1500,20 @@ public class FileSplitProviderTests extends ESTestCase {
         schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("id"), refAttr("price")), null, null));
         schemaInfo.put(pathB, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("id")), null, null));
         schemaInfo.put(pathC, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("id"), refAttr("price")), null, null));
-        fileList = GlobExpander.withSchemaInfo(fileList, schemaInfo);
-
         // year=2024 filter prunes pathC; price > 100 filter prunes pathB (missing 'price')
         List<Expression> filters = List.of(
             new Equals(SRC, fieldAttr("year"), intLiteral(2024)),
             new GreaterThan(SRC, fieldAttr("price"), intLiteral(100), null)
         );
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), partitions, filters, Set.of("id", "price"));
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemaInfo,
+            Map.of(),
+            partitions,
+            filters,
+            Set.of("id", "price")
+        );
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
         assertEquals("Only pathA should survive partition + filter-column pruning", 1, splits.size());

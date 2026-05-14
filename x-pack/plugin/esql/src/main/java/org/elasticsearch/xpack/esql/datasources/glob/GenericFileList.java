@@ -9,13 +9,11 @@ package org.elasticsearch.xpack.esql.datasources.glob;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
-import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -27,29 +25,18 @@ final class GenericFileList implements FileList {
     private final List<StorageEntry> files;
     private final String originalPattern;
     private final PartitionMetadata partitionMetadata;
-    private final Map<StoragePath, SchemaReconciliation.FileSchemaInfo> fileSchemaInfo;
 
     GenericFileList(List<StorageEntry> files, String originalPattern) {
-        this(files, originalPattern, null, null);
+        this(files, originalPattern, null);
     }
 
     GenericFileList(List<StorageEntry> files, String originalPattern, @Nullable PartitionMetadata partitionMetadata) {
-        this(files, originalPattern, partitionMetadata, null);
-    }
-
-    GenericFileList(
-        List<StorageEntry> files,
-        String originalPattern,
-        @Nullable PartitionMetadata partitionMetadata,
-        @Nullable Map<StoragePath, SchemaReconciliation.FileSchemaInfo> fileSchemaInfo
-    ) {
         if (files == null) {
             throw new IllegalArgumentException("files cannot be null");
         }
         this.files = files;
         this.originalPattern = originalPattern;
         this.partitionMetadata = partitionMetadata;
-        this.fileSchemaInfo = fileSchemaInfo;
     }
 
     List<StorageEntry> files() {
@@ -65,20 +52,6 @@ final class GenericFileList implements FileList {
     @Nullable
     public PartitionMetadata partitionMetadata() {
         return partitionMetadata;
-    }
-
-    @Override
-    @Nullable
-    public Map<StoragePath, SchemaReconciliation.FileSchemaInfo> fileSchemaInfo() {
-        return fileSchemaInfo;
-    }
-
-    /**
-     * Returns a new GenericFileList with per-file schema info attached.
-     * Used by schema reconciliation to pass column mappings from planning to split discovery.
-     */
-    GenericFileList withSchemaInfo(Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo) {
-        return new GenericFileList(files, originalPattern, partitionMetadata, schemaInfo);
     }
 
     int size() {

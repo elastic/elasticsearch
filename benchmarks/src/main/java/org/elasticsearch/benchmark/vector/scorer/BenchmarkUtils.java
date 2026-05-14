@@ -75,10 +75,10 @@ class BenchmarkUtils {
 
     static void writeBFloat16VectorData(Directory dir, float[][] vectors) throws IOException {
         try (IndexOutput out = dir.createOutput("vector.data", IOContext.DEFAULT)) {
-            ByteBuffer buffer = ByteBuffer.allocate(vectors[0].length * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+            byte[] buffer = new byte[vectors[0].length * BFloat16.BYTES];
             for (float[] vector : vectors) {
-                BFloat16.floatToBFloat16(vector, buffer.asShortBuffer());
-                out.writeBytes(buffer.array(), buffer.capacity());
+                BFloat16.floatToBFloat16(vector, buffer);
+                out.writeBytes(buffer, buffer.length);
             }
         }
     }

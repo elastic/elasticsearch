@@ -1466,6 +1466,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFieldExtractFirstArgumentMustBeFlattened() {
+        assumeTrue("Requires FIELD_EXTRACT_FUNCTION capability", EsqlCapabilities.Cap.FIELD_EXTRACT_FUNCTION.isEnabled());
         var index = analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json").stripErrorPrefix(true);
         index.error(
             "FROM flattened_otel_logs | EVAL x = field_extract(@timestamp, \"a\")",
@@ -2438,8 +2439,8 @@ public class VerifierTests extends ESTestCase {
             "row x = \"3 days\" | where \"3 days\"::date_period == to_dateperiod(\"3 days\")",
             equalTo(
                 "1:26: first argument of [\"3 days\"::date_period == to_dateperiod(\"3 days\")] must be "
-                    + "[boolean, cartesian_point, cartesian_shape, date_nanos, datetime, dense_vector, double, geo_point, geo_shape, "
-                    + "geohash, geohex, geotile, integer, ip, keyword, "
+                    + "[boolean, cartesian_point, cartesian_shape, date_nanos, datetime, dense_vector, double, flattened, geo_point, "
+                    + "geo_shape, geohash, geohex, geotile, integer, ip, keyword, "
                     + "long, text, unsigned_long or version], found value [\"3 days\"::date_period] type [date_period]"
             )
         );

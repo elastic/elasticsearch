@@ -93,7 +93,7 @@ class S3BlobStore implements BlobStore {
 
     private final ObjectCannedACL cannedACL;
 
-    private final StorageClass storageClass;
+    private final StorageClass defaultStorageClass;
 
     private final StorageClass dataStorageClass;
 
@@ -132,7 +132,7 @@ class S3BlobStore implements BlobStore {
         boolean serverSideEncryption,
         ByteSizeValue bufferSize,
         String cannedACL,
-        String storageClass,
+        String defaultStorageClass,
         String dataStorageClass,
         String metadataStorageClass,
         boolean supportConditionalWrites,
@@ -150,9 +150,9 @@ class S3BlobStore implements BlobStore {
         this.bufferSize = bufferSize;
         this.maxCopySizeBeforeMultipart = service.settings(projectId, repositoryMetadata).maxCopySizeBeforeMultipart;
         this.cannedACL = initCannedACL(cannedACL);
-        this.storageClass = initStorageClass(storageClass);
-        this.dataStorageClass = Strings.hasText(storageClass) ? initStorageClass(dataStorageClass) : this.storageClass;
-        this.metadataStorageClass = Strings.hasText(metadataStorageClass) ? initStorageClass(metadataStorageClass) : this.storageClass;
+        this.defaultStorageClass = initStorageClass(defaultStorageClass);
+        this.dataStorageClass = Strings.hasText(dataStorageClass) ? initStorageClass(dataStorageClass) : this.defaultStorageClass;
+        this.metadataStorageClass = Strings.hasText(metadataStorageClass) ? initStorageClass(metadataStorageClass) : this.defaultStorageClass;
         this.supportsConditionalWrites = supportConditionalWrites;
         this.repositoryMetadata = repositoryMetadata;
         this.threadPool = threadPool;
@@ -479,7 +479,7 @@ class S3BlobStore implements BlobStore {
         return switch (purpose) {
             case SNAPSHOT_DATA -> dataStorageClass;
             case SNAPSHOT_METADATA -> metadataStorageClass;
-            case REPOSITORY_ANALYSIS, CLUSTER_STATE, INDICES, TRANSLOG, RESHARDING -> storageClass;
+            case REPOSITORY_ANALYSIS, CLUSTER_STATE, INDICES, TRANSLOG, RESHARDING -> defaultStorageClass;
         };
     }
 

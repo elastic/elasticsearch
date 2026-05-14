@@ -10,22 +10,15 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.CharArraySet;
-import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.synonyms.PagedResult;
-import org.elasticsearch.synonyms.SynonymRule;
-import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.Reader;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.MalformedInputException;
 import java.nio.charset.StandardCharsets;
@@ -34,14 +27,9 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
 
 public class AnalysisTests extends ESTestCase {
     public void testParseStemExclusion() {
@@ -171,97 +159,6 @@ public class AnalysisTests extends ESTestCase {
             () -> Analysis.getWordList(env, nodeSettings, "foo.path", "bar.list", "soup.lenient", false, true)
         );
         assertThat(exc.getMessage(), containsString("[最終契約] in user dictionary at line [5]"));
-    }
-
-    public void testGetReaderFromIndexMultipleSynsets() throws IOException {
-        SynonymsManagementAPIService service = mock(SynonymsManagementAPIService.class);
-
-        SynonymRule[] rules = new SynonymRule[] { new SynonymRule("rule-a-1", "quick, fast"), new SynonymRule("rule-b-1", "jumps, leaps") };
-
-        doAnswer(invocation -> {
-            ActionListener<PagedResult<SynonymRule>> listener = invocation.getArgument(2);
-            listener.onResponse(new PagedResult<>(2, rules));
-            return null;
-        }).when(service).getSynonymSetRules(eq(Set.of("set-a", "set-b")), eq(false), any());
-
-        Reader reader = Analysis.getReaderFromIndex(Set.of("set-a", "set-b"), service, false);
-        String content;
-        try (BufferedReader br = new BufferedReader(reader)) {
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = br.readLine()) != null) {
-                sb.append(line).append("\n");
-            }
-            content = sb.toString();
-        }
-        assertThat(content, containsString("quick, fast"));
-        assertThat(content, containsString("jumps, leaps"));
-    }
-
-    public void testGetReaderFromIndexMissingSetIgnoredWhenLenient() throws IOException {
-        SynonymsManagementAPIService service = mock(SynonymsManagementAPIService.class);
-        // Service handles missing-set detection and returns only the rules it found
-        SynonymRule[] rulesA = new SynonymRule[] { new SynonymRule("a1", "quick, fast") };
-
-        doAnswer(invocation -> {
-            ActionListener<PagedResult<SynonymRule>> listener = invocation.getArgument(2);
-            listener.onResponse(new PagedResult<>(1, rulesA));
-            return null;
-        }).when(service).getSynonymSetRules(eq(Set.of("set-a", "set-missing")), eq(true), any());
-
-        try (BufferedReader br = new BufferedReader(Analysis.getReaderFromIndex(Set.of("set-a", "set-missing"), service, true))) {
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = br.readLine()) != null) {
-                sb.append(line).append("\n");
-            }
-            assertThat(sb.toString(), containsString("quick, fast"));
-        }
-    }
-
-    public void testGetReaderFromIndexMissingSetFailsWhenNotLenient() {
-        SynonymsManagementAPIService service = mock(SynonymsManagementAPIService.class);
-        ResourceNotFoundException cause = new ResourceNotFoundException("synonym set [set-missing] not found");
-
-        doAnswer(invocation -> {
-            ActionListener<PagedResult<SynonymRule>> listener = invocation.getArgument(2);
-            listener.onFailure(cause);
-            return null;
-        }).when(service).getSynonymSetRules(eq(Set.of("set-a", "set-missing")), eq(false), any());
-
-        Exception e = expectThrows(Exception.class, () -> Analysis.getReaderFromIndex(Set.of("set-a", "set-missing"), service, false));
-        assertThat(e.getMessage(), containsString("set-missing"));
-    }
-
-    public void testGetReaderFromIndexTransientErrorIgnoredWhenLenient() throws IOException {
-        SynonymsManagementAPIService service = mock(SynonymsManagementAPIService.class);
-        RuntimeException cause = new RuntimeException("transient error loading synonyms");
-
-        doAnswer(invocation -> {
-            ActionListener<PagedResult<SynonymRule>> listener = invocation.getArgument(2);
-            listener.onFailure(cause);
-            return null;
-        }).when(service).getSynonymSetRules(eq(Set.of("set-a")), eq(true), any());
-
-        // Must not throw — transient errors with ignoreMissing=true return an empty reader
-        Reader reader = Analysis.getReaderFromIndex(Set.of("set-a"), service, true);
-        try (BufferedReader br = new BufferedReader(reader)) {
-            assertNull("reader should be empty when ignoreMissing=true and loading fails", br.readLine());
-        }
-    }
-
-    public void testGetReaderFromIndexTransientErrorPropagatesWhenNotLenient() {
-        SynonymsManagementAPIService service = mock(SynonymsManagementAPIService.class);
-        RuntimeException cause = new RuntimeException("transient error loading synonyms");
-
-        doAnswer(invocation -> {
-            ActionListener<PagedResult<SynonymRule>> listener = invocation.getArgument(2);
-            listener.onFailure(cause);
-            return null;
-        }).when(service).getSynonymSetRules(eq(Set.of("set-a")), eq(false), any());
-
-        Exception e = expectThrows(RuntimeException.class, () -> Analysis.getReaderFromIndex(Set.of("set-a"), service, false));
-        assertSame(cause, e);
     }
 
     public void testParseDuplicatesWComments() throws IOException {

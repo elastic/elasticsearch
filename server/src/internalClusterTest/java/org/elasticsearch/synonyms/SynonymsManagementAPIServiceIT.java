@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.plugins.Plugin;
@@ -26,6 +27,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
 import org.junit.Before;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.Reader;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -468,5 +472,68 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
         Exception ex = expectThrows(ResourceNotFoundException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
         assertThat(ex.getMessage(), allOf(containsString(setA), containsString(setB), containsString("not found")));
+    }
+
+    /**
+     * Rules from multiple sets are concatenated into the reader the analyzer consumes.
+     */
+    public void testGetReaderFromIndexMultipleSynsets() throws IOException {
+        String setA = randomIdentifier();
+        String setB = randomIdentifier();
+
+        PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> putA = new PlainActionFuture<>();
+        synonymsManagementAPIService.putSynonymsSet(setA, new SynonymRule[] { new SynonymRule("rule-a-1", "quick, fast") }, false, putA);
+        safeGet(putA);
+        PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> putB = new PlainActionFuture<>();
+        synonymsManagementAPIService.putSynonymsSet(setB, new SynonymRule[] { new SynonymRule("rule-b-1", "jumps, leaps") }, false, putB);
+        safeGet(putB);
+
+        String content = readAll(Analysis.getReaderFromIndex(Set.of(setA, setB), synonymsManagementAPIService, false));
+        assertThat(content, containsString("quick, fast"));
+        assertThat(content, containsString("jumps, leaps"));
+    }
+
+    /**
+     * With {@code ignoreMissing=true}, rules from existing sets are returned and the missing set is skipped.
+     */
+    public void testGetReaderFromIndexMissingSetIgnoredWhenLenient() throws IOException {
+        String existingSet = randomIdentifier();
+        String missingSet = randomIdentifier();
+
+        PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> put = new PlainActionFuture<>();
+        synonymsManagementAPIService.putSynonymsSet(existingSet, new SynonymRule[] { new SynonymRule("r1", "quick, fast") }, false, put);
+        safeGet(put);
+
+        String content = readAll(Analysis.getReaderFromIndex(Set.of(existingSet, missingSet), synonymsManagementAPIService, true));
+        assertThat(content, containsString("quick, fast"));
+    }
+
+    /**
+     * With {@code ignoreMissing=false}, a missing set causes {@link ResourceNotFoundException} to propagate.
+     */
+    public void testGetReaderFromIndexMissingSetFailsWhenNotLenient() {
+        String existingSet = randomIdentifier();
+        String missingSet = randomIdentifier();
+
+        PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> put = new PlainActionFuture<>();
+        synonymsManagementAPIService.putSynonymsSet(existingSet, new SynonymRule[] { new SynonymRule("r1", "quick, fast") }, false, put);
+        safeGet(put);
+
+        ResourceNotFoundException e = expectThrows(
+            ResourceNotFoundException.class,
+            () -> Analysis.getReaderFromIndex(Set.of(existingSet, missingSet), synonymsManagementAPIService, false)
+        );
+        assertThat(e.getMessage(), containsString(missingSet));
+    }
+
+    private static String readAll(Reader reader) throws IOException {
+        try (BufferedReader br = new BufferedReader(reader)) {
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = br.readLine()) != null) {
+                sb.append(line).append("\n");
+            }
+            return sb.toString();
+        }
     }
 }

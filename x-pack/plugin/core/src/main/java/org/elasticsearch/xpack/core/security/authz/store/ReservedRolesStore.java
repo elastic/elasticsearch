@@ -846,7 +846,6 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .indices(".slo-observability.*")
                     .privileges("read", "view_index_metadata", "write", "manage")
                     .build(),
-                // Kibana
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".evaluation-*")
                     .privileges("read", "view_index_metadata", "write")

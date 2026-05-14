@@ -299,7 +299,9 @@ public class FileSplit implements ExternalSplit {
                     DataType type = DataType.readFrom(in.readString());
                     attrs.add(new ReferenceAttribute(Source.EMPTY, null, name, type, Nullability.TRUE, null, false));
                 }
-                this.readSchema = List.copyOf(attrs);
+                // attrs is local to this scope and never escapes mutably; wrap rather than copy so we
+                // skip the redundant size-N array allocation that List.copyOf would perform.
+                this.readSchema = Collections.unmodifiableList(attrs);
             } else {
                 this.readSchema = null;
             }

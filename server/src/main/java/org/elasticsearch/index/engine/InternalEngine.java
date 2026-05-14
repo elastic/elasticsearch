@@ -3910,7 +3910,7 @@ public class InternalEngine extends Engine {
 
             docIdBuffer.trimToSize();
             var leafStoredFieldLoader = storedFieldLoader.getLoader(leaf, docIdBuffer.buffer);
-            IdLoader.Leaf leafIdLoader = idLoader.leaf(leafStoredFieldLoader, leaf.reader(), docIdBuffer.buffer);
+            var leafIdLoader = idLoader.leaf(leafStoredFieldLoader, leaf.reader(), docIdBuffer.buffer);
 
             for (int docId : docIdBuffer.buffer) {
                 final long primaryTerm = dv.docPrimaryTerm(docId);

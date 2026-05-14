@@ -191,7 +191,7 @@ develocity {
               )
             } finally {
               if (GcpPreemptionWatchdog.isPreempted()) {
-                def exitCode = System.getenv('GCP_PREEMPTION_EXIT_CODE')?.toInteger() ?: 42
+                def exitCode = System.getenv('GCP_PREEMPTION_EXIT_CODE')?.toInteger() ?: 47
                 // In Gradle 9 the daemon and client are always separate JVMs (even with
                 // --no-daemon). halt() in the daemon does not propagate the exit code to
                 // the client. Write it to a file instead; the wrapper scripts

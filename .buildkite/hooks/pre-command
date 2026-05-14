@@ -47,6 +47,8 @@ if [[ "${ES_RUNTIME_JAVA:-}" ]]; then
   export RUNTIME_JAVA_HOME
 fi
 
+export GCP_PREEMPTION_EXIT_CODE=47
+
 vault_with_retry() {
   local attempt delays=(1 5 10)
   for attempt in 0 1 2 3; do
@@ -154,7 +156,6 @@ if [[ "${BUILDKITE_AGENT_META_DATA_PROVIDER:-}" != *"k8s"* ]]; then
 
   export GCP_PREEMPTION_WATCHDOG=true
   # export GCP_PREEMPTION_SIMULATE_AFTER_SECONDS=180
-  export GCP_PREEMPTION_EXIT_CODE=42
 fi
 
 # Initialize the build scan and gobld annotations with empty/open <details> tags

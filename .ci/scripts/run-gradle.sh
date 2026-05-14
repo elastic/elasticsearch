@@ -49,22 +49,4 @@ if [[ -n "${TESTS_SEED:-}" ]]; then
   echo "Using test seed: $TESTS_SEED"
 fi
 
-# Disable errexit so we can capture Gradle's exit code and check for preemption.
-# In Gradle 9 the daemon and client are always separate JVMs; halt() in the daemon
-# does not propagate the preemption exit code (default 42) to the client. The
-# Gradle build writes the desired code to a temp file when preempted, and we
-# re-exit with it here so the Buildkite retry rules (exit_status: 42) fire correctly.
-PREEMPTION_FILE="/tmp/gradle-preemption-exit-${BUILDKITE_JOB_ID:-local}"
-set +e
 $GRADLEW -S --no-daemon --max-workers=$MAX_WORKERS $TESTS_SEED_PARAM ${EXTRA_GRADLE_ARGS:-} "$@"
-GRADLE_EXIT=$?
-set -e
-
-if [[ -f "$PREEMPTION_FILE" ]]; then
-  PREEMPTION_EXIT=$(cat "$PREEMPTION_FILE")
-  rm -f "$PREEMPTION_FILE"
-  echo "[gcp-preemption-watchdog] exiting with preemption exit code $PREEMPTION_EXIT"
-  exit "$PREEMPTION_EXIT"
-fi
-
-exit "$GRADLE_EXIT"

@@ -13,7 +13,7 @@ import { getBwcVersions, getSnapshotBwcVersions } from "./bwc-versions";
 const AUTO_RETRY_CONFIG: BuildkiteRetry = {
   automatic: [
     { exit_status: "-1", limit: 2, signal_reason: "none" },
-    { exit_status: "42", limit: 3, signal_reason: "none" }, // This is the spot preemption exit code
+    { exit_status: process.env.GCP_PREEMPTION_EXIT_CODE ?? "47", limit: 3, signal_reason: "none" }, // This is the spot preemption exit code
     { signal_reason: "agent_stop", limit: 2 },
     { exit_status: "1", limit: 1 },
   ],

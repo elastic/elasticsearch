@@ -38,7 +38,7 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
                     "signal_reason": "none",
                   },
                   {
-                    "exit_status": "42",
+                    "exit_status": "47",
                     "limit": 3,
                     "signal_reason": "none",
                   },
@@ -112,7 +112,7 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
                 "signal_reason": "none",
               },
               {
-                "exit_status": "42",
+                "exit_status": "47",
                 "limit": 3,
                 "signal_reason": "none",
               },
@@ -210,7 +210,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
                     "signal_reason": "none",
                   },
                   {
-                    "exit_status": "42",
+                    "exit_status": "47",
                     "limit": 3,
                     "signal_reason": "none",
                   },
@@ -252,7 +252,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
                     "signal_reason": "none",
                   },
                   {
-                    "exit_status": "42",
+                    "exit_status": "47",
                     "limit": 3,
                     "signal_reason": "none",
                   },
@@ -294,7 +294,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
                     "signal_reason": "none",
                   },
                   {
-                    "exit_status": "42",
+                    "exit_status": "47",
                     "limit": 3,
                     "signal_reason": "none",
                   },
@@ -336,7 +336,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
                     "signal_reason": "none",
                   },
                   {
-                    "exit_status": "42",
+                    "exit_status": "47",
                     "limit": 3,
                     "signal_reason": "none",
                   },
@@ -378,7 +378,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
                     "signal_reason": "none",
                   },
                   {
-                    "exit_status": "42",
+                    "exit_status": "47",
                     "limit": 3,
                     "signal_reason": "none",
                   },
@@ -433,7 +433,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
                 "signal_reason": "none",
               },
               {
-                "exit_status": "42",
+                "exit_status": "47",
                 "limit": 3,
                 "signal_reason": "none",
               },
@@ -497,7 +497,7 @@ exports[`generatePipelines should generate correct pipelines with a different br
                     "signal_reason": "none",
                   },
                   {
-                    "exit_status": "42",
+                    "exit_status": "47",
                     "limit": 3,
                     "signal_reason": "none",
                   },
@@ -568,7 +568,7 @@ exports[`generatePipelines should generate correct pipelines with a different br
                 "signal_reason": "none",
               },
               {
-                "exit_status": "42",
+                "exit_status": "47",
                 "limit": 3,
                 "signal_reason": "none",
               },
@@ -609,7 +609,7 @@ exports[`generatePipelines should generate correct pipelines with a different br
                 "signal_reason": "none",
               },
               {
-                "exit_status": "42",
+                "exit_status": "47",
                 "limit": 3,
                 "signal_reason": "none",
               },
@@ -655,7 +655,7 @@ exports[`generatePipelines should generate correct pipeline when using a trigger
                 "signal_reason": "none",
               },
               {
-                "exit_status": "42",
+                "exit_status": "47",
                 "limit": 3,
                 "signal_reason": "none",
               },
@@ -719,7 +719,7 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
                     "signal_reason": "none",
                   },
                   {
-                    "exit_status": "42",
+                    "exit_status": "47",
                     "limit": 3,
                     "signal_reason": "none",
                   },
@@ -793,7 +793,7 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
                 "signal_reason": "none",
               },
               {
-                "exit_status": "42",
+                "exit_status": "47",
                 "limit": 3,
                 "signal_reason": "none",
               },
@@ -857,7 +857,7 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
                     "signal_reason": "none",
                   },
                   {
-                    "exit_status": "42",
+                    "exit_status": "47",
                     "limit": 3,
                     "signal_reason": "none",
                   },
@@ -931,7 +931,7 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
                 "signal_reason": "none",
               },
               {
-                "exit_status": "42",
+                "exit_status": "47",
                 "limit": 3,
                 "signal_reason": "none",
               },

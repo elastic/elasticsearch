@@ -25,7 +25,6 @@ steps:
           machineType: n4-standard-8
           diskType: hyperdisk-balanced
           preemptible: true
-          spotZones: us-east1-b,us-east1-c,us-east1-d,us-central1-a,us-central1-b,us-central1-c,us-central1-f,us-west1-a,us-west1-b
         env:
           USE_PROD_DOCKER_CREDENTIALS: "true"
           PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"

@@ -16,24 +16,27 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
-import org.elasticsearch.index.codec.vectors.es94.ES94HnswScalarQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
+import org.elasticsearch.search.vectors.KnnScoreDocQuery;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Param;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Random;
+import java.util.Set;
 
 /**
  * Benchmark for {@link RescoreKnnVectorQuery} against a stateless-simulated Directory.
  *
- * <p>The inner query is a {@link KnnFloatVectorQuery} (production-shape: ANN over the
- * quantized HNSW graph), wrapped by a rescore that re-scores the top {@code rescoreK}
- * candidates with full-precision vectors.
+ * <p>The index stores full-precision vectors via a flat codec (no ANN graph). The inner
+ * query feeds {@code rescoreK} random doc IDs drawn from {@code [0, numDocs)}, isolating
+ * the full-precision rescore cost from any ANN traversal.
  *
  * <p>Sweeps via {@link Param}:
  * <ul>
@@ -65,6 +68,7 @@ public class RescoreKnnVectorQueryBenchmark extends AbstractStatelessQueryBenchm
     public int rescoreK;
 
     private float[] queryVector;
+    private int[] candidateDocIds;
 
     @Override
     protected IndexWriterConfig indexWriterConfig() {
@@ -72,11 +76,17 @@ public class RescoreKnnVectorQueryBenchmark extends AbstractStatelessQueryBenchm
         iwc.setCodec(new Elasticsearch93Lucene104Codec() {
             @Override
             public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-                return new ES94HnswScalarQuantizedVectorsFormat();
+                return new ES93FlatVectorFormat();
             }
         });
         iwc.setUseCompoundFile(false);
         return iwc;
+    }
+
+    @Override
+    protected String indexCacheKey() {
+        // Index contents depend only on dims and numDocs; share across cacheState/firstByteLatencyMs trials.
+        return "rescore-knn-d" + dims + "-n" + numDocs;
     }
 
     @Override
@@ -88,12 +98,24 @@ public class RescoreKnnVectorQueryBenchmark extends AbstractStatelessQueryBenchm
             doc.add(new KnnFloatVectorField(FIELD, v, VectorSimilarityFunction.DOT_PRODUCT));
             writer.addDocument(doc);
         }
+    }
+
+    @Override
+    protected void prepareQuery() {
+        // Independent seed so the query vector and candidate doc IDs are fully determined by the query params alone —
+        // they stay identical across cold and hot trials whether buildIndex actually ran or the cached index was reused.
+        Random rng = new Random(SEED ^ 0xC0FFEE);
         queryVector = randomUnitVector(rng, dims);
+        candidateDocIds = randomUniqueDocIds(rng, rescoreK, numDocs);
     }
 
     @Override
     protected Object runQuery(IndexSearcher searcher) throws IOException {
-        Query inner = new KnnFloatVectorQuery(FIELD, queryVector, rescoreK);
+        ScoreDoc[] scoreDocs = new ScoreDoc[candidateDocIds.length];
+        for (int i = 0; i < candidateDocIds.length; i++) {
+            scoreDocs[i] = new ScoreDoc(candidateDocIds[i], 1.0f);
+        }
+        Query inner = new KnnScoreDocQuery(scoreDocs, searcher.getIndexReader());
         Query rescore = RescoreKnnVectorQuery.fromInnerQuery(FIELD, queryVector, k, rescoreK, inner);
         return searcher.search(rescore, k);
     }
@@ -105,5 +127,18 @@ public class RescoreKnnVectorQueryBenchmark extends AbstractStatelessQueryBenchm
         }
         VectorUtil.l2normalize(v);
         return v;
+    }
+
+    private static int[] randomUniqueDocIds(Random rng, int count, int maxDocExclusive) {
+        Set<Integer> picked = new HashSet<>(count * 2);
+        while (picked.size() < count) {
+            picked.add(rng.nextInt(maxDocExclusive));
+        }
+        int[] result = new int[count];
+        int i = 0;
+        for (int id : picked) {
+            result[i++] = id;
+        }
+        return result;
     }
 }

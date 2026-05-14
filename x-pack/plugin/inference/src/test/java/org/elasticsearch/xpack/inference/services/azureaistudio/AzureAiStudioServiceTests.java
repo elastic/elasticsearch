@@ -1407,7 +1407,6 @@ public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
         throws IOException {
 
         var model = mock(AzureAiStudioRerankModel.class);
-        when(model.getTaskType()).thenReturn(TaskType.RERANK);
 
         try (var service = createInferenceService()) {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();

@@ -30,7 +30,7 @@ import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 
 /**
- * Response used for actions that index many documents using a scroll request.
+ * Response used for actions that index many documents using a paginated search request.
  */
 public class BulkByScrollResponse extends ActionResponse implements ToXContentFragment {
     private final TimeValue took;

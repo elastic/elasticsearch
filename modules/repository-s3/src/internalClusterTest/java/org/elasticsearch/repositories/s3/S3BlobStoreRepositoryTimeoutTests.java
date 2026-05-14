@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.repositories.s3;
 
-import fixture.s3.BlobEntry;
 import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpHandler;
 import software.amazon.awssdk.core.exception.ApiCallTimeoutException;

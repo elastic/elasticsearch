@@ -72,7 +72,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         final long uncompressedSize;
         if (version.supports(DELAYABLE_WRITEABLE_UNCOMPRESSED_SIZE)) {
             int compressedLen = in.readInt();
-            uncompressedSize = in.readInt();
+            uncompressedSize = in.readVLong();
             serialized = in.readReleasableBytesReference(compressedLen);
         } else if (version.supports(COMPRESS_DELAYABLE_WRITEABLE)) {
             int compressedLen = in.readInt();
@@ -92,7 +92,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         if (version.supports(DELAYABLE_WRITEABLE_UNCOMPRESSED_SIZE)) {
             int compressedLen = in.readInt();
             // Uncompressed length is discarded: the Referencing wrapper recomputes it on demand from the live object.
-            in.readInt();
+            in.readVLong();
             serialized = in.readReleasableBytesReference(compressedLen);
         } else if (version.supports(COMPRESS_DELAYABLE_WRITEABLE)) {
             serialized = in.readReleasableBytesReference(in.readInt());
@@ -148,7 +148,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
                 }
                 final var bytes = tmp.bytes();
                 out.writeInt(bytes.length());
-                out.writeInt(Math.toIntExact(uncompressedSize));
+                out.writeVLong(uncompressedSize);
                 bytes.writeTo(out);
             } else if (version.supports(COMPRESS_DELAYABLE_WRITEABLE)) {
                 out.writeWithSizePrefix(reference);
@@ -234,10 +234,9 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
                  * works.
                  */
                 if (out.getTransportVersion().supports(DELAYABLE_WRITEABLE_UNCOMPRESSED_SIZE)) {
-                    // serializedAtVersion supports the field, so uncompressedSize must be known here.
-                    assert uncompressedSize >= 0 : "uncompressedSize must be known for transport versions supporting it";
                     out.writeInt(serialized.length());
-                    out.writeInt(Math.toIntExact(uncompressedSize));
+                    // Lazy accessor: covers the case where the source peer did not transmit the uncompressed size.
+                    out.writeVLong(getUncompressedSerializedSize());
                     serialized.writeTo(out);
                 } else if (out.getTransportVersion().supports(COMPRESS_DELAYABLE_WRITEABLE)) {
                     out.writeInt(serialized.length());

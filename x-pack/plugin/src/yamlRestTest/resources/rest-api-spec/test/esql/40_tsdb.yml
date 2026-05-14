@@ -208,7 +208,7 @@ setup:
 
   - do:
       indices.create:
-        index: test_histogram
+        index: idx_histogram
         body:
           mappings:
             properties:
@@ -1227,4 +1227,4 @@ sort by histogram:
       catch: /cannot sort on histogram/
       esql.query:
         body:
-          query: 'from test_histogram | sort h | limit 3'
+          query: 'from idx_histogram | sort h | limit 3'

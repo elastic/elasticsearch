@@ -166,7 +166,7 @@ public class CodecTests extends ESTestCase {
             similarityService,
             mapperRegistry,
             () -> null,
-            settings.getMode().idFieldMapperWithoutFieldData(),
+            () -> false,
             ScriptCompiler.NONE,
             bitsetFilterCache::getBitSetProducer,
             MapperMetrics.NOOP,

@@ -114,7 +114,7 @@ class KibanaOwnedReservedRoleDescriptors {
             new RoleDescriptor.IndicesPrivileges[] {
                 // System indices defined in KibanaPlugin
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".kibana*", ".reindexed-v8-kibana*", ".reporting-*", ".chat-*", ".workflows-*", ".evaluation-*")
+                    .indices(".kibana*", ".reindexed-v8-kibana*", ".reporting-*", ".chat-*", ".workflows-*")
                     .privileges("all")
                     .allowRestrictedIndices(true)
                     .build(),
@@ -683,6 +683,8 @@ class KibanaOwnedReservedRoleDescriptors {
                 // SLO observability solution internal indices
                 // Kibana system user uses them to read / write slo data.
                 RoleDescriptor.IndicesPrivileges.builder().indices(".slo-observability.*").privileges("all").build(),
+                // Evaluations indices
+                RoleDescriptor.IndicesPrivileges.builder().indices(".evaluation-*").privileges("all").build(),
                 // Endpoint heartbeat. Kibana reads from these to determine metering/billing for
                 // endpoints.
                 RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.heartbeat-*").privileges("read", "create_index").build(),

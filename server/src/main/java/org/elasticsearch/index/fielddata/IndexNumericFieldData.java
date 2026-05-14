@@ -285,6 +285,34 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
      * Convert the values in <code>dvs</code> using the provided <code>converter</code>.
      */
     protected static SortedNumericLongValues convertNumeric(SortedNumericLongValues values, LongUnaryOperator converter) {
+        if (values instanceof IterableSortedNumericLongValues iterableValues) {
+            return new IterableSortedNumericLongValues() {
+                @Override
+                public int docID() {
+                    return iterableValues.docID();
+                }
+
+                @Override
+                public int advance(int target) throws IOException {
+                    return iterableValues.advance(target);
+                }
+
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    return iterableValues.advanceExact(target);
+                }
+
+                @Override
+                public long nextValue() throws IOException {
+                    return converter.applyAsLong(iterableValues.nextValue());
+                }
+
+                @Override
+                public int docValueCount() {
+                    return iterableValues.docValueCount();
+                }
+            };
+        }
         return new SortedNumericLongValues() {
 
             @Override

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.datasource;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -386,6 +387,44 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(parentDsName)));
     }
 
+    public void testDatasetSettingsCannotShadowParentSecretKey() throws Exception {
+        // The SPI contract on DataSourceValidator.validateDataset says dataset settings carry no
+        // secrets, but only convention enforces that. If a dataset key ever shadowed a parent
+        // secret-keyed setting, DatasetRewriter.mergeSettings would silently overwrite the
+        // SecureString — losing secret-classification down the carrier path. validatePutDataset
+        // rejects the put at validate-time so the invariant is enforced where it's defined.
+        final String parentDsName = "shadowing_parent";
+        final String datasetName = "shadowing_ds";
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                putDataSourceRequest(parentDsName, Map.of("region", "us-east-1", "secret_access_key", "AKIAXYZ"))
+            )
+        );
+
+        ExecutionException err = expectThrows(
+            ExecutionException.class,
+            () -> client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(datasetName, parentDsName, "test://logs/", Map.of("secret_access_key", "ANY"))
+            ).get()
+        );
+        assertThat(err.getCause(), instanceOf(ValidationException.class));
+        assertThat(err.getCause().getMessage(), containsString("dataset setting [secret_access_key] shadows a secret data-source setting"));
+        expectDatasetMissing(datasetName);
+
+        // A non-secret colliding key (region) is fine — only secret keys are rejected.
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(datasetName, parentDsName, "test://logs/", Map.of("region", "eu-west-1"))
+            )
+        );
+
+        assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(datasetName)));
+        assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(parentDsName)));
+    }
+
     public void testUnknownTypeRejected() {
         PutDataSourceAction.Request req = new PutDataSourceAction.Request(
             TEST_TIMEOUT,
@@ -421,8 +460,9 @@ public class DataSourceCrudIT extends ESIntegTestCase {
             ExecutionException.class,
             () -> client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(name, dsName, "test://x/", Map.of())).get()
         );
-        assertThat(err.getCause(), instanceOf(IllegalStateException.class));
-        assertThat(err.getCause().getMessage(), containsString("names need to be unique"));
+        assertThat(err.getCause(), instanceOf(ResourceAlreadyExistsException.class));
+        assertThat(err.getCause().getMessage(), containsString("dataset [" + name + "] cannot be created"));
+        assertThat(err.getCause().getMessage(), containsString("an existing concrete index with that name is present"));
 
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
@@ -440,9 +480,26 @@ public class DataSourceCrudIT extends ESIntegTestCase {
             ExecutionException.class,
             () -> client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(name, dsName, "test://x/", Map.of())).get()
         );
-        assertThat(err.getCause(), instanceOf(IllegalStateException.class));
-        assertThat(err.getCause().getMessage(), containsString("names need to be unique"));
+        assertThat(err.getCause(), instanceOf(ResourceAlreadyExistsException.class));
+        assertThat(err.getCause().getMessage(), containsString("dataset [" + name + "] cannot be created"));
+        assertThat(err.getCause().getMessage(), containsString("an existing view with that name is present"));
 
+        assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
+    }
+
+    public void testDatasetReplacesExistingDataset() throws Exception {
+        final String name = "replace_target";
+        final String dsName = "replace_parent";
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-east-1"))));
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(name, dsName, "test://before/", Map.of())));
+
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(name, dsName, "test://after/", Map.of())));
+
+        GetDatasetAction.Response resp = client().execute(GetDatasetAction.INSTANCE, getDatasetRequest(name)).get();
+        assertThat(resp.getDatasets(), hasSize(1));
+        assertThat(resp.getDatasets().iterator().next().resource(), equalTo("test://after/"));
+
+        assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(name)));
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
 

@@ -1499,7 +1499,8 @@ public class StatelessPlugin extends Plugin
                 clusterService.get().getClusterSettings(),
                 getStatelessSharedBlobCacheService(),
                 snapshotsCommitService,
-                clusterService.get()
+                clusterService.get(),
+                recoveryMetricsCollector.get()
             )
         );
         indexModule.addIndexEventListener(recoveryMetricsCollector.get());

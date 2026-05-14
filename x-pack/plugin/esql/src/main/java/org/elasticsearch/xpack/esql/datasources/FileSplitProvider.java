@@ -66,9 +66,25 @@ import java.util.function.BiFunction;
  * <p>When filter hints contain resolved {@link Expression} objects, evaluates them against
  * each file's partition values to prune files that cannot match the filter.
  *
- * <p>Newline-delimited JSON ({@code .ndjson}, {@code .jsonl}, {@code .json}) uses record-aligned macro splits:
- * {@link SegmentableFormatReader#findNextRecordBoundary} probes near {@code target_split_size} strides so each
- * {@link FileSplit} starts on a line boundary. Cross-node parallelism is restored without fixed-byte mid-record cuts.
+ * <p><b>Splitting modes.</b>
+ * This provider supports two distinct splitting strategies. The downstream reader's behaviour
+ * (partial-line skip vs. no skip) differs between them, gated by
+ * {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext#recordAligned()}.
+ *
+ * <ul>
+ *   <li><b>Record-aligned macro splits</b> — for uncompressed line-oriented formats
+ *       (NDJSON/JSONL/JSON, CSV/TSV). {@link SegmentableFormatReader#findNextRecordBoundary}
+ *       probes near {@code target_split_size} strides so each {@link FileSplit} starts on a
+ *       record boundary. Splits are tagged with {@link #RECORD_ALIGNED_MACRO_SPLIT_KEY} and
+ *       readers receive {@code recordAligned=true}, so they must <em>not</em> drop any leading
+ *       bytes.
+ *       See {@link #tryNewlineAlignedMacroSplits}.</li>
+ *   <li><b>Block-aligned splits</b> — for splittable compressed formats (e.g. bzip2) via
+ *       {@link SplittableDecompressionCodec#findBlockBoundaries}. Splits land on compression
+ *       block boundaries, not record boundaries. Readers receive {@code recordAligned=false}
+ *       and must skip a leading partial record on every non-first split.
+ *       See {@link #tryBlockAlignedSplits}.</li>
+ * </ul>
  */
 public class FileSplitProvider implements SplitProvider {
 
@@ -85,6 +101,14 @@ public class FileSplitProvider implements SplitProvider {
     static final String RANGE_SPLIT_KEY = "_range_split";
     static final String FILE_LENGTH_KEY = "_file_length";
     static final String CONFIG_TARGET_SPLIT_SIZE = "target_split_size";
+
+    /**
+     * Configuration keys this splitter consumes from a query-time configuration map. Aggregated by
+     * {@link FileSourceFactory#COORDINATOR_KEYS}. New keys read by this class via {@code config.get(...)}
+     * must be added here so the {@link org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator}
+     * recognises them — pinned by {@code FileSourceFactoryValidationTests}.
+     */
+    public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_TARGET_SPLIT_SIZE);
 
     /**
      * Macro-split starts on a newline-aligned record boundary (see {@link #tryNewlineAlignedMacroSplits}).
@@ -159,7 +183,7 @@ public class FileSplitProvider implements SplitProvider {
         Map<String, Object> config = context.config();
         List<Expression> filterHints = context.filterHints();
         Set<String> projectedDataColumns = fileBackedProjectedColumns(context.projectedDataColumns(), partitionInfo);
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = fileList.fileSchemaInfo();
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = context.schemaMap();
 
         // Side effect: validates optional {@link #CONFIG_TARGET_SPLIT_SIZE} when users pass WITH options.
         @SuppressWarnings("unused")
@@ -232,14 +256,20 @@ public class FileSplitProvider implements SplitProvider {
             long fileLength = fileList.size(i);
 
             SchemaReconciliation.ColumnMapping columnMapping = null;
+            List<Attribute> readSchema = null;
             if (schemaInfo != null) {
                 SchemaReconciliation.FileSchemaInfo info = schemaInfo.get(filePath);
-                if (info != null && info.mapping() != null && info.mapping().isIdentity() == false) {
-                    columnMapping = mappingCache.computeIfAbsent(info.mapping(), k -> k);
+                if (info != null) {
+                    if (info.mapping() != null && info.mapping().isIdentity() == false) {
+                        columnMapping = mappingCache.computeIfAbsent(info.mapping(), k -> k);
+                    }
+                    // Pin the reader to the coordinator's per-file inference so it doesn't re-infer
+                    // at runtime and disagree with the planner's view of this file.
+                    readSchema = info.fileSchema();
                 }
             }
 
-            tasks.add(new FileTask(filePath, fileLength, format, config, partitionValues, columnMapping));
+            tasks.add(new FileTask(filePath, fileLength, format, config, partitionValues, columnMapping, readSchema));
         }
 
         if (tasks.isEmpty()) {
@@ -289,7 +319,8 @@ public class FileSplitProvider implements SplitProvider {
         @Nullable String format,
         Map<String, Object> config,
         Map<String, Object> partitionValues,
-        @Nullable SchemaReconciliation.ColumnMapping columnMapping
+        @Nullable SchemaReconciliation.ColumnMapping columnMapping,
+        @Nullable List<Attribute> readSchema
     ) {}
 
     /**
@@ -310,6 +341,7 @@ public class FileSplitProvider implements SplitProvider {
             task.config(),
             task.partitionValues(),
             task.columnMapping(),
+            task.readSchema(),
             fileSplits,
             hoistedProvider
         )) {
@@ -323,6 +355,7 @@ public class FileSplitProvider implements SplitProvider {
             task.config(),
             task.partitionValues(),
             task.columnMapping(),
+            task.readSchema(),
             fileSplits,
             hoistedProvider
         )) {
@@ -335,6 +368,7 @@ public class FileSplitProvider implements SplitProvider {
         String format = task.format();
         Map<String, Object> partitionValues = task.partitionValues();
         SchemaReconciliation.ColumnMapping columnMapping = task.columnMapping();
+        List<Attribute> readSchema = task.readSchema();
         long effectiveTargetSplitBytes = resolveTargetSplitSize(config);
 
         if (tryNewlineAlignedMacroSplits(
@@ -344,6 +378,7 @@ public class FileSplitProvider implements SplitProvider {
             config,
             partitionValues,
             columnMapping,
+            readSchema,
             effectiveTargetSplitBytes,
             fileSplits,
             hoistedProvider
@@ -352,7 +387,9 @@ public class FileSplitProvider implements SplitProvider {
         }
 
         // Whole-file split when macro splitting does not apply (small files, unsupported formats, or single aligned span).
-        fileSplits.add(new FileSplit("file", filePath, 0, fileLength, format, config, partitionValues, columnMapping));
+        fileSplits.add(
+            FileSplit.withReadSchema("file", filePath, 0, fileLength, format, config, partitionValues, columnMapping, readSchema)
+        );
         return fileSplits;
     }
 
@@ -394,6 +431,7 @@ public class FileSplitProvider implements SplitProvider {
         Map<String, Object> config,
         Map<String, Object> partitionValues,
         @Nullable SchemaReconciliation.ColumnMapping columnMapping,
+        @Nullable List<Attribute> readSchema,
         List<ExternalSplit> splits,
         @Nullable StorageProvider hoistedProvider
     ) {
@@ -414,6 +452,7 @@ public class FileSplitProvider implements SplitProvider {
                 config,
                 partitionValues,
                 columnMapping,
+                readSchema,
                 splits,
                 hoistedProvider
             )) {
@@ -434,7 +473,9 @@ public class FileSplitProvider implements SplitProvider {
             long[] boundaries = splittableCodec.findBlockBoundaries(object, 0, fileLength);
 
             if (boundaries.length == 0) {
-                splits.add(new FileSplit("file", filePath, 0, fileLength, format, config, partitionValues, columnMapping));
+                splits.add(
+                    FileSplit.withReadSchema("file", filePath, 0, fileLength, format, config, partitionValues, columnMapping, readSchema)
+                );
                 return true;
             }
 
@@ -475,7 +516,19 @@ public class FileSplitProvider implements SplitProvider {
                 if (isLastMacroSplit) {
                     splitConfig.put(LAST_SPLIT_KEY, "true");
                 }
-                splits.add(new FileSplit("file", filePath, start, end - start, format, splitConfig, partitionValues, columnMapping));
+                splits.add(
+                    FileSplit.withReadSchema(
+                        "file",
+                        filePath,
+                        start,
+                        end - start,
+                        format,
+                        splitConfig,
+                        partitionValues,
+                        columnMapping,
+                        readSchema
+                    )
+                );
             }
             return true;
         } catch (IOException e) {
@@ -496,6 +549,7 @@ public class FileSplitProvider implements SplitProvider {
         Map<String, Object> config,
         Map<String, Object> partitionValues,
         @Nullable SchemaReconciliation.ColumnMapping columnMapping,
+        @Nullable List<Attribute> readSchema,
         List<ExternalSplit> splits,
         @Nullable StorageProvider hoistedProvider
     ) {
@@ -505,7 +559,7 @@ public class FileSplitProvider implements SplitProvider {
 
         FormatReader reader;
         try {
-            reader = formatRegistry.byExtension(filePath.objectName());
+            reader = FormatNameResolver.resolveReader(config, filePath.objectName(), formatRegistry).withConfig(config);
         } catch (Exception e) {
             return false;
         }
@@ -531,7 +585,7 @@ public class FileSplitProvider implements SplitProvider {
             for (SplitRange range : ranges) {
                 Map<String, Object> rangeStats = range.statistics().isEmpty() ? null : range.statistics();
                 splits.add(
-                    new FileSplit(
+                    FileSplit.withStatisticsAndReadSchema(
                         "file",
                         filePath,
                         range.offset(),
@@ -540,7 +594,8 @@ public class FileSplitProvider implements SplitProvider {
                         splitConfig,
                         partitionValues,
                         columnMapping,
-                        rangeStats
+                        rangeStats,
+                        readSchema
                     )
                 );
             }
@@ -552,8 +607,8 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Macro-splits newline-delimited JSON at record boundaries near {@code targetStrideBytes}, enabling multiple workers
-     * per file without mid-line cuts.
+     * Macro-splits supported line-oriented formats at record boundaries near {@code targetStrideBytes},
+     * enabling multiple workers per file without mid-record cuts.
      */
     private boolean tryNewlineAlignedMacroSplits(
         StoragePath filePath,
@@ -562,6 +617,7 @@ public class FileSplitProvider implements SplitProvider {
         Map<String, Object> config,
         Map<String, Object> partitionValues,
         @Nullable SchemaReconciliation.ColumnMapping columnMapping,
+        @Nullable List<Attribute> readSchema,
         long targetStrideBytes,
         List<ExternalSplit> splits,
         @Nullable StorageProvider hoistedProvider
@@ -608,7 +664,9 @@ public class FileSplitProvider implements SplitProvider {
             if (i == starts.size() - 1) {
                 splitConfig.put(LAST_SPLIT_KEY, "true");
             }
-            splits.add(new FileSplit("file", filePath, start, length, format, splitConfig, partitionValues, columnMapping));
+            splits.add(
+                FileSplit.withReadSchema("file", filePath, start, length, format, splitConfig, partitionValues, columnMapping, readSchema)
+            );
         }
         return true;
     }
@@ -618,7 +676,7 @@ public class FileSplitProvider implements SplitProvider {
             return false;
         }
         String f = format.toLowerCase(Locale.ROOT);
-        return ".ndjson".equals(f) || ".jsonl".equals(f) || ".json".equals(f);
+        return ".ndjson".equals(f) || ".jsonl".equals(f) || ".json".equals(f) || ".csv".equals(f) || ".tsv".equals(f);
     }
 
     /** Whether this leaf split came from {@link #tryNewlineAlignedMacroSplits}. */
@@ -672,6 +730,7 @@ public class FileSplitProvider implements SplitProvider {
         Map<String, Object> config,
         Map<String, Object> partitionValues,
         @Nullable SchemaReconciliation.ColumnMapping columnMapping,
+        @Nullable List<Attribute> readSchema,
         List<ExternalSplit> splits,
         @Nullable StorageProvider hoistedProvider
     ) {
@@ -686,7 +745,9 @@ public class FileSplitProvider implements SplitProvider {
             FrameIndex index = indexedCodec.readIndex(object);
             List<FrameIndex.FrameEntry> frames = index.frames();
             if (frames.isEmpty()) {
-                splits.add(new FileSplit("file", filePath, 0, fileLength, format, config, partitionValues, columnMapping));
+                splits.add(
+                    FileSplit.withReadSchema("file", filePath, 0, fileLength, format, config, partitionValues, columnMapping, readSchema)
+                );
                 return true;
             }
 
@@ -710,7 +771,7 @@ public class FileSplitProvider implements SplitProvider {
                         splitConfig.put(LAST_SPLIT_KEY, "true");
                     }
                     splits.add(
-                        new FileSplit(
+                        FileSplit.withReadSchema(
                             "file",
                             filePath,
                             groupStart,
@@ -718,7 +779,8 @@ public class FileSplitProvider implements SplitProvider {
                             format,
                             splitConfig,
                             partitionValues,
-                            columnMapping
+                            columnMapping,
+                            readSchema
                         )
                     );
                     splitCount++;

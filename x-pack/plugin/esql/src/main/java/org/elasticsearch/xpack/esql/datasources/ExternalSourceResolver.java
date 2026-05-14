@@ -6,18 +6,14 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -39,6 +35,7 @@ import org.elasticsearch.xpack.esql.datasources.utils.BoundedParallelGather;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -75,6 +72,8 @@ public class ExternalSourceResolver {
 
     static final String CONFIG_SCHEMA_RESOLUTION = "schema_resolution";
 
+    public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_SCHEMA_RESOLUTION);
+
     private static final int MAX_PARALLEL_METADATA_READS = 16;
 
     private final Executor executor;
@@ -104,15 +103,15 @@ public class ExternalSourceResolver {
 
     public void resolve(
         List<String> paths,
-        Map<String, Map<String, Expression>> pathParams,
+        Map<String, Map<String, Object>> pathConfigs,
         ActionListener<ExternalSourceResolution> listener
     ) {
-        resolve(paths, pathParams, null, listener);
+        resolve(paths, pathConfigs, null, listener);
     }
 
     public void resolve(
         List<String> paths,
-        Map<String, Map<String, Expression>> pathParams,
+        Map<String, Map<String, Object>> pathConfigs,
         @Nullable Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
         ActionListener<ExternalSourceResolution> listener
     ) {
@@ -126,15 +125,14 @@ public class ExternalSourceResolver {
                 Map<String, ExternalSourceResolution.ResolvedSource> resolved = Maps.newHashMapWithExpectedSize(paths.size());
 
                 for (String path : paths) {
-                    Map<String, Expression> params = pathParams.get(path);
-                    Map<String, Object> config = paramsToConfigMap(params);
+                    Map<String, Object> config = pathConfigs.getOrDefault(path, Map.of());
                     List<PartitionFilterHintExtractor.PartitionFilterHint> hints = filterHints != null ? filterHints.get(path) : null;
                     boolean hivePartitioning = isHivePartitioningEnabled(config);
 
                     try {
                         ExternalSourceResolution.ResolvedSource resolvedSource = resolveSource(path, config, hints, hivePartitioning);
                         resolved.put(path, resolvedSource);
-                        LOGGER.info("Successfully resolved external source: {}", path);
+                        LOGGER.debug("Successfully resolved external source: {}", path);
                     } catch (Exception e) {
                         LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
                         String exceptionMessage = e.getMessage();
@@ -158,7 +156,7 @@ public class ExternalSourceResolver {
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         boolean hivePartitioning
     ) throws Exception {
-        LOGGER.info("Resolving external source: path=[{}]", path);
+        LOGGER.debug("Resolving external source: path=[{}]", path);
 
         if (GlobExpander.isMultiFile(path)) {
             return resolveMultiFileSource(path, config, hints, hivePartitioning);
@@ -203,7 +201,20 @@ public class ExternalSourceResolver {
             List.of(new StorageEntry(storagePath, object.length(), object.lastModified())),
             path
         );
-        return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList);
+        // Single-file: degenerate case of the general flow — one-entry schemaMap, identity mapping.
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, extMetadata.schema());
+        return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap);
+    }
+
+    private static Map<StoragePath, SchemaReconciliation.FileSchemaInfo> singleEntrySchemaMap(
+        StoragePath path,
+        @Nullable List<Attribute> schema
+    ) {
+        if (schema == null || schema.isEmpty()) {
+            return Map.of();
+        }
+        SchemaReconciliation.ColumnMapping identityMapping = new SchemaReconciliation.ColumnMapping(identityMapping(schema.size()), null);
+        return Map.of(path, new SchemaReconciliation.FileSchemaInfo(schema, identityMapping, null));
     }
 
     private ExternalSourceResolution.ResolvedSource resolveMultiFileSource(
@@ -337,12 +348,40 @@ public class ExternalSourceResolver {
             }
         }
 
+        // Capture pre-enrichment schema: partition columns are injected by VirtualColumnInjector
+        // at read time, so per-file readSchema must NOT include them.
+        List<Attribute> dataOnlySchema = extMetadata.schema();
+
         PartitionMetadata partitionMetadata = listing.partitionMetadata();
         if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
         }
 
-        return new ExternalSourceResolution.ResolvedSource(extMetadata, listing);
+        // FFW: every file's readSchema is the anchor's data-only schema, identity mapping.
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
+        if (dataOnlySchema != null && dataOnlySchema.isEmpty() == false) {
+            Map<StoragePath, SchemaReconciliation.FileSchemaInfo> perFileInfo = Maps.newHashMapWithExpectedSize(listing.fileCount());
+            SchemaReconciliation.ColumnMapping identityMapping = new SchemaReconciliation.ColumnMapping(
+                identityMapping(dataOnlySchema.size()),
+                null
+            );
+            for (int i = 0; i < listing.fileCount(); i++) {
+                perFileInfo.put(listing.path(i), new SchemaReconciliation.FileSchemaInfo(dataOnlySchema, identityMapping, null));
+            }
+            schemaMap = Collections.unmodifiableMap(perFileInfo);
+        } else {
+            schemaMap = Map.of();
+        }
+
+        return new ExternalSourceResolution.ResolvedSource(extMetadata, listing, schemaMap);
+    }
+
+    private static int[] identityMapping(int n) {
+        int[] m = new int[n];
+        for (int i = 0; i < n; i++) {
+            m[i] = i;
+        }
+        return m;
     }
 
     private FileList expandAndCompact(
@@ -458,8 +497,8 @@ public class ExternalSourceResolver {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
         }
 
-        FileList enriched = GlobExpander.withSchemaInfo(fileList, result.perFileInfo());
-        return new ExternalSourceResolution.ResolvedSource(extMetadata, enriched);
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = result.perFileInfo();
+        return new ExternalSourceResolution.ResolvedSource(extMetadata, fileList, schemaMap);
     }
 
     /**
@@ -801,27 +840,6 @@ public class ExternalSourceResolver {
                 return metadata.config();
             }
         };
-    }
-
-    private Map<String, Object> paramsToConfigMap(@Nullable Map<String, Expression> params) {
-        if (params == null || params.isEmpty()) {
-            return Map.of();
-        }
-
-        Map<String, Object> config = Maps.newHashMapWithExpectedSize(params.size());
-        for (Map.Entry<String, Expression> entry : params.entrySet()) {
-            String key = entry.getKey();
-            Expression expr = entry.getValue();
-            if (expr instanceof Literal literal) {
-                Object value = literal.value();
-                if (value instanceof BytesRef bytesRef) {
-                    config.put(key, BytesRefs.toString(bytesRef));
-                } else if (value != null) {
-                    config.put(key, value.toString());
-                }
-            }
-        }
-        return config;
     }
 
     /**

@@ -17,7 +17,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.custom.CustomModelTests;
-import org.elasticsearch.xpack.inference.services.custom.CustomServiceTests;
+import org.elasticsearch.xpack.inference.services.custom.CustomServiceParameterizedTestConfiguration;
 import org.elasticsearch.xpack.inference.services.custom.response.RerankResponseParser;
 import org.junit.After;
 import org.junit.Before;
@@ -57,7 +57,7 @@ public class ModelValidatorBuilderTests extends ESTestCase {
     }
 
     public void testCustomServiceValidator() {
-        var service = CustomServiceTests.createService(threadPool, clientManager);
+        var service = CustomServiceParameterizedTestConfiguration.createService(threadPool, clientManager);
         var validator = ModelValidatorBuilder.buildModelValidator(TaskType.RERANK, service);
         var mockService = mock(InferenceService.class);
         validator.validate(

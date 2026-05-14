@@ -39,9 +39,16 @@ import java.util.Set;
  */
 public class ParquetDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
+    /**
+     * Per-dataset configuration keys accepted by the Parquet format reader.
+     * Must stay in sync with {@code ParquetFormatReader.RECOGNIZED_KEYS}; verified
+     * by {@code ParquetFormatReaderRecognizedKeysTests.testFormatSpecConfigKeysMatchRecognizedKeys}.
+     */
+    static final Set<String> FORMAT_CONFIG_KEYS = Set.of("optimized_reader", "late_materialization");
+
     @Override
     public Set<FormatSpec> formatSpecs() {
-        return Set.of(FormatSpec.of(FormatNameResolver.FORMAT_PARQUET, ".parquet"));
+        return Set.of(FormatSpec.of(FormatNameResolver.FORMAT_PARQUET, ".parquet", FORMAT_CONFIG_KEYS));
     }
 
     @Override

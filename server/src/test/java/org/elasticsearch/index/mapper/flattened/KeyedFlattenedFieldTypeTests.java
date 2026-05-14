@@ -59,7 +59,8 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             null,
-            IndexVersion.current()
+            IndexVersion.current(),
+            false
         );
     }
 
@@ -96,7 +97,8 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             null,
-            IndexVersion.current()
+            IndexVersion.current(),
+            false
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("field", null));
         assertEquals("Cannot search on field [" + ft.name() + "] since it is not indexed.", e.getMessage());

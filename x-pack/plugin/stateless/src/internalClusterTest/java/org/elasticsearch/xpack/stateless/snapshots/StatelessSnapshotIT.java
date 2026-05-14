@@ -604,8 +604,7 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         final var shardId = new ShardId(resolveIndex(indexName), 0);
 
         final long inlineHashFileSizeThreshold = 1024L; // size hint to allow read for .si and segments_N to pass
-        final int concurrentBlockedReads = 2;
-        final var readIntercepted = new CountDownLatch(concurrentBlockedReads);
+        final var readIntercepted = new CountDownLatch(2);
         final var unblockRead = new CountDownLatch(1);
         setNodeRepositoryStrategy(node0, new AssertNoMissingBlobStrategy() {
             @Override

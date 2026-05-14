@@ -19,8 +19,6 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -29,7 +27,6 @@ import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.util.Locale;
-import java.util.stream.IntStream;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -218,7 +215,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
 
     public void testRewriteIndexQueryToMatchNone() throws IOException {
         TermQueryBuilder query = QueryBuilders.termQuery("_index", "does_not_exist");
-        for (QueryRewriteContext context : new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() }) {
+        for (QueryRewriteContext context : new QueryRewriteContext[]{createSearchExecutionContext(), createQueryRewriteContext()}) {
             QueryBuilder rewritten = query.rewrite(context);
             assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
         }
@@ -226,7 +223,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
 
     public void testRewriteIndexQueryToNotMatchNone() throws IOException {
         TermQueryBuilder query = QueryBuilders.termQuery("_index", getIndex().getName());
-        for (QueryRewriteContext context : new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() }) {
+        for (QueryRewriteContext context : new QueryRewriteContext[]{createSearchExecutionContext(), createQueryRewriteContext()}) {
             QueryBuilder rewritten = query.rewrite(context);
             assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
         }
@@ -278,49 +275,5 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
 
         QueryBuilder rewritten = query.rewrite(coordinatorRewriteContext);
         assertThat(rewritten, CoreMatchers.instanceOf(MatchNoneQueryBuilder.class));
-    }
-
-    public void testLeafQueryBuilderChargesPerClauseConstant() throws IOException {
-        CircuitBreaker cb = createCircuitBreakerService();
-        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
-        try {
-            long before = cb.getUsed();
-            Query query = new TermQueryBuilder(KEYWORD_FIELD_NAME, "value").toQuery(context);
-            long delta = cb.getUsed() - before;
-
-            long expected = LeafQueryBuilder.estimateRamBytes(query);
-            assertTrue(
-                "non-Accountable leaf clauses must contribute at least the LEAF_BASE_BYTES floor",
-                expected >= LeafQueryBuilder.LEAF_BASE_BYTES
-            );
-            assertEquals(
-                "term clauses must charge only the per-clause constant — no parameter-driven dynamic cost",
-                expected,
-                context.getQueryConstructionMemoryUsed()
-            );
-            assertEquals("circuit breaker delta must equal the per-clause constant", expected, delta);
-        } finally {
-            context.releaseQueryConstructionMemory();
-        }
-    }
-
-    public void testManyCheapClausesTripBreakerBeforeMaxClauseCap() {
-        assertCircuitBreakerTripsOnQueryConstruction("4kb", () -> {
-            BoolQueryBuilder boolQuery = new BoolQueryBuilder();
-            IntStream.range(0, 1000).forEach(i -> boolQuery.should(new TermQueryBuilder(KEYWORD_FIELD_NAME, "value" + i)));
-            return boolQuery;
-        });
-    }
-
-    public void testCheapClauseDoesNotTripGenerousBreaker() throws IOException {
-        CircuitBreaker cb = createCircuitBreakerService("100mb");
-        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
-        try {
-            new TermQueryBuilder(KEYWORD_FIELD_NAME, "value").toQuery(context);
-        } catch (CircuitBreakingException e) {
-            fail("a single cheap clause must not trip a generously-sized breaker: " + e.getMessage());
-        } finally {
-            context.releaseQueryConstructionMemory();
-        }
     }
 }

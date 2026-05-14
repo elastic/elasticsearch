@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
@@ -115,6 +116,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private NestedScope nestedScope;
     private AutoPrefilteringScope autoPrefilteringScope;
     private QueryBuilder aliasFilter;
+    @Nullable
+    private String sliceRouting;
     private boolean rewriteToNamedQueries = false;
 
     private final Integer requestSize;
@@ -298,6 +301,16 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return aliasFilter;
     }
 
+    // Set slice routing, so it can be applied as a shard-level filter in search context.
+    public void setSliceRouting(@Nullable String sliceRouting) {
+        this.sliceRouting = sliceRouting;
+    }
+
+    @Nullable
+    public String getSliceRouting() {
+        return sliceRouting;
+    }
+
     /**
      * The similarity to use in searches, which takes into account per-field configuration.
      */
@@ -341,6 +354,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 getIndexSettings(),
                 () -> this.lookup().forkAndTrackFieldReferences(fieldType.name()),
                 this::sourcePath,
+                mapperService.getIdFieldDataEnabled(),
                 fielddataOperation
             )
         );
@@ -529,6 +543,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                     getIndexSettings(),
                     searchLookup,
                     this::sourcePath,
+                    () -> false,
                     fielddataOperation
                 )
             ),
@@ -562,7 +577,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 query = Queries.newMatchNoDocsQuery("No query left after rewrite.");
             }
             return new ParsedQuery(query, copyNamedQueries());
-        } catch (QueryShardException | ParsingException e) {
+        } catch (QueryShardException | ParsingException | CircuitBreakingException e) {
             throw e;
         } catch (Exception e) {
             throw new QueryShardException(this, "failed to create query: {}", e, e.getMessage());

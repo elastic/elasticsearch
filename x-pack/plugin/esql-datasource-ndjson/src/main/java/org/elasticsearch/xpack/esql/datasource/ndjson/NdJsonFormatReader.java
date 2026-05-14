@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -29,6 +30,7 @@ import java.io.PushbackInputStream;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * FormatReader implementation for NDJSON files.
@@ -62,6 +64,12 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
 
     /** Buffer size used to accelerate {@link #scanForTerminator} on cold (unbuffered) streams. */
     private static final int SCAN_BUFFER_SIZE = 8 * 1024;
+
+    static final String CONFIG_SCHEMA_SAMPLE_SIZE = "schema_sample_size";
+    static final String CONFIG_SEGMENT_SIZE = "segment_size";
+
+    /** Keys recognised by {@link #withConfigTrackingConsumedKeys(Map)}. */
+    static final Set<String> RECOGNIZED_KEYS = Set.of(CONFIG_SCHEMA_SAMPLE_SIZE, CONFIG_SEGMENT_SIZE);
 
     private final BlockFactory blockFactory;
     private final Settings settings;
@@ -97,17 +105,17 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     }
 
     @Override
-    public FormatReader withConfig(Map<String, Object> config) {
+    public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
-            return this;
+            return Configured.empty(this);
         }
-        int newSampleSize = parseInt(config.get("schema_sample_size"), schemaSampleSize);
-        Check.isTrue(newSampleSize > 0, "schema_sample_size must be positive, got: {}", newSampleSize);
-        long newSegmentSize = parseSegmentSize(config.get("segment_size"), segmentSizeBytes);
-        if (newSampleSize == schemaSampleSize && newSegmentSize == segmentSizeBytes) {
-            return this;
-        }
-        return new NdJsonFormatReader(settings, blockFactory, resolvedSchema, newSampleSize, newSegmentSize);
+        int newSampleSize = parseInt(config.get(CONFIG_SCHEMA_SAMPLE_SIZE), schemaSampleSize);
+        Check.isTrue(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
+        long newSegmentSize = parseSegmentSize(config.get(CONFIG_SEGMENT_SIZE), segmentSizeBytes);
+        FormatReader result = (newSampleSize == schemaSampleSize && newSegmentSize == segmentSizeBytes)
+            ? this
+            : new NdJsonFormatReader(settings, blockFactory, resolvedSchema, newSampleSize, newSegmentSize);
+        return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
 
     private List<Attribute> inferSchemaIfNeeded(List<Attribute> attributes, StorageObject object, boolean skipFirstLine)
@@ -234,9 +242,9 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         if (value == null) {
             return defaultValueBytes;
         }
-        ByteSizeValue parsed = ByteSizeValue.parseBytesSizeValue(value.toString(), "segment_size");
+        ByteSizeValue parsed = ByteSizeValue.parseBytesSizeValue(value.toString(), CONFIG_SEGMENT_SIZE);
         long bytes = parsed.getBytes();
-        Check.isTrue(bytes >= MIN_SEGMENT_SIZE.getBytes(), "segment_size must be >= {}, got: {}", MIN_SEGMENT_SIZE, parsed);
+        Check.isTrue(bytes >= MIN_SEGMENT_SIZE.getBytes(), CONFIG_SEGMENT_SIZE + " must be >= {}, got: {}", MIN_SEGMENT_SIZE, parsed);
         return bytes;
     }
 
@@ -259,8 +267,13 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
 
     @Override
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
-        boolean skipFirstLine = context.firstSplit() == false;
-        boolean trimLastPartialLine = context.lastSplit() == false;
+        // Mirror {@link org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader}: parallel byte-range
+        // splits from {@link org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator} set
+        // {@code recordAligned=true}, signalling segment boundaries already fall on {@code \n}. Do not drop the
+        // first complete row or trim a trailing partial row in that mode — doing so mis-handles aligned segments
+        // (skipped rows, or truncated JSON when trim interacts with bounded range streams).
+        boolean skipFirstLine = context.firstSplit() == false && context.recordAligned() == false;
+        boolean trimLastPartialLine = context.lastSplit() == false && context.recordAligned() == false;
         ErrorPolicy errorPolicy = context.errorPolicy() != null ? context.errorPolicy() : defaultErrorPolicy();
         return new NdJsonPageIterator(
             object,
@@ -283,6 +296,22 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         // Wrap cold streams to restore the 8 KB fast path; if already buffered, pass through.
         InputStream buffered = stream instanceof BufferedInputStream ? stream : new BufferedInputStream(stream, SCAN_BUFFER_SIZE);
         return scanForTerminator(buffered).consumed();
+    }
+
+    /**
+     * NDJSON records never contain embedded newlines, so a backward scan for a line terminator
+     * is always correct and O(1) from the end of the buffer — no per-record allocations needed.
+     * Matches the LF / CRLF / lone-CR contract of {@link #scanForTerminator}.
+     */
+    @Override
+    public int findLastRecordBoundary(byte[] buf, int length) {
+        for (int i = length - 1; i >= 0; i--) {
+            byte b = buf[i];
+            if (b == '\n' || b == '\r') {
+                return i;
+            }
+        }
+        return -1;
     }
 
     /** Outcome of a single scan for the next record terminator. */

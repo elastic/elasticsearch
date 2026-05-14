@@ -19,7 +19,6 @@ import java.util.Locale;
 import java.util.Random;
 
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class FuzzyQueryCostEstimatorTests extends ESTestCase {
 
@@ -80,7 +79,7 @@ public class FuzzyQueryCostEstimatorTests extends ESTestCase {
     }
 
     public void testEstimateIsCeilingOnMeasuredAutomataRam() {
-        int[] termLengths = { 5, 20, 50, 200, 600};
+        int[] termLengths = { 5, 20, 50, 200, 600 };
         int[] maxEditsValues = { 1, 2 };
         int[] prefixLengths = { 0, 3 };
         Alphabet[] alphabets = Alphabet.values();

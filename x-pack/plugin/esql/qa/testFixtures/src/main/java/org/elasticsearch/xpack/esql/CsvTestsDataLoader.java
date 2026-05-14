@@ -168,8 +168,6 @@ public class CsvTestsDataLoader {
         new TestDataset("airports_no_doc_values").withData("airports.csv"),
         new TestDataset("airports_not_indexed").withData("airports.csv"),
         new TestDataset("airports_not_indexed_nor_doc_values").withData("airports.csv"),
-        new TestDataset("airports_text_doc_values").withData("airports.csv")
-            .withRequiredCapabilities(EsqlCapabilities.Cap.TEXT_DOC_VALUES_PREFIX_WILDCARD_REGEXP),
         new TestDataset("airports_web"),
         new TestDataset("countries_bbox"),
         new TestDataset("countries_bbox_web"),

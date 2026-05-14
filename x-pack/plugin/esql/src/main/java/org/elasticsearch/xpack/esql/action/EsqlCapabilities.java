@@ -2699,12 +2699,6 @@ public class EsqlCapabilities {
          */
         APPROXIMATION_FIX_MIN_SOURCE_ROW_COUNT,
 
-        /**
-         * Support for prefix, wildcard, and regexp queries on text fields that have doc values enabled
-         * and the inverted index disabled.
-         */
-        TEXT_DOC_VALUES_PREFIX_WILDCARD_REGEXP(Build.current().isSnapshot()),
-
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

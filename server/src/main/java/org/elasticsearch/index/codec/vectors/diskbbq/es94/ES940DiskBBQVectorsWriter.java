@@ -31,6 +31,7 @@ import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidAssignments;
+import org.elasticsearch.index.codec.vectors.diskbbq.CentroidSlices;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidSupplier;
 import org.elasticsearch.index.codec.vectors.diskbbq.DiskBBQBulkWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
@@ -40,9 +41,10 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IntToBooleanFunction;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantizedVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfSegmentConfig;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
+import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -54,7 +56,7 @@ import java.util.function.Consumer;
 import java.util.function.IntUnaryOperator;
 
 import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.NO_SOAR_ASSIGNMENT;
-import static org.elasticsearch.simdvec.ESNextOSQVectorsScorer.BULK_SIZE;
+import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
 
 /**
  * Default implementation of {@link IVFVectorsWriter}. It uses {@link HierarchicalKMeans} algorithm to
@@ -141,7 +143,8 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    protected Preconditioner inheritPreconditioner(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+    protected Preconditioner inheritPreconditioner(FieldInfo fieldInfo, MergeState mergeState, IvfSegmentConfig ivfSegmentConfig)
+        throws IOException {
         if (doPrecondition) {
             for (KnnVectorsReader reader : mergeState.knnVectorsReaders) {
                 if (reader instanceof VectorPreconditioner) {
@@ -152,13 +155,13 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
                 }
             }
             // else
-            return createPreconditioner(fieldInfo.getVectorDimension());
+            return createPreconditioner(fieldInfo.getVectorDimension(), ivfSegmentConfig);
         }
         return null;
     }
 
     @Override
-    protected Preconditioner createPreconditioner(int dimension) {
+    protected Preconditioner createPreconditioner(int dimension, IvfSegmentConfig ivfSegmentConfig) {
         if (doPrecondition) {
             return Preconditioner.createPreconditioner(dimension, blockDimension);
         } else {
@@ -174,7 +177,7 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    protected Consumer<List<float[]>> preconditionVectors(Preconditioner preconditioner) {
+    protected Consumer<List<float[]>> preconditionVectors(Preconditioner preconditioner, IvfSegmentConfig ivfSegmentConfig) {
         return (vectors) -> {
             if (doPrecondition == false || vectors.isEmpty()) {
                 return;
@@ -192,7 +195,11 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    protected FloatVectorValues preconditionVectors(Preconditioner preconditioner, FloatVectorValues vectors) {
+    protected FloatVectorValues preconditionVectors(
+        Preconditioner preconditioner,
+        FloatVectorValues vectors,
+        IvfSegmentConfig ivfSegmentConfig
+    ) {
         if (doPrecondition == false) {
             return vectors;
         }
@@ -251,7 +258,8 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
         IndexOutput postingsOutput,
         long fileOffset,
         int[] assignments,
-        int[] overspillAssignments
+        int[] overspillAssignments,
+        IvfSegmentConfig ivfSegmentConfig
     ) throws IOException {
         KMeansResult centroidClusters = centroidSupplier.secondLevelClusters();
         int[] centroidVectorCount = new int[centroidSupplier.size()];
@@ -344,7 +352,8 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
         long fileOffset,
         MergeState mergeState,
         int[] assignments,
-        int[] overspillAssignments
+        int[] overspillAssignments,
+        IvfSegmentConfig ivfSegmentConfig
     ) throws IOException {
         // first, quantize all the vectors into a temporary file
         var vectorSimilarityFunction = fieldInfo.getVectorSimilarityFunction();
@@ -537,8 +546,13 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    public CentroidSupplier createCentroidSupplier(IndexInput centroidsInput, int numCentroids, FieldInfo fieldInfo, float[] globalCentroid)
-        throws IOException {
+    public CentroidSupplier createCentroidSupplier(
+        IndexInput centroidsInput,
+        CentroidSlices centroidSlices,
+        int numCentroids,
+        FieldInfo fieldInfo,
+        float[] globalCentroid
+    ) throws IOException {
         CentroidSupplier centroidSupplier = new OffHeapCentroidSupplier(
             centroidsInput,
             numCentroids,
@@ -572,9 +586,12 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
         FieldInfo field,
         int numCentroids,
         long preconditionerOffset,
-        long preconditionerLength
+        long preconditionerLength,
+        int numberOfSlices,
+        int maxSliceSize,
+        IvfSegmentConfig ivfSegmentConfig
     ) throws IOException {
-        metaOutput.writeInt(ESNextOSQVectorsScorer.BULK_SIZE);
+        metaOutput.writeInt(ES940OSQVectorsScorer.BULK_SIZE);
         metaOutput.writeInt(quantEncoding.id());
         metaOutput.writeLong(preconditionerLength);
         if (preconditionerLength > 0) {
@@ -642,7 +659,7 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
     private void writeCentroidLookup(IndexOutput out, int[] centroidAssignments, IntUnaryOperator OrdinalMap, int numberCentroids)
         throws IOException {
         final int bitsRequired = DirectWriter.bitsRequired(numberCentroids);
-        final long bytesRequired = ES940DiskBBQVectorsReader.directWriterSizeOnDisk(centroidAssignments.length, bitsRequired);
+        final long bytesRequired = DirectWriter.bytesRequired(centroidAssignments.length, bitsRequired);
         final ByteBuffersDataOutput memory = new ByteBuffersDataOutput(bytesRequired);
         final DirectWriter writer = DirectWriter.getInstance(memory, centroidAssignments.length, bitsRequired);
         for (int centroidAssignment : centroidAssignments) {

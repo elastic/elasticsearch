@@ -76,6 +76,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.settings.InternalOrPrivateSettingsPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -337,6 +338,66 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         );
         assertEquals(activeContexts, service.getActiveContexts());
         assertEquals(activeRefs, indexShard.store().refCount());
+    }
+
+    public void testContextLeak() throws Exception {
+        createIndex("test");
+        prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        SearchService service = getInstanceFromNode(SearchService.class);
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("test"));
+        IndexShard indexShard = indexService.getShard(0);
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true)
+            .scroll(TimeValue.timeValueMinutes(1))
+            .source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(1));
+
+        ShardSearchRequest shardRequest = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            indexShard.shardId(),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            -1,
+            null
+        );
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, emptyMap());
+
+        int contextsBefore = service.getActiveContexts();
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean innerOnResponseSeen = new AtomicBoolean(false);
+        AtomicBoolean innerOnFailureSeen = new AtomicBoolean(false);
+
+        service.executeQueryPhase(shardRequest, task, new ActionListener<>() {
+            @Override
+            public void onResponse(SearchPhaseResult result) {
+                innerOnResponseSeen.set(true);
+                // Simulate NetworkPathListener.onResponse throwing on serialization failure
+                throw new RuntimeException("simulated NetworkPathListener serialization failure");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                innerOnFailureSeen.set(true);
+                latch.countDown();
+            }
+        });
+
+        assertTrue("listener must complete within 30s", latch.await(30, TimeUnit.SECONDS));
+        assertTrue("inner listener.onResponse must have run", innerOnResponseSeen.get());
+        assertTrue("inner listener.onFailure must have run", innerOnFailureSeen.get());
+
+        assertBusy(
+            () -> assertEquals(
+                "ReaderContext leaked — wrapFailureListener.processFailure was not invoked.",
+                contextsBefore,
+                service.getActiveContexts()
+            )
+        );
     }
 
     public void testSearchWhileIndexDeleted() throws InterruptedException {
@@ -2261,7 +2322,12 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("index");
         SearchService searchService = getInstanceFromNode(SearchService.class);
         PlainActionFuture<ShardSearchContextId> future = new PlainActionFuture<>();
-        searchService.openReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
+        searchService.openReaderContext(
+            new ShardId(resolveIndex("index"), 0),
+            TimeValue.timeValueMinutes(between(1, 10)),
+            SplitShardCountSummary.IRRELEVANT,
+            future
+        );
         future.actionGet();
         assertThat(searchService.getActiveContexts(), equalTo(1));
         assertTrue(searchService.freeReaderContext(future.actionGet()));
@@ -2711,6 +2777,112 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     /**
+     * Verify that {@link IndicesService#canCache} reflects dynamic updates to the index search request cache setting
+     */
+    public void testCanCacheReflectsDynamicIndexRequestCacheSetting() throws IOException {
+        final String indexName = "req-cache-dynamic";
+        IndexService indexService = createIndex(
+            indexName,
+            Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true).build()
+        );
+        IndexShard indexShard = indexService.getShard(0);
+
+        SearchRequest nonZeroSizeSearch = new SearchRequest().allowPartialSearchResults(randomBoolean())
+            .source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(DEFAULT_SIZE));
+        assertNull(nonZeroSizeSearch.requestCache());
+        ShardSearchRequest nonZeroShardRequest = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            nonZeroSizeSearch,
+            indexShard.shardId(),
+            0,
+            indexService.numberOfShards(),
+            AliasFilter.EMPTY,
+            1f,
+            System.currentTimeMillis(),
+            null
+        );
+        assertNull(nonZeroShardRequest.requestCache());
+
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        SearchShardTask task = new SearchShardTask(0, "type", "action", "description", null, emptyMap());
+
+        try (ReaderContext readerContext = createReaderContext(indexService, indexShard)) {
+            // With request.requestCache() == null and context.size() != 0, canCache is false whether the index setting is on or
+            // off; still verify the live IndexSettings flag tracks dynamic updates (the value canCache reads).
+            try (SearchContext ctx = searchService.createContext(readerContext, nonZeroShardRequest, task, ResultsType.QUERY, false)) {
+                assertThat(ctx.size(), not(equalTo(0)));
+                assertTrue(ctx.indexShard().indexSettings().isRequestCacheEnabled());
+                assertFalse(IndicesService.canCache(nonZeroShardRequest, ctx));
+            }
+
+            assertAcked(
+                indicesAdmin().prepareUpdateSettings(indexName)
+                    .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), false).build())
+                    .get()
+            );
+            try (SearchContext ctx = searchService.createContext(readerContext, nonZeroShardRequest, task, ResultsType.QUERY, false)) {
+                assertThat(ctx.size(), not(equalTo(0)));
+                assertFalse(ctx.indexShard().indexSettings().isRequestCacheEnabled());
+                assertFalse(IndicesService.canCache(nonZeroShardRequest, ctx));
+            }
+
+            assertAcked(
+                indicesAdmin().prepareUpdateSettings(indexName)
+                    .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true).build())
+                    .get()
+            );
+            try (SearchContext ctx = searchService.createContext(readerContext, nonZeroShardRequest, task, ResultsType.QUERY, false)) {
+                assertThat(ctx.size(), not(equalTo(0)));
+                assertTrue(ctx.indexShard().indexSettings().isRequestCacheEnabled());
+                assertFalse(IndicesService.canCache(nonZeroShardRequest, ctx));
+            }
+
+            SearchRequest sizeZeroSearch = new SearchRequest().allowPartialSearchResults(randomBoolean())
+                .source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(0));
+            assertNull(sizeZeroSearch.requestCache());
+            ShardSearchRequest sizeZeroShardRequest = new ShardSearchRequest(
+                OriginalIndices.NONE,
+                sizeZeroSearch,
+                indexShard.shardId(),
+                0,
+                indexService.numberOfShards(),
+                AliasFilter.EMPTY,
+                1f,
+                System.currentTimeMillis(),
+                null
+            );
+
+            try (SearchContext ctx = searchService.createContext(readerContext, sizeZeroShardRequest, task, ResultsType.QUERY, false)) {
+                assertThat(ctx.size(), equalTo(0));
+                assertTrue(ctx.indexShard().indexSettings().isRequestCacheEnabled());
+                assertTrue(IndicesService.canCache(sizeZeroShardRequest, ctx));
+            }
+
+            assertAcked(
+                indicesAdmin().prepareUpdateSettings(indexName)
+                    .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), false).build())
+                    .get()
+            );
+            try (SearchContext ctx = searchService.createContext(readerContext, sizeZeroShardRequest, task, ResultsType.QUERY, false)) {
+                assertThat(ctx.size(), equalTo(0));
+                assertFalse(ctx.indexShard().indexSettings().isRequestCacheEnabled());
+                assertFalse(IndicesService.canCache(sizeZeroShardRequest, ctx));
+            }
+
+            assertAcked(
+                indicesAdmin().prepareUpdateSettings(indexName)
+                    .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true).build())
+                    .get()
+            );
+            try (SearchContext ctx = searchService.createContext(readerContext, sizeZeroShardRequest, task, ResultsType.QUERY, false)) {
+                assertThat(ctx.size(), equalTo(0));
+                assertTrue(ctx.indexShard().indexSettings().isRequestCacheEnabled());
+                assertTrue(IndicesService.canCache(sizeZeroShardRequest, ctx));
+            }
+        }
+    }
+
+    /**
      * Verify that a single slice is created for requests that don't support parallel collection, while an executor is still
      * provided to the searcher to parallelize other operations. Also ensure multiple slices are created for requests that do support
      * parallel collection.
@@ -2903,7 +3075,6 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testSeqNoAndPrimaryTermReturnsSentinelsWhenSequenceNumbersDisabled() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         final Settings settings = Settings.builder()
             .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
             .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), "doc_values_only")

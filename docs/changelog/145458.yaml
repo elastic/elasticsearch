@@ -1,5 +1,0 @@
-area: Downsampling
-issues: []
-pr: 145458
-summary: Support multi-value dimensions in downsampling (bug fix)
-type: bug

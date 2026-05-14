@@ -75,7 +75,6 @@ public class CcrTimeSeriesDataStreamsIT extends CcrIntegTestCase {
     }
 
     public void testCrossClusterReplicationForTSDBWithSyntheticId() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         executeTest(true);
     }
 
@@ -83,7 +82,7 @@ public class CcrTimeSeriesDataStreamsIT extends CcrIntegTestCase {
         final var dataStreamName = randomIdentifier();
         final int nbPrimaries = randomIntBetween(1, 5);
         final int nbReplicas = between(0, 1);
-        final boolean disableSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && randomBoolean();
+        final boolean disableSeqNo = randomBoolean();
         final long expectedPrimaryTerm = disableSeqNo ? SequenceNumbers.UNASSIGNED_PRIMARY_TERM : 1L;
         putDataStreamTemplate(leaderClient(), dataStreamName, nbPrimaries, nbReplicas, useSyntheticId, disableSeqNo);
 
@@ -287,13 +286,9 @@ public class CcrTimeSeriesDataStreamsIT extends CcrIntegTestCase {
     ) throws IOException {
         var settingsBuilder = indexSettings(primaries, replicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
-            .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), randomBoolean());
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
-            settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId);
-        }
-        if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG) {
-            settingsBuilder.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), disableSeqNo);
-        }
+            .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), randomBoolean())
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId)
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), disableSeqNo);
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request(getTestClass().getName().toLowerCase(Locale.ROOT))
             .indexTemplate(
                 ComposableIndexTemplate.builder()

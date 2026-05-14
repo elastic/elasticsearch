@@ -11,20 +11,14 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.simdvec.VectorSimilarityType;
-import org.elasticsearch.test.ESTestCase;
 import org.junit.AssumptionViolatedException;
-import org.junit.BeforeClass;
-import org.openjdk.jmh.annotations.Param;
-
-import java.util.Arrays;
 
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 import static org.elasticsearch.nativeaccess.jdk.ScalarOperations.dotProduct;
 import static org.elasticsearch.nativeaccess.jdk.ScalarOperations.squareDistance;
 
-public class VectorScorerInt7uOperationBenchmarkTests extends ESTestCase {
+public class VectorScorerInt7uOperationBenchmarkTests extends BenchmarkTest {
 
     private final VectorSimilarityType function;
     private final double delta = 1e-3;
@@ -35,46 +29,32 @@ public class VectorScorerInt7uOperationBenchmarkTests extends ESTestCase {
         this.size = size;
     }
 
-    @BeforeClass
-    public static void skipWindows() {
-        assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
-    }
-
     public void test() {
-        for (int i = 0; i < 100; i++) {
-            var bench = new VectorScorerInt7uOperationBenchmark();
-            bench.function = function;
-            bench.size = size;
-            bench.init();
-            try {
-                float expected = switch (function) {
-                    case DOT_PRODUCT -> dotProduct(bench.byteArrayA, bench.byteArrayB);
-                    case EUCLIDEAN -> squareDistance(bench.byteArrayA, bench.byteArrayB);
-                    default -> throw new AssumptionViolatedException("Not tested");
-                };
-                assertEquals(expected, bench.lucene(), delta);
-                assertEquals(expected, bench.nativeWithNativeSeg(), delta);
-                if (supportsHeapSegments()) {
-                    assertEquals(expected, bench.nativeWithHeapSeg(), delta);
-                }
-            } finally {
-                bench.teardown();
+        var bench = new VectorScorerInt7uOperationBenchmark();
+        bench.function = function;
+        bench.size = size;
+        bench.init();
+        try {
+            float expected = switch (function) {
+                case DOT_PRODUCT -> dotProduct(bench.byteArrayA, bench.byteArrayB);
+                case EUCLIDEAN -> squareDistance(bench.byteArrayA, bench.byteArrayB);
+                default -> throw new AssumptionViolatedException("Not tested");
+            };
+            assertEquals(expected, bench.lucene(), delta);
+            assertEquals(expected, bench.nativeWithNativeSeg(), delta);
+            if (supportsHeapSegments()) {
+                assertEquals(expected, bench.nativeWithHeapSeg(), delta);
             }
+        } finally {
+            bench.teardown();
         }
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parametersFactory() {
-        try {
-            String[] size = VectorScorerInt7uOperationBenchmark.class.getField("size").getAnnotationsByType(Param.class)[0].value();
-            String[] functions = VectorScorerInt7uOperationBenchmark.class.getField("function").getAnnotationsByType(Param.class)[0]
-                .value();
-            return () -> Arrays.stream(size)
-                .map(Integer::parseInt)
-                .flatMap(i -> Arrays.stream(functions).map(VectorSimilarityType::valueOf).map(f -> new Object[] { f, i }))
-                .iterator();
-        } catch (NoSuchFieldException e) {
-            throw new AssertionError(e);
-        }
+    public static Iterable<Object[]> parametersFactory() throws NoSuchFieldException {
+        return generateParameters(
+            VectorScorerInt7uOperationBenchmark.class.getField("function"),
+            VectorScorerInt7uOperationBenchmark.class.getField("size")
+        );
     }
 }

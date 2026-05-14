@@ -11,6 +11,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
@@ -90,7 +91,8 @@ public class InsertFieldExtraction extends PhysicalOptimizerRules.ParameterizedO
         // This is also correct for LookupJoinExec, where we only need field extraction on the left fields used to match, since the right
         // side is always materialized.
         p.references().forEach(f -> {
-            if (f instanceof FieldAttribute || f instanceof MetadataAttribute) {
+            if ((f instanceof FieldAttribute || f instanceof MetadataAttribute || f instanceof TemporalityAttribute)
+                && EsQueryExec.isDocAttribute(f) == false) {
                 if (input.contains(f) == false) {
                     missing.add(f);
                 }

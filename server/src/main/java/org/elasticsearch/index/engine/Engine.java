@@ -64,6 +64,7 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -144,6 +145,7 @@ public abstract class Engine implements Closeable {
     public static final String CAN_MATCH_SEARCH_SOURCE = "can_match";
     protected static final String DOC_STATS_SOURCE = "doc_stats";
     protected static final String SEGMENTS_STATS_SOURCE = "segments_stats";
+    protected static final String FIELD_HAS_VALUE_SOURCE = "field_has_value";
     public static final long UNKNOWN_PRIMARY_TERM = -1L;
     public static final String ROOT_DOC_FIELD_NAME = "__root_doc_for_nested";
 
@@ -284,7 +286,7 @@ public abstract class Engine implements Closeable {
      * @throws AlreadyClosedException if the shard is closed
      */
     public FieldInfos shardFieldInfos() {
-        try (var searcher = acquireSearcher("field_has_value")) {
+        try (var searcher = acquireSearcher(FIELD_HAS_VALUE_SOURCE)) {
             return FieldInfos.getMergedFieldInfos(searcher.getIndexReader());
         }
     }
@@ -928,7 +930,8 @@ public abstract class Engine implements Closeable {
             super(Operation.TYPE.NO_OP, 0, term, seqNo, null);
         }
 
-        NoOpResult(long term, long seqNo, Exception failure) {
+        // visible for testing
+        protected NoOpResult(long term, long seqNo, Exception failure) {
             super(Operation.TYPE.NO_OP, failure, 0, term, seqNo, null);
         }
 
@@ -997,6 +1000,7 @@ public abstract class Engine implements Closeable {
         Get get,
         MappingLookup mappingLookup,
         DocumentParser documentParser,
+        SplitShardCountSummary splitShardCountSummary,
         Function<Engine.Searcher, Engine.Searcher> searcherWrapper
     );
 
@@ -1040,13 +1044,18 @@ public abstract class Engine implements Closeable {
         SearcherScope scope,
         SplitShardCountSummary splitShardCountSummary
     ) throws EngineException {
-        return acquireSearcherSupplier(wrapper, scope, splitShardCountSummary, getReferenceManager(scope));
+        return acquireSearcherSupplier(
+            wrapper,
+            scope,
+            r -> wrapExternalDirectoryReader(r, splitShardCountSummary),
+            getReferenceManager(scope)
+        );
     }
 
     protected SearcherSupplier acquireSearcherSupplier(
         Function<Searcher, Searcher> wrapper,
         SearcherScope scope,
-        SplitShardCountSummary splitShardCountSummary,
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> externalDirectoryReaderWrapper,
         ReferenceManager<ElasticsearchDirectoryReader> referenceManager
     ) throws EngineException {
         /* Acquire order here is store -> manager since we need
@@ -1057,12 +1066,12 @@ public abstract class Engine implements Closeable {
         }
         Releasable releasable = store::decRef;
         try {
-            ElasticsearchDirectoryReader acquire = referenceManager.acquire();
+            ElasticsearchDirectoryReader acquiredReader = referenceManager.acquire();
             final DirectoryReader maybeWrappedDirectoryReader;
             if (scope == SearcherScope.EXTERNAL) {
-                maybeWrappedDirectoryReader = wrapExternalDirectoryReader(acquire, splitShardCountSummary);
+                maybeWrappedDirectoryReader = externalDirectoryReaderWrapper.apply(acquiredReader);
             } else {
-                maybeWrappedDirectoryReader = acquire;
+                maybeWrappedDirectoryReader = acquiredReader;
             }
             SearcherSupplier reader = new SearcherSupplier(wrapper) {
                 @Override
@@ -1082,7 +1091,7 @@ public abstract class Engine implements Closeable {
                 @Override
                 protected void doClose() {
                     try {
-                        referenceManager.release(acquire);
+                        referenceManager.release(acquiredReader);
                     } catch (IOException e) {
                         throw new UncheckedIOException("failed to close", e);
                     } catch (AlreadyClosedException e) {

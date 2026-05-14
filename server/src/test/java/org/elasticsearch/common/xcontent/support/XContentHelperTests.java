@@ -37,6 +37,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class XContentHelperTests extends ESTestCase {
 
+    protected XContentParser decorateParser(XContentParser parser) {
+        return parser;
+    }
+
     Map<String, Object> getMap(Object... keyValues) {
         Map<String, Object> map = new HashMap<>();
         for (int i = 0; i < keyValues.length; i++) {
@@ -261,7 +265,11 @@ public class XContentHelperTests extends ESTestCase {
             expectThrows(IOException.class, () -> XContentHelper.toXContent(toXContent, xContentType, randomBoolean()));
         } else {
             BytesReference bytes = XContentHelper.toXContent(toXContent, xContentType, randomBoolean());
-            try (XContentParser parser = xContentType.xContent().createParser(XContentParserConfiguration.EMPTY, bytes.streamInput())) {
+            try (
+                XContentParser parser = decorateParser(
+                    xContentType.xContent().createParser(XContentParserConfiguration.EMPTY, bytes.streamInput())
+                )
+            ) {
                 assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
                 assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
                 assertTrue(parser.nextToken().isValue());
@@ -297,7 +305,11 @@ public class XContentHelperTests extends ESTestCase {
             BytesReference input = BytesReference.bytes(builder);
 
             BytesReference bytes;
-            try (XContentParser parser = xContentType.xContent().createParser(XContentParserConfiguration.EMPTY, input.streamInput())) {
+            try (
+                XContentParser parser = decorateParser(
+                    xContentType.xContent().createParser(XContentParserConfiguration.EMPTY, input.streamInput())
+                )
+            ) {
 
                 assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
                 assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
@@ -311,7 +323,11 @@ public class XContentHelperTests extends ESTestCase {
             }
 
             // now parse the contents of 'level2'
-            try (XContentParser parser = xContentType.xContent().createParser(XContentParserConfiguration.EMPTY, bytes.streamInput())) {
+            try (
+                XContentParser parser = decorateParser(
+                    xContentType.xContent().createParser(XContentParserConfiguration.EMPTY, bytes.streamInput())
+                )
+            ) {
                 assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
                 assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
                 assertEquals("object", parser.currentName());
@@ -361,7 +377,11 @@ public class XContentHelperTests extends ESTestCase {
         BytesReference bytes = BytesReference.bytes(builder);
 
         BytesReference inner;
-        try (XContentParser parser = XContentType.CBOR.xContent().createParser(XContentParserConfiguration.EMPTY, bytes.streamInput())) {
+        try (
+            XContentParser parser = decorateParser(
+                XContentType.CBOR.xContent().createParser(XContentParserConfiguration.EMPTY, bytes.streamInput())
+            )
+        ) {
 
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
@@ -370,7 +390,11 @@ public class XContentHelperTests extends ESTestCase {
             assertNull(parser.nextToken());
         }
 
-        try (XContentParser parser = XContentType.CBOR.xContent().createParser(XContentParserConfiguration.EMPTY, inner.streamInput())) {
+        try (
+            XContentParser parser = decorateParser(
+                XContentType.CBOR.xContent().createParser(XContentParserConfiguration.EMPTY, inner.streamInput())
+            )
+        ) {
 
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
@@ -386,7 +410,9 @@ public class XContentHelperTests extends ESTestCase {
     public void testEmptyChildBytes() throws IOException {
 
         String inputJson = "{ \"mappings\" : {} }";
-        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, inputJson)) {
+        try (
+            XContentParser parser = decorateParser(XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, inputJson))
+        ) {
 
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
@@ -428,12 +454,10 @@ public class XContentHelperTests extends ESTestCase {
         assertThrows(
             "Should detect bad JSON",
             NotXContentException.class,
-            () -> XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray("not actually XContent"))
+            () -> decorateParser(XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray("not actually XContent")))
         );
-        XContentParser parser = XContentHelper.createParser(
-            XContentParserConfiguration.EMPTY,
-            new BytesArray("not actually XContent"),
-            XContentType.JSON
+        XContentParser parser = decorateParser(
+            XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray("not actually XContent"), XContentType.JSON)
         );
         assertNotNull("Should not detect bad JSON", parser); // This is more like assertNotThrows
         assertThrows("Should detect bad JSON at parse time", XContentParseException.class, parser::numberValue);

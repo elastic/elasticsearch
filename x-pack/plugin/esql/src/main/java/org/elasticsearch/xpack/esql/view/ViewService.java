@@ -25,11 +25,14 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 public class ViewService {
@@ -44,9 +47,9 @@ public class ViewService {
     // 2. Add ServerlessPublic (makes them visible to non-operator users on Serverless)
     public static final Setting<Integer> MAX_VIEWS_COUNT_SETTING = Setting.intSetting(
         "esql.views.max_count",
-        100,
+        500,
         0,
-        1_000_000,
+        10_000,
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
     );
@@ -54,7 +57,7 @@ public class ViewService {
         "esql.views.max_view_length",
         10_000,
         1,
-        1_000_000,
+        100_000,
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
     );
@@ -126,36 +129,41 @@ public class ViewService {
     }
 
     /**
-     * Removes a view from the cluster state.
+     * Removes views from the cluster state.
      */
-    public void deleteView(ProjectId projectId, DeleteViewAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        // TODO this should support wildcard deletion if action.destructive_requires_name = false
-        final String name = request.name();
+    public void deleteViews(
+        ProjectId projectId,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        Collection<String> viewNames,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         final ProjectMetadata metadata = clusterService.state().metadata().getProject(projectId);
         final ViewMetadata viewMetadata = metadata.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
-        if (viewMetadata.getView(name) == null) {
-            listener.onFailure(new ResourceNotFoundException("view [{}] not found", name));
+        Optional<String> notFoundView = viewNames.stream().filter(v -> viewMetadata.getView(v) == null).findAny();
+        // at least one of the explicitly requested views was not found, so we can fail fast without submitting a cluster state update task
+        if (notFoundView.isPresent()) {
+            listener.onFailure(new ResourceNotFoundException("view [{}] not found", notFoundView.get()));
             return;
         }
 
-        final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, listener) {
+        final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(masterNodeTimeout, ackTimeout, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final ProjectMetadata project = currentState.metadata().getProject(projectId);
                 final ViewMetadata viewMetadata = getMetadata(project);
-                final View currentView = viewMetadata.getView(name);
-                if (currentView == null) {
-                    // The update is a no-op, because we're trying to remove the view, but it doesn't exist, so no change is necessary
+                if (viewNames.stream().allMatch(v -> viewMetadata.getView(v) == null)) {
+                    // The update is a no-op, because none of the views that we're trying to remove exist.
+                    // Perhaps the views were deleted in the meantime by another job, so no change is necessary
                     return currentState;
                 }
                 final Map<String, View> updatedViews = new HashMap<>(viewMetadata.views());
-                final View existingView = updatedViews.remove(name);
-                assert existingView != null : "we should have short-circuited if removing a view that already didn't exist";
+                viewNames.forEach(updatedViews::remove);
                 var metadata = ProjectMetadata.builder(project).views(updatedViews);
                 return ClusterState.builder(currentState).putProjectMetadata(metadata).build();
             }
         };
-        taskQueue.submitTask("delete-esql-view-metadata-[" + name + "]", task, task.timeout());
+        taskQueue.submitTask("delete-esql-view-metadata-" + viewNames, task, task.timeout());
     }
 
     /**

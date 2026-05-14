@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.esql.datasource.azure;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -37,28 +37,17 @@ public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
-        StorageProviderFactory azureFactory = new StorageProviderFactory() {
-            @Override
-            public StorageProvider create(Settings settings) {
-                return new AzureStorageProvider((AzureConfiguration) null);
-            }
-
-            @Override
-            public StorageProvider create(Settings settings, Map<String, Object> config) {
-                if (config == null || config.isEmpty()) {
-                    return create(settings);
-                }
-                AzureConfiguration azureConfig = AzureConfiguration.fromFields(
-                    Objects.toString(config.get("connection_string"), null),
-                    Objects.toString(config.get("account"), null),
-                    Objects.toString(config.get("key"), null),
-                    Objects.toString(config.get("sas_token"), null),
-                    Objects.toString(config.get("endpoint"), null),
-                    Objects.toString(config.get("auth"), null)
-                );
-                return new AzureStorageProvider(azureConfig);
-            }
-        };
+        StorageProviderFactory azureFactory = StorageProviderFactory.of(
+            () -> new AzureStorageProvider((AzureConfiguration) null),
+            AzureConfiguration::fromQueryConfig,
+            AzureStorageProvider::new
+        );
         return Map.of("wasbs", azureFactory, "wasb", azureFactory);
+    }
+
+    @Override
+    public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
+        DataSourceValidator v = new FileDataSourceValidator("azure", AzureConfiguration::fromMap, supportedSchemes());
+        return Map.of(v.type(), v);
     }
 }

@@ -187,10 +187,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
             false,
-            clusterInfoService,
-            snapshotsInfoService,
-            allocationService,
-            allocationDeciders
+            allocationService
         );
 
         assertShardMigration(status, SingleNodeShutdownMetadata.Status.COMPLETE, 0, nullValue());
@@ -218,10 +215,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.RESTART,
             randomBoolean(), // Whether the node has been seen doesn't matter, restart-type shutdowns should always say COMPLETE here.
-            clusterInfoService,
-            snapshotsInfoService,
-            allocationService,
-            allocationDeciders
+            allocationService
         );
 
         assertShardMigration(
@@ -255,10 +249,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
             true,
-            clusterInfoService,
-            snapshotsInfoService,
-            allocationService,
-            allocationDeciders
+            allocationService
         );
 
         assertShardMigration(status, SingleNodeShutdownMetadata.Status.COMPLETE, 0, nullValue());
@@ -289,10 +280,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
                 SHUTTING_DOWN_NODE_ID,
                 SingleNodeShutdownMetadata.Type.REMOVE,
                 true,
-                clusterInfoService,
-                snapshotsInfoService,
-                allocationService,
-                allocationDeciders
+                allocationService
             )
         );
     }
@@ -334,10 +322,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
             true,
-            clusterInfoService,
-            snapshotsInfoService,
-            allocationService,
-            allocationDeciders
+            allocationService
         );
 
         assertShardMigration(status, SingleNodeShutdownMetadata.Status.IN_PROGRESS, 2, nullValue());
@@ -387,10 +372,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
             true,
-            clusterInfoService,
-            snapshotsInfoService,
-            allocationService,
-            allocationDeciders
+            allocationService
         );
 
         assertShardMigration(status, SingleNodeShutdownMetadata.Status.IN_PROGRESS, 1, nullValue());
@@ -424,10 +406,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
             true,
-            clusterInfoService,
-            snapshotsInfoService,
-            allocationService,
-            allocationDeciders
+            allocationService
         );
 
         assertShardMigration(
@@ -523,10 +502,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.SIGTERM,
             true,
-            clusterInfoService,
-            snapshotsInfoService,
-            allocationService,
-            allocationDeciders
+            allocationService
         );
 
         assertShardMigration(
@@ -560,10 +536,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
             true,
-            clusterInfoService,
-            snapshotsInfoService,
-            allocationService,
-            allocationDeciders
+            allocationService
         );
 
         assertShardMigration(
@@ -593,10 +566,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
             true,
-            clusterInfoService,
-            snapshotsInfoService,
-            allocationService,
-            allocationDeciders
+            allocationService
         );
 
         assertShardMigration(
@@ -661,10 +631,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             bogusNodeId,
             SingleNodeShutdownMetadata.Type.REMOVE,
             false,
-            clusterInfoService,
-            snapshotsInfoService,
-            allocationService,
-            allocationDeciders
+            allocationService
         );
 
         assertShardMigration(status, SingleNodeShutdownMetadata.Status.NOT_STARTED, 0, is("node is not currently part of the cluster"));
@@ -694,10 +661,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
             true,
-            clusterInfoService,
-            snapshotsInfoService,
-            allocationService,
-            allocationDeciders
+            allocationService
         );
 
         assertShardMigration(
@@ -711,6 +675,38 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         assertThat(explain.getAllocateDecision().isDecisionTaken(), is(false));
         assertThat(explain.getMoveDecision().isDecisionTaken(), is(true));
         assertThat(explain.getMoveDecision().getExplanation(), equalTo(Explanations.Move.THROTTLED));
+    }
+
+    /**
+     * If a shard on the shutting down node can only migrate to a NOT_PREFERRED target, the shard
+     * will still relocate (since the canRemain decision is NO), so the shutdown must be reported
+     * as IN_PROGRESS rather than STALLED.
+     */
+    public void testNotStalledIfShardCanMigrateToNotPreferredNode() {
+        Index index = new Index(randomIndexName(), randomUUID());
+        IndexMetadata imd = generateIndexMetadata(index, 1, 0);
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), SHUTTING_DOWN_NODE_ID, true, ShardRoutingState.STARTED))
+            .build();
+
+        // Every other node is NOT_PREFERRED, but the shard cannot remain so it should still move.
+        canAllocate.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? Decision.NO : Decision.NOT_PREFERRED);
+        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? Decision.NO : Decision.YES);
+
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        routingTable.add(indexRoutingTable);
+        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
+
+        ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
+            state,
+            SHUTTING_DOWN_NODE_ID,
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            true,
+            allocationService
+        );
+
+        assertShardMigration(status, SingleNodeShutdownMetadata.Status.IN_PROGRESS, 1, nullValue());
     }
 
     public void testIlmShrinkingIndexAvoidsStall() {
@@ -936,10 +932,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
             true,
-            clusterInfoService,
-            snapshotsInfoService,
-            allocationService,
-            allocationDeciders
+            allocationService
         );
 
         assertShardMigration(
@@ -1098,10 +1091,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
             true,
-            clusterInfoService,
-            snapshotsInfoService,
-            allocationService,
-            allocationDeciders
+            allocationService
         );
     }
 

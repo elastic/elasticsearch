@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -26,7 +25,6 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractUri;
 
@@ -42,26 +40,36 @@ public class HuggingFaceElserServiceSettings extends FilteredXContentObject
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
 
     public static HuggingFaceElserServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
         var uri = extractUri(map, ServiceFields.URL, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            HuggingFaceService.NAME,
-            context
-        );
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
         validationException.throwIfValidationErrorsExist();
         return new HuggingFaceElserServiceSettings(uri, rateLimitSettings);
+    }
+
+    @Override
+    public HuggingFaceElserServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new HuggingFaceElserServiceSettings(this.uri, extractedRateLimitSettings);
     }
 
     private final URI uri;
     private final RateLimitSettings rateLimitSettings;
 
     public HuggingFaceElserServiceSettings(String url) {
-        uri = createUri(url);
-        rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
+        this.uri = createUri(url);
+        this.rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
     }
 
     // default for testing
@@ -71,8 +79,8 @@ public class HuggingFaceElserServiceSettings extends FilteredXContentObject
     }
 
     public HuggingFaceElserServiceSettings(StreamInput in) throws IOException {
-        uri = createUri(in.readString());
-        rateLimitSettings = new RateLimitSettings(in);
+        this.uri = createUri(in.readString());
+        this.rateLimitSettings = new RateLimitSettings(in);
     }
 
     @Override
@@ -106,7 +114,7 @@ public class HuggingFaceElserServiceSettings extends FilteredXContentObject
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(ServiceFields.URL, uri.toString());
-        builder.field(MAX_INPUT_TOKENS, ELSER_TOKEN_LIMIT);
+        builder.field(ServiceFields.MAX_INPUT_TOKENS, ELSER_TOKEN_LIMIT);
         rateLimitSettings.toXContent(builder, params);
 
         return builder;

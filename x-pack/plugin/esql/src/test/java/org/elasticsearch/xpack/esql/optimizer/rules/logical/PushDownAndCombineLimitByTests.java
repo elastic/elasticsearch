@@ -290,8 +290,7 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
         for (var branch : fork.children()) {
             var project = as(branch, Project.class);
             var eval = as(project.child(), Eval.class);
-            var branchLimit = as(eval.child(), Limit.class);
-            as(branchLimit.child(), Filter.class);
+            as(eval.child(), Filter.class);
         }
     }
 

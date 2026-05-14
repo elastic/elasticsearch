@@ -14,7 +14,7 @@ import joptsimple.OptionSpec;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ProcessInfo;
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;

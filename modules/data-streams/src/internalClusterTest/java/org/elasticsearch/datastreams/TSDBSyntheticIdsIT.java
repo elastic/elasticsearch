@@ -151,9 +151,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testInvalidIndexMode() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final var indexName = randomIdentifier();
-        var randomNonTsdbIndexMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.values()));
+        var randomNonTsdbIndexMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.availableModes()));
 
         var exception = expectThrows(
             IllegalArgumentException.class,
@@ -177,7 +176,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testInvalidCodec() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final var indexName = randomIdentifier();
         internalCluster().startDataOnlyNode();
         var randomNonDefaultCodec = randomFrom(
@@ -210,7 +208,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testSyntheticId() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final boolean useNestedDocs = rarely();
         final var dataStreamName = randomIdentifier();
         putDataStreamTemplate(dataStreamName, randomIntBetween(1, 5), 0, useNestedDocs);
@@ -390,6 +387,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         if (randomBoolean()) {
             logger.info("--> restarting the cluster");
             internalCluster().rollingRestart(new InternalTestCluster.RestartCallback());
+            ensureGreen(dataStreamName);
         } else {
             // Move all the shards to a new node to force relocations
             var newNodeName = internalCluster().startDataOnlyNode();
@@ -456,7 +454,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testGetFromTranslogBySyntheticId() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final boolean useNestedDocs = rarely();
         final var dataStreamName = randomIdentifier();
         putDataStreamTemplate(dataStreamName, 1, 0, useNestedDocs);
@@ -583,7 +580,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testRecoveredOperations() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final boolean useNestedDocs = rarely();
 
         // ensure a couple of nodes to have some operations coordinated
@@ -649,61 +645,55 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             assertThat(previous, nullValue());
         }
 
-        for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
-            for (IndexService indexService : indicesService) {
-                if (docsIndices.contains(indexService.index().getName())) {
-                    for (IndexShard indexShard : indexService) {
-                        final Map<Long, String> docsIdsBySeqNo = docsIdsBySeqNoAndShardId.getOrDefault(indexShard.shardId(), Map.of());
+        internalCluster().forEveryIndexShard(docsIndices, indexShard -> {
+            final Map<Long, String> docsIdsBySeqNo = docsIdsBySeqNoAndShardId.getOrDefault(indexShard.shardId(), Map.of());
 
-                        // Read operations from the Translog
-                        try (var translogSnapshot = getTranslog(indexShard).newSnapshot()) {
-                            assertThat(translogSnapshot.totalOperations(), equalTo(docsIdsBySeqNo.size()));
+            // Read operations from the Translog
+            try (var translogSnapshot = getTranslog(indexShard).newSnapshot()) {
+                assertThat(translogSnapshot.totalOperations(), equalTo(docsIdsBySeqNo.size()));
 
-                            Translog.Operation operation;
-                            while ((operation = translogSnapshot.next()) != null) {
-                                assertTranslogOperation(
-                                    indexService.index().getName(),
-                                    indexShard.mapperService().documentMapper(),
-                                    operation,
-                                    docsIdsBySeqNo::get,
-                                    docsIndicesById::get,
-                                    useNestedDocs
-                                );
-                            }
-                        }
+                Translog.Operation operation;
+                while ((operation = translogSnapshot.next()) != null) {
+                    assertTranslogOperation(
+                        indexShard.shardId().getIndexName(),
+                        indexShard.mapperService().documentMapper(),
+                        operation,
+                        docsIdsBySeqNo::get,
+                        docsIndicesById::get,
+                        useNestedDocs
+                    );
+                }
+            }
 
-                        // Read operations from the Lucene index
-                        try (
-                            var luceneSnapshot = indexShard.newChangesSnapshot(
-                                getTestName(),
-                                0,
-                                Long.MAX_VALUE,
-                                false,
-                                true,
-                                true,
-                                randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
-                            )
-                        ) {
-                            assertThat(luceneSnapshot.totalOperations(), equalTo(docsIdsBySeqNo.size()));
+            // Read operations from the Lucene index
+            try (
+                var luceneSnapshot = indexShard.newChangesSnapshot(
+                    getTestName(),
+                    0,
+                    Long.MAX_VALUE,
+                    false,
+                    true,
+                    true,
+                    randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
+                )
+            ) {
+                assertThat(luceneSnapshot.totalOperations(), equalTo(docsIdsBySeqNo.size()));
 
-                            if (docsIdsBySeqNo.isEmpty() == false) {
-                                Translog.Operation operation;
-                                while ((operation = luceneSnapshot.next()) != null) {
-                                    assertTranslogOperation(
-                                        indexService.index().getName(),
-                                        indexShard.mapperService().documentMapper(),
-                                        operation,
-                                        docsIdsBySeqNo::get,
-                                        docsIndicesById::get,
-                                        useNestedDocs
-                                    );
-                                }
-                            }
-                        }
+                if (docsIdsBySeqNo.isEmpty() == false) {
+                    Translog.Operation operation;
+                    while ((operation = luceneSnapshot.next()) != null) {
+                        assertTranslogOperation(
+                            indexShard.shardId().getIndexName(),
+                            indexShard.mapperService().documentMapper(),
+                            operation,
+                            docsIdsBySeqNo::get,
+                            docsIndicesById::get,
+                            useNestedDocs
+                        );
                     }
                 }
             }
-        }
+        });
 
         enum Operation {
             FLUSH,
@@ -828,7 +818,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testRecoverOperationsFromLocalTranslog() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final boolean useNestedDocs = rarely();
 
         final var dataStreamName = randomIdentifier();
@@ -1136,7 +1125,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
      * Assert that we can still search by synthetic _id after restoring index from snapshot
      */
     public void testCreateSnapshot() throws IOException {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final boolean useNestedDocs = rarely();
 
         // create index
@@ -1256,8 +1244,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testMerge() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-
         final var dataStreamName = randomIdentifier();
         putDataStreamTemplate(dataStreamName, 1, 0, rarely());
 
@@ -1306,8 +1292,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testBestCompressionCodec() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-
         String indexName = randomIndexName();
 
         // Set best_compression codec
@@ -1376,8 +1360,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testDefaultSetting() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-
         String indexName = randomIndexName();
 
         // Don't set IndexSettings.SYNTHETIC_ID to test default behavior.
@@ -1427,7 +1409,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName).get();
         String versionSetting = getSettingsResponse.getSetting(indexName, IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey());
         IndexVersion version = IndexVersion.fromId(Integer.parseInt(versionSetting));
-        assertTrue(version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT));
+        assertTrue(version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD));
         String syntheticIdSetting = getSettingsResponse.getSetting(indexName, IndexSettings.SYNTHETIC_ID.getKey());
         assertThat(syntheticIdSetting, Matchers.nullValue());
 
@@ -1442,8 +1424,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testBloomFilterSettings() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-
         final var dataStreamName = randomIdentifier();
         final var maxSize = ByteSizeValue.ofKb(64);
         // small_segment_max_docs must be strictly less than large_segment_min_docs; high >= low bits/doc
@@ -1597,7 +1577,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
      * synthetic id until node B has been upgraded.
      */
     public void testIndexCreationIsBlockByIndexVersion() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         String indexName = randomIndexName();
         // IndexVersion is too low for synthetic id to be allowed
         IndexVersion tooLowIndexVersion = IndexVersionUtils.randomPreviousCompatibleWriteVersion(
@@ -1789,7 +1768,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         final var settings = indexSettings(primaries, replicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
             .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
-            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false);  // Sequence numbers are needed for id validation.
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false); // Sequence numbers are needed for id validation.
+
         if (randomBoolean()) {
             settings.put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomValidCodec());
         }
@@ -1885,7 +1865,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
      * {@link IndexShard#newChangesSnapshot}, and that GET/search by synthetic _id work correctly after each scenario.
      */
     public void testNoopTombstones() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         internalCluster().startMasterOnlyNode();
         List<String> dataNodeNames = internalCluster().startDataOnlyNodes(2);
 
@@ -2086,79 +2065,65 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         assertGetAndSearchById(docsIndicesById, backingIndex, useNestedDocs);
     }
 
-    private static void assertShardsHaveNoIdStoredFieldValuesOnDisk(Set<String> indices) {
-        int nbVisitedShards = 0;
-        for (var indicesServices : internalCluster().getDataNodeInstances(IndicesService.class)) {
-            for (var indexService : indicesServices) {
-                if (indices.contains(indexService.index().getName())) {
-                    for (var indexShard : indexService) {
-                        long size = indexShard.withEngineOrNull(engine -> {
-                            if (engine != null) {
-                                try (var searcher = engine.acquireSearcher("assert_no_id_stored_field")) {
-                                    long segmentsTotalSize = 0L;
+    private static void assertShardsHaveNoIdStoredFieldValuesOnDisk(Set<String> indices) throws Exception {
+        final int nbVisitedShards = internalCluster().forEveryIndexShard(indices, indexShard -> {
+            long size = indexShard.withEngineOrNull(engine -> {
+                if (engine != null) {
+                    try (var searcher = engine.acquireSearcher("assert_no_id_stored_field")) {
+                        long segmentsTotalSize = 0L;
 
-                                    for (var leaf : searcher.getLeafContexts()) {
-                                        var leafReader = leaf.reader();
-                                        // Get the underlying stored fields reader
-                                        var tsdbStoredFieldsReader = asInstanceOf(
-                                            TSDBStoredFieldsFormat.TSDBStoredFieldsReader.class,
-                                            Lucene.segmentReader(leafReader).getFieldsReader()
-                                        );
+                        for (var leaf : searcher.getLeafContexts()) {
+                            var leafReader = leaf.reader();
+                            // Get the underlying stored fields reader
+                            var tsdbStoredFieldsReader = asInstanceOf(
+                                TSDBStoredFieldsFormat.TSDBStoredFieldsReader.class,
+                                Lucene.segmentReader(leafReader).getFieldsReader()
+                            );
 
-                                        // Extract the real (ie, non-synthetic id) stored field reader
-                                        final var defaultStoredFields = tsdbStoredFieldsReader.getStoredFieldsReader();
-                                        assertThat(defaultStoredFields, not(instanceOf(TSDBSyntheticIdStoredFieldsReader.class)));
+                            // Extract the real (ie, non-synthetic id) stored field reader
+                            final var defaultStoredFields = tsdbStoredFieldsReader.getStoredFieldsReader();
+                            assertThat(defaultStoredFields, not(instanceOf(TSDBSyntheticIdStoredFieldsReader.class)));
 
-                                        final var fieldInfo = leafReader.getFieldInfos().fieldInfo(IdFieldMapper.NAME);
-                                        assertThat(fieldInfo, notNullValue());
+                            final var fieldInfo = leafReader.getFieldInfos().fieldInfo(IdFieldMapper.NAME);
+                            assertThat(fieldInfo, notNullValue());
 
-                                        // Visit the "_id" field and compute its total size accross all documents
-                                        final var visitor = new StoredFieldVisitor() {
-                                            long segmentSize = 0L;
-                                            int visitedDocs = -1;
+                            // Visit the "_id" field and compute its total size accross all documents
+                            final var visitor = new StoredFieldVisitor() {
+                                long segmentSize = 0L;
+                                int visitedDocs = -1;
 
-                                            @Override
-                                            public Status needsField(FieldInfo fieldInfo) throws IOException {
-                                                return IdFieldMapper.NAME.equals(fieldInfo.getName())
-                                                    ? StoredFieldVisitor.Status.YES
-                                                    : Status.NO;
-                                            }
-
-                                            @Override
-                                            public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
-                                                segmentSize += value.length;
-                                                if (visitedDocs == -1) {
-                                                    visitedDocs = 1;
-                                                } else {
-                                                    visitedDocs++;
-                                                }
-                                            }
-                                        };
-
-                                        for (int docID = 0; docID < leafReader.maxDoc(); docID++) {
-                                            defaultStoredFields.document(docID, visitor);
-                                        }
-                                        assertThat(visitor.visitedDocs, anyOf(equalTo(leafReader.maxDoc() - 1), equalTo(-1)));
-                                        segmentsTotalSize += visitor.segmentSize;
-                                    }
-                                    return segmentsTotalSize;
-                                } catch (IOException ioe) {
-                                    throw new AssertionError(ioe);
+                                @Override
+                                public Status needsField(FieldInfo fieldInfo) throws IOException {
+                                    return IdFieldMapper.NAME.equals(fieldInfo.getName()) ? StoredFieldVisitor.Status.YES : Status.NO;
                                 }
-                            }
-                            return 0L;
-                        });
 
-                        assertThat(
-                            "Found non-zero total size for [_id] stored field values on shard " + indexShard.routingEntry(),
-                            size,
-                            equalTo(0L)
-                        );
-                        nbVisitedShards++;
+                                @Override
+                                public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
+                                    segmentSize += value.length;
+                                    if (visitedDocs == -1) {
+                                        visitedDocs = 1;
+                                    } else {
+                                        visitedDocs++;
+                                    }
+                                }
+                            };
+
+                            for (int docID = 0; docID < leafReader.maxDoc(); docID++) {
+                                defaultStoredFields.document(docID, visitor);
+                            }
+                            assertThat(visitor.visitedDocs, anyOf(equalTo(leafReader.maxDoc() - 1), equalTo(-1)));
+                            segmentsTotalSize += visitor.segmentSize;
+                        }
+                        return segmentsTotalSize;
+                    } catch (IOException ioe) {
+                        throw new AssertionError(ioe);
                     }
                 }
-            }
-        }
+                return 0L;
+            });
+
+            assertThat("Found non-zero total size for [_id] stored field values on shard " + indexShard.routingEntry(), size, equalTo(0L));
+        });
         assertThat("Expect at least 1 shard per index to be verified", nbVisitedShards, greaterThanOrEqualTo(indices.size()));
     }
 
@@ -2306,8 +2271,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testTermInSetQueryWithSyntheticIds() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-
         final var dataStreamName = randomIdentifier();
         putDataStreamTemplate(dataStreamName, 1, 0, rarely());
 

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -231,26 +233,42 @@ public class AdJobRetryResilienceIT extends BaseMlIntegTestCase {
             )
             .get();
 
-        // Force-allocate empty primaries on configNode since the original primary data was on stateNode
-        // (which is now stopped). The ML job opening pipeline handles empty state gracefully: jobs with no
-        // model snapshot (newly created) skip snapshot verification and proceed to open directly.
-        ClusterRerouteUtils.reroute(
-            client(),
-            new AllocateEmptyPrimaryAllocationCommand(".ml-state", 0, configNode, true),
-            new AllocateEmptyPrimaryAllocationCommand(".ml-anomalies-shared-000001", 0, configNode, true)
-        );
+        // Force-allocate empty primaries on configNode for all indices that had their primary on
+        // stateNode (which is now stopped). This includes the explicitly created .ml-state and
+        // .ml-anomalies-shared-000001, plus any auto-created system indices (e.g. .ml-state-000001,
+        // .ml-notifications-000002) whose primaries were also on stateNode.
+        allocateAllUnassignedPrimaries(configNode);
 
-        // Wait for the allocated shards to initialise so GetJobsStats can search the indices.
-        ensureGreen(TimeValue.timeValueMinutes(2), ".ml-state", ".ml-anomalies-shared-000001");
+        ensureGreen(TimeValue.timeValueMinutes(2));
 
-        awaitJobOpenedAndAssigned(jobId, null);
-
-        GetJobsStatsAction.Response stats = client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(jobId))
-            .actionGet();
-        assertThat(stats.getResponse().results().get(0).getState(), equalTo(JobState.OPENED));
+        // Use a longer timeout than the default awaitJobOpenedAndAssigned (10s) because
+        // the retry mechanism needs time to detect the recovered shards and reopen the job.
+        assertBusy(() -> {
+            GetJobsStatsAction.Response statsResponse = client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(jobId))
+                .actionGet();
+            GetJobsStatsAction.Response.JobStats jobStats = statsResponse.getResponse().results().get(0);
+            assertThat(jobStats.getState(), equalTo(JobState.OPENED));
+        }, 2, TimeUnit.MINUTES);
 
         ClusterUpdateSettingsRequest resetRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         resetRequest.persistentSettings(Settings.builder().putNull(MachineLearning.JOB_OPEN_RETRY_TIMEOUT.getKey()).build());
         client().admin().cluster().updateSettings(resetRequest).actionGet();
+    }
+
+    /**
+     * Finds all unassigned primary shards in the cluster and force-allocates them as empty primaries
+     * on the given node. ML auto-creates several system indices (.ml-state-000001, .ml-notifications-000002,
+     * etc.) whose primaries may land on any data node; after that node is stopped, all of these need recovery.
+     */
+    private void allocateAllUnassignedPrimaries(String targetNode) {
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        List<AllocateEmptyPrimaryAllocationCommand> commands = state.getRoutingTable()
+            .allShards()
+            .filter(shard -> shard.primary() && shard.unassigned())
+            .map(shard -> new AllocateEmptyPrimaryAllocationCommand(shard.getIndexName(), shard.id(), targetNode, true))
+            .toList();
+        if (commands.isEmpty() == false) {
+            ClusterRerouteUtils.reroute(client(), commands.toArray(new AllocateEmptyPrimaryAllocationCommand[0]));
+        }
     }
 }

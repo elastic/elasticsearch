@@ -18,7 +18,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
@@ -285,7 +285,7 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
     }
 
     /**
-     * We use this class to fake the auth implementation to avoid static mocking of {@link GoogleVertexAiRequest}
+     * We use this class to fake the auth implementation to avoid static mocking of {@link GoogleVertexAiRequestUtils}
      */
     private static class GoogleVertexAiEmbeddingsWithoutAuthRequest extends GoogleVertexAiEmbeddingsRequest {
 
@@ -307,7 +307,7 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
         }
 
         @Override
-        public Request truncate() {
+        public OutboundRequest truncate() {
             GoogleVertexAiEmbeddingsRequest embeddingsRequest = (GoogleVertexAiEmbeddingsRequest) super.truncate();
             return new GoogleVertexAiEmbeddingsWithoutAuthRequest(
                 embeddingsRequest.truncator(),

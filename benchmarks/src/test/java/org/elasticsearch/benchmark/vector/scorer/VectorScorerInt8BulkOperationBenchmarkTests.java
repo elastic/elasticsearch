@@ -11,15 +11,9 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.simdvec.VectorSimilarityType;
-import org.elasticsearch.test.ESTestCase;
-import org.junit.BeforeClass;
-import org.openjdk.jmh.annotations.Param;
 
-import java.util.Arrays;
-
-public class VectorScorerInt8BulkOperationBenchmarkTests extends ESTestCase {
+public class VectorScorerInt8BulkOperationBenchmarkTests extends BenchmarkTest {
 
     private final VectorSimilarityType function;
     private final int dims;
@@ -29,43 +23,44 @@ public class VectorScorerInt8BulkOperationBenchmarkTests extends ESTestCase {
         this.dims = dims;
     }
 
-    @BeforeClass
-    public static void skipWindows() {
-        assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
+    private VectorScorerInt8BulkOperationBenchmark newBench() {
+        var vectorData = new VectorScorerInt8BulkOperationBenchmark.VectorData(dims, 1000, 200, random());
+        var bench = new VectorScorerInt8BulkOperationBenchmark();
+        bench.function = function;
+        bench.dims = dims;
+        bench.numVectors = 1000;
+        bench.bulkSize = 200;
+        bench.setup(vectorData);
+        return bench;
     }
 
-    public void testSequential() {
+    public void testBulk() {
         for (int i = 0; i < 100; i++) {
-            var vectorData = VectorScorerInt8BulkOperationBenchmark.VectorData.create(dims, 1000, 200, random());
-            var bench = new VectorScorerInt8BulkOperationBenchmark();
-            bench.function = function;
-            bench.dims = dims;
-            bench.numVectors = 1000;
-            bench.bulkSize = 200;
-            bench.setup(vectorData);
+            var bench = newBench();
             try {
-                float[] single = bench.scoreMultipleSequential();
-                float[] bulk = bench.scoreMultipleSequentialBulk();
-                assertArrayEquals(function.toString(), single, bulk, 1e-5f);
+                assertArrayEquals(function.toString(), bench.scoreSequential(), bench.scoreBulk(), 1e-5f);
             } finally {
                 bench.teardown();
             }
         }
     }
 
-    public void testRandom() {
+    public void testBulkOffsets() {
         for (int i = 0; i < 100; i++) {
-            var vectorData = VectorScorerInt8BulkOperationBenchmark.VectorData.create(dims, 1000, 200, random());
-            var bench = new VectorScorerInt8BulkOperationBenchmark();
-            bench.function = function;
-            bench.dims = dims;
-            bench.numVectors = 1000;
-            bench.bulkSize = 200;
-            bench.setup(vectorData);
+            var bench = newBench();
             try {
-                float[] single = bench.scoreMultipleRandom();
-                float[] bulk = bench.scoreMultipleRandomBulk();
-                assertArrayEquals(function.toString(), single, bulk, 1e-5f);
+                assertArrayEquals(function.toString(), bench.scoreRandom(), bench.scoreBulkOffsets(), 1e-5f);
+            } finally {
+                bench.teardown();
+            }
+        }
+    }
+
+    public void testBulkSparse() {
+        for (int i = 0; i < 100; i++) {
+            var bench = newBench();
+            try {
+                assertArrayEquals(function.toString(), bench.scoreRandom(), bench.scoreBulkSparse(), 1e-5f);
             } finally {
                 bench.teardown();
             }
@@ -73,17 +68,10 @@ public class VectorScorerInt8BulkOperationBenchmarkTests extends ESTestCase {
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parametersFactory() {
-        try {
-            String[] dims = VectorScorerInt8BulkOperationBenchmark.class.getField("dims").getAnnotationsByType(Param.class)[0].value();
-            String[] functions = VectorScorerInt8BulkOperationBenchmark.class.getField("function").getAnnotationsByType(Param.class)[0]
-                .value();
-            return () -> Arrays.stream(dims)
-                .map(Integer::parseInt)
-                .flatMap(d -> Arrays.stream(functions).map(VectorSimilarityType::valueOf).map(f -> new Object[] { f, d }))
-                .iterator();
-        } catch (NoSuchFieldException e) {
-            throw new AssertionError(e);
-        }
+    public static Iterable<Object[]> parametersFactory() throws NoSuchFieldException {
+        return generateParameters(
+            VectorScorerInt8BulkOperationBenchmark.class.getField("function"),
+            VectorScorerInt8BulkOperationBenchmark.class.getField("dims")
+        );
     }
 }

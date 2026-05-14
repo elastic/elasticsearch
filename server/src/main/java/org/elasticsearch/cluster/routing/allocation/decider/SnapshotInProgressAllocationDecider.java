@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.FixForMultiProject;
 
 import java.util.Objects;
@@ -25,6 +26,22 @@ import java.util.Objects;
 public class SnapshotInProgressAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "snapshot_in_progress";
+    public static final String RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING_NAME = "stateless.snapshot.relocation_during_snapshot.enabled";
+
+    private volatile boolean relocationDuringSnapshotEnabled;
+
+    public SnapshotInProgressAllocationDecider(ClusterSettings clusterSettings) {
+        final var relocationDuringSnapshotEnabledSetting = clusterSettings.get(RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING_NAME);
+        if (relocationDuringSnapshotEnabledSetting != null) {
+            assert relocationDuringSnapshotEnabledSetting.isDynamic();
+            clusterSettings.initializeAndWatch(
+                relocationDuringSnapshotEnabledSetting,
+                value -> relocationDuringSnapshotEnabled = (boolean) value
+            );
+        } else {
+            relocationDuringSnapshotEnabled = false;
+        }
+    }
 
     /**
      * Returns a {@link Decision} whether the given shard routing can be
@@ -52,8 +69,13 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
 
     private static final Decision YES_NOT_RUNNING = Decision.single(Decision.Type.YES, NAME, "no snapshots are currently running");
     private static final Decision YES_NOT_SNAPSHOTTED = Decision.single(Decision.Type.YES, NAME, "the shard is not being snapshotted");
+    private static final Decision YES_DECOUPLED = Decision.single(Decision.Type.YES, NAME, "relocation is decoupled from snapshots");
 
-    private static Decision canMove(ShardRouting shardRouting, RoutingAllocation allocation) {
+    private Decision canMove(ShardRouting shardRouting, RoutingAllocation allocation) {
+        if (relocationDuringSnapshotEnabled) {
+            return YES_DECOUPLED;
+        }
+
         if (allocation.isSimulating()) {
             return allocation.decision(Decision.YES, NAME, "allocation is always enabled when simulating");
         }

@@ -58,16 +58,14 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.action.EsqlResponseListener;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
-import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
-import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
+import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.enrich.AbstractLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
-import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
@@ -214,8 +212,10 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         );
 
         var dataSourceModule = planExecutor.dataSourceModule();
-        OperatorFactoryRegistry operatorFactoryRegistry = dataSourceModule.createOperatorFactoryRegistry(externalSourceExecutor());
-        FilterPushdownRegistry filterPushdownRegistry = dataSourceModule.filterPushdownRegistry();
+        OperatorFactoryRegistry operatorFactoryRegistry = dataSourceModule.createOperatorFactoryRegistry(
+            externalSourceExecutor(),
+            threadPool.executor(ThreadPool.Names.GENERIC)
+        );
         this.computeService = new ComputeService(
             services,
             enrichLookupService,
@@ -224,7 +224,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             bigArrays,
             blockFactoryProvider.blockFactory(),
             operatorFactoryRegistry,
-            filterPushdownRegistry,
             dataSourceModule.formatReaderRegistry()
         );
 
@@ -261,9 +260,10 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     /**
-     * Returns the executor used for external source I/O (e.g. {@code EXTERNAL/FROM external_source} operators).
+     * Returns the executor used for external source coordination (e.g. connector handshakes and registry wiring).
+     * File-based async reads and slice-queue drain use {@link ThreadPool.Names#GENERIC} via
+     * {@link OperatorFactoryRegistry#fileReadExecutor} so they do not share the same pool as compute drivers.
      * Isolated from {@link ThreadPool.Names#SEARCH} to prevent heavy external queries from starving regular ES operations.
-     * Currently shares {@code esql_worker} with compute drivers; override this method when a dedicated I/O pool is introduced.
      */
     protected Executor externalSourceExecutor() {
         return threadPool.executor(ESQL_WORKER_THREAD_POOL_NAME);
@@ -453,9 +453,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         );
     }
 
-    private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Versioned<Result> result) {
-        var innerResult = result.inner();
-        List<ColumnInfoImpl> columns = innerResult.schema().stream().map(c -> {
+    private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Versioned<Result> versionedResult) {
+        var result = versionedResult.inner();
+        List<ColumnInfoImpl> columns = result.schema().stream().map(c -> {
             List<String> originalTypes;
             if (c instanceof UnsupportedAttribute ua) {
                 // Sort the original types so they are easier to test against and prettier.
@@ -464,50 +464,45 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             } else {
                 originalTypes = null;
             }
-            // Quick way to get the approximation column metadata in the response
-            // without a full implementation of a colum metadata service.
-            // TODO: remove this hack when we have a proper column metadata service,
-            // see https://github.com/elastic/elasticsearch/issues/138223
-            Map<String, Object> columnMetadata = ApproximationPlan.columnMetadata(c);
-            return new ColumnInfoImpl(c.name(), c.dataType(), originalTypes, columnMetadata);
+            return new ColumnInfoImpl(c.name(), c.dataType(), originalTypes, result.attributeMetadata(c.id()));
         }).toList();
         EsqlQueryResponse.Profile profile = profileEnabled
             ? new EsqlQueryResponse.Profile(
-                innerResult.completionInfo().driverProfiles(),
-                innerResult.completionInfo().planProfiles(),
-                result.minimumVersion()
+                result.completionInfo().driverProfiles(),
+                result.completionInfo().planProfiles(),
+                versionedResult.minimumVersion()
             )
             : null;
         if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
             String asyncExecutionId = asyncTask.getExecutionId().getEncoded();
             return new EsqlQueryResponse(
                 columns,
-                innerResult.pages(),
-                innerResult.completionInfo().documentsFound(),
-                innerResult.completionInfo().valuesLoaded(),
+                result.pages(),
+                result.completionInfo().documentsFound(),
+                result.completionInfo().valuesLoaded(),
                 profile,
                 request.columnar(),
                 asyncExecutionId,
                 false,
                 request.async(),
-                result.inner().configuration().zoneId(),
+                result.configuration().zoneId(),
                 task.getStartTime(),
                 ((EsqlQueryTask) task).getExpirationTimeMillis(),
-                innerResult.executionInfo()
+                result.executionInfo()
             );
         }
         return new EsqlQueryResponse(
             columns,
-            innerResult.pages(),
-            innerResult.completionInfo().documentsFound(),
-            innerResult.completionInfo().valuesLoaded(),
+            result.pages(),
+            result.completionInfo().documentsFound(),
+            result.completionInfo().valuesLoaded(),
             profile,
             request.columnar(),
             request.async(),
-            result.inner().configuration().zoneId(),
+            result.configuration().zoneId(),
             task.getStartTime(),
             threadPool.absoluteTimeInMillis() + request.keepAlive().millis(),
-            innerResult.executionInfo()
+            result.executionInfo()
         );
     }
 

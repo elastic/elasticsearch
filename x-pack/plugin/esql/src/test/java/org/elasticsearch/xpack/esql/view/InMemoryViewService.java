@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -28,10 +30,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -129,10 +133,21 @@ public class InMemoryViewService extends ViewService implements Closeable {
     }
 
     @Override
-    public void deleteView(ProjectId projectId, DeleteViewAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+    public void deleteViews(
+        ProjectId projectId,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        Collection<String> viewNames,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         try {
+            Optional<String> notFoundView = viewNames.stream().filter(v -> viewMetadata.getView(v) == null).findAny();
+            if (notFoundView.isPresent()) {
+                throw new ResourceNotFoundException("view [{}] not found", notFoundView.get());
+            }
+
             Map<String, View> existingViews = new HashMap<>(viewMetadata.views());
-            existingViews.remove(request.name());
+            viewNames.forEach(existingViews::remove);
             viewMetadata = new ViewMetadata(existingViews);
             listener.onResponse(AcknowledgedResponse.TRUE);
         } catch (Exception e) {

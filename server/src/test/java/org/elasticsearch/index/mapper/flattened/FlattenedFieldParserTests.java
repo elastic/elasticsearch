@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.flattened;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MockFieldMapper.FakeFieldType;
 import org.elasticsearch.index.mapper.TestDocumentParserContext;
@@ -45,7 +46,10 @@ public class FlattenedFieldParserTests extends ESTestCase {
             true,
             true,
             Map.of(),
-            true
+            true,
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
+            IndexVersion.current(),
+            false
         );
     }
 
@@ -55,7 +59,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input);
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        parser.parse(context);
+        parser.parse(context, null);
         List<IndexableField> fields = context.doc().getFields();
         assertEquals(4, fields.size());
 
@@ -81,7 +85,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input);
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        parser.parse(context);
+        parser.parse(context, null);
         List<IndexableField> fields = context.doc().getFields();
         assertEquals(2, fields.size());
 
@@ -99,7 +103,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input);
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        parser.parse(context);
+        parser.parse(context, null);
         List<IndexableField> fields = context.doc().getFields();
         assertEquals(2, fields.size());
 
@@ -118,7 +122,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input);
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        parser.parse(context);
+        parser.parse(context, null);
         List<IndexableField> fields = context.doc().getFields();
         assertEquals(4, fields.size());
 
@@ -145,7 +149,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input);
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        parser.parse(context);
+        parser.parse(context, null);
         List<IndexableField> fields = context.doc().getFields();
         assertEquals(6, fields.size());
 
@@ -183,7 +187,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input);
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        parser.parse(context);
+        parser.parse(context, null);
         List<IndexableField> fields = context.doc().getFields();
         assertEquals(6, fields.size());
 
@@ -225,7 +229,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input);
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        parser.parse(context);
+        parser.parse(context, null);
         List<IndexableField> fields = context.doc().getFields();
         assertEquals(4, fields.size());
 
@@ -263,7 +267,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input);
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        parser.parse(context);
+        parser.parse(context, null);
         List<IndexableField> fields = context.doc().getFields();
         assertEquals(6, fields.size());
 
@@ -312,11 +316,14 @@ public class FlattenedFieldParserTests extends ESTestCase {
             false,
             true,
             Map.of(),
-            true
+            true,
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
+            IndexVersion.current(),
+            false
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> configuredParser.parse(context));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> configuredParser.parse(context, null));
         assertEquals("The provided [flattened] field [field] exceeds the maximum depth limit of [2].", e.getMessage());
     }
 
@@ -340,11 +347,14 @@ public class FlattenedFieldParserTests extends ESTestCase {
             false,
             true,
             Map.of(),
-            true
+            true,
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
+            IndexVersion.current(),
+            false
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        configuredParser.parse(context);
+        configuredParser.parse(context, null);
         List<IndexableField> fields = context.doc().getFields();
         assertEquals(4, fields.size());
     }
@@ -363,11 +373,14 @@ public class FlattenedFieldParserTests extends ESTestCase {
             true,
             true,
             Map.of(),
-            true
+            true,
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
+            IndexVersion.current(),
+            false
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        configuredParser.parse(context);
+        configuredParser.parse(context, null);
         List<IndexableField> fields = context.doc().getFields();
         assertEquals(0, fields.size());
     }
@@ -386,11 +399,14 @@ public class FlattenedFieldParserTests extends ESTestCase {
             false,
             true,
             Map.of(),
+            false,
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
+            IndexVersion.current(),
             false
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        configuredParser.parse(context);
+        configuredParser.parse(context, null);
         List<IndexableField> fields = context.doc().getFields();
         assertEquals(0, fields.size());
     }
@@ -399,7 +415,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
         String input = "{ \"key\": null}";
 
         TestDocumentParserContext fieldsContext = new TestDocumentParserContext(createXContentParser(input));
-        parser.parse(fieldsContext);
+        parser.parse(fieldsContext, null);
         List<IndexableField> fields = fieldsContext.doc().getFields();
         assertEquals(0, fields.size());
 
@@ -415,11 +431,14 @@ public class FlattenedFieldParserTests extends ESTestCase {
             true,
             true,
             Map.of(),
-            true
+            true,
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
+            IndexVersion.current(),
+            false
         );
 
         TestDocumentParserContext configuredContext = new TestDocumentParserContext(createXContentParser(input));
-        configuredParser.parse(configuredContext);
+        configuredParser.parse(configuredContext, null);
         fields = configuredContext.doc().getFields();
         assertEquals(2, fields.size());
 
@@ -437,7 +456,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input);
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        expectThrows(XContentParseException.class, () -> parser.parse(context));
+        expectThrows(XContentParseException.class, () -> parser.parse(context, null));
     }
 
     public void testEmptyObject() throws Exception {
@@ -445,7 +464,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input);
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        parser.parse(context);
+        parser.parse(context, null);
         List<IndexableField> fields = context.doc().getFields();
         assertEquals(0, fields.size());
     }
@@ -467,7 +486,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input.utf8ToString());
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        parser.parse(context);
+        parser.parse(context, null);
         List<IndexableField> fields = context.doc().getFields();
         assertTrue(fields.size() > 4);
     }
@@ -479,7 +498,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input.utf8ToString());
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parser.parse(context));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parser.parse(context, null));
         assertEquals("Keys in [flattened] fields cannot contain the reserved character \\0. Offending key: [k\0y].", e.getMessage());
     }
 

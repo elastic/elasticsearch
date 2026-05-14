@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskResult;
 
 import java.io.IOException;
 import java.util.Map;
@@ -24,22 +25,38 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Holds resume state information for a {@link BulkByScrollTask} task to be resumed from a previous run. It may contain a WorkerResumeInfo
- * which keeps the state for a single worker task, or a map of SliceResumeInfo which keeps the state for each slice of a leader task.
+ * Holds resume state information for a {@link BulkByPaginatedSearchTask} task to be resumed from a previous run.
+ * It may contain a WorkerResumeInfo which keeps the state for a single worker task, or a map of SliceResumeInfo which keeps
+ * the state for each slice of a leader task.
  * It also has information about the original task that was relocated, so the user-facing taskID and start time are preserved in listings.
  * But the RelocationOrigin isn't accurate for sliced tasks, they have themselves as the origin, but for listing the leader is correct.
+ * SourceTaskResult contains the result of the source task, and it is passed through relocation. The destination task persists this result
+ * in .tasks to ensure the relocation chain is maintained even if the source task fails to store its result. This prevents the
+ * destination task from becoming orphaned and unreachable through the relocation chain.
  * <p>
  * Note: For sliced tasks, resume info must include all slices, including those that are already completed. This ensures that the final
  * task has a complete result from all slices. A task may be resumed multiple times, so information for completed slices must be carried
- * forward to each subsequent resume until the task is fully completed.
+ * forward to each subsequent resume until the task is fully completed. SourceTaskResult should not be present for sliced workers.
  * <p>
- * TODO: we can use List instead of Map for since the keys are required to be 0-based and contiguous.
+ * TODO: we can use List instead of Map for slices since the keys are required to be 0-based and contiguous.
  */
-public record ResumeInfo(RelocationOrigin relocationOrigin, @Nullable WorkerResumeInfo worker, @Nullable Map<Integer, SliceStatus> slices)
-    implements
-        Writeable {
+public record ResumeInfo(
+    RelocationOrigin relocationOrigin,
+    @Nullable WorkerResumeInfo worker,
+    @Nullable Map<Integer, SliceStatus> slices,
+    @Nullable TaskResult sourceTaskResult
+) implements Writeable {
 
     public ResumeInfo(RelocationOrigin relocationOrigin, @Nullable WorkerResumeInfo worker, @Nullable Map<Integer, SliceStatus> slices) {
+        this(relocationOrigin, worker, slices, null);
+    }
+
+    public ResumeInfo(
+        RelocationOrigin relocationOrigin,
+        @Nullable WorkerResumeInfo worker,
+        @Nullable Map<Integer, SliceStatus> slices,
+        @Nullable TaskResult sourceTaskResult
+    ) {
         this.relocationOrigin = Objects.requireNonNull(relocationOrigin, "relocation origin cannot be null");
         if (worker == null && (slices == null || slices.size() < 2)) {
             throw new IllegalArgumentException("resume info requires a worker resume info or at minimum two slices");
@@ -49,13 +66,15 @@ public record ResumeInfo(RelocationOrigin relocationOrigin, @Nullable WorkerResu
         }
         this.worker = worker;
         this.slices = slices != null ? Map.copyOf(slices) : null;
+        this.sourceTaskResult = sourceTaskResult;
     }
 
     public ResumeInfo(StreamInput in) throws IOException {
         this(
             new RelocationOrigin(in), // if serialized, always present
             in.readOptionalNamedWriteable(WorkerResumeInfo.class),
-            in.readOptionalImmutableMap(StreamInput::readVInt, SliceStatus::new)
+            in.readOptionalImmutableMap(StreamInput::readVInt, SliceStatus::new),
+            in.readOptionalWriteable(TaskResult::new)
         );
     }
 
@@ -64,6 +83,7 @@ public record ResumeInfo(RelocationOrigin relocationOrigin, @Nullable WorkerResu
         out.writeWriteable(relocationOrigin);
         out.writeOptionalNamedWriteable(worker);
         out.writeOptionalMap(slices, StreamOutput::writeVInt, (o, v) -> v.writeTo(o));
+        out.writeOptionalWriteable(sourceTaskResult);
     }
 
     public int getTotalSlices() {
@@ -87,21 +107,21 @@ public record ResumeInfo(RelocationOrigin relocationOrigin, @Nullable WorkerResu
     }
 
     /**
-     * Resume information for a single worker of a BulkByScrollTask.
+     * Resume information for a single worker of a BulkByPaginatedSearchTask.
      */
     public interface WorkerResumeInfo extends NamedWriteable {
         long startTimeEpochMillis();
 
-        BulkByScrollTask.Status status();
+        BulkByPaginatedSearchTask.Status status();
     }
 
     /**
-     * Resume information for a scroll-based BulkByScrollTask worker.
+     * Resume information for a scroll-based BulkByPaginatedSearchTask worker.
      */
     public record ScrollWorkerResumeInfo(
         String scrollId,
         long startTimeEpochMillis,
-        BulkByScrollTask.Status status,
+        BulkByPaginatedSearchTask.Status status,
         @Nullable Version remoteVersion
     ) implements WorkerResumeInfo {
 
@@ -113,7 +133,7 @@ public record ResumeInfo(RelocationOrigin relocationOrigin, @Nullable WorkerResu
         }
 
         public ScrollWorkerResumeInfo(StreamInput in) throws IOException {
-            this(in.readString(), in.readLong(), new BulkByScrollTask.Status(in), in.readOptional(Version::readVersion));
+            this(in.readString(), in.readLong(), new BulkByPaginatedSearchTask.Status(in), in.readOptional(Version::readVersion));
         }
 
         @Override
@@ -128,16 +148,17 @@ public record ResumeInfo(RelocationOrigin relocationOrigin, @Nullable WorkerResu
         public String getWriteableName() {
             return NAME;
         }
+
     }
 
     /**
-     * Resume information for a PIT-based BulkByScrollTask worker.
+     * Resume information for a PIT-based BulkByPaginatedSearchTask worker.
      */
     public record PitWorkerResumeInfo(
         BytesReference pitId,
         Object[] searchAfterValues,
         long startTimeEpochMillis,
-        BulkByScrollTask.Status status,
+        BulkByPaginatedSearchTask.Status status,
         @Nullable Version remoteVersion
     ) implements WorkerResumeInfo {
         public static final String NAME = "PitWorkerResumeInfo";
@@ -153,7 +174,7 @@ public record ResumeInfo(RelocationOrigin relocationOrigin, @Nullable WorkerResu
                 in.readBytesReference(),
                 in.readArray(StreamInput::readGenericValue, Object[]::new),
                 in.readLong(),
-                new BulkByScrollTask.Status(in),
+                new BulkByPaginatedSearchTask.Status(in),
                 in.readOptional(Version::readVersion)
             );
         }
@@ -171,6 +192,7 @@ public record ResumeInfo(RelocationOrigin relocationOrigin, @Nullable WorkerResu
         public String getWriteableName() {
             return NAME;
         }
+
     }
 
     /*
@@ -206,7 +228,7 @@ public record ResumeInfo(RelocationOrigin relocationOrigin, @Nullable WorkerResu
     }
 
     /**
-     * Information for a single slice of a BulkByScrollTask.
+     * Information for a single slice of a BulkByPaginatedSearchTask.
      * It contains either:
      * - the WorkerResumeInfo for the worker that processed the slice if the task was not completed
      * - or the final result of the slice if it has completed (successfully or erroneously).

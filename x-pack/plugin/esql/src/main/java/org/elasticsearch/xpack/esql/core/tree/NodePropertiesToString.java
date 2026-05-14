@@ -6,22 +6,36 @@
  */
 package org.elasticsearch.xpack.esql.core.tree;
 
+import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Renders the properties of a {@link Node} as a string.
  */
 class NodePropertiesToString {
+
+    private static final Pattern APPROXIMATION_BUCKET_COLUMN_NAME_PATTERN = Pattern.compile(
+        Pattern.quote(
+            Attribute.SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR + ApproximationPlan.BUCKET_NAME_PART + Attribute.SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR
+        ) + "(\\d+)"
+    );
+
     private final Node.NodeStringFormat format;
     private final Node<?> node;
     private final boolean skipIfChild;
-    private final StringBuilder result = new StringBuilder();
+    private final StringBuilder sb;
     private int charactersRemainingInLine;
     private int linesUsed = 0;
 
-    NodePropertiesToString(Node.NodeStringFormat format, Node<?> node, boolean skipIfChild) {
+    NodePropertiesToString(StringBuilder sb, Node.NodeStringFormat format, Node<?> node, boolean skipIfChild) {
+        this.sb = sb;
         this.format = format;
         this.node = node;
         this.skipIfChild = skipIfChild;
@@ -33,7 +47,7 @@ class NodePropertiesToString {
      * one like {@code foo bar baz}. These go inside the
      * {@code [} and {@code ]} of the output of {@link NodeToString#treeString}.
      */
-    String propertiesToString() {
+    void propertiesToString() {
         List<Object> props = node.nodeProperties();
         int remainingProperties = format.maxProperties;
         boolean firstProperty = true;
@@ -43,7 +57,7 @@ class NodePropertiesToString {
                 continue;
             }
             if (remainingProperties-- < 0) {
-                result.append("...").append(props.size() - format.maxProperties).append("fields not shown");
+                sb.append("...").append(props.size() - format.maxProperties).append("fields not shown");
                 break;
             }
 
@@ -57,28 +71,26 @@ class NodePropertiesToString {
                 break;
             }
         }
-
-        return result.toString();
     }
 
     /**
-     * Append {@code stringValue} to {@link #result}, wrapping at line boundaries.
+     * Append {@code stringValue} to {@link #sb}, wrapping at line boundaries.
      * Returns {@code true} if rendering can continue, {@code false} if the line budget is exhausted.
      */
     private boolean appendString(String stringValue) {
         int start = 0;
         while (stringValue.length() - start > charactersRemainingInLine) {
-            result.append(stringValue, start, start + charactersRemainingInLine);
+            sb.append(stringValue, start, start + charactersRemainingInLine);
             if (linesUsed >= format.maxLines - 1) {
-                result.append("...");
+                sb.append("...");
                 return false;
             }
-            result.append("\n");
+            sb.append("\n");
             linesUsed++;
             start += charactersRemainingInLine;
             charactersRemainingInLine = format.maxWidth;
         }
-        result.append(stringValue, start, stringValue.length());
+        sb.append(stringValue, start, stringValue.length());
         charactersRemainingInLine -= stringValue.length() - start;
         return true;
     }
@@ -89,6 +101,20 @@ class NodePropertiesToString {
         }
         boolean firstElement = true;
         for (Object element : iterable) {
+            if (format == Node.NodeStringFormat.LIMITED) {
+                // In the LIMITED format, for query approximation plans (see: {@link ApproximationPlan})
+                // only render the first and last buckets of bucketed values (separated by an ellipsis).
+                Integer bucketId = getQueryApproximationBucketId(element);
+                int lastBucketId = ApproximationPlan.BUCKET_COUNT * ApproximationPlan.TRIAL_COUNT - 1;
+                if (bucketId != null && bucketId > 0 && bucketId < lastBucketId) {
+                    if (bucketId == 1) {
+                        if (appendString(", ...") == false) {
+                            return false;
+                        }
+                    }
+                    continue;
+                }
+            }
             if (firstElement == false) {
                 if (appendString(", ") == false) {
                     return false;
@@ -102,10 +128,32 @@ class NodePropertiesToString {
         return appendString("]");
     }
 
+    /**
+     * Returns the query approximation bucket ID (see: {@link ApproximationPlan}) if this property
+     * is containing only a single bucket. Returns null if no or multiple buckets.
+     */
+    private Integer getQueryApproximationBucketId(Object prop) {
+        Matcher matcher = APPROXIMATION_BUCKET_COLUMN_NAME_PATTERN.matcher(propertyToString(prop));
+        Set<Integer> bucketIds = new HashSet<>();
+        while (matcher.find()) {
+            bucketIds.add(Integer.parseInt(matcher.group(1)));
+        }
+        return bucketIds.size() == 1 ? bucketIds.iterator().next() : null;
+    }
+
     private String propertyToString(Object obj) {
         return switch (obj) {
             case null -> "null";
-            case Node<?> n -> n.nodeString(format);
+            case Node<?> n -> {
+                /*
+                 * We still build a string here which we then cut up. But this is only
+                 * for things like the expression tree. Most other nodes are skipped
+                 * and rendered as proper children, properly sharing the StringBuilder.
+                 */
+                StringBuilder str = new StringBuilder();
+                n.nodeString(str, format);
+                yield str.toString();
+            }
             case NameId nameId -> "#" + obj;
             default -> String.valueOf(obj);
         };

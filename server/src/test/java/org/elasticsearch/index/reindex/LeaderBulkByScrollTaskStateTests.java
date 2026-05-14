@@ -9,10 +9,12 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -23,10 +25,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.elasticsearch.test.ActionListenerUtils.neverCalledListener;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.mock;
@@ -34,13 +40,13 @@ import static org.mockito.Mockito.verify;
 
 public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
     private int slices;
-    private BulkByScrollTask task;
+    private BulkByPaginatedSearchTask task;
     private LeaderBulkByScrollTaskState taskState;
 
     @Before
     public void createTask() {
         slices = between(2, 50);
-        task = new BulkByScrollTask(
+        task = new BulkByPaginatedSearchTask(
             new TaskId(randomAlphaOfLength(10), 1),
             "test_type",
             "test_action",
@@ -50,7 +56,7 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
             false,
             randomBoolean() ? null : randomOrigin()
         );
-        task.setWorkerCount(slices);
+        task.setWorkerCount(slices, Float.POSITIVE_INFINITY);
         taskState = task.getLeaderState();
     }
 
@@ -69,8 +75,10 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
         long noops = 0;
         long versionConflicts = 0;
         int batches = 0;
-        List<BulkByScrollTask.StatusOrException> sliceStatuses = Arrays.asList(new BulkByScrollTask.StatusOrException[slices]);
-        BulkByScrollTask.Status status = task.getStatus();
+        List<BulkByPaginatedSearchTask.StatusOrException> sliceStatuses = Arrays.asList(
+            new BulkByPaginatedSearchTask.StatusOrException[slices]
+        );
+        BulkByPaginatedSearchTask.Status status = task.getStatus();
         assertEquals(total, status.getTotal());
         assertEquals(created, status.getCreated());
         assertEquals(updated, status.getUpdated());
@@ -88,7 +96,7 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
             int thisNoops = thisTotal - thisCreated - thisUpdated - thisDeleted;
             int thisVersionConflicts = between(0, 1000);
             int thisBatches = between(1, 100);
-            BulkByScrollTask.Status sliceStatus = new BulkByScrollTask.Status(
+            BulkByPaginatedSearchTask.Status sliceStatus = new BulkByPaginatedSearchTask.Status(
                 slice,
                 thisTotal,
                 thisUpdated,
@@ -111,10 +119,10 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
             noops += thisNoops;
             versionConflicts += thisVersionConflicts;
             batches += thisBatches;
-            sliceStatuses.set(slice, new BulkByScrollTask.StatusOrException(sliceStatus));
+            sliceStatuses.set(slice, new BulkByPaginatedSearchTask.StatusOrException(sliceStatus));
 
             @SuppressWarnings("unchecked")
-            ActionListener<BulkByScrollResponse> listener = slice < slices - 1 ? neverCalled() : mock(ActionListener.class);
+            ActionListener<BulkByScrollResponse> listener = slice < slices - 1 ? neverCalledListener() : mock(ActionListener.class);
             taskState.onSliceResponse(
                 listener,
                 slice,
@@ -157,7 +165,7 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
         final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
         for (int i = 0; i < sliceCount; i++) {
             sliceResponses[i] = resumeSliceResponse(i);
-            final ActionListener<BulkByScrollResponse> listener = i < sliceCount - 1 ? neverCalled() : future;
+            final ActionListener<BulkByScrollResponse> listener = i < sliceCount - 1 ? neverCalledListener() : future;
             leaderState.onSliceResponse(listener, i, sliceResponses[i]);
         }
 
@@ -186,10 +194,10 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
         final BulkByScrollResponse completedResponse = completedSliceResponse(0);
         final BulkByScrollResponse[] resumeResponses = new BulkByScrollResponse[sliceCount - 1];
         final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
-        leaderState.onSliceResponse(neverCalled(), 0, completedResponse);
+        leaderState.onSliceResponse(neverCalledListener(), 0, completedResponse);
         for (int i = 1; i < sliceCount; i++) {
             resumeResponses[i - 1] = resumeSliceResponse(i);
-            final ActionListener<BulkByScrollResponse> listener = i < sliceCount - 1 ? neverCalled() : future;
+            final ActionListener<BulkByScrollResponse> listener = i < sliceCount - 1 ? neverCalledListener() : future;
             leaderState.onSliceResponse(listener, i, resumeResponses[i - 1]);
         }
 
@@ -222,7 +230,7 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
         // all slices complete normally — relocation should be skipped even though requested
         final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
         for (int i = 0; i < sliceCount; i++) {
-            final ActionListener<BulkByScrollResponse> listener = i < sliceCount - 1 ? neverCalled() : future;
+            final ActionListener<BulkByScrollResponse> listener = i < sliceCount - 1 ? neverCalledListener() : future;
             leaderState.onSliceResponse(listener, i, completedSliceResponse(i));
         }
 
@@ -246,8 +254,8 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
 
         // Complete slices in reverse order so slice 2 completes last — its pitId should be used
         final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
-        leaderState.onSliceResponse(neverCalled(), 0, completedSliceResponseWithPitId(0, pitIdSlice0));
-        leaderState.onSliceResponse(neverCalled(), 1, completedSliceResponseWithPitId(1, pitIdSlice1));
+        leaderState.onSliceResponse(neverCalledListener(), 0, completedSliceResponseWithPitId(0, pitIdSlice0));
+        leaderState.onSliceResponse(neverCalledListener(), 1, completedSliceResponseWithPitId(1, pitIdSlice1));
         leaderState.onSliceResponse(future, 2, completedSliceResponseWithPitId(2, pitIdSlice2));
 
         assertTrue(future.isDone());
@@ -256,8 +264,8 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
         assertThat(response.getPitId().get(), equalTo(pitIdSlice2));
     }
 
-    private static BulkByScrollTask createLeaderTask(final int sliceCount) {
-        final BulkByScrollTask task = new BulkByScrollTask(
+    private static BulkByPaginatedSearchTask createLeaderTask(final int sliceCount) {
+        final BulkByPaginatedSearchTask task = new BulkByPaginatedSearchTask(
             new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
@@ -267,7 +275,7 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
             false,
             randomBoolean() ? null : randomOrigin()
         );
-        task.setWorkerCount(sliceCount);
+        task.setWorkerCount(sliceCount, Float.POSITIVE_INFINITY);
         return task;
     }
 
@@ -285,10 +293,10 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
         final RuntimeException sliceFailure = new RuntimeException("slice 0 failed");
         final BulkByScrollResponse[] resumeResponses = new BulkByScrollResponse[sliceCount - 1];
         final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
-        leaderState.onSliceFailure(neverCalled(), 0, sliceFailure);
+        leaderState.onSliceFailure(neverCalledListener(), 0, sliceFailure);
         for (int i = 1; i < sliceCount; i++) {
             resumeResponses[i - 1] = resumeSliceResponse(i);
-            final ActionListener<BulkByScrollResponse> listener = i < sliceCount - 1 ? neverCalled() : future;
+            final ActionListener<BulkByScrollResponse> listener = i < sliceCount - 1 ? neverCalledListener() : future;
             leaderState.onSliceResponse(listener, i, resumeResponses[i - 1]);
         }
 
@@ -313,8 +321,186 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
         }
     }
 
-    private static BulkByScrollTask createRelocationLeaderTask(final int sliceCount) {
-        final BulkByScrollTask task = new BulkByScrollTask(
+    public void testFinalResponseUsesLeaderStoredRps() {
+        final float leaderRps = randomFloatBetween(1f, 1000f, true);
+        final int sliceCount = between(2, 5);
+        final BulkByPaginatedSearchTask leaderTask = new BulkByPaginatedSearchTask(
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            TaskId.EMPTY_TASK_ID,
+            Map.of(),
+            false,
+            null
+        );
+        leaderTask.setWorkerCount(sliceCount, leaderRps);
+        final LeaderBulkByScrollTaskState state = leaderTask.getLeaderState();
+
+        final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
+        for (int i = 0; i < sliceCount; i++) {
+            float childRps = randomFloatBetween(0.1f, 50f, true);
+            BulkByPaginatedSearchTask.Status childStatus = new BulkByPaginatedSearchTask.Status(
+                i,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                timeValueMillis(0),
+                childRps,
+                null,
+                timeValueMillis(0)
+            );
+            ActionListener<BulkByScrollResponse> listener = i < sliceCount - 1 ? neverCalledListener() : future;
+            state.onSliceResponse(
+                listener,
+                i,
+                new BulkByScrollResponse(timeValueMillis(randomNonNegativeLong()), childStatus, emptyList(), emptyList(), false)
+            );
+        }
+
+        assertTrue(future.isDone());
+        final BulkByScrollResponse response = future.actionGet();
+        assertThat(response.getStatus().getRequestsPerSecond(), equalTo(leaderRps));
+    }
+
+    public void testGetStatusReportsStoredRpsNotSumOfChildren() {
+        final float leaderRps = randomFloatBetween(1f, 1000f, true);
+        final int sliceCount = between(2, 10);
+        final BulkByPaginatedSearchTask leaderTask = new BulkByPaginatedSearchTask(
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            TaskId.EMPTY_TASK_ID,
+            Map.of(),
+            false,
+            null
+        );
+        leaderTask.setWorkerCount(sliceCount, leaderRps);
+        final LeaderBulkByScrollTaskState state = leaderTask.getLeaderState();
+
+        // Simulate children completing with various per-child RPS that don't sum to leaderRps
+        for (int i = 0; i < sliceCount; i++) {
+            float childRps = randomFloatBetween(0.1f, 50f, true);
+            BulkByPaginatedSearchTask.Status childStatus = new BulkByPaginatedSearchTask.Status(
+                i,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                timeValueMillis(0),
+                childRps,
+                null,
+                timeValueMillis(0)
+            );
+            state.onSliceResponse(
+                i < sliceCount - 1 ? neverCalledListener() : ActionListener.noop(),
+                i,
+                new BulkByScrollResponse(timeValueMillis(randomNonNegativeLong()), childStatus, emptyList(), emptyList(), false)
+            );
+        }
+
+        assertThat(leaderTask.getStatus().getRequestsPerSecond(), equalTo(leaderRps));
+
+        // After rethrottle, getStatus reports the new value
+        final float rethrottledRps = randomFloatBetween(1f, 2000f, true);
+        state.setRequestsPerSecondWithRelocationGuard(rethrottledRps);
+        assertThat(leaderTask.getStatus().getRequestsPerSecond(), equalTo(rethrottledRps));
+    }
+
+    public void testCaptureRequestsPerSecondForRelocation() {
+        final float initialRPS = randomFloatBetween(0.1f, 1000f, true);
+        final BulkByPaginatedSearchTask leaderTask = new BulkByPaginatedSearchTask(
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            TaskId.EMPTY_TASK_ID,
+            Map.of(),
+            false,
+            randomBoolean() ? null : randomOrigin()
+        );
+        leaderTask.setWorkerCount(between(2, 10), initialRPS);
+        final LeaderBulkByScrollTaskState state = leaderTask.getLeaderState();
+
+        assertThat(state.captureRequestsPerSecondForRelocation(), equalTo(initialRPS));
+    }
+
+    public void testSetRequestsPerSecondWithRelocationGuardUpdatesValue() {
+        final float newRPS = randomFloatBetween(0.1f, 1000f, true);
+        taskState.setRequestsPerSecondWithRelocationGuard(newRPS);
+        assertThat(taskState.captureRequestsPerSecondForRelocation(), equalTo(newRPS));
+    }
+
+    public void testSetRequestsPerSecondWithRelocationGuardThrows503AfterCapture() {
+        taskState.captureRequestsPerSecondForRelocation();
+        final float rps = randomFloatBetween(0.1f, 1000f, true);
+        final ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> taskState.setRequestsPerSecondWithRelocationGuard(rps)
+        );
+        assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+    }
+
+    public void testCaptureAndRethrottleRaceCondition() throws Exception {
+        final float initialRps = randomFloatBetween(0.1f, 500f, true);
+        final float rethrottledRps = randomFloatBetween(501f, 1000f, true);
+        taskState.setRequestsPerSecondWithRelocationGuard(initialRps);
+
+        final CountDownLatch ready = new CountDownLatch(2);
+        final CountDownLatch go = new CountDownLatch(1);
+
+        final ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            final Future<Float> captureFuture = executor.submit(() -> {
+                ready.countDown();
+                safeAwait(go);
+                return taskState.captureRequestsPerSecondForRelocation();
+            });
+            final Future<ElasticsearchStatusException> rethrottleFuture = executor.submit(() -> {
+                ready.countDown();
+                safeAwait(go);
+                try {
+                    taskState.setRequestsPerSecondWithRelocationGuard(rethrottledRps);
+                    return null;
+                } catch (ElasticsearchStatusException e) {
+                    return e;
+                }
+            });
+
+            safeAwait(ready);
+            go.countDown();
+
+            final float captured = safeGet(captureFuture);
+            final ElasticsearchStatusException rethrottleError = safeGet(rethrottleFuture);
+
+            // check mutual exclusion of race, we either:
+            // 1. fail to rethrottle, RPS doesn't change, and we get an exception
+            // 2. or we succeed to rethrottle, RPS changes, and we get no exception
+            if (rethrottleError != null) {
+                assertThat(captured, equalTo(initialRps));
+                assertThat(rethrottleError.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+            } else {
+                assertThat(captured, equalTo(rethrottledRps));
+            }
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    private static BulkByPaginatedSearchTask createRelocationLeaderTask(final int sliceCount) {
+        final BulkByPaginatedSearchTask task = new BulkByPaginatedSearchTask(
             new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
@@ -324,14 +510,14 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
             true,
             randomBoolean() ? null : randomOrigin()
         );
-        task.setWorkerCount(sliceCount);
+        task.setWorkerCount(sliceCount, Float.POSITIVE_INFINITY);
         task.requestRelocation();
         task.getLeaderState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
         return task;
     }
 
-    private static BulkByScrollTask.Status statusForSlice(final int sliceId) {
-        return new BulkByScrollTask.Status(
+    private static BulkByPaginatedSearchTask.Status statusForSlice(final int sliceId) {
+        return new BulkByPaginatedSearchTask.Status(
             sliceId,
             randomNonNegativeInt(),
             randomNonNegativeInt(),
@@ -360,7 +546,7 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
         );
         return new BulkByScrollResponse(
             randomTimeValue(),
-            new BulkByScrollTask.Status(List.of(), null),
+            new BulkByPaginatedSearchTask.Status(List.of(), null, 0f),
             List.of(),
             List.of(),
             false,
@@ -378,20 +564,6 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
             randomBoolean() ? TaskId.EMPTY_TASK_ID : new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             randomNonNegativeLong()
         );
-    }
-
-    private <T> ActionListener<T> neverCalled() {
-        return new ActionListener<T>() {
-            @Override
-            public void onResponse(T response) {
-                throw new RuntimeException("Expected no interactions but got [" + response + "]");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new RuntimeException("Expected no interations but was received a failure", e);
-            }
-        };
     }
 
     private <T> T captureResponse(Class<T> responseClass, ActionListener<T> listener) {

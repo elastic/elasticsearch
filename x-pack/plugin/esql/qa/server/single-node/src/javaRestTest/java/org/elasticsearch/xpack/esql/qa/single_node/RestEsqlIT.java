@@ -740,26 +740,45 @@ public class RestEsqlIT extends RestEsqlTestCase {
             String description = p.get("description").toString();
             switch (description) {
                 case "data" -> {
-                    // We force a page size of 10 so there are likely to be sleeps with the outbound buffer full
-                    assertMap(sleeps, matchesMap().entry("counts", matchesMap().entry("exchange full", greaterThanOrEqualTo(0))).extraOk());
-                    assertSleeps(sleeps, sleepMatcher("exchange full"));
+                    /*
+                     * We force a page size of 10 so there are likely to be sleeps with the
+                     * outbound buffer full. "Driver iterations" sleeps *may* happen if the
+                     * buffer doesn't fill up fast enough.
+                     */
+                    assertMap(
+                        sleeps,
+                        matchesMap().entry("counts", matchesMap().entry("exchange full", greaterThanOrEqualTo(0)).extraOk()).extraOk()
+                    );
+                    assertSleeps(sleeps, sleepMatcher(either(equalTo("exchange full")).or(equalTo("driver iterations"))));
                 }
                 case "node_reduce" -> {
-                    // There will always be sleeps on the reduce drivers because they won't have results ready
-                    // There *might* be exchange_full sleeps as well
+                    /*
+                     * There will always be sleeps on the reduce drivers because they won't
+                     * have results ready. "Driver iterations" sleeps *may* happen if the
+                     * buffer doesn't fill up fast enough.
+                     */
                     Map<?, ?> counts = (Map<?, ?>) sleeps.get("counts");
                     assertThat(counts, either(hasKey((Object) "exchange empty")).or(hasKey("exchange empty OR exchange full")));
                     assertSleeps(
                         sleeps,
                         sleepMatcher(
-                            either(equalTo("exchange empty")).or(equalTo("exchange full")).or(equalTo("exchange empty OR exchange full"))
+                            either(equalTo("exchange empty")).or(equalTo("exchange full"))
+                                .or(equalTo("exchange empty OR exchange full"))
+                                .or(equalTo("driver iterations"))
                         )
                     );
                 }
                 case "final" -> {
-                    // There will always be sleeps on the reduce drivers because they won't have results ready
-                    assertMap(sleeps, matchesMap().entry("counts", matchesMap().entry("exchange empty", greaterThan(0))).extraOk());
-                    assertSleeps(sleeps, sleepMatcher("exchange empty"));
+                    /*
+                     * There will always be sleeps on the reduce drivers because they won't
+                     * have results ready. "Driver iterations" sleeps *may* happen if the
+                     * buffer doesn't fill up fast enough.
+                     */
+                    assertMap(
+                        sleeps,
+                        matchesMap().entry("counts", matchesMap().entry("exchange empty", greaterThan(0)).extraOk()).extraOk()
+                    );
+                    assertSleeps(sleeps, sleepMatcher(either(equalTo("exchange empty")).or(equalTo("driver iterations"))));
                 }
                 default -> throw new IllegalArgumentException("unknown task: " + description);
             }
@@ -785,29 +804,67 @@ public class RestEsqlIT extends RestEsqlTestCase {
     }
 
     public void testSuggestedCast() throws IOException {
-        // TODO: Figure out how best to make sure we don't leave out new types
-        Map<DataType, String> typesAndValues = Map.ofEntries(
-            Map.entry(DataType.BOOLEAN, "\"true\""),
-            Map.entry(DataType.LONG, "-1234567890234567"),
-            Map.entry(DataType.INTEGER, "123"),
-            Map.entry(DataType.UNSIGNED_LONG, "1234567890234567"),
-            Map.entry(DataType.DOUBLE, "12.4"),
-            Map.entry(DataType.KEYWORD, "\"keyword\""),
-            Map.entry(DataType.TEXT, "\"some text\""),
-            Map.entry(DataType.DATE_NANOS, "\"2015-01-01T12:10:30.123456789Z\""),
-            Map.entry(DataType.DATETIME, "\"2015-01-01T12:10:30Z\""),
-            Map.entry(DataType.IP, "\"192.168.30.1\""),
-            Map.entry(DataType.VERSION, "\"8.19.0\""),
-            Map.entry(DataType.GEO_POINT, "[-71.34, 41.12]"),
-            Map.entry(DataType.GEO_SHAPE, """
-                {
-                  "type": "Point",
-                  "coordinates": [-77.03653, 38.897676]
-                }
-                """)
+        doTestSuggestedCast(
+            "FROM index-%s,index-%s | LIMIT 100 | KEEP my_field",
+            "FROM index-%s,index-%s | LIMIT 100 | EVAL my_field = my_field::%s"
         );
+    }
+
+    public void testSubquerySuggestedCast() throws IOException {
+        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "union types conflict resolution",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION.isEnabled()
+        );
+        doTestSuggestedCast(
+            "FROM (FROM index-%s), (FROM index-%s) | LIMIT 100 | KEEP my_field",
+            "FROM (FROM index-%s), (FROM index-%s) | LIMIT 100 | EVAL my_field = my_field::%s"
+        );
+    }
+
+    /**
+     * Shared implementation for suggested-cast tests. Creates one index per data type, iterates over
+     * all type pairs using the given query format strings, and asserts the response contains the
+     * correct {@code original_types} and {@code suggested_cast} metadata.
+     *
+     * @param queryFormat       format string with 2 string args: type1, type2
+     * @param castedQueryFormat format string with 3 string args: type1, type2, castType
+     */
+    private void doTestSuggestedCast(String queryFormat, String castedQueryFormat) throws IOException {
+        // TODO: Figure out how best to make sure we don't leave out new types
+        Map<DataType, String> typesAndValues = new HashMap<>(
+            Map.ofEntries(
+                Map.entry(DataType.BOOLEAN, "\"true\""),
+                Map.entry(DataType.LONG, "-1234567890234567"),
+                Map.entry(DataType.INTEGER, "123"),
+                Map.entry(DataType.UNSIGNED_LONG, "1234567890234567"),
+                Map.entry(DataType.DOUBLE, "12.4"),
+                Map.entry(DataType.KEYWORD, "\"keyword\""),
+                Map.entry(DataType.TEXT, "\"some text\""),
+                Map.entry(DataType.DATE_NANOS, "\"2015-01-01T12:10:30.123456789Z\""),
+                Map.entry(DataType.DATETIME, "\"2015-01-01T12:10:30Z\""),
+                Map.entry(DataType.IP, "\"192.168.30.1\""),
+                Map.entry(DataType.VERSION, "\"8.19.0\""),
+                Map.entry(DataType.GEO_POINT, "[-71.34, 41.12]"),
+                Map.entry(DataType.GEO_SHAPE, """
+                    {
+                      "type": "Point",
+                      "coordinates": [-77.03653, 38.897676]
+                    }
+                    """)
+            )
+        );
+        if (EsqlCapabilities.Cap.FLATTENED_DATATYPE.isEnabled()) {
+            typesAndValues.put(DataType.FLATTENED, """
+                {
+                  "foo": "a",
+                  "o": {
+                    "bar": "b"
+                  }
+                }
+                """);
+        }
         if (EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled()) {
-            typesAndValues = new HashMap<>(typesAndValues);
             typesAndValues.put(DataType.AGGREGATE_METRIC_DOUBLE, """
                 {
                   "max": 14983.1
@@ -828,6 +885,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
         shouldBeSupported.remove(DataType.DATE_RANGE);
         shouldBeSupported.remove(DataType.TDIGEST);
         shouldBeSupported.remove(DataType.HISTOGRAM);
+        if (EsqlCapabilities.Cap.FLATTENED_DATATYPE.isEnabled() == false) {
+            shouldBeSupported.remove(DataType.FLATTENED);
+        }
         if (EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled() == false) {
             shouldBeSupported.remove(DataType.AGGREGATE_METRIC_DOUBLE);
         }
@@ -861,11 +921,12 @@ public class RestEsqlIT extends RestEsqlTestCase {
 
         for (int i = 0; i < listOfTypes.size(); i++) {
             for (int j = i + 1; j < listOfTypes.size(); j++) {
+                String fromClause = String.format(Locale.ROOT, queryFormat, listOfTypes.get(i).esType(), listOfTypes.get(j).esType());
                 String query = String.format(Locale.ROOT, """
                     {
-                        "query": "FROM index-%s,index-%s | LIMIT 100 | KEEP my_field"
+                        "query": "%s"
                     }
-                    """, listOfTypes.get(i).esType(), listOfTypes.get(j).esType());
+                    """, fromClause);
                 Request request = new Request("POST", "/_query");
                 request.setJsonEntity(query);
                 Response resp = client().performRequest(request);
@@ -891,17 +952,18 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     );
                 }
 
-                String castedQuery = String.format(
+                String castedFromClause = String.format(
                     Locale.ROOT,
-                    """
-                        {
-                            "query": "FROM index-%s,index-%s | LIMIT 100 | EVAL my_field = my_field::%s"
-                        }
-                        """,
+                    castedQueryFormat,
                     listOfTypes.get(i).esType(),
                     listOfTypes.get(j).esType(),
                     suggestedCast == DataType.KEYWORD ? "STRING" : suggestedCast.nameUpper()
                 );
+                String castedQuery = String.format(Locale.ROOT, """
+                    {
+                        "query": "%s"
+                    }
+                    """, castedFromClause);
                 Request castedRequest = new Request("POST", "/_query");
                 castedRequest.setJsonEntity(castedQuery);
                 Response castedResponse = client().performRequest(castedRequest);
@@ -1540,6 +1602,29 @@ public class RestEsqlIT extends RestEsqlTestCase {
         } finally {
             // Clean up
             deleteIndex(indexName);
+        }
+    }
+
+    public void testBucketColumnMetadataCsvTxtFormat() throws IOException {
+        assumeTrue("requires column_metadata_bucket capability", EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET.isEnabled());
+
+        Request indexRequest = new Request("POST", "/bucket_csv_test/_doc/");
+        indexRequest.addParameter("refresh", "true");
+        indexRequest.setJsonEntity("{\"date\":\"1985-07-09T00:00:00.000Z\"}");
+        assertOK(client().performRequest(indexRequest));
+
+        try {
+            String query = "FROM bucket_csv_test | STATS c=COUNT(*) BY bucket=BUCKET(date, 1 month) | LIMIT 10";
+            // CSV: verify the writer handles a metadata-bearing bucket column without error and produces correct output
+            String csvBody = runEsqlAsTextWithFormat(requestObjectBuilder().query(query), "csv", null, mode);
+            assertThat(csvBody, equalTo("c,bucket\r\n1,1985-07-01T00:00:00.000Z\r\n"));
+
+            // TXT: smoke-check only — the columnar writer pads/aligns differently, no exact match needed
+            String txtBody = runEsqlAsTextWithFormat(requestObjectBuilder().query(query), "txt", null, mode);
+            assertThat(txtBody, containsString("bucket"));
+            assertThat(txtBody, containsString("1985-07-01T00:00:00.000Z"));
+        } finally {
+            deleteIndex("bucket_csv_test");
         }
     }
 }

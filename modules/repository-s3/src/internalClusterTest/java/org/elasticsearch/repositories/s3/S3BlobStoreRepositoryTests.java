@@ -719,6 +719,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                         }
                     };
                 }
+
             };
         }
     }

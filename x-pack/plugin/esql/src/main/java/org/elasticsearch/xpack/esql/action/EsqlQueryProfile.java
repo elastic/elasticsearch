@@ -30,7 +30,9 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     public static final String PARSING = "parsing";
     public static final String VIEW_RESOLUTION = "view_resolution";
     public static final String PRE_ANALYSIS = "preanalysis";
-    public static final String DEPENDENCY_RESOLUTION = "dependency_resolution";
+    public static final String INDICES_RESOLUTION = "indices_resolution";
+    public static final String ENRICH_RESOLUTION = "enrich_resolution";
+    public static final String INFERENCE_RESOLUTION = "inference_resolution";
     public static final String ANALYSIS = "analysis";
 
     /** Time elapsed since start of query till the final result rendering */
@@ -43,8 +45,12 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     private final TimeSpanMarker viewResolutionMarker;
     /** Time elapsed for index preanalysis, including lookup indices */
     private final TimeSpanMarker preAnalysisMarker;
-    /** Time elapsed for checking dependencies (field_caps, enrich policies, inference ids) */
-    private final TimeSpanMarker dependencyResolutionMarker;
+    /** Time elapsed for resolving indices dependencies */
+    private final TimeSpanMarker indicesResolutionMarker;
+    /** Time elapsed for resolving enrich dependencies */
+    private final TimeSpanMarker enrichResolutionMarker;
+    /** Time elapsed for resolving inference dependencies */
+    private final TimeSpanMarker inferenceResolutionMarker;
     /** Time elapsed for plan analysis */
     private final TimeSpanMarker analysisMarker;
     private final AtomicInteger fieldCapsCalls;
@@ -53,9 +59,12 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     private static final TransportVersion ESQL_QUERY_PROFILE_VIEW_RESOLUTION = TransportVersion.fromName(
         "esql_query_profile_view_resolution"
     );
+    private static final TransportVersion ESQL_SEPARATE_DEPENDENCY_RESOLUTION = TransportVersion.fromName(
+        "esql_separate_dependency_resolution"
+    );
 
     public EsqlQueryProfile() {
-        this(null, null, null, null, null, null, null, 0);
+        this(null, null, null, null, null, null, null, null, null, 0);
     }
 
     // For testing
@@ -65,7 +74,9 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         TimeSpan parsing,
         TimeSpan viewResolution,
         TimeSpan preAnalysis,
-        TimeSpan dependencyResolution,
+        TimeSpan indicesResolution,
+        TimeSpan enrichResolution,
+        TimeSpan inferenceResolution,
         TimeSpan analysis,
         int fieldCapsCalls
     ) {
@@ -74,7 +85,9 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         this.parsingMarker = new TimeSpanMarker(PARSING, false, parsing);
         this.viewResolutionMarker = new TimeSpanMarker(VIEW_RESOLUTION, false, viewResolution);
         this.preAnalysisMarker = new TimeSpanMarker(PRE_ANALYSIS, false, preAnalysis);
-        this.dependencyResolutionMarker = new TimeSpanMarker(DEPENDENCY_RESOLUTION, true, dependencyResolution);
+        this.indicesResolutionMarker = new TimeSpanMarker(INDICES_RESOLUTION, true, indicesResolution);
+        this.enrichResolutionMarker = new TimeSpanMarker(ENRICH_RESOLUTION, true, enrichResolution);
+        this.inferenceResolutionMarker = new TimeSpanMarker(INFERENCE_RESOLUTION, true, inferenceResolution);
         this.analysisMarker = new TimeSpanMarker(ANALYSIS, true, analysis);
         this.fieldCapsCalls = new AtomicInteger(fieldCapsCalls);
     }
@@ -82,7 +95,13 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     public static EsqlQueryProfile readFrom(StreamInput in) throws IOException {
         TimeSpan query = in.readOptionalWriteable(TimeSpan::readFrom);
         TimeSpan planning = in.readOptionalWriteable(TimeSpan::readFrom);
-        TimeSpan parsing = null, viewResolution = null, preAnalysis = null, dependencyResolution = null, analysis = null;
+        TimeSpan parsing = null;
+        TimeSpan viewResolution = null;
+        TimeSpan preAnalysis = null;
+        TimeSpan indicesResolution = null;
+        TimeSpan enrichResolution = null;
+        TimeSpan inferenceResolution = null;
+        TimeSpan analysis = null;
         int fieldCapsCalls = 0;
         if (in.getTransportVersion().supports(ESQL_QUERY_PLANNING_PROFILE)) {
             parsing = in.readOptionalWriteable(TimeSpan::readFrom);
@@ -90,13 +109,28 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
                 viewResolution = in.readOptionalWriteable(TimeSpan::readFrom);
             }
             preAnalysis = in.readOptionalWriteable(TimeSpan::readFrom);
-            dependencyResolution = in.readOptionalWriteable(TimeSpan::readFrom);
+            indicesResolution = in.readOptionalWriteable(TimeSpan::readFrom);
+            if (in.getTransportVersion().supports(ESQL_SEPARATE_DEPENDENCY_RESOLUTION)) {
+                enrichResolution = in.readOptionalWriteable(TimeSpan::readFrom);
+                inferenceResolution = in.readOptionalWriteable(TimeSpan::readFrom);
+            }
             analysis = in.readOptionalWriteable(TimeSpan::readFrom);
         }
         if (in.getTransportVersion().supports(EsqlExecutionInfo.EXECUTION_PROFILE_FORMAT_VERSION)) {
             fieldCapsCalls = in.readVInt();
         }
-        return new EsqlQueryProfile(query, planning, parsing, viewResolution, preAnalysis, dependencyResolution, analysis, fieldCapsCalls);
+        return new EsqlQueryProfile(
+            query,
+            planning,
+            parsing,
+            viewResolution,
+            preAnalysis,
+            indicesResolution,
+            enrichResolution,
+            inferenceResolution,
+            analysis,
+            fieldCapsCalls
+        );
     }
 
     @Override
@@ -109,7 +143,19 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
                 out.writeOptionalWriteable(viewResolutionMarker.timeSpan());
             }
             out.writeOptionalWriteable(preAnalysisMarker.timeSpan());
-            out.writeOptionalWriteable(dependencyResolutionMarker.timeSpan());
+            if (out.getTransportVersion().supports(ESQL_SEPARATE_DEPENDENCY_RESOLUTION)) {
+                out.writeOptionalWriteable(indicesResolutionMarker.timeSpan());
+                out.writeOptionalWriteable(enrichResolutionMarker.timeSpan());
+                out.writeOptionalWriteable(inferenceResolutionMarker.timeSpan());
+            } else {
+                out.writeOptionalWriteable(
+                    TimeSpan.combine(
+                        indicesResolutionMarker.timeSpan(),
+                        enrichResolutionMarker.timeSpan(),
+                        inferenceResolutionMarker.timeSpan()
+                    )
+                );
+            }
             out.writeOptionalWriteable(analysisMarker.timeSpan());
         }
         if (out.getTransportVersion().supports(EsqlExecutionInfo.EXECUTION_PROFILE_FORMAT_VERSION)) {
@@ -126,7 +172,9 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             && Objects.equals(parsingMarker, that.parsingMarker)
             && Objects.equals(viewResolutionMarker, that.viewResolutionMarker)
             && Objects.equals(preAnalysisMarker, that.preAnalysisMarker)
-            && Objects.equals(dependencyResolutionMarker, that.dependencyResolutionMarker)
+            && Objects.equals(indicesResolutionMarker, that.indicesResolutionMarker)
+            && Objects.equals(enrichResolutionMarker, that.enrichResolutionMarker)
+            && Objects.equals(inferenceResolutionMarker, that.inferenceResolutionMarker)
             && Objects.equals(analysisMarker, that.analysisMarker)
             && Objects.equals(fieldCapsCalls.get(), that.fieldCapsCalls.get());
     }
@@ -139,7 +187,9 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             parsingMarker,
             viewResolutionMarker,
             preAnalysisMarker,
-            dependencyResolutionMarker,
+            indicesResolutionMarker,
+            enrichResolutionMarker,
+            inferenceResolutionMarker,
             analysisMarker,
             fieldCapsCalls.get()
         );
@@ -147,10 +197,10 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
 
     @Override
     public String toString() {
-        return "PlanningProfile{"
+        return "EsqlQueryProfile{"
             + "totalMarker="
             + totalMarker
-            + "planningMarker="
+            + ", planningMarker="
             + planningMarker
             + ", parsingMarker="
             + parsingMarker
@@ -158,8 +208,12 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             + viewResolutionMarker
             + ", preAnalysisMarker="
             + preAnalysisMarker
-            + ", dependencyResolutionMarker="
-            + dependencyResolutionMarker
+            + ", indicesResolutionMarker="
+            + indicesResolutionMarker
+            + ", enrichResolutionMarker="
+            + enrichResolutionMarker
+            + ", inferenceResolutionMarker="
+            + inferenceResolutionMarker
             + ", analysisMarker="
             + analysisMarker
             + ", fieldCapsCalls="
@@ -211,11 +265,16 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         return preAnalysisMarker;
     }
 
-    /**
-     * Span for the dependency resolution phase - this includes field_caps, enrich policies and inference resolution IDs
-     */
-    public TimeSpanMarker dependencyResolution() {
-        return dependencyResolutionMarker;
+    public TimeSpanMarker indicesResolutionMarker() {
+        return indicesResolutionMarker;
+    }
+
+    public TimeSpanMarker enrichResolutionMarker() {
+        return enrichResolutionMarker;
+    }
+
+    public TimeSpanMarker inferenceResolutionMarker() {
+        return inferenceResolutionMarker;
     }
 
     /**
@@ -241,7 +300,9 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             parsingMarker,
             viewResolutionMarker,
             preAnalysisMarker,
-            dependencyResolutionMarker,
+            indicesResolutionMarker,
+            enrichResolutionMarker,
+            inferenceResolutionMarker,
             analysisMarker
         );
     }

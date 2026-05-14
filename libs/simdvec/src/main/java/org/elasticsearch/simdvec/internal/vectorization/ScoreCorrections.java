@@ -16,7 +16,7 @@ import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
 
-class ScoreCorrections {
+public class ScoreCorrections {
     static final VectorSimilarityFunctions SIMILARITY_FUNCTIONS = NativeAccess.instance()
         .getVectorSimilarityFunctions()
         .orElseThrow(AssertionError::new);
@@ -25,7 +25,7 @@ class ScoreCorrections {
     static final MethodHandle APPLY_CORRECTIONS_MAX_INNER_PRODUCT_BULK = SIMILARITY_FUNCTIONS.applyCorrectionsMaxInnerProductBulk();
     static final MethodHandle APPLY_CORRECTIONS_DOT_PRODUCT_BULK = SIMILARITY_FUNCTIONS.applyCorrectionsDotProductBulk();
 
-    static float nativeApplyCorrectionsBulk(
+    public static float nativeApplyCorrectionsBulk(
         VectorSimilarityFunction similarityFunction,
         MemorySegment corrections,
         int bulkSize,
@@ -70,6 +70,79 @@ class ScoreCorrections {
                 case MAXIMUM_INNER_PRODUCT -> (float) APPLY_CORRECTIONS_MAX_INNER_PRODUCT_BULK.invokeExact(
                     corrections,
                     bulkSize,
+                    dimensions,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryComponentSum,
+                    queryAdditionalCorrection,
+                    queryBitScale,
+                    indexBitScale,
+                    centroidDp,
+                    scores
+                );
+            };
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    static final MethodHandle BBQ_APPLY_CORRECTIONS_EUCLIDEAN_BULK = SIMILARITY_FUNCTIONS.bbqApplyCorrectionsEuclideanBulk();
+    static final MethodHandle BBQ_APPLY_CORRECTIONS_MAX_INNER_PRODUCT_BULK = SIMILARITY_FUNCTIONS.bbqApplyCorrectionsMaxInnerProductBulk();
+    static final MethodHandle BBQ_APPLY_CORRECTIONS_DOT_PRODUCT_BULK = SIMILARITY_FUNCTIONS.bbqApplyCorrectionsDotProductBulk();
+
+    static float nativeBbqApplyCorrectionsBulk(
+        VectorSimilarityFunction similarityFunction,
+        MemorySegment data,
+        int bulkSize,
+        int vectorSizeInBytes,
+        int pitchInBytes,
+        int dimensions,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
+        float queryBitScale,
+        float indexBitScale,
+        float centroidDp,
+        MemorySegment scores
+    ) {
+        try {
+            return switch (similarityFunction) {
+                case EUCLIDEAN -> (float) BBQ_APPLY_CORRECTIONS_EUCLIDEAN_BULK.invokeExact(
+                    data,
+                    bulkSize,
+                    vectorSizeInBytes,
+                    pitchInBytes,
+                    dimensions,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryComponentSum,
+                    queryAdditionalCorrection,
+                    queryBitScale,
+                    indexBitScale,
+                    centroidDp,
+                    scores
+                );
+                case DOT_PRODUCT, COSINE -> (float) BBQ_APPLY_CORRECTIONS_DOT_PRODUCT_BULK.invokeExact(
+                    data,
+                    bulkSize,
+                    vectorSizeInBytes,
+                    pitchInBytes,
+                    dimensions,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryComponentSum,
+                    queryAdditionalCorrection,
+                    queryBitScale,
+                    indexBitScale,
+                    centroidDp,
+                    scores
+                );
+                case MAXIMUM_INNER_PRODUCT -> (float) BBQ_APPLY_CORRECTIONS_MAX_INNER_PRODUCT_BULK.invokeExact(
+                    data,
+                    bulkSize,
+                    vectorSizeInBytes,
+                    pitchInBytes,
                     dimensions,
                     queryLowerInterval,
                     queryUpperInterval,

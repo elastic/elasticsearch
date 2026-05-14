@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
@@ -39,6 +40,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  */
 public class Delay extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Delay", Delay::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Delay.class).unary(Delay::new).name("delay");
 
     @FunctionInfo(returnType = { "boolean" }, description = "Sleeps for a duration for every row. For debug purposes only.")
     public Delay(Source source, @Param(name = "ms", type = { "time_duration" }, description = "For how long") Expression ms) {

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -51,6 +52,9 @@ public class ToDateNanos extends AbstractConvertFunction implements Configuratio
         "ToDateNanos",
         ToDateNanos::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToDateNanos.class)
+        .unaryConfig(ToDateNanos::new)
+        .name("to_date_nanos", "to_datenanos");
 
     private static final Map<DataType, BuildFactory> STATIC_EVALUATORS = Map.ofEntries(
         Map.entry(DATETIME, ToDateNanosFromDatetimeEvaluator.Factory::new),

@@ -8,9 +8,14 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
@@ -19,8 +24,15 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 
 /**
  * Framework-internal factory that bridges the building-block registries
@@ -33,10 +45,33 @@ import java.util.Map;
  */
 final class FileSourceFactory implements ExternalSourceFactory {
 
+    static final String CONFIG_FORMAT = "format";
+
+    /**
+     * Aggregated set of keys the coordinator-side path claims from a per-query configuration map.
+     * Built from each component's own {@code CONFIG_KEYS} set so adding a new coordinator-level
+     * configuration consumer requires updating only the consumer's own constant — the union here
+     * picks it up automatically. Components contributing today: {@link ErrorPolicy},
+     * {@link FileSplitProvider}, the {@link #CONFIG_FORMAT} override read by this class, and the
+     * {@link FormatNameResolver#CONFIG_READER} override read by the format-name resolver.
+     */
+    static final Set<String> COORDINATOR_KEYS;
+
+    static {
+        Set<String> keys = new HashSet<>();
+        keys.add(CONFIG_FORMAT);
+        keys.add(FormatNameResolver.CONFIG_READER);
+        keys.addAll(ErrorPolicy.CONFIG_KEYS);
+        keys.addAll(FileSplitProvider.CONFIG_KEYS);
+        COORDINATOR_KEYS = Set.copyOf(keys);
+    }
+
     private final StorageProviderRegistry storageRegistry;
     private final FormatReaderRegistry formatRegistry;
     private final DecompressionCodecRegistry codecRegistry;
     private final Settings settings;
+    @Nullable
+    private final ExecutorService splitDiscoveryExecutor;
 
     FileSourceFactory(
         StorageProviderRegistry storageRegistry,
@@ -44,12 +79,23 @@ final class FileSourceFactory implements ExternalSourceFactory {
         DecompressionCodecRegistry codecRegistry,
         Settings settings
     ) {
+        this(storageRegistry, formatRegistry, codecRegistry, settings, null);
+    }
+
+    FileSourceFactory(
+        StorageProviderRegistry storageRegistry,
+        FormatReaderRegistry formatRegistry,
+        DecompressionCodecRegistry codecRegistry,
+        Settings settings,
+        @Nullable ExecutorService splitDiscoveryExecutor
+    ) {
         Check.notNull(storageRegistry, "storageRegistry cannot be null");
         Check.notNull(formatRegistry, "formatRegistry cannot be null");
         this.storageRegistry = storageRegistry;
         this.formatRegistry = formatRegistry;
         this.codecRegistry = codecRegistry != null ? codecRegistry : new DecompressionCodecRegistry();
         this.settings = settings != null ? settings : Settings.EMPTY;
+        this.splitDiscoveryExecutor = splitDiscoveryExecutor;
     }
 
     @Override
@@ -90,20 +136,46 @@ final class FileSourceFactory implements ExternalSourceFactory {
     }
 
     @Override
+    public void validateConfig(String location, Map<String, Object> config) {
+        if (config == null || config.isEmpty()) {
+            return;
+        }
+        StoragePath storagePath = StoragePath.of(location);
+        Configured<StorageProvider> resolvedStorage = storageRegistry.createProviderTrackingConsumedKeys(
+            storagePath.scheme(),
+            settings,
+            config
+        );
+        Configured<FormatReader> resolvedReader = resolveFormatReader(storagePath.objectName(), config).withConfigTrackingConsumedKeys(
+            config
+        );
+        ConfigKeyValidator.check(config, List.of(resolvedStorage.consumedKeys(), resolvedReader.consumedKeys(), COORDINATOR_KEYS));
+    }
+
+    @Override
     public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
         try {
+            // Reject unknown configuration keys via the SPI hook before any provider/reader work.
+            // The provider/reader resolutions below hit the same cache keys validateConfig populates,
+            // so this is a single source of truth for validation without extra cloud-client construction.
+            validateConfig(location, config);
             StoragePath storagePath = StoragePath.of(location);
             String scheme = storagePath.scheme();
 
             StorageProvider provider;
+            FormatReader reader;
             if (config != null && config.isEmpty() == false) {
-                provider = storageRegistry.createProvider(scheme, settings, config);
+                provider = storageRegistry.createProviderTrackingConsumedKeys(scheme, settings, config).value();
+                reader = resolveFormatReader(storagePath.objectName(), config).withConfigTrackingConsumedKeys(config).value();
             } else {
                 provider = storageRegistry.provider(storagePath);
+                reader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
             }
 
             StorageObject storageObject = provider.newObject(storagePath);
-            FormatReader reader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
+            if (storageObject.exists() == false) {
+                throw new IOException("File does not exist: " + location);
+            }
             return reader.metadata(storageObject);
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to resolve metadata for [" + location + "]", e);
@@ -112,7 +184,14 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
     @Override
     public SplitProvider splitProvider() {
-        return new FileSplitProvider(FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE, codecRegistry, storageRegistry, formatRegistry, settings);
+        return new FileSplitProvider(
+            FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
+            codecRegistry,
+            storageRegistry,
+            formatRegistry,
+            settings,
+            splitDiscoveryExecutor
+        );
     }
 
     @Override
@@ -138,109 +217,51 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 partitionValues = fileSplit.partitionValues();
             }
 
-            return new AsyncExternalSourceOperatorFactory(
+            List<Expression> pushedExpressions = context.pushedExpressions();
+            FilterPushdownSupport pushdownSupport = (pushedExpressions != null && pushedExpressions.isEmpty() == false)
+                ? format.filterPushdownSupport()
+                : null;
+
+            Closeable onClose = null;
+            ConcurrencyBudgetAllocator allocator = storageRegistry.allocatorForScheme(path.scheme().toLowerCase(Locale.ROOT));
+            if (allocator != null) {
+                QueryBudgetedStorageProvider budgeted = new QueryBudgetedStorageProvider(storage, allocator.register());
+                storage = budgeted;
+                onClose = budgeted;
+            }
+
+            Executor readExecutor = context.fileReadExecutor() != null ? context.fileReadExecutor() : context.executor();
+            return AsyncExternalSourceOperatorFactory.builder(
                 storage,
                 format,
                 path,
                 context.attributes(),
                 context.batchSize(),
                 context.maxBufferSize(),
-                context.rowLimit(),
-                context.executor(),
-                context.fileList(),
-                context.partitionColumnNames(),
-                partitionValues,
-                context.sliceQueue(),
-                errorPolicy,
-                context.parsingParallelism(),
-                null
-            );
+                readExecutor
+            )
+                .rowLimit(context.rowLimit())
+                .fileList(context.fileList())
+                .partitionColumnNames(context.partitionColumnNames())
+                .partitionValues(partitionValues)
+                .sliceQueue(context.sliceQueue())
+                .errorPolicy(errorPolicy)
+                .parsingParallelism(context.parsingParallelism())
+                .parallelism(context.parallelism())
+                .pushedExpressions(pushedExpressions)
+                .pushdownSupport(pushdownSupport)
+                .onClose(onClose)
+                .build();
         };
     }
 
-    static final String CONFIG_FORMAT = "format";
-    static final String CONFIG_MAX_ERRORS = "max_errors";
-    static final String CONFIG_MAX_ERROR_RATIO = "max_error_ratio";
-    static final String CONFIG_ERROR_MODE = "error_mode";
-
+    /** Delegates to {@link ErrorPolicy#fromConfig(Map, ErrorPolicy)} with the format's default
+     *  policy as the fallback. Kept here so existing call sites and tests do not have to change. */
     static ErrorPolicy resolveErrorPolicy(Map<String, Object> config, FormatReader format) {
-        if (config == null) {
-            return format.defaultErrorPolicy();
-        }
-        Object maxErrorsValue = config.get(CONFIG_MAX_ERRORS);
-        Object maxErrorRatioValue = config.get(CONFIG_MAX_ERROR_RATIO);
-        Object errorModeValue = config.get(CONFIG_ERROR_MODE);
-        if (maxErrorsValue == null && maxErrorRatioValue == null && errorModeValue == null) {
-            return format.defaultErrorPolicy();
-        }
-
-        // When only budget keys are set (no explicit mode), default to SKIP_ROW.
-        // When only mode is set, budget defaults depend on the mode.
-        ErrorPolicy.Mode mode = ErrorPolicy.Mode.SKIP_ROW;
-        if (errorModeValue != null) {
-            String modeStr = errorModeValue.toString();
-            try {
-                mode = ErrorPolicy.Mode.parse(modeStr);
-            } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Invalid value for [" + CONFIG_ERROR_MODE + "]: [" + errorModeValue + "]", e);
-            }
-            if (mode == null) {
-                throw new IllegalArgumentException("Invalid value for [" + CONFIG_ERROR_MODE + "]: [" + errorModeValue + "]");
-            }
-        }
-
-        // FAIL_FAST is incompatible with budget settings — it always aborts on the first error.
-        if (mode == ErrorPolicy.Mode.FAIL_FAST) {
-            if (maxErrorsValue != null || maxErrorRatioValue != null) {
-                throw new IllegalArgumentException(
-                    "["
-                        + CONFIG_MAX_ERRORS
-                        + "] and ["
-                        + CONFIG_MAX_ERROR_RATIO
-                        + "] cannot be used with ["
-                        + CONFIG_ERROR_MODE
-                        + "="
-                        + mode
-                        + "]; fail_fast always aborts on the first error"
-                );
-            }
-            return ErrorPolicy.STRICT;
-        }
-
-        long maxErrors;
-        if (maxErrorsValue != null) {
-            try {
-                maxErrors = Long.parseLong(maxErrorsValue.toString());
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Invalid value for [" + CONFIG_MAX_ERRORS + "]: [" + maxErrorsValue + "]", e);
-            }
-        } else {
-            maxErrors = Long.MAX_VALUE;
-        }
-
-        double maxErrorRatio = 0.0;
-        if (maxErrorRatioValue != null) {
-            try {
-                maxErrorRatio = Double.parseDouble(maxErrorRatioValue.toString());
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Invalid value for [" + CONFIG_MAX_ERROR_RATIO + "]: [" + maxErrorRatioValue + "]", e);
-            }
-        }
-
-        boolean logErrors = maxErrors < Long.MAX_VALUE || maxErrorRatio > 0.0;
-        return new ErrorPolicy(mode, maxErrors, maxErrorRatio, logErrors);
+        return ErrorPolicy.fromConfig(config, format.defaultErrorPolicy());
     }
 
     private FormatReader resolveFormatReader(String objectName, Map<String, Object> config) {
-        if (config != null) {
-            Object formatOverride = config.get(CONFIG_FORMAT);
-            if (formatOverride != null) {
-                String formatName = formatOverride.toString();
-                if (formatName.isEmpty() == false) {
-                    return formatRegistry.byName(formatName);
-                }
-            }
-        }
-        return formatRegistry.byExtension(objectName);
+        return FormatNameResolver.resolveReader(config, objectName, formatRegistry);
     }
 }

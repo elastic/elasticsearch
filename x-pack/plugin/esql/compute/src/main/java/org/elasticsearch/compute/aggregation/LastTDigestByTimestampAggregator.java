@@ -16,7 +16,8 @@ import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.compute.operator.DriverContext;
 
 @Aggregator(
-    {
+    processNulls = true,
+    value = {
         @IntermediateState(name = "timestamps", type = "LONG"),
         @IntermediateState(name = "values", type = "TDIGEST"),
         @IntermediateState(name = "seen", type = "BOOLEAN") }

@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -136,6 +137,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                         get,
                         mapperService.mappingLookup(),
                         mapperService.documentParser(),
+                        SplitShardCountSummary.IRRELEVANT,
                         randomSearcherWrapper()
                     )
                 ) {

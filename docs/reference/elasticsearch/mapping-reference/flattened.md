@@ -327,6 +327,9 @@ The following mapping parameters are accepted:
 `passthrough`
 :   (Optional, object) When set, the typed sub-fields defined in `properties` become queryable at the root level without a prefix. Requires a `priority` field (non-negative integer) used to resolve conflicts when multiple passthrough sources expose a sub-field with the same name; the higher priority wins, and root-level concrete fields always take precedence. Omitting this parameter disables passthrough behavior. Refer to [Passthrough sub-fields](#flattened-passthrough).
 
+`preserve_leaf_arrays` {applies_to}`stack: ga 9.4`
+:   (Optional, string) Accepted values are `lossy` and `exact`. Controls how **leaf arrays** (arrays of scalar values under one key) are reconstructed in [synthetic `_source`](#flattened-synthetic-source): `lossy` sorts and deduplicates elements and omits `null` entries; `exact` preserves order, duplicates, and `null`s at the cost of additional doc values storage. If unset, the default follows [`index.mapping.synthetic_source_keep`](/reference/elasticsearch/mapping-reference/mapping-source-field.md): `lossy` when the index setting is `none`, `exact` when it is `arrays`. See [Preserving leaf arrays](#flattened-preserve-leaf-arrays).
+
 `properties`
 :   (Optional, object) A map of key names to field mappings. Allows specific keys within the flattened object to be mapped as typed sub-fields. Each entry maps a key (using dot notation for nested keys) to a leaf field type definition. See [Mapped sub-fields](#flattened-properties).
 
@@ -511,3 +514,19 @@ For example, if the field is defined in an index configured with synthetic sourc
 }
 ```
 % TEST[skip:backporting-from-new-docs]
+
+
+### Preserving leaf arrays [flattened-preserve-leaf-arrays]
+```{applies_to}
+stack: ga 9.4.0
+serverless: all
+```
+
+By default, leaf arrays are sorted, deduplicated, and have null values removed. The mapping parameter [`preserve_leaf_arrays`](#flattened-params) can be used to avoid these modifications, at extra storage overhead.
+
+The mapping parameter [`preserve_leaf_arrays`](#flattened-params) selects between:
+
+* `lossy` — Leaf arrays in synthetic `_source` are **sorted** and **deduplicated**; `null` entries are not represented. This matches the above examples (for example, repeated `"apple"` becomes a single entry).
+* `exact` — Order, duplicate values, and `null` positions in each leaf array are preserved in synthetic `_source`.
+
+**Default:** If you omit `preserve_leaf_arrays`, the default is chosen from the index-wide [`index.mapping.synthetic_source_keep`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) setting: `lossy` when that setting is `none`, and `exact` when it is `arrays`. For example, [`logsdb` index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) defaults `index.mapping.synthetic_source_keep` to `arrays`, so flattened fields default to `exact` unless you override them. You can set `preserve_leaf_arrays` explicitly on each flattened field regardless of the index default.

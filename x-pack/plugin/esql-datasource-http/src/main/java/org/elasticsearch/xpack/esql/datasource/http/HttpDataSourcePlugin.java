@@ -45,11 +45,11 @@ public class HttpDataSourcePlugin extends Plugin implements DataSourcePlugin {
     public Map<String, StorageProviderFactory> storageProviders(Settings settings, ExecutorService executor) {
         return Map.of(
             "http",
-            s -> new HttpStorageProvider(HttpConfiguration.defaults(), executor),
+            StorageProviderFactory.noConfigKeys(() -> new HttpStorageProvider(HttpConfiguration.defaults(), executor)),
             "https",
-            s -> new HttpStorageProvider(HttpConfiguration.defaults(), executor),
+            StorageProviderFactory.noConfigKeys(() -> new HttpStorageProvider(HttpConfiguration.defaults(), executor)),
             "file",
-            s -> new LocalStorageProvider()
+            StorageProviderFactory.noConfigKeys(LocalStorageProvider::new)
         );
     }
 }

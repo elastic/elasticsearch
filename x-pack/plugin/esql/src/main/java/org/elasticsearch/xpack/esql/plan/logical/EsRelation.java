@@ -166,13 +166,12 @@ public class EsRelation extends LeafPlan {
     }
 
     @Override
-    public String nodeString(NodeStringFormat format) {
-        return nodeName()
-            + "["
-            + indexPattern
-            + "]"
-            + (indexMode != IndexMode.STANDARD ? "[" + indexMode.name() + "]" : "")
-            + NodeUtils.toString(attrs, format);
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(nodeName()).append("[").append(indexPattern).append("]");
+        if (indexMode != IndexMode.STANDARD) {
+            sb.append("[").append(indexMode.name()).append("]");
+        }
+        NodeUtils.toString(sb, attrs, format);
     }
 
     public EsRelation withAttributes(List<Attribute> newAttributes) {

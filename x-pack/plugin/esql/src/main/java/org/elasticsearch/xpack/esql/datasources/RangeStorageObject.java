@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -15,11 +16,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
+import java.util.concurrent.Executor;
 
 /**
  * A view over a byte range of a delegate {@link StorageObject}.
- * Used when a {@link FileSplit} has a non-zero offset, so that format readers
- * see only the relevant portion of the file.
+ * Used for every {@link FileSplit} so format readers and splittable decompressors
+ * only see the split's compressed byte span (including offset {@code 0}).
  */
 class RangeStorageObject implements StorageObject {
 
@@ -76,6 +78,30 @@ class RangeStorageObject implements StorageObject {
     @Override
     public StoragePath path() {
         return delegate.path();
+    }
+
+    @Override
+    public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+        if (position >= this.length) {
+            listener.onResponse(ByteBuffer.allocate(0));
+            return;
+        }
+        long cappedLength = Math.min(length, this.length - position);
+        delegate.readBytesAsync(Math.addExact(offset, position), cappedLength, executor, listener);
+    }
+
+    @Override
+    public void readBytesAsync(long position, ByteBuffer target, Executor executor, ActionListener<Integer> listener) {
+        if (position >= this.length) {
+            listener.onResponse(-1);
+            return;
+        }
+        delegate.readBytesAsync(Math.addExact(offset, position), target, executor, listener);
+    }
+
+    @Override
+    public boolean supportsNativeAsync() {
+        return delegate.supportsNativeAsync();
     }
 
     StorageObject rawDelegate() {

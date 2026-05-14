@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.approximation;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -20,19 +21,22 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinctO
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DefaultTimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Delta;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DeltaOnlyHistogramMergeOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Deriv;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Earliest;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstDocId;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMerge;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMergeOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Idelta;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Increase;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Irate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Latest;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.LegacyIrate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MaxOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
@@ -74,19 +78,18 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
-import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
@@ -94,6 +97,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ValueTransformationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.VectorConversionFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.WithinSeriesAggregate;
@@ -106,6 +110,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
+import org.junit.Before;
 
 import java.net.URL;
 import java.nio.file.DirectoryStream;
@@ -144,18 +149,12 @@ public class ApproximationSupportTests extends ESTestCase {
         Fork.class,
         UnionAll.class,
         ViewUnionAll.class,
-        Join.class,
-        InlineJoin.class,
-        LookupJoin.class,
         ParameterizedQuery.class,
-
-        // InlineStats is not supported yet.
-        // Only a single Stats command is supported.
-        InlineStats.class,
 
         // Timeseries indices are not supported yet.
         // They require chained Stats commands.
         TimeSeriesAggregate.class,
+        TimeSeriesCollapse.class,
 
         // These source commands makes no sense for approximation.
         Explain.class,
@@ -175,15 +174,18 @@ public class ApproximationSupportTests extends ESTestCase {
         // These plans don't occur in a correct analyzed query.
         UnresolvedRelation.class,
         UnresolvedExternalRelation.class,
-        StubRelation.class,
+        ViewShadowRelation.class,
         Drop.class,
         Keep.class,
+        InlineStats.class,
+        LookupJoin.class,
         Rename.class,
         ResolvingProject.class,
         SparklineGenerateEmptyBuckets.class,
 
         // PromQL plans are not supported yet.
         PromqlCommand.class,
+        UnresolvedPromqlFunction.class,
         LiteralSelector.class,
         Selector.class,
         InstantSelector.class,
@@ -219,6 +221,8 @@ public class ApproximationSupportTests extends ESTestCase {
         FirstDocId.class,
         First.class,
         Last.class,
+        Earliest.class,
+        Latest.class,
         Max.class,
         Min.class,
         Absent.class,
@@ -258,7 +262,8 @@ public class ApproximationSupportTests extends ESTestCase {
         Idelta.class,
         Increase.class,
         Irate.class,
-        HistogramMergeOverTime.class,
+        LegacyIrate.class,
+        DeltaOnlyHistogramMergeOverTime.class,
         LastOverTime.class,
         MaxOverTime.class,
         MinOverTime.class,
@@ -298,6 +303,12 @@ public class ApproximationSupportTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    @Before
+    public void assume() {
+        assumeTrue("needs inline stats approximation", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled());
+        assumeTrue("needs lookup join approximation", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN.isEnabled());
     }
 
     public void testAllCommandsWhitelistedOrBlacklisted() throws Exception {

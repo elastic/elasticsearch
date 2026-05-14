@@ -8,23 +8,20 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.junit.BeforeClass;
 
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -32,7 +29,6 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
@@ -44,7 +40,6 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     protected static LogicalPlanOptimizer logicalOptimizer;
 
     protected static LogicalPlanOptimizer logicalOptimizerWithLatestVersion;
-    protected static LogicalPlanOptimizer optimizerWithoutForkImplicitLimit;
 
     protected static Map<String, EsField> mapping;
 
@@ -69,13 +64,6 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             new LogicalOptimizerContext(logicalOptimizerCtx.configuration(), logicalOptimizerCtx.foldCtx(), TransportVersion.current())
         );
         mapping = loadMapping("mapping-basic.json");
-
-        var config = configuration(
-            new QueryPragmas(Settings.builder().put(QueryPragmas.FORK_IMPLICIT_LIMIT.getKey().toLowerCase(Locale.ROOT), false).build())
-        );
-        optimizerWithoutForkImplicitLimit = new LogicalPlanOptimizer(
-            new LogicalOptimizerContext(config, FoldContext.small(), TransportVersion.current())
-        );
     }
 
     protected static TestAnalyzer analyzerWithEnrichPolicies() {
@@ -108,17 +96,17 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
 
     protected static TestAnalyzer multiIndexAnalyzer() {
         var multiIndexMapping = loadMapping("mapping-basic.json");
+        EsField partialTypeKeyword = new EsField("partial_type_keyword", KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
         multiIndexMapping.put(
             "partial_type_keyword",
-            new EsField("partial_type_keyword", KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+            IndexResolver.wrapPartiallyUnmappedField(partialTypeKeyword, "partial_type_keyword", "partial_type_keyword", Set.of("test1"))
         );
         var multiIndex = new EsIndex(
             "multi_index",
             multiIndexMapping,
             Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
             Map.of(),
-            Map.of(),
-            Map.of("partial_type_keyword", Set.of("test2"))
+            Map.of()
         );
         return analyzerWithEnrichPolicies().addIndex(multiIndex);
     }
@@ -150,8 +138,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             Map.of("languages", languages, "last_name", lastName, "salary_change", salaryChange, "first_name", firstName, "id", idField),
             Map.of("union_types_index", IndexMode.STANDARD, "union_types_index_incompatible", IndexMode.STANDARD),
             Map.of("", List.of("union_types_index*")),
-            Map.of("", List.of("union_types_index_incompatible", "union_types_index")),
-            Map.of()
+            Map.of("", List.of("union_types_index_incompatible", "union_types_index"))
         );
         return analyzerWithEnrichPolicies().addAnalysisTestsInferenceResolution()
             .addIndex(unionIndex)
@@ -181,18 +168,6 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
 
     protected static TestAnalyzer baseConversionAnalyzer() {
         return analyzerWithEnrichPolicies().addIndex("base_conversion", "mapping-base_conversion.json")
-            .addLanguagesLookup()
-            .addTestLookup()
-            .addSpatialLookup();
-    }
-
-    protected static TestAnalyzer analyzerWithoutForkImplicitLimit() {
-        var config = configuration(
-            new QueryPragmas(Settings.builder().put(QueryPragmas.FORK_IMPLICIT_LIMIT.getKey().toLowerCase(Locale.ROOT), false).build())
-        );
-        return analyzerWithEnrichPolicies().configuration(config)
-            .addEmployees("test")
-            .addEmployees()
             .addLanguagesLookup()
             .addTestLookup()
             .addSpatialLookup();
@@ -248,10 +223,6 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
 
     protected LogicalPlan planSubquery(String query) {
         return optimize(subqueryAnalyzer().query(query));
-    }
-
-    protected LogicalPlan planWithoutForkImplicitLimit(String query) {
-        return optimizerWithoutForkImplicitLimit.optimize(analyzerWithoutForkImplicitLimit().query(query));
     }
 
     @Override

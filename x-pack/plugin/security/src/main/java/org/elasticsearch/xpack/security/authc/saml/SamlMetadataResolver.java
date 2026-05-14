@@ -246,7 +246,7 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
      * Forcibly refresh the metadata from the underlying resolver.
      * Happens synchronously on the calling thread.
      * This only refreshes the metadata, it <strong>does not</strong> update the cached entity,
-     *   the caller must also call {@link #updateCachedDescriptor()} if that if needed.
+     *   the caller must also call {@link #updateCachedDescriptor()} if that is needed.
      */
     private void forceRefresh() {
         try {

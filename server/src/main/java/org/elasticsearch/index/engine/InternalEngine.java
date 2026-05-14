@@ -25,6 +25,7 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -3901,11 +3902,17 @@ public class InternalEngine extends Engine {
                 continue;
             }
             final CombinedDocValues dv = new CombinedDocValues(leaf.reader());
-            var leafStoredFieldLoader = storedFieldLoader.getLoader(leaf, null);
-            IdLoader.Leaf leafIdLoader = idLoader.leaf(leafStoredFieldLoader, leaf.reader(), null);
             final DocIdSetIterator iterator = scorer.iterator();
-            int docId;
-            while ((docId = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+            IntArrayList docIdBuffer = new IntArrayList();
+            for (int docId = iterator.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = iterator.nextDoc()) {
+                docIdBuffer.add(docId);
+            }
+
+            docIdBuffer.trimToSize();
+            var leafStoredFieldLoader = storedFieldLoader.getLoader(leaf, docIdBuffer.buffer);
+            IdLoader.Leaf leafIdLoader = idLoader.leaf(leafStoredFieldLoader, leaf.reader(), docIdBuffer.buffer);
+
+            for (int docId : docIdBuffer.buffer) {
                 final long primaryTerm = dv.docPrimaryTerm(docId);
                 final long seqNo = dv.docSeqNo(docId);
                 localCheckpointTracker.markSeqNoAsProcessed(seqNo);

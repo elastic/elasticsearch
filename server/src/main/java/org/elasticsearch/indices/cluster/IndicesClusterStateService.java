@@ -170,6 +170,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     private volatile boolean usingAsyncApplier = false;
 
+    // visible for testing
+    public boolean isUsingAsyncApplier() {
+        return usingAsyncApplier;
+    }
+
+    // visible for testing
+    Settings getSettings() {
+        return settings;
+    }
+
     @Inject
     public IndicesClusterStateService(
         final Settings settings,
@@ -1161,8 +1171,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         if (usingAsyncApplier) {
             asyncClusterStateApplier.awaitCurrentStateApplication(listener);
         } else {
-            // In synchronous mode, cluster state application completes before ack,
-            // so there's nothing to wait for.
+            // In synchronous mode, cluster state application completes before ack, so there's nothing to wait for.
             listener.onResponse(null);
         }
     }

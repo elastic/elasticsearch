@@ -129,6 +129,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.gateway.PersistedClusterStateService;
@@ -164,6 +165,7 @@ import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.ingest.IngestPipelineTestUtils;
 import org.elasticsearch.monitor.jvm.HotThreads;
@@ -616,12 +618,53 @@ public abstract class ESIntegTestCase extends ESTestCase {
         });
     }
 
+    private static void verifyAsyncIndicesClusterStateServiceApplier() {
+        for (TestCluster cluster : clusters.values()) {
+            if (cluster instanceof InternalTestCluster internalCluster) {
+                // Skip if not all nodes are on the same version (mixed-version clusters)
+                if (hasNodesOnDifferentVersions(internalCluster)) {
+                    continue;
+                }
+
+                for (String nodeName : internalCluster.getNodeNames()) {
+                    IndicesClusterStateService service = internalCluster.getInstance(IndicesClusterStateService.class, nodeName);
+                    Settings nodeSettings = internalCluster.getInstance(Settings.class, nodeName);
+
+                    if (IndicesClusterStateService.ASYNC_CLUSTER_STATE_APPLIER_ENABLED.get(nodeSettings)) {
+                        assertTrue(
+                            "Node ["
+                                + nodeName
+                                + "] IndicesClusterStateService should have switched to async applier by test end when setting is enabled",
+                            service.isUsingAsyncApplier()
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    private static boolean hasNodesOnDifferentVersions(InternalTestCluster cluster) {
+        if (cluster.size() == 0) {
+            return false;
+        }
+
+        Set<BuildVersion> versions = Arrays.stream(cluster.getNodeNames())
+            .map(nodeName -> cluster.getInstance(ClusterService.class, nodeName))
+            .map(ClusterService::state)
+            .filter(Objects::nonNull)
+            .map(state -> state.nodes().get(state.nodes().getLocalNodeId()).getBuildVersion())
+            .collect(Collectors.toSet());
+
+        return versions.size() > 1;
+    }
+
     private void afterInternal(boolean afterClass) throws Exception {
         boolean success = false;
         try {
             final Scope currentClusterScope = getCurrentClusterScope();
             if (isInternalCluster()) {
                 internalCluster().clearDisruptionScheme();
+                verifyAsyncIndicesClusterStateServiceApplier();
             }
             try {
                 if (cluster() != null && cluster().size() > 0) {

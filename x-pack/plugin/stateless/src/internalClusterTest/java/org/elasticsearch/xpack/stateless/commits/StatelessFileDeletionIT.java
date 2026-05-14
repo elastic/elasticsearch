@@ -1457,11 +1457,10 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
      * List all finalized blobs in the blob container, exclude any temporary blobs present for in-progress
      * atomic writes.
      *
-     * @param blobContainer An instance of a {@link FsBlobContainer}
+     * @param blobContainer An BlobContainer that extends or delegates to a {@link FsBlobContainer}
      * @return The list of finalized blobs in that container
      */
     private Set<String> listFinalisedBlobsWithAbsolutePath(BlobContainer blobContainer) throws IOException {
-        assert blobContainer instanceof FsBlobContainer : "This logic is FsBlobContainer specific";
         return listBlobsWithAbsolutePath(blobContainer).stream()
             .filter(path -> FsBlobContainer.isTempBlobName(path.substring(path.lastIndexOf('/') + 1)) == false)
             .collect(Collectors.toSet());

@@ -287,7 +287,7 @@ public enum FieldData {
      * Returns a multi-valued view over the provided {@link DoubleValues}.
      */
     public static SortedNumericDoubleValues singleton(DoubleValues values) {
-        return new SingletonSortedNumericDoubleValues(values);
+        return SortedNumericDoubleValues.singleton(values);
     }
 
     /**
@@ -296,10 +296,7 @@ public enum FieldData {
      * or null.
      */
     public static DoubleValues unwrapSingleton(SortedNumericDoubleValues values) {
-        if (values instanceof SingletonSortedNumericDoubleValues) {
-            return ((SingletonSortedNumericDoubleValues) values).getNumericDoubleValues();
-        }
-        return null;
+        return SortedNumericDoubleValues.unwrapSingleton(values);
     }
 
     /**

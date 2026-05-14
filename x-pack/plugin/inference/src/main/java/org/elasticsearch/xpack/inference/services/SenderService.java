@@ -170,16 +170,6 @@ public abstract class SenderService<M extends Model> implements InferenceService
         }
     }
 
-    /**
-     * Override as needed. Services that create the task settings using a parser do not remove entries from the task settings map, which
-     * causes the existing validation that there are no unknown values left in the map to fail. Rather than explicitly checking that the
-     * task settings map is empty, these services will throw an exception from the parser.
-     * @return whether this service implements a parser for task settings
-     */
-    public boolean usesParserForTaskSettings() {
-        return false;
-    }
-
     public M parsePersistedConfig(UnparsedModel unparsedModel) {
         var config = unparsedModel.settings();
         var secrets = unparsedModel.secrets();

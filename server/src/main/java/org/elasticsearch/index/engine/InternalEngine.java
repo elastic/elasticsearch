@@ -3903,6 +3903,8 @@ public class InternalEngine extends Engine {
             }
             final CombinedDocValues dv = new CombinedDocValues(leaf.reader());
             final DocIdSetIterator iterator = scorer.iterator();
+            // The upfront buffering is currently only required for TsIdLoader.
+            // TODO: Maybe instead make TsIdLeaf lazy initializing if docsIdsInLeaf is null?
             IntArrayList docIdBuffer = new IntArrayList();
             for (int docId = iterator.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = iterator.nextDoc()) {
                 docIdBuffer.add(docId);
@@ -3917,6 +3919,7 @@ public class InternalEngine extends Engine {
                 final long seqNo = dv.docSeqNo(docId);
                 localCheckpointTracker.markSeqNoAsProcessed(seqNo);
                 localCheckpointTracker.markSeqNoAsPersisted(seqNo);
+                leafStoredFieldLoader.advanceTo(docId);
                 String id = leafIdLoader.getId(docId);
                 if (id == null) {
                     assert dv.isTombstone(docId);

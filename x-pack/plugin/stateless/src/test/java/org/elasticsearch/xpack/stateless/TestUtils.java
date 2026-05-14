@@ -33,7 +33,7 @@ import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
-import org.elasticsearch.xpack.stateless.recovery.RelocationHandoffMetrics;
+import org.elasticsearch.xpack.stateless.recovery.metering.RecoveryMetricsCollector;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.elasticsearch.xpack.stateless.snapshots.SnapshotsCommitService;
@@ -119,7 +119,7 @@ public class TestUtils {
             cacheService,
             snapshotsCommitService,
             clusterService,
-            RelocationHandoffMetrics.NOOP
+            RecoveryMetricsCollector.NOOP
         );
     }
 

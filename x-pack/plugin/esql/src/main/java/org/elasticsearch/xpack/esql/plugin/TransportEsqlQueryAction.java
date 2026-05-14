@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.action.EsqlResponseListener;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
-import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
@@ -454,9 +453,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         );
     }
 
-    private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Versioned<Result> result) {
-        var innerResult = result.inner();
-        List<ColumnInfoImpl> columns = innerResult.schema().stream().map(c -> {
+    private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Versioned<Result> versionedResult) {
+        var result = versionedResult.inner();
+        List<ColumnInfoImpl> columns = result.schema().stream().map(c -> {
             List<String> originalTypes;
             if (c instanceof UnsupportedAttribute ua) {
                 // Sort the original types so they are easier to test against and prettier.
@@ -465,50 +464,45 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             } else {
                 originalTypes = null;
             }
-            // Quick way to get the approximation column metadata in the response
-            // without a full implementation of a colum metadata service.
-            // TODO: remove this hack when we have a proper column metadata service,
-            // see https://github.com/elastic/elasticsearch/issues/138223
-            Map<String, Object> columnMetadata = ApproximationPlan.columnMetadata(c);
-            return new ColumnInfoImpl(c.name(), c.dataType(), originalTypes, columnMetadata);
+            return new ColumnInfoImpl(c.name(), c.dataType(), originalTypes, result.attributeMetadata(c.id()));
         }).toList();
         EsqlQueryResponse.Profile profile = profileEnabled
             ? new EsqlQueryResponse.Profile(
-                innerResult.completionInfo().driverProfiles(),
-                innerResult.completionInfo().planProfiles(),
-                result.minimumVersion()
+                result.completionInfo().driverProfiles(),
+                result.completionInfo().planProfiles(),
+                versionedResult.minimumVersion()
             )
             : null;
         if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
             String asyncExecutionId = asyncTask.getExecutionId().getEncoded();
             return new EsqlQueryResponse(
                 columns,
-                innerResult.pages(),
-                innerResult.completionInfo().documentsFound(),
-                innerResult.completionInfo().valuesLoaded(),
+                result.pages(),
+                result.completionInfo().documentsFound(),
+                result.completionInfo().valuesLoaded(),
                 profile,
                 request.columnar(),
                 asyncExecutionId,
                 false,
                 request.async(),
-                result.inner().configuration().zoneId(),
+                result.configuration().zoneId(),
                 task.getStartTime(),
                 ((EsqlQueryTask) task).getExpirationTimeMillis(),
-                innerResult.executionInfo()
+                result.executionInfo()
             );
         }
         return new EsqlQueryResponse(
             columns,
-            innerResult.pages(),
-            innerResult.completionInfo().documentsFound(),
-            innerResult.completionInfo().valuesLoaded(),
+            result.pages(),
+            result.completionInfo().documentsFound(),
+            result.completionInfo().valuesLoaded(),
             profile,
             request.columnar(),
             request.async(),
-            result.inner().configuration().zoneId(),
+            result.configuration().zoneId(),
             task.getStartTime(),
             threadPool.absoluteTimeInMillis() + request.keepAlive().millis(),
-            innerResult.executionInfo()
+            result.executionInfo()
         );
     }
 

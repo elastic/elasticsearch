@@ -187,7 +187,11 @@ final class PerThreadIDVersionAndSeqNoLookup {
      * <p>
      * {@code sortedUids} must be provided in ascending order. For each uid at sorted position {@code i},
      * the result is written into {@code results[i]} if found; a null entry means not found in this segment.
-     * UIDs already resolved (non-null in {@code results}) are skipped without seeking.
+     * <p>
+     * {@code results} is an in/out parameter: entries that are already non-null are treated as resolved by
+     * a newer segment and are skipped without touching the TermsEnum. This lets the caller accumulate
+     * results across segments in a single shared array without a separate merge pass, and ensures that
+     * the newest segment's version wins naturally.
      *
      * @return the number of newly resolved UIDs
      */

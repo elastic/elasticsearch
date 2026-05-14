@@ -153,6 +153,11 @@ public final class VersionsAndSeqNoResolver {
      * Results are written into {@code results[i]} for each {@code uids[i]}; a null entry means the UID
      * was not found. UIDs need not be pre-sorted; sorting is done internally.
      * <p>
+     * {@code results} is an out parameter rather than a return value so that it can be shared across
+     * per-segment calls to {@link PerThreadIDVersionAndSeqNoLookup#batchLookupVersion}: each call skips
+     * positions that are already non-null (resolved by a newer segment), giving "newest segment wins"
+     * without a separate merge pass.
+     * <p>
      * This method uses {@code loadTimestampRange = false} and is intended for standard (non-time-series)
      * indices. For time series indices use {@link #timeSeriesLoadDocIdAndVersion(IndexReader, BytesRef, String, boolean, boolean)}
      * per UID instead.

@@ -379,12 +379,12 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         var rolledDs = ds.rollover(
             new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),
             newCoordinates.v2(),
-            IndexMode.COLUMNAR_LOGSDB,
+            IndexMode.LOGSDB_COLUMNAR,
             null
         );
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
-        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.COLUMNAR_LOGSDB));
+        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.LOGSDB_COLUMNAR));
     }
 
     public void testRolloverDowngradeFromColumnarToRegularDataStream() {
@@ -404,7 +404,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
     }
 
     public void testRolloverDowngradeFromColumnarLogsdbToRegularDataStream() {
-        DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(IndexMode.COLUMNAR_LOGSDB).build();
+        DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(IndexMode.LOGSDB_COLUMNAR).build();
         final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
 
@@ -420,7 +420,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
     }
 
     public void testRolloverDowngradeFromLogsdbLikeToColumnar() {
-        IndexMode from = randomFrom(IndexMode.LOGSDB, IndexMode.COLUMNAR_LOGSDB);
+        IndexMode from = randomFrom(IndexMode.LOGSDB, IndexMode.LOGSDB_COLUMNAR);
         DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(from).build();
         final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
@@ -432,7 +432,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
     }
 
     public void testRolloverFromColumnarToLogsdbLike() {
-        IndexMode to = randomFrom(IndexMode.LOGSDB, IndexMode.COLUMNAR_LOGSDB);
+        IndexMode to = randomFrom(IndexMode.LOGSDB, IndexMode.LOGSDB_COLUMNAR);
         DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(IndexMode.COLUMNAR).build();
         final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
@@ -478,16 +478,16 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         var rolledDs = ds.rollover(
             new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),
             newCoordinates.v2(),
-            IndexMode.COLUMNAR_LOGSDB,
+            IndexMode.LOGSDB_COLUMNAR,
             null
         );
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
-        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.COLUMNAR_LOGSDB));
+        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.LOGSDB_COLUMNAR));
     }
 
     public void testRolloverFromColumnarLogsdbToTimeSeries() {
-        DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(IndexMode.COLUMNAR_LOGSDB).build();
+        DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(IndexMode.LOGSDB_COLUMNAR).build();
         final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
 
@@ -510,16 +510,16 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         var rolledDs = ds.rollover(
             new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),
             newCoordinates.v2(),
-            IndexMode.COLUMNAR_LOGSDB,
+            IndexMode.LOGSDB_COLUMNAR,
             null
         );
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
-        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.COLUMNAR_LOGSDB));
+        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.LOGSDB_COLUMNAR));
     }
 
     public void testRolloverFromColumnarLogsdbToLogsdb() {
-        DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(IndexMode.COLUMNAR_LOGSDB).build();
+        DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(IndexMode.LOGSDB_COLUMNAR).build();
         final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
 

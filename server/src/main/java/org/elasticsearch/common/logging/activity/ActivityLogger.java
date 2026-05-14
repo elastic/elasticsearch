@@ -75,6 +75,11 @@ public class ActivityLogger<Context extends ActivityLoggerContext> {
 
     protected void addFields(Context context, ESLogMessage logMessage) {}
 
+    /**
+     * Wrap a listener, adding logging to either outcome of it - success or failure.
+     * Both will be logged (if enabled) and then propagated to the delegate listener.
+     * If logging is disabled, it's a no-op.
+     */
     public <Req, R> ActionListener<R> wrap(ActionListener<R> listener, final ActivityLoggerContextBuilder<Context, Req, R> contextBuilder) {
         if (enabled == false) {
             return listener;
@@ -109,6 +114,14 @@ public class ActivityLogger<Context extends ActivityLoggerContext> {
         };
     }
 
+    /**
+     * Wrap a runnable using a listener, adding logging to either outcome of it - success or failure.
+     * This is a complement to the wrap method, which is to be used when it is not guaranteed that the underlying code
+     * is going to catch all exceptions and convert them to listener failures.
+     * Exceptions are logged and re-thrown upstream - practically, when used in TransportAction context,
+     * they will be caught by TransportAction's exception handling mechanism (e.g., RequestFilterChain.proceed).
+     * If logging is disabled, it's a no-op.
+     */
     public <Req, R> void wrapAndRun(
         ActionListener<R> listener,
         ActivityLoggerContextBuilder<Context, Req, R> contextBuilder,

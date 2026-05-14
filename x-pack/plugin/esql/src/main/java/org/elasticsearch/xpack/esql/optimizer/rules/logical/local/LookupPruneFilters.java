@@ -26,15 +26,7 @@ public class LookupPruneFilters extends PruneFilters {
             return filter.child()
                 .transformUp(
                     ParameterizedQuery.class,
-                    pq -> new ParameterizedQuery(
-                        pq.source(),
-                        pq.output(),
-                        pq.matchFields(),
-                        pq.joinOnConditions(),
-                        true,
-                        pq.bulkLookupLeft(),
-                        pq.bulkLookupRight()
-                    )
+                    pq -> new ParameterizedQuery(pq.source(), pq.output(), pq.matchFields(), pq.joinOnConditions(), true)
                 );
         }
         return super.handleAlwaysFalseFilter(filter);

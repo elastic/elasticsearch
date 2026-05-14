@@ -86,8 +86,8 @@ public class LocalMapper {
                 pq.joinOnConditions(),
                 null,
                 pq.emptyResult(),
-                pq.bulkLookupLeft(),
-                pq.bulkLookupRight()
+                null,
+                null
             );
         }
 

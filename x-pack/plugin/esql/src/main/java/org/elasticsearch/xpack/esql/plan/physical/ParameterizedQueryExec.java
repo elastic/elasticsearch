@@ -35,8 +35,18 @@ public class ParameterizedQueryExec extends LeafExec {
     @Nullable
     private final QueryBuilder query;
     private final boolean emptyResult;
+
+    /**
+     * Runtime-only value set by the {@link org.elasticsearch.xpack.esql.optimizer.LookupPhysicalPlanOptimizer}
+     * holding the left attribute of the lookup join when the join may make use of the bulk keyword lookup optimization.
+     */
     @Nullable
     private final Attribute bulkLookupLeft;
+
+    /**
+     * Runtime-only value set by the {@link org.elasticsearch.xpack.esql.optimizer.LookupPhysicalPlanOptimizer}
+     * holding the right attribute of the lookup join when the join may make use of the bulk keyword lookup optimization.
+     */
     @Nullable
     private final Attribute bulkLookupRight;
 

@@ -46,24 +46,8 @@ public class ParameterizedQuery extends LeafPlan {
      */
     private final boolean emptyResult;
 
-    /**
-     * Runtime-only value set by the {@link org.elasticsearch.xpack.esql.optimizer.LookupPhysicalPlanOptimizer}
-     * holding the left attribute of the lookup join when the join may make use of the bulk keyword lookup optimization.
-     * Not serialized — it is computed locally on the lookup node after deserialization.
-     */
-    @Nullable
-    private final Attribute bulkLookupLeft;
-
-    /**
-     * Runtime-only value set by the {@link org.elasticsearch.xpack.esql.optimizer.LookupPhysicalPlanOptimizer}
-     * holding the right attribute of the lookup join when the join may make use of the bulk keyword lookup optimization.
-     * Not serialized — it is computed locally on the lookup node after deserialization.
-     */
-    @Nullable
-    private final Attribute bulkLookupRight;
-
     public ParameterizedQuery(Source source, List<Attribute> output, List<MatchConfig> matchFields, @Nullable Expression joinOnConditions) {
-        this(source, output, matchFields, joinOnConditions, false, null, null);
+        this(source, output, matchFields, joinOnConditions, false);
     }
 
     public ParameterizedQuery(
@@ -71,17 +55,13 @@ public class ParameterizedQuery extends LeafPlan {
         List<Attribute> output,
         List<MatchConfig> matchFields,
         @Nullable Expression joinOnConditions,
-        boolean emptyResult,
-        @Nullable Attribute bulkLookupLeft,
-        @Nullable Attribute bulkLookupRight
+        boolean emptyResult
     ) {
         super(source);
         this.output = output;
         this.matchFields = matchFields;
         this.joinOnConditions = joinOnConditions;
         this.emptyResult = emptyResult;
-        this.bulkLookupLeft = bulkLookupLeft;
-        this.bulkLookupRight = bulkLookupRight;
     }
 
     private static ParameterizedQuery readFrom(StreamInput in) throws IOException {
@@ -110,16 +90,6 @@ public class ParameterizedQuery extends LeafPlan {
         return emptyResult;
     }
 
-    @Nullable
-    public Attribute bulkLookupLeft() {
-        return bulkLookupLeft;
-    }
-
-    @Nullable
-    public Attribute bulkLookupRight() {
-        return bulkLookupRight;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
@@ -140,21 +110,12 @@ public class ParameterizedQuery extends LeafPlan {
 
     @Override
     protected NodeInfo<ParameterizedQuery> info() {
-        return NodeInfo.create(
-            this,
-            ParameterizedQuery::new,
-            output,
-            matchFields,
-            joinOnConditions,
-            emptyResult,
-            bulkLookupLeft,
-            bulkLookupRight
-        );
+        return NodeInfo.create(this, ParameterizedQuery::new, output, matchFields, joinOnConditions, emptyResult);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(output, matchFields, joinOnConditions, emptyResult, bulkLookupLeft, bulkLookupRight);
+        return Objects.hash(output, matchFields, joinOnConditions, emptyResult);
     }
 
     @Override
@@ -169,8 +130,6 @@ public class ParameterizedQuery extends LeafPlan {
         return Objects.equals(output, other.output)
             && Objects.equals(matchFields, other.matchFields)
             && Objects.equals(joinOnConditions, other.joinOnConditions)
-            && emptyResult == other.emptyResult
-            && Objects.equals(bulkLookupLeft, other.bulkLookupLeft)
-            && Objects.equals(bulkLookupRight, other.bulkLookupRight);
+            && emptyResult == other.emptyResult;
     }
 }

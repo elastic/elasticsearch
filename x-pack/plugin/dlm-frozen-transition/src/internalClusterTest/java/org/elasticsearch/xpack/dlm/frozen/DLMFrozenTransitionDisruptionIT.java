@@ -518,7 +518,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * Triggers a master failover during the "force merge" phase. The new master should re-check
      * the segment count and retry if needed.
      */
-    @AwaitsFix(bugUrl = "")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-team/issues/2815")
     public void testMasterFailoverDuringForceMerge() throws Exception {
         String candidateIndex = setupClusterAndInfrastructure(3);
         CountDownLatch latch = registerMasterFailoverInterceptor("indices:admin/forcemerge");
@@ -535,7 +535,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * the {@link TransportGetSnapshotsAction} is intercepted. The new master should detect any
      * in-progress snapshot and wait for it or restart the snapshot.
      */
-    @AwaitsFix(bugUrl = "")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-team/issues/2815")
     public void testMasterFailoverDuringSnapshot() throws Exception {
         String candidateIndex = setupClusterAndInfrastructure(3);
         CountDownLatch latch = registerMasterFailoverInterceptor(TransportGetSnapshotsAction.TYPE.name());

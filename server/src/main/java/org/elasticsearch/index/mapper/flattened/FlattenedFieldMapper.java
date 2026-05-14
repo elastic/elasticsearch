@@ -180,7 +180,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             }
         });
 
-        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
+        private final Parameter<Boolean> indexed;
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), true);
 
         private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> builder(m).nullValue.get(), null)
@@ -194,6 +194,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         );
         private final int ignoreAboveDefault;
         private final Parameter<Integer> ignoreAbove;
+        private final boolean indexDisabledByDefault;
 
         private final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> builder(m).indexOptions.get());
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.get());
@@ -204,19 +205,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             m -> builder(m).splitQueriesOnWhitespace.get(),
             false
         );
-        private final Parameter<List<String>> dimensions = dimensionsParam(m -> builder(m).dimensions.get()).addValidator(v -> {
-            if (v.isEmpty() == false && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
-                throw new IllegalArgumentException(
-                    "Field ["
-                        + TIME_SERIES_DIMENSIONS_ARRAY_PARAM
-                        + "] requires that ["
-                        + indexed.name
-                        + "] and ["
-                        + hasDocValues.name
-                        + "] are true"
-                );
-            }
-        });
+
+        private final Parameter<List<String>> dimensions;
 
         private final Parameter<PreserveLeafArrays> preserveLeafArrays;
 
@@ -301,6 +291,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 false,
                 false,
                 false,
+                false,
                 false
             );
         }
@@ -313,7 +304,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 usesBinaryDocValues(mappingParserContext.getIndexSettings()),
                 mappingParserContext.indexVersionCreated().before(IndexVersions.FLATTENED_FIELD_NO_ROOT_DOC_VALUES),
                 IndexSettings.STORE_FLATTENED_ROOT_DOC_VALUES.get(mappingParserContext.getSettings()),
-                usesBinaryDocValuesForIgnoredFields(mappingParserContext.getIndexSettings())
+                usesBinaryDocValuesForIgnoredFields(mappingParserContext.getIndexSettings()),
+                mappingParserContext.getIndexSettings().isIndexDisabledByDefault()
             );
         }
 
@@ -324,9 +316,24 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             boolean usesBinaryDocValues,
             boolean isLegacyIndexWithRootValues,
             boolean forceStoreRootDocValues,
-            boolean storeIgnoredFieldsInBinaryDocValues
+            boolean storeIgnoredFieldsInBinaryDocValues,
+            boolean indexDisabledByDefault
         ) {
             super(name);
+            this.indexed = Parameter.indexParam(m -> builder(m).indexed.get(), indexDisabledByDefault == false);
+            this.dimensions = dimensionsParam(m -> builder(m).dimensions.get()).addValidator(v -> {
+                if (v.isEmpty() == false && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
+                    throw new IllegalArgumentException(
+                        "Field ["
+                            + TIME_SERIES_DIMENSIONS_ARRAY_PARAM
+                            + "] requires that ["
+                            + indexed.name
+                            + "] and ["
+                            + hasDocValues.name
+                            + "] are true"
+                    );
+                }
+            });
             this.ignoreAboveDefault = ignoreAboveDefault;
             this.indexSettings = indexSettings;
             this.ignoreAbove = Parameter.ignoreAboveParam(m -> builder(m).ignoreAbove.get(), ignoreAboveDefault);
@@ -346,6 +353,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                     : PreserveLeafArrays.EXACT,
                 PreserveLeafArrays.class
             );
+            this.indexDisabledByDefault = indexDisabledByDefault;
         }
 
         public Builder passthrough(int priority) {
@@ -592,6 +600,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         private final String key;
         private final String rootName;
         private final boolean isDimension;
+        private final boolean isSyntheticSourceEnabled;
 
         @Override
         public boolean isDimension() {
@@ -609,7 +618,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             boolean usesBinaryDocValues,
             boolean hasRootDocValues,
             String nullValue,
-            IndexVersion indexVersion
+            IndexVersion indexVersion,
+            boolean isSyntheticSourceEnabled
         ) {
             super(
                 rootName + KEYED_FIELD_SUFFIX,
@@ -626,6 +636,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             this.key = key;
             this.rootName = rootName;
             this.isDimension = isDimension;
+            this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
         }
 
         private KeyedFlattenedFieldType(
@@ -634,7 +645,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             RootFlattenedFieldType ref,
             IgnoreAbove ignoreAbove,
             boolean usesBinaryDocValues,
-            String nullValue
+            String nullValue,
+            boolean isSyntheticSourceEnabled
         ) {
             this(
                 rootName,
@@ -647,7 +659,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 usesBinaryDocValues,
                 ref.hasRootDocValues,
                 nullValue,
-                ref.indexVersion
+                ref.indexVersion,
+                isSyntheticSourceEnabled
             );
         }
 
@@ -807,7 +820,9 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (hasDocValues()) {
+            boolean preferLoadFromSource = blContext.fieldExtractPreference() == FieldExtractPreference.STORED
+                && isSyntheticSourceEnabled == false;
+            if (hasDocValues() && preferLoadFromSource == false) {
                 return new KeyedFlattenedDocValuesBlockLoader(name(), key, usesBinaryDocValues);
             }
 
@@ -1238,7 +1253,12 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (hasDocValues() && (ignoreAbove.valuesPotentiallyIgnored() == false || isSyntheticSourceEnabled)) {
+            // If a value trips ignore_above, it is stored in the fallback binary doc values field only if synthetic source is enabled.
+            // Otherwise, that value only exists in stored _source.
+            final boolean docValuesContainAllValues = ignoreAbove.valuesPotentiallyIgnored() == false || isSyntheticSourceEnabled;
+            final boolean preferLoadFromSource = blContext.fieldExtractPreference() == FieldExtractPreference.STORED
+                && isSyntheticSourceEnabled == false;
+            if (hasDocValues() && docValuesContainAllValues && preferLoadFromSource == false) {
                 return new RootFlattenedDocValuesBlockLoader(
                     name(),
                     ignoreAbove,
@@ -1383,7 +1403,15 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             if (mappedSubField != null) {
                 return mappedSubField.fieldType();
             }
-            return new KeyedFlattenedFieldType(name(), childPath, this, ignoreAbove, usesBinaryDocValues, nullValue);
+            return new KeyedFlattenedFieldType(
+                name(),
+                childPath,
+                this,
+                ignoreAbove,
+                usesBinaryDocValues,
+                nullValue,
+                isSyntheticSourceEnabled
+            );
         }
 
         public MappedFieldType getKeyedFieldType() {
@@ -1573,7 +1601,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             builder.usesBinaryDocValues,
             builder.isLegacyIndexWithRootValues,
             builder.forceStoreRootDocValues,
-            builder.storeIgnoredFieldsInBinaryDocValues
+            builder.storeIgnoredFieldsInBinaryDocValues,
+            builder.indexDisabledByDefault
         );
         b.init(this);
         Map<String, FieldMapper.Builder> propBuilders = new TreeMap<>();

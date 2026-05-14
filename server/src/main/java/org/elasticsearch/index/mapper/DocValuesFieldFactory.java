@@ -16,24 +16,24 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.Values.MultiValue;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ValueOrdering;
 
 /**
- * Centralizes doc values field creation, branching between single-valued (multi_value=no) and multi-valued Lucene types.
+ * Centralizes doc values field creation, branching between single-valued ({@code multi_value=false}) and multi-valued
+ * ({@code multi_value=true}) Lucene types.
  * <p>
- * For {@link MultiValue#NO}, uses single-valued Lucene types ({@link NumericDocValuesField}, {@link SortedDocValuesField},
+ * For single-valued fields, uses single-valued Lucene types ({@link NumericDocValuesField}, {@link SortedDocValuesField},
  * {@link BinaryDocValuesField}) which enforce single-valuedness natively and enable storage optimizations.
- * For other multi-value modes, uses multi-valued types ({@link SortedNumericDocValuesField}, {@link SortedSetDocValuesField},
+ * For multi-valued fields, uses multi-valued types ({@link SortedNumericDocValuesField}, {@link SortedSetDocValuesField},
  * {@link MultiValuedBinaryDocValuesField}).
  */
 public class DocValuesFieldFactory {
 
-    private final MultiValue multiValue;
+    private final boolean multiValue;
     private final boolean hasSkipper;
     private final IndexVersion indexVersion;
 
-    public DocValuesFieldFactory(MultiValue multiValue, boolean hasSkipper, IndexVersion indexVersion) {
+    public DocValuesFieldFactory(boolean multiValue, boolean hasSkipper, IndexVersion indexVersion) {
         this.multiValue = multiValue;
         this.hasSkipper = hasSkipper;
         this.indexVersion = indexVersion;
@@ -44,15 +44,15 @@ public class DocValuesFieldFactory {
      * TODO: find a better place for this method.
      */
     public boolean isSingleValued() {
-        return multiValue.isSingleValued();
+        return multiValue == false;
     }
 
     /**
-     * Adds a numeric doc values field. For {@code multi_value=no}, creates a {@link NumericDocValuesField} (single-valued).
+     * Adds a numeric doc values field. For {@code multi_value=false}, creates a {@link NumericDocValuesField} (single-valued).
      * Otherwise, creates a {@link SortedNumericDocValuesField} (multi-valued).
      */
     public void addNumericField(LuceneDocument doc, String name, long value) {
-        if (multiValue.isSingleValued()) {
+        if (isSingleValued()) {
             doc.add(hasSkipper ? NumericDocValuesField.indexedField(name, value) : new NumericDocValuesField(name, value));
         } else {
             doc.add(hasSkipper ? SortedNumericDocValuesField.indexedField(name, value) : new SortedNumericDocValuesField(name, value));
@@ -60,11 +60,11 @@ public class DocValuesFieldFactory {
     }
 
     /**
-     * Adds a sorted (bytes) doc values field. For {@code multi_value=no}, creates a {@link SortedDocValuesField} (single-valued).
+     * Adds a sorted (bytes) doc values field. For {@code multi_value=false}, creates a {@link SortedDocValuesField} (single-valued).
      * Otherwise, creates a {@link SortedSetDocValuesField} (multi-valued).
      */
     public void addSortedField(LuceneDocument doc, String name, BytesRef value) {
-        if (multiValue.isSingleValued()) {
+        if (isSingleValued()) {
             doc.add(hasSkipper ? SortedDocValuesField.indexedField(name, value) : new SortedDocValuesField(name, value));
         } else {
             doc.add(hasSkipper ? SortedSetDocValuesField.indexedField(name, value) : new SortedSetDocValuesField(name, value));
@@ -89,7 +89,7 @@ public class DocValuesFieldFactory {
     }
 
     private void addBinaryField(LuceneDocument doc, String name, BytesRef value, ValueOrdering ordering, IndexVersion indexVersion) {
-        if (multiValue.isSingleValued()) {
+        if (isSingleValued()) {
             doc.add(new BinaryDocValuesField(name, value));
         } else {
             MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(doc, name, value, ordering, indexVersion);

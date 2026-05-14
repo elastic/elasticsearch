@@ -40,8 +40,8 @@ public class ParsedDocument {
 
     private final long normalizedSize;
 
-    private BytesReference source;
-    private XContentType xContentType;
+    private final BytesReference source;
+    private final XContentType xContentType;
     private CompressedXContent dynamicMappingsUpdate;
 
     /**
@@ -145,6 +145,19 @@ public class ParsedDocument {
         String id,
         String routing,
         List<LuceneDocument> documents,
+        SourceToParse.Source source,
+        CompressedXContent dynamicMappingsUpdate,
+        long normalizedSize
+    ) {
+        this(version, seqID, id, routing, documents, source.originalBytes(), source.xContentType(), dynamicMappingsUpdate, normalizedSize);
+    }
+
+    public ParsedDocument(
+        Field version,
+        SeqNoFieldMapper.SequenceIDFields seqID,
+        String id,
+        String routing,
+        List<LuceneDocument> documents,
         BytesReference source,
         XContentType xContentType,
         CompressedXContent dynamicMappingsUpdate,
@@ -195,11 +208,6 @@ public class ParsedDocument {
 
     public XContentType getXContentType() {
         return this.xContentType;
-    }
-
-    public void setSource(BytesReference source, XContentType xContentType) {
-        this.source = source;
-        this.xContentType = xContentType;
     }
 
     /**

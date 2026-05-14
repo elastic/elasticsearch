@@ -24,6 +24,7 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -32,6 +33,7 @@ import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
@@ -79,6 +81,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.inference.InferenceStringGroup.toStringList;
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -596,6 +599,11 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     }
 
     @Override
+    public void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        throw new IllegalStateException(Strings.format("New rerank code path invoked for %s service that does not support it", name()));
+    }
+
+    @Override
     public void infer(
         Model model,
         @Nullable String query,
@@ -621,7 +629,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 throw new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME), RestStatus.BAD_REQUEST);
             }
         } else {
-            listener.onFailure(notElasticsearchModelException(model));
+            listener.onFailure(createInvalidModelException(model));
         }
     }
 
@@ -741,6 +749,13 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             listener.onFailure(
                 new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(model.getTaskType(), NAME), RestStatus.BAD_REQUEST)
             );
+            return;
+        }
+
+        try {
+            InferenceService.validateChunkedInferInputs(this, input);
+        } catch (Exception e) {
+            listener.onFailure(e);
             return;
         }
 

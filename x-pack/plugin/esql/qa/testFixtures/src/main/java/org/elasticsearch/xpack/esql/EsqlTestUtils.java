@@ -94,6 +94,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.FlattenedCases;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
@@ -1187,6 +1188,7 @@ public final class EsqlTestUtils {
                     throw new UncheckedIOException(e);
                 }
             }
+            case FLATTENED -> FlattenedCases.RANDOM.get();
             case TSID_DATA_TYPE -> randomTsId().toBytesRef();
             case HISTOGRAM -> randomHistogram();
             case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));
@@ -1405,7 +1407,7 @@ public final class EsqlTestUtils {
         try (InputStream content = entity.getContent()) {
             XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
             assertEquals(expectedContentType, xContentType);
-            return XContentHelper.convertToMap(xContentType.xContent(), content, false /* ordered */);
+            return XContentHelper.convertToMap(xContentType.xContent(), content, true /* ordered */);
         }
     }
 

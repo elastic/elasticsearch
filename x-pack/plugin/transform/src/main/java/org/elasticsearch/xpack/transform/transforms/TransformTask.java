@@ -14,8 +14,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Predicates;
@@ -638,8 +638,8 @@ public class TransformTask extends AllocatedPersistentTask
         return threadPool;
     }
 
-    public static PersistentTask<?> getTransformTask(String transformId, ClusterState clusterState) {
-        Collection<PersistentTask<?>> transformTasks = findTransformTasks(t -> t.getId().equals(transformId), clusterState);
+    public static PersistentTask<?> getTransformTask(String transformId, ProjectMetadata project) {
+        Collection<PersistentTask<?>> transformTasks = findTransformTasks(t -> t.getId().equals(transformId), project);
         if (transformTasks.isEmpty()) {
             return null;
         }
@@ -656,21 +656,21 @@ public class TransformTask extends AllocatedPersistentTask
         );
     }
 
-    public static Collection<PersistentTask<?>> findAllTransformTasks(ClusterState clusterState) {
-        return findTransformTasks(Predicates.always(), clusterState);
+    public static Collection<PersistentTask<?>> findAllTransformTasks(ProjectMetadata project) {
+        return findTransformTasks(Predicates.always(), project);
     }
 
-    public static Collection<PersistentTask<?>> findTransformTasks(Set<String> transformIds, ClusterState clusterState) {
-        return findTransformTasks(task -> transformIds.contains(task.getId()), clusterState);
+    public static Collection<PersistentTask<?>> findTransformTasks(Set<String> transformIds, ProjectMetadata project) {
+        return findTransformTasks(task -> transformIds.contains(task.getId()), project);
     }
 
-    public static Collection<PersistentTask<?>> findTransformTasks(String transformIdPattern, ClusterState clusterState) {
+    public static Collection<PersistentTask<?>> findTransformTasks(String transformIdPattern, ProjectMetadata project) {
         Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> taskMatcher = transformIdPattern == null
             || Strings.isAllOrWildcard(transformIdPattern) ? Predicates.always() : t -> {
                 TransformTaskParams transformParams = (TransformTaskParams) t.getParams();
                 return Regex.simpleMatch(transformIdPattern, transformParams.getId());
             };
-        return findTransformTasks(taskMatcher, clusterState);
+        return findTransformTasks(taskMatcher, project);
     }
 
     // used for {@link TransformHealthChecker}
@@ -678,8 +678,7 @@ public class TransformTask extends AllocatedPersistentTask
         return context;
     }
 
-    private static Collection<PersistentTask<?>> findTransformTasks(Predicate<PersistentTask<?>> predicate, ClusterState clusterState) {
-        final var project = clusterState.metadata().getDefaultProject();
+    private static Collection<PersistentTask<?>> findTransformTasks(Predicate<PersistentTask<?>> predicate, ProjectMetadata project) {
         PersistentTasksCustomMetadata pTasksMeta = PersistentTasksCustomMetadata.get(project);
         if (pTasksMeta == null) {
             return Collections.emptyList();

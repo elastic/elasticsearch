@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -55,6 +56,8 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
@@ -71,6 +74,7 @@ import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformIn
 import org.elasticsearch.xpack.transform.TransformExtension;
 import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.TransformServices;
+import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -101,7 +105,9 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ClientTransformIndexerTests extends ESTestCase {
@@ -292,6 +298,94 @@ public class ClientTransformIndexerTests extends ESTestCase {
         }
     }
 
+    public void testOnStartPromotesPendingCloudCredential() throws InterruptedException {
+        var config = TransformConfigTests.randomTransformConfig();
+        try (var threadPool = createThreadPool()) {
+            var client = new PitMockClient(threadPool, false);
+
+            var cloudCredentialManager = mock(TransformCloudCredentialManager.class);
+            var services = new TransformServices(
+                mock(IndexBasedTransformConfigManager.class),
+                mock(TransformCheckpointService.class),
+                mock(TransformAuditor.class),
+                new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
+                mock(TransformNode.class),
+                mock(CrossProjectModeDecider.class),
+                projectId -> false,
+                mock(ProjectResolver.class),
+                cloudCredentialManager
+            );
+
+            var context = mock(TransformContext.class);
+            var active = new PersistedCloudCredential("active-id", new SecureString("v".toCharArray()));
+            var pending = new PersistedCloudCredential("pending-id", new SecureString("v".toCharArray()));
+            when(context.getPendingPersistedCloudCredential()).thenReturn(pending);
+            when(context.promotePendingPersistedCloudCredential()).thenReturn(active);
+
+            var indexer = new MockClientTransformIndexer(
+                mock(ThreadPool.class),
+                mock(ClusterService.class),
+                mock(IndexNameExpressionResolver.class),
+                mockTransformExtensionWithNoopCloudCreds(),
+                services,
+                mock(CheckpointProvider.class),
+                new AtomicReference<>(IndexerState.STOPPED),
+                null,
+                new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")),
+                mock(TransformIndexerStats.class),
+                config,
+                null,
+                new TransformCheckpoint(
+                    "transform",
+                    Instant.now().toEpochMilli(),
+                    0L,
+                    Collections.emptyMap(),
+                    Instant.now().toEpochMilli()
+                ),
+                new TransformCheckpoint(
+                    "transform",
+                    Instant.now().toEpochMilli(),
+                    2L,
+                    Collections.emptyMap(),
+                    Instant.now().toEpochMilli()
+                ),
+                new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME),
+                context,
+                false
+            );
+
+            indexer.applyPendingCloudCredentialIfAny();
+
+            verify(context).promotePendingPersistedCloudCredential();
+            verify(cloudCredentialManager).revokeAndClose(eq(config.getId()), eq(active));
+        }
+    }
+
+    public void testOnStartWithoutPendingCloudCredentialIsNoop() throws InterruptedException {
+        var config = TransformConfigTests.randomTransformConfig();
+        try (var threadPool = createThreadPool()) {
+            var client = new PitMockClient(threadPool, false);
+            var cloudCredentialManager = mock(TransformCloudCredentialManager.class);
+            var services = new TransformServices(
+                mock(IndexBasedTransformConfigManager.class),
+                mock(TransformCheckpointService.class),
+                mock(TransformAuditor.class),
+                new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
+                mock(TransformNode.class),
+                mock(CrossProjectModeDecider.class),
+                projectId -> false,
+                mock(ProjectResolver.class),
+                cloudCredentialManager
+            );
+
+            var indexer = createIndexer(services, client, config);
+
+            indexer.applyPendingCloudCredentialIfAny();
+
+            verify(cloudCredentialManager, never()).revokeAndClose(any(), any());
+        }
+    }
+
     public void testDisablePit() throws InterruptedException {
         TransformConfig.Builder configBuilder = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig());
         TransformConfig config = configBuilder.build();
@@ -346,11 +440,22 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 mock(TransformNode.class),
                 mock(CrossProjectModeDecider.class),
                 projectId -> false,
-                mock(ProjectResolver.class)
+                mock(ProjectResolver.class),
+                mock(TransformCloudCredentialManager.class)
             ),
             client,
             config
         );
+    }
+
+    /**
+     * ClientTransformIndexer reads transformExtension.getCloudCredentialManager() in its constructor;
+     * wire a Noop so wrappedClient() doesn't NPE on tests that exercise outbound calls.
+     */
+    private static TransformExtension mockTransformExtensionWithNoopCloudCreds() {
+        var transformExtension = mock(TransformExtension.class);
+        when(transformExtension.getCloudCredentialManager()).thenReturn(new CloudCredentialManager.Noop());
+        return transformExtension;
     }
 
     private MockClientTransformIndexer createIndexer(TransformServices services, Client client, TransformConfig config) {
@@ -358,7 +463,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
             mock(ThreadPool.class),
             mock(ClusterService.class),
             mock(IndexNameExpressionResolver.class),
-            mock(TransformExtension.class),
+            mockTransformExtensionWithNoopCloudCreds(),
             services,
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),
@@ -407,7 +512,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(TransformNode.class),
                     crossProjectModeDecider,
                     projectId -> true,
-                    mock(ProjectResolver.class)
+                    mock(ProjectResolver.class),
+                    mock(TransformCloudCredentialManager.class)
                 ),
                 client,
                 config
@@ -434,7 +540,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(TransformNode.class),
                     crossProjectModeDecider,
                     projectId -> false,
-                    mock(ProjectResolver.class)
+                    mock(ProjectResolver.class),
+                    mock(TransformCloudCredentialManager.class)
                 ),
                 client,
                 config
@@ -614,7 +721,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 threadPool,
                 mock(ClusterService.class),
                 mock(IndexNameExpressionResolver.class),
-                mock(TransformExtension.class),
+                mockTransformExtensionWithNoopCloudCreds(),
                 new TransformServices(
                     mock(IndexBasedTransformConfigManager.class),
                     mock(TransformCheckpointService.class),
@@ -623,7 +730,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(TransformNode.class),
                     mock(CrossProjectModeDecider.class),
                     projectId -> false,
-                    multiProjectResolver
+                    multiProjectResolver,
+                    mock(TransformCloudCredentialManager.class)
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -710,7 +818,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
             mock(ThreadPool.class),
             mock(ClusterService.class),
             mock(IndexNameExpressionResolver.class),
-            mock(TransformExtension.class),
+            mockTransformExtensionWithNoopCloudCreds(),
             new TransformServices(
                 mock(IndexBasedTransformConfigManager.class),
                 mock(TransformCheckpointService.class),
@@ -719,7 +827,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 mock(TransformNode.class),
                 mock(CrossProjectModeDecider.class),
                 projectId -> false,
-                mock(ProjectResolver.class)
+                mock(ProjectResolver.class),
+                mock(TransformCloudCredentialManager.class)
             ),
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),
@@ -925,7 +1034,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
             mock(ThreadPool.class),
             service,
             resolver,
-            mock(TransformExtension.class),
+            mockTransformExtensionWithNoopCloudCreds(),
             new TransformServices(
                 mock(IndexBasedTransformConfigManager.class),
                 mock(TransformCheckpointService.class),
@@ -934,7 +1043,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 mock(TransformNode.class),
                 mock(CrossProjectModeDecider.class),
                 projectId -> false,
-                mock(ProjectResolver.class)
+                mock(ProjectResolver.class),
+                mock(TransformCloudCredentialManager.class)
             ),
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),

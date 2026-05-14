@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.TransformServices;
+import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.checkpoint.MockTimebasedCheckpointProvider;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
@@ -853,7 +854,8 @@ public class TransformIndexerStateTests extends ESTestCase {
                 mock(TransformNode.class),
                 mock(CrossProjectModeDecider.class),
                 projectId -> false,
-                mock(ProjectResolver.class)
+                mock(ProjectResolver.class),
+                mock(TransformCloudCredentialManager.class)
             ),
             new MockTimebasedCheckpointProvider(config),
             config,
@@ -1074,7 +1076,8 @@ public class TransformIndexerStateTests extends ESTestCase {
             mock(TransformNode.class),
             mock(CrossProjectModeDecider.class),
             projectId -> false,
-            mock(ProjectResolver.class)
+            mock(ProjectResolver.class),
+            mock(TransformCloudCredentialManager.class)
         );
 
         MockedTransformIndexer indexer = new MockedTransformIndexer(
@@ -1112,7 +1115,8 @@ public class TransformIndexerStateTests extends ESTestCase {
             mock(TransformNode.class),
             mock(CrossProjectModeDecider.class),
             projectId -> false,
-            mock(ProjectResolver.class)
+            mock(ProjectResolver.class),
+            mock(TransformCloudCredentialManager.class)
         );
 
         MockedTransformIndexerForStatePersistenceTesting indexer = new MockedTransformIndexerForStatePersistenceTesting(

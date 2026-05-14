@@ -86,6 +86,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
     private final SourceDestValidator sourceDestValidator;
     private final Settings destIndexSettings;
     private final BooleanSupplier hasLinkedProjects;
+    private final TransformCloudCredentialManager cloudCredentialManager;
 
     @Inject
     public TransportPreviewTransformAction(
@@ -124,6 +125,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         );
         this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
         this.hasLinkedProjects = () -> transformServices.hasLinkedProjects().apply(projectResolver.getProjectId());
+        this.cloudCredentialManager = transformServices.cloudCredentialManager();
     }
 
     @Override
@@ -221,7 +223,8 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         boolean previewAsIndexRequest,
         ActionListener<Response> listener
     ) {
-        var parentTaskClient = new ParentTaskAssigningClient(client, parentTaskId);
+        var rawClient = new ParentTaskAssigningClient(client, parentTaskId);
+        var parentTaskClient = cloudCredentialManager.wrapWithUiamIfPresent(rawClient);
 
         final var mappings = new SetOnce<Map<String, String>>();
 

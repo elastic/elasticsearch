@@ -59,6 +59,7 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
 
     private final TransformConfigManager transformConfigManager;
     private final TransformAuditor auditor;
+    private final TransformCloudCredentialManager cloudCredentialManager;
     private final Client client;
     private final ProjectResolver projectResolver;
 
@@ -83,6 +84,7 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
         );
         this.transformConfigManager = transformServices.configManager();
         this.auditor = transformServices.auditor();
+        this.cloudCredentialManager = transformServices.cloudCredentialManager();
         this.client = client;
         this.projectResolver = projectResolver;
     }
@@ -113,14 +115,26 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
             return;
         }
 
-        // <3> Delete transform config
-        ActionListener<AcknowledgedResponse> deleteDestIndexListener = ActionListener.wrap(
+        // <4> Delete transform config
+        ActionListener<AcknowledgedResponse> deleteTransformListener = ActionListener.wrap(
             unusedAcknowledgedResponse -> transformConfigManager.deleteTransform(request.getId(), ActionListener.wrap(r -> {
                 logger.info("[{}] deleted transform", request.getId());
                 auditor.info(request.getId(), "Deleted transform.");
                 listener.onResponse(AcknowledgedResponse.of(r));
             }, listener::onFailure)),
             listener::onFailure
+        );
+
+        // <3> Revoke the persisted cloud credential before removing the storage doc. The big DBQ in
+        // step <4> (deleteTransform) catches the credential storage doc itself, so we use
+        // loadAndRevoke (no separate doc delete). Best-effort: load and revoke failures are logged
+        // inside the helper and delete proceeds regardless; the serverless revoke API is idempotent
+        // so a future retry / GC sweep can clean up any dangling UIAM key.
+        ActionListener<AcknowledgedResponse> deleteDestIndexListener = listener.delegateFailureIgnoreResponseAndWrap(
+            l -> cloudCredentialManager.loadAndRevoke(
+                request.getId(),
+                ActionListener.running(() -> deleteTransformListener.onResponse(AcknowledgedResponse.TRUE))
+            )
         );
 
         // <2> Delete destination index if requested

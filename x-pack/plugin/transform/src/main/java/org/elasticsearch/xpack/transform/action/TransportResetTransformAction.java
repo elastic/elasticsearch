@@ -157,6 +157,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
                     false, // hasLinkedProjects (irrelevant since checkAccess is false)
                     request.ackTimeout(),
                     destIndexSettings,
+                    null, // no cloudCredentialManager — skip credential minting for internal reset
                     updateTransformListener
                 );
             },

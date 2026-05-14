@@ -28,6 +28,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -51,6 +52,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
@@ -66,6 +69,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.transform.TransformExtension;
 import org.elasticsearch.xpack.transform.TransformServices;
+import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
@@ -90,6 +94,8 @@ class ClientTransformIndexer extends TransformIndexer {
     private static final Logger logger = LogManager.getLogger(ClientTransformIndexer.class);
 
     private final ParentTaskAssigningClient client;
+    private final CloudCredentialManager credentialManager;
+    private final TransformCloudCredentialManager transformCloudCredentialManager;
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Settings destIndexSettings;
@@ -135,6 +141,8 @@ class ClientTransformIndexer extends TransformIndexer {
             context
         );
         this.client = ExceptionsHelper.requireNonNull(client, "client");
+        this.credentialManager = transformExtension.getCloudCredentialManager();
+        this.transformCloudCredentialManager = transformServices.cloudCredentialManager();
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.destIndexSettings = transformExtension.getTransformDestinationIndexSettings();
@@ -147,6 +155,10 @@ class ClientTransformIndexer extends TransformIndexer {
         crossProjectEnabled = transformServices.crossProjectModeDecider().crossProjectEnabled()
             && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled();
         this.hasLinkedProjects = transformServices.hasLinkedProjects();
+    }
+
+    private Client wrappedClient() {
+        return credentialManager.wrapClient(client, context.getPersistedCloudCredential());
     }
 
     @Override
@@ -187,7 +199,7 @@ class ClientTransformIndexer extends TransformIndexer {
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
-            client,
+            wrappedClient(),
             TransportBulkAction.TYPE,
             request,
             ActionListener.wrap(bulkResponse -> handleBulkResponse(bulkResponse, nextPhase), nextPhase::onFailure)
@@ -267,7 +279,7 @@ class ClientTransformIndexer extends TransformIndexer {
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
-            client,
+            wrappedClient(),
             DeleteByQueryAction.INSTANCE,
             deleteByQueryRequest,
             responseListener
@@ -308,7 +320,7 @@ class ClientTransformIndexer extends TransformIndexer {
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
-            client,
+            wrappedClient(),
             TransportSearchAction.TYPE,
             request,
             responseListener
@@ -323,7 +335,7 @@ class ClientTransformIndexer extends TransformIndexer {
     @Override
     void doMaybeCreateDestIndex(Map<String, String> deducedDestIndexMappings, ActionListener<Boolean> listener) {
         TransformIndex.createDestinationIndex(
-            client,
+            wrappedClient(),
             auditor,
             indexNameExpressionResolver,
             clusterService.state(),
@@ -448,8 +460,31 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     @Override
+    protected void onStart(long now, ActionListener<Boolean> listener) {
+        applyPendingCloudCredentialIfAny();
+        super.onStart(now, listener);
+    }
+
+    @Override
     protected void afterFinishOrFailure() {
         closePointInTime(super::afterFinishOrFailure);
+    }
+
+    /**
+     * Promotes a pending cloud credential queued by {@code TransformTask.refreshFromStore} (when the
+     * indexer was mid-run at update time) and revokes the previously-active credential. Called once
+     * per run from {@link #onStart} — before the new checkpoint's {@code createCheckpoint},
+     * {@code doGetInitialProgress}, and any subsequent search/bulk runs — so the new credential is in
+     * effect for every outbound call of this checkpoint. The previous checkpoint has already drained
+     * (we're past its {@code afterFinishOrFailure}), so no in-flight call still references the
+     * credential being revoked.
+     */
+    void applyPendingCloudCredentialIfAny() {
+        if (context.getPendingPersistedCloudCredential() == null) {
+            return;
+        }
+        PersistedCloudCredential displaced = context.promotePendingPersistedCloudCredential();
+        transformCloudCredentialManager.revokeAndClose(getJobId(), displaced);
     }
 
     @Override
@@ -529,7 +564,7 @@ class ClientTransformIndexer extends TransformIndexer {
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
-            client,
+            wrappedClient(),
             TransportClosePointInTimeAction.TYPE,
             closePitRequest,
             ActionListener.runAfter(ActionListener.wrap(response -> {
@@ -574,7 +609,7 @@ class ClientTransformIndexer extends TransformIndexer {
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
-            client,
+            wrappedClient(),
             TransportOpenPointInTimeAction.TYPE,
             pitRequest,
             ActionListener.wrap(response -> {
@@ -644,7 +679,7 @@ class ClientTransformIndexer extends TransformIndexer {
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
-            client,
+            wrappedClient(),
             TransportSearchAction.TYPE,
             searchRequest,
             ActionListener.wrap(response -> {
@@ -670,7 +705,7 @@ class ClientTransformIndexer extends TransformIndexer {
                     ClientHelper.executeWithHeadersAsync(
                         transformConfig.getHeaders(),
                         ClientHelper.TRANSFORM_ORIGIN,
-                        client,
+                        wrappedClient(),
                         TransportSearchAction.TYPE,
                         originalRequest,
                         listener
@@ -689,7 +724,7 @@ class ClientTransformIndexer extends TransformIndexer {
                     ClientHelper.executeWithHeadersAsync(
                         transformConfig.getHeaders(),
                         ClientHelper.TRANSFORM_ORIGIN,
-                        client,
+                        wrappedClient(),
                         TransportSearchAction.TYPE,
                         originalRequest,
                         listener

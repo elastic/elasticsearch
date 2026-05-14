@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -41,6 +43,7 @@ import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
@@ -63,10 +66,12 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.xpack.transform.DefaultTransformExtension;
 import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.TransformServices;
+import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.InMemoryTransformConfigManager;
+import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 import org.junit.After;
 import org.junit.Before;
@@ -95,6 +100,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNotNull;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -228,7 +234,8 @@ public class TransformTaskTests extends ESTestCase {
             mock(TransformNode.class),
             mock(CrossProjectModeDecider.class),
             projectId -> false,
-            mock(ProjectResolver.class)
+            mock(ProjectResolver.class),
+            mock(TransformCloudCredentialManager.class)
         );
     }
 
@@ -868,5 +875,94 @@ public class TransformTaskTests extends ESTestCase {
 
     private static TransformTaskParams createTransformTaskParams(String transformId) {
         return new TransformTaskParams(transformId, TransformConfigVersion.CURRENT, TimeValue.timeValueSeconds(10), false);
+    }
+
+    public void testRefreshFromStoreAlwaysQueuesPending() {
+        // refreshFromStore always queues the new credential as pending — never swaps the active
+        // synchronously — to avoid racing with an indexer thread that may capture the active
+        // credential via wrappedClient() in the window between state observation and revoke.
+        // The state argument is varied here to cover STARTED (the prior fast path) and INDEXING.
+        for (IndexerState state : new IndexerState[] { IndexerState.STARTED, IndexerState.INDEXING }) {
+            var transformId = "test-refresh-queue-" + state;
+            var transformTask = newTransformTask(transformId, state);
+            var active = persistedCredential();
+            transformTask.getContext().setPersistedCloudCredential(active);
+
+            var next = persistedCredential();
+            var configManager = mockConfigManagerReturning(transformId, next);
+            var credentialManager = mock(TransformCloudCredentialManager.class);
+
+            var future = ActionTestUtils.<Void>assertNoFailureListener(r -> {});
+            transformTask.refreshFromStore(configManager, credentialManager, future);
+
+            // active untouched; new credential queued for promotion at the next checkpoint boundary
+            assertThat(transformTask.getContext().getPersistedCloudCredential(), sameInstance(active));
+            assertThat(transformTask.getContext().getPendingPersistedCloudCredential(), sameInstance(next));
+            // no prior pending, so revokeAndClose is called with null
+            verify(credentialManager).revokeAndClose(transformId, null);
+        }
+    }
+
+    public void testRefreshFromStoreRevokesDisplacedPendingOnDoubleUpdate() {
+        // user submits two _update calls in quick succession; the indexer is mid-checkpoint and never
+        // promotes the first pending — refresh must revoke the displaced pending and queue the new one.
+        var transformId = "test-refresh-double-update";
+        var transformTask = newTransformTask(transformId, IndexerState.INDEXING);
+        var active = persistedCredential();
+        var firstPending = persistedCredential();
+        transformTask.getContext().setPersistedCloudCredential(active);
+        transformTask.getContext().setPendingPersistedCloudCredential(firstPending);
+
+        var secondPending = persistedCredential();
+        var configManager = mockConfigManagerReturning(transformId, secondPending);
+        var credentialManager = mock(TransformCloudCredentialManager.class);
+
+        var future = ActionTestUtils.<Void>assertNoFailureListener(r -> {});
+        transformTask.refreshFromStore(configManager, credentialManager, future);
+
+        assertThat(transformTask.getContext().getPersistedCloudCredential(), sameInstance(active));
+        assertThat(transformTask.getContext().getPendingPersistedCloudCredential(), sameInstance(secondPending));
+        // displaced firstPending is revoked + closed by the credential manager
+        verify(credentialManager).revokeAndClose(transformId, firstPending);
+    }
+
+    /**
+     * Builds a TransformTask whose {@code getState().getIndexerState()} returns the requested state.
+     * INDEXING / ABORTING / STOPPING aren't reflected by the constructor's initialIndexerState (those
+     * get coerced to STARTED / STOPPED — see TransformTask.java line 115-122), so we always attach a
+     * mock indexer that returns the requested state directly.
+     */
+    private TransformTask newTransformTask(String transformId, IndexerState indexerState) {
+        var transformTask = new TransformTask(
+            42,
+            "some_type",
+            "some_action",
+            TaskId.EMPTY_TASK_ID,
+            createTransformTaskParams(transformId),
+            null,
+            new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
+            MockTransformAuditor.createMockAuditor(),
+            mock(ThreadPool.class),
+            Collections.emptyMap(),
+            mockTransformNode()
+        );
+        var indexer = mock(ClientTransformIndexer.class);
+        when(indexer.getState()).thenReturn(indexerState);
+        transformTask.initializeIndexer(indexer);
+        return transformTask;
+    }
+
+    private static TransformConfigManager mockConfigManagerReturning(String transformId, PersistedCloudCredential credential) {
+        var configManager = mock(TransformConfigManager.class);
+        doAnswer(invocation -> {
+            ActionListener<PersistedCloudCredential> listener = invocation.getArgument(2);
+            listener.onResponse(credential);
+            return null;
+        }).when(configManager).getTransformCloudCredential(eq(transformId), eq(true), any());
+        return configManager;
+    }
+
+    private static PersistedCloudCredential persistedCredential() {
+        return new PersistedCloudCredential(randomAlphaOfLengthBetween(4, 12), new SecureString("v".toCharArray()));
     }
 }

@@ -129,6 +129,7 @@ public class TransformUpdater {
         final boolean hasLinkedProjects,
         final TimeValue timeout,
         final Settings destIndexSettings,
+        @Nullable final TransformCloudCredentialManager cloudCredentialManager,
         ActionListener<UpdateResult> listener
     ) {
         // rewrite config into a new format if necessary
@@ -161,7 +162,7 @@ public class TransformUpdater {
             listener::onFailure
         );
 
-        // <3> Update the transform
+        // <4> Update the transform
         ActionListener<Map<String, String>> validateTransformListener = ActionListener.wrap(destIndexMappings -> {
             // If it is a noop or dry run don't write the doc
             // skip when:
@@ -190,14 +191,37 @@ public class TransformUpdater {
                 seqNoPrimaryTermAndIndex,
                 clusterState,
                 destIndexSettings,
-                ActionListener.wrap(r -> updateTransformListener.onResponse(null), listener::onFailure)
+                ActionListener.wrap(r -> updateTransformListener.onResponse(null), configWriteFailure -> {
+                    if (cloudCredentialManager == null) {
+                        // Reset / Upgrade callers never minted a credential, so nothing to compensate.
+                        listener.onFailure(configWriteFailure);
+                        return;
+                    }
+                    logger.debug("[{}] config update failed after credential mint, compensating revoke + delete", updatedConfig.getId());
+                    cloudCredentialManager.loadRevokeAndDelete(
+                        updatedConfig.getId(),
+                        ActionListener.running(() -> listener.onFailure(configWriteFailure))
+                    );
+                })
             );
         }, listener::onFailure);
+
+        // <3> Mint cloud credential if UIAM is present
+        ActionListener<Map<String, String>> mintCredentialListener = listener.delegateFailureAndWrap((l, destIndexMappings) -> {
+            if (dryRun == false && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && cloudCredentialManager != null) {
+                cloudCredentialManager.mintAndPersist(
+                    updatedConfig.getId(),
+                    l.delegateFailureIgnoreResponseAndWrap(ignored -> validateTransformListener.onResponse(destIndexMappings))
+                );
+            } else {
+                validateTransformListener.onResponse(destIndexMappings);
+            }
+        });
 
         // <2> Validate source and destination indices
         ActionListener<AuthorizationState> checkPrivilegesListener = ActionListener.wrap(authState -> {
             authStateHolder.set(authState);
-            validateTransform(updatedConfig, client, deferValidation, timeout, validateTransformListener);
+            validateTransform(updatedConfig, client, deferValidation, timeout, cloudCredentialManager, mintCredentialListener);
         }, listener::onFailure);
 
         // <1> Early check to verify that the user can create the destination index and can read from the source
@@ -230,14 +254,28 @@ public class TransformUpdater {
         Client client,
         boolean deferValidation,
         TimeValue timeout,
+        @Nullable TransformCloudCredentialManager cloudCredentialManager,
         ActionListener<Map<String, String>> listener
     ) {
+        ActionListener<ValidateTransformAction.Response> wrapped = listener.delegateFailureAndWrap(
+            (l, response) -> l.onResponse(response.getDestIndexMappings())
+        );
+        // Internal callers (Reset, Upgrade) pass a null cloudCredentialManager and never carry a UIAM
+        // credential. External callers (Update) attach the caller's credential to the request payload
+        // so it survives the system-origin context stash inside executeAsyncWithOrigin.
+        var callerCredential = cloudCredentialManager == null ? null : cloudCredentialManager.currentCallerCredential();
+        // Hoist into a local so we can hand the same instance to executeAsyncWithOrigin and to
+        // releaseAfter, which closes the request (and its CloudCredential SecureString) once the
+        // dispatch listener fires. Plugs the leak when the request is forwarded to a remote node
+        // or when dispatch fails synchronously before the receiver-side releaseAfter is set up.
+        // Request.close() is null-safe so this path is identical for non-UIAM callers (Reset, Upgrade).
+        var validateRequest = new ValidateTransformAction.Request(config, deferValidation, timeout, callerCredential);
         ClientHelper.executeAsyncWithOrigin(
             client,
             ClientHelper.TRANSFORM_ORIGIN,
             ValidateTransformAction.INSTANCE,
-            new ValidateTransformAction.Request(config, deferValidation, timeout),
-            ActionListener.wrap(response -> listener.onResponse(response.getDestIndexMappings()), listener::onFailure)
+            validateRequest,
+            ActionListener.releaseAfter(wrapped, validateRequest)
         );
     }
 

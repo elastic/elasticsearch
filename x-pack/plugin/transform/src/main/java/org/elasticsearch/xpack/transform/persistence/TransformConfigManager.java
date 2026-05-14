@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -207,6 +208,38 @@ public interface TransformConfigManager {
     void getTransformStoredDocs(Collection<String> transformIds, TimeValue timeout, ActionListener<List<TransformStoredDoc>> listener);
 
     void refresh(ActionListener<Boolean> listener);
+
+    String CLOUD_CREDENTIAL_DOC_TYPE = "data_frame_transform_cloud_credential";
+
+    static String cloudCredentialDocumentId(String transformId) {
+        return CLOUD_CREDENTIAL_DOC_TYPE + "-" + transformId;
+    }
+
+    /**
+     * Persist a cloud credential for the given transform.
+     *
+     * @param transformId the transform id
+     * @param credential  the credential envelope to persist
+     * @param listener    listener to call after request
+     */
+    void putTransformCloudCredential(String transformId, PersistedCloudCredential credential, ActionListener<Boolean> listener);
+
+    /**
+     * Get the persisted cloud credential for the given transform.
+     *
+     * @param transformId  the transform id
+     * @param allowNoMatch if true, return null when no credential exists; otherwise fail with ResourceNotFoundException
+     * @param listener     listener to call with the credential or null
+     */
+    void getTransformCloudCredential(String transformId, boolean allowNoMatch, ActionListener<PersistedCloudCredential> listener);
+
+    /**
+     * Delete the persisted cloud credential for the given transform.
+     *
+     * @param transformId the transform id
+     * @param listener    listener to call after request (true if deleted, false if not found)
+     */
+    void deleteTransformCloudCredential(String transformId, ActionListener<Boolean> listener);
 
     default boolean isLatestTransformIndex(String indexName) {
         return TransformInternalIndexConstants.LATEST_INDEX_NAME.equals(indexName);

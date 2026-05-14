@@ -75,6 +75,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
     private final Settings destIndexSettings;
     private final BooleanSupplier hasLinkedProjects;
     private final ProjectResolver projectResolver;
+    private final TransformCloudCredentialManager cloudCredentialManager;
 
     @Inject
     public TransportUpdateTransformAction(
@@ -111,6 +112,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
         this.hasLinkedProjects = () -> transformServices.hasLinkedProjects().apply(projectResolver.getProjectId());
         this.projectResolver = projectResolver;
+        this.cloudCredentialManager = transformServices.cloudCredentialManager();
     }
 
     @Override
@@ -169,6 +171,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                     hasLinkedProjects.getAsBoolean(),
                     request.getTimeout(),
                     destIndexSettings,
+                    cloudCredentialManager,
                     ActionListener.wrap(updateResult -> {
                         TransformConfig originalConfig = configAndVersion.v1();
                         TransformConfig updatedConfig = updateResult.getConfig();
@@ -293,11 +296,15 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         TransformTask transformTask,
         ActionListener<Response> listener
     ) {
-        transformTask.applyNewSettings(request.getConfig().getSettings());
-        transformTask.applyNewAuthState(request.getAuthState());
-        transformTask.checkAndResetDestinationIndexBlock(request.getConfig());
-        transformTask.applyNewFrequency(request.getConfig());
-        listener.onResponse(new Response(request.getConfig()));
+        ActionListener<Void> applySettingsListener = listener.delegateFailureAndWrap((l, unused) -> {
+            transformTask.applyNewSettings(request.getConfig().getSettings());
+            transformTask.applyNewAuthState(request.getAuthState());
+            transformTask.checkAndResetDestinationIndexBlock(request.getConfig());
+            transformTask.applyNewFrequency(request.getConfig());
+            l.onResponse(new Response(request.getConfig()));
+        });
+
+        transformTask.refreshFromStore(transformConfigManager, cloudCredentialManager, applySettingsListener);
     }
 
     @Override

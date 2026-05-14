@@ -50,6 +50,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
     private final Settings nodeSettings;
     private final SourceDestValidator sourceDestValidator;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    private final TransformCloudCredentialManager cloudCredentialManager;
 
     @Inject
     public TransportValidateTransformAction(
@@ -79,10 +80,18 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             License.OperationMode.BASIC.description()
         );
         this.crossProjectModeDecider = transformServices.crossProjectModeDecider();
+        this.cloudCredentialManager = transformServices.cloudCredentialManager();
     }
 
     @Override
-    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+    protected void doExecute(Task task, Request request, ActionListener<Response> rawListener) {
+        // Re-inject the caller's UIAM cloud credential into the local thread context. The PUT/Start/Update
+        // dispatcher carried it on the request payload because the system-origin context stash inside
+        // ClientHelper.executeAsyncWithOrigin would otherwise drop the cloud credential transient.
+        cloudCredentialManager.injectCallerCredential(request.cloudCredential());
+        // Ensure the credential's SecureString is closed once validation completes (success or failure).
+        final ActionListener<Response> listener = ActionListener.releaseAfter(rawListener, request);
+
         final ClusterState clusterState = clusterService.state();
         if (request.isDeferValidation() == false) {
             TransformNodes.throwIfNoTransformNodes(clusterState);
@@ -106,7 +115,8 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         var config = request.getConfig();
         var function = FunctionFactory.create(config);
         var parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
-        var parentClient = new ParentTaskAssigningClient(client, parentTaskId);
+        var rawClient = new ParentTaskAssigningClient(client, parentTaskId);
+        var parentClient = cloudCredentialManager.wrapWithUiamIfPresent(rawClient);
 
         if (config.getVersion() == null || config.getVersion().before(TransformDeprecations.MIN_TRANSFORM_VERSION)) {
             listener.onFailure(

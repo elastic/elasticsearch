@@ -44,8 +44,10 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.TransformNode;
+import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 
 import java.util.Arrays;
@@ -442,6 +444,47 @@ public class TransformTask extends AllocatedPersistentTask
         }
     }
 
+    /**
+     * Reloads the persisted cloud credential from storage and queues it as pending. The actual
+     * swap happens at the start of the next checkpoint in {@code ClientTransformIndexer.onStart},
+     * which then revokes the displaced previously-active credential at a point where no outbound
+     * call still holds it (the previous checkpoint has fully drained through its
+     * {@code afterFinishOrFailure}). If a prior pending exists (from a quick second {@code _update}
+     * before the first checkpoint completed), the displaced prior pending is revoked here
+     * synchronously — safe because it was never promoted to active and no outbound call ever
+     * captured it. Failures to load propagate to the listener; the post-load revoke is
+     * fire-and-forget.
+     *
+     * <p>The "always queue" shape avoids a race: a previous design swapped + revoked immediately
+     * when the indexer state was observed as not-INDEXING, but the indexer thread could capture the
+     * old credential via {@code wrappedClient()} in the window between the state read and the
+     * revoke, then dispatch a search whose UIAM validation would fail. Deferring the swap to
+     * {@code onStart} closes that window — by then the previous checkpoint's outbound calls have
+     * all completed, and the new credential takes effect on the very first call of the new
+     * checkpoint (so an {@code _update} is honoured one checkpoint sooner than the previous
+     * end-of-checkpoint design, eliminating the failure mode where a soon-to-be-displaced token
+     * was revoked out-of-band before its final checkpoint finished).
+     *
+     * <p>No-op when the {@code TRANSFORM_CROSS_PROJECT} feature flag is off — the storage doc is
+     * never written in that mode, so the load would always return {@code null} and there is no
+     * point hitting the system index per {@code _update}.
+     */
+    public void refreshFromStore(
+        TransformConfigManager configManager,
+        TransformCloudCredentialManager cloudCredentialManager,
+        ActionListener<Void> listener
+    ) {
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() == false) {
+            listener.onResponse(null);
+            return;
+        }
+        configManager.getTransformCloudCredential(getTransformId(), true, listener.delegateFailureAndWrap((l, next) -> {
+            var previousPendingToken = context.setPendingPersistedCloudCredential(next);
+            cloudCredentialManager.revokeAndClose(getTransformId(), previousPendingToken);
+            l.onResponse(null);
+        }));
+    }
+
     @Override
     protected void init(
         PersistentTasksService persistentTasksService,
@@ -510,6 +553,7 @@ public class TransformTask extends AllocatedPersistentTask
     @Override
     public void shutdown() {
         logger.debug("[{}] shutdown of transform requested", transform.getId());
+        context.close();
         transformScheduler.deregisterTransform(getTransformId());
         markAsCompleted();
     }
@@ -568,6 +612,7 @@ public class TransformTask extends AllocatedPersistentTask
                         transformNode.nodeId(),
                         reason
                     );
+                context.close();
                 markAsLocallyAborted("Node is shutting down.");
                 listener.onResponse(null);
                 return;

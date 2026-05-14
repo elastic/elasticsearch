@@ -13,6 +13,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -42,6 +43,7 @@ public class InMemoryTransformConfigManager implements TransformConfigManager {
     private final Map<String, List<TransformCheckpoint>> checkpoints = new HashMap<>();
     private final Map<String, TransformConfig> configs = new HashMap<>();
     private final Map<String, TransformStoredDoc> transformStoredDocs = new HashMap<>();
+    private final Map<String, PersistedCloudCredential> cloudCredentials = new HashMap<>();
 
     // for mocking updates
     private final Map<String, List<TransformCheckpoint>> oldCheckpoints = new HashMap<>();
@@ -308,7 +310,30 @@ public class InMemoryTransformConfigManager implements TransformConfigManager {
     public void deleteTransform(String transformId, ActionListener<Boolean> listener) {
         configs.remove(transformId);
         oldConfigs.remove(transformId);
+        cloudCredentials.remove(transformId);
         resetTransform(transformId, listener);
+    }
+
+    @Override
+    public void putTransformCloudCredential(String transformId, PersistedCloudCredential credential, ActionListener<Boolean> listener) {
+        cloudCredentials.put(transformId, credential);
+        listener.onResponse(true);
+    }
+
+    @Override
+    public void getTransformCloudCredential(String transformId, boolean allowNoMatch, ActionListener<PersistedCloudCredential> listener) {
+        PersistedCloudCredential credential = cloudCredentials.get(transformId);
+        if (credential == null && allowNoMatch == false) {
+            listener.onFailure(new ResourceNotFoundException("No cloud credential found for transform [" + transformId + "]"));
+            return;
+        }
+        listener.onResponse(credential);
+    }
+
+    @Override
+    public void deleteTransformCloudCredential(String transformId, ActionListener<Boolean> listener) {
+        boolean removed = cloudCredentials.remove(transformId) != null;
+        listener.onResponse(removed);
     }
 
     public void putOrUpdateOldTransformStoredDoc(

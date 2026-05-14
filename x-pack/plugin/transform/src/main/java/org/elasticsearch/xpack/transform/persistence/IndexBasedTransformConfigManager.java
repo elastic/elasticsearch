@@ -66,6 +66,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
@@ -847,6 +848,115 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             listener.<BroadcastResponse>delegateFailureAndWrap((l, r) -> l.onResponse(true)),
             client.admin().indices()::refresh
         );
+    }
+
+    @Override
+    public void putTransformCloudCredential(String transformId, PersistedCloudCredential credential, ActionListener<Boolean> listener) {
+        if (isUpgrading()) {
+            listener.onFailure(
+                conflictStatusException("Cannot store Transform cloud credential while the Transform feature is upgrading.")
+            );
+            return;
+        }
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.startObject();
+            builder.field(TransformField.INDEX_DOC_TYPE.getPreferredName(), CLOUD_CREDENTIAL_DOC_TYPE);
+            builder.field(TransformField.ID.getPreferredName(), transformId);
+            builder.field("persisted_credential", credential);
+            builder.endObject();
+
+            IndexRequest indexRequest = new IndexRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).opType(
+                DocWriteRequest.OpType.INDEX
+            )
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .id(TransformConfigManager.cloudCredentialDocumentId(transformId))
+                .source(builder);
+
+            executeAsyncWithOrigin(TransportIndexAction.TYPE, indexRequest, listener.delegateFailureAndWrap((l, r) -> l.onResponse(true)));
+        } catch (IOException e) {
+            listener.onFailure(e);
+        }
+    }
+
+    @Override
+    public void getTransformCloudCredential(String transformId, boolean allowNoMatch, ActionListener<PersistedCloudCredential> listener) {
+        QueryBuilder queryBuilder = QueryBuilders.termQuery("_id", TransformConfigManager.cloudCredentialDocumentId(transformId));
+        SearchRequest searchRequest = client.prepareSearch(
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
+        ).setQuery(queryBuilder).addSort("_index", SortOrder.DESC).setSize(1).setAllowPartialSearchResults(false).request();
+
+        executeAsyncWithOrigin(TransportSearchAction.TYPE, searchRequest, listener.delegateFailureAndWrap((l, searchResponse) -> {
+            if (searchResponse.getHits().getHits().length == 0) {
+                if (allowNoMatch) {
+                    l.onResponse(null);
+                } else {
+                    l.onFailure(new ResourceNotFoundException("No cloud credential found for transform [" + transformId + "]"));
+                }
+                return;
+            }
+            BytesReference source = searchResponse.getHits().getHits()[0].getSourceRef();
+            try (
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(xContentRegistry),
+                    source,
+                    XContentType.JSON
+                )
+            ) {
+                // advance to the persisted_credential field
+                XContentParser.Token token = parser.nextToken();
+                assert token == XContentParser.Token.START_OBJECT;
+                String fieldName;
+                PersistedCloudCredential credential = null;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        fieldName = parser.currentName();
+                        if ("persisted_credential".equals(fieldName)) {
+                            parser.nextToken();
+                            credential = PersistedCloudCredential.fromXContent(parser);
+                        } else {
+                            parser.nextToken();
+                            parser.skipChildren();
+                        }
+                    }
+                }
+                if (credential == null) {
+                    l.onFailure(new ElasticsearchParseException("Failed to parse cloud credential for transform [" + transformId + "]"));
+                } else {
+                    l.onResponse(credential);
+                }
+            } catch (Exception e) {
+                logger.error("Failed to parse cloud credential for transform [{}]", transformId);
+                l.onFailure(e);
+            }
+        }));
+    }
+
+    @Override
+    public void deleteTransformCloudCredential(String transformId, ActionListener<Boolean> listener) {
+        if (isUpgrading()) {
+            listener.onFailure(
+                conflictStatusException("Cannot delete Transform cloud credential while the Transform feature is upgrading.")
+            );
+            return;
+        }
+        DeleteByQueryRequest deleteByQueryRequest = createDeleteByQueryRequest();
+        deleteByQueryRequest.indices(
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
+        );
+        deleteByQueryRequest.setQuery(QueryBuilders.termQuery("_id", TransformConfigManager.cloudCredentialDocumentId(transformId)));
+
+        executeAsyncWithOrigin(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener.delegateFailureAndWrap((l, response) -> {
+            if ((response.getBulkFailures().isEmpty() && response.getSearchFailures().isEmpty()) == false) {
+                Tuple<RestStatus, Throwable> statusAndReason = getStatusAndReason(response);
+                l.onFailure(
+                    new ElasticsearchStatusException(statusAndReason.v2().getMessage(), statusAndReason.v1(), statusAndReason.v2())
+                );
+                return;
+            }
+            l.onResponse(response.getDeleted() > 0);
+        }));
     }
 
     private <Request, Response> void executeAsyncWithOrigin(

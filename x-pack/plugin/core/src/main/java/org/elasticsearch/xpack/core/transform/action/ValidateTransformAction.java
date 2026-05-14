@@ -7,17 +7,22 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
 import java.io.IOException;
@@ -33,21 +38,40 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> {
+    public static class Request extends AcknowledgedRequest<Request> implements Releasable {
+
+        static final TransportVersion TRANSFORM_VALIDATE_CLOUD_CREDENTIAL = TransportVersion.fromName(
+            "transform_validate_cloud_credential"
+        );
 
         private final TransformConfig config;
         private final boolean deferValidation;
+        // Caller's UIAM cloud credential carried on the request payload so it survives the
+        // system-origin context stash performed by ClientHelper.executeAsyncWithOrigin. The
+        // receiver re-injects it into its local thread context before invoking user-data ops.
+        @Nullable
+        private final CloudCredential cloudCredential;
 
         public Request(TransformConfig config, boolean deferValidation, TimeValue timeout) {
+            this(config, deferValidation, timeout, null);
+        }
+
+        public Request(TransformConfig config, boolean deferValidation, TimeValue timeout, @Nullable CloudCredential cloudCredential) {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, timeout);
             this.config = config;
             this.deferValidation = deferValidation;
+            this.cloudCredential = cloudCredential;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.config = new TransformConfig(in);
             this.deferValidation = in.readBoolean();
+            if (in.getTransportVersion().supports(TRANSFORM_VALIDATE_CLOUD_CREDENTIAL)) {
+                this.cloudCredential = in.readOptionalWriteable(CloudCredential::new);
+            } else {
+                this.cloudCredential = null;
+            }
         }
 
         @Override
@@ -71,11 +95,24 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
             return deferValidation;
         }
 
+        @Nullable
+        public CloudCredential cloudCredential() {
+            return cloudCredential;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             this.config.writeTo(out);
             out.writeBoolean(this.deferValidation);
+            if (out.getTransportVersion().supports(TRANSFORM_VALIDATE_CLOUD_CREDENTIAL)) {
+                out.writeOptionalWriteable(this.cloudCredential);
+            }
+        }
+
+        @Override
+        public void close() {
+            IOUtils.closeWhileHandlingException(cloudCredential);
         }
 
         @Override
@@ -88,7 +125,9 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
             }
             Request that = (Request) obj;
 
-            // the base class does not implement equals, therefore we need to check timeout ourselves
+            // the base class does not implement equals, therefore we need to check timeout ourselves.
+            // cloudCredential is intentionally excluded: it's a request-scoped secret carrier, not part
+            // of the logical request identity, and its SecureString does not implement value equality.
             return Objects.equals(config, that.config) && deferValidation == that.deferValidation && ackTimeout().equals(that.ackTimeout());
         }
 

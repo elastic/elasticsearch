@@ -38,6 +38,7 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
@@ -550,9 +551,56 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         threadPool.generic().execute(() -> {
             buildTask.initializeIndexer(indexerBuilder);
             buildTask.setAuthState(authState);
-            // TransformTask#start will fail if the task state is FAILED
-            buildTask.setNumFailureRetries(numFailureRetries).start(previousCheckpoint, startRetriesOnFirstFailureListener);
+
+            Runnable doStart = () -> buildTask.setNumFailureRetries(numFailureRetries)
+                .start(previousCheckpoint, startRetriesOnFirstFailureListener);
+
+            if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+                loadCloudCredentialWithRetry(buildTask, params, doStart);
+            } else {
+                doStart.run();
+            }
         });
+    }
+
+    /**
+     * Loads the persisted cloud credential for the transform and sets it on the task context before
+     * running {@code doStart}. The first attempt is direct; if it fails (system index unavailable,
+     * cluster state still recovering, ...) we hand off to a {@link TransformRetryableStartUpListener}
+     * registered with the {@link org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler}
+     * that retries indefinitely — same shape as {@link #startTask}'s post-start retry. The user can
+     * abort with {@code _stop?force=true}, which deregisters the scheduler entry.
+     */
+    private void loadCloudCredentialWithRetry(TransformTask buildTask, TransformTaskParams params, Runnable doStart) {
+        var transformId = params.getId();
+        ActionListener<PersistedCloudCredential> setCredentialAndStart = ActionListener.wrap(credential -> {
+            if (credential != null) {
+                logger.debug("[{}] loaded cloud credential [{}] for task start", transformId, credential.id());
+            }
+            buildTask.getContext().setPersistedCloudCredential(credential);
+            doStart.run();
+        },
+            // shouldRetry==() -> true so this only fires if the task was stopped while retries were pending
+            e -> logger.debug(() -> "[" + transformId + "] cloud credential load aborted", e)
+        );
+        transformServices.configManager().getTransformCloudCredential(transformId, true, setCredentialAndStart.delegateResponse((l, e) -> {
+            // First attempt failed. Failures here are almost always transient; hand off to the
+            // scheduler so we retry indefinitely until the system index is back. The user can
+            // _stop?force=true to abort.
+            logger.warn(() -> "[" + transformId + "] failed to load cloud credential, retrying via scheduler", e);
+            var scheduler = transformServices.scheduler();
+            scheduler.registerTransform(
+                params,
+                new TransformRetryableStartUpListener<>(
+                    transformId,
+                    ll -> transformServices.configManager().getTransformCloudCredential(transformId, true, ll),
+                    ActionListener.runBefore(l, () -> scheduler.deregisterTransform(transformId)),
+                    retryListener(buildTask),
+                    () -> true,
+                    buildTask.getContext()
+                )
+            );
+        }));
     }
 
     private void setNumFailureRetries(int numFailureRetries) {

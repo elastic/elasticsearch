@@ -202,6 +202,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 destIndexSettings,
+                null,
                 listener
             ),
             updateResult -> {
@@ -239,6 +240,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 destIndexSettings,
+                null,
                 listener
             ),
             updateResult -> {
@@ -312,6 +314,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 destIndexSettings,
+                null,
                 listener
             ),
             updateResult -> {
@@ -380,6 +383,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 destIndexSettings,
+                null,
                 listener
             ),
             updateResult -> {
@@ -428,6 +432,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 destIndexSettings,
+                null,
                 listener
             ),
             updateResult -> {
@@ -471,6 +476,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 destIndexSettings,
+                null,
                 listener
             ),
             updateResult -> {
@@ -507,6 +513,7 @@ public class TransformUpdaterTests extends ESTestCase {
             false,
             AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
             destIndexSettings,
+            null,
             ActionListener.wrap(
                 r -> fail("Should fail due to missing privileges"),
                 e -> assertThat(e.getMessage(), is(equalTo("missing privileges")))
@@ -575,6 +582,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 destIndexSettings,
+                null,
                 listener
             ),
             updateResult -> {
@@ -651,6 +659,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
                 destIndexSettings,
+                null,
                 listener
             ),
             updateResult -> {

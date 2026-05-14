@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -45,6 +46,7 @@ import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
@@ -59,6 +61,7 @@ import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.TransformConfigAutoMigration;
 import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.TransformServices;
+import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.InMemoryTransformConfigManager;
@@ -469,6 +472,75 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         );
     }
 
+    public void testNodeOperationLoadsCloudCredentialOnFirstTry() throws Exception {
+        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
+
+        var persisted = new PersistedCloudCredential("an-id", new SecureString("v".toCharArray()));
+        var transformsConfigManager = new InMemoryTransformConfigManager();
+        transformsConfigManager.putTransformCloudCredential("testCloudCredentialLoad", persisted, ActionListener.<Boolean>noop());
+
+        var transformScheduler = new TransformScheduler(Clock.systemUTC(), threadPool, fastRetry(), TimeValue.ZERO);
+        var taskExecutor = buildTaskExecutor(transformServices(transformsConfigManager, transformScheduler));
+
+        var params = taskParams("testCloudCredentialLoad");
+        putTransformConfiguration(transformsConfigManager, "testCloudCredentialLoad");
+        var task = mockTransformTask();
+        taskExecutor.nodeOperation(task, params, mock());
+
+        // success path is synchronous — no scheduler retry needed
+        verify(task.getContext()).setPersistedCloudCredential(persisted);
+        verify(task).start(isNull(), any());
+    }
+
+    public void testNodeOperationRetriesCloudCredentialLoadOnTransientFailure() throws Exception {
+        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
+
+        var persisted = new PersistedCloudCredential("an-id", new SecureString("v".toCharArray()));
+        // Fail twice so we see both (a) the direct first-attempt failure that triggers the scheduler
+        // retry path and (b) the scheduler-driven retry's first attempt failing — which flips the
+        // task into "Retrying transform start." state.
+        var remainingFailures = new java.util.concurrent.atomic.AtomicInteger(2);
+        var transformsConfigManager = new InMemoryTransformConfigManager() {
+            @Override
+            public void getTransformCloudCredential(
+                String transformId,
+                boolean allowNoMatch,
+                ActionListener<PersistedCloudCredential> listener
+            ) {
+                if (remainingFailures.getAndDecrement() > 0) {
+                    listener.onFailure(new IllegalStateException("system index momentarily unavailable"));
+                } else {
+                    super.getTransformCloudCredential(transformId, allowNoMatch, listener);
+                }
+            }
+        };
+        transformsConfigManager.putTransformCloudCredential("testCloudCredentialRetry", persisted, ActionListener.<Boolean>noop());
+
+        var transformScheduler = new TransformScheduler(Clock.systemUTC(), threadPool, fastRetry(), TimeValue.ZERO);
+        var taskExecutor = buildTaskExecutor(transformServices(transformsConfigManager, transformScheduler));
+
+        var params = taskParams("testCloudCredentialRetry");
+        putTransformConfiguration(transformsConfigManager, "testCloudCredentialRetry");
+        var task = mockTransformTask();
+        taskExecutor.nodeOperation(task, params, mock());
+
+        // first attempt failed and queued a scheduler retry; trigger it now instead of waiting
+        transformScheduler.scheduleNow("testCloudCredentialRetry");
+
+        // scheduler-driven retry's first attempt also failed, flipping state to "Retrying transform start."
+        verify(task).persistStateToClusterState(argThat(state -> {
+            assertThat(TransformTaskState.STARTED, equalTo(state.getTaskState()));
+            assertThat(IndexerState.STOPPED, equalTo(state.getIndexerState()));
+            return true;
+        }), any());
+
+        // trigger the next scheduler tick — this time the load succeeds
+        transformScheduler.scheduleNow("testCloudCredentialRetry");
+
+        verify(task.getContext()).setPersistedCloudCredential(persisted);
+        verify(task).start(isNull(), any());
+    }
+
     private Settings fastRetry() {
         // must be >= [1s]
         return Settings.builder().put(Transform.SCHEDULER_FREQUENCY.getKey(), TimeValue.timeValueSeconds(1)).build();
@@ -675,7 +747,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             mock(TransformNode.class),
             mock(CrossProjectModeDecider.class),
             projectId -> false,
-            mock(ProjectResolver.class)
+            mock(ProjectResolver.class),
+            mock(TransformCloudCredentialManager.class)
         );
     }
 

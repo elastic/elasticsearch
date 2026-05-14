@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.junit.After;
@@ -191,5 +193,134 @@ public class TransformContextTests extends ESTestCase {
         ProjectId projectId = ProjectId.fromId("myproject123");
         var context = new TransformContext(TransformTaskState.STARTED, null, 0, null, listener, projectId);
         assertThat(context.projectId(), is(equalTo(projectId)));
+    }
+
+    public void testReplacePersistedCredentialReturnsDisplaced() {
+        var context = new TransformContext(TransformTaskState.STARTED, null, 0, listener);
+        assertThat(context.getPersistedCloudCredential(), is(nullValue()));
+
+        var first = randomPersistedCloudCredential();
+        assertThat(context.replacePersistedCredential(first), is(nullValue()));
+        assertThat(context.getPersistedCloudCredential(), is(sameInstance(first)));
+
+        var second = randomPersistedCloudCredential();
+        // replace returns the displaced credential; caller is responsible for closing it
+        assertThat(context.replacePersistedCredential(second), is(sameInstance(first)));
+        assertThat(context.getPersistedCloudCredential(), is(sameInstance(second)));
+
+        // replacement does NOT eagerly close — verify the displaced is still usable
+        assertThat(first.internalApiKey().length(), is(equalTo("v".length())));
+        first.close();
+    }
+
+    public void testPendingPersistedCredentialSetGetDisplaced() {
+        var context = new TransformContext(TransformTaskState.STARTED, null, 0, listener);
+        assertThat(context.getPendingPersistedCloudCredential(), is(nullValue()));
+
+        var first = randomPersistedCloudCredential();
+        assertThat(context.setPendingPersistedCloudCredential(first), is(nullValue()));
+        assertThat(context.getPendingPersistedCloudCredential(), is(sameInstance(first)));
+
+        var second = randomPersistedCloudCredential();
+        // user submits a second _update before the first pending has been promoted; caller revokes displaced
+        assertThat(context.setPendingPersistedCloudCredential(second), is(sameInstance(first)));
+        assertThat(context.getPendingPersistedCloudCredential(), is(sameInstance(second)));
+
+        first.close();
+        second.close();
+    }
+
+    public void testPromotePendingPersistedCredentialReturnsDisplacedActive() {
+        var context = new TransformContext(TransformTaskState.STARTED, null, 0, listener);
+        var active = randomPersistedCloudCredential();
+        var pending = randomPersistedCloudCredential();
+        context.replacePersistedCredential(active);
+        context.setPendingPersistedCloudCredential(pending);
+
+        // promote swaps pending into active and returns the old active for revoke + close
+        assertThat(context.promotePendingPersistedCloudCredential(), is(sameInstance(active)));
+        assertThat(context.getPersistedCloudCredential(), is(sameInstance(pending)));
+        assertThat(context.getPendingPersistedCloudCredential(), is(nullValue()));
+
+        active.close();
+        pending.close();
+    }
+
+    public void testPromotePendingPersistedCredentialWithoutPendingIsNoop() {
+        var context = new TransformContext(TransformTaskState.STARTED, null, 0, listener);
+        var active = randomPersistedCloudCredential();
+        context.replacePersistedCredential(active);
+
+        assertThat(context.promotePendingPersistedCloudCredential(), is(nullValue()));
+        assertThat(context.getPersistedCloudCredential(), is(sameInstance(active)));
+
+        active.close();
+    }
+
+    public void testCloseClearsActiveAndPending() {
+        var context = new TransformContext(TransformTaskState.STARTED, null, 0, listener);
+        var active = randomPersistedCloudCredential();
+        var pending = randomPersistedCloudCredential();
+        context.replacePersistedCredential(active);
+        context.setPendingPersistedCloudCredential(pending);
+
+        context.close();
+
+        assertThat(context.getPersistedCloudCredential(), is(nullValue()));
+        assertThat(context.getPendingPersistedCloudCredential(), is(nullValue()));
+        // both SecureStrings were closed; subsequent length() throws
+        expectThrows(IllegalStateException.class, () -> active.internalApiKey().length());
+        expectThrows(IllegalStateException.class, () -> pending.internalApiKey().length());
+    }
+
+    public void testReplacePersistedCredentialIsAtomicUnderContention() throws Exception {
+        // Concurrent _update calls landing on the same node race on replacePersistedCredential / setPendingPersistedCloudCredential.
+        // With a plain volatile + read-modify-write, two threads could both see the same prior value and both write theirs, leaking
+        // one of the new credentials. AtomicReference#getAndSet closes that window; this test stresses the contract by asserting
+        // that every credential we set is accounted for (either currently held or returned to one of the callers as displaced).
+        for (var slot : new String[] { "active", "pending" }) {
+            var context = new TransformContext(TransformTaskState.STARTED, null, 0, listener);
+            int threadCount = 16;
+            int perThread = 100;
+            var inputs = java.util.Collections.synchronizedList(new java.util.ArrayList<PersistedCloudCredential>(threadCount * perThread));
+            var displaced = java.util.Collections.synchronizedList(
+                new java.util.ArrayList<PersistedCloudCredential>(threadCount * perThread)
+            );
+            var start = new java.util.concurrent.CountDownLatch(1);
+            var done = new java.util.concurrent.CountDownLatch(threadCount);
+            for (int t = 0; t < threadCount; t++) {
+                new Thread(() -> {
+                    try {
+                        start.await();
+                        for (int i = 0; i < perThread; i++) {
+                            var next = randomPersistedCloudCredential();
+                            inputs.add(next);
+                            PersistedCloudCredential prev = slot.equals("active")
+                                ? context.replacePersistedCredential(next)
+                                : context.setPendingPersistedCloudCredential(next);
+                            if (prev != null) {
+                                displaced.add(prev);
+                            }
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    } finally {
+                        done.countDown();
+                    }
+                }).start();
+            }
+            start.countDown();
+            assertTrue("threads timed out", done.await(30, java.util.concurrent.TimeUnit.SECONDS));
+
+            // Every input must be either still held or have been returned to some caller as displaced — no leaks.
+            var held = slot.equals("active") ? context.getPersistedCloudCredential() : context.getPendingPersistedCloudCredential();
+            int expected = threadCount * perThread;
+            int accounted = displaced.size() + (held == null ? 0 : 1);
+            assertThat("slot=" + slot, accounted, equalTo(expected));
+        }
+    }
+
+    private static PersistedCloudCredential randomPersistedCloudCredential() {
+        return new PersistedCloudCredential(randomAlphaOfLengthBetween(4, 12), new SecureString("v".toCharArray()));
     }
 }

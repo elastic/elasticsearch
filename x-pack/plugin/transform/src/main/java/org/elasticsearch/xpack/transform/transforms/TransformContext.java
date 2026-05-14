@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.Transform;
@@ -49,6 +51,10 @@ public class TransformContext {
     private volatile boolean shouldRecreateDestinationIndex = false;
     private volatile AuthorizationState authState;
     private volatile int pageSize = 0;
+    // Atomic so concurrent _update calls landing on the same node (each invoking refreshFromStore)
+    // can't orphan a credential via a torn read-modify-write on a plain volatile field.
+    private final AtomicReference<PersistedCloudCredential> persistedCloudCredential = new AtomicReference<>();
+    private final AtomicReference<PersistedCloudCredential> pendingPersistedCloudCredential = new AtomicReference<>();
 
     /**
      * If the destination index is blocked (e.g. during a reindex), the Transform will fail to write to it.
@@ -291,7 +297,78 @@ public class TransformContext {
         return getFailureCount() == 0 && getStatePersistenceFailureCount() == 0 && getStartUpFailureCount() == 0;
     }
 
+    @Nullable
+    PersistedCloudCredential getPersistedCloudCredential() {
+        return persistedCloudCredential.get();
+    }
+
+    void setPersistedCloudCredential(@Nullable PersistedCloudCredential persistedCloudCredential) {
+        this.persistedCloudCredential.set(persistedCloudCredential);
+    }
+
+    /**
+     * Atomically replaces the held active credential with {@code next} and returns the
+     * previously-held credential for the caller to revoke + close. Returns {@code null} if there
+     * was no prior credential.
+     */
+    @Nullable
+    PersistedCloudCredential replacePersistedCredential(@Nullable PersistedCloudCredential next) {
+        return persistedCloudCredential.getAndSet(next);
+    }
+
+    @Nullable
+    PersistedCloudCredential getPendingPersistedCloudCredential() {
+        return pendingPersistedCloudCredential.get();
+    }
+
+    /**
+     * Atomically queues {@code next} as the pending credential, to be promoted at the start of the
+     * next checkpoint (see {@code ClientTransformIndexer.onStart}). Returns the displaced pending
+     * credential (if any) for the caller to revoke + close — e.g. when the user submits two
+     * {@code _update}s in quick succession without a checkpoint completing between them.
+     */
+    @Nullable
+    PersistedCloudCredential setPendingPersistedCloudCredential(@Nullable PersistedCloudCredential next) {
+        return pendingPersistedCloudCredential.getAndSet(next);
+    }
+
+    /**
+     * Promotes any pending credential to active and returns the displaced active credential for
+     * the caller to revoke + close. Returns {@code null} if there is no pending credential.
+     *
+     * <p>This is not strictly one-atomic-op (it does two {@code getAndSet}s), but the only writer
+     * is {@code ClientTransformIndexer.onStart} which runs once per checkpoint on a single thread.
+     * A concurrent {@code refreshFromStore} landing between the two writes will either see the
+     * freshly-promoted active and swap-immediately (revoking the just-promoted credential) or
+     * queue another pending — no orphan.
+     */
+    @Nullable
+    PersistedCloudCredential promotePendingPersistedCloudCredential() {
+        PersistedCloudCredential pending = pendingPersistedCloudCredential.getAndSet(null);
+        if (pending == null) {
+            return null;
+        }
+        return replacePersistedCredential(pending);
+    }
+
+    /**
+     * Releases the held active and pending cloud credentials. Idempotent. Does NOT revoke with UIAM —
+     * shutdown may be transient (node restart) and the credentials may still be valid; revocation
+     * happens at delete time and after a successful rotation swap.
+     */
+    void close() {
+        PersistedCloudCredential prevActive = replacePersistedCredential(null);
+        if (prevActive != null) {
+            prevActive.close();
+        }
+        PersistedCloudCredential prevPending = setPendingPersistedCloudCredential(null);
+        if (prevPending != null) {
+            prevPending.close();
+        }
+    }
+
     void shutdown() {
+        close();
         taskListener.shutdown();
     }
 

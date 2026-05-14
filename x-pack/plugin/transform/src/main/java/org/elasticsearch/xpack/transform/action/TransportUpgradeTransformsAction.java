@@ -175,6 +175,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
                 false, // hasLinkedProjects (irrelevant since checkAccess is false)
                 timeout,
                 destIndexSettings,
+                null, // no cloudCredentialManager — skip credential minting for internal upgrade
                 listener
             );
         }, failure -> {

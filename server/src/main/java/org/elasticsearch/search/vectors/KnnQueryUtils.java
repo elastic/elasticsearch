@@ -105,7 +105,7 @@ public class KnnQueryUtils {
             ScorerSupplier ss = filterWeight.scorerSupplier(ctx);
             if (ss == null) continue;
 
-            DocIdSetIterator filterIter = ss.get(NO_MORE_DOCS).iterator();
+            DocIdSetIterator filterIter = ss.get(byLeaf[leafOrd].size()).iterator();
             List<ScoreDoc> leafDocs = byLeaf[leafOrd];
             leafDocs.sort(Comparator.comparingInt(sd -> sd.doc));
 

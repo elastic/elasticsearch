@@ -24,6 +24,8 @@ class DocTrackingCollectorManager implements KnnCollectorManager {
     private final KnnCollectorManager delegate;
     private final AtomicArray<DocTrackingMeta> collectors;
 
+    public static final int MAX_DOCS_TRACKED = 1000;
+
     DocTrackingCollectorManager(KnnCollectorManager delegate, int numLeaves) {
         this.delegate = delegate;
         this.collectors = new AtomicArray<>(numLeaves);

@@ -51,7 +51,7 @@ import static org.elasticsearch.search.vectors.KnnQueryUtils.mergeResults;
 public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
 
     // this is compared against filter coverage which is in [0,1], so this marks it essentially off by default
-    public static final float DEFAULT_POST_FILTERING_THRESHOLD = 100f;
+    public static final float DEFAULT_POST_FILTERING_THRESHOLD = 1f;
     private static final Logger logger = LogManager.getLogger(PostFilterKnnQuery.class);
 
     private final PostFilterableKnnQuery innerQuery;
@@ -119,9 +119,14 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             scoreDocs = deduplicateByParent(scoreDocs, searcher.getIndexReader(), parentsFilter);
         }
 
-        // retry round — single retry if round 0 came up short. Skip when round 0 returned zero docs:
-        // we'd have no seeds for the retry and nothing to exclude.
-        if (scoreDocs.length < k && topDocs.scoreDocs.length > 0) {
+        // exit early if we have found no results at all; this would probably imply a negatively correlated filter with the
+        // knn search so post-filtering is unlikely to generate enough results even after retrying
+        if (scoreDocs.length == 0) {
+            return null;
+        }
+
+        // retry round — single retry if round 0 came up short.
+        if (scoreDocs.length < k) {
             logger.debug(
                 "post-filter retry firing for field=[{}], k=[{}], selectivity=[{}], scoreDocs so far=[{}] and visited=[{}]",
                 field,
@@ -150,7 +155,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         // search again with the original filter combined with an ExcludeDocsQuery over the docs
         // we already collected, requesting only the remainder. The collected scoreDocs are kept
         // and merged with the new ones rather than discarded.
-        if (scoreDocs.length < k && scoreDocs.length > 0) {
+        if (scoreDocs.length < k) {
             logger.debug(
                 "post-filter augmented fallback firing for field=[{}], k=[{}], selectivity=[{}], scoreDocs so far=[{}]",
                 field,
@@ -179,16 +184,13 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         // reflects the full cost — the outer rewrite() adds the bare innerQuery's own ops on top
         // only when we return null (zero-result case).
         this.totalVectorOps += vectorOps;
-        if (scoreDocs.length == 0) {
-            // No post-filter results at all — outer rewrite() falls back to the bare innerQuery.
-            return null;
-        }
         if (scoreDocs.length < k) {
-            logger.warn(
-                "post filtering retrieved only [{}] results, less than the desired [{}] results; returning partial result.",
+            logger.debug(
+                "post filtering retrieved only [{}] results, less than the desired [{}] results. Falling back to original query",
                 scoreDocs.length,
                 k
             );
+            return null;
         } else if (k < scoreDocs.length) {
             scoreDocs = Arrays.copyOf(scoreDocs, k);
         }
@@ -199,12 +201,12 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
      * Returns round-0's collected docs as a sorted docId array (used as both excludedDocs and
      * seedDocs source for the retry round). Prefers the per-leaf trackers exposed by
      * {@link DocTrackingKnnQuery}; otherwise — and for non-tracked delegates such as IVF — falls
-     * back to {@code topDocs.scoreDocs} (round-0's top-K). The fallback gives IVF retry a
+     * back to {@code topDocs.scoreDocs} (round-0's global top-K). The fallback gives IVF retry a
      * non-empty {@code excludedDocs} so the {@code ExcludeDocsQuery} branch in IVF
      * {@code createRetryQuery} actually fires.
      */
     private static int[] trackedDocs(Query delegate, TopDocs topDocs) {
-        int[] roundDocs = delegate instanceof DocTrackingKnnQuery<?> dtkq ? dtkq.getTrackedDocs() : new int[0];
+        int[] roundDocs = delegate instanceof DocTrackingKnnQuery<?> dtq ? dtq.getTrackedDocs() : new int[0];
         if (roundDocs.length == 0) {
             roundDocs = new int[topDocs.scoreDocs.length];
             for (int i = 0; i < roundDocs.length; i++) {

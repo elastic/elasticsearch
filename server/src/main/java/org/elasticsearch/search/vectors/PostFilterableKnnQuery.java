@@ -77,7 +77,7 @@ public interface PostFilterableKnnQuery {
      *
      * @param reader           the index reader
      * @param excludedDocs     all docs returned across previous rounds, sorted (skip from results)
-     * @param seedDocs         filter-passing docs from previous rounds, sorted (HNSW seeding only)
+     * @param seedDocs         topdocs from all leaves to be used as starting points for knn search
      * @param remainingK       how many top results we aim to return after retrying
      */
     Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int remainingK);

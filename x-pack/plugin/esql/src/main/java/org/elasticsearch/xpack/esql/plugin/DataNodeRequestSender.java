@@ -194,13 +194,8 @@ abstract class DataNodeRequestSender {
         return Integer.MAX_VALUE;
     }
 
-    protected boolean assertSearchThreadpool() {
-        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
-        return true;
-    }
-
     private void trySendingRequestsForPendingShards(TargetShards targetShards, ComputeListener computeListener) {
-        assert assertSearchThreadpool();
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         changed.set(true);
         final ActionListener<Void> listener = computeListener.acquireAvoid();
         try {

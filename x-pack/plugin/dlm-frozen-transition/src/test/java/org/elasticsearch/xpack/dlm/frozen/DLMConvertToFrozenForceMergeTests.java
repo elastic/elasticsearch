@@ -24,6 +24,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -49,7 +50,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.junit.After;
 import org.junit.Before;
 
@@ -146,14 +146,14 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
         };
     }
 
-    public void testForceMergeIssuesRequestWithDlmFrozenOrigin() throws InterruptedException {
+    public void testForceMergeIssuesRequestWithDataStreamLifecycleOrigin() throws InterruptedException {
         mockForceMergeResponse.set(new BroadcastResponse(1, 1, 0, List.of()));
 
         createProjectState();
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
-            new OriginSettingClient(createMockClient(), ClientHelper.DLM_FROZEN_ORIGIN),
+            new OriginSettingClient(createMockClient(), DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN),
             clusterService,
             () -> licenseState,
             Clock.systemUTC()
@@ -162,7 +162,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
         converter.maybeForceMergeIndex(indexName);
 
         assertThat(capturedForceMergeRequest.get(), is(notNullValue()));
-        assertThat(capturedForceMergeOrigin.get(), is(ClientHelper.DLM_FROZEN_ORIGIN));
+        assertThat(capturedForceMergeOrigin.get(), is(DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN));
     }
 
     public void testSkipsForceMergeWhenAlreadyForceMergedToSingleSegment() throws InterruptedException {

@@ -11,7 +11,6 @@ import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
@@ -21,6 +20,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN;
 
 /**
  * Plugin that registers the {@link DLMFrozenTransitionService} for converting data stream backing indices to the frozen tier as part of
@@ -49,7 +50,7 @@ public class DLMFrozenTransitionPlugin extends Plugin {
             var transitionSettings = DLMFrozenTransitionSettings.create(services.clusterService());
             components.add(transitionSettings);
 
-            var originClient = new OriginSettingClient(services.client(), ClientHelper.DLM_FROZEN_ORIGIN);
+            var originClient = new OriginSettingClient(services.client(), DATA_STREAM_LIFECYCLE_ORIGIN);
 
             var transitionService = new DLMFrozenTransitionService(
                 services.clusterService(),

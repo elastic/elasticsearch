@@ -74,6 +74,27 @@ public sealed interface ReceivedTelemetry {
     }
 
     /**
+     * A single OTLP log record. {@code body} is the {@code body.string_value}; {@code attributes}
+     * is the flat attribute map (string keys, scalar values). {@code traceId} is non-null only
+     * when the OTel SDK auto-correlated the log to an active span.
+     */
+    record ReceivedLog(
+        long timeUnixNano,
+        int severityNumber,
+        String severityText,
+        String body,
+        Map<String, Object> attributes,
+        Optional<String> traceId
+    ) implements ReceivedTelemetry {
+        public ReceivedLog {
+            requireNonNull(severityText);
+            requireNonNull(body);
+            attributes = Map.copyOf(requireNonNull(attributes));
+            traceId.ifPresent(Objects::requireNonNull);
+        }
+    }
+
+    /**
      * Value of a single metric sample: either a scalar or histogram counts.
      */
     sealed interface ReceivedMetricValue {}

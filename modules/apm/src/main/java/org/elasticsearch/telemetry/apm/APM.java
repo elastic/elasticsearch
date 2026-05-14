@@ -21,6 +21,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.APMMeterService;
 import org.elasticsearch.telemetry.apm.internal.APMTelemetryProvider;
+import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportLogsSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
@@ -50,6 +51,7 @@ import java.util.List;
 public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
     private static final Logger logger = LogManager.getLogger(APM.class);
     private final SetOnce<APMTelemetryProvider> telemetryProvider = new SetOnce<>();
+    private final SetOnce<OtelSdkExportLogsSupplier> logsSupplier = new SetOnce<>();
     private final Settings settings;
 
     public APM(Settings settings) {
@@ -77,7 +79,13 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
         logger.info("Sending apm metrics is {}", APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.get(settings) ? "enabled" : "disabled");
         logger.info("Sending apm tracing is {}", APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings) ? "enabled" : "disabled");
 
-        return List.of(apmTracer, apmMeter);
+        final OtelSdkExportLogsSupplier logs = new OtelSdkExportLogsSupplier(settings);
+        logs.install();
+        logsSupplier.set(logs);
+        telemetryProvider.get().setLogsSupplier(logs);
+        logger.info("Sending otel logs is {}", OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED.get(settings) ? "enabled" : "disabled");
+
+        return List.of(apmTracer, apmMeter, logs);
     }
 
     @Override
@@ -92,6 +100,9 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
             OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENDPOINT,
             OtelSdkSettings.TELEMETRY_OTEL_METRICS_INTERVAL,
             OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENABLED,
+            // Logs (POC: audit log delivery via OTel)
+            OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENDPOINT,
+            OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED,
             // Tracing
             APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING,
             APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING,

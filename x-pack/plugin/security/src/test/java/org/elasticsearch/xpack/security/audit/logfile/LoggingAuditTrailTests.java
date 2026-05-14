@@ -359,6 +359,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 randomFrom("2001:db8:85a3:8d3:1319:8a2e:370:7348", "203.0.113.195", "203.0.113.195, 70.41.3.18, 150.172.238.178")
             );
         }
+        if (randomBoolean()) {
+            threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, "project-" + randomAlphaOfLength(8));
+        }
         logger = CapturingLogger.newCapturingLogger(randomFrom(Level.OFF, Level.FATAL, Level.ERROR, Level.WARN, Level.INFO), patternLayout);
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         apiKeyService = new ApiKeyService(
@@ -1746,6 +1749,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         indicesRequest(request, checkedFields, checkedArrayFields);
         restOrTransportOrigin(request, threadContext, checkedFields);
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields, checkedArrayFields);
@@ -1779,6 +1783,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         checkedFields.put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields);
@@ -1812,6 +1817,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields, checkedArrayFields);
@@ -1840,6 +1846,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields, checkedArrayFields);
@@ -1885,6 +1892,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             checkedFields.put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, "foo=bar");
         }
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields);
@@ -1925,6 +1933,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             checkedFields.put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, "bar=baz");
         }
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields);
@@ -1963,6 +1972,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields, checkedArrayFields);
@@ -2005,6 +2015,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             checkedFields.put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, "_param=baz");
         }
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields);
@@ -2031,6 +2042,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields, checkedArrayFields);
@@ -2052,6 +2064,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields, checkedArrayFields);
@@ -2172,6 +2185,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields, checkedArrayFields);
@@ -2200,6 +2214,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         authentication(authentication, checkedFields);
         restOrTransportOrigin(request, threadContext, checkedFields);
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         checkedArrayFields.put(LoggingAuditTrail.INDICES_FIELD_NAME, indices);
@@ -2235,6 +2250,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields, checkedArrayFields);
@@ -2260,6 +2276,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields, checkedArrayFields);
@@ -2281,6 +2298,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields, checkedArrayFields);
@@ -2322,6 +2340,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields, checkedArrayFields);
@@ -2343,6 +2362,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields, checkedArrayFields);
@@ -2380,6 +2400,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             checkedFields.put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, "_param=baz");
         }
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields);
@@ -2408,6 +2429,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields, checkedArrayFields);
@@ -2438,6 +2460,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields, checkedArrayFields);
@@ -2458,6 +2481,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields, checkedArrayFields);
@@ -2490,6 +2514,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         checkedFields.put(LoggingAuditTrail.TRANSPORT_PROFILE_FIELD_NAME, profile);
         checkedFields.put(LoggingAuditTrail.RULE_FIELD_NAME, "deny _all");
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields);
@@ -2529,6 +2554,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         checkedFields.put(LoggingAuditTrail.TRANSPORT_PROFILE_FIELD_NAME, profile);
         checkedFields.put(LoggingAuditTrail.RULE_FIELD_NAME, "allow default:accept_all");
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields);
@@ -2571,6 +2597,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields, checkedArrayFields);
@@ -2619,6 +2646,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields, checkedArrayFields);
@@ -2672,6 +2700,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         }
         authentication(authentication, checkedFields);
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields);
@@ -2701,6 +2730,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         }
         authentication(authentication, checkedFields);
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields);
@@ -2730,6 +2760,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         }
         authentication(authentication, checkedFields);
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields);
@@ -2761,6 +2792,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields, checkedArrayFields);
@@ -2781,6 +2813,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields, checkedArrayFields);
@@ -2819,6 +2852,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
+        projectId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(singleLogLine(logger), checkedFields, checkedArrayFields, checkedLiteralFields);
@@ -3289,6 +3323,15 @@ public class LoggingAuditTrailTests extends ESTestCase {
             checkedFields,
             AuditTrail.X_FORWARDED_FOR_HEADER,
             LoggingAuditTrail.X_FORWARDED_FOR_FIELD_NAME
+        );
+    }
+
+    private static void projectId(ThreadContext threadContext, Map<String, String> checkedFields) {
+        setFieldFromThreadContext(
+            threadContext,
+            checkedFields,
+            Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER,
+            LoggingAuditTrail.PROJECT_ID_FIELD_NAME
         );
     }
 

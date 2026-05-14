@@ -1,0 +1,94 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
+
+import io.opentelemetry.api.logs.Severity;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.logs.SdkLoggerProvider;
+import io.opentelemetry.sdk.logs.export.SimpleLogRecordProcessor;
+import io.opentelemetry.sdk.testing.exporter.InMemoryLogRecordExporter;
+
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ESTestCase;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+
+public class OtelSdkExportLogsSupplierTests extends ESTestCase {
+
+    public void testInstallWhenDisabledIsNoop() {
+        OtelSdkExportLogsSupplier supplier = new OtelSdkExportLogsSupplier(Settings.EMPTY);
+        supplier.install(); // disabled by default; must not throw, must not require an endpoint
+        supplier.close();
+    }
+
+    public void testInstallWhenEnabledWithoutEndpointThrows() {
+        Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED.getKey(), true).build();
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> new OtelSdkExportLogsSupplier(settings).install());
+        assertThat(e.getMessage(), containsString("telemetry.otel.logs.endpoint"));
+    }
+
+    public void testInstallWhenEnabledWithEmptyEndpointThrows() {
+        Settings settings = Settings.builder()
+            .put(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED.getKey(), true)
+            .put(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENDPOINT.getKey(), "")
+            .build();
+        expectThrows(IllegalStateException.class, () -> new OtelSdkExportLogsSupplier(settings).install());
+    }
+
+    public void testInstallTwiceIsIdempotent() {
+        Settings settings = Settings.builder()
+            .put(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED.getKey(), true)
+            .put(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENDPOINT.getKey(), "http://127.0.0.1:9/v1/logs")
+            .build();
+        OtelSdkExportLogsSupplier supplier = new OtelSdkExportLogsSupplier(settings);
+        try {
+            supplier.install();
+            supplier.install(); // second call must be a no-op
+        } finally {
+            supplier.close();
+        }
+    }
+
+    public void testCloseWithoutInstallDoesNotThrow() {
+        new OtelSdkExportLogsSupplier(Settings.EMPTY).close();
+    }
+
+    public void testDoubleCloseAfterInstallDoesNotThrow() {
+        Settings settings = Settings.builder()
+            .put(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED.getKey(), true)
+            .put(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENDPOINT.getKey(), "http://127.0.0.1:9/v1/logs")
+            .build();
+        OtelSdkExportLogsSupplier supplier = new OtelSdkExportLogsSupplier(settings);
+        supplier.install();
+        supplier.close();
+        supplier.close();
+    }
+
+    /**
+     * Direct SDK-side end-to-end check: emit a log record via the OTel logs API and assert it
+     * reaches the configured exporter. Doesn't go through log4j; that path is exercised by the
+     * upstream OpenTelemetryAppender library tests.
+     */
+    public void testSdkLogRecordReachesExporter() {
+        InMemoryLogRecordExporter exporter = InMemoryLogRecordExporter.create();
+        SdkLoggerProvider provider = SdkLoggerProvider.builder().addLogRecordProcessor(SimpleLogRecordProcessor.create(exporter)).build();
+        OpenTelemetrySdk sdk = OpenTelemetrySdk.builder().setLoggerProvider(provider).build();
+        try {
+            sdk.getLogsBridge().get("test").logRecordBuilder().setBody("hello from POC").setSeverity(Severity.INFO).emit();
+
+            assertThat(exporter.getFinishedLogRecordItems(), hasSize(1));
+            assertThat(exporter.getFinishedLogRecordItems().getFirst().getBodyValue().asString(), equalTo("hello from POC"));
+        } finally {
+            provider.close();
+        }
+    }
+}

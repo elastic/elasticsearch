@@ -27,6 +27,8 @@ tasks.named("test").configure {
 tasks.named('javaRestTest').configure {
   def buildParams = project.rootProject.extensions.getByName('buildParams')
   it.onlyIf("snapshot build") { buildParams.snapshotBuild }
+  // OtelAuditLogsIT enables xpack security + audit, which require the default distribution.
+  usesDefaultDistribution("OtelAuditLogsIT requires xpack security + audit (default distribution)")
 }
 
 dependencies {

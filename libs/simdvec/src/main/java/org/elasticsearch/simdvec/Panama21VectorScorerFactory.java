@@ -18,7 +18,8 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.simdvec.internal.IndexInputUtils;
-import org.elasticsearch.simdvec.internal.MemorySegmentES92Int7VectorsScorer;
+import org.elasticsearch.simdvec.internal.MemorySegmentES92PanamaInt7VectorsScorer;
+import org.elasticsearch.simdvec.internal.vectorization.DefaultES93BinaryQuantizedVectorScorer;
 import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.OnHeapES91OSQVectorsScorer;
@@ -28,8 +29,6 @@ import java.io.IOException;
 import java.util.Optional;
 
 final class Panama21VectorScorerFactory implements VectorScorerFactory {
-
-    private static final DefaultVectorScorerFactory FALLBACK = new DefaultVectorScorerFactory();
 
     @Override
     public ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
@@ -53,24 +52,22 @@ final class Panama21VectorScorerFactory implements VectorScorerFactory {
         int bulkSize,
         ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
     ) throws IOException {
-        if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS
-            && ((queryBits == 4 && (indexBits == 1 || indexBits == 2 || indexBits == 4)) || (queryBits == 7 && indexBits == 7))) {
+        if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS && ES940OSQVectorsScorer.supportsQuantization(queryBits, indexBits)) {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
             unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
             if (IndexInputUtils.canUseSegmentSlices(unwrappedInput)) {
-                return new MemorySegmentES940OSQVectorsScorer(
+                return MemorySegmentES940OSQVectorsScorer.usingPanama(
                     unwrappedInput,
                     queryBits,
                     indexBits,
                     dimension,
                     dataLength,
                     bulkSize,
-                    int4Encoding,
-                    false   // native support requires heap segments
+                    int4Encoding
                 );
             }
         }
-        return FALLBACK.newES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, int4Encoding);
+        return new ES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, int4Encoding);
     }
 
     @Override
@@ -79,16 +76,15 @@ final class Panama21VectorScorerFactory implements VectorScorerFactory {
         unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
 
         if (IndexInputUtils.canUseSegmentSlices(unwrappedInput)) {
-            // native requires heap segments & native, so this will use panama
-            return new MemorySegmentES92Int7VectorsScorer(unwrappedInput, dimension, bulkSize);
+            return new MemorySegmentES92PanamaInt7VectorsScorer(unwrappedInput, dimension, bulkSize);
         }
-        return FALLBACK.newES92Int7VectorsScorer(input, dimension, bulkSize);
+        return new ES92Int7VectorsScorer(input, dimension, bulkSize);
     }
 
     @Override
     public ES93BinaryQuantizedVectorScorer newES93BinaryQuantizedVectorScorer(IndexInput input, int dimension, int vectorLengthInBytes)
         throws IOException {
-        return FALLBACK.newES93BinaryQuantizedVectorScorer(input, dimension, vectorLengthInBytes);
+        return new DefaultES93BinaryQuantizedVectorScorer(input, dimension, vectorLengthInBytes);
     }
 
     @Override

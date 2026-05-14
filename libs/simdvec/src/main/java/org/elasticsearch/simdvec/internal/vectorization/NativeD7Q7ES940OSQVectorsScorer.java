@@ -11,19 +11,22 @@ package org.elasticsearch.simdvec.internal.vectorization;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.simdvec.ESVectorUtil;
-import org.elasticsearch.simdvec.internal.MemorySegmentES92PanamaInt7VectorsScorer;
+import org.elasticsearch.simdvec.internal.IndexInputUtils;
+import org.elasticsearch.simdvec.internal.MemorySegmentES92NativeInt7VectorsScorer;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 
+import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7uBulkWithOffsets;
+
 /** Vectorized scorer for 7-bit symmetric quantized vectors stored as a {@link MemorySegment}. */
-final class MSD7Q7ES940OSQVectorsScorer extends MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer {
+final class NativeD7Q7ES940OSQVectorsScorer extends MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer {
 
-    private final MemorySegmentES92PanamaInt7VectorsScorer int7Scorer;
+    private final MemorySegmentES92NativeInt7VectorsScorer int7Scorer;
 
-    MSD7Q7ES940OSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
+    NativeD7Q7ES940OSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
         super(in, dimensions, dataLength, bulkSize);
-        this.int7Scorer = new MemorySegmentES92PanamaInt7VectorsScorer(in, dimensions, bulkSize);
+        this.int7Scorer = new MemorySegmentES92NativeInt7VectorsScorer(in, dimensions, bulkSize);
     }
 
     @Override
@@ -35,6 +38,31 @@ final class MSD7Q7ES940OSQVectorsScorer extends MemorySegmentES940OSQVectorsScor
     boolean quantizeScoreBulk(byte[] q, int count, float[] scores) throws IOException {
         int7Scorer.int7DotProductBulk(q, count, scores);
         return true;
+    }
+
+    @Override
+    public boolean quantizeScoreBulkOffsets(byte[] q, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
+        assert q.length == length;
+        var querySegment = MemorySegment.ofArray(q);
+        var offsetsSegment = MemorySegment.ofArray(offsets);
+        var scoresSegment = MemorySegment.ofArray(scores);
+        nativeQuantizeScoreBulkOffsets(querySegment, offsetsSegment, scoresSegment, offsetsCount, count);
+        repositionScoresMatchingOffsets(offsets, offsetsCount, scores);
+        return true;
+    }
+
+    private void nativeQuantizeScoreBulkOffsets(
+        MemorySegment querySegment,
+        MemorySegment offsetsSegment,
+        MemorySegment scoresSegment,
+        int offsetsCount,
+        int totalCount
+    ) throws IOException {
+        var datasetLengthInBytes = (long) length * totalCount;
+        IndexInputUtils.withSlice(in, datasetLengthInBytes, this::getScratch, datasetSegment -> {
+            dotProductI7uBulkWithOffsets(datasetSegment, querySegment, length, length, offsetsSegment, offsetsCount, scoresSegment);
+            return null;
+        });
     }
 
     @Override

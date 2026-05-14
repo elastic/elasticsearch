@@ -19,7 +19,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.DirectAccessInput;
-import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.IndexInputUtils;
 
@@ -30,12 +30,9 @@ import java.nio.ByteOrder;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
-import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 /** Panamized scorer for quantized vectors stored as a {@link MemorySegment}. */
 public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsScorer {
-
-    private static final boolean USE_NATIVE = MemorySegmentScorer.NATIVE_SUPPORTED && SUPPORTS_HEAP_SEGMENTS;
 
     enum QuantEncoding {
         D1Q4,
@@ -55,9 +52,53 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         }
     }
 
+    public static MemorySegmentES940OSQVectorsScorer usingNative(
+        IndexInput in,
+        byte queryBits,
+        byte indexBits,
+        int dimensions,
+        int dataLength,
+        int bulkSize,
+        @Nullable ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
+    ) {
+        if (int4Encoding == null) int4Encoding = SymmetricInt4Encoding.STRIPED;
+        return new MemorySegmentES940OSQVectorsScorer(
+            in,
+            queryBits,
+            indexBits,
+            dimensions,
+            dataLength,
+            bulkSize,
+            int4Encoding,
+            createNativeScorer(QuantEncoding.of(queryBits, indexBits, int4Encoding), in, dimensions, dataLength, bulkSize)
+        );
+    }
+
+    public static MemorySegmentES940OSQVectorsScorer usingPanama(
+        IndexInput in,
+        byte queryBits,
+        byte indexBits,
+        int dimensions,
+        int dataLength,
+        int bulkSize,
+        @Nullable ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
+    ) {
+        if (int4Encoding == null) int4Encoding = SymmetricInt4Encoding.STRIPED;
+        return new MemorySegmentES940OSQVectorsScorer(
+            in,
+            queryBits,
+            indexBits,
+            dimensions,
+            dataLength,
+            bulkSize,
+            int4Encoding,
+            createPanamaScorer(QuantEncoding.of(queryBits, indexBits, int4Encoding), in, dimensions, dataLength, bulkSize)
+        );
+    }
+
     private final MemorySegmentScorer scorer;
 
-    public MemorySegmentES940OSQVectorsScorer(
+    private MemorySegmentES940OSQVectorsScorer(
         IndexInput in,
         byte queryBits,
         byte indexBits,
@@ -65,23 +106,10 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         int dataLength,
         int bulkSize,
         ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding,
-        boolean nativeEnabled
+        MemorySegmentScorer scorer
     ) {
-        super(
-            in,
-            queryBits,
-            indexBits,
-            dimensions,
-            dataLength,
-            bulkSize,
-            int4Encoding == null ? ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED : int4Encoding
-        );
-        ES940OSQVectorsScorer.SymmetricInt4Encoding resolvedInt4 = int4Encoding == null
-            ? ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED
-            : int4Encoding;
-        this.scorer = USE_NATIVE && nativeEnabled
-            ? createNativeScorer(QuantEncoding.of(queryBits, indexBits, resolvedInt4), in, dimensions, dataLength, bulkSize)
-            : createPanamaScorer(QuantEncoding.of(queryBits, indexBits, resolvedInt4), in, dimensions, dataLength, bulkSize);
+        super(in, queryBits, indexBits, dimensions, dataLength, bulkSize, int4Encoding);
+        this.scorer = scorer;
     }
 
     private static MemorySegmentScorer createNativeScorer(QuantEncoding enc, IndexInput in, int dimensions, int dataLength, int bulkSize) {
@@ -89,8 +117,8 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             case D1Q4 -> new NativeD1Q4Scorer(in, dimensions, dataLength, bulkSize);
             case D2Q4 -> new NativeD2Q4Scorer(in, dimensions, dataLength, bulkSize);
             case D4Q4_STRIPED -> new NativeD4Q4Scorer(in, dimensions, dataLength, bulkSize);
-            case D4Q4_PACKED -> new MSPackedInt4ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
-            case D7Q7 -> new MSD7Q7ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
+            case D4Q4_PACKED -> new NativePackedInt4ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
+            case D7Q7 -> new NativeD7Q7ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
         };
     }
 
@@ -99,7 +127,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             case D1Q4 -> new MSBitToInt4ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
             case D2Q4 -> new MSDibitToInt4ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
             case D4Q4_STRIPED -> new MSInt4SymmetricES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
-            case D4Q4_PACKED -> new MSPackedInt4ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
+            case D4Q4_PACKED -> new MemorySegmentScorer(in, dimensions, dataLength, bulkSize);  // no special implementation yet
             case D7Q7 -> new MSD7Q7ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
         };
     }
@@ -249,11 +277,9 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         );
     }
 
-    abstract static sealed class MemorySegmentScorer permits NativeMemorySegmentScorer, MSBitToInt4ES940OSQVectorsScorer,
-        MSDibitToInt4ES940OSQVectorsScorer, MSInt4SymmetricES940OSQVectorsScorer, MSD7Q7ES940OSQVectorsScorer,
-        MSPackedInt4ES940OSQVectorsScorer {
-
-        static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
+    static sealed class MemorySegmentScorer permits NativeMemorySegmentScorer, NativeD7Q7ES940OSQVectorsScorer,
+        MSBitToInt4ES940OSQVectorsScorer, MSDibitToInt4ES940OSQVectorsScorer, MSInt4SymmetricES940OSQVectorsScorer,
+        MSD7Q7ES940OSQVectorsScorer, NativePackedInt4ES940OSQVectorsScorer {
 
         static final float ONE_BIT_SCALE = ES940OSQVectorsScorer.BIT_SCALES[0];
         static final float TWO_BIT_SCALE = ES940OSQVectorsScorer.BIT_SCALES[1];
@@ -332,11 +358,17 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             return scratch;
         }
 
-        abstract long quantizeScore(byte[] q) throws IOException;
+        long quantizeScore(byte[] q) throws IOException {
+            return Long.MIN_VALUE;
+        }
 
-        abstract boolean quantizeScoreBulk(byte[] q, int count, float[] scores) throws IOException;
+        boolean quantizeScoreBulk(byte[] q, int count, float[] scores) throws IOException {
+            return false;
+        }
 
-        abstract boolean quantizeScoreBulkOffsets(byte[] q, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException;
+        boolean quantizeScoreBulkOffsets(byte[] q, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
+            return false;
+        }
 
         float scoreBulk(
             byte[] q,
@@ -361,7 +393,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             );
         }
 
-        abstract float scoreBulk(
+        float scoreBulk(
             byte[] q,
             float queryLowerInterval,
             float queryUpperInterval,
@@ -371,9 +403,11 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             float centroidDp,
             float[] scores,
             int bulkSize
-        ) throws IOException;
+        ) throws IOException {
+            return Float.NEGATIVE_INFINITY;
+        }
 
-        abstract float scoreBulkOffsets(
+        float scoreBulkOffsets(
             byte[] q,
             float queryLowerInterval,
             float queryUpperInterval,
@@ -385,7 +419,9 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             int offsetsCount,
             float[] scores,
             int count
-        ) throws IOException;
+        ) throws IOException {
+            return Float.NEGATIVE_INFINITY;
+        }
 
         protected float applyCorrectionsIndividually(
             MemorySegment memorySegment,

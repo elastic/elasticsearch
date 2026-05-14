@@ -24,6 +24,13 @@ public class ES940OSQVectorsScorer {
 
     public static final int BULK_SIZE = 32;
 
+    public static boolean supportsQuantization(byte queryBits, byte indexBits) {
+        return switch ((queryBits << 8) | indexBits) {
+            case (4 << 8) | 1, (4 << 8) | 2, (4 << 8) | 4, (7 << 8) | 7 -> true;
+            default -> false;
+        };
+    }
+
     public enum SymmetricInt4Encoding {
         STRIPED,
         PACKED_NIBBLE
@@ -65,17 +72,8 @@ public class ES940OSQVectorsScorer {
         int bulkSize,
         SymmetricInt4Encoding int4Encoding
     ) {
-        if (indexBits == 1 && queryBits != 4) {
-            throw new IllegalArgumentException("Only asymmetric 4-bit query supported for 1-bit index");
-        }
-        if (indexBits == 2 && queryBits != 4) {
-            throw new IllegalArgumentException("Only asymmetric 4-bit query supported for 2-bit index");
-        }
-        if (indexBits == 4 && queryBits != 4) {
-            throw new IllegalArgumentException("Only symmetric 4-bit query supported for 4-bit index");
-        }
-        if (indexBits == 7 && queryBits != 7) {
-            throw new IllegalArgumentException("Only symmetric 7-bit query supported for 7-bit index");
+        if (!supportsQuantization(queryBits, indexBits)) {
+            throw new IllegalArgumentException(queryBits + " query bits with " + indexBits + " index bits is not supported");
         }
         this.in = in;
         this.queryBits = queryBits;

@@ -15,20 +15,18 @@ import org.elasticsearch.simdvec.internal.Similarities;
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 
-import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
-
 /**
  * Packed-nibble int4 scorer that uses existing native dot-product ops.
  * Returns sentinel values when native support is unavailable so callers can fallback.
  */
-final class MSPackedInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer {
+final class NativePackedInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer {
 
     private byte[] cachedQueryArray;
     private MemorySegment cachedQuerySeg;
     private float[] cachedScoresArray;
     private MemorySegment cachedScoresSeg;
 
-    MSPackedInt4ES940OSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
+    NativePackedInt4ES940OSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
         super(in, dimensions, dataLength, bulkSize);
     }
 
@@ -48,13 +46,8 @@ final class MSPackedInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVecto
         return cachedScoresSeg;
     }
 
-    private static final boolean USE_NATIVE = NATIVE_SUPPORTED && SUPPORTS_HEAP_SEGMENTS;
-
     @Override
     long quantizeScore(byte[] q) throws IOException {
-        if (USE_NATIVE == false) {
-            return Long.MIN_VALUE;
-        }
         return IndexInputUtils.withSlice(
             in,
             length,
@@ -65,9 +58,6 @@ final class MSPackedInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVecto
 
     @Override
     boolean quantizeScoreBulk(byte[] q, int count, float[] scores) throws IOException {
-        if (USE_NATIVE == false) {
-            return false;
-        }
         var qSeg = querySegment(q);
         var sSeg = scoresSegment(scores);
         IndexInputUtils.withSlice(in, (long) length * count, this::getScratch, dSeg -> {
@@ -79,9 +69,6 @@ final class MSPackedInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVecto
 
     @Override
     boolean quantizeScoreBulkOffsets(byte[] q, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
-        if (USE_NATIVE == false) {
-            return false;
-        }
         var qSeg = querySegment(q);
         var offsetsSeg = MemorySegment.ofArray(offsets);
         var sSeg = scoresSegment(scores);
@@ -91,37 +78,5 @@ final class MSPackedInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVecto
         });
         repositionScoresMatchingOffsets(offsets, offsetsCount, scores);
         return true;
-    }
-
-    @Override
-    float scoreBulk(
-        byte[] q,
-        float queryLowerInterval,
-        float queryUpperInterval,
-        int queryComponentSum,
-        float queryAdditionalCorrection,
-        org.apache.lucene.index.VectorSimilarityFunction similarityFunction,
-        float centroidDp,
-        float[] scores,
-        int bulkSize
-    ) {
-        return Float.NEGATIVE_INFINITY;
-    }
-
-    @Override
-    float scoreBulkOffsets(
-        byte[] q,
-        float queryLowerInterval,
-        float queryUpperInterval,
-        int queryComponentSum,
-        float queryAdditionalCorrection,
-        org.apache.lucene.index.VectorSimilarityFunction similarityFunction,
-        float centroidDp,
-        int[] offsets,
-        int offsetsCount,
-        float[] scores,
-        int count
-    ) {
-        return Float.NEGATIVE_INFINITY;
     }
 }

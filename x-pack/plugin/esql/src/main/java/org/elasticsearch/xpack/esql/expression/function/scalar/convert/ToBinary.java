@@ -35,11 +35,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
  * Snapshot-only while the {@code binary} data type is under construction.
  */
 public class ToBinary extends AbstractConvertFunction {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "ToBinary",
-        ToBinary::new
-    );
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToBinary", ToBinary::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToBinary.class).unary(ToBinary::new).name("to_binary");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(

@@ -490,9 +490,7 @@ public enum DataType implements Writeable {
      * as {@link BytesRef} values inside a {@link org.elasticsearch.compute.data.BytesRefBlock}.
      * On JSON responses the value is base64-encoded so it round-trips losslessly.
      */
-    BINARY(
-        builder().esType("binary").estimatedSize(64).docValues().underConstruction(DataTypesTransportVersions.ESQL_BINARY_DATATYPE)
-    );
+    BINARY(builder().esType("binary").estimatedSize(64).docValues().underConstruction(DataTypesTransportVersions.ESQL_BINARY_DATATYPE));
 
     public static final Set<DataType> UNDER_CONSTRUCTION = Arrays.stream(DataType.values())
         .filter(t -> t.supportedVersion().underConstruction())

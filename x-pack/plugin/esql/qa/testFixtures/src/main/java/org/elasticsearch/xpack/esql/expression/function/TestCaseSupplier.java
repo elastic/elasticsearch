@@ -1633,7 +1633,11 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return List.of(
             new TypedDataSupplier("<empty binary>", () -> new BytesRef(new byte[0]), DataType.BINARY),
             new TypedDataSupplier("<short binary>", () -> new BytesRef(new byte[] { 0x01, 0x02, 0x03 }), DataType.BINARY),
-            new TypedDataSupplier("<random binary>", () -> new BytesRef(ESTestCase.randomByteArrayOfLength(ESTestCase.between(1, 64))), DataType.BINARY)
+            new TypedDataSupplier(
+                "<random binary>",
+                () -> new BytesRef(ESTestCase.randomByteArrayOfLength(ESTestCase.between(1, 64))),
+                DataType.BINARY
+            )
         );
     }
 

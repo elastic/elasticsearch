@@ -49,6 +49,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -77,6 +78,19 @@ class S3BlobStore implements BlobStore {
 
     private static final Logger logger = LogManager.getLogger(S3BlobStore.class);
 
+    public static final EnumSet<StorageClass> ALLOWED_STORAGE_CLASSES = EnumSet.of(
+        StorageClass.STANDARD,
+        StorageClass.STANDARD_IA,
+        StorageClass.ONEZONE_IA,
+        StorageClass.INTELLIGENT_TIERING,
+        StorageClass.REDUCED_REDUNDANCY,
+        StorageClass.GLACIER_IR,
+        StorageClass.OUTPOSTS,
+        StorageClass.SNOW
+    );
+
+    private static final StorageClass DEFAULT_S3_STORAGE_CLASS = StorageClass.STANDARD;
+
     @Nullable // if the blobstore is at the cluster level
     private final ProjectId projectId;
     private final S3Service service;
@@ -93,7 +107,7 @@ class S3BlobStore implements BlobStore {
 
     private final ObjectCannedACL cannedACL;
 
-    private final StorageClass defaultStorageClass;
+    private final StorageClass fallbackStorageClass;
 
     private final StorageClass dataStorageClass;
 
@@ -132,7 +146,7 @@ class S3BlobStore implements BlobStore {
         boolean serverSideEncryption,
         ByteSizeValue bufferSize,
         String cannedACL,
-        String defaultStorageClass,
+        String fallbackStorageClass,
         String dataStorageClass,
         String metadataStorageClass,
         boolean supportConditionalWrites,
@@ -150,9 +164,11 @@ class S3BlobStore implements BlobStore {
         this.bufferSize = bufferSize;
         this.maxCopySizeBeforeMultipart = service.settings(projectId, repositoryMetadata).maxCopySizeBeforeMultipart;
         this.cannedACL = initCannedACL(cannedACL);
-        this.defaultStorageClass = initStorageClass(defaultStorageClass);
-        this.dataStorageClass = Strings.hasText(dataStorageClass) ? initStorageClass(dataStorageClass) : this.defaultStorageClass;
-        this.metadataStorageClass = Strings.hasText(metadataStorageClass) ? initStorageClass(metadataStorageClass) : this.defaultStorageClass;
+        this.fallbackStorageClass = initStorageClass(fallbackStorageClass);
+        this.dataStorageClass = Strings.hasText(dataStorageClass) ? initStorageClass(dataStorageClass) : this.fallbackStorageClass;
+        this.metadataStorageClass = Strings.hasText(metadataStorageClass)
+            ? initStorageClass(metadataStorageClass)
+            : this.fallbackStorageClass;
         this.supportsConditionalWrites = supportConditionalWrites;
         this.repositoryMetadata = repositoryMetadata;
         this.threadPool = threadPool;
@@ -479,7 +495,7 @@ class S3BlobStore implements BlobStore {
         return switch (purpose) {
             case SNAPSHOT_DATA -> dataStorageClass;
             case SNAPSHOT_METADATA -> metadataStorageClass;
-            case REPOSITORY_ANALYSIS, CLUSTER_STATE, INDICES, TRANSLOG, RESHARDING -> defaultStorageClass;
+            case REPOSITORY_ANALYSIS, CLUSTER_STATE, INDICES, TRANSLOG, RESHARDING -> fallbackStorageClass;
         };
     }
 
@@ -488,8 +504,8 @@ class S3BlobStore implements BlobStore {
     }
 
     public static StorageClass initStorageClass(String storageClassName) {
-        if ((storageClassName == null) || storageClassName.equals("")) {
-            return StorageClass.STANDARD;
+        if (Strings.hasText(storageClassName) == false) {
+            return DEFAULT_S3_STORAGE_CLASS;
         }
 
         final StorageClass storageClass;
@@ -498,11 +514,13 @@ class S3BlobStore implements BlobStore {
         } catch (final Exception e) {
             throw new BlobStoreException("`" + storageClassName + "` is not a valid S3 Storage Class.", e);
         }
-        if (storageClass.equals(StorageClass.GLACIER)) {
-            throw new BlobStoreException("Glacier storage class is not supported");
-        }
+
         if (storageClass.equals(StorageClass.UNKNOWN_TO_SDK_VERSION)) {
             throw new BlobStoreException("`" + storageClassName + "` is not a known S3 Storage Class.");
+        }
+
+        if (ALLOWED_STORAGE_CLASSES.contains(storageClass) == false) {
+            throw new BlobStoreException("`" + storageClassName + "` is not an allowed S3 Storage Class.");
         }
 
         return storageClass;

@@ -691,11 +691,11 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             return false;
         }
         return switch (error) {
-            case VersionConflictEngineException err -> false;
-            case EsRejectedExecutionException err -> false;
-            case CircuitBreakingException err -> false;
-            case ClusterBlockException err -> false;
-            case ElasticsearchException err -> err.status().getStatus() != 429;
+            case VersionConflictEngineException err -> false; // A 4xx Exception we don't want to redirect
+            case EsRejectedExecutionException err -> false; // Rejection exception not tied with ElasticsearchException
+            case ClusterBlockException err -> false; // Status is dependent on the blocks, but we don't ever want to redirect it
+            // If exception is not a 5xx or a 429, nor one of the above, it should be redirected
+            case ElasticsearchException err -> err.status().getStatus() != 429 && (err.status().getStatus() / 100 != 5);
             default -> true;
         };
     }

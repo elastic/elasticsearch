@@ -81,7 +81,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
         ClusterService clusterService,
         SystemIndices systemIndices
     ) {
-        final int TOTAL_METRICS = 92;
+        final int TOTAL_METRICS = 95;
         List<AutoCloseable> metrics = new ArrayList<>(TOTAL_METRICS);
         for (IndexMode indexMode : IndexMode.values()) {
             String name = indexMode.getName();

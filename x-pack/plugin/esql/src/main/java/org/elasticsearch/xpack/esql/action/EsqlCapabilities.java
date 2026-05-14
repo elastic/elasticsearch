@@ -914,6 +914,11 @@ public class EsqlCapabilities {
         SORTING_ON_SOURCE_AND_COUNTERS_FORBIDDEN,
 
         /**
+         * Fix sorting not allowed on histogram and _tsid.
+         */
+        SORTING_ON_HISTOGRAM_AND_TSID_FORBIDDEN,
+
+        /**
          * Fix {@code SORT} when the {@code _source} field is not a sort key but
          * <strong>is</strong> being returned.
          */
@@ -1691,6 +1696,11 @@ public class EsqlCapabilities {
          * Support for tstep bucket count variant: TSTEP(count, from, to)
          */
         TSTEP_BUCKET_COUNT(TSTEP.isEnabled()),
+
+        /**
+         * Support lower-open upper-closed boundaries (*;*] in addition to lower-closed upper-open [*;*)
+         */
+        FIX_TSTEP_BUCKET_ROUNDING(TSTEP.isEnabled()),
 
         /**
          * Allow qualifiers in attribute names.

@@ -1,0 +1,5 @@
+area: Transform
+issues: []
+pr: 144012
+summary: Add `op_type` parameter to Transform dest config
+type: enhancement

@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
@@ -115,6 +116,12 @@ public final class TransformIndex {
     ) {
         final String destinationIndex = config.getDestination().getIndex();
         String[] dest = indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), destinationIndex);
+
+        if (config.getDestination().getOpType() == DocWriteRequest.OpType.CREATE) {
+            logger.debug("[{}] Skip destination index creation and alias setup because op_type is [create]", config.getId());
+            listener.onResponse(false);
+            return;
+        }
 
         // <3> Final listener
         ActionListener<Boolean> setUpDestinationAliasesListener = ActionListener.wrap(r -> {

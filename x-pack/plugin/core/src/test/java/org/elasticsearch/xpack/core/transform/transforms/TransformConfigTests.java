@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -86,10 +87,11 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         LatestConfig latestConfig,
         DestConfig destConfig
     ) {
+        RetentionPolicyConfig retentionPolicy = randomBoolean() ? null : randomRetentionPolicyConfig();
         return new TransformConfig(
             id,
             randomSourceConfig(),
-            destConfig,
+            retentionPolicy != null ? destConfigWithOpTypeIndex(destConfig) : destConfig,
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
             randomBoolean() ? null : randomSyncConfig(),
             null,
@@ -98,7 +100,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             SettingsConfigTests.randomSettingsConfig(),
             randomBoolean() ? null : randomMetadata(),
-            randomBoolean() ? null : randomRetentionPolicyConfig(),
+            retentionPolicy,
             null,
             null
         );
@@ -163,10 +165,11 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         PivotConfig pivotConfig,
         LatestConfig latestConfig
     ) {
+        RetentionPolicyConfig retentionPolicy = randomBoolean() ? null : randomRetentionPolicyConfig();
         return new TransformConfig(
             randomAlphaOfLengthBetween(1, 10),
             randomSourceConfig(),
-            randomDestConfig(),
+            randomDestConfigCompatibleWith(retentionPolicy),
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
             randomBoolean() ? null : randomSyncConfig(),
             randomHeaders(),
@@ -175,17 +178,18 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             settingsConfig,
             randomBoolean() ? null : randomMetadata(),
-            randomBoolean() ? null : randomRetentionPolicyConfig(),
+            retentionPolicy,
             randomBoolean() ? null : Instant.now(),
             null
         );
     }
 
     public static TransformConfig randomTransformConfigWithHeaders(Map<String, String> headers) {
+        RetentionPolicyConfig retentionPolicy = randomBoolean() ? null : randomRetentionPolicyConfig();
         return new TransformConfig(
             randomAlphaOfLengthBetween(1, 10),
             randomSourceConfig(),
-            randomDestConfig(),
+            randomDestConfigCompatibleWith(retentionPolicy),
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
             randomBoolean() ? null : randomSyncConfig(),
             headers,
@@ -194,7 +198,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             randomBoolean() ? null : SettingsConfigTests.randomSettingsConfig(),
             randomBoolean() ? null : randomMetadata(),
-            randomBoolean() ? null : randomRetentionPolicyConfig(),
+            retentionPolicy,
             randomBoolean() ? null : Instant.now(),
             TransformConfigVersion.CURRENT.toString()
         );
@@ -222,10 +226,11 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         PivotConfig pivotConfig,
         LatestConfig latestConfig
     ) {
+        RetentionPolicyConfig retentionPolicy = randomBoolean() ? null : randomRetentionPolicyConfig();
         return new TransformConfig(
             id,
             randomSourceConfig(),
-            randomDestConfig(),
+            randomDestConfigCompatibleWith(retentionPolicy),
             frequency,
             randomBoolean() ? null : randomSyncConfig(),
             randomHeaders(),
@@ -234,7 +239,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             randomBoolean() ? null : SettingsConfigTests.randomSettingsConfig(),
             randomBoolean() ? null : randomMetadata(),
-            randomBoolean() ? null : randomRetentionPolicyConfig(),
+            retentionPolicy,
             randomBoolean() ? null : Instant.now(),
             version == null ? null : version.toString()
         );
@@ -252,10 +257,11 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 latestConfig = LatestConfigTests.randomLatestConfig();
             }
 
+            RetentionPolicyConfig retentionPolicy = randomBoolean() ? null : randomRetentionPolicyConfig();
             return new TransformConfig(
                 id,
                 randomInvalidSourceConfig(),
-                randomDestConfig(),
+                randomDestConfigCompatibleWith(retentionPolicy),
                 null,
                 randomBoolean() ? randomSyncConfig() : null,
                 randomHeaders(),
@@ -264,15 +270,16 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
                 null,
                 randomBoolean() ? null : randomMetadata(),
-                randomBoolean() ? null : randomRetentionPolicyConfig(),
+                retentionPolicy,
                 null,
                 null
             );
         } // else
+        RetentionPolicyConfig retentionPolicy = randomBoolean() ? null : randomRetentionPolicyConfig();
         return new TransformConfig(
             id,
             randomSourceConfig(),
-            randomDestConfig(),
+            randomDestConfigCompatibleWith(retentionPolicy),
             null,
             randomBoolean() ? randomSyncConfig() : null,
             randomHeaders(),
@@ -281,7 +288,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             null,
             randomBoolean() ? null : randomMetadata(),
-            randomBoolean() ? null : randomRetentionPolicyConfig(),
+            retentionPolicy,
             null,
             null
         );
@@ -293,6 +300,16 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
     public static RetentionPolicyConfig randomRetentionPolicyConfig() {
         return TimeRetentionPolicyConfigTests.randomTimeRetentionPolicyConfig();
+    }
+
+    private static DestConfig randomDestConfigCompatibleWith(RetentionPolicyConfig retentionPolicy) {
+        return retentionPolicy != null ? destConfigWithOpTypeIndex(randomDestConfig()) : randomDestConfig();
+    }
+
+    private static DestConfig destConfigWithOpTypeIndex(DestConfig dest) {
+        return dest.getOpType() == DocWriteRequest.OpType.INDEX
+            ? dest
+            : new DestConfig(dest.getIndex(), dest.getAliases(), dest.getPipeline());
     }
 
     public static Map<String, Object> randomMetadata() {
@@ -343,7 +360,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         return new TransformConfig(
             instance.getId(),
             SourceConfigTests.mutateForVersion(instance.getSource(), version),
-            instance.getDestination(),
+            DestConfigTests.mutateForVersion(instance.getDestination(), version),
             instance.getFrequency(),
             instance.getSyncConfig(),
             instance.getHeaders(),

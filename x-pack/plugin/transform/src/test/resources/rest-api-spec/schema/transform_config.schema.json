@@ -176,6 +176,13 @@
           "title": "Pipeline",
           "type": "string",
           "pattern": "^.*$"
+        },
+        "op_type": {
+          "$id": "#root/dest/op_type",
+          "title": "Op type",
+          "type": "string",
+          "enum": ["index", "create"],
+          "default": "index"
         }
       }
     },

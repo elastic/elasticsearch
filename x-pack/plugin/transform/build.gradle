@@ -19,6 +19,7 @@ dependencies {
   testImplementation project(":test:x-content")
 
   internalClusterTestImplementation project(":modules:reindex")
+  internalClusterTestImplementation project(":modules:data-streams")
 
   yamlRestTestImplementation project(':test:yaml-rest-runner')
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))

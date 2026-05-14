@@ -22,12 +22,18 @@ public class MultipartUpload {
 
     private final String uploadId;
     private final String path;
+    private final String storageClass;
     private final Map<String, BytesReference> parts = new ConcurrentHashMap<>();
     private final String initiatedDateTime = java.time.Instant.now().toString();
 
     public MultipartUpload(String uploadId, String path) {
+        this(uploadId, path, BlobEntry.DEFAULT_STORAGE_CLASS);
+    }
+
+    public MultipartUpload(String uploadId, String path, String storageClass) {
         this.uploadId = uploadId;
         this.path = path;
+        this.storageClass = storageClass;
     }
 
     public String getUploadId() {
@@ -36,6 +42,10 @@ public class MultipartUpload {
 
     public String getPath() {
         return path;
+    }
+
+    public String getStorageClass() {
+        return storageClass;
     }
 
     public String getInitiatedDateTime() {

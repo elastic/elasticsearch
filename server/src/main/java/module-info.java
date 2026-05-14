@@ -246,7 +246,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.cache.request;
     exports org.elasticsearch.index.codec;
     exports org.elasticsearch.index.codec.tsdb;
-    exports org.elasticsearch.index.codec.tsdb.pipeline;
     exports org.elasticsearch.index.codec.bloomfilter;
     exports org.elasticsearch.index.codec.storedfields;
     exports org.elasticsearch.index.codec.zstd;

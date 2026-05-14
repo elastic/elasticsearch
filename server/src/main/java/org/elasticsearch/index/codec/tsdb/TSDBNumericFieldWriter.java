@@ -10,7 +10,6 @@
 package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.index.FieldInfo;
-import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
 
 import java.io.IOException;
 
@@ -38,11 +37,6 @@ public final class TSDBNumericFieldWriter implements NumericFieldWriter {
     }
 
     @Override
-    public Encoder encoder(final FieldContext context) {
-        return encoder;
-    }
-
-    @Override
     public DocValueFieldCountStats writeFieldEntry(
         final FieldInfo field,
         final TsdbDocValuesProducer valuesSource,
@@ -56,7 +50,7 @@ public final class TSDBNumericFieldWriter implements NumericFieldWriter {
             AbstractTSDBDocValuesConsumer.NO_MAX_ORD,
             docValueCountConsumer,
             sortedFieldObserver,
-            (buffer, data) -> encoder(null).encodeBlock(buffer, ctx.blockSize(), data)
+            (buffer, data) -> encoder.encodeBlock(buffer, ctx.blockSize(), data)
         );
     }
 }

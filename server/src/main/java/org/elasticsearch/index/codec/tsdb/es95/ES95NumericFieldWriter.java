@@ -27,11 +27,10 @@ import java.io.IOException;
 /**
  * {@link NumericFieldWriter} implementation for the ES95 TSDB format.
  *
- * <p>{@link #encoder(FieldContext)} is the single entry point for per-field setup: it
- * resolves the pipeline once and returns an {@link ES95NumericFieldEncoder} that exposes both the
- * block-encoding lambda and the {@link org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor}
- * required by the metadata write. {@link #writeFieldEntry} calls {@code encoder()} and
- * passes the resulting per-field bundle through to {@link TSDBDocValuesBlockWriter}.
+ * <p>{@link #writeFieldEntry} resolves the pipeline once per field, wraps the resulting
+ * {@code NumericEncoder} in an {@link ES95NumericFieldEncoder} that bundles the block-encoding
+ * lambda with the {@link org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor}
+ * required by the metadata write, and passes both through to {@link TSDBDocValuesBlockWriter}.
  */
 final class ES95NumericFieldWriter implements NumericFieldWriter {
 
@@ -52,18 +51,16 @@ final class ES95NumericFieldWriter implements NumericFieldWriter {
     }
 
     @Override
-    public ES95NumericFieldEncoder encoder(final FieldContext context) {
-        return new ES95NumericFieldEncoder(numericCodecFactory.createEncoder(resolver.resolve(context)));
-    }
-
-    @Override
     public DocValueFieldCountStats writeFieldEntry(
         final FieldInfo field,
         final TsdbDocValuesProducer valuesSource,
         final AbstractTSDBDocValuesConsumer.DocValueCountConsumer docValueCountConsumer,
         final SortedFieldObserver sortedFieldObserver
     ) throws IOException {
-        final ES95NumericFieldEncoder numericFieldEncoder = encoder(new FieldContext(ctx.blockSize(), field.name));
+        final FieldContext context = new FieldContext(ctx.blockSize(), field.name);
+        final ES95NumericFieldEncoder numericFieldEncoder = new ES95NumericFieldEncoder(
+            numericCodecFactory.createEncoder(resolver.resolve(context))
+        );
         return BLOCK_WRITER.writeFieldEntry(
             ctx,
             field,
@@ -75,5 +72,4 @@ final class ES95NumericFieldWriter implements NumericFieldWriter {
             () -> FieldDescriptor.write(ctx.meta(), numericFieldEncoder.descriptor())
         );
     }
-
 }

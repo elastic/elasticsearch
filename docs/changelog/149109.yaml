@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 148376
+pr: 149109
+summary: Handle `must_not` appropriately in nested contexts
+type: enhancement

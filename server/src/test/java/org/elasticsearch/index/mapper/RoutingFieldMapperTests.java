@@ -152,6 +152,46 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
         assertEquals("no routing fields when routing value is absent", 0, doc.rootDoc().getFields("_routing").size());
     }
 
+    public void testBuilderReturnsExpectedSingleton() {
+        for (boolean requiredByDefault : new boolean[] { false, true }) {
+            for (boolean docValuesEnabledByDefault : new boolean[] { false, true }) {
+                for (boolean required : new boolean[] { false, true }) {
+                    for (boolean docValues : new boolean[] { false, true }) {
+                        String desc = "requiredByDefault="
+                            + requiredByDefault
+                            + " docValuesEnabledByDefault="
+                            + docValuesEnabledByDefault
+                            + " required="
+                            + required
+                            + " docValues="
+                            + docValues;
+
+                        RoutingFieldMapper first = buildRoutingMapper(requiredByDefault, docValuesEnabledByDefault, required, docValues);
+                        RoutingFieldMapper second = buildRoutingMapper(requiredByDefault, docValuesEnabledByDefault, required, docValues);
+                        assertSame(desc + " (two builds should return the same singleton)", first, second);
+                        assertSame(
+                            desc + " (build must match InstancesLookup)",
+                            RoutingFieldMapper.InstancesLookup.lookup(requiredByDefault, required, docValuesEnabledByDefault, docValues),
+                            first
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    private static RoutingFieldMapper buildRoutingMapper(
+        boolean requiredByDefault,
+        boolean docValuesEnabledByDefault,
+        boolean required,
+        boolean docValues
+    ) {
+        RoutingFieldMapper.Builder builder = new RoutingFieldMapper.Builder(requiredByDefault, docValuesEnabledByDefault);
+        builder.required.setValue(required);
+        builder.docValues.setValue(docValues);
+        return builder.build();
+    }
+
     public void testFetchDocValuesRoutingFieldValue() throws IOException {
         MapperService mapperService = createMapperService(topMapping(b -> b.startObject("_routing").field("doc_values", true).endObject()));
         withLuceneIndex(

@@ -15,6 +15,7 @@ import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.datageneration.datasource.DefaultObjectGenerationHandler;
 import org.elasticsearch.index.mapper.BinaryDVBlockLoaderTestCase;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -96,19 +97,21 @@ public class FlattenedFieldKeyedBlockLoaderTests extends BinaryDVBlockLoaderTest
 
     @Override
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
-        var nullValue = (String) fieldMapping.get("null_value");
-        if (value == null) {
-            return convert(null, nullValue, Integer.MAX_VALUE);
-        }
+        boolean useDocValues = hasDocValues(fieldMapping, true)
+            && (params.preference() != MappedFieldType.FieldExtractPreference.STORED || params.syntheticSource());
 
-        boolean hasDocValues = hasDocValues(fieldMapping, true);
-        int ignoreAbove = fieldMapping.get("ignore_above") != null && hasDocValues
+        int ignoreAbove = fieldMapping.get("ignore_above") != null && useDocValues
             ? ((Number) fieldMapping.get("ignore_above")).intValue()
             : Integer.MAX_VALUE;
 
+        var nullValue = (String) fieldMapping.get("null_value");
+        if (value == null) {
+            return convert(null, nullValue, ignoreAbove);
+        }
+
         if (value instanceof List<?> valueList) {
             var valueStream = valueList.stream().map(v -> convert(v, nullValue, ignoreAbove)).filter(Objects::nonNull);
-            if (hasDocValues) {
+            if (useDocValues) {
                 valueStream = valueStream.distinct().sorted();
             }
             return maybeFoldList(valueStream.toList());

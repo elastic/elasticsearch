@@ -82,7 +82,7 @@ public class ColumnarIndexModeTests extends ESTestCase {
         assertThat(IndexMode.TIME_SERIES.isColumnar(), equalTo(true));
         assertThat(IndexMode.LOGSDB.isColumnar(), equalTo(true));
         assertThat(IndexMode.COLUMNAR.isColumnar(), equalTo(true));
-        assertThat(IndexMode.COLUMNAR_LOGSDB.isColumnar(), equalTo(true));
+        assertThat(IndexMode.LOGSDB_COLUMNAR.isColumnar(), equalTo(true));
         assertThat(IndexMode.LOOKUP.isColumnar(), equalTo(false));
     }
 }

@@ -222,15 +222,16 @@ public class ExternalSourceResolverTests extends ESTestCase {
             assertEquals(
                 "every FFW per-file entry carries the anchor schema verbatim, regardless of the file's own inference",
                 anchorSchema,
-                e.getValue().fileSchema()
+                e.getValue().fileSchema().attributes()
             );
-            SchemaReconciliation.ColumnMapping mapping = e.getValue().mapping();
+            ColumnMapping mapping = e.getValue().mapping();
             assertNotNull("FFW entries carry an identity ColumnMapping", mapping);
-            assertEquals("identity mapping length matches anchor schema width", anchorSchema.size(), mapping.columnCount());
-            for (int i = 0; i < mapping.columnCount(); i++) {
-                assertEquals("identity mapping localIndex(" + i + ") = " + i, i, mapping.localIndex(i));
-                assertNull("identity mapping has no casts at position " + i, mapping.cast(i));
-            }
+            assertTrue("FFW per-file mapping is identity", mapping.isIdentity());
+            assertEquals(
+                "identity mapping matches anchor schema width",
+                new ColumnMapping(identityIndex(anchorSchema.size()), null),
+                mapping
+            );
         }
     }
 
@@ -374,14 +375,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = resolved.schemaMap();
         assertEquals("single-file schemaMap must have exactly one entry", 1, schemaMap.size());
         SchemaReconciliation.FileSchemaInfo info = schemaMap.values().iterator().next();
-        assertEquals("fileSchema must equal metadata schema verbatim", schema, info.fileSchema());
-        SchemaReconciliation.ColumnMapping mapping = info.mapping();
+        assertEquals("fileSchema must equal metadata schema verbatim", schema, info.fileSchema().attributes());
+        ColumnMapping mapping = info.mapping();
         assertNotNull("single-file entry carries an identity ColumnMapping", mapping);
-        assertEquals("identity mapping length matches schema width", schema.size(), mapping.columnCount());
-        for (int i = 0; i < mapping.columnCount(); i++) {
-            assertEquals("identity mapping localIndex(" + i + ") = " + i, i, mapping.localIndex(i));
-            assertNull("identity mapping has no casts at position " + i, mapping.cast(i));
-        }
+        assertTrue("single-file mapping is identity", mapping.isIdentity());
+        assertEquals("identity mapping matches schema width", new ColumnMapping(identityIndex(schema.size()), null), mapping);
     }
 
     // ===== Schema type preservation =====
@@ -849,6 +847,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     private static Attribute attr(String name, DataType type) {
         return new ReferenceAttribute(Source.EMPTY, null, name, type);
+    }
+
+    private static int[] identityIndex(int size) {
+        int[] idx = new int[size];
+        for (int i = 0; i < size; i++) {
+            idx[i] = i;
+        }
+        return idx;
     }
 
     private static StorageEntry entry(String path, long length) {

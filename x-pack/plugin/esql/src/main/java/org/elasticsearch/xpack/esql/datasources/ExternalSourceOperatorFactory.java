@@ -17,6 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -225,6 +226,8 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         private final FormatReader formatReader;
         private final List<String> projectedColumns;
         private final List<Attribute> attributes;
+        // Data-attribute view of {@link #attributes}; built once at construction.
+        private final Schema queryDataSchema;
         private final int batchSize;
         private final int rowLimit;
         private final ExternalSliceQueue sliceQueue;
@@ -248,6 +251,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
             this.formatReader = formatReader;
             this.projectedColumns = projectedColumns;
             this.attributes = attributes;
+            this.queryDataSchema = dataAttributesOf(attributes);
             this.batchSize = batchSize;
             this.rowLimit = rowLimit;
             this.sliceQueue = sliceQueue;
@@ -304,13 +308,11 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                 boolean firstSplit = fileSplit.offset() == 0 || "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
                 boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
 
-                SchemaReconciliation.ColumnMapping columnMapping = fileSplit.columnMapping();
+                ColumnMapping columnMapping = fileSplit.columnMapping();
                 List<String> effectiveProjection = projectedColumns;
-                List<Attribute> dataColumns = null;
-                if (columnMapping != null && columnMapping.columnCount() < attributes.size()) {
-                    dataColumns = attributes.subList(0, columnMapping.columnCount());
-                    effectiveProjection = new ArrayList<>(dataColumns.size());
-                    for (Attribute attr : dataColumns) {
+                if (columnMapping != null && queryDataSchema.size() < attributes.size()) {
+                    effectiveProjection = new ArrayList<>(queryDataSchema.size());
+                    for (Attribute attr : queryDataSchema) {
                         effectiveProjection.add(attr.name());
                     }
                 }
@@ -326,10 +328,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                 CloseableIterator<Page> pages = formatReader.read(obj, ctx);
 
                 if (columnMapping != null && columnMapping.isIdentity() == false) {
-                    if (dataColumns == null) {
-                        dataColumns = attributes.subList(0, columnMapping.columnCount());
-                    }
-                    pages = new SchemaAdaptingIterator(pages, dataColumns, columnMapping, blockFactory);
+                    pages = new SchemaAdaptingIterator(pages, queryDataSchema.attributes(), columnMapping, blockFactory);
                 }
                 return pages;
             }
@@ -365,6 +364,21 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         @Override
         public String toString() {
             return "SliceQueueSourceOperator";
+        }
+
+        /**
+         * Returns the data attributes of {@code attributes} as a {@link Schema}, with metadata
+         * attributes filtered out. Data attributes always come first in {@code ExternalSourceExec}'s
+         * output, so the result preserves their relative order.
+         */
+        private static Schema dataAttributesOf(List<Attribute> attributes) {
+            List<Attribute> data = new ArrayList<>(attributes.size());
+            for (Attribute attr : attributes) {
+                if (attr instanceof MetadataAttribute == false) {
+                    data.add(attr);
+                }
+            }
+            return new Schema(data);
         }
     }
 }

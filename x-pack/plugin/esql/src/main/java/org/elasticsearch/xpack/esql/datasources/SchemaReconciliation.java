@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -19,9 +16,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -40,6 +35,52 @@ import java.util.Set;
  * <p>
  * Type widening is intentionally conservative: only lossless promotions are allowed.
  * This is NOT {@code EsqlDataTypeConverter.commonType()}, which allows LONG→DOUBLE (lossy above 2^53).
+ *
+ * <h2>The four schemas in an external-source query</h2>
+ *
+ * Four distinct schemas exist in every external-source query. In simpler modes (single file,
+ * FFW, STRICT) some collapse onto each other; under UNION_BY_NAME all four are genuinely
+ * distinct. Code touching {@link FileSplit#readSchema()}, {@code ExternalSourceExec.attributes},
+ * or {@link ColumnMapping} reads much more clearly with these names in mind:
+ *
+ * <dl>
+ *   <dt><b>File schema</b> (per-file, file shape)</dt>
+ *   <dd>What's literally in one file. Parquet/ORC: read from the file footer. CSV/NDJSON:
+ *       inferred from a byte sample. Carried per-file on {@link FileSplit#readSchema()}.</dd>
+ *
+ *   <dt><b>Unified schema</b> (one for the whole table)</dt>
+ *   <dd>The cross-file harmonized schema. Produced here as {@link Result#unifiedSchema()}:
+ *       FFW takes the anchor file's schema, STRICT validates a common schema, UBN takes the
+ *       column-name union with type widening. Becomes {@code ExternalSourceExec.attributes}
+ *       at first, before the optimizer's projection pruning rewrites that field.</dd>
+ *
+ *   <dt><b>Query schema</b> (unified shape; same for every file in the query)</dt>
+ *   <dd>The subset of unified schema the query actually materializes after projection pruning.
+ *       Lives on {@code ExternalSourceExec.attributes} on the wire. Drives the per-file
+ *       {@link ColumnMapping} after {@link ColumnMapping#pruneToPerFileQuery}.</dd>
+ *
+ *   <dt><b>Per-file query schema</b> (per-file, file shape — what the reader actually produces)</dt>
+ *   <dd>{@code Query schema} ∩ this file's columns, ordered to match the file's natural layout.
+ *       Derived per file at split-construction time and at read time. Under FFW and STRICT it
+ *       collapses to the Query schema because every file has every projected column.</dd>
+ * </dl>
+ *
+ * <h3>Worked example (UNION_BY_NAME)</h3>
+ *
+ * <pre>
+ *   a.csv = [name:keyword, age:int]
+ *   b.csv = [age:long, name:keyword, city:keyword]
+ *   query: EXTERNAL "*.csv" WITH {"schema_resolution": "union_by_name"}
+ *          | KEEP name, city
+ *          | SORT name
+ *
+ *   File schema:           a → [name:keyword, age:int]
+ *                          b → [age:long, name:keyword, city:keyword]
+ *   Unified schema:        [name:keyword, age:long, city:keyword]  (age widens int → long)
+ *   Query schema:          [name:keyword, city:keyword]            (KEEP drops age)
+ *   Per-file query schema: a → [name]                              (no city in a)
+ *                          b → [name, city]                        (in b's natural order)
+ * </pre>
  */
 public final class SchemaReconciliation {
 
@@ -51,7 +92,7 @@ public final class SchemaReconciliation {
      * @param unifiedSchema the merged/validated schema used for planning
      * @param perFileInfo per-file schema info keyed by file path
      */
-    public record Result(List<Attribute> unifiedSchema, Map<StoragePath, FileSchemaInfo> perFileInfo) {}
+    public record Result(Schema unifiedSchema, Map<StoragePath, FileSchemaInfo> perFileInfo) {}
 
     /**
      * Per-file schema information collected during reconciliation.
@@ -60,170 +101,7 @@ public final class SchemaReconciliation {
      * @param mapping column mapping from unified schema to file schema, null for identity mapping
      * @param statistics optional statistics from file metadata
      */
-    public record FileSchemaInfo(List<Attribute> fileSchema, @Nullable ColumnMapping mapping, @Nullable SourceStatistics statistics) {}
-
-    /**
-     * Maps unified schema column positions to file-local column positions.
-     * Handles both planning-time use (with {@link DataType} references) and wire
-     * serialization (via {@link Writeable}), so there is no separate "wire" class.
-     * <p>
-     * Cast types are serialized via {@link StreamOutput#writeEnum}/{@link StreamInput#readEnum}
-     * (ordinal-based). The ordinal mapping is pinned by an {@code assertEnumSerialization} test
-     * so any reordering or insertion is caught at test time.
-     * <p>
-     * <b>Coordinator sharing:</b> {@code FileSplitProvider} passes the same instance
-     * to all splits from the same file. A dedup cache ensures files with content-equal
-     * mappings share a single object. Duplication only occurs during wire serialization.
-     * <p>
-     * <b>Wire-size analysis:</b> for a file split into K chunks with N unified columns,
-     * the overhead is {@code K * (4*N + N)} bytes when casts are present (one VInt ordinal
-     * per cast), or {@code K * 4*N} when no casts are needed. For typical schemas
-     * (N &lt; 200) and split counts (K &lt; 50), this is well under 50 KB total — negligible
-     * next to the data payload. See {@link CoalescedSplit} for approaches to eliminate
-     * per-split duplication on the wire for very wide schemas.
-     * <p>
-     * <b>Bitset alternative:</b> the {@code int[]} currently encodes both "missing" ({@code -1})
-     * and "local index" for present columns. A bitset could represent missing-column flags
-     * in {@code ceil(N/8)} bytes and store only the present-column indices, saving ~50% on
-     * the int[] for schemas where most columns are absent. This trade-off only matters for
-     * very wide schemas and is left as a future optimisation.
-     */
-    public static final class ColumnMapping implements Writeable {
-
-        /**
-         * Supported widening cast targets.
-         * Serialized via {@link StreamOutput#writeEnum}/{@link StreamInput#readEnum} (ordinal-based).
-         * New entries must only be appended at the end; reordering or inserting breaks the wire
-         * protocol. The ordinal mapping is pinned by {@code SchemaReconciliationTests#testCastTypeEnumSerialization}.
-         */
-        public enum CastType {
-            NONE(null),
-            LONG(DataType.LONG),
-            DOUBLE(DataType.DOUBLE),
-            DATE_NANOS(DataType.DATE_NANOS);
-
-            private static final CastType[] VALUES = values();
-
-            private final DataType dataType;
-
-            CastType(@Nullable DataType dataType) {
-                this.dataType = dataType;
-            }
-
-            @Nullable
-            public DataType toDataType() {
-                return dataType;
-            }
-
-            public static CastType fromDataType(@Nullable DataType type) {
-                if (type == null) return NONE;
-                for (CastType ct : VALUES) {
-                    if (ct.dataType == type) return ct;
-                }
-                throw new IllegalArgumentException("Unsupported cast target type: " + type.typeName());
-            }
-        }
-
-        private final int[] globalToLocalIndex;
-        @Nullable
-        private final DataType[] casts;
-
-        public ColumnMapping(int[] globalToLocalIndex, @Nullable DataType[] casts) {
-            if (casts != null && casts.length != globalToLocalIndex.length) {
-                throw new IllegalArgumentException(
-                    "cast array length [" + casts.length + "] must match index array length [" + globalToLocalIndex.length + "]"
-                );
-            }
-            this.globalToLocalIndex = Arrays.copyOf(globalToLocalIndex, globalToLocalIndex.length);
-            this.casts = casts != null ? Arrays.copyOf(casts, casts.length) : null;
-        }
-
-        public ColumnMapping(StreamInput in) throws IOException {
-            this.globalToLocalIndex = in.readIntArray();
-            int castLen = in.readVInt();
-            if (castLen > 0) {
-                if (castLen != globalToLocalIndex.length) {
-                    throw new IllegalArgumentException(
-                        "cast array length [" + castLen + "] must match index array length [" + globalToLocalIndex.length + "]"
-                    );
-                }
-                this.casts = new DataType[castLen];
-                for (int i = 0; i < castLen; i++) {
-                    this.casts[i] = in.readEnum(CastType.class).toDataType();
-                }
-            } else {
-                this.casts = null;
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeIntArray(globalToLocalIndex);
-            if (casts != null) {
-                out.writeVInt(casts.length);
-                for (DataType cast : casts) {
-                    out.writeEnum(CastType.fromDataType(cast));
-                }
-            } else {
-                out.writeVInt(0);
-            }
-        }
-
-        public int columnCount() {
-            return globalToLocalIndex.length;
-        }
-
-        public int localIndex(int globalIndex) {
-            return globalToLocalIndex[globalIndex];
-        }
-
-        @Nullable
-        public DataType cast(int globalIndex) {
-            return casts != null ? casts[globalIndex] : null;
-        }
-
-        public boolean hasMissingColumns() {
-            for (int idx : globalToLocalIndex) {
-                if (idx == -1) return true;
-            }
-            return false;
-        }
-
-        public boolean hasCasts() {
-            if (casts == null) return false;
-            for (DataType cast : casts) {
-                if (cast != null) return true;
-            }
-            return false;
-        }
-
-        public boolean isIdentity() {
-            if (hasMissingColumns() || hasCasts()) {
-                return false;
-            }
-            for (int i = 0; i < globalToLocalIndex.length; i++) {
-                if (globalToLocalIndex[i] != i) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ColumnMapping that = (ColumnMapping) o;
-            return Arrays.equals(globalToLocalIndex, that.globalToLocalIndex) && Arrays.equals(casts, that.casts);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = Arrays.hashCode(globalToLocalIndex);
-            result = 31 * result + Arrays.hashCode(casts);
-            return result;
-        }
-    }
+    public record FileSchemaInfo(Schema fileSchema, @Nullable ColumnMapping mapping, @Nullable SourceStatistics statistics) {}
 
     /**
      * Safe type widening for schema reconciliation.
@@ -299,10 +177,10 @@ public final class SchemaReconciliation {
             for (int i = 0; i < identity.length; i++) {
                 identity[i] = i;
             }
-            perFileInfo.put(filePath, new FileSchemaInfo(fileSchema, new ColumnMapping(identity, null), stats));
+            perFileInfo.put(filePath, new FileSchemaInfo(new Schema(fileSchema), new ColumnMapping(identity, null), stats));
         }
 
-        return new Result(List.copyOf(refSchema), Map.copyOf(perFileInfo));
+        return new Result(new Schema(refSchema), Map.copyOf(perFileInfo));
     }
 
     private static void validateStrictMatch(
@@ -442,10 +320,10 @@ public final class SchemaReconciliation {
             SourceStatistics stats = meta.statistics().orElse(null);
 
             ColumnMapping mapping = computeMapping(unifiedSchema, fileSchema);
-            perFileInfo.put(filePath, new FileSchemaInfo(fileSchema, mapping, stats));
+            perFileInfo.put(filePath, new FileSchemaInfo(new Schema(fileSchema), mapping, stats));
         }
 
-        return new Result(List.copyOf(unifiedSchema), Map.copyOf(perFileInfo));
+        return new Result(new Schema(unifiedSchema), Map.copyOf(perFileInfo));
     }
 
     static ColumnMapping computeMapping(List<Attribute> unifiedSchema, List<Attribute> fileSchema) {

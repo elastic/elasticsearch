@@ -21,7 +21,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -44,9 +44,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -95,6 +93,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final FormatReader formatReader;
     private final StoragePath path;
     private final List<Attribute> attributes;
+    // Data-attribute view of {@link #attributes} (metadata attributes stripped). Built once at
+    // construction; used to shape pages handed to SchemaAdaptingIterator and to scope filter
+    // adaptation in mapFilters.
+    private final Schema queryDataSchema;
     private final int batchSize;
     private final int maxBufferSize;
     private final int rowLimit;
@@ -168,6 +170,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.formatReader = formatReader;
         this.path = path;
         this.attributes = attributes;
+        this.queryDataSchema = dataAttributesOf(attributes);
         this.executor = executor;
         this.batchSize = batchSize;
         this.maxBufferSize = maxBufferSize;
@@ -421,16 +424,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         return result;
     }
 
-    private CloseableIterator<Page> adaptSchema(
-        CloseableIterator<Page> pages,
-        SchemaReconciliation.ColumnMapping mapping,
-        DriverContext driverContext
-    ) {
+    private CloseableIterator<Page> adaptSchema(CloseableIterator<Page> pages, ColumnMapping mapping, DriverContext driverContext) {
         if (mapping == null || mapping.isIdentity()) {
             return pages;
         }
-        List<Attribute> dataColumns = attributes.subList(0, mapping.columnCount());
-        return new SchemaAdaptingIterator(pages, dataColumns, mapping, driverContext.blockFactory());
+        return new SchemaAdaptingIterator(pages, queryDataSchema.attributes(), mapping, driverContext.blockFactory());
     }
 
     /**
@@ -442,28 +440,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (pushedExpressions.isEmpty() || pushdownSupport == null) {
             return formatReader;
         }
-        SchemaReconciliation.ColumnMapping mapping = fileSplit.columnMapping();
-        if (mapping == null || (mapping.hasMissingColumns() == false && mapping.hasCasts() == false)) {
+        ColumnMapping mapping = fileSplit.columnMapping();
+        if (mapping == null) {
             return formatReader;
         }
-        Set<String> fileColumnNames = new LinkedHashSet<>();
-        Map<String, DataType> fileColumnTypes = new HashMap<>();
-        assert mapping.columnCount() <= attributes.size()
-            : "column mapping count [" + mapping.columnCount() + "] exceeds attributes size [" + attributes.size() + "]";
-        for (int i = 0; i < mapping.columnCount(); i++) {
-            if (mapping.localIndex(i) != -1) {
-                String name = attributes.get(i).name();
-                fileColumnNames.add(name);
-                DataType castTarget = mapping.cast(i);
-                if (castTarget != null) {
-                    DataType fileType = inferFileType(castTarget);
-                    if (fileType != null) {
-                        fileColumnTypes.put(name, fileType);
-                    }
-                }
-            }
+        List<Expression> adapted = mapping.mapFilters(pushedExpressions, queryDataSchema);
+        if (adapted == pushedExpressions) {
+            return formatReader;
         }
-        List<Expression> adapted = FilterAdaptation.adaptFilterForFile(pushedExpressions, fileColumnNames, fileColumnTypes);
         if (adapted.isEmpty()) {
             return formatReader.withPushedFilter(null);
         }
@@ -472,19 +456,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return formatReader.withPushedFilter(result.pushedFilter());
         }
         return formatReader.withPushedFilter(null);
-    }
-
-    /**
-     * Infers the file's native type from the cast target. Only returns a narrower type when
-     * the adaptation is safe for integral comparisons (LONG→INTEGER).
-     * DOUBLE→INTEGER narrowing is not supported because {@code Number.longValue()} truncates
-     * fractional values, which changes comparison semantics (e.g., {@code col < 2.7} vs {@code col < 2}).
-     */
-    private static DataType inferFileType(DataType castTarget) {
-        if (castTarget == DataType.LONG) {
-            return DataType.INTEGER;
-        }
-        return null;
     }
 
     private void startSliceQueueRead(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
@@ -507,7 +478,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     /**
      * Multi-file read path (legacy, non-slice-queue). Per-file filter adaptation is not applied
-     * here because this path does not carry {@link FileSplit} with {@link SchemaReconciliation.ColumnMapping};
+     * here because this path does not carry {@link FileSplit} with {@link ColumnMapping};
      * UNION_BY_NAME queries use the slice-queue path ({@link #startSliceQueueRead}) instead.
      */
     private void startMultiFileRead(
@@ -948,13 +919,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             StorageObject obj = storageProvider.newObject(files.path(fileIndex));
             // Pull this file's coordinator-inferred schema from schemaInfo when available, so the
             // reader is pinned to the same inference the per-file ColumnMapping was built against.
-            SchemaReconciliation.ColumnMapping mapping = null;
+            ColumnMapping mapping = null;
             List<Attribute> perFileReadSchema = null;
             if (state.schemaInfo != null) {
                 SchemaReconciliation.FileSchemaInfo info = state.schemaInfo.get(files.path(fileIndex));
                 if (info != null) {
                     mapping = info.mapping();
-                    perFileReadSchema = info.fileSchema();
+                    perFileReadSchema = info.fileSchema().attributes();
                 }
             }
             List<String> perFileCols = perFileQueryProjection(cols, perFileReadSchema);
@@ -1380,4 +1351,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         return parsingParallelism;
     }
 
+    /**
+     * Returns the data attributes of {@code attributes} as a {@link Schema}, with metadata
+     * attributes filtered out. Data attributes always come first in {@code ExternalSourceExec}'s
+     * output, so the result preserves their relative order.
+     */
+    private static Schema dataAttributesOf(List<Attribute> attributes) {
+        List<Attribute> data = new ArrayList<>(attributes.size());
+        for (Attribute attr : attributes) {
+            if (attr instanceof MetadataAttribute == false) {
+                data.add(attr);
+            }
+        }
+        return new Schema(data);
+    }
 }

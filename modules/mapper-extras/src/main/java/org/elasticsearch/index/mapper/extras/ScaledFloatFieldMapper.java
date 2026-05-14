@@ -23,6 +23,8 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.IterableSortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.IterableSortedNumericLongValues;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
@@ -845,6 +847,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public SortedNumericDoubleValues getDoubleValues() {
             final SortedNumericLongValues values = scaledFieldData.getLongValues();
+            if (values instanceof IterableSortedNumericLongValues iterableLongValues) {
+                return convertIterableLongsToScaledFloats(iterableLongValues);
+            }
             final LongValues singleValues = SortedNumericLongValues.unwrapSingleton(values);
             if (singleValues != null) {
                 return FieldData.singleton(new DoubleValues() {
@@ -855,7 +860,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
                     @Override
                     public double doubleValue() throws IOException {
-                        return singleValues.longValue() * scalingFactorInverse;
+                        return convertLongToScaledFloat(singleValues.longValue());
                     }
                 });
             } else {
@@ -868,7 +873,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
                     @Override
                     public double nextValue() throws IOException {
-                        return values.nextValue() * scalingFactorInverse;
+                        return convertLongToScaledFloat(values.nextValue());
                     }
 
                     @Override
@@ -877,6 +882,62 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     }
                 };
             }
+        }
+
+        private IterableSortedNumericDoubleValues convertIterableLongsToScaledFloats(IterableSortedNumericLongValues longValues) {
+            if (longValues instanceof IterableSortedNumericLongValues.Singleton) {
+                return new IterableSortedNumericDoubleValues.Singleton() {
+                    @Override
+                    public boolean advanceExact(int doc) throws IOException {
+                        return longValues.advanceExact(doc);
+                    }
+
+                    @Override
+                    public double nextValue() throws IOException {
+                        return convertLongToScaledFloat(longValues.nextValue());
+                    }
+
+                    @Override
+                    public int docID() {
+                        return longValues.docID();
+                    }
+
+                    @Override
+                    public int advance(int doc) throws IOException {
+                        return longValues.advance(doc);
+                    }
+                };
+            }
+            return new IterableSortedNumericDoubleValues() {
+                @Override
+                public int docID() {
+                    return longValues.docID();
+                }
+
+                @Override
+                public int advance(int target) throws IOException {
+                    return longValues.advance(target);
+                }
+
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    return longValues.advanceExact(target);
+                }
+
+                @Override
+                public double nextValue() throws IOException {
+                    return convertLongToScaledFloat(longValues.nextValue());
+                }
+
+                @Override
+                public int docValueCount() {
+                    return longValues.docValueCount();
+                }
+            };
+        }
+
+        private double convertLongToScaledFloat(long longValue) {
+            return longValue * scalingFactorInverse;
         }
     }
 

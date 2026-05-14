@@ -10,7 +10,7 @@ navigation_title: API conventions
 
 # Elasticsearch API conventions [api-conventions]
 
-The {{es}} REST APIs are exposed over HTTP. Except where noted, the following conventions apply across all APIs.
+The {{es}} REST APIs are exposed over HTTP. This page covers conventions that apply across all APIs, and provides recommendations for configuring HTTP clients to interact with {{es}}.
 
 
 ## Content-type requirements [_content_type_requirements]
@@ -502,6 +502,12 @@ Accept: application/vnd.elasticsearch+json; compatible-with=7
 ## HTTP `429 Too Many Requests` status code push back [api-push-back]
 
 {{es}} APIs may respond with the HTTP `429 Too Many Requests` status code, indicating that the cluster is too busy to handle the request. When this happens, consider retrying after a short delay. If the retry also receives a `429 Too Many Requests` response, extend the delay by backing off exponentially before each subsequent retry.
+
+
+## HTTP client configuration
+
+::::{include} ../configuration-reference/_snippets/http-client-configuration.md
+::::
 
 
 ## URL-based access control [api-url-access-control]

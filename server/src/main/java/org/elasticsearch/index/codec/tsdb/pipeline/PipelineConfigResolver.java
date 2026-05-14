@@ -15,7 +15,7 @@ package org.elasticsearch.index.codec.tsdb.pipeline;
  * per-field encoding strategies such as delta-of-delta for timestamp fields.
  */
 @FunctionalInterface
-public interface PipelineResolver {
+public interface PipelineConfigResolver {
 
     /**
      * Resolves the pipeline configuration for the given field.

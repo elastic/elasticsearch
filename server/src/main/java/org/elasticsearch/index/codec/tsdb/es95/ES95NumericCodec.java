@@ -14,7 +14,7 @@ import org.elasticsearch.index.codec.tsdb.NumericFieldReader;
 import org.elasticsearch.index.codec.tsdb.NumericFieldWriter;
 import org.elasticsearch.index.codec.tsdb.NumericReadContext;
 import org.elasticsearch.index.codec.tsdb.NumericWriteContext;
-import org.elasticsearch.index.codec.tsdb.pipeline.PipelineResolver;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfigResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
 
 /**
@@ -30,16 +30,16 @@ import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
  */
 final class ES95NumericCodec implements NumericBlockCodec {
 
-    private final PipelineResolver pipelineResolver;
+    private final PipelineConfigResolver resolver;
     private final NumericCodecFactory numericCodecFactory;
     private final FallbackDecoderFactory fallbackDecoderFactory;
 
     ES95NumericCodec(
-        final PipelineResolver pipelineResolver,
+        final PipelineConfigResolver resolver,
         final NumericCodecFactory numericCodecFactory,
         final FallbackDecoderFactory fallbackDecoderFactory
     ) {
-        this.pipelineResolver = pipelineResolver;
+        this.resolver = resolver;
         this.numericCodecFactory = numericCodecFactory;
         this.fallbackDecoderFactory = fallbackDecoderFactory;
     }
@@ -51,6 +51,6 @@ final class ES95NumericCodec implements NumericBlockCodec {
 
     @Override
     public NumericFieldWriter createWriter(final NumericWriteContext ctx) {
-        return new ES95NumericFieldWriter(ctx, pipelineResolver, numericCodecFactory);
+        return new ES95NumericFieldWriter(ctx, resolver, numericCodecFactory);
     }
 }

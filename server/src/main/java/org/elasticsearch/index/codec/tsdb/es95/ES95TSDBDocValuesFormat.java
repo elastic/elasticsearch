@@ -25,8 +25,8 @@ import org.elasticsearch.index.codec.tsdb.SortedFieldObserverFactory;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig.TermsDictConfig;
 import org.elasticsearch.index.codec.tsdb.TSDBOrdinalBlockCodec;
-import org.elasticsearch.index.codec.tsdb.pipeline.PipelineResolver;
-import org.elasticsearch.index.codec.tsdb.pipeline.StaticPipelineResolver;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfigResolver;
+import org.elasticsearch.index.codec.tsdb.pipeline.StaticPipelineConfigResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
 
 import java.io.IOException;
@@ -71,7 +71,7 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
     static final int ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL = 512;
     static final int ORDINAL_RANGE_ENCODING_BLOCK_SHIFT = 12;
 
-    static final PipelineResolver PIPELINE_RESOLVER = new StaticPipelineResolver();
+    static final PipelineConfigResolver PIPELINE_CONFIG_RESOLVER = new StaticPipelineConfigResolver();
     static final OrdinalBlockCodec ORDINAL_CODEC = new TSDBOrdinalBlockCodec();
 
     static final TermsDictConfig TERMS_DICT_CONFIG = new TermsDictConfig(
@@ -150,7 +150,11 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
 
     @Override
     public DocValuesConsumer fieldsConsumer(final SegmentWriteState state) throws IOException {
-        final NumericBlockCodec numericBlockCodec = new ES95NumericCodec(PIPELINE_RESOLVER, numericCodecFactory, fallbackDecoderFactory);
+        final NumericBlockCodec numericBlockCodec = new ES95NumericCodec(
+            PIPELINE_CONFIG_RESOLVER,
+            numericCodecFactory,
+            fallbackDecoderFactory
+        );
         return new ES95TSDBDocValuesConsumer(
             state,
             enableOptimizedMerge,
@@ -174,7 +178,11 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
 
     @Override
     public DocValuesProducer fieldsProducer(final SegmentReadState state) throws IOException {
-        final NumericBlockCodec numericBlockCodec = new ES95NumericCodec(PIPELINE_RESOLVER, numericCodecFactory, fallbackDecoderFactory);
+        final NumericBlockCodec numericBlockCodec = new ES95NumericCodec(
+            PIPELINE_CONFIG_RESOLVER,
+            numericCodecFactory,
+            fallbackDecoderFactory
+        );
         return new ES95TSDBDocValuesProducer(
             state,
             DATA_CODEC,

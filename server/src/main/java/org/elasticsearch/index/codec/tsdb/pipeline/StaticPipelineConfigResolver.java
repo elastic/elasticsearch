@@ -10,11 +10,11 @@
 package org.elasticsearch.index.codec.tsdb.pipeline;
 
 /**
- * A {@link PipelineResolver} that returns the same pipeline for all fields:
+ * A {@link PipelineConfigResolver} that returns the same pipeline for all fields:
  * {@code delta > offset > gcd > bitpack}. This matches the ES819 baseline
  * encoding and is the default for ES95.
  */
-public final class StaticPipelineResolver implements PipelineResolver {
+public final class StaticPipelineConfigResolver implements PipelineConfigResolver {
 
     @Override
     public PipelineConfig resolve(final FieldContext context) {

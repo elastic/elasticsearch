@@ -10,7 +10,7 @@
 package org.elasticsearch.index.codec.tsdb.pipeline;
 
 /**
- * Context about the field being encoded, passed to the {@link PipelineResolver}
+ * Context about the field being encoded, passed to the {@link PipelineConfigResolver}
  * for pipeline selection.
  *
  * @param blockSize the number of values per numeric block

@@ -19,7 +19,7 @@ import org.elasticsearch.index.codec.tsdb.TSDBDocValuesBlockWriter;
 import org.elasticsearch.index.codec.tsdb.TsdbDocValuesProducer;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldDescriptor;
-import org.elasticsearch.index.codec.tsdb.pipeline.PipelineResolver;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfigResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
 
 import java.io.IOException;
@@ -38,22 +38,22 @@ final class ES95NumericFieldWriter implements NumericFieldWriter {
     private static final TSDBDocValuesBlockWriter BLOCK_WRITER = new TSDBDocValuesBlockWriter();
 
     private final NumericWriteContext ctx;
-    private final PipelineResolver pipelineResolver;
+    private final PipelineConfigResolver resolver;
     private final NumericCodecFactory numericCodecFactory;
 
     ES95NumericFieldWriter(
         final NumericWriteContext ctx,
-        final PipelineResolver pipelineResolver,
+        final PipelineConfigResolver resolver,
         final NumericCodecFactory numericCodecFactory
     ) {
         this.ctx = ctx;
-        this.pipelineResolver = pipelineResolver;
+        this.resolver = resolver;
         this.numericCodecFactory = numericCodecFactory;
     }
 
     @Override
     public ES95NumericFieldEncoder encoder(final FieldContext context) {
-        return new ES95NumericFieldEncoder(numericCodecFactory.createEncoder(pipelineResolver.resolve(context)));
+        return new ES95NumericFieldEncoder(numericCodecFactory.createEncoder(resolver.resolve(context)));
     }
 
     @Override

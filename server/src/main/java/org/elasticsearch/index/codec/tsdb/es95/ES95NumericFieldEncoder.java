@@ -21,7 +21,7 @@ import java.io.IOException;
  * Per-field encoder for the ES95 TSDB format.
  *
  * <p>ES95 differs from ES819 in that the encoding pipeline is selected per field
- * at write time by a {@link org.elasticsearch.index.codec.tsdb.pipeline.PipelineResolver},
+ * at write time by a {@link org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfigResolver},
  * rather than being fixed for the whole format. Two pieces of output therefore depend on
  * the same per-field resolution:
  * <ul>

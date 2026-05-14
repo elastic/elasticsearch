@@ -11,10 +11,10 @@ package org.elasticsearch.index.codec.tsdb.pipeline;
 
 import org.elasticsearch.test.ESTestCase;
 
-public class StaticPipelineResolverTests extends ESTestCase {
+public class StaticPipelineConfigResolverTests extends ESTestCase {
 
     public void testResolvesBaselinePipelineShape() {
-        final StaticPipelineResolver resolver = new StaticPipelineResolver();
+        final StaticPipelineConfigResolver resolver = new StaticPipelineConfigResolver();
         final PipelineConfig config = resolver.resolve(new FieldContext(randomBlockSize(), randomFieldName()));
 
         assertEquals("delta>offset>gcd>bitPack", config.describeStages());
@@ -24,7 +24,7 @@ public class StaticPipelineResolverTests extends ESTestCase {
     }
 
     public void testPropagatesBlockSizeFromContext() {
-        final StaticPipelineResolver resolver = new StaticPipelineResolver();
+        final StaticPipelineConfigResolver resolver = new StaticPipelineConfigResolver();
         final int blockSize = randomBlockSize();
 
         final PipelineConfig config = resolver.resolve(new FieldContext(blockSize, randomFieldName()));
@@ -33,7 +33,7 @@ public class StaticPipelineResolverTests extends ESTestCase {
     }
 
     public void testIgnoresFieldName() {
-        final StaticPipelineResolver resolver = new StaticPipelineResolver();
+        final StaticPipelineConfigResolver resolver = new StaticPipelineConfigResolver();
         final int blockSize = randomBlockSize();
 
         final PipelineConfig first = resolver.resolve(new FieldContext(blockSize, "@timestamp"));
@@ -43,7 +43,7 @@ public class StaticPipelineResolverTests extends ESTestCase {
     }
 
     public void testRepeatedResolveReturnsEqualConfigs() {
-        final StaticPipelineResolver resolver = new StaticPipelineResolver();
+        final StaticPipelineConfigResolver resolver = new StaticPipelineConfigResolver();
         final FieldContext context = new FieldContext(randomBlockSize(), randomFieldName());
 
         assertEquals(resolver.resolve(context), resolver.resolve(context));

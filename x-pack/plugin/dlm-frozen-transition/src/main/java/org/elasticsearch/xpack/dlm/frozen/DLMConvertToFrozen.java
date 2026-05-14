@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.dlm.frozen;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -150,17 +151,20 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             maybeTakeSnapshot(forceMergeIndex);
             maybeMountSearchableSnapshot(forceMergeIndex);
             maybeCleanup(forceMergeIndex);
-        } catch (IndexNotFoundException e) {
-            if (e.getIndex().getName().equals(indexName)) {
-                // if the original index was not found, then we can assume
-                // it was deleted after the eligibility check, and we should
-                // skip the remaining steps
-                logger.warn("Index [{}] was not found during DLM convert-to-frozen operation, skipping this index", indexName);
-            } else {
-                throw e;
-            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            Throwable unwrapped = unwrapNestedExceptions(e);
+            if (unwrapped instanceof IndexNotFoundException infe) {
+                if (infe.getIndex().getName().equals(indexName)) {
+                    // if the original index was not found, then we can assume
+                    // it was deleted after the eligibility check, and we should
+                    // skip the remaining steps
+                    logger.warn("Original index [{}] was not found during DLM convert-to-frozen operation, skipping this index", indexName);
+                    return;
+                }
+            }
+            throw e;
         }
     }
 
@@ -937,15 +941,14 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             }
             logger.info("DLM successfully deleted stale snapshot [{}] for index [{}]", snapshotName, indexName);
         } catch (Exception e) {
-            Exception cause = unwrapExecutionException(e);
-            if (cause instanceof SnapshotMissingException) {
+            if (unwrapNestedExceptions(e) instanceof SnapshotMissingException) {
                 logger.debug("DLM snapshot [{}] for index [{}] already missing, proceeding to create", snapshotName, indexName);
             } else {
                 if (e instanceof InterruptedException) {
                     Thread.currentThread().interrupt();
                 }
                 throw ExceptionsHelper.convertToElastic(
-                    cause,
+                    e,
                     "DLM failed to delete stale snapshot [{}] for index [{}]",
                     snapshotName,
                     indexName
@@ -967,23 +970,31 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             List<SnapshotInfo> snapshots = response.getSnapshots();
             return snapshots.isEmpty() ? null : snapshots.getFirst();
         } catch (Exception e) {
-            Exception cause = unwrapExecutionException(e);
-            if (cause instanceof SnapshotMissingException) {
+            if (unwrapNestedExceptions(e) instanceof SnapshotMissingException) {
                 return null;
             }
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
-            throw ExceptionsHelper.convertToElastic(cause, "DLM failed while checking snapshots for index [{}]", indexName);
+            throw ExceptionsHelper.convertToElastic(e, "DLM failed while checking snapshots for index [{}]", indexName);
         }
     }
 
     /**
-     * Unwraps an {@link ExecutionException} to its cause, since {@code Future.get()} wraps
-     * failures. Returns the original exception if it is not an {@code ExecutionException}.
+     * Unwraps an {@link ExecutionException}, {@link ElasticsearchException} or {@link ElasticsearchWrapperException} to its cause,
+     * since {@code Future.get()} wraps failures, and we wrap many methods in this class in {@link ElasticsearchException}.
+     * Returns the original exception if it is not unwrappable.
      */
-    private static Exception unwrapExecutionException(Exception e) {
-        return e instanceof ExecutionException && e.getCause() != null ? (Exception) ExceptionsHelper.unwrapCause(e.getCause()) : e;
+    private static Throwable unwrapNestedExceptions(Exception e) {
+        Throwable current = e;
+        int depth = 0;
+        while ((current instanceof ElasticsearchWrapperException
+            || current instanceof ExecutionException
+            || current instanceof ElasticsearchException) && current.getCause() != null && current.getCause() != current && depth < 10) {
+            current = current.getCause();
+            depth++;
+        }
+        return current;
     }
 
     /**
@@ -1009,11 +1020,10 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
                 indexName
             );
         } catch (Exception e) {
-            final Exception unwrapped = unwrapExecutionException(e);
-            if (unwrapped instanceof InterruptedException) {
+            if (unwrapNestedExceptions(e) instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
-            throw ExceptionsHelper.convertToElastic(unwrapped, "DLM failed to start snapshot [{}] for index [{}]", snapshotName, indexName);
+            throw ExceptionsHelper.convertToElastic(e, "DLM failed to start snapshot [{}] for index [{}]", snapshotName, indexName);
         }
     }
 
@@ -1131,6 +1141,13 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         } catch (Exception e) {
             if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
+            }
+            Throwable unwrapped = unwrapNestedExceptions(e);
+            if (unwrapped instanceof IllegalArgumentException) {
+                String msg = unwrapped.getMessage();
+                if (msg != null && msg.contains("[" + indexName + "]")) {
+                    throw new IndexNotFoundException(indexName);
+                }
             }
             throw ExceptionsHelper.convertToElastic(e);
         }

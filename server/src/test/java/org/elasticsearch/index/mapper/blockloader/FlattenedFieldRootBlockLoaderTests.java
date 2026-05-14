@@ -17,6 +17,7 @@ import org.elasticsearch.datageneration.Mapping;
 import org.elasticsearch.datageneration.matchers.source.FlattenedFieldMatcher;
 import org.elasticsearch.index.mapper.BinaryDVBlockLoaderTestCase;
 import org.elasticsearch.index.mapper.BlockLoaderTestRunner;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -106,7 +107,9 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         var ignoreAbove = fieldMapping.get("ignore_above");
 
         boolean hasDocValues = hasDocValues(fieldMapping, true);
-        boolean usesDocValues = hasDocValues && (ignoreAbove == null || params.syntheticSource());
+        boolean usesDocValues = hasDocValues
+            && (ignoreAbove == null || params.syntheticSource())
+            && params.preference() != MappedFieldType.FieldExtractPreference.STORED;
         if (usesDocValues) {
             return applyFlattenedNullValue(value, nullValue);
         }
@@ -137,6 +140,9 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
     }
 
     public void testBlockLoaderOutputFlatStructure() throws IOException {
+        // TODO: Remove this when 148837 is merged
+        assumeTrue("flattened output only supported for doc values", params.preference() != MappedFieldType.FieldExtractPreference.STORED);
+
         runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
         runner.document(Map.of("field", Map.of("a", Map.of("x", "10"), "b", Map.of("y", "20"))));
         runner.fieldName("field");

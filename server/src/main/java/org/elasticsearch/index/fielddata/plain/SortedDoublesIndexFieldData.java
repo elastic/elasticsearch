@@ -139,8 +139,8 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
      * <p>
      * Although the API is multi-valued, most codecs in Lucene specialize
      * for the case where documents have at most one value. In this case
-     * {@link FieldData#unwrapSingleton(SortedNumericDoubleValues)} will return
-     * the underlying single-valued NumericDoubleValues representation.
+     * {@link SortedNumericDoubleValues#unwrapSingleton(SortedNumericDoubleValues)}
+     * will return the underlying single-valued NumericDoubleValues representation.
      */
     static final class SortedNumericHalfFloatFieldData extends LeafDoubleFieldData {
         final LeafReader reader;
@@ -236,8 +236,8 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
      * <p>
      * Although the API is multi-valued, most codecs in Lucene specialize
      * for the case where documents have at most one value. In this case
-     * {@link FieldData#unwrapSingleton(SortedNumericDoubleValues)} will return
-     * the underlying single-valued NumericDoubleValues representation.
+     * {@link SortedNumericDoubleValues#unwrapSingleton(SortedNumericDoubleValues)}
+     * will return the underlying single-valued NumericDoubleValues representation.
      */
     static final class SortedNumericFloatFieldData extends LeafDoubleFieldData {
         final LeafReader reader;
@@ -329,8 +329,8 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
      * <p>
      * Although the API is multi-valued, most codecs in Lucene specialize
      * for the case where documents have at most one value. In this case
-     * {@link FieldData#unwrapSingleton(SortedNumericDoubleValues)} will return
-     * the underlying single-valued NumericDoubleValues representation.
+     * {@link SortedNumericDoubleValues#unwrapSingleton(SortedNumericDoubleValues)}
+     * will return the underlying single-valued NumericDoubleValues representation.
      */
     static final class SortedNumericDoubleFieldData extends LeafDoubleFieldData {
         final LeafReader reader;

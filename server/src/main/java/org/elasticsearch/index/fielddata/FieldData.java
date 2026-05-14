@@ -115,7 +115,7 @@ public enum FieldData {
      * {@link org.apache.lucene.util.NumericUtils#doubleToSortableLong(double)}.
      */
     public static SortedNumericLongValues toSortableLongBits(SortedNumericDoubleValues values) {
-        final DoubleValues singleton = unwrapSingleton(values);
+        final DoubleValues singleton = SortedNumericDoubleValues.unwrapSingleton(values);
         if (singleton != null) {
             final LongValues longBits;
             if (singleton instanceof SortableLongBitsToNumericDoubleValues) {
@@ -275,7 +275,7 @@ public enum FieldData {
                 }
             };
         }
-        final DoubleValues singleton = unwrapSingleton(values);
+        final DoubleValues singleton = SortedNumericDoubleValues.unwrapSingleton(values);
         if (singleton != null) {
             return SortedNumericLongValues.singleton(new LongCastedValues(singleton));
         } else {
@@ -288,15 +288,6 @@ public enum FieldData {
      */
     public static SortedNumericDoubleValues singleton(DoubleValues values) {
         return SortedNumericDoubleValues.singleton(values);
-    }
-
-    /**
-     * Returns a single-valued view of the {@link SortedNumericDoubleValues},
-     * if it was previously wrapped with {@link DocValues#singleton(NumericDocValues)},
-     * or null.
-     */
-    public static DoubleValues unwrapSingleton(SortedNumericDoubleValues values) {
-        return SortedNumericDoubleValues.unwrapSingleton(values);
     }
 
     /**
@@ -379,7 +370,7 @@ public enum FieldData {
      */
     public static SortedBinaryDocValues toString(final SortedNumericDoubleValues values) {
         {
-            final DoubleValues singleton = FieldData.unwrapSingleton(values);
+            final DoubleValues singleton = SortedNumericDoubleValues.unwrapSingleton(values);
             if (singleton != null) {
                 return FieldData.singleton(toString(singleton));
             }

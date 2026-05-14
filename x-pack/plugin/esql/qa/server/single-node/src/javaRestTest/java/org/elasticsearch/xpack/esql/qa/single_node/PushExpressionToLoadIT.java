@@ -102,22 +102,46 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     }
 
     /**
-     * In time-series mode the flattened field uses binary doc values, so the keyed loader returns its
-     * {@code BinaryKeyedBlockDocValuesReader} variant. The test guards against silently regressing
-     * pushdown for TSDB indices, which is the dominant deployment for OpenTelemetry / metrics flows
-     * that motivated this fusion.
+     * Same fusion as {@link #testFieldExtractFusesToKeyedFlattenedLoader} but in time-series mode.
+     * TSDB stores flattened keyed values in binary doc values, so the keyed loader returns its
+     * {@code BinaryKeyedBlockDocValuesReader} variant instead of the
+     * {@code SortedSetKeyedBlockDocValuesReader} the standard test asserts on. Together this and
+     * {@link #testFieldExtractFusesToKeyedFlattenedLoaderInLogsDbMode} cover the
+     * binary-doc-values code path; a regression in either deployment would otherwise go silent.
      */
     public void testFieldExtractFusesToKeyedFlattenedLoaderInTimeSeriesMode() throws IOException {
-        assumeTrue("fn_field_extract must be enabled", FieldExtract.isFnFieldExtractCapabilityMet());
-        deleteIndexIfExists("test");
-
         String hostName = "host-" + randomAlphaOfLength(8);
-        createTimeSeriesIndexWithFlattenedField();
-        bulkIndexTimeSeries(
+        createTestIndex(timeSeriesIndexBody());
+        bulkIndexIntoTest(
             List.of(
                 Map.of("@timestamp", "2024-04-15T00:00:00Z", "dim", "d-" + randomAlphaOfLength(4), "test", Map.of("host.name", hostName))
             )
         );
+        assertFieldExtractFusesToBinaryKeyedFlattenedLoader(hostName);
+    }
+
+    /**
+     * Logsdb is the other index mode that uses binary doc values for flattened keyed sub-fields
+     * (any {@code IndexMode.isColumnar()} mode opts in via {@code useTimeSeriesDocValuesFormat}),
+     * so the keyed loader returns {@code BinaryKeyedBlockDocValuesReader} here too. The test just
+     * mirrors the TSDB sibling with logsdb-shaped index settings (mode=logsdb plus an
+     * {@code @timestamp} field, no routing dimension required).
+     */
+    public void testFieldExtractFusesToKeyedFlattenedLoaderInLogsDbMode() throws IOException {
+        String hostName = "host-" + randomAlphaOfLength(8);
+        createTestIndex(logsdbIndexBody());
+        bulkIndexIntoTest(List.of(Map.of("@timestamp", "2024-04-15T00:00:00Z", "test", Map.of("host.name", hostName))));
+        assertFieldExtractFusesToBinaryKeyedFlattenedLoader(hostName);
+    }
+
+    /**
+     * Shared body for the two binary-doc-values modes: runs the {@code field_extract} query against
+     * the {@code "test"} index already populated by the caller, asserts the value round-trips, and
+     * asserts that the data-driver profile shows a single
+     * {@code test:column_at_a_time:BinaryKeyedBlockDocValuesReader}.
+     */
+    private void assertFieldExtractFusesToBinaryKeyedFlattenedLoader(String hostName) throws IOException {
+        assumeTrue("fn_field_extract must be enabled", FieldExtract.isFnFieldExtractCapabilityMet());
 
         Map<String, Object> result = runEsql(requestObjectBuilder().query("""
             FROM test
@@ -148,9 +172,8 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         assertTrue("expected the data driver profile to assert the keyed loader signature", assertedDataDriver);
     }
 
-    private void createTimeSeriesIndexWithFlattenedField() throws IOException {
-        Request createIndex = new Request("PUT", "test");
-        createIndex.setJsonEntity("""
+    private static String timeSeriesIndexBody() {
+        return """
             {
               "settings": {
                 "index": {
@@ -171,7 +194,27 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                 }
               }
             }
-            """);
+            """;
+    }
+
+    private static String logsdbIndexBody() {
+        return """
+            {
+              "settings": { "index": { "mode": "logsdb", "number_of_shards": 1 } },
+              "mappings": {
+                "properties": {
+                  "@timestamp": { "type": "date" },
+                  "test": { "type": "flattened" }
+                }
+              }
+            }
+            """;
+    }
+
+    private void createTestIndex(String body) throws IOException {
+        deleteIndexIfExists("test");
+        Request createIndex = new Request("PUT", "test");
+        createIndex.setJsonEntity(body);
         Response response = client().performRequest(createIndex);
         assertThat(
             entityToMap(response.getEntity(), XContentType.JSON),
@@ -179,7 +222,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         );
     }
 
-    private void bulkIndexTimeSeries(List<Map<String, Object>> docs) throws IOException {
+    private void bulkIndexIntoTest(List<Map<String, Object>> docs) throws IOException {
         Request bulk = new Request("POST", "/_bulk");
         bulk.addParameter("refresh", "");
         StringBuilder body = new StringBuilder();

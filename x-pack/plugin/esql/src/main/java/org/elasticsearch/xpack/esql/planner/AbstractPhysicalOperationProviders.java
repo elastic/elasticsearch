@@ -66,6 +66,11 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
     }
 
     @Override
+    public AnalysisRegistry analysisRegistry() {
+        return analysisRegistry;
+    }
+
+    @Override
     public final PhysicalOperation groupingPhysicalOperation(
         AggregateExec aggregateExec,
         PhysicalOperation source,

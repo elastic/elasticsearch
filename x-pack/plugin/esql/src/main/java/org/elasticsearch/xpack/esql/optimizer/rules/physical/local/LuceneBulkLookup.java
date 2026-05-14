@@ -9,13 +9,14 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.BulkLookupMvFilterExec;
-import org.elasticsearch.xpack.esql.plan.physical.LeafExec;
 import org.elasticsearch.xpack.esql.plan.physical.ParameterizedQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
@@ -25,7 +26,7 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRule
  * Checks {@link ParameterizedQueryExec} nodes to see if the conditions for the bulk lookup optimization are met.
  * Sets the useBulkLookup flag when they are.
  */
-public class LuceneBulkLookup extends PhysicalOptimizerRules.OptimizerRule<LeafExec> {
+public class LuceneBulkLookup extends PhysicalOptimizerRules.ParameterizedOptimizerRule<PhysicalPlan, LocalPhysicalOptimizerContext> {
 
     private static final Logger logger = LogManager.getLogger(LuceneBulkLookup.class);
 
@@ -34,21 +35,26 @@ public class LuceneBulkLookup extends PhysicalOptimizerRules.OptimizerRule<LeafE
     }
 
     @Override
-    protected PhysicalPlan rule(LeafExec plan) {
+    protected PhysicalPlan rule(PhysicalPlan plan, LocalPhysicalOptimizerContext context) {
         if (plan instanceof ParameterizedQueryExec pqExec) {
-            return applyBulkLookup(pqExec);
+            return applyBulkLookup(pqExec, context);
         }
         return plan;
     }
 
-    private static PhysicalPlan applyBulkLookup(ParameterizedQueryExec plan) {
+    private static PhysicalPlan applyBulkLookup(ParameterizedQueryExec plan, LocalPhysicalOptimizerContext context) {
 
         // optimization already applied?
         if (plan.bulkLookupLeft() != null && plan.bulkLookupRight() != null) {
             return plan;
         }
 
-        // only use optimization for LOOKUP JOIN on single keyword
+        // This optimization avoids Lucene queries so we can't use it when an AliasFilter is in effect.
+        if (context.aliasFilter() != null && context.aliasFilter() != AliasFilter.EMPTY) {
+            return plan;
+        }
+
+        // Only use optimization for LOOKUP JOIN on single keyword and no other Lucene queries
         if (plan.query() != null) {
             return plan;
         }

@@ -133,7 +133,8 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             PlannerSettings.DEFAULTS,
             FoldContext.small(),
             TEST_SEARCH_STATS,
-            new EsqlFlags(true)
+            new EsqlFlags(true),
+            null
         );
 
         // The filter on 'ln' (alias for language_name) should be resolved and pushed to ParameterizedQueryExec.
@@ -207,7 +208,8 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             PlannerSettings.DEFAULTS,
             FoldContext.small(),
             searchStats,
-            new EsqlFlags(true)
+            new EsqlFlags(true),
+            null
         );
     }
 

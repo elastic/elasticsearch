@@ -679,7 +679,15 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             LookupExecutionPlanner.QueryListFromPlanFactory queryListFactory;
             if (configuration != null) {
                 LogicalPlan logicalPlan = extractOrBuildLogicalPlan(request);
-                physicalPlan = createLookupPhysicalPlan(logicalPlan, configuration, plannerSettings, foldCtx, searchStats, flags);
+                physicalPlan = createLookupPhysicalPlan(
+                    logicalPlan,
+                    configuration,
+                    plannerSettings,
+                    foldCtx,
+                    searchStats,
+                    flags,
+                    aliasFilter
+                );
                 queryListFactory = this::queryListFromPlan;
             } else {
                 // BWC: old data node without Configuration
@@ -913,7 +921,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         PlannerSettings plannerSettings,
         FoldContext foldCtx,
         SearchStats searchStats,
-        EsqlFlags flags
+        EsqlFlags flags,
+        AliasFilter aliasFilter
     ) {
         LogicalPlan optimizedLogical = new LookupLogicalOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats))
             .localOptimize(logicalPlan);
@@ -923,7 +932,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             flags,
             configuration,
             foldCtx,
-            searchStats
+            searchStats,
+            aliasFilter,
+            null
         );
         return new LookupPhysicalPlanOptimizer(context).optimize(physicalPlan);
     }

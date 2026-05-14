@@ -275,7 +275,10 @@ public class S3HttpHandlerTests extends ESTestCase {
             <CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
                <Part><ETag>%s</ETag><PartNumber>1</PartNumber></Part>
             </CompleteMultipartUpload>""", partEtag).getBytes(StandardCharsets.UTF_8)));
-        assertEquals(storageClass, handleRequest(handler, "GET", "/bucket/path/mp-blob").headers().getFirst(S3HttpHandler.STORAGE_CLASS_HEADER));
+        assertEquals(
+            storageClass,
+            handleRequest(handler, "GET", "/bucket/path/mp-blob").headers().getFirst(S3HttpHandler.STORAGE_CLASS_HEADER)
+        );
     }
 
     public void testSingleMultipartUpload() {

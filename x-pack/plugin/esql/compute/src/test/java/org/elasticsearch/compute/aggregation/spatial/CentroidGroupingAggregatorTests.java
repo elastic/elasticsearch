@@ -20,6 +20,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+/**
+ * Reproduces <a href="https://github.com/elastic/elasticsearch/issues/141318">issue #141318</a>:
+ * {@code evaluateFinal} throws {@link ArrayIndexOutOfBoundsException} when the {@code selected}
+ * vector contains a group id that exceeds the state's allocated capacity. The fix reorders the
+ * condition so the bounds check runs before {@code hasValue()}.
+ */
 public class CentroidGroupingAggregatorTests extends ComputeTestCase {
 
     public void testPointCentroidEvaluateFinalWithOutOfBoundsSelectedGroup() {
@@ -33,8 +39,12 @@ public class CentroidGroupingAggregatorTests extends ComputeTestCase {
             CentroidPointAggregator.combineIntermediate(state, 0, 10.0, 0.0, 20.0, 0.0, 1L);
             try (Block result = CentroidPointAggregator.evaluateFinal(state, selected, evaluationContext)) {
                 assertThat(result.getPositionCount(), equalTo(2));
-                assertThat(BlockUtils.toJavaObject(result, 0), notNullValue());
-                assertThat(BlockUtils.toJavaObject(result, 1), nullValue());
+                assertThat("in-bounds group should have a centroid result", BlockUtils.toJavaObject(result, 0), notNullValue());
+                assertThat(
+                    "out-of-bounds group should produce null, not ArrayIndexOutOfBoundsException",
+                    BlockUtils.toJavaObject(result, 1),
+                    nullValue()
+                );
             }
         }
     }
@@ -50,8 +60,12 @@ public class CentroidGroupingAggregatorTests extends ComputeTestCase {
             CentroidShapeAggregator.combineIntermediate(state, 0, 10.0, 0.0, 20.0, 0.0, 1.0, DimensionalShapeType.POINT.ordinal());
             try (Block result = CentroidShapeAggregator.evaluateFinal(state, selected, evaluationContext)) {
                 assertThat(result.getPositionCount(), equalTo(2));
-                assertThat(BlockUtils.toJavaObject(result, 0), notNullValue());
-                assertThat(BlockUtils.toJavaObject(result, 1), nullValue());
+                assertThat("in-bounds group should have a centroid result", BlockUtils.toJavaObject(result, 0), notNullValue());
+                assertThat(
+                    "out-of-bounds group should produce null, not ArrayIndexOutOfBoundsException",
+                    BlockUtils.toJavaObject(result, 1),
+                    nullValue()
+                );
             }
         }
     }

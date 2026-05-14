@@ -102,6 +102,169 @@ public class SearchEngineHeapBudgetTests extends AbstractEngineTestCase {
         );
     }
 
+    /** Drain all currently runnable tasks, then advance the clock until any deferred task scheduled before
+     *  {@code untilMillis} fires, draining runnable tasks at each step. */
+    private static void advancePast(DeterministicTaskQueue searchTaskQueue, long untilMillis) {
+        searchTaskQueue.runAllRunnableTasks();
+        while (searchTaskQueue.hasDeferredTasks() && searchTaskQueue.getCurrentTimeMillis() <= untilMillis) {
+            searchTaskQueue.advanceTime();
+            searchTaskQueue.runAllRunnableTasks();
+        }
+    }
+
+    public void testDeferredRefreshSchedulesRetry() throws IOException {
+        // With the limit pinned at 1 byte, the initial defer schedules a retry. When the retry fires after
+        // 2x refresh_interval the budget is still exhausted, so we expect another deferral and another scheduled
+        // retry — confirming the retry path actually runs and reschedules itself rather than disappearing.
+        trackingBreaker.setLimit(1L);
+
+        final var indexConfig = indexConfig();
+        final var searchTaskQueue = new DeterministicTaskQueue();
+
+        try (
+            var indexEngine = newIndexEngine(indexConfig);
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
+        ) {
+            long startGen = searchEngine.getCurrentPrimaryTermAndGeneration().generation();
+
+            indexEngine.index(randomDoc("d1"));
+            indexEngine.flush();
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+
+            assertThat("initial refresh must defer", searchEngine.getRefreshDeferredCount(), equalTo(1L));
+            assertThat("a retry must be scheduled after defer", searchTaskQueue.hasDeferredTasks(), equalTo(true));
+
+            long retryDelayMillis = searchEngine.config().getIndexSettings().getRefreshInterval().millis() * 2L;
+            advancePast(searchTaskQueue, searchTaskQueue.getCurrentTimeMillis() + retryDelayMillis + 1L);
+
+            assertThat(
+                "retry must fire and defer again under sustained budget pressure",
+                searchEngine.getRefreshDeferredCount(),
+                greaterThanOrEqualTo(2L)
+            );
+            assertThat(
+                "generation must not advance while the retry keeps deferring",
+                searchEngine.getCurrentPrimaryTermAndGeneration().generation(),
+                equalTo(startGen)
+            );
+            assertThat("retry must reschedule itself on a fresh defer", searchTaskQueue.hasDeferredTasks(), equalTo(true));
+        }
+
+        assertThat("reservation drains to zero after engine close even with a pending retry", trackingBreaker.getUsed(), equalTo(0L));
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+    }
+
+    public void testDeferredRefreshSucceedsWhenBudgetReleased() throws IOException {
+        // First refresh defers because the limit is 1 byte. We then lift the limit and let the retry fire —
+        // the retry should advance the reader to the deferred generation without a new commit notification.
+        trackingBreaker.setLimit(1L);
+
+        final var indexConfig = indexConfig();
+        final var searchTaskQueue = new DeterministicTaskQueue();
+
+        try (
+            var indexEngine = newIndexEngine(indexConfig);
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
+        ) {
+            long startGen = searchEngine.getCurrentPrimaryTermAndGeneration().generation();
+
+            indexEngine.index(randomDoc("d1"));
+            indexEngine.flush();
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+
+            assertThat("initial refresh must defer", searchEngine.getRefreshDeferredCount(), equalTo(1L));
+            assertThat(
+                "generation pinned at start before retry fires",
+                searchEngine.getCurrentPrimaryTermAndGeneration().generation(),
+                equalTo(startGen)
+            );
+
+            // Release pressure before the retry fires.
+            trackingBreaker.setLimit(Long.MAX_VALUE);
+
+            long retryDelayMillis = searchEngine.config().getIndexSettings().getRefreshInterval().millis() * 2L;
+            advancePast(searchTaskQueue, searchTaskQueue.getCurrentTimeMillis() + retryDelayMillis + 1L);
+
+            assertThat(
+                "generation must advance once the retry runs against a relaxed limit",
+                searchEngine.getCurrentPrimaryTermAndGeneration().generation(),
+                greaterThan(startGen)
+            );
+            assertThat("no further defers after retry succeeds", searchEngine.getRefreshDeferredCount(), equalTo(1L));
+            assertThat(
+                "pending bytes counter clears once the retry actually opens the reader",
+                searchEngine.getRefreshDeferredPendingBytes(),
+                equalTo(0L)
+            );
+        }
+
+        assertThat("reservation drains to zero after engine close", trackingBreaker.getUsed(), equalTo(0L));
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+    }
+
+    public void testRetryIsIdempotentWhenNaturalNotificationWinsRace() throws IOException {
+        // Defer commit N1 under a tight limit, then lift the limit and deliver a fresh commit N2 the natural way.
+        // The natural refresh advances the reader to N2. When the still-scheduled retry fires later, it re-injects
+        // N1 — findLatestNotification must skip it (gen <= current), leaving the reader pinned at N2.
+        trackingBreaker.setLimit(1L);
+
+        final var indexConfig = indexConfig();
+        final var searchTaskQueue = new DeterministicTaskQueue();
+
+        try (
+            var indexEngine = newIndexEngine(indexConfig);
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
+        ) {
+            long startGen = searchEngine.getCurrentPrimaryTermAndGeneration().generation();
+
+            indexEngine.index(randomDoc("d1"));
+            indexEngine.flush();
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+            assertThat("N1 must defer", searchEngine.getRefreshDeferredCount(), equalTo(1L));
+
+            // Relax the limit and deliver N2 through the natural notification path; it must win the race.
+            trackingBreaker.setLimit(Long.MAX_VALUE);
+            indexEngine.index(randomDoc("d2"));
+            indexEngine.flush();
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+
+            long postNaturalGen = searchEngine.getCurrentPrimaryTermAndGeneration().generation();
+            assertThat("natural refresh must advance past start", postNaturalGen, greaterThan(startGen));
+            long deferCountAfterNatural = searchEngine.getRefreshDeferredCount();
+
+            // Fire the original retry. It should be a no-op: pendingDeferredNotification (N1) is <= current (N2).
+            long retryDelayMillis = searchEngine.config().getIndexSettings().getRefreshInterval().millis() * 2L;
+            advancePast(searchTaskQueue, searchTaskQueue.getCurrentTimeMillis() + retryDelayMillis + 1L);
+
+            assertThat(
+                "retry must not regress the reader nor re-open at N1",
+                searchEngine.getCurrentPrimaryTermAndGeneration().generation(),
+                equalTo(postNaturalGen)
+            );
+            assertThat(
+                "retry against a stale notification must not count as a new defer",
+                searchEngine.getRefreshDeferredCount(),
+                equalTo(deferCountAfterNatural)
+            );
+        }
+
+        assertThat("reservation drains to zero after engine close", trackingBreaker.getUsed(), equalTo(0L));
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+    }
+
     public void testRefreshDeferredWhenBreakerLimitExceeded() throws IOException {
         // Setting a positive limit engages the breakable path. With 1 byte every refresh past engine open trips
         // the breaker — refresh should defer, the engine should not advance, and the reservation should roll back.

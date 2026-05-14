@@ -34,6 +34,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.CompletionStatsCache;
 import org.elasticsearch.index.engine.ElasticsearchReaderManager;
@@ -82,6 +83,7 @@ import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -90,6 +92,7 @@ import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
+import static org.elasticsearch.index.IndexSettings.STATELESS_DEFAULT_REFRESH_INTERVAL;
 import static org.elasticsearch.xpack.stateless.commits.BlobFileRanges.computeBlobFileRanges;
 
 /**
@@ -141,6 +144,11 @@ public class SearchEngine extends Engine {
     // Signal from refreshIfNeeded to doUpdateInternalState that the last refresh was deferred and
     // segmentInfosAndCommit must be reverted so the commit notification is re-processed on the next cycle.
     private volatile boolean lastRefreshDeferred;
+    // Coalesced retry slot: at most one deferred-refresh retry is in flight at a time. The volatile
+    // field always tracks the most recently deferred notification so the retry re-injects the latest one
+    // even after a burst of defers.
+    private final AtomicBoolean deferredRefreshScheduled = new AtomicBoolean();
+    private volatile NewCommitNotification pendingDeferredNotification;
     private final RelocatedPITReaderTracker relocatedPITReaderTracker = new RelocatedPITReaderTracker(
         relocatedPITReader -> acquireSearcherSupplier(
             relocatedPITReader.wrapper,
@@ -528,13 +536,14 @@ public class SearchEngine extends Engine {
                     listenableFuture.onResponse(Map.of());
                 }
                 assert listenableFuture.isDone() : "unexpected sync call not done after invocation";
+                final NewCommitNotification notificationToApply = latestNotification;
                 listenableFuture.addListener(ActionListener.wrap(blobFileRangesMap -> {
                     logger.trace("updating directory with commit {}", latestCommit);
                     final boolean commitUpdated = searchDirectory.updateCommit(latestCommit, blobFileRangesMap);
                     if (commitUpdated) {
                         store.incRef();
                         try {
-                            updateInternalState(latestCommit, current);
+                            updateInternalState(notificationToApply, current);
                         } finally {
                             store.decRef();
                         }
@@ -593,15 +602,16 @@ public class SearchEngine extends Engine {
                 return latestNotification;
             }
 
-            private void updateInternalState(StatelessCompoundCommit latestCommit, SegmentInfos current) {
+            private void updateInternalState(NewCommitNotification latestNotification, SegmentInfos current) {
                 try {
-                    doUpdateInternalState(latestCommit, current);
+                    doUpdateInternalState(latestNotification, current);
                 } catch (Exception e) {
                     onFailure(e);
                 }
             }
 
-            private void doUpdateInternalState(StatelessCompoundCommit latestCommit, SegmentInfos current) throws IOException {
+            private void doUpdateInternalState(NewCommitNotification latestNotification, SegmentInfos current) throws IOException {
+                final StatelessCompoundCommit latestCommit = latestNotification.compoundCommit();
                 final SegmentInfos next = Lucene.readSegmentInfos(directory);
                 setSequenceNumbers(next);
 
@@ -622,9 +632,11 @@ public class SearchEngine extends Engine {
                 }
 
                 // The reader-heap breaker deferred the refresh: revert segmentInfosAndCommit so the (commit,
-                // reader) invariant holds and the notification is re-processed on the next cycle.
+                // reader) invariant holds, and schedule a retry tied to the index's refresh_interval so the
+                // refresh is attempted again without waiting for a fresh commit notification.
                 if (lastRefreshDeferred) {
                     segmentInfosAndCommit = previousSegmentInfosAndCommitSnapshot;
+                    scheduleDeferredRefreshRetry(latestNotification);
                     return;
                 }
 
@@ -733,6 +745,50 @@ public class SearchEngine extends Engine {
         assert commit.localCheckpoint() >= processedLocalCheckpoint
             : "Commit [" + commit + "] local checkpoint less than tracked local checkpoint [" + processedLocalCheckpoint + "]";
         processedLocalCheckpoint = commit.localCheckpoint();
+    }
+
+    /**
+     * Delay before retrying a deferred refresh. Set to twice the index's {@code refresh_interval} so the retry
+     * does not race a natural refresh cycle: when writes continue, the next natural notification arrives first and
+     * either advances the reader (making the retry a no-op via {@code findLatestNotification}) or coalesces a fresh
+     * deferred state into the same retry slot. When writes stop, the retry kicks in after at most one missed cycle,
+     * bounding staleness on quiet indices.
+     */
+    private TimeValue deferredRefreshRetryDelay() {
+        long intervalMillis = engineConfig.getIndexSettings().getRefreshInterval().millis();
+        if (intervalMillis < 0) {
+            // refreshes disabled / manual mode — still retry so a quiet index doesn't pin forever.
+            intervalMillis = STATELESS_DEFAULT_REFRESH_INTERVAL.millis();
+        } else if (intervalMillis < 1000L) {
+            // sanity floor against pathologically small intervals.
+            intervalMillis = 1000L;
+        }
+        return TimeValue.timeValueMillis(intervalMillis * 2L);
+    }
+
+    /**
+     * Schedule a deferred-refresh retry. Coalesces multiple defers into a single in-flight task; the latest deferred
+     * notification is captured so the retry re-injects the most recent one. Idempotency on a race with a natural
+     * refresh is provided by {@code findLatestNotification} (which skips notifications whose generation is
+     * {@code <= currentPrimaryTermGeneration}) and the {@code previousSegmentInfosAndCommit} check inside
+     * {@code refreshIfNeeded}.
+     */
+    private void scheduleDeferredRefreshRetry(NewCommitNotification notification) {
+        pendingDeferredNotification = notification;
+        if (deferredRefreshScheduled.compareAndSet(false, true) == false) {
+            return;
+        }
+        engineConfig.getThreadPool().schedule(() -> {
+            NewCommitNotification toRetry = pendingDeferredNotification;
+            deferredRefreshScheduled.set(false);
+            if (isClosed.get() || toRetry == null) {
+                return;
+            }
+            commitNotifications.add(toRetry);
+            if (pendingCommitNotifications.incrementAndGet() == 1) {
+                processCommitNotifications();
+            }
+        }, deferredRefreshRetryDelay(), engineConfig.getThreadPool().executor(ThreadPool.Names.REFRESH));
     }
 
     @Override

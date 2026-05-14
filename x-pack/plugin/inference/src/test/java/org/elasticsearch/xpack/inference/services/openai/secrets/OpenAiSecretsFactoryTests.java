@@ -13,9 +13,9 @@ import org.apache.http.client.methods.HttpRequestBase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.common.secrets.NoopSecretsApplier;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
-import org.elasticsearch.xpack.inference.common.secrets.NoopSecretsApplier;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;

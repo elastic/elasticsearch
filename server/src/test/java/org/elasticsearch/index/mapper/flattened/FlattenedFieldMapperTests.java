@@ -37,7 +37,6 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
-import org.elasticsearch.index.mapper.DummyBlockLoaderContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -2004,14 +2003,14 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
-        MappedFieldType unmappedKeyType = mapperService.fieldType("field.unmapped_key");
-        assertThat(unmappedKeyType, instanceOf(KeyedFlattenedFieldType.class));
-        BlockLoader unmappedBlockLoader = unmappedKeyType.blockLoader(null);
-        assertThat(unmappedBlockLoader, instanceOf(KeyedFlattenedDocValuesBlockLoader.class));
-
         MappedFieldType.BlockLoaderContext blContext = mock(MappedFieldType.BlockLoaderContext.class);
         when(blContext.fieldExtractPreference()).thenReturn(MappedFieldType.FieldExtractPreference.DOC_VALUES);
         when(blContext.ordinalsByteSize()).thenReturn(ByteSizeValue.ofMb(1));
+
+        MappedFieldType unmappedKeyType = mapperService.fieldType("field.unmapped_key");
+        assertThat(unmappedKeyType, instanceOf(KeyedFlattenedFieldType.class));
+        BlockLoader unmappedBlockLoader = unmappedKeyType.blockLoader(blContext);
+        assertThat(unmappedBlockLoader, instanceOf(KeyedFlattenedDocValuesBlockLoader.class));
 
         MappedFieldType statusFieldType = mapperService.fieldType("field.status");
         assertEquals("keyword", statusFieldType.typeName());
@@ -2089,9 +2088,12 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
+        MappedFieldType.BlockLoaderContext blContext = mock(MappedFieldType.BlockLoaderContext.class);
+        when(blContext.fieldExtractPreference()).thenReturn(MappedFieldType.FieldExtractPreference.DOC_VALUES);
+
         MappedFieldType fieldType = mapperService.fieldType("field");
         assertThat(fieldType, instanceOf(RootFlattenedFieldType.class));
-        BlockLoader blockLoader = fieldType.blockLoader(new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapperService));
+        BlockLoader blockLoader = fieldType.blockLoader(blContext);
         assertThat(blockLoader, instanceOf(RootFlattenedDocValuesBlockLoader.class));
 
         withLuceneIndex(mapperService, iw -> {
@@ -2140,8 +2142,10 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
-        BlockLoader blockLoader = mapperService.fieldType("field")
-            .blockLoader(new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapperService));
+        MappedFieldType.BlockLoaderContext blContext = mock(MappedFieldType.BlockLoaderContext.class);
+        when(blContext.fieldExtractPreference()).thenReturn(MappedFieldType.FieldExtractPreference.DOC_VALUES);
+
+        BlockLoader blockLoader = mapperService.fieldType("field").blockLoader(blContext);
 
         withLuceneIndex(mapperService, iw -> {
             iw.addDocument(

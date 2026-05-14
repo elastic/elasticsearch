@@ -22,8 +22,8 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -185,7 +185,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             responseListener.onResponse(
                 new BulkByScrollResponse(
                     TimeValue.ZERO,
-                    new BulkByScrollTask.Status(Collections.emptyList(), null, 0f),
+                    new BulkByPaginatedSearchTask.Status(Collections.emptyList(), null, 0f),
                     Collections.emptyList(),
                     Collections.emptyList(),
                     false
@@ -385,7 +385,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             responseListener.onResponse(
                 new BulkByScrollResponse(
                     TimeValue.ZERO,
-                    new BulkByScrollTask.Status(Collections.emptyList(), null, 0f),
+                    new BulkByPaginatedSearchTask.Status(Collections.emptyList(), null, 0f),
                     Collections.emptyList(),
                     Collections.emptyList(),
                     false

@@ -598,6 +598,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         private final String key;
         private final String rootName;
         private final boolean isDimension;
+        private final boolean isSyntheticSourceEnabled;
 
         @Override
         public boolean isDimension() {
@@ -615,7 +616,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             boolean usesBinaryDocValues,
             boolean hasRootDocValues,
             String nullValue,
-            IndexVersion indexVersion
+            IndexVersion indexVersion,
+            boolean isSyntheticSourceEnabled
         ) {
             super(
                 rootName + KEYED_FIELD_SUFFIX,
@@ -632,6 +634,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             this.key = key;
             this.rootName = rootName;
             this.isDimension = isDimension;
+            this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
         }
 
         private KeyedFlattenedFieldType(
@@ -640,7 +643,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             RootFlattenedFieldType ref,
             IgnoreAbove ignoreAbove,
             boolean usesBinaryDocValues,
-            String nullValue
+            String nullValue,
+            boolean isSyntheticSourceEnabled
         ) {
             this(
                 rootName,
@@ -653,7 +657,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 usesBinaryDocValues,
                 ref.hasRootDocValues,
                 nullValue,
-                ref.indexVersion
+                ref.indexVersion,
+                isSyntheticSourceEnabled
             );
         }
 
@@ -813,7 +818,9 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (hasDocValues()) {
+            boolean preferLoadFromSource = blContext.fieldExtractPreference() == FieldExtractPreference.STORED
+                && isSyntheticSourceEnabled == false;
+            if (hasDocValues() && preferLoadFromSource == false) {
                 return new KeyedFlattenedDocValuesBlockLoader(name(), key, usesBinaryDocValues);
             }
 
@@ -1255,13 +1262,12 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            boolean useDocValues = hasDocValues();
-            if (isSyntheticSourceEnabled == false) {
-                useDocValues = useDocValues
-                    && ignoreAbove.valuesPotentiallyIgnored() == false
-                    && blContext.fieldExtractPreference() != FieldExtractPreference.STORED;
-            }
-            if (useDocValues) {
+            // If a value trips ignore_above, it is stored in the fallback binary doc values field only if synthetic source is enabled.
+            // Otherwise, that value only exists in stored _source.
+            final boolean docValuesContainAllValues = ignoreAbove.valuesPotentiallyIgnored() == false || isSyntheticSourceEnabled;
+            final boolean preferLoadFromSource = blContext.fieldExtractPreference() == FieldExtractPreference.STORED
+                && isSyntheticSourceEnabled == false;
+            if (hasDocValues() && docValuesContainAllValues && preferLoadFromSource == false) {
                 return new RootFlattenedDocValuesBlockLoader(
                     name(),
                     ignoreAbove,
@@ -1397,7 +1403,15 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             if (mappedSubField != null) {
                 return mappedSubField.fieldType();
             }
-            return new KeyedFlattenedFieldType(name(), childPath, this, ignoreAbove, usesBinaryDocValues, nullValue);
+            return new KeyedFlattenedFieldType(
+                name(),
+                childPath,
+                this,
+                ignoreAbove,
+                usesBinaryDocValues,
+                nullValue,
+                isSyntheticSourceEnabled
+            );
         }
 
         public MappedFieldType getKeyedFieldType() {

@@ -16,25 +16,16 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
-import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankingInferenceService;
-import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.completion.ContentString;
@@ -42,40 +33,23 @@ import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
-import org.elasticsearch.test.http.MockWebServer;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
-import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
-import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionModelTests;
-import org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.openshiftai.embeddings.OpenShiftAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.openshiftai.embeddings.OpenShiftAiEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.openshiftai.embeddings.OpenShiftAiEmbeddingsServiceSettings;
-import org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAiRerankServiceSettings;
-import org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAiRerankTaskSettings;
-import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
-import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.Matchers;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -84,21 +58,18 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.inference.TaskType.CHAT_COMPLETION;
-import static org.elasticsearch.inference.TaskType.COMPLETION;
-import static org.elasticsearch.inference.TaskType.RERANK;
-import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
+import static org.elasticsearch.xpack.inference.Utils.getRequestConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiServiceParameterizedTestConfiguration.API_KEY_VALUE;
+import static org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiServiceParameterizedTestConfiguration.DIMENSIONS_VALUE;
+import static org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiServiceParameterizedTestConfiguration.MODEL_VALUE;
 import static org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionModelTests.createChatCompletionModel;
-import static org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionServiceSettingsTests.getServiceSettingsMap;
-import static org.elasticsearch.xpack.inference.services.openshiftai.embeddings.OpenShiftAiEmbeddingsServiceSettingsTests.buildServiceSettingsMap;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.empty;
@@ -108,321 +79,16 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
 
-public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
-    private static final String API_KEY_FIELD_NAME = "api_key";
-    private static final String INPUT_FIELD_NAME = "input";
-    private static final String MODEL_FIELD_NAME = "model";
-    private static final String URL_VALUE = "http://www.abc.com";
-    private static final String MODEL_VALUE = "some_model";
-    private static final String ROLE_VALUE = "user";
-    private static final String API_KEY_VALUE = "test_api_key";
-    private static final String INFERENCE_ID_VALUE = "id";
-    private static final int DIMENSIONS_VALUE = 1536;
-    private static final int MAX_INPUT_TOKENS_VALUE = 512;
-    private static final String FIRST_PART_OF_INPUT_VALUE = "abc";
-    private static final String SECOND_PART_OF_INPUT_VALUE = "def";
-    private static final boolean DIMENSIONS_SET_BY_USER_VALUE = true;
-
-    private final MockWebServer webServer = new MockWebServer();
-    private ThreadPool threadPool;
-    private HttpClientManager clientManager;
-
-    public OpenShiftAiServiceTests() {
-        super(createTestConfiguration());
-    }
-
-    public static TestConfiguration createTestConfiguration() {
-        return new TestConfiguration.Builder(
-            new CommonConfig(TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING, EnumSet.of(TEXT_EMBEDDING, COMPLETION, CHAT_COMPLETION, RERANK)) {
-
-                @Override
-                protected OpenShiftAiService createService(ThreadPool threadPool, HttpClientManager clientManager) {
-                    return OpenShiftAiServiceTests.createService(threadPool, clientManager);
-                }
-
-                @Override
-                protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
-                    return createServiceSettingsMap(taskType, ConfigurationParseContext.REQUEST);
-                }
-
-                @Override
-                protected Map<String, Object> createServiceSettingsMap(TaskType taskType, ConfigurationParseContext parseContext) {
-                    return OpenShiftAiServiceTests.createServiceSettingsMap(taskType, parseContext);
-                }
-
-                @Override
-                protected ModelConfigurations createModelConfigurations(TaskType taskType) {
-                    return switch (taskType) {
-                        case TEXT_EMBEDDING -> new ModelConfigurations(
-                            "some_inference_id",
-                            taskType,
-                            OpenShiftAiService.NAME,
-                            OpenShiftAiEmbeddingsServiceSettings.fromMap(
-                                createServiceSettingsMap(taskType, ConfigurationParseContext.PERSISTENT),
-                                ConfigurationParseContext.PERSISTENT
-                            ),
-                            EmptyTaskSettings.INSTANCE
-                        );
-                        case COMPLETION, CHAT_COMPLETION -> new ModelConfigurations(
-                            "some_inference_id",
-                            taskType,
-                            OpenShiftAiService.NAME,
-                            OpenShiftAiChatCompletionServiceSettings.fromMap(
-                                createServiceSettingsMap(taskType),
-                                ConfigurationParseContext.PERSISTENT
-                            ),
-                            EmptyTaskSettings.INSTANCE
-                        );
-                        case RERANK -> new ModelConfigurations(
-                            "some_inference_id",
-                            taskType,
-                            OpenShiftAiService.NAME,
-                            OpenShiftAiRerankServiceSettings.fromMap(
-                                createServiceSettingsMap(taskType),
-                                ConfigurationParseContext.PERSISTENT
-                            ),
-                            OpenShiftAiRerankTaskSettings.fromMap(createTaskSettingsMap())
-                        );
-                        // Sparse embedding is not supported, but in order to test unsupported task types it is included here
-                        case SPARSE_EMBEDDING -> new ModelConfigurations(
-                            "some_inference_id",
-                            taskType,
-                            OpenShiftAiService.NAME,
-                            mock(ServiceSettings.class),
-                            mock(TaskSettings.class)
-                        );
-                        default -> throw new IllegalStateException("Unexpected value: " + taskType);
-                    };
-                }
-
-                @Override
-                protected ModelSecrets createModelSecrets(ConfigurationParseContext context) {
-                    return new ModelSecrets(DefaultSecretSettings.fromMap(createSecretSettingsMap(), context));
-                }
-
-                @Override
-                protected Map<String, Object> createTaskSettingsMap() {
-                    return new HashMap<>();
-                }
-
-                @Override
-                protected Map<String, Object> createSecretSettingsMap() {
-                    return OpenShiftAiServiceTests.createSecretSettingsMap();
-                }
-
-                @Override
-                protected void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
-                    OpenShiftAiServiceTests.assertModel(model, taskType, modelIncludesSecrets);
-                }
-
-                @Override
-                protected EnumSet<TaskType> supportedStreamingTasks() {
-                    return EnumSet.of(CHAT_COMPLETION, COMPLETION);
-                }
-
-                @Override
-                protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
-                    assertThat(rerankingInferenceService.rerankerWindowSize(MODEL_VALUE), is(2800));
-                }
-            }
-        ).enableUpdateModelTests(new UpdateModelConfiguration() {
-            @Override
-            protected OpenShiftAiEmbeddingsModel createEmbeddingModel(SimilarityMeasure similarityMeasure, TaskType taskType) {
-                return createInternalEmbeddingModel(similarityMeasure);
-            }
-        }).build();
-    }
-
-    private static void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
-        switch (taskType) {
-            case TEXT_EMBEDDING -> assertTextEmbeddingModel(model, modelIncludesSecrets);
-            case COMPLETION -> assertCompletionModel(model, modelIncludesSecrets);
-            case CHAT_COMPLETION -> assertChatCompletionModel(model, modelIncludesSecrets);
-            case RERANK -> assertRerankModel(model, modelIncludesSecrets);
-            default -> fail(Strings.format("unexpected task type [%s]", taskType));
-        }
-    }
-
-    private static void assertTextEmbeddingModel(Model model, boolean modelIncludesSecrets) {
-        var openShiftAiModel = assertCommonModelFields(model, modelIncludesSecrets);
-
-        assertThat(openShiftAiModel.getTaskType(), is(TaskType.TEXT_EMBEDDING));
-        assertThat(model, instanceOf(OpenShiftAiEmbeddingsModel.class));
-        var embeddingsModel = (OpenShiftAiEmbeddingsModel) model;
-        assertThat(embeddingsModel.getServiceSettings().dimensions(), is(DIMENSIONS_VALUE));
-        assertThat(embeddingsModel.getServiceSettings().similarity(), is(SimilarityMeasure.COSINE));
-        assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(MAX_INPUT_TOKENS_VALUE));
-        assertThat(openShiftAiModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
-    }
-
-    private static OpenShiftAiModel assertCommonModelFields(Model model, boolean modelIncludesSecrets) {
-        assertThat(model, instanceOf(OpenShiftAiModel.class));
-
-        var openShiftAiModel = (OpenShiftAiModel) model;
-        assertThat(openShiftAiModel.getServiceSettings().modelId(), is(MODEL_VALUE));
-        assertThat(openShiftAiModel.getServiceSettings().uri.toString(), is(URL_VALUE));
-
-        if (modelIncludesSecrets) {
-            assertThat(openShiftAiModel.getSecretSettings().apiKey(), is(new SecureString(API_KEY_VALUE.toCharArray())));
-        }
-
-        return openShiftAiModel;
-    }
-
-    private static void assertCompletionModel(Model model, boolean modelIncludesSecrets) {
-        var openShiftAiModel = assertCommonModelFields(model, modelIncludesSecrets);
-        assertThat(openShiftAiModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
-        assertThat(openShiftAiModel.getTaskType(), is(TaskType.COMPLETION));
-    }
-
-    private static void assertRerankModel(Model model, boolean modelIncludesSecrets) {
-        var openShiftAiModel = assertCommonModelFields(model, modelIncludesSecrets);
-        assertThat(openShiftAiModel.getTaskSettings(), is(new OpenShiftAiRerankTaskSettings(null, null)));
-        assertThat(openShiftAiModel.getTaskType(), is(TaskType.RERANK));
-    }
-
-    private static void assertChatCompletionModel(Model model, boolean modelIncludesSecrets) {
-        var openShiftAiModel = assertCommonModelFields(model, modelIncludesSecrets);
-        assertThat(openShiftAiModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
-        assertThat(openShiftAiModel.getTaskType(), is(TaskType.CHAT_COMPLETION));
-    }
-
-    public static OpenShiftAiService createService(ThreadPool threadPool, HttpClientManager clientManager) {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        return new OpenShiftAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
-    }
-
-    private static Map<String, Object> createServiceSettingsMap(TaskType taskType, ConfigurationParseContext parseContext) {
-        Map<String, Object> settingsMap = new HashMap<>(Map.of(ServiceFields.URL, URL_VALUE, ServiceFields.MODEL_ID, MODEL_VALUE));
-
-        if (taskType == TaskType.TEXT_EMBEDDING) {
-            settingsMap.putAll(
-                Map.of(
-                    ServiceFields.SIMILARITY,
-                    SimilarityMeasure.COSINE.toString(),
-                    ServiceFields.DIMENSIONS,
-                    DIMENSIONS_VALUE,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    MAX_INPUT_TOKENS_VALUE
-                )
-            );
-            if (parseContext.equals(ConfigurationParseContext.PERSISTENT)) {
-                settingsMap.put(ServiceFields.DIMENSIONS_SET_BY_USER, DIMENSIONS_SET_BY_USER_VALUE);
-            }
-        }
-
-        return settingsMap;
-    }
-
-    private static Map<String, Object> createSecretSettingsMap() {
-        return new HashMap<>(Map.of(API_KEY_FIELD_NAME, API_KEY_VALUE));
-    }
-
-    private static OpenShiftAiEmbeddingsModel createInternalEmbeddingModel(@Nullable SimilarityMeasure similarityMeasure) {
-        return new OpenShiftAiEmbeddingsModel(
-            INFERENCE_ID_VALUE,
-            TaskType.TEXT_EMBEDDING,
-            OpenShiftAiService.NAME,
-            new OpenShiftAiEmbeddingsServiceSettings(
-                MODEL_VALUE,
-                URL_VALUE,
-                DIMENSIONS_VALUE,
-                similarityMeasure,
-                MAX_INPUT_TOKENS_VALUE,
-                new RateLimitSettings(10_000),
-                true
-            ),
-            createRandomChunkingSettings(),
-            new DefaultSecretSettings(new SecureString(API_KEY_VALUE.toCharArray()))
-        );
-    }
-
-    @Before
-    public void init() throws Exception {
-        webServer.start();
-        threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
-    }
-
-    @After
-    public void shutdown() throws IOException {
-        clientManager.close();
-        terminate(threadPool);
-        webServer.close();
-    }
-
-    public void testParseRequestConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
-        var chunkingSettings = createRandomChunkingSettings();
-        try (var service = createService()) {
-            ActionListener<Model> modelVerificationActionListener = ActionListener.wrap(model -> {
-                assertThat(model, instanceOf(OpenShiftAiEmbeddingsModel.class));
-
-                var embeddingsModel = (OpenShiftAiEmbeddingsModel) model;
-                assertThat(embeddingsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
-                assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-                assertThat(embeddingsModel.getConfigurations().getChunkingSettings().asMap(), is(chunkingSettings.asMap()));
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
-            }, e -> fail("parse request should not fail " + e.getMessage()));
-
-            service.parseRequestConfig(
-                INFERENCE_ID_VALUE,
-                TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(
-                    getServiceSettingsMap(MODEL_VALUE, URL_VALUE),
-                    chunkingSettings.asMap(),
-                    getSecretSettingsMap(API_KEY_VALUE)
-                ),
-                modelVerificationActionListener
-            );
-        }
-    }
-
-    public void testParseRequestConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
-        try (var service = createService()) {
-            ActionListener<Model> modelVerificationActionListener = ActionListener.wrap(model -> {
-                assertThat(model, instanceOf(OpenShiftAiEmbeddingsModel.class));
-
-                var embeddingsModel = (OpenShiftAiEmbeddingsModel) model;
-                assertThat(embeddingsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
-                assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), is(ChunkingSettingsBuilder.DEFAULT_SETTINGS));
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
-            }, e -> fail("parse request should not fail " + e.getMessage()));
-
-            service.parseRequestConfig(
-                INFERENCE_ID_VALUE,
-                TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(getServiceSettingsMap(MODEL_VALUE, URL_VALUE), getSecretSettingsMap(API_KEY_VALUE)),
-                modelVerificationActionListener
-            );
-        }
-    }
-
-    public void testParseRequestConfig_WithoutModelId_Success() throws IOException {
-        try (var service = createService()) {
-            ActionListener<Model> modelVerificationListener = ActionListener.wrap(m -> {
-                assertThat(m, instanceOf(OpenShiftAiChatCompletionModel.class));
-
-                var chatCompletionModel = (OpenShiftAiChatCompletionModel) m;
-
-                assertThat(chatCompletionModel.getServiceSettings().uri().toString(), is(URL_VALUE));
-                assertThat(chatCompletionModel.getServiceSettings().modelId(), is(nullValue()));
-                assertThat(chatCompletionModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
-
-            }, e -> fail("parse request should not fail " + e.getMessage()));
-
-            service.parseRequestConfig(
-                INFERENCE_ID_VALUE,
-                TaskType.CHAT_COMPLETION,
-                getRequestConfigMap(getServiceSettingsMap(null, URL_VALUE), getSecretSettingsMap(API_KEY_VALUE)),
-                modelVerificationListener
-            );
-        }
-    }
+public class OpenShiftAiServiceTests extends InferenceServiceTestCase {
+    static final String INPUT_FIELD_NAME = "input";
+    static final String MODEL_FIELD_NAME = "model";
+    static final String ROLE_VALUE = "user";
+    static final String FIRST_PART_OF_INPUT_VALUE = "abc";
+    static final String SECOND_PART_OF_INPUT_VALUE = "def";
 
     public void testParseRequestConfig_WithoutUrl_ThrowsException() throws IOException {
-        try (var service = createService()) {
+        try (var service = createInferenceService()) {
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(
                 m -> fail("Expected exception, but got model: " + m),
                 exception -> {
@@ -435,9 +101,9 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
             );
 
             service.parseRequestConfig(
-                INFERENCE_ID_VALUE,
+                "inferenceId",
                 TaskType.CHAT_COMPLETION,
-                getRequestConfigMap(getServiceSettingsMap(MODEL_VALUE, null), getSecretSettingsMap(API_KEY_VALUE)),
+                getRequestConfigMap(Map.of(), Map.of(), getSecretSettingsMap("api Key")),
                 modelVerificationListener
             );
         }
@@ -670,35 +336,6 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
             {"completion":[{"delta":"Deep"}]}""");
     }
 
-    public void testSupportsStreaming() throws IOException {
-        try (var service = new OpenShiftAiService(mock(), createWithEmptySettings(mock()), mockClusterServiceEmpty())) {
-            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION)));
-            assertThat(service.canStream(TaskType.ANY), is(false));
-        }
-    }
-
-    public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInEmbeddingSecretSettingsMap() throws IOException {
-        try (var service = createService()) {
-            var secretSettings = getSecretSettingsMap(API_KEY_VALUE);
-            secretSettings.put("extra_key", "value");
-
-            var config = getRequestConfigMap(getEmbeddingsServiceSettingsMap(), secretSettings);
-
-            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
-                model -> fail("Expected exception, but got model: " + model),
-                exception -> {
-                    assertThat(exception, instanceOf(ElasticsearchStatusException.class));
-                    assertThat(
-                        exception.getMessage(),
-                        is("Configuration contains settings [{extra_key=value}] unknown to the [openshift_ai] service")
-                    );
-                }
-            );
-
-            service.parseRequestConfig(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
-        }
-    }
-
     public void testChunkedInfer_ChunkingSettingsNotSet() throws IOException {
         var model = OpenShiftAiEmbeddingsModelTests.createModel(
             getUrl(webServer),
@@ -842,7 +479,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
     }
 
     public void testGetConfiguration() throws Exception {
-        try (var service = createService()) {
+        try (var service = createInferenceService()) {
             String content = XContentHelper.stripWhitespace("""
                 {
                        "service": "openshift_ai",
@@ -925,40 +562,38 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
         }
     }
 
-    private OpenShiftAiService createService() {
+    @Override
+    public InferenceService createInferenceService() {
         return new OpenShiftAiService(
-            mock(HttpRequestSender.Factory.class),
+            HttpRequestSenderTests.createSenderFactory(threadPool, clientManager),
             createWithEmptySettings(threadPool),
             mockClusterServiceEmpty()
         );
     }
 
-    private Map<String, Object> getRequestConfigMap(
-        Map<String, Object> serviceSettings,
-        Map<String, Object> chunkingSettings,
-        Map<String, Object> secretSettings
-    ) {
-        var requestConfigMap = getRequestConfigMap(serviceSettings, secretSettings);
-        requestConfigMap.put(ModelConfigurations.CHUNKING_SETTINGS, chunkingSettings);
-
-        return requestConfigMap;
-    }
-
-    private Map<String, Object> getRequestConfigMap(Map<String, Object> serviceSettings, Map<String, Object> secretSettings) {
-        var builtServiceSettings = new HashMap<>();
-        builtServiceSettings.putAll(serviceSettings);
-        builtServiceSettings.putAll(secretSettings);
-
-        return new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, builtServiceSettings));
-    }
-
-    private static Map<String, Object> getEmbeddingsServiceSettingsMap() {
-        return buildServiceSettingsMap(MODEL_VALUE, URL_VALUE, SimilarityMeasure.COSINE.toString(), null, null, null, null);
+    @Override
+    protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
+        assertThat(rerankingInferenceService.rerankerWindowSize("any_model"), is(2800));
     }
 
     @Override
-    public InferenceService createInferenceService() {
-        return createService();
+    public Model createEmbeddingModel(SimilarityMeasure similarity) {
+        var settings = new OpenShiftAiEmbeddingsServiceSettings(
+            randomAlphaOfLength(8),
+            randomAlphaOfLength(8),
+            null,
+            similarity,
+            null,
+            null,
+            false
+        );
+        return new OpenShiftAiEmbeddingsModel(
+            randomAlphaOfLength(8),
+            TaskType.TEXT_EMBEDDING,
+            randomAlphaOfLength(8),
+            settings,
+            null,
+            null
+        );
     }
-
 }

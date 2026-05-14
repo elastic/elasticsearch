@@ -41,6 +41,17 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
         return new RateLimitSettings(randomLongBetween(1, 1000000));
     }
 
+    /**
+     * Helper method to add rate limit settings to service settings
+     */
+    public static Map<String, Object> addRateLimitSettingsToMap(Map<String, Object> settingsMap, long requestsPerMinute) {
+        settingsMap.put(
+            RateLimitSettings.FIELD_NAME,
+            new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, requestsPerMinute))
+        );
+        return settingsMap;
+    }
+
     public void testConstructor_ZeroValue_ThrowsIllegalArgumentException() {
         var zeroValue = 0L;
         assertConstructor_InvalidValue_ThrowsIllegalArgumentException(() -> new RateLimitSettings(zeroValue));

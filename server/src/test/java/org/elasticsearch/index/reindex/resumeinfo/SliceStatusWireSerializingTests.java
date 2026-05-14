@@ -17,9 +17,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTaskStatusTests;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.BulkByScrollTaskStatusTests;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ResumeInfo.PitWorkerResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
@@ -55,7 +55,13 @@ public class SliceStatusWireSerializingTests extends AbstractWireSerializingTest
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(org.elasticsearch.cluster.ClusterModule.getNamedWriteables());
-        entries.add(new NamedWriteableRegistry.Entry(Task.Status.class, BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new));
+        entries.add(
+            new NamedWriteableRegistry.Entry(
+                Task.Status.class,
+                BulkByPaginatedSearchTask.Status.NAME,
+                BulkByPaginatedSearchTask.Status::new
+            )
+        );
         entries.add(new NamedWriteableRegistry.Entry(WorkerResumeInfo.class, ScrollWorkerResumeInfo.NAME, ScrollWorkerResumeInfo::new));
         entries.add(new NamedWriteableRegistry.Entry(WorkerResumeInfo.class, PitWorkerResumeInfo.NAME, PitWorkerResumeInfo::new));
         return new NamedWriteableRegistry(entries);
@@ -335,7 +341,7 @@ public class SliceStatusWireSerializingTests extends AbstractWireSerializingTest
     static BulkByScrollResponse randomBulkByScrollResponse() {
         return new BulkByScrollResponse(
             TimeValue.timeValueMillis(randomNonNegativeLong()),
-            BulkByScrollTaskStatusTests.randomStatusWithoutException(),
+            BulkByPaginatedSearchTaskStatusTests.randomStatusWithoutException(),
             randomBulkFailuresList(),
             randomSearchFailuresList(),
             randomBoolean()

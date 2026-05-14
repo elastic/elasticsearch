@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 
 import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
+import static org.elasticsearch.simdvec.internal.vectorization.ScoreCorrections.nativeApplyCorrectionsBulk;
 
 /** Native / panamized scorer for 7-bit quantized vectors stored as an {@link IndexInput}. **/
 public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92PanamaInt7VectorsScorer {
@@ -80,16 +81,38 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
         float[] scores,
         int bulkSize
     ) throws IOException {
-        int7DotProductBulk(q, bulkSize, scores);
-        applyCorrectionsBulk(
-            queryLowerInterval,
-            queryUpperInterval,
-            queryComponentSum,
-            queryAdditionalCorrection,
-            similarityFunction,
-            centroidDp,
-            scores,
-            bulkSize
-        );
+        assert q.length == dimensions;
+        if (NATIVE_SUPPORTED) {
+            nativeInt7DotProductBulk(q, bulkSize, scores);
+            IndexInputUtils.withSlice(in, 16L * bulkSize, this::getScratch, memorySegment -> {
+                nativeApplyCorrectionsBulk(
+                    similarityFunction,
+                    memorySegment,
+                    bulkSize,
+                    dimensions,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryComponentSum,
+                    queryAdditionalCorrection,
+                    SEVEN_BIT_SCALE,
+                    SEVEN_BIT_SCALE,
+                    centroidDp,
+                    MemorySegment.ofArray(scores)
+                );
+                return null;
+            });
+        } else {
+            panamaInt7DotProductBulk(q, bulkSize, scores);
+            panamaApplyCorrectionsBulk(
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum,
+                queryAdditionalCorrection,
+                similarityFunction,
+                centroidDp,
+                scores,
+                bulkSize
+            );
+        }
     }
 }

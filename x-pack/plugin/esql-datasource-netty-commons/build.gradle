@@ -38,6 +38,8 @@ dependencies {
   implementation "io.netty:netty-handler-proxy:${versions.netty}"
   implementation "io.netty:netty-resolver-dns:${versions.netty}"
   implementation "io.netty:netty-transport-classes-epoll:${versions.netty}"
+
+  testImplementation project(':test:framework')
 }
 
 tasks.named("dependencyLicenses").configure {

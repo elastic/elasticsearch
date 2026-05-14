@@ -60,7 +60,8 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
         Map.entry(DataType.TEXT, NotEqualsKeywordsEvaluator.Factory::new),
         Map.entry(DataType.VERSION, NotEqualsKeywordsEvaluator.Factory::new),
         Map.entry(DataType.IP, NotEqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.DENSE_VECTOR, NotEqualsDenseVectorEvaluator.Factory::new)
+        Map.entry(DataType.DENSE_VECTOR, NotEqualsDenseVectorEvaluator.Factory::new),
+        Map.entry(DataType.FLATTENED, NotEqualsKeywordsEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -83,6 +84,7 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
                 "date",
                 "dense_vector",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -107,6 +109,7 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
                 "date",
                 "dense_vector",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",

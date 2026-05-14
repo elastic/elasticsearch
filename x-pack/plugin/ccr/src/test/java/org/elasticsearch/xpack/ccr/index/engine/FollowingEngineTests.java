@@ -792,13 +792,16 @@ public class FollowingEngineTests extends ESTestCase {
                 break;
             case LOGSDB:
             case COLUMNAR:
-            case COLUMNAR_LOGSDB:
+            case LOGSDB_COLUMNAR:
                 settingsBuilder.put("index.mode", indexMode.getName());
                 settingsBuilder.put("index.disable_sequence_numbers", "false");
                 settingsBuilder.put("index.seq_no.index_options", "points_and_doc_values");
                 break;
             case LOOKUP:
                 settingsBuilder.put("index.mode", IndexMode.LOOKUP.getName());
+                break;
+            case VECTORDB_DOCUMENT:
+                settingsBuilder.put("index.mode", IndexMode.VECTORDB_DOCUMENT.getName());
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown index mode [" + indexMode + "]");

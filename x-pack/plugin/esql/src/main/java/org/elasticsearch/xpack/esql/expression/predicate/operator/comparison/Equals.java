@@ -61,7 +61,8 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         Map.entry(DataType.TEXT, EqualsKeywordsEvaluator.Factory::new),
         Map.entry(DataType.VERSION, EqualsKeywordsEvaluator.Factory::new),
         Map.entry(DataType.IP, EqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.DENSE_VECTOR, EqualsDenseVectorEvaluator.Factory::new)
+        Map.entry(DataType.DENSE_VECTOR, EqualsDenseVectorEvaluator.Factory::new),
+        Map.entry(DataType.FLATTENED, EqualsKeywordsEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -84,6 +85,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
                 "date",
                 "dense_vector",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -108,6 +110,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
                 "date",
                 "dense_vector",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",

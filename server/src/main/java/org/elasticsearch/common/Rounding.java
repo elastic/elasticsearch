@@ -1562,4 +1562,28 @@ public abstract class Rounding implements Writeable {
             return delegate.getUnprepared();
         }
     }
+
+    public Interval getInterval() {
+        return switch (this) {
+            case Rounding.TimeIntervalRounding interval -> {
+                var timeValue = TimeValue.parseTimeValue(TimeValue.timeValueMillis(interval.interval).toString(), "interval");
+                var unit = timeValue.timeUnit().name();
+                yield new Interval(timeValue.duration(), Strings.toLowercaseAscii(unit.substring(0, unit.length() - 1)));
+            }
+            case Rounding.TimeUnitRounding unit -> {
+                // The MONTHS_OF_YEAR and YEARS_OF_CENTURY units store their short name as a plural noun
+                // ("months", "years"); pair the multiplier with the singular form so the interval reads
+                // naturally (e.g. "(6, month)" rather than "(1, months)").
+                String name = unit.unit.shortName;
+                if (name.endsWith("s")) {
+                    name = name.substring(0, name.length() - 1);
+                }
+                yield new Interval(unit.multiplier, name);
+            }
+            case Rounding.OffsetRounding offset -> offset.delegate.getInterval();
+            default -> throw new RuntimeException("Unexpected Rounding implementation: " + getClass().getName());
+        };
+    }
+
+    public record Interval(long size, String unit) {}
 }

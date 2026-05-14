@@ -150,6 +150,13 @@ public class EsqlCapabilities {
         ST_SIMPLIFY,
 
         /**
+         * Support for named options ({@code quad_segs}, {@code endcap}, {@code join}, {@code mitre_limit})
+         * on {@code ST_BUFFER}. Requires a wire-protocol bump, so gates new csv-spec tests away from
+         * mixed-version clusters that pre-date the change.
+         */
+        ST_BUFFER_OPTIONS,
+
+        /**
          * The introduction of the {@code VALUES} agg.
          */
         AGG_VALUES,
@@ -411,6 +418,16 @@ public class EsqlCapabilities {
          * Support for the {@code flattened} data type in ES|QL, which loads flattened fields as JSON objects.
          */
         FLATTENED_DATATYPE(Build.current().isSnapshot()),
+
+        /**
+         * Flattened field keys are returned in alphabetical order.
+         */
+        FLATTENED_DATATYPE_SORTED_KEYS(Build.current().isSnapshot()),
+
+        /**
+         * Support for the {@code field_extract} function, which reads a sub-key from a {@code flattened} field root.
+         */
+        FIELD_EXTRACT_FUNCTION(Build.current().isSnapshot()),
 
         /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
@@ -820,6 +837,11 @@ public class EsqlCapabilities {
         BUCKET_WHOLE_NUMBER_AS_SPAN,
 
         /**
+         * Expose resolved bucket interval in {@code _meta} on {@code BUCKET} grouping columns.
+         */
+        COLUMN_METADATA_BUCKET(Build.current().isSnapshot()),
+
+        /**
          * Allow mixed numeric types in coalesce
          */
         MIXED_NUMERIC_TYPES_IN_COALESCE,
@@ -890,6 +912,11 @@ public class EsqlCapabilities {
          * Fix sorting not allowed on _source and counters.
          */
         SORTING_ON_SOURCE_AND_COUNTERS_FORBIDDEN,
+
+        /**
+         * Fix sorting not allowed on histogram and _tsid.
+         */
+        SORTING_ON_HISTOGRAM_AND_TSID_FORBIDDEN,
 
         /**
          * Fix {@code SORT} when the {@code _source} field is not a sort key but
@@ -1257,6 +1284,14 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/142499
          */
         SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION,
+
+        /**
+         * Support IN non-correlated subqueries in WHERE command.
+         * TODO: drop the {@code Build.current().isSnapshot()} gate (and the matching
+         * {@code {this.isDevVersion()}?} predicates in InExpression.g4 / EsqlBaseParser.g4)
+         * once the InSubquery feature graduates from snapshot-only to production.
+         */
+        WHERE_IN_SUBQUERY(Build.current().isSnapshot()),
 
         /**
          * Support for views in cluster state (and REST API).
@@ -2384,6 +2419,13 @@ public class EsqlCapabilities {
         EXTERNAL_CSV_HEADER_ROW_OPTION(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
+         * Per-file planner-resolved read schema is threaded down to runtime readers via
+         * {@code FileSplit.readSchema()}. Pins each file's column layout to the planner's view,
+         * preventing reader self-inference that drifts across files in a multi-file glob.
+         */
+        EXTERNAL_SOURCE_READ_SCHEMA(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
          * {@code FROM <dataset>} resolved through the same pipeline as {@code FROM <index>} (Phase 1: dataset-only patterns).
          * Gated on the same flag as {@link #EXTERNAL_COMMAND}.
          */
@@ -2509,6 +2551,12 @@ public class EsqlCapabilities {
         TOP_SNIPPETS_ORDER,
 
         /**
+         * Support for the {@code analyzer} option on {@code TOP_SNIPPETS}: choose a registered analyzer
+         * (prebuilt or plugin-contributed) by name, or omit it to default to the standard analyzer.
+         */
+        TOP_SNIPPETS_ANALYZER,
+
+        /**
          * Enables the feature LIMIT n BY expr1, expr2 for retaining at most n docs per group.
          * The feature will not work if we had SORT | LIMIT n BY
          */
@@ -2532,7 +2580,7 @@ public class EsqlCapabilities {
         /**
          * TSDB Temporality support which is guarded by a feature flag.
          */
-        TSDB_TEMPORALITY_SUPPORT_V5(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
+        TSDB_TEMPORALITY_SUPPORT_V6(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
 
         /**
          * Support the null column type for the CHANGE_POINT command
@@ -2695,6 +2743,14 @@ public class EsqlCapabilities {
         INFERENCE_ACCEPT_TIMEOUT,
 
         /**
+         * Fix on multi-values that were unrolled and were still producing warnings in expressions
+         * that do not accept multi-values
+         *
+         * See https://github.com/elastic/elasticsearch/issues/134706
+         */
+        FIX_UNROLLED_FOLDABLE_MV_WARNING,
+
+        /**
          * Fix for SET reporting wrong line/column number (-1:-1) in validation errors.
          * see <a href="https://github.com/elastic/elasticsearch/issues/145873">ES|QL: wrong line/column number #145873</a>
          */
@@ -2713,10 +2769,28 @@ public class EsqlCapabilities {
         APPROXIMATION_FIX_MIN_SOURCE_ROW_COUNT,
 
         /**
+         * Fix for histogram block loaders (tdigest, exponential_histogram) passing {@code nullsFiltered=true} to
+         * sub-block-loaders for min, max and sum. Those sub-fields can be absent for empty histograms even when the
+         * histogram field itself is present, so the null-filtered guarantee does not hold for them.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/147854">#147854</a>
+         */
+        FIX_HISTOGRAM_BLOCKLOADERS_ISNULL,
+
+        /**
          * Fix for {@code CompoundOutputEval} commands not implementing {@code SortAgnostic}, causing {@code PruneRedundantOrderBy} to
          * fail when a SORT precedes these commands.
          */
         FIX_COMPOUND_OUTPUT_EVAL_SORT_AGNOSTIC,
+
+        /**
+         * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
+         */
+        FN_EQUALS_FLATTENED(Build.current().isSnapshot()),
+
+        /**
+         * Support for the {@code !=} operator on the root of a {@code flattened} field in ES|QL.
+         */
+        FN_NOT_EQUALS_FLATTENED(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

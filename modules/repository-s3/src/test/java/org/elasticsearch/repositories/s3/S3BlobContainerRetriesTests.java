@@ -32,6 +32,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.RetryingInputStream;
+import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -52,6 +53,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
@@ -111,11 +113,16 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.mockito.Mockito.mock;
+import static software.amazon.awssdk.http.HttpStatusCode.REQUEST_TIMEOUT;
+import static software.amazon.awssdk.http.HttpStatusCode.SERVICE_UNAVAILABLE;
+import static software.amazon.awssdk.http.HttpStatusCode.THROTTLING;
 
 /**
  * This class tests how a {@link S3BlobContainer} and its underlying AWS S3 client are retrying requests when reading or writing blobs.
@@ -1648,5 +1655,137 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         public RetryingInputStream<?> unwrap() {
             return in instanceof RetryingInputStream<?> retryingInputStream ? retryingInputStream : null;
         }
+    }
+
+    final RecordingMeterRegistry tenaciousRecordingMeterRegistry = new RecordingMeterRegistry();
+    final RepositoriesMetrics repositoriesMetrics = new RepositoriesMetrics(tenaciousRecordingMeterRegistry);
+
+    static class TestS3BlobContainer extends FilterBlobContainer {
+        private long attempts = 0;
+        private long expectedAttempts = 0;
+        private final BlobContainer delegate;
+
+        TestS3BlobContainer(BlobContainer delegate) {
+            super(delegate);
+            this.delegate = delegate;
+        }
+
+        public void clear() {
+            attempts = 0;
+        }
+
+        public void setExpectedAttempts(long expectedAttempts) {
+            this.expectedAttempts = expectedAttempts;
+        }
+
+        @Override
+        protected BlobContainer wrapChild(BlobContainer child) {
+            return new TestS3BlobContainer(child);
+        }
+
+        @Override
+        public Map<String, BlobContainer> children(OperationPurpose purpose) throws IOException {
+            attempts++;
+            if (attempts >= expectedAttempts) {
+                return Map.of("success", mock(BlobContainer.class), "takesTime", mock(BlobContainer.class));
+            }
+            return delegate.children(purpose);
+        }
+    }
+
+    class TestS3TenaciousRetryBlobContainer extends S3TenaciousRetryBlobContainer {
+        TestS3TenaciousRetryBlobContainer(BlobContainer delegate, RepositoriesMetrics repositoriesMetrics) {
+            super(delegate, repositoriesMetrics);
+        }
+
+        @Override
+        protected BlobContainer wrapChild(BlobContainer child) {
+            return new TestS3TenaciousRetryBlobContainer(child, repositoriesMetrics);
+        }
+
+        @Override
+        protected long getRetryDelayInMillis(int attempt) {
+            return 10;
+        }
+    }
+
+    private int getMeasurements(RecordingMeterRegistry meterRegistry) {
+        return meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, RepositoriesMetrics.METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL)
+            .size();
+    }
+
+    private Map<String, Object> getAttributes(RecordingMeterRegistry meterRegistry) {
+        return meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, RepositoriesMetrics.METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL)
+            .getFirst()
+            .attributes();
+    }
+
+    public void testShouldTenaciousRetryOnRetryableExceptions() throws IOException {
+        final int maxRetries = between(1, 3);
+        final BlobContainer blobContainer = blobContainerBuilder().maxRetries(maxRetries).build();
+        final TestS3BlobContainer testS3BlobContainer = new TestS3BlobContainer(blobContainer);
+        final TestS3TenaciousRetryBlobContainer testS3TenaciousRetryBlobContainer = new TestS3TenaciousRetryBlobContainer(
+            testS3BlobContainer,
+            repositoriesMetrics
+        );
+        final int expectedAttempts = randomIntBetween(10, 15);
+        testS3BlobContainer.setExpectedAttempts(expectedAttempts);
+
+        @SuppressForbidden(reason = "use a http server")
+        class TenaciousRetriesHandler implements HttpHandler {
+            @Override
+            public void handle(HttpExchange exchange) throws IOException {
+                Streams.readFully(exchange.getRequestBody());
+                logger.debug("--> Handler hit, attempt {}", 2);
+                try (exchange) {
+                    if (randomBoolean()) {
+                        exchange.sendResponseHeaders(randomFrom(SERVICE_UNAVAILABLE, THROTTLING, REQUEST_TIMEOUT), -1);
+                    } else {
+                        final var responseBody = Strings.format("""
+                            <?xml version="1.0" encoding="UTF-8"?>
+                            <Error>
+                              <Code>%s</Code>
+                              <Message>InvalidAccessKeyId</Message>
+                              <RequestId>%s</RequestId>
+                            </Error>""", "InvalidAccessKeyId", randomUUID()).getBytes(StandardCharsets.UTF_8);
+                        exchange.sendResponseHeaders(RestStatus.FORBIDDEN.getStatus(), responseBody.length);
+                        exchange.getResponseBody().write(responseBody);
+                    }
+                }
+            }
+        }
+        httpServer.createContext("/", new TenaciousRetriesHandler());
+
+        // No retries attempted for non INDICES purposes.
+        expectThrows(
+            IOException.class,
+            () -> testS3TenaciousRetryBlobContainer.listBlobs(randomFrom(BlobStoreTestUtil.randomFiniteRetryingPurpose()))
+        );
+        expectThrows(
+            IOException.class,
+            () -> testS3TenaciousRetryBlobContainer.listBlobsByPrefix(
+                randomFrom(BlobStoreTestUtil.randomFiniteRetryingPurpose()),
+                randomIdentifier()
+            )
+        );
+        expectThrows(
+            IOException.class,
+            () -> testS3TenaciousRetryBlobContainer.children(randomFrom(BlobStoreTestUtil.randomFiniteRetryingPurpose()))
+        );
+
+        Map<String, BlobContainer> result = testS3TenaciousRetryBlobContainer.children(OperationPurpose.INDICES);
+
+        assertThat(result.size(), equalTo(2));
+        assertThat(result.containsKey("success"), is(true));
+        assertThat(result.containsKey("takesTime"), is(true));
+        tenaciousRecordingMeterRegistry.getRecorder().collect();
+        assertThat(getMeasurements(tenaciousRecordingMeterRegistry), greaterThanOrEqualTo(expectedAttempts - 2));
+        assertThat(getAttributes(tenaciousRecordingMeterRegistry).size(), equalTo(3));
+        assertThat(getAttributes(tenaciousRecordingMeterRegistry).get("repo_type"), equalTo("s3"));
+        assertThat(getAttributes(tenaciousRecordingMeterRegistry).get("operation"), equalTo("ListObjects"));
+        assertThat(getAttributes(tenaciousRecordingMeterRegistry).get("purpose"), equalTo(OperationPurpose.INDICES.getKey()));
+
     }
 }

@@ -24,7 +24,7 @@ Never expose an unprotected node to the public internet. If you do, you are perm
 ::::
 
 
-Configuring {{es}} to bind to a non-local address will [convert some warnings into fatal exceptions](docs-content://deploy-manage/deploy/self-managed/bootstrap-checks.md). If a node refuses to start after configuring its network settings then you must address the logged exceptions before proceeding.
+Configuring {{es}} to bind to a non-local address will [convert some warnings into fatal exceptions](docs-content://deploy-manage/deploy/self-managed/important-settings-configuration.md#bootstrap-checks). If a node refuses to start after configuring its network settings then you must address the logged exceptions before proceeding.
 
 ## Commonly used network settings [common-network-settings]
 

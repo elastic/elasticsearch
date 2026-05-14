@@ -45,7 +45,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
@@ -182,11 +181,7 @@ public class Reindexer {
         this.featureService = featureService;
         this.taskResultsService = Objects.requireNonNull(taskResultsService);
         this.reindexShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
-        Objects.requireNonNull(circuitBreakerService, "circuitBreakerService must not be null");
-        this.requestBreaker = Objects.requireNonNull(
-            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST),
-            "REQUEST circuit breaker must be available — reindex relies on it for per-batch heap reservations"
-        );
+        this.requestBreaker = Objects.requireNonNull(circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
     }
 
     public void initTask(BulkByPaginatedSearchTask task, ReindexRequest request, ActionListener<Void> listener) {
@@ -953,13 +948,6 @@ public class Reindexer {
         private final IdFieldMapper destinationIndexIdMapper;
 
         /**
-         * The REQUEST circuit breaker, used to reserve heap budget for each batch's bulk request before it is
-         * built. When the breaker trips a {@link CircuitBreakingException} is returned to the client (HTTP 429)
-         * rather than allowing the allocation to push the node into OOM.
-         */
-        private final CircuitBreaker requestBreaker;
-
-        /**
          * List of threads created by this process. Usually actions don't create threads in Elasticsearch. Instead they use the builtin
          * {@link ThreadPool}s. But reindex-from-remote uses Elasticsearch's {@link RestClient} which doesn't use the
          * {@linkplain ThreadPool}s because it uses httpasyncclient. It'd be a ton of trouble to work around creating those threads. So
@@ -1004,24 +992,11 @@ public class Reindexer {
                 bulkByScrollSearchContextMetrics,
                 BulkByScrollSearchContextMetrics.TaskKind.REINDEX,
                 request.getRemoteInfo() != null,
-                maxTaskShutdownGracePeriod
+                maxTaskShutdownGracePeriod,
+                requestBreaker,
+                "reindex_bulk_batch"
             );
             this.destinationIndexIdMapper = destinationIndexMode(state).idFieldMapperForReindex();
-            this.requestBreaker = Objects.requireNonNull(requestBreaker, "requestBreaker must not be null");
-        }
-
-        @Override
-        protected void reserveBatchAllocation(long bytes) {
-            if (bytes > 0) {
-                requestBreaker.addEstimateBytesAndMaybeBreak(bytes, "reindex_bulk_batch");
-            }
-        }
-
-        @Override
-        protected void releaseBatchAllocation(long bytes) {
-            if (bytes > 0) {
-                requestBreaker.addWithoutBreaking(-bytes);
-            }
         }
 
         private IndexMode destinationIndexMode(ProjectState state) {

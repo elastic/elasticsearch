@@ -87,7 +87,8 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
             listener(),
             null,
             randomTimeValue(),
-            null
+            null,
+            new NoopCircuitBreaker("test")
         );
         expectThrows(
             XContentParseException.class,
@@ -123,7 +124,8 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
             listener(),
             null,
             randomTimeValue(),
-            null
+            null,
+            new NoopCircuitBreaker("test")
         );
         expectThrows(
             UncheckedIOException.class,

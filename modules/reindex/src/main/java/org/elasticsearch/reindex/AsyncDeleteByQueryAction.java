@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
@@ -23,14 +22,10 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Objects;
-
 /**
  * Implementation of delete-by-query using scrolling and bulk.
  */
 public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<DeleteByQueryRequest, TransportDeleteByQueryAction> {
-
-    private final CircuitBreaker requestBreaker;
 
     public AsyncDeleteByQueryAction(
         BulkByPaginatedSearchTask task,
@@ -59,23 +54,10 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<De
             bulkByScrollSearchContextMetrics,
             BulkByScrollSearchContextMetrics.TaskKind.DELETE_BY_QUERY,
             false,
-            maxTaskShutdownGracePeriod
+            maxTaskShutdownGracePeriod,
+            requestBreaker,
+            "delete_by_query_bulk_batch"
         );
-        this.requestBreaker = Objects.requireNonNull(requestBreaker, "requestBreaker must not be null");
-    }
-
-    @Override
-    protected void reserveBatchAllocation(long bytes) throws CircuitBreakingException {
-        if (bytes > 0) {
-            requestBreaker.addEstimateBytesAndMaybeBreak(bytes, "delete_by_query_bulk_batch");
-        }
-    }
-
-    @Override
-    protected void releaseBatchAllocation(long bytes) {
-        if (bytes > 0) {
-            requestBreaker.addWithoutBreaking(-bytes);
-        }
     }
 
     @Override

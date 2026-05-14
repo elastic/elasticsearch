@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.BackoffPolicy;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -166,6 +167,12 @@ public abstract class AbstractAsyncBulkByScrollAction<
      */
     private static final Version REMOTE_SHARD_DOC_SUPPORTED = Version.V_7_12_0;
 
+    /** How many bytes must accumulate in a BulkRequest before we flush a reservation to the circuit breaker. */
+    private static final long BULK_BATCH_BREAKER_CHECK_THRESHOLD = 1024 * 1024L; // 1 MiB
+
+    private final CircuitBreaker circuitBreaker;
+    private final String breakerLabel;
+
     AbstractAsyncBulkByScrollAction(
         BulkByPaginatedSearchTask task,
         boolean needsSourceDocumentVersions,
@@ -181,7 +188,9 @@ public abstract class AbstractAsyncBulkByScrollAction<
         @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
         BulkByScrollSearchContextMetrics.TaskKind bulkByScrollTaskKind,
         boolean remoteBulkByScrollSearch,
-        TimeValue maxTaskShutdownGracePeriod
+        TimeValue maxTaskShutdownGracePeriod,
+        CircuitBreaker circuitBreaker,
+        String breakerLabel
     ) {
         this(
             task,
@@ -200,7 +209,9 @@ public abstract class AbstractAsyncBulkByScrollAction<
             bulkByScrollSearchContextMetrics,
             bulkByScrollTaskKind,
             remoteBulkByScrollSearch,
-            maxTaskShutdownGracePeriod
+            maxTaskShutdownGracePeriod,
+            circuitBreaker,
+            breakerLabel
         );
     }
 
@@ -221,7 +232,9 @@ public abstract class AbstractAsyncBulkByScrollAction<
         @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
         BulkByScrollSearchContextMetrics.TaskKind bulkByScrollTaskKind,
         boolean remoteBulkByScrollSearch,
-        TimeValue maxTaskShutdownGracePeriod
+        TimeValue maxTaskShutdownGracePeriod,
+        CircuitBreaker circuitBreaker,
+        String breakerLabel
     ) {
         this.task = task;
         this.scriptService = scriptService;
@@ -256,6 +269,8 @@ public abstract class AbstractAsyncBulkByScrollAction<
             )
         );
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
+        this.circuitBreaker = Objects.requireNonNull(circuitBreaker);
+        this.breakerLabel = Objects.requireNonNull(breakerLabel);
     }
 
     /** Computes the minimum time a relocated task must run before it can be relocated again. Visible for testing. */
@@ -394,15 +409,26 @@ public abstract class AbstractAsyncBulkByScrollAction<
         return true;
     }
 
-    protected BulkRequest buildBulk(Iterable<? extends PaginatedHitSource.Hit> docs) {
+    protected BulkRequest buildBulk(Iterable<? extends PaginatedHitSource.Hit> docs, AtomicLong reservedBytes) {
         BulkRequest bulkRequest = new BulkRequest();
         for (PaginatedHitSource.Hit doc : docs) {
             if (accept(doc)) {
                 RequestWrapper<?> request = scriptApplier.apply(copyMetadata(buildRequest(doc), doc), doc);
                 if (request != null) {
                     bulkRequest.add(request.self());
+                    long delta = bulkRequest.estimatedSizeInBytes() - reservedBytes.get();
+                    if (delta >= BULK_BATCH_BREAKER_CHECK_THRESHOLD) {
+                        circuitBreaker.addEstimateBytesAndMaybeBreak(delta, breakerLabel);
+                        reservedBytes.set(bulkRequest.estimatedSizeInBytes());
+                    }
                 }
             }
+        }
+        // Reserve any bytes not yet covered by threshold checks above
+        long remaining = bulkRequest.estimatedSizeInBytes() - reservedBytes.get();
+        if (remaining > 0) {
+            circuitBreaker.addEstimateBytesAndMaybeBreak(remaining, breakerLabel);
+            reservedBytes.addAndGet(remaining);
         }
         return bulkRequest;
     }
@@ -587,19 +613,24 @@ public abstract class AbstractAsyncBulkByScrollAction<
             return;
         }
 
-        // The hits the search subsystem just delivered are already counted against the REQUEST breaker by
-        // the search code itself (see FetchPhase). Our additional allocation in this action is the
-        // {@link BulkRequest} we are about to build: it copies {@code _source} contents into
-        // {@link IndexRequest}/{@link UpdateRequest} bodies (or accumulates {@link DeleteRequest}
-        // metadata) which will then be serialised for transport to the destination. Reserve heap budget
-        // for that {@link BulkRequest} only, sized from its own {@link BulkRequest#estimatedSizeInBytes()}
-        // once we've built it. The reservation is released when the bulk listener completes, so its
-        // lifetime matches the {@link BulkRequest} object's lifetime.
+        // Reserve heap budget against the REQUEST breaker incrementally as docs are added in buildBulk,
+        // so oversized batches are rejected before all their source bytes land in memory. The reservation
+        // is released (via cleanup) when the bulk listener completes or if we return early for any reason.
+        final AtomicLong reservedBytes = new AtomicLong(0);
         final Releasable releaseBatchHits = Releasables.releaseOnce(() -> releaseHits(hits));
+        final Releasable cleanup = Releasables.wrap(releaseBatchHits, () -> {
+            long r = reservedBytes.get();
+            if (r > 0) circuitBreaker.addWithoutBreaking(-r);
+        });
         boolean cleanupHandedOff = false;
-        Releasable cleanup = releaseBatchHits;
         try {
-            final BulkRequest request = buildBulk(hits);
+            final BulkRequest request;
+            try {
+                request = buildBulk(hits, reservedBytes);
+            } catch (CircuitBreakingException e) {
+                finishHim(e);
+                return;
+            }
             if (request.requests().isEmpty()) {
                 /*
                  * If we noop-ed the entire batch then just skip to the next batch or the BulkRequest would fail validation.
@@ -607,19 +638,6 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 notifyDone(thisBatchStartTimeNS, asyncResponse, 0);
                 return;
             }
-            final long bulkRequestBytes = request.estimatedSizeInBytes();
-            try {
-                reserveBatchAllocation(bulkRequestBytes);
-            } catch (CircuitBreakingException e) {
-                // The reservation never landed, so nothing to release — the {@code finally} below will
-                // close {@code releaseBatchHits} via {@code cleanup}, and {@code finishHim} surfaces
-                // the breaker trip to the client.
-                finishHim(e);
-                return;
-            }
-            // Reservation landed — extend the cleanup so the breaker bytes are released alongside the
-            // hits when the bulk listener completes (or when an exception aborts before send).
-            cleanup = Releasables.wrap(releaseBatchHits, () -> releaseBatchAllocation(bulkRequestBytes));
             request.timeout(mainRequest.getTimeout());
             request.waitForActiveShards(mainRequest.getWaitForActiveShards());
             sendBulkRequest(request, cleanup, () -> notifyDone(thisBatchStartTimeNS, asyncResponse, request.requests().size()));
@@ -630,26 +648,6 @@ public abstract class AbstractAsyncBulkByScrollAction<
             }
         }
     }
-
-    /**
-     * Reserve heap budget against the action's circuit breaker for the {@link BulkRequest} we are about to
-     * send. The default is a no-op; subclasses override this to call
-     * {@link org.elasticsearch.common.breaker.CircuitBreaker#addEstimateBytesAndMaybeBreak} so the
-     * reservation can trip and throw {@link CircuitBreakingException}.
-     *
-     * <p>Called from {@link #prepareBulkRequest} once per built bulk request, with the number of bytes
-     * returned by {@link BulkRequest#estimatedSizeInBytes()}. We only track our own {@link BulkRequest}
-     * here; the search subsystem already counts hit-source bytes against the same breaker for local
-     * searches.
-     */
-    protected void reserveBatchAllocation(long bytes) throws CircuitBreakingException {}
-
-    /**
-     * Release heap budget previously reserved via {@link #reserveBatchAllocation(long)}. Always called once
-     * per successful reservation, when the bulk listener completes (success or failure) — so the
-     * reservation's lifetime matches the {@link BulkRequest}'s lifetime.
-     */
-    protected void releaseBatchAllocation(long bytes) {}
 
     /**
      * Send a bulk request, handling retries. Releases {@code releaseBatchHits} on cancellation, terminal finish, and before the bulk
@@ -955,8 +953,6 @@ public abstract class AbstractAsyncBulkByScrollAction<
         // Atomically claim the current response. If prepareBulkRequest already claimed it (null), this is a no-op.
         // If we win the CAS, we release any hits that were not yet consumed (i.e. from consumedOffset to end).
         // This covers: prepareBulkRequest hasn't run yet (consumedOffset == 0) and the maxDocs partial-batch case.
-        // Any in-flight bulk reservation is released by the cleanup Releasable that {@code sendBulkRequest}
-        // hands to its listener — its lifetime is the {@link BulkRequest}'s, not this action's.
         ScrollConsumableHitsResponse toRelease = currentScrollResponse.getAndSet(null);
         if (toRelease != null) {
             toRelease.releaseRemainingHits();

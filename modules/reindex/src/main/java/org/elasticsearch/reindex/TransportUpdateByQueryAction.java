@@ -18,7 +18,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -79,11 +78,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         // todo: if relocations are added to update-by-query and it gets its own timeout setting, this should be updated.
         // without this safe default, adding relocations to update-by-query without updating this might open it up to race conditions.
         this.taskShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
-        Objects.requireNonNull(circuitBreakerService, "circuitBreakerService must not be null");
-        this.requestBreaker = Objects.requireNonNull(
-            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST),
-            "REQUEST circuit breaker must be available — update-by-query relies on it for per-batch heap reservations"
-        );
+        this.requestBreaker = Objects.requireNonNull(circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
     }
 
     @Override
@@ -129,8 +124,6 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<UpdateByQueryRequest, TransportUpdateByQueryAction> {
 
-        private final CircuitBreaker requestBreaker;
-
         AsyncIndexBySearchAction(
             BulkByPaginatedSearchTask task,
             Logger logger,
@@ -159,23 +152,10 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                 bulkByScrollSearchContextMetrics,
                 BulkByScrollSearchContextMetrics.TaskKind.UPDATE_BY_QUERY,
                 false,
-                maxTaskShutdownGracePeriod
+                maxTaskShutdownGracePeriod,
+                requestBreaker,
+                "update_by_query_bulk_batch"
             );
-            this.requestBreaker = Objects.requireNonNull(requestBreaker, "requestBreaker must not be null");
-        }
-
-        @Override
-        protected void reserveBatchAllocation(long bytes) throws CircuitBreakingException {
-            if (bytes > 0) {
-                requestBreaker.addEstimateBytesAndMaybeBreak(bytes, "update_by_query_bulk_batch");
-            }
-        }
-
-        @Override
-        protected void releaseBatchAllocation(long bytes) {
-            if (bytes > 0) {
-                requestBreaker.addWithoutBreaking(-bytes);
-            }
         }
 
         @Override

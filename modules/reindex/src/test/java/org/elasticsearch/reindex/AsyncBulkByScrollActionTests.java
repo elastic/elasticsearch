@@ -50,6 +50,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -658,30 +659,34 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     /**
-     * Verifies that when {@link AbstractAsyncBulkByScrollAction#reserveBatchAllocation(long)} throws a
-     * {@link CircuitBreakingException} (i.e. the REQUEST circuit breaker has tripped) the reindex operation
+     * Verifies that when the REQUEST circuit breaker trips during {@code buildBulk} the reindex operation
      * fails the listener with the exception, releases the batch hits, and never sends a bulk request.
      */
     public void testCircuitBreakerTripFailsBatchGracefully() throws Exception {
         boolean usePit = configurePitOrScroll();
-        AtomicInteger reservations = new AtomicInteger();
-        AtomicInteger releases = new AtomicInteger();
+        AtomicLong netBreakerBytes = new AtomicLong(0);
 
-        DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction() {
+        CircuitBreaker trippingBreaker = new NoopCircuitBreaker("test") {
             @Override
-            protected RequestWrapper<?> buildRequest(Hit doc) {
-                return wrap(new IndexRequest("test").id(doc.getId()).source(doc.getSource(), doc.getXContentType()));
-            }
-
-            @Override
-            protected void reserveBatchAllocation(long bytes) {
-                reservations.incrementAndGet();
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
                 throw new CircuitBreakingException("simulated breaker trip", bytes, 1L, CircuitBreaker.Durability.TRANSIENT);
             }
 
             @Override
-            protected void releaseBatchAllocation(long bytes) {
-                releases.incrementAndGet();
+            public void addWithoutBreaking(long bytes) {
+                netBreakerBytes.addAndGet(bytes);
+            }
+        };
+
+        DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction(
+            testTask,
+            TimeValue.ZERO,
+            trippingBreaker,
+            "test_bulk_batch"
+        ) {
+            @Override
+            protected RequestWrapper<?> buildRequest(Hit doc) {
+                return wrap(new IndexRequest("test").id(doc.getId()).source(doc.getSource(), doc.getXContentType()));
             }
         };
 
@@ -695,38 +700,42 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
         assertThat(e.getCause(), instanceOf(CircuitBreakingException.class));
         assertThat(e.getCause().getMessage(), containsString("simulated breaker trip"));
-        // Reservation was attempted exactly once and no bulk request was sent.
-        assertEquals(1, reservations.get());
         assertEquals(0, client.bulksAttempts.get());
-        // releaseBatchAllocation must NOT be called when reserveBatchAllocation threw — the reservation never landed.
-        assertEquals(0, releases.get());
+        // No bytes were net-added to the breaker: the trip happened before any reservation landed.
+        assertEquals(0L, netBreakerBytes.get());
     }
 
     /**
-     * Verifies the per-batch reservation lifecycle: {@code reserveBatchAllocation} is called once with the
-     * {@code BulkRequest.estimatedSizeInBytes()} of the bulk we are about to send, and the matching
-     * {@code releaseBatchAllocation} fires when the bulk listener completes — so the reservation's lifetime
-     * matches the {@link BulkRequest} object, not the surrounding action.
+     * Verifies the per-batch reservation lifecycle: the circuit breaker accumulates bytes equal to
+     * {@code BulkRequest.estimatedSizeInBytes()} during {@code buildBulk}, and the reservation is fully
+     * released when the bulk listener completes.
      */
     public void testCircuitBreakerReservationMatchesBulkRequestSizeAndIsReleasedOnBulkComplete() throws Exception {
         boolean usePit = configurePitOrScroll();
-        AtomicLong reservedBytes = new AtomicLong(-1);
-        AtomicLong releasedBytes = new AtomicLong(-1);
+        AtomicLong totalReserved = new AtomicLong(0);
+        AtomicLong totalReleased = new AtomicLong(0);
 
-        DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction() {
+        CircuitBreaker trackingBreaker = new NoopCircuitBreaker("test") {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+                if (bytes > 0) totalReserved.addAndGet(bytes);
+            }
+
+            @Override
+            public void addWithoutBreaking(long bytes) {
+                if (bytes < 0) totalReleased.addAndGet(-bytes);
+            }
+        };
+
+        DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction(
+            testTask,
+            TimeValue.ZERO,
+            trackingBreaker,
+            "test_bulk_batch"
+        ) {
             @Override
             protected RequestWrapper<?> buildRequest(Hit doc) {
                 return wrap(new IndexRequest("test").id(doc.getId()).source(doc.getSource(), doc.getXContentType()));
-            }
-
-            @Override
-            protected void reserveBatchAllocation(long bytes) {
-                reservedBytes.set(bytes);
-            }
-
-            @Override
-            protected void releaseBatchAllocation(long bytes) {
-                releasedBytes.set(bytes);
             }
         };
 
@@ -759,11 +768,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             })
         );
 
-        // Reservation lands with the exact BulkRequest estimate (300 bytes), the bulk is sent, and the
-        // matching release fires when the bulk listener completes.
-        assertBusy(() -> assertEquals(300L, reservedBytes.get()));
+        // Total reserved equals the full BulkRequest estimate (300 bytes); everything is released after the bulk.
+        assertBusy(() -> assertEquals(300L, totalReserved.get()));
         assertBusy(() -> assertEquals(1, client.bulksAttempts.get()));
-        assertBusy(() -> assertEquals(reservedBytes.get(), releasedBytes.get()));
+        assertBusy(() -> assertEquals(totalReserved.get(), totalReleased.get()));
     }
 
     /**
@@ -2152,6 +2160,15 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
 
         DummyAsyncBulkByScrollAction(BulkByPaginatedSearchTask task, TimeValue maxTaskShutdownGracePeriod) {
+            this(task, maxTaskShutdownGracePeriod, new NoopCircuitBreaker("test"), "test_bulk_batch");
+        }
+
+        DummyAsyncBulkByScrollAction(
+            BulkByPaginatedSearchTask task,
+            TimeValue maxTaskShutdownGracePeriod,
+            CircuitBreaker circuitBreaker,
+            String breakerLabel
+        ) {
             super(
                 task,
                 randomBoolean(),
@@ -2167,7 +2184,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 null,
                 randomFrom(BulkByScrollSearchContextMetrics.TaskKind.values()),
                 false,
-                maxTaskShutdownGracePeriod
+                maxTaskShutdownGracePeriod,
+                circuitBreaker,
+                breakerLabel
             );
         }
 

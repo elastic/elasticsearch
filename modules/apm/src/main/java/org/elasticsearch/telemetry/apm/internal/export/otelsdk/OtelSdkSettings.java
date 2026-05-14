@@ -56,7 +56,8 @@ public final class OtelSdkSettings {
         NodeScope
     );
 
-    /** Maximum depth of child spans per request. {@code 0} exports only the root span. Spans from an upstream {@code traceparent} are not counted. */
+    /** Maximum depth of child spans per request. {@code 0} exports only the root span.
+     * Spans from an upstream {@code traceparent} are not counted. */
     public static final Setting<Integer> TELEMETRY_OTEL_TRACES_MAX_TRACE_DEPTH = Setting.intSetting(
         "telemetry.otel.traces.max_trace_depth",
         0,

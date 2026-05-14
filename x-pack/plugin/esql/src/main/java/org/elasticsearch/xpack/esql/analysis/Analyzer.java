@@ -1074,13 +1074,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         context
                     );
                 } else {
-                    // join keys already resolved in a previous iteration — nothing to re-resolve
-                    if (Resolvables.resolved(config.leftFields()) && Resolvables.resolved(config.rightFields())) {
-                        return join;
-                    }
-                    // resolve the using columns against the left and the right side then assemble the new join config
-                    leftKeys = resolveUsingColumns(join.config().leftFields(), join.left().output(), "left");
-                    rightKeys = resolveUsingColumns(join.config().rightFields(), join.right().output(), "right");
+                    // resolve each side independently — skip sides that are already resolved
+                    leftKeys = Resolvables.resolved(config.leftFields())
+                        ? config.leftFields()
+                        : resolveUsingColumns(config.leftFields(), join.left().output(), "left");
+                    rightKeys = Resolvables.resolved(config.rightFields())
+                        ? config.rightFields()
+                        : resolveUsingColumns(config.rightFields(), join.right().output(), "right");
                 }
                 config = new JoinConfig(type, leftKeys, rightKeys, joinOnConditions);
 

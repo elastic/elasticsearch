@@ -79,14 +79,24 @@ public class AnalyzerUnmapped_JoinKey_Tests extends AnalyzerUnmappedTestBase {
             );
     }
 
-    public void testLoad_unmapped_mapped_leftSideError() {
-        // language_code is absent from the primary. load() does not add it because the key already
-        // appears in childOutputNames (from the lookup's output), so collectUnresolved() skips it.
+    public void testLoad_unmapped_mapped_typeMismatch_error() {
+        // language_code is absent from the primary mapping but present in languages_lookup as INTEGER.
+        // load() adds it to the primary as PotentiallyUnmappedKeywordEsField (always keyword),
+        // producing a type mismatch with the INTEGER field in the lookup index.
         test().addLanguagesLookup()
             .statementError(
                 setUnmappedLoad("FROM test | LOOKUP JOIN languages_lookup ON language_code"),
-                containsString("Unknown column [language_code] in left side of join")
+                containsString(
+                    "JOIN left field [language_code] of type [KEYWORD] is incompatible with right field [language_code] of type [INTEGER]"
+                )
             );
+    }
+
+    public void testLoad_unmapped_mapped_keywordMatch_succeeds() {
+        // language_code is absent from the primary mapping but present in keyword_languages_lookup as KEYWORD.
+        // load() adds it to the primary as PotentiallyUnmappedKeywordEsField (keyword) — types match, join succeeds.
+        test().addLookupIndex("keyword_languages_lookup", keywordLanguagesLookup())
+            .statement(setUnmappedLoad("FROM test | LOOKUP JOIN keyword_languages_lookup ON language_code"));
     }
 
     public void testLoad_unmapped_unmapped_rightSideError() {

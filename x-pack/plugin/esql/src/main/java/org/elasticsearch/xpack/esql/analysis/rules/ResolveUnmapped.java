@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
@@ -92,6 +93,11 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         }
 
         LinkedHashMap<String, List<UnresolvedAttribute>> unresolvedByName = collectUnresolved(plan);
+        // In load mode, collectUnresolved skips left-side join keys that appear in the right child's output.
+        // Explicitly collect them here so load() can add PUK extractors for them on the primary index.
+        if (load && plan instanceof LookupJoin lj) {
+            collectUnresolvedLookupJoinLeftKeys(lj, unresolvedByName);
+        }
         if (unresolvedByName.isEmpty()) {
             return plan;
         }
@@ -335,6 +341,23 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
 
     private static Alias nullAlias(NamedExpression attribute) {
         return new Alias(attribute.source(), attribute.name(), NULLIFIED);
+    }
+
+    /**
+     * Collects left-side join keys of a {@link LookupJoin} that are unresolved but were skipped by
+     * {@link #collectUnresolved} because their name appears in the right child's output. In load mode
+     * these fields need a PUK extractor on the primary index even though the lookup index has them mapped.
+     */
+    private static void collectUnresolvedLookupJoinLeftKeys(
+        LookupJoin lj,
+        LinkedHashMap<String, List<UnresolvedAttribute>> unresolvedByName
+    ) {
+        Set<String> leftOutputNames = new HashSet<>(Expressions.names(lj.left().output()));
+        for (Attribute key : lj.config().leftFields()) {
+            if (key instanceof UnresolvedAttribute ua && leaveUnresolved(ua) == false && leftOutputNames.contains(ua.name()) == false) {
+                unresolvedByName.computeIfAbsent(ua.name(), k -> new ArrayList<>()).add(ua);
+            }
+        }
     }
 
     /**

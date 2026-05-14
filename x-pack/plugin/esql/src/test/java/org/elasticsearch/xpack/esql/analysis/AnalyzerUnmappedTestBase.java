@@ -77,6 +77,22 @@ abstract class AnalyzerUnmappedTestBase extends ESTestCase {
     }
 
     /**
+     * Builds a lookup index with {@code language_code} mapped as KEYWORD.
+     * Used to test the unmapped-left / mapped-right case where types are compatible with load mode (PUK is always keyword).
+     */
+    protected static IndexResolution keywordLanguagesLookup() {
+        return IndexResolution.valid(
+            new EsIndex(
+                "keyword_languages_lookup",
+                Map.of("language_code", keywordField("language_code"), "language_name", keywordField("language_name")),
+                Map.of("keyword_languages_lookup", IndexMode.LOOKUP),
+                Map.of(),
+                Map.of()
+            )
+        );
+    }
+
+    /**
      * Builds the {@code message_lookup} index used for KEEP-before-join tests.
      * The primary employees index has no {@code message} field; this lookup does.
      */

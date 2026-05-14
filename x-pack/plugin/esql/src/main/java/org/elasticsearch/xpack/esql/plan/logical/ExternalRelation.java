@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -13,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -55,6 +55,8 @@ import java.util.Objects;
  * source operator via the SPI.
  */
 public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator {
+
+    private static final TransportVersion ESQL_EXTERNAL_SOURCE_READ_SCHEMA = TransportVersion.fromName("esql_external_source_read_schema");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
@@ -111,7 +113,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         // contract is "positional column layout for the source", which is the file's actual schema —
         // not the projection. Reusing {@code output} here would mis-align readSchema for any query
         // that triggers projection pushdown on the external source.
-        List<Attribute> sourceSchema = in.getTransportVersion().supports(FileSplit.ESQL_EXTERNAL_SOURCE_READ_SCHEMA)
+        List<Attribute> sourceSchema = in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_READ_SCHEMA)
             ? in.readNamedWriteableCollectionAsList(Attribute.class)
             : output;
         var metadata = new SimpleSourceMetadata(sourceSchema, sourceType, sourcePath, null, null, sourceMetadata, config);
@@ -127,7 +129,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         out.writeGenericValue(metadata.config());
         out.writeGenericValue(metadata.sourceMetadata());
         // See {@link #readFrom} for why the schema is serialized separately from {@code output}.
-        if (out.getTransportVersion().supports(FileSplit.ESQL_EXTERNAL_SOURCE_READ_SCHEMA)) {
+        if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_READ_SCHEMA)) {
             out.writeNamedWriteableCollection(metadata.schema());
         }
     }

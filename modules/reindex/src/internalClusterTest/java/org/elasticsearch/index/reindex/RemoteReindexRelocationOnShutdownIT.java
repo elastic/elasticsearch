@@ -142,9 +142,9 @@ public class RemoteReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
         // Status#total must survive the relocation boundary; a regression in cache substitution would clamp it to 0.
         final Map<String, Object> responseMap = relocatedTaskFinished.getTask().getResponseAsMap();
-        final Number reportedTotal = (Number) responseMap.get(BulkByScrollTask.Status.TOTAL_FIELD);
+        final var reportedTotal = (Integer) responseMap.get(BulkByPaginatedSearchTask.Status.TOTAL_FIELD);
         assertNotNull("relocated remote reindex response must include Status#total", reportedTotal);
-        assertEquals("relocated remote reindex Status#total must equal numDocs", numDocs, reportedTotal.longValue());
+        assertEquals("relocated remote reindex Status#total must equal numDocs", numDocs, reportedTotal.intValue());
         assertHitCount(prepareSearch(DEST).setSize(0).setTrackTotalHits(true), numDocs);
     }
 

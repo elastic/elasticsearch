@@ -181,13 +181,9 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         assertTrue("relocated reindex should complete", relocatedTaskFinished.getTask().isCompleted());
 
         final Map<String, Object> responseMap = relocatedTaskFinished.getTask().getResponseAsMap();
-        final Number reportedTotal = (Number) responseMap.get(BulkByScrollTask.Status.TOTAL_FIELD);
+        final var reportedTotal = (Integer) responseMap.get(BulkByPaginatedSearchTask.Status.TOTAL_FIELD);
         assertNotNull("relocated reindex response must include Status#total", reportedTotal);
-        assertEquals(
-            "relocated reindex Status#total must equal numDocs across the relocation boundary",
-            numDocs,
-            reportedTotal.longValue()
-        );
+        assertEquals("relocated reindex Status#total must equal numDocs across the relocation boundary", numDocs, reportedTotal.intValue());
 
         // Asserts that the reindexing task is relocated to another node and succeeds
         assertBusy(() -> {

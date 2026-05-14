@@ -262,6 +262,7 @@ sum_over_time_with_tstep_window
 required_capability: ts_command_v0
 required_capability: time_series_window_v1
 required_capability: tstep
+required_capability: fix_tstep_bucket_rounding
 required_capability: fix_time_series_window_backward
 request_time_filter: 2024-05-10T00:00:00.000Z,2024-05-10T00:25:00.000Z
 

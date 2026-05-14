@@ -289,7 +289,9 @@ abstract class KMeansLocal {
         if (effectiveK == 1) {
             final float[][] singleClusterCentroid = new float[1][];
             singleClusterCentroid[0] = centroids[effectiveCluster];
-            kMeansIntermediate.setCentroids(singleClusterCentroid);
+            final int[] singleClusterCounts = new int[1];
+            singleClusterCounts[0] = assignments.length;
+            kMeansIntermediate.setCentroids(singleClusterCentroid, singleClusterCounts);
             Arrays.fill(kMeansIntermediate.assignments(), 0);
             return;
         }
@@ -299,12 +301,14 @@ abstract class KMeansLocal {
         }
 
         final float[][] newCentroids = new float[effectiveK][centroids[0].length];
-        int[] centroidIndexMap = new int[centroids.length];
+        final int[] newClusterCounts = new int[effectiveK];
+        final int[] centroidIndexMap = new int[centroids.length];
         int currentCluster = 0;
         for (int c = 0; c < centroids.length; c++) {
             if (centroidVectorCount[c] > 0) {
                 centroidIndexMap[c] = currentCluster;
                 System.arraycopy(centroids[c], 0, newCentroids[currentCluster], 0, centroids[c].length);
+                newClusterCounts[currentCluster] = centroidVectorCount[c];
                 currentCluster++;
             }
         }
@@ -314,6 +318,6 @@ abstract class KMeansLocal {
                 assignments[i] = centroidIndexMap[assignments[i]];
             }
         }
-        kMeansIntermediate.setCentroids(newCentroids);
+        kMeansIntermediate.setCentroids(newCentroids, newClusterCounts);
     }
 }

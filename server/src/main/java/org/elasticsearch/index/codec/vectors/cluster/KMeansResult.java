@@ -71,9 +71,9 @@ public class KMeansResult {
         return CentroidSupplier.fromArray(centroids, EMPTY, centroids[0].length);
     }
 
-    void setCentroids(float[][] centroids) {
+    void setCentroids(float[][] centroids, int[] clusterCounts) {
         this.centroids = centroids;
-        this.clusterCounts = new int[centroids.length];
+        this.clusterCounts = clusterCounts;
     }
 
     public int[] assignments() {

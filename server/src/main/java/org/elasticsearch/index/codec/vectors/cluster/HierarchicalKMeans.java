@@ -255,11 +255,14 @@ public class HierarchicalKMeans {
 
         // update based on the outcomes from the split clusters recursion
         float[][] newCentroids = new float[newCentroidsSize][];
+        int[] newClusterCounts = new int[newCentroidsSize];
 
         // copy centroids prior to the split
         System.arraycopy(current.centroids(), 0, newCentroids, 0, cluster);
+        System.arraycopy(current.clusterCounts(), 0, newClusterCounts, 0, cluster);
         // insert the split partitions replacing the original cluster
         System.arraycopy(subPartitions.centroids(), 0, newCentroids, cluster, subPartitions.centroids().length);
+        System.arraycopy(subPartitions.clusterCounts(), 0, newClusterCounts, cluster, subPartitions.centroids().length);
         // append the remainder
         System.arraycopy(
             current.centroids(),
@@ -268,9 +271,16 @@ public class HierarchicalKMeans {
             cluster + subPartitions.centroids().length,
             orgCentroidsSize - cluster - 1
         );
+        System.arraycopy(
+            current.clusterCounts(),
+            cluster + 1,
+            newClusterCounts,
+            cluster + subPartitions.centroids().length,
+            orgCentroidsSize - cluster - 1
+        );
 
         assert Arrays.stream(newCentroids).allMatch(Objects::nonNull);
-        current.setCentroids(newCentroids);
+        current.setCentroids(newCentroids, newClusterCounts);
 
         // update the remaining cluster assignments to point to the new centroids after the split cluster
         // IMPORTANT: Do this BEFORE updating split cluster assignments to avoid double-updating

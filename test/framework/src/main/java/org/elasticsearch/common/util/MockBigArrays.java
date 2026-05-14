@@ -142,22 +142,22 @@ public class MockBigArrays extends BigArrays {
                 if (masterCopy.isEmpty() == false) {
                     Iterator<Object> causes = masterCopy.values().iterator();
                     Object firstCause = causes.next();
-                    RuntimeException exception = new RuntimeException(
+                    AssertionError error = new AssertionError(
                         masterCopy.size() + " arrays have not been released",
                         firstCause instanceof Throwable ? (Throwable) firstCause : null
                     );
                     while (causes.hasNext()) {
                         Object cause = causes.next();
                         if (cause instanceof Throwable) {
-                            exception.addSuppressed((Throwable) cause);
+                            error.addSuppressed((Throwable) cause);
                         }
                     }
                     if (TRACK_ALLOCATIONS) {
                         for (Object allocation : masterCopy.values()) {
-                            exception.addSuppressed((Throwable) allocation);
+                            error.addSuppressed((Throwable) allocation);
                         }
                     }
-                    throw exception;
+                    throw error;
                 }
             }
         }

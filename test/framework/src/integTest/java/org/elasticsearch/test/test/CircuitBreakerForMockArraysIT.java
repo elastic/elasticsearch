@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.containsString;
 /// Verifies that [MockBigArrays] and [org.elasticsearch.common.util.MockPageCacheRecycler] detect
 /// unreleased allocations at teardown, using a plugin that simulates allocation without release.
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
-public class CBForMockArraysIT extends ESIntegTestCase {
+public class CircuitBreakerForMockArraysIT extends ESIntegTestCase {
 
     public static class LeakyPlugin extends Plugin {
         @Override
@@ -82,7 +82,7 @@ public class CBForMockArraysIT extends ESIntegTestCase {
     public void testLeakingBigArrayIsDetected() {
         final var faultyService = internalCluster().getInstance(LeakyService.class);
         try (var leaked = faultyService.leakByteArray(between(1, 1024))) {
-            final var e = expectThrows(RuntimeException.class, MockBigArrays::ensureAllArraysAreReleased);
+            final var e = expectThrows(AssertionError.class, MockBigArrays::ensureAllArraysAreReleased);
             assertThat(e.getMessage(), containsString("arrays have not been released"));
         }
     }
@@ -90,9 +90,9 @@ public class CBForMockArraysIT extends ESIntegTestCase {
     public void testLeakingRecyclerBackedByteArrayIsDetected() {
         final var faultyService = internalCluster().getInstance(LeakyService.class);
         try (var leaked = faultyService.leakRecyclerByteArray()) {
-            final var e1 = expectThrows(RuntimeException.class, MockBigArrays::ensureAllArraysAreReleased);
+            final var e1 = expectThrows(AssertionError.class, MockBigArrays::ensureAllArraysAreReleased);
             assertThat(e1.getMessage(), containsString("arrays have not been released"));
-            final var e2 = expectThrows(RuntimeException.class, MockPageCacheRecycler::ensureAllPagesAreReleased);
+            final var e2 = expectThrows(AssertionError.class, MockPageCacheRecycler::ensureAllPagesAreReleased);
             assertThat(e2.getMessage(), containsString("pages have not been released"));
         }
     }
@@ -100,7 +100,7 @@ public class CBForMockArraysIT extends ESIntegTestCase {
     public void testLeakingBytesRefPageIsDetected() {
         final var faultyService = internalCluster().getInstance(LeakyService.class);
         try (var leaked = faultyService.leakPage()) {
-            final var e = expectThrows(RuntimeException.class, MockPageCacheRecycler::ensureAllPagesAreReleased);
+            final var e = expectThrows(AssertionError.class, MockPageCacheRecycler::ensureAllPagesAreReleased);
             assertThat(e.getMessage(), containsString("pages have not been released"));
         }
     }
@@ -109,7 +109,7 @@ public class CBForMockArraysIT extends ESIntegTestCase {
         final var faultyService = internalCluster().getInstance(LeakyService.class);
         try (var leaked = faultyService.leakPage()) {
             expectThrows(AssertionError.class, () -> internalCluster().ensureEstimatedStats());
-            final var e = expectThrows(RuntimeException.class, MockPageCacheRecycler::ensureAllPagesAreReleased);
+            final var e = expectThrows(AssertionError.class, MockPageCacheRecycler::ensureAllPagesAreReleased);
             assertThat(e.getMessage(), containsString("pages have not been released"));
         }
     }

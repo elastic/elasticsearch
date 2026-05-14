@@ -12,6 +12,7 @@ package org.elasticsearch.common.util;
 import org.elasticsearch.common.recycler.Recycler.V;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.test.ESTestCase;
 
 import java.lang.reflect.Array;
 import java.util.Arrays;
@@ -20,9 +21,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
-
-import static org.elasticsearch.test.ESTestCase.assertBusy;
-import static org.junit.Assert.assertTrue;
 
 /// A [PageCacheRecycler] wrapper for tests that delegates all page allocations to an inner
 /// [PageCacheRecycler] and adds two test-time safeguards on top:
@@ -40,13 +38,11 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
     public static void ensureAllPagesAreReleased() throws Exception {
         final Set<Object> masterCopy = new HashSet<>(ACQUIRED_PAGES);
         if (masterCopy.isEmpty() == false) {
-            try {
-                assertBusy(() -> assertTrue(Sets.haveEmptyIntersection(masterCopy, ACQUIRED_PAGES)));
-            } catch (AssertionError ex) {
+            if (ESTestCase.waitUntil(() -> Sets.haveEmptyIntersection(masterCopy, ACQUIRED_PAGES)) == false) {
                 masterCopy.retainAll(ACQUIRED_PAGES);
                 ACQUIRED_PAGES.removeAll(masterCopy);
                 if (masterCopy.isEmpty() == false) {
-                    throw new RuntimeException(masterCopy.size() + " pages have not been released");
+                    throw new AssertionError(masterCopy.size() + " pages have not been released");
                 }
             }
         }

@@ -152,7 +152,9 @@ class S3BlobStore implements BlobStore {
         this.cannedACL = initCannedACL(cannedACL);
         this.defaultStorageClass = initStorageClass(defaultStorageClass);
         this.dataStorageClass = Strings.hasText(dataStorageClass) ? initStorageClass(dataStorageClass) : this.defaultStorageClass;
-        this.metadataStorageClass = Strings.hasText(metadataStorageClass) ? initStorageClass(metadataStorageClass) : this.defaultStorageClass;
+        this.metadataStorageClass = Strings.hasText(metadataStorageClass)
+            ? initStorageClass(metadataStorageClass)
+            : this.defaultStorageClass;
         this.supportsConditionalWrites = supportConditionalWrites;
         this.repositoryMetadata = repositoryMetadata;
         this.threadPool = threadPool;

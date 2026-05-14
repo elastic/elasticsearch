@@ -250,10 +250,21 @@ final class ColumnIndexRowRangesComputer implements FilterPredicate.Visitor<RowR
         } else if (type == Double.class) {
             // Buffer length distinguishes physical FLOAT (4 bytes) from DOUBLE (8 bytes);
             // parquet-mr's Column API only exposes Double.class for both floatColumn and doubleColumn.
+            //
+            // NaN min/max statistics are not usable for page-level pruning: the parquet-mr / parquet-format
+            // spec treats NaN as a sentinel for "no usable bound", and Java's Comparable contract orders
+            // NaN above every finite value. Comparing NaN through the leaf
+            // visitors would therefore both prune real-data pages (e.g. `Lt`: `Double.compare(NaN, V) < 0`
+            // is false, dropping a page that may contain values satisfying the predicate) and rely on
+            // accidental correctness in other shapes. Returning null here routes the page through the
+            // existing `min == null || max == null` branch in `evaluateLeaf`, which keeps the page in
+            // RowRanges and lets FilterExec apply the predicate per row.
             if (ordered.remaining() == Float.BYTES) {
-                return (T) Double.valueOf(ordered.getFloat());
+                float f = ordered.getFloat();
+                return Float.isNaN(f) ? null : (T) Double.valueOf(f);
             }
-            return (T) Double.valueOf(ordered.getDouble());
+            double d = ordered.getDouble();
+            return Double.isNaN(d) ? null : (T) Double.valueOf(d);
         } else if (type == Boolean.class) {
             return (T) Boolean.valueOf(ordered.get() != 0);
         } else if (type == Binary.class) {

@@ -269,6 +269,104 @@ public class ColumnIndexRowRangesComputerTests extends ESTestCase {
         assertTrue("Page with matching min/max should be included", result.overlaps(500, 600));
     }
 
+    public void testLtKeepsNaNStatsPagesConservatively() {
+        // Four pages exercising every NaN-stats shape against `score < 0.5`:
+        // page 0 [included] min=-10, max=-1 -> real stats clearly satisfy the predicate.
+        // page 1 [excluded] min= 10, max= 15 -> real stats clearly fail the predicate.
+        // page 2 [NaN max] min= -5, max=NaN -> the max is not a number; today's lambda
+        // only looks at min for Lt, so the page is
+        // kept by accident. The fix routes max=NaN
+        // through the `max == null` branch and
+        // keeps the page conservatively.
+        // page 3 [NaN min] min=NaN, max= 5 -> the min is not a number; today's lambda
+        // evaluates `Double.compare(NaN, 0.5) < 0`
+        // -> false (Java orders NaN above every
+        // finite value), so the page is WRONGLY
+        // EXCLUDED. The fix maps NaN to null and
+        // keeps the page via the conservative
+        // `min == null` branch.
+        // This assertion on page 3 is what fails today.
+        double[] mins = { -10.0, 10.0, -5.0, Double.NaN };
+        double[] maxes = { -1.0, 15.0, Double.NaN, 5.0 };
+        PreloadedRowGroupMetadata metadata = buildDoubleMetadataExplicit("score", mins, maxes, PAGE_SIZE);
+        FilterPredicate pred = FilterApi.lt(FilterApi.doubleColumn("score"), 0.5);
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, 4L * PAGE_SIZE);
+
+        assertTrue("Real-stats matching page must be kept", result.overlaps(0, PAGE_SIZE));
+        assertFalse("Real-stats failing page must be excluded", result.overlaps(PAGE_SIZE, 2L * PAGE_SIZE));
+        assertTrue("NaN-max page must be kept conservatively", result.overlaps(2L * PAGE_SIZE, 3L * PAGE_SIZE));
+        assertTrue("NaN-min page must be kept conservatively", result.overlaps(3L * PAGE_SIZE, 4L * PAGE_SIZE));
+    }
+
+    public void testEqKeepsNaNStatsPagesConservatively() {
+        // Same four-page layout against `score = 50.0`:
+        // page 0 [included] min= 40, max= 60 -> 50 in range.
+        // page 1 [excluded] min=100, max=200 -> 50 below range.
+        // page 2 [NaN max] min= 40, max=NaN -> today's lambda evaluates
+        // `min<=50 && 50<=NaN`. The second
+        // comparison is `Double.compare(50, NaN)
+        // <= 0` -> -1 <= 0 -> true, so the page is
+        // kept by accident. The fix keeps it via
+        // the `max == null` branch.
+        // page 3 [NaN min] min=NaN, max= 60 -> today's lambda evaluates
+        // `Double.compare(NaN, 50) <= 0` -> false,
+        // so the page is WRONGLY EXCLUDED. The
+        // fix keeps it via the `min == null` branch.
+        double[] mins = { 40.0, 100.0, 40.0, Double.NaN };
+        double[] maxes = { 60.0, 200.0, Double.NaN, 60.0 };
+        PreloadedRowGroupMetadata metadata = buildDoubleMetadataExplicit("score", mins, maxes, PAGE_SIZE);
+        FilterPredicate pred = FilterApi.eq(FilterApi.doubleColumn("score"), 50.0);
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, 4L * PAGE_SIZE);
+
+        assertTrue("Real-stats matching page must be kept", result.overlaps(0, PAGE_SIZE));
+        assertFalse("Real-stats failing page must be excluded", result.overlaps(PAGE_SIZE, 2L * PAGE_SIZE));
+        assertTrue("NaN-max page must be kept conservatively", result.overlaps(2L * PAGE_SIZE, 3L * PAGE_SIZE));
+        assertTrue("NaN-min page must be kept conservatively", result.overlaps(3L * PAGE_SIZE, 4L * PAGE_SIZE));
+    }
+
+    public void testGtKeepsNaNStatsPagesConservatively() {
+        // Same four-page layout against `score > 100.0`. For Gt the leaf lambda only inspects
+        // max, so every NaN-stats shape happens to be kept today by accident:
+        // page 2 [NaN max] `Double.compare(NaN, 100) > 0` -> +1 -> kept.
+        // page 3 [NaN min] max ignored; real max > 100 -> kept.
+        // This test therefore passes today and after the fix; it serves as a no-regression
+        // guard that maps the same NaN handling to the conservative path explicitly via
+        // null returns from decodeValue.
+        double[] mins = { 50.0, 10.0, -5.0, Double.NaN };
+        double[] maxes = { 150.0, 15.0, Double.NaN, 200.0 };
+        PreloadedRowGroupMetadata metadata = buildDoubleMetadataExplicit("score", mins, maxes, PAGE_SIZE);
+        FilterPredicate pred = FilterApi.gt(FilterApi.doubleColumn("score"), 100.0);
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, 4L * PAGE_SIZE);
+
+        assertTrue("Real-stats matching page must be kept", result.overlaps(0, PAGE_SIZE));
+        assertFalse("Real-stats failing page must be excluded", result.overlaps(PAGE_SIZE, 2L * PAGE_SIZE));
+        assertTrue("NaN-max page must be kept conservatively", result.overlaps(2L * PAGE_SIZE, 3L * PAGE_SIZE));
+        assertTrue("NaN-min page must be kept conservatively", result.overlaps(3L * PAGE_SIZE, 4L * PAGE_SIZE));
+    }
+
+    public void testLtKeepsAllNaNStatsPageConservatively() {
+        // Three pages exercising the all-NaN shape (e.g. a writer that emits NaN min/max as
+        // a "stats unavailable" signal, or a page whose values are entirely NaN):
+        // page 0 [included] min=-10, max=-1 -> real stats satisfy `score < 0.5`.
+        // page 1 [excluded] min= 10, max= 15 -> real stats fail.
+        // page 2 [all-NaN] min=NaN, max=NaN -> today's lambda evaluates
+        // `NaN < 0.5` -> false and the page is
+        // WRONGLY EXCLUDED. The fix keeps it.
+        double[] mins = { -10.0, 10.0, Double.NaN };
+        double[] maxes = { -1.0, 15.0, Double.NaN };
+        PreloadedRowGroupMetadata metadata = buildDoubleMetadataExplicit("score", mins, maxes, PAGE_SIZE);
+        FilterPredicate pred = FilterApi.lt(FilterApi.doubleColumn("score"), 0.5);
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, 3L * PAGE_SIZE);
+
+        assertTrue("Real-stats matching page must be kept", result.overlaps(0, PAGE_SIZE));
+        assertFalse("Real-stats failing page must be excluded", result.overlaps(PAGE_SIZE, 2L * PAGE_SIZE));
+        assertTrue("All-NaN page must be kept conservatively", result.overlaps(2L * PAGE_SIZE, 3L * PAGE_SIZE));
+    }
+
     public void testBooleanColumnEq() {
         PreloadedRowGroupMetadata metadata = buildBooleanMetadata("flag", PAGE_COUNT, PAGE_SIZE);
         FilterPredicate pred = FilterApi.eq(FilterApi.booleanColumn("flag"), true);
@@ -406,6 +504,35 @@ public class ColumnIndexRowRangesComputerTests extends ESTestCase {
         PrimitiveType ptype = Types.required(PrimitiveType.PrimitiveTypeName.DOUBLE).named(columnPath);
         org.apache.parquet.internal.column.columnindex.ColumnIndex typedCi = ParquetMetadataConverter.fromParquetColumnIndex(ptype, ci);
         org.apache.parquet.internal.column.columnindex.OffsetIndex typedOi = ParquetMetadataConverter.fromParquetOffsetIndex(oi);
+
+        return buildMetadata(columnPath, typedCi, typedOi);
+    }
+
+    /**
+     * Builds a DOUBLE column index where page {@code p} has explicit {@code mins[p]} / {@code maxes[p]}
+     * stats. Used to exercise edge cases (NaN, equal min==max, etc.) that the contiguous-range
+     * helper {@link #buildDoubleMetadata} cannot express.
+     */
+    private static PreloadedRowGroupMetadata buildDoubleMetadataExplicit(String columnPath, double[] mins, double[] maxes, int pageSize) {
+        assert mins.length == maxes.length : "mins/maxes length mismatch";
+        List<ByteBuffer> minValues = new ArrayList<>();
+        List<ByteBuffer> maxValues = new ArrayList<>();
+        List<Boolean> nullPages = new ArrayList<>();
+        List<PageLocation> pageLocations = new ArrayList<>();
+
+        for (int p = 0; p < mins.length; p++) {
+            minValues.add(doubleToBuffer(mins[p]));
+            maxValues.add(doubleToBuffer(maxes[p]));
+            nullPages.add(false);
+            pageLocations.add(new PageLocation(p * 1000L, pageSize * 8, p * pageSize));
+        }
+
+        ColumnIndex ci = new ColumnIndex(nullPages, minValues, maxValues, BoundaryOrder.UNORDERED);
+        OffsetIndex oi = new OffsetIndex(pageLocations);
+
+        PrimitiveType ptype = Types.required(PrimitiveType.PrimitiveTypeName.DOUBLE).named(columnPath);
+        var typedCi = ParquetMetadataConverter.fromParquetColumnIndex(ptype, ci);
+        var typedOi = ParquetMetadataConverter.fromParquetOffsetIndex(oi);
 
         return buildMetadata(columnPath, typedCi, typedOi);
     }

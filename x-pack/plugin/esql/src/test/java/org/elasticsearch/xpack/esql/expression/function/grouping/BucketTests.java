@@ -18,6 +18,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -33,6 +34,7 @@ import java.time.Period;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -41,11 +43,37 @@ import static org.elasticsearch.test.ReadableMatchers.matchesDateNanos;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTruncTests.makeTruncDurationTestCases;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTruncTests.makeTruncPeriodTestCases;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 // The amount of date trunc cases sometimes exceed the 20 minutes
 @TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
 public class BucketTests extends AbstractConfigurationFunctionTestCase {
+
+    // Shared evaluator-string prefixes for dateTruncCases — reused across hundreds of suppliers to avoid
+    // per-supplier Matcher allocation during parameter collection.
+    private static final Matcher<String> DATETIME_TRUNC_EVAL_PREFIX = Matchers.startsWith(
+        "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["
+    );
+    private static final Matcher<String> DATE_NANOS_TRUNC_EVAL_PREFIX = Matchers.startsWith(
+        "DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["
+    );
+
+    // Shared metadata maps reused across many test cases to avoid per-supplier allocation. Bigger wins
+    // belong to the dateCases/dateNanosCases/numberCases/numberCasesWithSpan suppliers, which all share
+    // a small handful of (interval, unit) shapes.
+    private static final Map<String, Object> META_DAY_1 = Map.of("bucket", Map.of("interval", 1L, "unit", "day"));
+    private static final Map<String, Object> META_WEEK_1 = Map.of("bucket", Map.of("interval", 1L, "unit", "week"));
+    private static final Map<String, Object> META_MONTH_1 = Map.of("bucket", Map.of("interval", 1L, "unit", "month"));
+    private static final Map<String, Object> META_QUARTER_1 = Map.of("bucket", Map.of("interval", 1L, "unit", "quarter"));
+    private static final Map<String, Object> META_YEAR_1 = Map.of("bucket", Map.of("interval", 1L, "unit", "year"));
+    private static final Map<String, Object> META_HOUR_1 = Map.of("bucket", Map.of("interval", 1L, "unit", "hour"));
+    private static final Map<String, Object> META_NUMERIC_50 = Map.of("bucket", Map.of("interval", 50.0));
+
     public BucketTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -56,37 +84,135 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
         dateCases(suppliers, "fixed date", () -> DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-02-17T09:00:00.00Z"));
         dateRoundingHandlesNonNestedCalendarUnits(suppliers);
         dateNanosCases(suppliers, "fixed date nanos", () -> DateUtils.toLong(Instant.parse("2023-02-17T09:00:00.00Z")));
-        dateCasesWithSpan(
+        // Span cases — one per branch of expectedDateMetadataForSpan, registered for both DATETIME and DATE_NANOS.
+        // The dates below are picked so BUCKET's rounded value equals the day-of-month rounding used by resultsMatcher
+        // (i.e. the input lies on a span boundary AND on a midnight UTC), so the existing helper can validate the
+        // BUCKET output without per-span result matchers.
+        dateAndNanosSpanCase(
             suppliers,
-            "fixed date with period",
-            () -> DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00.00Z"),
+            "with day period",
+            "1970-01-01T00:00:00.00Z",
+            DataType.DATE_PERIOD,
+            Period.ofDays(1),
+            "[DAY_OF_MONTH in Z][fixed to midnight]"
+        );
+        // 1970-01-05 is the first Monday at or after epoch (epoch itself was a Thursday, so WEEK_OF_WEEKYEAR rounding
+        // would walk it back to 1969-12-29 — outside the date_nanos representable range).
+        dateAndNanosSpanCase(
+            suppliers,
+            "with week period",
+            "1970-01-05T00:00:00.00Z",
+            DataType.DATE_PERIOD,
+            Period.ofDays(7),
+            "[WEEK_OF_WEEKYEAR in Z][fixed to midnight]"
+        );
+        dateAndNanosSpanCase(
+            suppliers,
+            "with multi-day period",
+            "1970-01-01T00:00:00.00Z",
+            DataType.DATE_PERIOD,
+            Period.ofDays(10),
+            "[864000000 in Z][fixed]"
+        );
+        dateAndNanosSpanCase(
+            suppliers,
+            "with month period",
+            "1970-01-01T00:00:00.00Z",
+            DataType.DATE_PERIOD,
+            Period.ofMonths(1),
+            "[MONTH_OF_YEAR in Z][fixed to midnight]"
+        );
+        dateAndNanosSpanCase(
+            suppliers,
+            "with quarter period",
+            "1970-01-01T00:00:00.00Z",
+            DataType.DATE_PERIOD,
+            Period.ofMonths(3),
+            "[QUARTER_OF_YEAR in Z][fixed to midnight]"
+        );
+        dateAndNanosSpanCase(
+            suppliers,
+            "with multi-month period",
+            "1970-01-01T00:00:00.00Z",
+            DataType.DATE_PERIOD,
+            Period.ofMonths(6),
+            "[MONTHS_OF_YEAR in Z][fixed to midnight]"
+        );
+        // ESQL parses `N quarters` as Period.ofMonths(N * 3); for N > 1 the multiplier ends up on MONTHS_OF_YEAR.
+        // 1972-01-01 is a 9-month boundary from year 1 CE (the reference point used by roundIntervalMonthOfYear).
+        dateAndNanosSpanCase(
+            suppliers,
+            "with multi-quarter period",
+            "1972-01-01T00:00:00.00Z",
+            DataType.DATE_PERIOD,
+            Period.ofMonths(9),
+            "[MONTHS_OF_YEAR in Z][fixed to midnight]"
+        );
+        dateAndNanosSpanCase(
+            suppliers,
+            "with year period",
+            "1970-01-01T00:00:00.00Z",
             DataType.DATE_PERIOD,
             Period.ofYears(1),
             "[YEAR_OF_CENTURY in Z][fixed to midnight]"
         );
-        dateCasesWithSpan(
+        // Multi-year buckets are aligned to year 1 CE (via DateUtils.roundYearInterval), not the epoch, so 5-year buckets
+        // start at 1966/1971/1976/... — pick 1971 to land exactly on a boundary.
+        dateAndNanosSpanCase(
             suppliers,
-            "fixed date with duration",
-            () -> DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-02-17T09:00:00.00Z"),
-            DataType.TIME_DURATION,
-            Duration.ofDays(1L),
-            "[86400000 in Z][fixed]"
-        );
-        dateNanosCasesWithSpan(
-            suppliers,
-            "fixed date nanos with period",
-            () -> DateUtils.toLong(Instant.parse("2023-01-01T00:00:00.00Z")),
+            "with multi-year period",
+            "1971-01-01T00:00:00.00Z",
             DataType.DATE_PERIOD,
-            Period.ofYears(1),
-            "[YEAR_OF_CENTURY in Z][fixed to midnight]"
+            Period.ofYears(5),
+            "[YEARS_OF_CENTURY in Z][fixed to midnight]"
         );
-        dateNanosCasesWithSpan(
+        dateAndNanosSpanCase(
             suppliers,
-            "fixed date nanos with duration",
-            () -> DateUtils.toLong(Instant.parse("2023-02-17T09:00:00.00Z")),
+            "with multi-day duration",
+            "1970-01-01T00:00:00.00Z",
+            DataType.TIME_DURATION,
+            Duration.ofDays(3L),
+            "[259200000 in Z][fixed]"
+        );
+        dateAndNanosSpanCase(
+            suppliers,
+            "with day duration",
+            "1970-01-01T00:00:00.00Z",
             DataType.TIME_DURATION,
             Duration.ofDays(1L),
             "[86400000 in Z][fixed]"
+        );
+        dateAndNanosSpanCase(
+            suppliers,
+            "with hour duration",
+            "1970-01-01T00:00:00.00Z",
+            DataType.TIME_DURATION,
+            Duration.ofHours(3L),
+            "[10800000 in Z][fixed]"
+        );
+        dateAndNanosSpanCase(
+            suppliers,
+            "with minute duration",
+            "1970-01-01T00:00:00.00Z",
+            DataType.TIME_DURATION,
+            Duration.ofMinutes(5L),
+            "[300000 in Z][fixed]"
+        );
+        dateAndNanosSpanCase(
+            suppliers,
+            "with second duration",
+            "1970-01-01T00:00:00.00Z",
+            DataType.TIME_DURATION,
+            Duration.ofSeconds(10L),
+            "[10000 in Z][fixed]"
+        );
+        dateAndNanosSpanCase(
+            suppliers,
+            "with millisecond duration",
+            "1970-01-01T00:00:00.00Z",
+            DataType.TIME_DURATION,
+            Duration.ofMillis(13),
+            "[13 in Z][fixed]"
         );
         dateTruncCases(suppliers);
         numberCases(suppliers, "fixed long", DataType.LONG, () -> 100L);
@@ -125,7 +251,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                             + "rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
                         DataType.DATETIME,
                         resultsMatcher(args)
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC));
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_DAY_1);
                 }));
                 // same as above, but a low bucket count and datetime bounds that match it (at hour span)
                 suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATETIME, DataType.INTEGER, fromType, toType), () -> {
@@ -139,7 +265,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                         "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[3600000 in Z][fixed]]",
                         DataType.DATETIME,
                         equalTo(Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build().prepareForUnknown().round(date.getAsLong()))
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC));
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_HOUR_1);
                 }));
             }
         }
@@ -162,7 +288,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                         Matchers.containsString("rounding=Rounding[WEEK_OF_WEEKYEAR in Z][fixed to midnight]"),
                         DataType.DATETIME,
                         equalTo(Rounding.builder(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR).build().prepareForUnknown().round(date))
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC));
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_WEEK_1);
                 }
             )
         );
@@ -183,7 +309,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                         Matchers.containsString("rounding=Rounding[MONTH_OF_YEAR in Z][fixed to midnight]"),
                         DataType.DATETIME,
                         equalTo(Rounding.builder(Rounding.DateTimeUnit.MONTH_OF_YEAR).build().prepareForUnknown().round(date))
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC));
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_MONTH_1);
                 }
             )
         );
@@ -202,10 +328,11 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                             new TestCaseSupplier.TypedData(data.inputDateAsMillis(), DataType.DATETIME, "field"),
                             new TestCaseSupplier.TypedData(data.period(), DataType.DATE_PERIOD, "interval").forceLiteral()
                         ),
-                        Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                        DATETIME_TRUNC_EVAL_PREFIX,
                         DataType.DATETIME,
                         matchesDateMillis(data.expectedDate())
                     ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
+                        .withExtra(expectedDateMetadataForSpan(data.period()))
                 )
             );
 
@@ -219,10 +346,11 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                                 new TestCaseSupplier.TypedData(data.inputDateAsNanos(), DataType.DATE_NANOS, "field"),
                                 new TestCaseSupplier.TypedData(data.period(), DataType.DATE_PERIOD, "interval").forceLiteral()
                             ),
-                            Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                            DATE_NANOS_TRUNC_EVAL_PREFIX,
                             DataType.DATE_NANOS,
                             matchesDateNanos(data.expectedDate())
                         ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
+                            .withExtra(expectedDateMetadataForSpan(data.period()))
                     )
                 );
             }
@@ -242,10 +370,11 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                             new TestCaseSupplier.TypedData(data.inputDateAsMillis(), DataType.DATETIME, "field"),
                             new TestCaseSupplier.TypedData(data.duration(), DataType.TIME_DURATION, "interval").forceLiteral()
                         ),
-                        Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                        DATETIME_TRUNC_EVAL_PREFIX,
                         DataType.DATETIME,
                         matchesDateMillis(data.expectedDate())
                     ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
+                        .withExtra(expectedDateMetadataForSpan(data.duration()))
                 )
             );
 
@@ -259,16 +388,54 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                                 new TestCaseSupplier.TypedData(data.inputDateAsNanos(), DataType.DATE_NANOS, "field"),
                                 new TestCaseSupplier.TypedData(data.duration(), DataType.TIME_DURATION, "interval").forceLiteral()
                             ),
-                            Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                            DATE_NANOS_TRUNC_EVAL_PREFIX,
                             DataType.DATE_NANOS,
                             matchesDateNanos(data.expectedDate())
                         ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
+                            .withExtra(expectedDateMetadataForSpan(data.duration()))
                     )
                 );
             }
 
             return caseSuppliers;
         }).forEach(suppliers::addAll);
+    }
+
+    /**
+     * Returns the metadata that {@link Bucket#getIntervalMetadata} should produce for a span argument
+     * (a {@link Period} or {@link Duration}). Mirrors the canonical-unit selection performed by
+     * {@link Rounding#getInterval()} so each test case can assert exact interval/unit values without
+     * round-tripping through the production logic under test.
+     */
+    private static Map<String, Object> expectedDateMetadataForSpan(Object span) {
+        if (span instanceof Period p) {
+            // Logic mirrors DateTrunc.createRounding for Period.
+            if (p.getDays() == 1) return META_DAY_1;
+            if (p.getDays() == 7) return META_WEEK_1;
+            if (p.getDays() > 1) return Map.of("bucket", Map.of("interval", (long) p.getDays(), "unit", "day"));
+            if (p.getMonths() == 1) return META_MONTH_1;
+            if (p.getMonths() == 3) return META_QUARTER_1;
+            if (p.getMonths() > 0) return Map.of("bucket", Map.of("interval", (long) p.getMonths(), "unit", "month"));
+            if (p.getYears() == 1) return META_YEAR_1;
+            if (p.getYears() > 0) return Map.of("bucket", Map.of("interval", (long) p.getYears(), "unit", "year"));
+            throw new AssertionError("Unsupported period: " + p);
+        }
+        if (span instanceof Duration d) {
+            // TimeValue picks the largest exact unit when stringifying; we mirror that here.
+            long ms = d.toMillis();
+            if (ms % (24L * 3600_000L) == 0) {
+                long n = ms / (24L * 3600_000L);
+                return n == 1 ? META_DAY_1 : Map.of("bucket", Map.of("interval", n, "unit", "day"));
+            }
+            if (ms % 3600_000L == 0) {
+                long n = ms / 3600_000L;
+                return n == 1 ? META_HOUR_1 : Map.of("bucket", Map.of("interval", n, "unit", "hour"));
+            }
+            if (ms % 60_000L == 0) return Map.of("bucket", Map.of("interval", ms / 60_000L, "unit", "minute"));
+            if (ms % 1000L == 0) return Map.of("bucket", Map.of("interval", ms / 1000L, "unit", "second"));
+            return Map.of("bucket", Map.of("interval", ms, "unit", "millisecond"));
+        }
+        throw new IllegalArgumentException("Unsupported span: " + span);
     }
 
     private static TestCaseSupplier.TypedData dateBound(String name, DataType type, String date) {
@@ -298,8 +465,39 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                 "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding" + spanStr + "]",
                 DataType.DATETIME,
                 resultsMatcher(args)
-            ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC));
+            ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(expectedDateMetadataForSpan(span));
         }));
+    }
+
+    /**
+     * Registers a BUCKET test case for both DATETIME and DATE_NANOS using the same date string, span, and
+     * Rounding-toString suffix. Used to mirror every span shape (calendar units, multi-N intervals, durations) onto
+     * both date types so {@link #parameters} covers each branch of {@link #expectedDateMetadataForSpan}.
+     */
+    private static void dateAndNanosSpanCase(
+        List<TestCaseSupplier> suppliers,
+        String description,
+        String dateString,
+        DataType spanType,
+        Object span,
+        String spanStr
+    ) {
+        dateCasesWithSpan(
+            suppliers,
+            "fixed date " + description,
+            () -> DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(dateString),
+            spanType,
+            span,
+            spanStr
+        );
+        dateNanosCasesWithSpan(
+            suppliers,
+            "fixed date nanos " + description,
+            () -> DateUtils.toLong(Instant.parse(dateString)),
+            spanType,
+            span,
+            spanStr
+        );
     }
 
     private static void dateNanosCasesWithSpan(
@@ -316,10 +514,10 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
             args.add(new TestCaseSupplier.TypedData(span, spanType, "buckets").forceLiteral());
             return new TestCaseSupplier.TestCase(
                 args,
-                Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                "DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding" + spanStr + "]",
                 DataType.DATE_NANOS,
                 resultsMatcher(args)
-            ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC));
+            ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(expectedDateMetadataForSpan(span));
         }));
     }
 
@@ -335,10 +533,11 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                     args.add(dateBound("to", toType, "2023-03-01T09:00:00.00Z"));
                     return new TestCaseSupplier.TestCase(
                         args,
-                        Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                        "DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], "
+                            + "rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
                         DataType.DATE_NANOS,
                         resultsMatcher(args)
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC));
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_DAY_1);
                 }));
                 // same as above, but a low bucket count and datetime bounds that match it (at hour span)
                 suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATE_NANOS, DataType.INTEGER, fromType, toType), () -> {
@@ -349,10 +548,10 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                     args.add(dateBound("to", toType, "2023-02-17T12:00:00Z"));
                     return new TestCaseSupplier.TestCase(
                         args,
-                        Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                        "DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[3600000 in Z][fixed]]",
                         DataType.DATE_NANOS,
                         equalTo(Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build().prepareForUnknown().round(date.getAsLong()))
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC));
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_HOUR_1);
                 }));
             }
         }
@@ -385,7 +584,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                             + "rhs=LiteralsEvaluator[lit=50.0]]], rhs=LiteralsEvaluator[lit=50.0]]",
                         DataType.DOUBLE,
                         resultsMatcher(args)
-                    );
+                    ).withExtra(META_NUMERIC_50);
                 }));
             }
         }
@@ -424,7 +623,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                         + "rhs=LiteralsEvaluator[lit=50.0]]], rhs=LiteralsEvaluator[lit=50.0]]",
                     DataType.DOUBLE,
                     resultsMatcher(args)
-                );
+                ).withExtra(META_NUMERIC_50);
             }));
         }
 
@@ -463,6 +662,71 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
             to = args.get(3);
         }
         return new Bucket(source, args.get(0), args.get(1), from, to, configuration);
+    }
+
+    /**
+     * Verifies that {@link Bucket#getIntervalMetadata} returns the metadata embedded as
+     * {@link TestCaseSupplier.TestCase#extra()} for each parametrized case. Every supplier is responsible for
+     * declaring the expected interval/unit, so adding a new field type or argument shape to BUCKET requires
+     * declaring its expected metadata here too — the metadata path can't drift from the function's supported types.
+     * <p>
+     * In addition to the exact-match assertion, structural checks pin the shape of the metadata map per field type
+     * so a new BUCKET-supported type that produces malformed metadata trips this test even before the per-case
+     * expected value can be set.
+     */
+    public void testGetIntervalMetadata() {
+        Expression expr = buildFieldExpression(testCase);
+        assertThat(expr, instanceOf(Bucket.class));
+        Bucket bucket = (Bucket) expr;
+
+        TestCaseSupplier.TypedData fieldData = testCase.getData().get(0);
+        if (fieldData.data() == null && fieldData.type() != DataType.NULL) {
+            // anyNullIsNull's first flavor sets data=null at position 0 but keeps the original field type.
+            // Because the field is built as an Attribute (not a Literal), null data never reaches the
+            // metadata path; this case doesn't represent a null-arg-to-BUCKET scenario (production folds a
+            // null field literal at the optimizer instead). Skip rather than assert.
+            return;
+        }
+
+        if (testCase.getData().stream().anyMatch(d -> d.data() == null)) {
+            // Null literal in a forceLiteral argument (buckets/from/to) or a NULL-typed field. In production
+            // the optimizer folds null inputs before metadata extraction (verified end-to-end in
+            // BucketColumnMetadataIT), so getIntervalMetadata is never invoked with null fold values in real
+            // queries. Direct invocation surfaces no metadata — null return or null-cast NPE both qualify.
+            Map<String, Object> metadata = null;
+            try {
+                metadata = bucket.getIntervalMetadata(FoldContext.small());
+            } catch (RuntimeException | AssertionError ignored) {
+                // Expected for null fold values in buckets/from/to.
+            }
+            assertThat(metadata, nullValue());
+            return;
+        }
+
+        Map<String, Object> metadata = bucket.getIntervalMetadata(FoldContext.small());
+
+        assertThat(metadata, notNullValue());
+        assertThat(metadata.keySet(), contains("bucket"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> inner = (Map<String, Object>) metadata.get("bucket");
+        assertThat(inner, hasKey("interval"));
+
+        DataType fieldType = testCase.getData().get(0).type();
+        if (fieldType == DataType.DATETIME || fieldType == DataType.DATE_NANOS) {
+            assertThat(inner.get("interval"), instanceOf(Long.class));
+            assertThat(inner, hasKey("unit"));
+            assertThat(inner.get("unit"), instanceOf(String.class));
+        } else if (fieldType.isNumeric()) {
+            assertThat(inner.get("interval"), instanceOf(Double.class));
+            assertThat(inner.containsKey("unit"), equalTo(false));
+        } else {
+            fail("BUCKET supports field type [" + fieldType + "] but getIntervalMetadata has no branch for it");
+        }
+
+        Object expected = testCase.extra();
+        assertThat("test case is missing expected metadata in withExtra(...)", expected, instanceOf(Map.class));
+        assertThat(metadata, equalTo(expected));
     }
 
     /**

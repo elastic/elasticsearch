@@ -51,7 +51,7 @@ public class InferenceStatsTests extends ESTestCase {
 
     private static final String TEST_STACK_VERSION = "8.99.0";
     private static final boolean TEST_IS_PRODUCTION_RELEASE = true;
-    private static final String TEST_DEPLOYMENT_TYPE = NodeTelemetryAttributes.HOSTED;
+    private static final String TEST_DEPLOYMENT_TYPE = MetricAttributes.HOSTED_DEPLOYMENT_TYPE;
     private static final String TEST_SERVICE = "service";
     private static final String TEST_PRODUCT_ORIGIN = "kibana";
 

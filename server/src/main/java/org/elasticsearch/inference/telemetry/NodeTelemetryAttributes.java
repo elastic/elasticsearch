@@ -23,9 +23,6 @@ import java.util.Map;
  */
 public record NodeTelemetryAttributes(String stackVersion, boolean isProductionRelease, String deploymentType) {
 
-    public static final String SERVERLESS = "serverless";
-    public static final String HOSTED = "hosted";
-
     /**
      * Builds a {@link NodeTelemetryAttributes} from the running node's environment.
      */
@@ -33,7 +30,7 @@ public record NodeTelemetryAttributes(String stackVersion, boolean isProductionR
         return new NodeTelemetryAttributes(
             build.version(),
             build.isProductionRelease(),
-            DiscoveryNode.isStateless(settings) ? SERVERLESS : HOSTED
+            DiscoveryNode.isStateless(settings) ? MetricAttributes.SERVERLESS_DEPLOYMENT_TYPE : MetricAttributes.HOSTED_DEPLOYMENT_TYPE
         );
     }
 

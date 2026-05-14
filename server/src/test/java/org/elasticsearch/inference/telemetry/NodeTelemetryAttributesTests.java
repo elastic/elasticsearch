@@ -25,25 +25,25 @@ public class NodeTelemetryAttributesTests extends ESTestCase {
         var settings = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
         var attrs = NodeTelemetryAttributes.from(Build.current(), settings);
 
-        assertThat(attrs.deploymentType(), is(NodeTelemetryAttributes.SERVERLESS));
+        assertThat(attrs.deploymentType(), is(MetricAttributes.SERVERLESS_DEPLOYMENT_TYPE));
     }
 
     public void testDeploymentType_IsHosted_WhenSettings_IsFalse() {
         var settings = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, false).build();
         var attrs = NodeTelemetryAttributes.from(Build.current(), settings);
 
-        assertThat(attrs.deploymentType(), is(NodeTelemetryAttributes.HOSTED));
+        assertThat(attrs.deploymentType(), is(MetricAttributes.HOSTED_DEPLOYMENT_TYPE));
     }
 
     public void testDeploymentType_IsHosted_WhenSettings_IsAbsent() {
         var attrs = NodeTelemetryAttributes.from(Build.current(), Settings.EMPTY);
 
-        assertThat(attrs.deploymentType(), is(NodeTelemetryAttributes.HOSTED));
+        assertThat(attrs.deploymentType(), is(MetricAttributes.HOSTED_DEPLOYMENT_TYPE));
     }
 
     public void testAsMapContainsAllKeys() {
         var version = "9.0.0";
-        var attrs = new NodeTelemetryAttributes(version, true, NodeTelemetryAttributes.HOSTED);
+        var attrs = new NodeTelemetryAttributes(version, true, MetricAttributes.HOSTED_DEPLOYMENT_TYPE);
 
         assertThat(
             attrs.asMap(),
@@ -54,7 +54,7 @@ public class NodeTelemetryAttributesTests extends ESTestCase {
                     MetricAttributes.ES_PRODUCTION_RELEASE,
                     true,
                     MetricAttributes.ES_DEPLOYMENT_TYPE,
-                    NodeTelemetryAttributes.HOSTED
+                    MetricAttributes.HOSTED_DEPLOYMENT_TYPE
                 )
             )
         );

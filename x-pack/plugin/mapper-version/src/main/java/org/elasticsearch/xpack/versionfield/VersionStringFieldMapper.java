@@ -254,12 +254,6 @@ public class VersionStringFieldMapper extends FieldMapper {
                     "[fuzzy] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
                 );
             }
-            // We subclass EsFuzzyQuery here rather than calling FuzzyQueries.create(...) because
-            // we need to override getTermsEnum to decode version bytes before matching. The
-            // override builds a FilteredTermsEnum and calls getAutomata() directly (a separate
-            // single max-edit automaton), so it never primes the shared AutomatonAttribute that
-            // the lazy CircuitBreakingEsFuzzyQuery hook relies on. We therefore take the explicit
-            // upfront-charge path to keep CB accounting consistent across all fuzzy callsites.
             MultiTermQuery.RewriteMethod effectiveRewrite = rewriteMethod != null
                 ? rewriteMethod
                 : FuzzyQuery.defaultRewriteMethod(maxExpansions);

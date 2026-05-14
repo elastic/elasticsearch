@@ -41,12 +41,14 @@ public abstract class GoogleVertexAiModel extends RateLimitGroupingModel {
         ModelSecrets secrets,
         GoogleVertexAiRateLimitServiceSettings rateLimitServiceSettings
     ) {
-        super(configurations, secrets);
-
-        this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
-        this.authHeaderDecorator = (httpPost, model) -> GoogleVertexAiRequestUtils.decorateWithBearerToken(
-            httpPost,
-            (GoogleVertexAiSecretSettings) model.getSecretSettings()
+        this(
+            configurations,
+            secrets,
+            rateLimitServiceSettings,
+            (httpPost, model) -> GoogleVertexAiRequestUtils.decorateWithBearerToken(
+                httpPost,
+                (GoogleVertexAiSecretSettings) model.getSecretSettings()
+            )
         );
     }
 

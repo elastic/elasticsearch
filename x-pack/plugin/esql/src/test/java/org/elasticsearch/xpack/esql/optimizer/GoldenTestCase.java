@@ -470,7 +470,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         private static PhysicalPlan optimizeLookupPhysicalPlan(LogicalPlan logicalPlan, Configuration conf, SearchStats stats) {
             FoldContext foldCtx = conf.newFoldContext();
             PhysicalPlan physicalPlan = LocalMapper.INSTANCE.map(logicalPlan);
-            var context = new LocalPhysicalOptimizerContext(PlannerSettings.DEFAULTS, new EsqlFlags(true), conf, foldCtx, stats);
+            var context = new LookupPhysicalOptimizerContext(PlannerSettings.DEFAULTS, new EsqlFlags(true), conf, foldCtx, stats, null);
             return new LookupPhysicalPlanOptimizer(context).optimize(physicalPlan);
         }
     }

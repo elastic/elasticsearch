@@ -2546,11 +2546,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * the file's natural schema) lines up with the reader's output.
      */
     public void testPerFileQueryProjectionPreservesFileNaturalOrder() {
-        List<Attribute> fileSchema = List.of(
-            attr("age", DataType.LONG),
-            attr("name", DataType.KEYWORD),
-            attr("city", DataType.KEYWORD)
-        );
+        List<Attribute> fileSchema = List.of(attr("age", DataType.LONG), attr("name", DataType.KEYWORD), attr("city", DataType.KEYWORD));
         List<String> queryProjection = List.of("name", "city");
         List<String> result = AsyncExternalSourceOperatorFactory.perFileQueryProjection(queryProjection, fileSchema);
         assertEquals(List.of("name", "city"), result);
@@ -2570,11 +2566,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * projection ordered by the file's natural layout. Confirms FFW/STRICT behavior is unchanged.
      */
     public void testPerFileQueryProjectionIdentityWhenFileHasEveryProjectedColumn() {
-        List<Attribute> fileSchema = List.of(
-            attr("name", DataType.KEYWORD),
-            attr("age", DataType.LONG),
-            attr("city", DataType.KEYWORD)
-        );
+        List<Attribute> fileSchema = List.of(attr("name", DataType.KEYWORD), attr("age", DataType.LONG), attr("city", DataType.KEYWORD));
         List<String> queryProjection = List.of("name", "age", "city");
         List<String> result = AsyncExternalSourceOperatorFactory.perFileQueryProjection(queryProjection, fileSchema);
         assertEquals(List.of("name", "age", "city"), result);

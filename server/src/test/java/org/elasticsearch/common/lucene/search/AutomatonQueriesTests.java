@@ -9,12 +9,15 @@
 
 package org.elasticsearch.common.lucene.search;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.tests.util.automaton.AutomatonTestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Locale;
@@ -236,6 +239,43 @@ public class AutomatonQueriesTests extends ESTestCase {
     public void testCompiledAutomatonReservationBytesIsZeroSafe() {
         // Defensive: a 0-byte DFA shouldn't yield a 0 reservation; the floor still applies.
         assertEquals(AutomatonQueries.COMPILED_AUTOMATON_RESERVATION_FLOOR_BYTES, AutomatonQueries.compiledAutomatonReservationBytes(0));
+    }
+
+    /**
+     * Verifies that the pre-flight CB reservation covers the post-construction query size for each
+     * known pattern family. {@code reservation / actual} ratios are logged so they can be used to
+     * tune {@link AutomatonQueries#COMPILED_AUTOMATON_PEAK_MULTIPLIER} and
+     * {@link AutomatonQueries#COMPILED_AUTOMATON_RESERVATION_FLOOR_BYTES} over time.
+     * <p>
+     * Note: {@code actual} is the final retained size from {@code query.ramBytesUsed()}, not the
+     * construction peak. The reservation must cover the peak; this test only verifies the final
+     * state as a lower bound.
+     */
+    public void testCompiledAutomatonReservationCoversActualSize() {
+        NoopCircuitBreaker breaker = new NoopCircuitBreaker("test");
+        String[][] patterns = {
+            { "simple_ascii", "foo*bar" },
+            { "many_wildcards", "a*b?c*d?e*f?g*h" },
+            { "multibyte_utf8", "日".repeat(60) + "*" },
+            { "adversarial_question", "?".repeat(1000) },
+            { "long_literal", "a".repeat(50) + "*" + "b".repeat(50) }, };
+        for (String[] entry : patterns) {
+            String name = entry[0];
+            String pattern = entry[1];
+            Term term = new Term("field", pattern);
+            Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, breaker);
+            long reservation = AutomatonQueries.compiledAutomatonReservationBytes(dfa.ramBytesUsed());
+            long actual = new WildcardQuery(term).ramBytesUsed();
+            logger.info(
+                "CB reservation ratio [{}]: dfa={} B  reservation={} B  actual={} B  ratio={}",
+                name,
+                dfa.ramBytesUsed(),
+                reservation,
+                actual,
+                String.format(java.util.Locale.ROOT, "%.1f", (double) reservation / actual)
+            );
+            assertTrue("reservation must cover actual size for pattern [" + name + "]", reservation >= actual);
+        }
     }
 
     public void testCompiledAutomatonReservationBytesSaturatesOnOverflow() {

@@ -151,7 +151,7 @@ public class AutomatonQueries {
      * disproportionately blow up during {@code CompiledAutomaton} construction (e.g. small
      * automatons with wide-alphabet transitions like {@code ?×N}).
      */
-    static final long COMPILED_AUTOMATON_RESERVATION_FLOOR_BYTES = 1024L * 1024L;
+    static final long COMPILED_AUTOMATON_RESERVATION_FLOOR_BYTES = 128L * 1024L;
 
     /**
      * Returns the pre-flight breaker reservation in bytes for a unicode DFA whose

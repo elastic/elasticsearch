@@ -248,8 +248,8 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(
                     wrap(
-                        r -> listener.onResponse(qualifyHits(r, clusterAlias)),
-                        e -> listener.onFailure(qualifyException(e, remoteIndices, clusterAlias))
+                        r -> operationListener.onResponse(qualifyHits(r, clusterAlias)),
+                        e -> operationListener.onFailure(qualifyException(e, remoteIndices, clusterAlias))
                     ),
                     EqlSearchResponse::new,
                     TransportResponseHandler.TRANSPORT_WORKER
@@ -289,16 +289,12 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 transportService.getRemoteClusterService().crossProjectEnabled(),
                 request.getResolvedIndexExpressions()
             );
-            planExecutor.eql(cfg, request.query(), params, wrap(r -> {
-                EqlSearchResponse response = createResponse(r, task.getExecutionId());
-                // Async: listener is wrapStoringListener → completion uses AsyncTaskManagementService.respondWithRelease (decRef after
-                // onResponse). Sync: release here so the response is not leaked after the REST/transport listener returns.
-                if (requestIsAsync(request)) {
-                    operationListener.onResponse(response);
-                } else {
-                    respondAndRelease(operationListener, response);
-                }
-            }, operationListener::onFailure));
+            planExecutor.eql(
+                cfg,
+                request.query(),
+                params,
+                wrap(r -> operationListener.onResponse(createResponse(r, task.getExecutionId())), operationListener::onFailure)
+            );
         }
     }
 

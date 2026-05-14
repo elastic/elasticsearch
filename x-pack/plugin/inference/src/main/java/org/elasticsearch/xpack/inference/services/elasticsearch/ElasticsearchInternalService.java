@@ -24,6 +24,7 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -80,6 +81,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.inference.InferenceStringGroup.toStringList;
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -627,7 +629,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 throw new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME), RestStatus.BAD_REQUEST);
             }
         } else {
-            listener.onFailure(notElasticsearchModelException(model));
+            listener.onFailure(createInvalidModelException(model));
         }
     }
 
@@ -747,6 +749,13 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             listener.onFailure(
                 new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(model.getTaskType(), NAME), RestStatus.BAD_REQUEST)
             );
+            return;
+        }
+
+        try {
+            InferenceService.validateChunkedInferInputs(this, input);
+        } catch (Exception e) {
+            listener.onFailure(e);
             return;
         }
 

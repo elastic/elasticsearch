@@ -121,9 +121,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
             ) {
                 if (request instanceof ForceMergeRequest) {
                     capturedForceMergeRequest.set((ForceMergeRequest) request);
-                    capturedForceMergeOrigin.set(
-                        threadPool().getThreadContext().getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME)
-                    );
+                    capturedForceMergeOrigin.set(threadPool().getThreadContext().getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
                     if (mockForceMergeFailure.get() != null) {
                         listener.onFailure(mockForceMergeFailure.get());
                     } else if (mockForceMergeResponse.get() != null) {

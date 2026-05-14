@@ -420,6 +420,11 @@ public class EsqlCapabilities {
         FLATTENED_DATATYPE(Build.current().isSnapshot()),
 
         /**
+         * Flattened field keys are returned in alphabetical order.
+         */
+        FLATTENED_DATATYPE_SORTED_KEYS(Build.current().isSnapshot()),
+
+        /**
          * Support for the {@code field_extract} function, which reads a sub-key from a {@code flattened} field root.
          */
         FIELD_EXTRACT_FUNCTION(Build.current().isSnapshot()),
@@ -2407,6 +2412,13 @@ public class EsqlCapabilities {
          * on the {@code EXTERNAL} command, used to read headerless CSV files.
          */
         EXTERNAL_CSV_HEADER_ROW_OPTION(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
+         * Per-file planner-resolved read schema is threaded down to runtime readers via
+         * {@code FileSplit.readSchema()}. Pins each file's column layout to the planner's view,
+         * preventing reader self-inference that drifts across files in a multi-file glob.
+         */
+        EXTERNAL_SOURCE_READ_SCHEMA(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * {@code FROM <dataset>} resolved through the same pipeline as {@code FROM <index>} (Phase 1: dataset-only patterns).

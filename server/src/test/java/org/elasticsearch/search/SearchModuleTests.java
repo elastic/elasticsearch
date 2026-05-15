@@ -438,6 +438,7 @@ public class SearchModuleTests extends ESTestCase {
         "more_like_this",
         "multi_match",
         "nested",
+        "nested_field_filter",
         "prefix",
         "query_string",
         "range",

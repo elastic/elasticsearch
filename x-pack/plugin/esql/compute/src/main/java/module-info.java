@@ -23,6 +23,7 @@ module org.elasticsearch.compute {
     requires hppc;
     requires org.elasticsearch.exponentialhistogram;
     requires org.elasticsearch.swisshash;
+    requires org.objectweb.asm;  // for JitConstantSpinner runtime bytecode generation
     requires transitive org.apache.arrow.memory.core;
     requires org.apache.arrow.vector;
 

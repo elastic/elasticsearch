@@ -57,9 +57,9 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
             DivUnsignedLongsEvaluator.Factory::new,
             DivDoublesEvaluator.Factory::new,
             DIV_DENSE_VECTOR_EVALUATOR,
-            DivIntsByConstantEvaluator.Factory::new,
-            DivLongsByConstantEvaluator.Factory::new,
-            DivDoublesByConstantEvaluator.Factory::new,
+            DivIntsByConstantJitEvaluator.Factory::new,
+            DivLongsByConstantJitEvaluator.Factory::new,
+            DivDoublesByConstantJitEvaluator.Factory::new,
             /* excludeZeroRhs */ true
         );
         this.type = type;
@@ -74,9 +74,9 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
             DivUnsignedLongsEvaluator.Factory::new,
             DivDoublesEvaluator.Factory::new,
             DIV_DENSE_VECTOR_EVALUATOR,
-            DivIntsByConstantEvaluator.Factory::new,
-            DivLongsByConstantEvaluator.Factory::new,
-            DivDoublesByConstantEvaluator.Factory::new,
+            DivIntsByConstantJitEvaluator.Factory::new,
+            DivLongsByConstantJitEvaluator.Factory::new,
+            DivDoublesByConstantJitEvaluator.Factory::new,
             /* excludeZeroRhs */ true
         );
     }

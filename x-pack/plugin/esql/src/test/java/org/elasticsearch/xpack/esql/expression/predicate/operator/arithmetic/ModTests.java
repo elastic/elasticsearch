@@ -160,7 +160,7 @@ public class ModTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(lhs, DataType.INTEGER, "lhs"),
                     new TestCaseSupplier.TypedData(rhs, DataType.INTEGER, "rhs").forceLiteral()
                 ),
-                "ModIntsByConstantEvaluator[lhs=Attribute[channel=0], rhs=" + rhs + "]",
+                "ModIntsByConstantJitEvaluator[lhs=Attribute[channel=0], rhs=" + rhs + "]",
                 DataType.INTEGER,
                 equalTo(lhs % rhs)
             );
@@ -173,7 +173,7 @@ public class ModTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(lhs, DataType.LONG, "lhs"),
                     new TestCaseSupplier.TypedData(rhs, DataType.LONG, "rhs").forceLiteral()
                 ),
-                "ModLongsByConstantEvaluator[lhs=Attribute[channel=0], rhs=" + rhs + "]",
+                "ModLongsByConstantJitEvaluator[lhs=Attribute[channel=0], rhs=" + rhs + "]",
                 DataType.LONG,
                 equalTo(lhs % rhs)
             );
@@ -186,7 +186,7 @@ public class ModTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(lhs, DataType.LONG, "lhs"),
                     new TestCaseSupplier.TypedData(rhs, DataType.INTEGER, "rhs").forceLiteral()
                 ),
-                "ModLongsByConstantEvaluator[lhs=Attribute[channel=0], rhs=" + (long) rhs + "]",
+                "ModLongsByConstantJitEvaluator[lhs=Attribute[channel=0], rhs=" + (long) rhs + "]",
                 DataType.LONG,
                 equalTo(lhs % (long) rhs)
             );
@@ -199,7 +199,7 @@ public class ModTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(lhs, DataType.INTEGER, "lhs"),
                     new TestCaseSupplier.TypedData(rhs, DataType.LONG, "rhs").forceLiteral()
                 ),
-                "ModLongsByConstantEvaluator[lhs=CastIntToLongEvaluator[v=Attribute[channel=0]], rhs=" + rhs + "]",
+                "ModLongsByConstantJitEvaluator[lhs=CastIntToLongEvaluator[v=Attribute[channel=0]], rhs=" + rhs + "]",
                 DataType.LONG,
                 equalTo((long) lhs % rhs)
             );
@@ -212,7 +212,7 @@ public class ModTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(lhs, DataType.DOUBLE, "lhs"),
                     new TestCaseSupplier.TypedData(rhs, DataType.DOUBLE, "rhs").forceLiteral()
                 ),
-                "ModDoublesByConstantEvaluator[lhs=Attribute[channel=0], rhs=" + rhs + "]",
+                "ModDoublesByConstantJitEvaluator[lhs=Attribute[channel=0], rhs=" + rhs + "]",
                 DataType.DOUBLE,
                 equalTo(lhs % rhs)
             );

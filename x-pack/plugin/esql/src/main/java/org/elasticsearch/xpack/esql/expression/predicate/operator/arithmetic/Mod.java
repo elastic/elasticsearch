@@ -46,9 +46,9 @@ public class Mod extends EsqlArithmeticOperation {
             ModLongsEvaluator.Factory::new,
             ModUnsignedLongsEvaluator.Factory::new,
             ModDoublesEvaluator.Factory::new,
-            ModIntsByConstantEvaluator.Factory::new,
-            ModLongsByConstantEvaluator.Factory::new,
-            ModDoublesByConstantEvaluator.Factory::new,
+            ModIntsByConstantJitEvaluator.Factory::new,
+            ModLongsByConstantJitEvaluator.Factory::new,
+            ModDoublesByConstantJitEvaluator.Factory::new,
             /* excludeZeroRhs */ true
         );
     }
@@ -61,9 +61,9 @@ public class Mod extends EsqlArithmeticOperation {
             ModLongsEvaluator.Factory::new,
             ModUnsignedLongsEvaluator.Factory::new,
             ModDoublesEvaluator.Factory::new,
-            ModIntsByConstantEvaluator.Factory::new,
-            ModLongsByConstantEvaluator.Factory::new,
-            ModDoublesByConstantEvaluator.Factory::new,
+            ModIntsByConstantJitEvaluator.Factory::new,
+            ModLongsByConstantJitEvaluator.Factory::new,
+            ModDoublesByConstantJitEvaluator.Factory::new,
             /* excludeZeroRhs */ true
         );
     }

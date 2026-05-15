@@ -33,6 +33,18 @@ public @interface Fixed {
     Scope scope() default Scope.SINGLETON;
 
     /**
+     * When true, the annotation processor emits a class shape that allows HotSpot
+     * to treat the parameter as a JIT-time constant: the generated evaluator becomes
+     * abstract over this parameter, and the Factory materialises a subclass per distinct
+     * value with the value stored as a {@code static final} field. This unlocks C2's
+     * constant-folding optimizations (including Granlund-Montgomery strength reduction
+     * for integer divide / modulo).
+     *
+     * Only valid on primitive parameters. Forces SINGLETON scope.
+     */
+    boolean jitConstant() default false;
+
+    /**
      * Defines the parameter scope
      */
     enum Scope {

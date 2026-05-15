@@ -35,7 +35,7 @@ public final class ES95TSDBDocValuesFormatFactory {
         for (int n = 0; n < 2; n++) {
             for (int b = 0; b < 2; b++) {
                 for (int p = 0; p < 2; p++) {
-                    cache[(n << 2) | (b << 1) | p] = build(n == 1, b == 1, p == 1);
+                    cache[(n << 2) + (b << 1) + p] = build(n == 1, b == 1, p == 1);
                 }
             }
         }
@@ -76,7 +76,7 @@ public final class ES95TSDBDocValuesFormatFactory {
         boolean useLargeBinaryBlockSize,
         boolean writePartitions
     ) {
-        final int idx = (useLargeNumericBlockSize ? 4 : 0) | (useLargeBinaryBlockSize ? 2 : 0) | (writePartitions ? 1 : 0);
+        final int idx = (useLargeNumericBlockSize ? 4 : 0) + (useLargeBinaryBlockSize ? 2 : 0) + (writePartitions ? 1 : 0);
         return INSTANCES[idx];
     }
 

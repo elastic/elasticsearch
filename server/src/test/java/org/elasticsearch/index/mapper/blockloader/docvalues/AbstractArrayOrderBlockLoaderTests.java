@@ -80,7 +80,7 @@ public abstract class AbstractArrayOrderBlockLoaderTests<V extends Comparable<V>
         }, distinctSorted(alphabet), alphabet);
     }
 
-    public final void testSingleNonNullInMultiSlot() throws IOException {
+    public final void testSingleNonNullInArray() throws IOException {
         List<V> alphabet = generateDistinctAlphabet(1);
         V val = alphabet.get(0);
 
@@ -111,8 +111,7 @@ public abstract class AbstractArrayOrderBlockLoaderTests<V extends Comparable<V>
         V val2 = alphabet.get(1);
 
         try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig())) {
-            // two docs, each with exactly one value plus an offsets entry — after forceMerge Lucene's codec collapses to a
-            // singleton-unwrappable form so the dispatcher's dv.singleton()==null guard fails and ArrayOrder is bypassed.
+            // two docs, each with exactly one value plus an offsets entry
             FieldArrayContext offsets0 = new FieldArrayContext();
             offsets0.recordOffset(OFFSETS, val1);
             iw.addDocument(buildOffsetsDoc(offsets0, List.of(val1), addField()));

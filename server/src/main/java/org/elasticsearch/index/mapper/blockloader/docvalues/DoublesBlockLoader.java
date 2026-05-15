@@ -13,9 +13,6 @@ import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
-/**
- * Loads {@code double}s from doc values, converting the raw {@code long} bits via a {@link BlockDocValuesReader.ToDouble}.
- */
 public class DoublesBlockLoader extends AbstractNumericBlockLoader<BlockLoader.DoubleBuilder> {
     protected final BlockDocValuesReader.ToDouble toDouble;
 

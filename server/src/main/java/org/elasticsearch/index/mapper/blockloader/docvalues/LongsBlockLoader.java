@@ -13,9 +13,6 @@ import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
-/**
- * Loads {@code long}s from doc values.
- */
 public class LongsBlockLoader extends AbstractNumericBlockLoader<BlockLoader.LongBuilder> {
     public LongsBlockLoader(String fieldName) {
         this(fieldName, false);

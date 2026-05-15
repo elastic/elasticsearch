@@ -28,7 +28,7 @@ public class MvMaxBooleansBlockLoader extends BooleansBlockLoader {
 
     @Override
     protected ColumnAtATimeReader sortedReader(TrackingSortedNumericDocValues docValues) {
-        return new AbstractNumericBlockLoader.Sorted<BlockLoader.BooleanBuilder>(this, "MvMaxBooleansFromDocValues", docValues) {
+        return new AbstractNumericBlockLoader.Sorted<>(this, "MvMaxBooleansFromDocValues", docValues) {
             @Override
             protected void readSortedDoc(int doc, BlockLoader.BooleanBuilder builder) throws IOException {
                 if (values.docValues().advanceExact(doc) == false) {

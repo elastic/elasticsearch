@@ -53,7 +53,7 @@ public class TransformYamlRestIT extends ESClientYamlSuiteTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", AUTH_VALUE).build();
     }
 
-    @ParametersFactory
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
         return wrapStartTransformWithWait(createParameters());
     }

@@ -165,7 +165,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         super(testCandidate);
     }
 
-    @ParametersFactory
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
         NamedXContentRegistry executableSectionRegistry = new NamedXContentRegistry(
             CollectionUtils.appendToCopy(

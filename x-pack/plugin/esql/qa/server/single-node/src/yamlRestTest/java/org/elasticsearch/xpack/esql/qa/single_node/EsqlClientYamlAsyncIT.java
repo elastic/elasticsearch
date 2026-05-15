@@ -24,7 +24,7 @@ public class EsqlClientYamlAsyncIT extends AbstractEsqlClientYamlIT {
         super(testCandidate);
     }
 
-    @ParametersFactory
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
         return updateEsqlQueryDoSections(partialResultsCheckingParameters(), doSection -> {
             ApiCallSection copy = doSection.getApiCallSection().copyWithNewApi("esql.async_query");

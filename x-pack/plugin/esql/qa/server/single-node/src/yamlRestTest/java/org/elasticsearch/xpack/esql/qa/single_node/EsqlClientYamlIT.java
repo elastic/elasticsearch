@@ -20,7 +20,7 @@ public class EsqlClientYamlIT extends AbstractEsqlClientYamlIT {
         super(testCandidate);
     }
 
-    @ParametersFactory
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
         return partialResultsCheckingParameters();
     }

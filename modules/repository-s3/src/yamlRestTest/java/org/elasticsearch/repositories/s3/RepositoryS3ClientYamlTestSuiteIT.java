@@ -50,7 +50,7 @@ public class RepositoryS3ClientYamlTestSuiteIT extends AbstractRepositoryS3Clien
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(s3Fixture).around(cluster);
 
-    @ParametersFactory
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
         return createParameters("repository_s3/10_basic", "repository_s3/20_repository_permanent_credentials");
     }

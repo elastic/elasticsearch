@@ -94,7 +94,20 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
      * These will be retried the next time an extractor successfully connects.
      */
     void addOrphanedScrollIds(List<String> scrollIds) {
-        scrollIds.forEach(id -> orphanedScrolls.add(new OrphanedScroll(id, System.currentTimeMillis(), 0)));
+        long now = System.currentTimeMillis();
+        for (String scrollId : scrollIds) {
+            if (orphanedScrolls.size() >= MAX_ORPHAN_QUEUE_SIZE) {
+                OrphanedScroll eldest = orphanedScrolls.poll();  // removes head (eldest)
+                if (eldest != null) {
+                    logger.warn(
+                        "[{}] Orphan scroll queue overflow, dropping eldest entry aged {}ms",
+                        job.getId(),
+                        now - eldest.createdAtMillis()
+                    );
+                }
+            }
+            orphanedScrolls.add(new OrphanedScroll(scrollId, now, 0));
+        }
     }
 
     /**
@@ -109,13 +122,25 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
      * IDs that still fail (e.g. persistent network issue) remain for the next retry.
      */
     void retryClearOrphanedScrollIds() {
+        long now = System.currentTimeMillis();
         Iterator<OrphanedScroll> it = orphanedScrolls.iterator();
         while (it.hasNext()) {
-            OrphanedScroll orphan = it.next();
-            String scrollId = orphan.scrollId();
+            OrphanedScroll entry = it.next();
+            // Evict if stale by age or max retries reached
+            if (now - entry.createdAtMillis() > ORPHAN_TTL_MILLIS || entry.retryAttempts() >= MAX_ORPHAN_RETRIES) {
+                logger.warn(
+                    "[{}] Giving up on orphaned CCS scroll context [{}] after {} retries / {}ms — remote scroll may persist until TTL",
+                    job.getId(),
+                    entry.scrollId(),
+                    entry.retryAttempts(),
+                    now - entry.createdAtMillis()
+                );
+                it.remove();
+                continue;
+            }
             try {
                 ClearScrollRequest request = new ClearScrollRequest();
-                request.addScrollId(scrollId);
+                request.addScrollId(entry.scrollId());
                 ClearScrollResponse response = ClientHelper.executeWithHeaders(
                     datafeedConfig.getHeaders(),
                     ClientHelper.ML_ORIGIN,
@@ -123,11 +148,20 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
                     () -> client.execute(TransportClearScrollAction.TYPE, request).actionGet()
                 );
                 if (response.isSucceeded() == false) {
-                    throw new ElasticsearchException("Clear scroll returned failure for scroll [{}]", scrollId);
+                    throw new ElasticsearchException("Clear scroll returned failure for scroll [{}]", entry.scrollId());
                 }
-                it.remove();
+                it.remove();  // success: silently remove
             } catch (Exception e) {
-                logger.error(() -> "[" + job.getId() + "] Failed to clear orphaned scroll [" + scrollId + "]", e);
+                int newRetries = entry.retryAttempts() + 1;
+                logger.debug(
+                    "[{}] Retry {} for orphaned scroll [{}] still failed",
+                    job.getId(),
+                    newRetries,
+                    entry.scrollId()
+                );
+                // Replace entry with incremented retry count
+                it.remove();
+                orphanedScrolls.add(new OrphanedScroll(entry.scrollId(), entry.createdAtMillis(), newRetries));
             }
         }
     }

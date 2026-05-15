@@ -7,15 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-def releaseTestCheck = tasks.register('releaseTestCheck') {
+tasks.register('releaseTestCheck') {
   group = 'Verification'
   description = 'Runs release checks for ESQL engine projects.'
   dependsOn 'check'
-  if (buildParams.snapshotBuild == false) {
-    dependsOn 'assemble'
-  }
-}
-
-rootProject.tasks.named('releaseTestCheckEsqlEngine').configure {
-  dependsOn releaseTestCheck
 }

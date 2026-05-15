@@ -95,6 +95,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     // SearchHits from top_hits aggs to release when this response is released.
     private final List<SearchHits> topHitsToRelease;
 
+    private final CrossProjectSearchMetrics cpsMetrics;
+
+    private static final TransportVersion CPS_METRICS_ADDED = TransportVersion.fromName("cross_project_search_metrics");
+
     /**
      * Completion suggestion option hits to release when this response is released (1 ref per hit).
      * Never null; empty when there are no such hits to release.
@@ -140,6 +144,11 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         tookInMillis = in.readVLong();
         skippedShards = in.readVInt();
         pointInTimeId = in.readOptionalBytesReference();
+        if (in.getTransportVersion().supports(CPS_METRICS_ADDED)) {
+            this.cpsMetrics = in.readOptionalWriteable(CrossProjectSearchMetrics::new);
+        } else {
+            this.cpsMetrics = null;
+        }
     }
 
     public SearchResponse(
@@ -173,6 +182,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             tookInMillis,
             shardFailures,
             clusters,
+            null,
             null,
             null,
             null
@@ -209,7 +219,49 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             clusters,
             pointInTimeId,
             searchResponseSections.transferTopHitsToRelease(),
-            searchResponseSections.transferCompletionOptionHitsToRelease()
+            searchResponseSections.transferCompletionOptionHitsToRelease(),
+            null
+        );
+        this.timeRangeFilterFromMillis = searchResponseSections.timeRangeFilterFromMillis;
+        if (this.profileResults != null) {
+            this.profileResults.setOriginalSource(source);
+            this.profileResults.setRequestIndices(indices);
+        }
+    }
+
+    public SearchResponse(
+        SearchResponseSections searchResponseSections,
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
+        ShardSearchFailure[] shardFailures,
+        Clusters clusters,
+        BytesReference pointInTimeId,
+        SearchSourceBuilder source,
+        String[] indices,
+        CrossProjectSearchMetrics cpsMetrics
+    ) {
+        this(
+            searchResponseSections.hits,
+            searchResponseSections.aggregations,
+            searchResponseSections.suggest,
+            searchResponseSections.timedOut,
+            searchResponseSections.terminatedEarly,
+            searchResponseSections.profileResults,
+            searchResponseSections.numReducePhases,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardFailures,
+            clusters,
+            pointInTimeId,
+            searchResponseSections.transferTopHitsToRelease(),
+            searchResponseSections.transferCompletionOptionHitsToRelease(),
+            cpsMetrics
         );
         this.timeRangeFilterFromMillis = searchResponseSections.timeRangeFilterFromMillis;
         if (this.profileResults != null) {
@@ -235,7 +287,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         Clusters clusters,
         BytesReference pointInTimeId,
         @Nullable List<SearchHits> topHitsToRelease,
-        @Nullable List<SearchHit> completionOptionHitsToRelease
+        @Nullable List<SearchHit> completionOptionHitsToRelease,
+        @Nullable CrossProjectSearchMetrics cpsMetrics
     ) {
         this.hits = hits;
         hits.incRef();
@@ -269,6 +322,48 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
         assert scrollId == null || pointInTimeId == null
             : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";
+        this.cpsMetrics = cpsMetrics;
+    }
+
+    public SearchResponse(
+        SearchHits hits,
+        InternalAggregations aggregations,
+        Suggest suggest,
+        boolean timedOut,
+        Boolean terminatedEarly,
+        SearchProfileResults profileResults,
+        int numReducePhases,
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
+        ShardSearchFailure[] shardFailures,
+        Clusters clusters,
+        BytesReference pointInTimeId,
+        @Nullable List<SearchHits> topHitsToRelease,
+        @Nullable List<SearchHit> completionOptionHitsToRelease
+    ) {
+        this(
+            hits,
+            aggregations,
+            suggest,
+            timedOut,
+            terminatedEarly,
+            profileResults,
+            numReducePhases,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardFailures,
+            clusters,
+            pointInTimeId,
+            topHitsToRelease,
+            completionOptionHitsToRelease,
+            null
+        );
     }
 
     private static List<SearchHits> collectTopHitsFromAggregations(InternalAggregations aggs, boolean incRef) {
@@ -437,6 +532,11 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         return profileResults.getShardResults();
     }
 
+    @Nullable
+    public CrossProjectSearchMetrics getCrossProjectMetrics() {
+        return cpsMetrics;
+    }
+
     /**
      * The {@link SearchProfileResults} backing this response, including coordinator request metadata when attached
      * ({@link SearchProfileResults#getOriginalSource()} / {@link SearchProfileResults#getRequestIndices()}).
@@ -477,6 +577,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             aggregations == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(aggregations),
             suggest == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(suggest),
             profileResults == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(profileResults),
+            cpsMetrics == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(cpsMetrics),
             wrapInObject ? ChunkedToXContentHelper.endObject() : Collections.emptyIterator()
         );
     }
@@ -533,6 +634,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         out.writeVLong(tookInMillis);
         out.writeVInt(skippedShards);
         out.writeOptionalBytesReference(pointInTimeId);
+        if (out.getTransportVersion().supports(CPS_METRICS_ADDED)) {
+            out.writeOptionalWriteable(cpsMetrics);
+        }
     }
 
     public Long getTimeRangeFilterFromMillis() {

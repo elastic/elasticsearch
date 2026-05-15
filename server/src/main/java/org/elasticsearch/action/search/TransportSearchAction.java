@@ -72,6 +72,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -123,6 +124,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -570,6 +572,18 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchResponseActionListener = delegate;
             }
 
+            Optional<CrossProjectSearchMetrics> cpsMetrics = resolvesCrossProject
+                ? Optional.of(new CrossProjectSearchMetrics())
+                : Optional.empty();
+
+            Long requestArrivalTime = threadPool.getThreadContext().getTransient(Task.REQUEST_ARRIVAL_NANOS);
+            if (requestArrivalTime != null) {
+                // This tells us how much time was spent for preprocessing a request (which also includes the auth code).
+                cpsMetrics.ifPresent(
+                    c -> c.trackPreProcessingTookTime(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - requestArrivalTime))
+                );
+            }
+
             if (resolvedIndices.getRemoteClusterIndices().isEmpty()) {
                 if (resolvesCrossProject && rewritten.getResolvedIndexExpressions() != null) {
                     ElasticsearchException ex = CrossProjectIndexResolutionValidator.validate(
@@ -591,7 +605,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     resolvedIndices,
                     projectState,
                     SearchResponse.Clusters.EMPTY,
-                    searchPhaseProvider.apply(searchResponseActionListener)
+                    searchPhaseProvider.apply(searchResponseActionListener),
+                    cpsMetrics
                 );
             } else {
                 final TaskId parentTaskId = task.taskInfo(clusterService.localNode().getId(), false).taskId();
@@ -605,7 +620,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         rewritten,
                         resolutionIdxOpts,
                         resolvedIndices,
-                        searchResponseActionListener.delegateFailureAndWrap((searchListener, replacedIndices) -> {
+                        searchResponseActionListener.delegateFailureAndWrap((searchListener, resolutionResult) -> {
+                            ResolvedIndices replacedIndices = resolutionResult.v1();
+                            // Includes the time it took to fan out a request to the linked projects to examine what indices are on them.
+                            long planningPhaseTookTime = resolutionResult.v2();
+                            cpsMetrics.ifPresent(c -> c.trackPlanningPhaseTookTime(planningPhaseTookTime));
+
                             if (replacedIndices.getRemoteClusterIndices().isEmpty()) {
                                 // if the original resolvedIndices had remote clusters, but the replacedIndices no longer does, then we
                                 // treat this like a local search. If there is no local index, then executeLocalSearch will return an
@@ -617,7 +637,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                     replacedIndices,
                                     projectState,
                                     SearchResponse.Clusters.EMPTY,
-                                    searchPhaseProvider.apply(searchResponseActionListener)
+                                    searchPhaseProvider.apply(searchResponseActionListener),
+                                    cpsMetrics
                                 );
                             } else {
                                 final var aggregationReduceContextBuilder = rewritten.source() != null
@@ -660,10 +681,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                         replacedIndices,
                                         projectState,
                                         clusters,
-                                        searchPhaseProvider.apply(l)
+                                        searchPhaseProvider.apply(l),
+                                        cpsMetrics
                                     ),
                                     transportService,
-                                    forceConnectTimeoutSecs
+                                    forceConnectTimeoutSecs,
+                                    cpsMetrics
                                 );
                             }
                         })
@@ -742,13 +765,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 projectState,
                                 remoteAliasFilters,
                                 participatingProjects,
-                                searchPhaseProvider.apply(finalDelegate)
+                                searchPhaseProvider.apply(finalDelegate),
+                                cpsMetrics
                             );
                         }),
                         forceConnectTimeoutSecs,
                         resolvesCrossProject,
                         rewritten.getResolvedIndexExpressions(),
-                        rewritten.getProjectRouting()
+                        rewritten.getProjectRouting(),
+                        cpsMetrics
                     );
                 }
             }
@@ -929,8 +954,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ActionListener<SearchResponse> listener,
         BiConsumer<SearchRequest, ActionListener<SearchResponse>> localSearchConsumer,
         TransportService transportService,
-        TimeValue forceConnectTimeoutSecs
+        TimeValue forceConnectTimeoutSecs,
+        Optional<CrossProjectSearchMetrics> cpsMetrics
     ) {
+        var searchPhaseTimeProvider = new SearchTimeProvider(System.currentTimeMillis(), System.nanoTime(), System::nanoTime);
         final var remoteClientResponseExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         if (resolvedIndices.getLocalIndices() == null && resolvedIndices.getRemoteClusterIndices().size() == 1) {
             SearchCoordinatorContext searchCoordinatorContext = SearchCoordinatorContext.snapshotProfileCoordinatorMetadata(searchRequest);
@@ -956,6 +983,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 public void onResponse(SearchResponse searchResponse) {
                     // overwrite the existing cluster entry with the updated one
                     ccsClusterInfoUpdate(searchResponse, clusters, clusterAlias, shouldSkipOnFailure);
+                    cpsMetrics.ifPresent(c -> c.trackProjectRoundtripTime(clusterAlias, searchPhaseTimeProvider.buildTookInMillis()));
                     SearchProfileResults profile = getSearchProfileResults(searchResponse, searchCoordinatorContext);
 
                     ActionListener.respondAndRelease(
@@ -977,7 +1005,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             clusters,
                             searchResponse.pointInTimeId(),
                             null,
-                            null
+                            null,
+                            cpsMetrics.orElse(null)
                         )
                     );
                 }
@@ -1021,10 +1050,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchRequest.source(),
                 timeProvider,
                 aggReduceContextBuilder,
-                searchCoordinatorContext
+                searchCoordinatorContext,
+                cpsMetrics
             );
             task.setSearchResponseMergerSupplier(
-                () -> createSearchResponseMerger(searchRequest.source(), timeProvider, aggReduceContextBuilder, searchCoordinatorContext)
+                () -> createSearchResponseMerger(
+                    searchRequest.source(),
+                    timeProvider,
+                    aggReduceContextBuilder,
+                    searchCoordinatorContext,
+                    cpsMetrics
+                )
             );
             final AtomicReference<Exception> exceptions = new AtomicReference<>();
             int totalClusters = resolvedIndices.getRemoteClusterIndices().size() + (resolvedIndices.getLocalIndices() == null ? 0 : 1);
@@ -1053,7 +1089,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchResponseMerger,
                     clusters,
                     task.getProgressListener(),
-                    listener
+                    listener,
+                    searchPhaseTimeProvider,
+                    cpsMetrics
                 );
 
                 SubscribableListener<Transport.Connection> connectionListener = getListenerWithOptionalTimeout(
@@ -1089,7 +1127,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchResponseMerger,
                     clusters,
                     task.getProgressListener(),
-                    listener
+                    listener,
+                    searchPhaseTimeProvider,
+                    cpsMetrics
                 );
                 SearchRequest ccsLocalSearchRequest = SearchRequest.subSearchRequest(
                     parentTaskId,
@@ -1120,7 +1160,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchSourceBuilder source,
         SearchTimeProvider timeProvider,
         AggregationReduceContext.Builder aggReduceContextBuilder,
-        SearchCoordinatorContext searchCoordinatorContext
+        SearchCoordinatorContext searchCoordinatorContext,
+        Optional<CrossProjectSearchMetrics> cpsMetrics
     ) {
         final int from;
         final int size;
@@ -1139,7 +1180,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             source.from(0);
             source.size(from + size);
         }
-        return new SearchResponseMerger(from, size, trackTotalHitsUpTo, timeProvider, aggReduceContextBuilder, searchCoordinatorContext);
+        return new SearchResponseMerger(
+            from,
+            size,
+            trackTotalHitsUpTo,
+            timeProvider,
+            aggReduceContextBuilder,
+            searchCoordinatorContext,
+            cpsMetrics
+        );
     }
 
     /**
@@ -1233,9 +1282,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchRequest rewritten,
         IndicesOptions resolutionIdxOpts,
         ResolvedIndices originalResolvedIndices,
-        ActionListener<ResolvedIndices> listener
+        ActionListener<Tuple<ResolvedIndices, Long>> listener
     ) {
         if (resolvesCrossProject) {
+            var planningPhaseTimeProvider = new SearchTimeProvider(System.currentTimeMillis(), System.nanoTime(), System::nanoTime);
             var numProjectsToResolve = originalResolvedIndices.getRemoteClusterIndices().size();
             assert numProjectsToResolve > 0 : "At least one index is required to resolve cross project indices";
             assert rewritten.getResolvedIndexExpressions() != null : "ResolvedIndexExpressions must be set when cross project is enabled";
@@ -1247,6 +1297,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         responsesByProject,
                         rewritten,
                         resolutionIdxOpts,
+                        planningPhaseTimeProvider,
                         l
                     )
                 );
@@ -1270,7 +1321,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     )
                 );
         } else {
-            listener.onResponse(originalResolvedIndices);
+            listener.onResponse(new Tuple<>(originalResolvedIndices, -1L));
         }
     }
 
@@ -1282,7 +1333,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Collection<Map.Entry<String, SearchPlanningPhaseResolutionResult>> responsesByProject,
         SearchRequest rewritten,
         IndicesOptions resolutionIdxOpts,
-        ActionListener<ResolvedIndices> listener
+        SearchTimeProvider planningPhaseTimeProvider,
+        ActionListener<Tuple<ResolvedIndices, Long>> listener
     ) {
         Map<String, Exception> remoteExceptions = new HashMap<>();
         HashMap<String, ResolvedIndexExpressions> resolvedExpressions = new HashMap<>();
@@ -1346,10 +1398,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
 
             listener.onResponse(
-                new ResolvedIndices(
-                    participatingLinkedProjects,
-                    includeOriginProjectInMetadata ? originalResolvedIndices.getLocalIndices() : null,
-                    originalResolvedIndices.getConcreteLocalIndicesMetadata()
+                new Tuple<>(
+                    new ResolvedIndices(
+                        participatingLinkedProjects,
+                        includeOriginProjectInMetadata ? originalResolvedIndices.getLocalIndices() : null,
+                        originalResolvedIndices.getConcreteLocalIndicesMetadata()
+                    ),
+                    planningPhaseTimeProvider.buildTookInMillis()
                 )
             );
         }
@@ -1425,13 +1480,20 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         TimeValue forceConnectTimeoutSecs,
         boolean resolvesCrossProject,
         ResolvedIndexExpressions originResolvedIdxExpressions,
-        String projectRouting
+        String projectRouting,
+        Optional<CrossProjectSearchMetrics> cpsMetrics
     ) {
         RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
         final CountDown responsesCountDown = new CountDown(remoteIndicesByCluster.size());
         final Map<String, SearchShardsResponse> searchShardsResponses = new ConcurrentHashMap<>();
         final Map<String, Exception> remoteExceptions = new ConcurrentHashMap<>();
         final AtomicReference<Exception> exceptions = new AtomicReference<>();
+        SearchTimeProvider planningPhaseTimeProvider = new SearchTimeProvider(
+            System.currentTimeMillis(),
+            System.nanoTime(),
+            System::nanoTime
+        );
+
         for (Map.Entry<String, OriginalIndices> entry : remoteIndicesByCluster.entrySet()) {
             final String clusterAlias = entry.getKey();
             boolean shouldSkipOnFailure = remoteClusterService.shouldSkipOnFailure(clusterAlias, allowPartialResults);
@@ -1442,7 +1504,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 exceptions,
                 remoteExceptions,
                 clusters,
-                listener
+                listener,
+                planningPhaseTimeProvider
             ) {
                 @Override
                 void innerOnResponse(SearchShardsResponse searchShardsResponse) {
@@ -1474,6 +1537,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             throw validationEx;
                         }
                     }
+                    cpsMetrics.ifPresent(c -> c.trackPlanningPhaseTookTime(overallTookTime()));
                     return searchShardsResponses;
                 }
             };
@@ -1562,7 +1626,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponseMerger searchResponseMerger,
         SearchResponse.Clusters clusters,
         SearchProgressListener progressListener,
-        ActionListener<SearchResponse> originalListener
+        ActionListener<SearchResponse> originalListener,
+        SearchTimeProvider timeProvider,
+        Optional<CrossProjectSearchMetrics> cpsMetrics
     ) {
         return new CCSActionListener<>(
             clusterAlias,
@@ -1571,11 +1637,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             exceptions,
             new HashMap<>(),
             clusters,
-            ActionListener.releaseAfter(originalListener, searchResponseMerger)
+            ActionListener.releaseAfter(originalListener, searchResponseMerger),
+            timeProvider
         ) {
             @Override
             void innerOnResponse(SearchResponse searchResponse) {
                 ccsClusterInfoUpdate(searchResponse, clusters, clusterAlias, shouldSkipOnFailure);
+                cpsMetrics.ifPresent(c -> c.trackProjectRoundtripTime(clusterAlias, overallTookTime()));
                 searchResponseMerger.add(searchResponse);
                 progressListener.notifyClusterResponseMinimizeRoundtrips(clusterAlias, searchResponse);
             }
@@ -1672,7 +1740,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ResolvedIndices resolvedIndices,
         ProjectState projectState,
         SearchResponse.Clusters clusterInfo,
-        SearchPhaseProvider searchPhaseProvider
+        SearchPhaseProvider searchPhaseProvider,
+        Optional<CrossProjectSearchMetrics> cpsMetrics
     ) {
         executeSearch(
             (SearchTask) task,
@@ -1685,7 +1754,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             projectState,
             Collections.emptyMap(),
             clusterInfo,
-            searchPhaseProvider
+            searchPhaseProvider,
+            cpsMetrics
         );
     }
 
@@ -1854,7 +1924,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ProjectState projectState,
         Map<String, AliasFilter> remoteAliasMap,
         SearchResponse.Clusters clusters,
-        SearchPhaseProvider searchPhaseProvider
+        SearchPhaseProvider searchPhaseProvider,
+        Optional<CrossProjectSearchMetrics> cpsMetrics
     ) {
         if (searchRequest.allowPartialSearchResults() == null) {
             // No user preference defined in search request - apply cluster service default
@@ -2001,7 +2072,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             preFilterSearchShards,
             threadPool,
             clusters,
-            searchRequestAttributes
+            searchRequestAttributes,
+            cpsMetrics
         );
     }
 
@@ -2120,7 +2192,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             boolean preFilter,
             ThreadPool threadPool,
             SearchResponse.Clusters clusters,
-            Map<String, Object> searchRequestAttributes
+            Map<String, Object> searchRequestAttributes,
+            Optional<CrossProjectSearchMetrics> cpsMetrics
         );
     }
 
@@ -2146,7 +2219,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             boolean preFilter,
             ThreadPool threadPool,
             SearchResponse.Clusters clusters,
-            Map<String, Object> searchRequestAttributes
+            Map<String, Object> searchRequestAttributes,
+            Optional<CrossProjectSearchMetrics> cpsMetrics
         ) {
             if (preFilter) {
                 // only for aggs we need to contact shards even if there are no matches
@@ -2185,7 +2259,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         false,
                         threadPool,
                         clusters,
-                        searchRequestAttributes
+                        searchRequestAttributes,
+                        cpsMetrics
                     );
                 }));
                 return;
@@ -2232,7 +2307,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         client,
                         searchResponseMetrics,
                         searchRequestAttributes,
-                        searchService.isPitRelocationEnabled()
+                        searchService.isPitRelocationEnabled(),
+                        cpsMetrics
                     );
                 } else {
                     assert searchRequest.searchType() == QUERY_THEN_FETCH : searchRequest.searchType();
@@ -2258,7 +2334,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchService.batchQueryPhase(),
                         searchService.isPitRelocationEnabled(),
                         searchResponseMetrics,
-                        searchRequestAttributes
+                        searchRequestAttributes,
+                        cpsMetrics
                     );
                 }
                 success = true;
@@ -2367,6 +2444,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         private final Map<String, Exception> remoteExceptions;
         protected final SearchResponse.Clusters clusters;
         private final ActionListener<FinalResponse> originalListener;
+        private final SearchTimeProvider timeProvider;
 
         /**
          * Used by both minimize_roundtrips true and false
@@ -2378,7 +2456,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             AtomicReference<Exception> exceptions,
             Map<String, Exception> remoteExceptions,
             SearchResponse.Clusters clusters,
-            ActionListener<FinalResponse> originalListener
+            ActionListener<FinalResponse> originalListener,
+            SearchTimeProvider timeProvider
         ) {
             this.clusterAlias = clusterAlias;
             this.skipOnFailure = skipOnFailure;
@@ -2387,6 +2466,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             this.remoteExceptions = remoteExceptions;
             this.clusters = clusters;
             this.originalListener = originalListener;
+            this.timeProvider = timeProvider;
         }
 
         @Override
@@ -2454,6 +2534,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         protected void releaseResponse(FinalResponse response) {}
 
         abstract FinalResponse createFinalResponse();
+
+        public long overallTookTime() {
+            return timeProvider.buildTookInMillis();
+        }
     }
 
     /**

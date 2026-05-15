@@ -52,6 +52,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -221,7 +222,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 false,
                 false,
                 new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
-                Map.of()
+                Map.of(),
+                Optional.empty()
             ) {
                 @Override
                 protected SearchPhase getNextPhase() {
@@ -422,7 +424,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 false,
                 false,
                 new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
-                Map.of()
+                Map.of(),
+                Optional.empty()
             ) {
                 @Override
                 protected SearchPhase getNextPhase() {

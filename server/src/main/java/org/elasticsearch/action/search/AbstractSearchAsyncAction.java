@@ -50,6 +50,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
@@ -113,6 +114,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     // protected for tests
     protected final SubscribableListener<Void> doneFuture = new SubscribableListener<>();
     private final Supplier<DiscoveryNodes> discoveryNodes;
+    private Optional<CrossProjectSearchMetrics> cpsMetrics;
 
     AbstractSearchAsyncAction(
         String name,
@@ -136,7 +138,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchResponse.Clusters clusters,
         SearchResponseMetrics searchResponseMetrics,
         Map<String, Object> searchRequestAttributes,
-        boolean pitRelocationEnabled
+        boolean pitRelocationEnabled,
+        Optional<CrossProjectSearchMetrics> cpsMetrics
     ) {
         super(name);
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -174,6 +177,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.searchResponseMetrics = searchResponseMetrics;
         this.searchRequestAttributes = searchRequestAttributes;
         this.isPitRelocationEnabled = pitRelocationEnabled;
+        this.cpsMetrics = cpsMetrics;
     }
 
     protected void notifyListShards(
@@ -594,7 +598,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             clusters,
             searchContextId,
             request.source(),
-            request.indices()
+            request.indices(),
+            cpsMetrics.orElse(null)
         );
     }
 

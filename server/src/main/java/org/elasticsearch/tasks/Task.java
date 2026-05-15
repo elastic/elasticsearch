@@ -64,6 +64,13 @@ public class Task implements Traceable {
     public static final String TRACE_STATE = "tracestate";
 
     /**
+     * Signifies the time at which a particular request arrived. You can subtract the "current" time
+     * at any point to figure out how much time was spent at a particular stage, say, in the auth
+     * code, for example.
+     */
+    public static final String REQUEST_ARRIVAL_NANOS = "request_arrival_nanos";
+
+    /**
      * Optional transient header allowing to override the start time of the root trace.
      * This is discarded when creating a new trace context once an APM trace context exists.
      */

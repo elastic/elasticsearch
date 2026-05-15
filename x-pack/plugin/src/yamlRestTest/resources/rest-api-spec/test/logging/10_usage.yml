@@ -1,0 +1,61 @@
+---
+"Logging section is present in xpack usage with default settings":
+  - requires:
+      reason: "Logging usage tracking requires 'logging_usage' capability"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_xpack/usage
+          capabilities: [ 'logging_usage' ]
+
+  - do:
+      xpack.usage: {}
+  - match: { logging.querylog.enabled: false }
+  - match: { logging.querylog.user: true }
+  - match: { logging.querylog.system: false }
+  - is_false: logging.querylog.threshold
+  - match: { logging.esql.enabled: false }
+  - match: { logging.esql.user: false }
+  - is_false: logging.esql.thresholds
+
+---
+"Logging usage reflects persisted querylog and ES|QL querylog settings":
+  - requires:
+      reason: "Logging usage tracking requires 'logging_usage' capability"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_xpack/usage
+          capabilities: [ 'logging_usage' ]
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            elasticsearch.querylog.enabled: true
+            elasticsearch.querylog.threshold: 50ms
+            elasticsearch.querylog.include.user: false
+            elasticsearch.querylog.include.system_indices: true
+            esql.querylog.threshold.info: 0ms
+            esql.querylog.include.user: true
+
+  - do:
+      xpack.usage: {}
+  - match: { logging.querylog.enabled: true }
+  - match: { logging.querylog.threshold: 50ms }
+  - match: { logging.querylog.user: false }
+  - match: { logging.querylog.system: true }
+  - match: { logging.esql.enabled: true }
+  - match: { logging.esql.user: true }
+  - match: { logging.esql.thresholds.info: 0ms }
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            elasticsearch.querylog.enabled: null
+            elasticsearch.querylog.threshold: null
+            elasticsearch.querylog.include.user: null
+            elasticsearch.querylog.include.system_indices: null
+            esql.querylog.threshold.info: null
+            esql.querylog.include.user: null

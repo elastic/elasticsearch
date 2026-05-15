@@ -46,7 +46,6 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
@@ -496,7 +495,7 @@ public final class IndexModule {
         MapperRegistry mapperRegistry,
         IndicesFieldDataCache indicesFieldDataCache,
         NamedWriteableRegistry namedWriteableRegistry,
-        IdFieldMapper idFieldMapper,
+        BooleanSupplier idFieldDataEnabled,
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
         Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers
@@ -554,7 +553,7 @@ public final class IndexModule {
                 searchOperationListeners,
                 indexOperationListeners,
                 namedWriteableRegistry,
-                idFieldMapper,
+                idFieldDataEnabled,
                 allowExpensiveQueries,
                 expressionResolver,
                 valuesSourceRegistry,
@@ -676,11 +675,9 @@ public final class IndexModule {
             () -> {
                 throw new UnsupportedOperationException("no index query shard context available");
             },
-            indexSettings.getMode().idFieldMapperWithoutFieldData(),
+            () -> false,
             scriptService,
-            query -> {
-                throw new UnsupportedOperationException("no index query shard context available");
-            },
+            query -> { throw new UnsupportedOperationException("no index query shard context available"); },
             mapperMetrics,
             documentMapper,
             null

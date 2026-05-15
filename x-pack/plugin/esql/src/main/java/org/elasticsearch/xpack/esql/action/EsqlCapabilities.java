@@ -420,6 +420,11 @@ public class EsqlCapabilities {
         FLATTENED_DATATYPE(Build.current().isSnapshot()),
 
         /**
+         * Flattened field keys are returned in alphabetical order.
+         */
+        FLATTENED_DATATYPE_SORTED_KEYS(Build.current().isSnapshot()),
+
+        /**
          * Support for the {@code field_extract} function, which reads a sub-key from a {@code flattened} field root.
          */
         FIELD_EXTRACT_FUNCTION(Build.current().isSnapshot()),
@@ -907,6 +912,11 @@ public class EsqlCapabilities {
          * Fix sorting not allowed on _source and counters.
          */
         SORTING_ON_SOURCE_AND_COUNTERS_FORBIDDEN,
+
+        /**
+         * Fix sorting not allowed on histogram and _tsid.
+         */
+        SORTING_ON_HISTOGRAM_AND_TSID_FORBIDDEN,
 
         /**
          * Fix {@code SORT} when the {@code _source} field is not a sort key but
@@ -1688,6 +1698,11 @@ public class EsqlCapabilities {
         TSTEP_BUCKET_COUNT(TSTEP.isEnabled()),
 
         /**
+         * Support lower-open upper-closed boundaries (*;*] in addition to lower-closed upper-open [*;*)
+         */
+        FIX_TSTEP_BUCKET_ROUNDING(TSTEP.isEnabled()),
+
+        /**
          * Allow qualifiers in attribute names.
          */
         NAME_QUALIFIERS(Build.current().isSnapshot()),
@@ -2409,6 +2424,13 @@ public class EsqlCapabilities {
         EXTERNAL_CSV_HEADER_ROW_OPTION(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
+         * Per-file planner-resolved read schema is threaded down to runtime readers via
+         * {@code FileSplit.readSchema()}. Pins each file's column layout to the planner's view,
+         * preventing reader self-inference that drifts across files in a multi-file glob.
+         */
+        EXTERNAL_SOURCE_READ_SCHEMA(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
          * {@code FROM <dataset>} resolved through the same pipeline as {@code FROM <index>} (Phase 1: dataset-only patterns).
          * Gated on the same flag as {@link #EXTERNAL_COMMAND}.
          */
@@ -2726,6 +2748,14 @@ public class EsqlCapabilities {
         INFERENCE_ACCEPT_TIMEOUT,
 
         /**
+         * Fix on multi-values that were unrolled and were still producing warnings in expressions
+         * that do not accept multi-values
+         *
+         * See https://github.com/elastic/elasticsearch/issues/134706
+         */
+        FIX_UNROLLED_FOLDABLE_MV_WARNING,
+
+        /**
          * Fix for SET reporting wrong line/column number (-1:-1) in validation errors.
          * see <a href="https://github.com/elastic/elasticsearch/issues/145873">ES|QL: wrong line/column number #145873</a>
          */
@@ -2756,6 +2786,16 @@ public class EsqlCapabilities {
          * fail when a SORT precedes these commands.
          */
         FIX_COMPOUND_OUTPUT_EVAL_SORT_AGNOSTIC,
+
+        /**
+         * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
+         */
+        FN_EQUALS_FLATTENED(Build.current().isSnapshot()),
+
+        /**
+         * Support for the {@code !=} operator on the root of a {@code flattened} field in ES|QL.
+         */
+        FN_NOT_EQUALS_FLATTENED(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

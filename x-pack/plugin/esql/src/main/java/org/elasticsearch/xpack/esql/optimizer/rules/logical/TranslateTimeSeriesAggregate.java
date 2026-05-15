@@ -245,8 +245,8 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                     if (timeBucketRef.get() != null) {
                         throw new IllegalArgumentException("expected at most one time tstep");
                     }
-                    Bucket bucket = tstep.timeBucketSpecRef();
-                    timeBucketRef.set(new Alias(e.source(), e.name(), tstep.surrogate(), e.id()));
+                    Bucket bucket = (Bucket) tstep.surrogate();
+                    timeBucketRef.set(new Alias(e.source(), e.name(), bucket, e.id()));
                     timeBucketSpecRef.set(bucket);
                 } else if (child instanceof DateTrunc dateTrunc && aggregate.timestamp().semanticEquals(dateTrunc.field())) {
                     if (timeBucketRef.get() != null) {
@@ -528,7 +528,16 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             );
         }
         Literal gcdInterval = Literal.timeDuration(userBucket.buckets().source(), Duration.ofMillis(gcdMillis));
-        return new Bucket(userBucket.source(), userBucket.field(), gcdInterval, null, null, userBucket.configuration());
+        return new Bucket(
+            userBucket.source(),
+            userBucket.field(),
+            gcdInterval,
+            null,
+            null,
+            userBucket.configuration(),
+            userBucket.offset(),
+            userBucket.roundingConfiguration()
+        );
     }
 
     private long getTimeBucketInMillis(final Bucket bucket) {

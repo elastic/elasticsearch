@@ -21,6 +21,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -28,10 +29,12 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.junit.After;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -91,6 +94,179 @@ public class ReplaceStaticTests extends ESTestCase {
                 + "Creating strings with more than ["
                 + ScalarFunction.MAX_BYTES_REF_RESULT_SIZE
                 + "] bytes is not supported"
+        );
+    }
+
+    public void testLiteralPrefixSimpleAnchor() {
+        assertPrefix("^http", "http");
+        assertPrefix("^abc", "abc");
+        assertPrefix("\\Aabc", "abc");
+    }
+
+    public void testLiteralPrefixOptionalChar() {
+        // `s?` makes the preceding `s` optional, so the prefix is only `http`.
+        assertPrefix("^https?://", "http");
+        // `*` is the same kind of quantifier.
+        assertPrefix("^foob*ar", "foo");
+        // `{0,3}` makes the preceding char optional.
+        assertPrefix("^foob{0,3}", "foo");
+        // `{2,3}` does NOT make it optional, but we are conservative and drop it anyway.
+        assertPrefix("^foob{2,3}", "foo");
+    }
+
+    public void testLiteralPrefixOneOrMore() {
+        // `+` is one-or-more, so the preceding `b` is required at that position, but any literal
+        // after the quantifier lives at an unknown offset, so we stop the walk there.
+        assertPrefix("^foob+", "foob");
+        assertPrefix("^foob+ar", "foob");
+    }
+
+    public void testLiteralPrefixEscapedSpecials() {
+        assertPrefix("^www\\.example\\.com", "www.example.com");
+        assertPrefix("^\\[special", "[special");
+    }
+
+    public void testLiteralPrefixQuotedSection() {
+        assertPrefix("^\\Q.*[(?)\\Etail", ".*[(?)tail");
+        // Unterminated \Q runs to end of pattern.
+        assertPrefix("^abc\\Q.*[(?)", "abc.*[(?)");
+        // Quantifier after \E drops only the last literal of the quoted chunk.
+        assertPrefix("^\\Qabc\\Ed?", "abc");
+    }
+
+    public void testLiteralPrefixNonAscii() {
+        // Non-ASCII literal — should encode as UTF-8 bytes.
+        byte[] expected = "café".getBytes(StandardCharsets.UTF_8);
+        assertArrayEquals(expected, Replace.extractLiteralPrefix(Pattern.compile("^café")));
+    }
+
+    public void testLiteralPrefixUnicodeSurrogate() {
+        // Supplementary code point (tiger emoji) as a surrogate pair in the regex source.
+        String tiger = "\ud83d\udc05";
+        byte[] expected = ("a" + tiger).getBytes(StandardCharsets.UTF_8);
+        assertArrayEquals(expected, Replace.extractLiteralPrefix(Pattern.compile("^a" + tiger)));
+    }
+
+    public void testLiteralPrefixNoAnchor() {
+        // Pattern must start with ^ or \A.
+        assertNoPrefix("http");
+        assertNoPrefix("abc^");
+        assertNoPrefix("");
+    }
+
+    public void testLiteralPrefixBailsOnAlternation() {
+        // Top-level alternation invalidates anchoring.
+        assertNoPrefix("^a|b");
+        // Alternation inside a group also bails — conservative simplification.
+        assertNoPrefix("^a(b|c)");
+    }
+
+    public void testLiteralPrefixBailsOnLeadingMeta() {
+        assertNoPrefix("^[a-z]+");
+        assertNoPrefix("^(group)");
+        assertNoPrefix("^.foo");
+        assertNoPrefix("^\\d+");
+    }
+
+    public void testLiteralPrefixBailsOnLeadingQuantifier() {
+        // No literal to attach to: `?` at start of body means we have no prefix.
+        assertNoPrefix("^?abc");
+        assertNoPrefix("^*abc");
+    }
+
+    public void testLiteralPrefixBailsOnMultiline() {
+        // With (?m), `^` matches after newlines and a byte-level prefix check would be wrong.
+        assertArrayEquals(Replace.NO_LITERAL_PREFIX, Replace.extractLiteralPrefix(Pattern.compile("^abc", Pattern.MULTILINE)));
+        // Same via inline flag.
+        assertNoPrefix("(?m)^abc");
+    }
+
+    public void testLiteralPrefixBailsOnCaseInsensitive() {
+        assertArrayEquals(Replace.NO_LITERAL_PREFIX, Replace.extractLiteralPrefix(Pattern.compile("^abc", Pattern.CASE_INSENSITIVE)));
+        assertNoPrefix("(?i)^abc");
+    }
+
+    public void testLiteralPrefixBailsOnComments() {
+        // (?x) / Pattern.COMMENTS makes whitespace and `#…` in the pattern source non-literal.
+        assertArrayEquals(Replace.NO_LITERAL_PREFIX, Replace.extractLiteralPrefix(Pattern.compile("^abc", Pattern.COMMENTS)));
+        assertNoPrefix("(?x)^abc");
+    }
+
+    public void testLiteralPrefixBailsOnCanonEq() {
+        assertArrayEquals(Replace.NO_LITERAL_PREFIX, Replace.extractLiteralPrefix(Pattern.compile("^abc", Pattern.CANON_EQ)));
+    }
+
+    public void testLiteralPrefixHexEscapesAreLiteral() {
+        // Java regex hex / unicode / control escapes always produce a literal character — they cannot encode a
+        // meta `|`. So `^a\x7cb` matches the literal string `a|b`, not `^a|b`, and we can safely emit `a` as the
+        // prefix (the walker stops at the unrecognized escape).
+        assertPrefix("^a\\x7cb", "a");
+    }
+
+    public void testEndToEndHexEscapeIsLiteral() {
+        // Sanity: `^a\x7cb` should match the literal "a|b" through the constant evaluator (with the prefix
+        // fast path active). Strings that don't start with `a` are safely rejected.
+        assertThat(processConstantRegex("a|b cat", "^a\\x7cb", "X"), equalTo("X cat"));
+        assertThat(processConstantRegex("baz", "^a\\x7cb", "X"), equalTo("baz"));
+    }
+
+    public void testLiteralPrefixStopsAtMeta() {
+        // For the q28 motivating example.
+        assertPrefix("^https?://(?:www\\.)?([^/]+)/.*$", "http");
+        // Exact-match pattern stops at `$`.
+        assertPrefix("^exact_match$", "exact_match");
+    }
+
+    /**
+     * End-to-end check that the prefix-rejection fast path does not change observable behavior:
+     * inputs that match must still be replaced, and inputs that don't (because they fail the prefix
+     * check) must come back unchanged.
+     */
+    public void testEndToEndAnchoredReplaceRespectsPrefixFastPath() {
+        // Regex with extractable prefix "http" — common motivating shape.
+        String regex = "^https?://(?:www\\.)?([^/]+)/.*$";
+        String newStr = "$1";
+
+        // Matches.
+        assertThat(processConstantRegex("http://example.com/a", regex, newStr), equalTo("example.com"));
+        assertThat(processConstantRegex("https://www.example.com/x/y", regex, newStr), equalTo("example.com"));
+
+        // Does NOT start with the extracted prefix — must be returned unchanged.
+        assertThat(processConstantRegex("ftp://example.com/a", regex, newStr), equalTo("ftp://example.com/a"));
+        assertThat(processConstantRegex("", regex, newStr), equalTo(""));
+        assertThat(processConstantRegex("htt", regex, newStr), equalTo("htt"));
+
+        // Starts with prefix but doesn't fully match — must be returned unchanged (regex falls through).
+        assertThat(processConstantRegex("httpbin", regex, newStr), equalTo("httpbin"));
+    }
+
+    private String processConstantRegex(String text, String regex, String newStr) {
+        try (
+            var eval = AbstractScalarFunctionTestCase.evaluator(
+                new Replace(
+                    Source.EMPTY,
+                    field("text", DataType.KEYWORD),
+                    new Literal(Source.EMPTY, new BytesRef(regex), DataType.KEYWORD),
+                    field("newStr", DataType.KEYWORD)
+                )
+            ).get(driverContext());
+            Block block = eval.eval(row(List.of(new BytesRef(text), new BytesRef(newStr))));
+        ) {
+            return block.isNull(0) ? null : ((BytesRef) BlockUtils.toJavaObject(block, 0)).utf8ToString();
+        }
+    }
+
+    private static void assertPrefix(String regex, String expected) {
+        byte[] actual = Replace.extractLiteralPrefix(Pattern.compile(regex));
+        byte[] expectedBytes = expected.getBytes(StandardCharsets.UTF_8);
+        assertArrayEquals("for regex " + regex, expectedBytes, actual);
+    }
+
+    private static void assertNoPrefix(String regex) {
+        assertArrayEquals(
+            "expected NO_LITERAL_PREFIX for regex " + regex,
+            Replace.NO_LITERAL_PREFIX,
+            Replace.extractLiteralPrefix(Pattern.compile(regex))
         );
     }
 

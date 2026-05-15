@@ -60,7 +60,8 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
 
     private static final Logger logger = LogManager.getLogger(KeyRotationCoordinator.class);
 
-    // Number of check_intervals a non-active key persists before being retired.
+    // Number of check_intervals (= scrub passes) a non-active key persists after its deactivation time before retirement.
+    // 10 leaves headroom for cluster-state propagation, in-flight writes, and one full handler walk — all typically << one tick.
     private static final int GRACE_TICKS = 10;
 
     /**

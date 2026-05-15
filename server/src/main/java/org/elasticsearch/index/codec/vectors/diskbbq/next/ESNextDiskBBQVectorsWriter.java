@@ -35,6 +35,7 @@ import org.apache.lucene.util.packed.DirectWriter;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValuesSlice;
@@ -139,7 +140,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             if (sliceField.equals(primary.getField()) == false) {
                 throw new IllegalStateException("sliceField must be primary index sort");
             }
-            if (primary.getType() != SortField.Type.STRING) {
+            if (IndexSortConfig.getSortFieldType(primary) != SortField.Type.STRING) {
                 throw new IllegalStateException("sliceField requires primary index sort");
             }
         }
@@ -914,7 +915,9 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         } else {
             final FieldInfo slicedFieldInfo = mergeState.mergeFieldInfos.fieldInfo(sliceField);
             assert slicedFieldInfo != null;
-            assert slicedFieldInfo.getDocValuesType() == DocValuesType.SORTED : "sliceField must be SortedDocValues";
+            assert slicedFieldInfo.getDocValuesType() == DocValuesType.SORTED
+                || slicedFieldInfo.getDocValuesType() == DocValuesType.SORTED_SET
+                : "sliceField must be SortedDocValues or SortedSetDocValues";
             final SortedDocValues values = DocValueConsumerHelper.INSTANCE.getMergeSortedField(slicedFieldInfo, mergeState);
             final int numSlices = values.getValueCount();
             final KnnVectorValues.DocIndexIterator iterator = floatVectorValues.iterator();
@@ -987,6 +990,22 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
 
         public SortedDocValues getMergeSortedField(FieldInfo fieldInfo, final MergeState mergeState) throws IOException {
             // This is the magic to get a merged view from the segments.
+            boolean isSortedSet = false;
+            for (int i = 0; i < mergeState.fieldInfos.length; i++) {
+                if (mergeState.fieldInfos[i] != null) {
+                    FieldInfo fi = mergeState.fieldInfos[i].fieldInfo(fieldInfo.name);
+                    if (fi != null && fi.getDocValuesType() == DocValuesType.SORTED_SET) {
+                        isSortedSet = true;
+                        break;
+                    }
+                }
+            }
+            if (isSortedSet) {
+                final java.util.List<org.apache.lucene.index.SortedSetDocValues> toMerge = selectLeavesToMerge(fieldInfo, mergeState);
+                final OrdinalMap map = createOrdinalMapForSortedSetDV(toMerge, mergeState);
+                final org.apache.lucene.index.SortedSetDocValues merged = getMergedSortedSetDocValues(fieldInfo, mergeState, map, toMerge);
+                return org.apache.lucene.search.SortedSetSelector.wrap(merged, org.apache.lucene.search.SortedSetSelector.Type.MIN);
+            }
             final OrdinalMap map = createOrdinalMapForSortedDV(fieldInfo, mergeState);
             return getMergedSortedSetDocValues(fieldInfo, mergeState, map);
         }

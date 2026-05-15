@@ -19,6 +19,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.CodecReader;
@@ -42,6 +43,8 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedSetSelector;
+import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
@@ -719,6 +722,77 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                     }
                     assertEquals(expectedDocs, uniqueDocIds.size());
                 }
+            }
+        }
+    }
+
+    // Regression test for keyword-typed slice fields. Keyword fields produce SORTED_SET doc-values,
+    // which the merge helper used to mishandle: it always asked for SORTED via createOrdinalMapForSortedDV,
+    // got an empty ordinal map back, and the per-slice centroid file was written without any vectors.
+    // Post-merge knn then returned zero hits. The fix detects SORTED_SET via per-segment FieldInfo and
+    // routes through createOrdinalMapForSortedSetDV + SortedSetSelector.MIN.
+    public void testSlicesWithSortedSetSliceField() throws IOException {
+        String sliceField = "_slice";
+        ESNextDiskBBQVectorsFormat.QuantEncoding encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.values()[random().nextInt(
+            ESNextDiskBBQVectorsFormat.QuantEncoding.values().length
+        )];
+        int vectorPerCluster = random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER);
+        ESNextDiskBBQVectorsFormat localFormat = new ESNextDiskBBQVectorsFormat(
+            encoding,
+            vectorPerCluster,
+            random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, MAX_CENTROIDS_PER_PARENT_CLUSTER),
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            false,
+            null,
+            1,
+            false,
+            DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+            0,
+            sliceField
+        );
+        int dimensions = random().nextInt(12, 64);
+        int slices = random().nextInt(2, 8);
+        int numDocs = random().nextInt(800, 2000);
+        int[] docsPerSlice = new int[slices];
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        // SortedSet index sort to match keyword-field behaviour
+        iwc.setIndexSort(new Sort(new SortedSetSortField(sliceField, false, SortedSetSelector.Type.MIN)));
+        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(localFormat));
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
+            for (int i = 0; i < numDocs; i++) {
+                int slice = random().nextInt(slices);
+                Document doc = new Document();
+                // SortedSetDocValuesField → DocValuesType.SORTED_SET (the keyword-field shape)
+                doc.add(SortedSetDocValuesField.indexedField(sliceField, new BytesRef("" + slice)));
+                doc.add(new StoredField(sliceField, new BytesRef("" + slice)));
+                doc.add(new KnnFloatVectorField("vector", randomVector(dimensions), VectorSimilarityFunction.EUCLIDEAN));
+                w.addDocument(doc);
+                docsPerSlice[slice]++;
+                // commit a few times so we end up with multiple segments to merge
+                if (i > 0 && i % (numDocs / 4) == 0) {
+                    w.commit();
+                }
+            }
+            w.commit();
+            w.forceMerge(1);
+
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                assertEquals("force-merge should leave one segment", 1, reader.leaves().size());
+                LeafReader leafReader = reader.leaves().get(0).reader();
+                float[] queryVector = randomVector(dimensions);
+                // Without the fix, the per-slice centroid file is empty post-merge and knn returns 0 hits.
+                TopDocs topDocs = leafReader.searchNearestVectors(
+                    "vector",
+                    queryVector,
+                    Math.min(numDocs, 50),
+                    AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
+                    Integer.MAX_VALUE
+                );
+                assertThat(
+                    "knn must return hits after merge with SORTED_SET sliceField",
+                    topDocs.scoreDocs.length,
+                    greaterThanOrEqualTo(1)
+                );
             }
         }
     }

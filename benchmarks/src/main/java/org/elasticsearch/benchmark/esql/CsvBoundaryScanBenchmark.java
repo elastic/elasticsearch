@@ -11,8 +11,16 @@ import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatOptions;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -26,10 +34,10 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
@@ -62,7 +70,8 @@ public class CsvBoundaryScanBenchmark {
     int approxRowBytes;
 
     private CsvFormatReader tsvReader;
-    private CsvFormatReader tsvPreLayer2ScannerReader;
+    private SegmentableFormatReader tsvLayer1Disabled;
+    private SegmentableFormatReader tsvBothLayersDisabled;
     private byte[] buf;
     private int length;
 
@@ -72,7 +81,8 @@ public class CsvBoundaryScanBenchmark {
         BlockFactory bf = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("bench")).build();
         List<String> exts = List.of(".csv", ".tsv");
         tsvReader = new CsvFormatReader(bf, CsvFormatOptions.TSV, "csv", exts);
-        tsvPreLayer2ScannerReader = new PreLayer2Scanner(bf, CsvFormatOptions.TSV, "csv", exts);
+        tsvLayer1Disabled = new SpiDefaultDriver(tsvReader);
+        tsvBothLayersDisabled = new SpiDefaultDriver(new PreLayer2Scanner(bf, CsvFormatOptions.TSV, "csv", exts));
         buf = generateTsv(bufferBytes, approxRowBytes);
         length = buf.length;
     }
@@ -82,34 +92,61 @@ public class CsvBoundaryScanBenchmark {
         return tsvReader.findLastRecordBoundary(buf, length);
     }
 
-    /** SPI default body driving the production (post-Layer-2) scanner. Same loop body the
-     *  inherited {@code SegmentableFormatReader.findLastRecordBoundary} default uses. */
     @Benchmark
     public int tsvLayer1Disabled() throws IOException {
-        return runSpiDefaultBody(tsvReader, buf, length);
+        return tsvLayer1Disabled.findLastRecordBoundary(buf, length);
     }
 
-    /** SPI default body driving the pre-Layer-2 (byte[8192]) scanner. */
     @Benchmark
     public int tsvBothLayersDisabled() throws IOException {
-        return runSpiDefaultBody(tsvPreLayer2ScannerReader, buf, length);
+        return tsvBothLayersDisabled.findLastRecordBoundary(buf, length);
     }
 
-    private static int runSpiDefaultBody(CsvFormatReader reader, byte[] buf, int length) throws IOException {
-        if (length <= 0) {
-            return -1;
+    /**
+     * Thin wrapper that exposes the inherited SPI default {@code findLastRecordBoundary}.
+     * Delegates the abstract surface to a wrapped {@link CsvFormatReader}; no body cloned.
+     */
+    private static final class SpiDefaultDriver implements SegmentableFormatReader {
+        private final CsvFormatReader wrapped;
+
+        SpiDefaultDriver(CsvFormatReader wrapped) {
+            this.wrapped = wrapped;
         }
-        int lastBoundary = -1;
-        int cumulative = 0;
-        while (cumulative < length) {
-            long consumed = reader.findNextRecordBoundary(new ByteArrayInputStream(buf, cumulative, length - cumulative));
-            if (consumed < 0) {
-                return lastBoundary;
-            }
-            cumulative += Math.toIntExact(consumed);
-            lastBoundary = cumulative - 1;
+
+        @Override
+        public long findNextRecordBoundary(InputStream stream) throws IOException {
+            return wrapped.findNextRecordBoundary(stream);
         }
-        return lastBoundary;
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) throws IOException {
+            return wrapped.metadata(object);
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            return wrapped.read(object, context);
+        }
+
+        @Override
+        public String formatName() {
+            return wrapped.formatName();
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return wrapped.fileExtensions();
+        }
+
+        @Override
+        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+            return wrapped.withConfigTrackingConsumedKeys(config);
+        }
+
+        @Override
+        public void close() throws IOException {
+            wrapped.close();
+        }
     }
 
     /**

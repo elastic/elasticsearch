@@ -681,6 +681,14 @@ public final class EsqlTestUtils {
         return new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), randomMinimumVersion());
     }
 
+    public static LogicalOptimizerContext unboundLogicalOptimizerContext(TransportVersion minimumVersion) {
+        return new LogicalOptimizerContext(
+            EsqlTestUtils.TEST_CFG,
+            FoldContext.small(),
+            TransportVersionUtils.randomVersionSupporting(minimumVersion)
+        );
+    }
+
     public static final EsqlFunctionRegistry TEST_FUNCTION_REGISTRY = new EsqlFunctionRegistry();
 
     public static final EsqlParser TEST_PARSER = new EsqlParser(new EsqlConfig(TEST_FUNCTION_REGISTRY));

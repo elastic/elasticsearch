@@ -301,7 +301,12 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_not_rehired"),
         new ViewConfig("employees_all"),
         new ViewConfig("employees_extra"),
-        new ViewConfig("view_with_subquery")
+        new ViewConfig("view_with_subquery"),
+        new ViewConfig("view_k8s_max_bytes_by_cluster", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig("view_k8s_max_rate", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig("view_k8s_downsampled_low_tx_count", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig("view_k8s_early_window", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig("view_k8s_downsampled_first_bucket", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS))
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**
@@ -638,9 +643,17 @@ public class CsvTestsDataLoader {
     }
 
     public static void loadViewsIntoEs(RestClient client) throws IOException {
+        loadViewsIntoEs(client, cap -> true);
+    }
+
+    public static void loadViewsIntoEs(RestClient client, Predicate<EsqlCapabilities.Cap> capabilityCheck) throws IOException {
         if (clusterHasViewSupport(client)) {
             logger.info("Loading views");
             for (var view : VIEW_CONFIGS.values()) {
+                if (view.requiredCapabilities.stream().allMatch(capabilityCheck) == false) {
+                    logger.info("Skipping view [{}], missing required capabilities {}", view.name, view.requiredCapabilities);
+                    continue;
+                }
                 loadView(client, view);
             }
         } else {
@@ -1417,7 +1430,11 @@ public class CsvTestsDataLoader {
         }
     }
 
-    public record ViewConfig(String name) {
+    public record ViewConfig(String name, List<EsqlCapabilities.Cap> requiredCapabilities) {
+        public ViewConfig(String name) {
+            this(name, List.of());
+        }
+
         public String loadQuery() {
             return getResourceString("/views/" + name + ".esql");
         }

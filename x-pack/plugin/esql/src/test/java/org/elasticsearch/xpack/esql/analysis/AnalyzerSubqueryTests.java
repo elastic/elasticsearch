@@ -1,0 +1,3300 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.analysis;
+
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.junit.Before;
+
+import java.util.List;
+
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+
+/**
+ * Tests for subqueries and views inside the FROM command. Companion class to {@link AnalyzerTests};
+ * extracted so the subquery/view analysis test surface can grow without dwarfing the main analyzer tests.
+ */
+public class AnalyzerSubqueryTests extends ESTestCase {
+
+    @Before
+    public void checkSubqueryInFromCommandSupport() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        return withDefaultLimitWarning(super.filteredWarnings());
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_OrderBy[[Order[emp_no{r}#675,ASC,LAST], Order[language_code{r}#685,ASC,LAST]]]
+     *   \_Filter[emp_no{r}#675 > 10000[INTEGER]]
+     *     \_UnionAll[[_meta_field{r}#674, emp_no{r}#675, first_name{r}#676, gender{r}#677, hire_date{r}#678, job{r}#679, job.raw{r}
+     * #680, languages{r}#681, last_name{r}#682, long_noidx{r}#683, salary{r}#684, language_code{r}#685, language_nam
+     * e{r}#686]]
+     *       |_Project[[_meta_field{f}#654, emp_no{f}#648, first_name{f}#649, gender{f}#650, hire_date{f}#655, job{f}#656, job.raw{f}
+     * #657, languages{f}#651, last_name{f}#652, long_noidx{f}#658, salary{f}#653, language_code{r}#661, language_nam
+     * e{r}#662]]
+     *       | \_Eval[[null[INTEGER] AS language_code#661, null[KEYWORD] AS language_name#662]]
+     *       |   \_EsRelation[test][_meta_field{f}#654, emp_no{f}#648, first_name{f}#64..]
+     *       \_Project[[_meta_field{r}#663, emp_no{r}#664, first_name{r}#665, gender{r}#666, hire_date{r}#667, job{r}#668, job.raw{r}
+     * #669, languages{r}#670, last_name{r}#671, long_noidx{r}#672, salary{r}#673, language_code{f}#659, language_nam
+     * e{f}#660]]
+     *         \_Eval[[null[KEYWORD] AS _meta_field#663, null[INTEGER] AS emp_no#664, null[KEYWORD] AS first_name#665, null[TEXT] AS
+     *  gender#666, null[DATETIME] AS hire_date#667, null[TEXT] AS job#668, null[KEYWORD] AS job.raw#669, null[INTEGE
+     * R] AS languages#670, null[KEYWORD] AS last_name#671, null[LONG] AS long_noidx#672, null[INTEGER] AS salary#673
+     * ]]
+     *           \_Subquery[]
+     *             \_Filter[language_code{f}#659 > 1[INTEGER]]
+     *               \_EsRelation[languages][language_code{f}#659, language_name{f}#660]
+     */
+    public void testSubqueryInFrom() {
+        LogicalPlan plan = basic().addLanguages().query("""
+            FROM test, (FROM languages | WHERE language_code > 1)
+            | WHERE emp_no > 10000
+            | SORT emp_no, language_code
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        OrderBy orderBy = as(limit.child(), OrderBy.class);
+        List<Order> order = orderBy.order();
+        assertEquals(2, order.size());
+        ReferenceAttribute empNo = as(order.get(0).child(), ReferenceAttribute.class);
+        assertEquals("emp_no", empNo.name());
+        ReferenceAttribute languageCode = as(order.get(1).child(), ReferenceAttribute.class);
+        assertEquals("language_code", languageCode.name());
+        Filter filter = as(orderBy.child(), Filter.class);
+        GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
+        empNo = as(greaterThan.left(), ReferenceAttribute.class);
+        assertEquals("emp_no", empNo.name());
+        Literal literal = as(greaterThan.right(), Literal.class);
+        assertEquals(10000, literal.value());
+        UnionAll unionAll = as(filter.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        List<? extends NamedExpression> projections = subqueryProject.projections();
+        assertEquals(13, projections.size()); // all fields from the two indices
+        Eval subqueryEval = as(subqueryProject.child(), Eval.class);
+        List<Alias> aliases = subqueryEval.fields(); // nullEvals from languages index
+        assertEquals(2, aliases.size());
+        assertEquals("language_code", aliases.get(0).name());
+        Literal nullLiteral = as(aliases.get(0).child(), Literal.class);
+        assertNull(nullLiteral.value());
+        assertEquals(INTEGER, nullLiteral.dataType());
+        assertEquals("language_name", aliases.get(1).name());
+        nullLiteral = as(aliases.get(1).child(), Literal.class);
+        assertNull(nullLiteral.value());
+        assertEquals(KEYWORD, nullLiteral.dataType());
+        EsRelation subqueryIndex = as(subqueryEval.child(), EsRelation.class);
+        assertEquals("test", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        projections = subqueryProject.projections();
+        assertEquals(13, projections.size()); // all fields from the two indices
+        subqueryEval = as(subqueryProject.child(), Eval.class);
+        aliases = subqueryEval.fields(); // nullEvals from test index
+        assertEquals(11, aliases.size());
+        Subquery subquery = as(subqueryEval.child(), Subquery.class);
+        Filter subqueryFilter = as(subquery.child(), Filter.class);
+        subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
+        assertEquals("languages", subqueryIndex.indexPattern());
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_OrderBy[[Order[emp_no{r}#632,ASC,LAST], Order[language_code{r}#642,ASC,LAST]]]
+     *   \_Filter[emp_no{r}#632 > 10000[INTEGER]]
+     *     \_ViewUnionAll[[null, view]]
+     *       |_Project[[_meta_field{f}#611, emp_no{f}#605, first_name{f}#606, gender{f}#607, hire_date{f}#612, job{f}#613, job.raw{f}
+     * #614, languages{f}#608, last_name{f}#609, long_noidx{f}#615, salary{f}#610, language_code{r}#618, language_nam
+     * e{r}#619]]
+     *       | \_Eval[[null[INTEGER] AS language_code#618, null[KEYWORD] AS language_name#619]]
+     *       |   \_EsRelation[test][_meta_field{f}#611, emp_no{f}#605, first_name{f}#60..]
+     *       \_Project[[_meta_field{r}#620, emp_no{r}#621, first_name{r}#622, gender{r}#623, hire_date{r}#624, job{r}#625, job.raw{r}
+     * #626, languages{r}#627, last_name{r}#628, long_noidx{r}#629, salary{r}#630, language_code{f}#616, language_nam
+     * e{f}#617]]
+     *         \_Eval[[null[KEYWORD] AS _meta_field#620, null[INTEGER] AS emp_no#621, null[KEYWORD] AS first_name#622, null[TEXT] AS
+     *  gender#623, null[DATETIME] AS hire_date#624, null[TEXT] AS job#625, null[KEYWORD] AS job.raw#626, null[INTEGE
+     * R] AS languages#627, null[KEYWORD] AS last_name#628, null[LONG] AS long_noidx#629, null[INTEGER] AS salary#630
+     * ]]
+     *           \_Filter[language_code{f}#616 > 1[INTEGER]]
+     *             \_EsRelation[languages][language_code{f}#616, language_name{f}#617]
+     */
+    public void testViewInFrom() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
+        LogicalPlan plan = basic().addLanguages().addView("view", "FROM languages | WHERE language_code > 1").query("""
+            FROM test, view
+            | WHERE emp_no > 10000
+            | SORT emp_no, language_code
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        OrderBy orderBy = as(limit.child(), OrderBy.class);
+        List<Order> order = orderBy.order();
+        assertEquals(2, order.size());
+        ReferenceAttribute empNo = as(order.get(0).child(), ReferenceAttribute.class);
+        assertEquals("emp_no", empNo.name());
+        ReferenceAttribute languageCode = as(order.get(1).child(), ReferenceAttribute.class);
+        assertEquals("language_code", languageCode.name());
+        Filter filter = as(orderBy.child(), Filter.class);
+        GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
+        empNo = as(greaterThan.left(), ReferenceAttribute.class);
+        assertEquals("emp_no", empNo.name());
+        Literal literal = as(greaterThan.right(), Literal.class);
+        assertEquals(10000, literal.value());
+        ViewUnionAll viewUnionAll = as(filter.child(), ViewUnionAll.class);
+        assertEquals(2, viewUnionAll.children().size());
+
+        Project viewProject = as(viewUnionAll.children().get(0), Project.class);
+        List<? extends NamedExpression> projections = viewProject.projections();
+        assertEquals(13, projections.size()); // all fields from the two indices
+        Eval viewEval = as(viewProject.child(), Eval.class);
+        List<Alias> aliases = viewEval.fields(); // nullEvals from languages index
+        assertEquals(2, aliases.size());
+        assertEquals("language_code", aliases.get(0).name());
+        Literal nullLiteral = as(aliases.get(0).child(), Literal.class);
+        assertNull(nullLiteral.value());
+        assertEquals(INTEGER, nullLiteral.dataType());
+        assertEquals("language_name", aliases.get(1).name());
+        nullLiteral = as(aliases.get(1).child(), Literal.class);
+        assertNull(nullLiteral.value());
+        assertEquals(KEYWORD, nullLiteral.dataType());
+        EsRelation subqueryIndex = as(viewEval.child(), EsRelation.class);
+        assertEquals("test", subqueryIndex.indexPattern());
+
+        viewProject = as(viewUnionAll.children().get(1), Project.class);
+        projections = viewProject.projections();
+        assertEquals(13, projections.size()); // all fields from the two indices
+        viewEval = as(viewProject.child(), Eval.class);
+        aliases = viewEval.fields(); // nullEvals from test index
+        assertEquals(11, aliases.size());
+        Filter subqueryFilter = as(viewEval.child(), Filter.class);
+        subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
+        assertEquals("languages", subqueryIndex.indexPattern());
+    }
+
+    /*
+     * If there is only one subquery in the main from command, the subquery is merged into the main index pattern
+     *
+     * Limit[1000[INTEGER],false,false]
+     * \_Filter[ISNOTNULL(language_name{f}#2473)]
+     *   \_Filter[language_code{f}#2472 > 1[INTEGER]]
+     *     \_EsRelation[languages][language_code{f}#2472, language_name{f}#2473]
+     */
+    public void testSubqueryInFromWithoutMainIndexPattern() {
+        LogicalPlan plan = basic().addLanguages().query("""
+            FROM (FROM languages | WHERE language_code > 1)
+            | WHERE language_name is not null
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        IsNotNull isNotNull = as(filter.condition(), IsNotNull.class);
+        FieldAttribute language_name = as(isNotNull.field(), FieldAttribute.class);
+        assertEquals("language_name", language_name.name());
+        filter = as(filter.child(), Filter.class);
+        GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
+        FieldAttribute language_code = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("language_code", language_code.name());
+        Literal literal = as(greaterThan.right(), Literal.class);
+        assertEquals(1, literal.value());
+        EsRelation relation = as(filter.child(), EsRelation.class);
+        assertEquals("languages", relation.indexPattern());
+    }
+
+    /*
+     * If there is only one view in the main from command, the view is merged into the main index pattern
+     *
+     * Limit[1000[INTEGER],false,false]
+     * \_Filter[ISNOTNULL(language_name{f}#2146)]
+     *   \_Filter[language_code{f}#2145 > 1[INTEGER]]
+     *     \_EsRelation[languages][language_code{f}#2145, language_name{f}#2146]
+     */
+    public void testViewInFromWithoutMainIndexPattern() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
+        LogicalPlan plan = basic().addLanguages().addView("view", "FROM languages | WHERE language_code > 1").query("""
+            FROM view
+            | WHERE language_name is not null
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        IsNotNull isNotNull = as(filter.condition(), IsNotNull.class);
+        FieldAttribute language_name = as(isNotNull.field(), FieldAttribute.class);
+        assertEquals("language_name", language_name.name());
+        filter = as(filter.child(), Filter.class);
+        GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
+        FieldAttribute language_code = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("language_code", language_code.name());
+        Literal literal = as(greaterThan.right(), Literal.class);
+        assertEquals(1, literal.value());
+        EsRelation relation = as(filter.child(), EsRelation.class);
+        assertEquals("languages", relation.indexPattern());
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_MvExpand[languageCode{r}#1877,languageCode{r}#1958]
+     *   \_Project[[count(*){r}#1871, emp_no{r}#1944 AS empNo#1874, language_code{r}#1954 AS languageCode#1877]]
+     *     \_Aggregate[[emp_no{r}#1944, language_code{r}#1954],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*)#1871,
+     *  emp_no{r}#1944, language_code{r}#1954]]
+     *       \_Filter[emp_no{r}#1944 > 10000[INTEGER]]
+     *         \_UnionAll[[_meta_field{r}#1943, emp_no{r}#1944, first_name{r}#1945, gender{r}#1946, hire_date{r}#1947, job{r}#1948, job.
+     * raw{r}#1949, languages{r}#1950, last_name{r}#1951, long_noidx{r}#1952, salary{r}#1953, language_code{r}#1954,
+     * languageName{r}#1955, max(@timestamp){r}#1956, language_name{r}#1957]]
+     *           |_Project[[_meta_field{f}#1886, emp_no{f}#1880, first_name{f}#1881, gender{f}#1882, hire_date{f}#1887, job{f}#1888, job.
+     * raw{f}#1889, languages{f}#1883, last_name{f}#1884, long_noidx{f}#1890, salary{f}#1885, language_code{r}#1910,
+     * languageName{r}#1911, max(@timestamp){r}#1912, language_name{r}#1913]]
+     *           | \_Eval[[null[INTEGER] AS language_code#1910, null[KEYWORD] AS languageName#1911, null[DATETIME] AS max(@timestamp)#19
+     * 12, null[KEYWORD] AS language_name#1913]]
+     *           |   \_EsRelation[test][_meta_field{f}#1886, emp_no{f}#1880, first_name{f}#..]
+     *           |_Project[[_meta_field{r}#1914, emp_no{r}#1915, first_name{r}#1916, gender{r}#1917, hire_date{r}#1918, job{r}#1919, job.
+     * raw{r}#1920, languages{r}#1921, last_name{r}#1922, long_noidx{r}#1923, salary{r}#1924, language_code{f}#1891,
+     * languageName{r}#1861, max(@timestamp){r}#1925, language_name{r}#1926]]
+     *           | \_Eval[[null[KEYWORD] AS _meta_field#1914, null[INTEGER] AS emp_no#1915, null[KEYWORD] AS first_name#1916, null[TEXT]
+     *  AS gender#1917, null[DATETIME] AS hire_date#1918, null[TEXT] AS job#1919, null[KEYWORD] AS job.raw#1920, null
+     * [INTEGER] AS languages#1921, null[KEYWORD] AS last_name#1922, null[LONG] AS long_noidx#1923, null[INTEGER] AS
+     * salary#1924, null[DATETIME] AS max(@timestamp)#1925, null[KEYWORD] AS language_name#1926]]
+     *           |   \_Subquery[]
+     *           |     \_Project[[language_code{f}#1891, language_name{f}#1892 AS languageName#1861]]
+     *           |       \_Filter[language_code{f}#1891 > 10[INTEGER]]
+     *           |         \_EsRelation[languages][language_code{f}#1891, language_name{f}#1892]
+     *           |_Project[[_meta_field{r}#1927, emp_no{r}#1928, first_name{r}#1929, gender{r}#1930, hire_date{r}#1931, job{r}#1932, job.
+     * raw{r}#1933, languages{r}#1934, last_name{r}#1935, long_noidx{r}#1936, salary{r}#1937, language_code{r}#1938,
+     * languageName{r}#1939, max(@timestamp){r}#1863, language_name{r}#1940]]
+     *           | \_Eval[[null[KEYWORD] AS _meta_field#1927, null[INTEGER] AS emp_no#1928, null[KEYWORD] AS first_name#1929, null[TEXT]
+     *  AS gender#1930, null[DATETIME] AS hire_date#1931, null[TEXT] AS job#1932, null[KEYWORD] AS job.raw#1933, null
+     * [INTEGER] AS languages#1934, null[KEYWORD] AS last_name#1935, null[LONG] AS long_noidx#1936, null[INTEGER] AS
+     * salary#1937, null[INTEGER] AS language_code#1938, null[KEYWORD] AS languageName#1939, null[KEYWORD] AS languag
+     * e_name#1940]]
+     *           |   \_Subquery[]
+     *           |     \_Aggregate[[],[MAX(@timestamp{f}#1893,true[BOOLEAN],PT0S[TIME_DURATION]) AS max(@timestamp)#1863]]
+     *           |       \_EsRelation[sample_data][@timestamp{f}#1893, client_ip{f}#1894, event_durati..]
+     *           \_Project[[_meta_field{f}#1903, emp_no{f}#1897, first_name{f}#1898, gender{f}#1899, hire_date{f}#1904, job{f}#1905, job.
+     * raw{f}#1906, languages{f}#1900, last_name{f}#1901, long_noidx{f}#1907, salary{f}#1902, language_code{r}#1867,
+     * languageName{r}#1941, max(@timestamp){r}#1942, language_name{f}#1909]]
+     *             \_Eval[[null[KEYWORD] AS languageName#1941, null[DATETIME] AS max(@timestamp)#1942]]
+     *               \_Subquery[]
+     *                 \_LookupJoin[LEFT,[language_code{r}#1867],[language_code{f}#1908],false,null]
+     *                   |_Eval[[languages{f}#1900 AS language_code#1867]]
+     *                   | \_EsRelation[test][_meta_field{f}#1903, emp_no{f}#1897, first_name{f}#..]
+     *                   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#1908, language_name{f}#1909]
+     */
+    public void testMultipleSubqueriesInFrom() {
+        LogicalPlan plan = basic().addLanguages().addSampleData().addLanguagesLookup().query("""
+            FROM test
+            , (FROM languages | WHERE language_code > 10 | RENAME language_name as languageName)
+            , (FROM sample_data | STATS max(@timestamp))
+            , (FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code)
+            | WHERE emp_no > 10000
+            | STATS count(*) by emp_no, language_code
+            | RENAME emp_no AS empNo, language_code AS languageCode
+            | MV_EXPAND languageCode
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        MvExpand mvExpand = as(limit.child(), MvExpand.class);
+        NamedExpression mvExpandTarget = as(mvExpand.target(), NamedExpression.class);
+        assertEquals("languageCode", mvExpandTarget.name());
+        ReferenceAttribute mvExpandExpanded = as(mvExpand.expanded(), ReferenceAttribute.class);
+        assertEquals("languageCode", mvExpandExpanded.name());
+        Project rename = as(mvExpand.child(), Project.class);
+        List<? extends NamedExpression> projections = rename.projections();
+        assertEquals(3, projections.size());
+        Alias a = as(projections.get(1), Alias.class);
+        assertEquals("empNo", a.name());
+        ReferenceAttribute ra = as(a.child(), ReferenceAttribute.class);
+        assertEquals("emp_no", ra.name());
+        a = as(projections.get(2), Alias.class);
+        assertEquals("languageCode", a.name());
+        ra = as(a.child(), ReferenceAttribute.class);
+        assertEquals("language_code", ra.name());
+        Aggregate aggregate = as(rename.child(), Aggregate.class);
+        List<? extends NamedExpression> aggregates = aggregate.aggregates();
+        assertEquals(3, aggregates.size());
+        a = as(aggregates.get(0), Alias.class);
+        assertEquals("count(*)", a.name());
+        List<Expression> groupings = aggregate.groupings();
+        assertEquals(2, groupings.size());
+        ra = as(groupings.get(0), ReferenceAttribute.class);
+        assertEquals("emp_no", ra.name());
+        ra = as(groupings.get(1), ReferenceAttribute.class);
+        assertEquals("language_code", ra.name());
+        Filter filter = as(aggregate.child(), Filter.class);
+        GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
+        ReferenceAttribute empNo = as(greaterThan.left(), ReferenceAttribute.class);
+        assertEquals("emp_no", empNo.name());
+        Literal literal = as(greaterThan.right(), Literal.class);
+        assertEquals(10000, literal.value());
+        UnionAll unionAll = as(filter.child(), UnionAll.class);
+        assertEquals(4, unionAll.children().size());
+
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        projections = subqueryProject.projections();
+        assertEquals(15, projections.size()); // all fields from the other legs
+        Eval subqueryEval = as(subqueryProject.child(), Eval.class);
+        List<Alias> aliases = subqueryEval.fields(); // nullEvals from the other legs
+        assertEquals(4, aliases.size());
+        EsRelation subqueryIndex = as(subqueryEval.child(), EsRelation.class);
+        assertEquals("test", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        projections = subqueryProject.projections();
+        assertEquals(15, projections.size()); // all fields from the other legs
+        subqueryEval = as(subqueryProject.child(), Eval.class);
+        aliases = subqueryEval.fields(); // nullEvals from the other legs
+        assertEquals(13, aliases.size());
+        Subquery subquery = as(subqueryEval.child(), Subquery.class);
+        rename = as(subquery.child(), Project.class);
+        List<? extends NamedExpression> renameProjections = rename.projections();
+        assertEquals(2, renameProjections.size());
+        FieldAttribute language_code = as(renameProjections.get(0), FieldAttribute.class);
+        assertEquals("language_code", language_code.name());
+        a = as(renameProjections.get(1), Alias.class);
+        assertEquals("languageName", a.name());
+        FieldAttribute language_name = as(a.child(), FieldAttribute.class);
+        assertEquals("language_name", language_name.name());
+        Filter subqueryFilter = as(rename.child(), Filter.class);
+        greaterThan = as(subqueryFilter.condition(), GreaterThan.class);
+        language_code = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("language_code", language_code.name());
+        literal = as(greaterThan.right(), Literal.class);
+        assertEquals(10, literal.value());
+        subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
+        assertEquals("languages", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(2), Project.class);
+        projections = subqueryProject.projections();
+        assertEquals(15, projections.size()); // all fields from the other legs
+        subqueryEval = as(subqueryProject.child(), Eval.class);
+        aliases = subqueryEval.fields(); // nullEvals from the other legs
+        assertEquals(14, aliases.size());
+        subquery = as(subqueryEval.child(), Subquery.class);
+        Aggregate subqueryAggregate = as(subquery.child(), Aggregate.class);
+        subqueryIndex = as(subqueryAggregate.child(), EsRelation.class);
+        assertEquals("sample_data", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(3), Project.class);
+        projections = subqueryProject.projections();
+        assertEquals(15, projections.size()); // all fields from the other legs
+        subqueryEval = as(subqueryProject.child(), Eval.class);
+        aliases = subqueryEval.fields(); // nullEvals from the other legs
+        assertEquals(2, aliases.size());
+        subquery = as(subqueryEval.child(), Subquery.class);
+        LookupJoin lookupJoin = as(subquery.child(), LookupJoin.class);
+        subqueryIndex = as(lookupJoin.right(), EsRelation.class);
+        assertEquals("languages_lookup", subqueryIndex.indexPattern());
+        subqueryEval = as(lookupJoin.left(), Eval.class);
+        subqueryIndex = as(subqueryEval.child(), EsRelation.class);
+        assertEquals("test", subqueryIndex.indexPattern());
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_MvExpand[languageCode{r}#1133,languageCode{r}#1224]
+     *   \_Project[[count(*){r}#1127, emp_no{r}#1210 AS empNo#1130, language_code{r}#1220 AS languageCode#1133]]
+     *     \_Aggregate[[emp_no{r}#1210, language_code{r}#1220],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*)#1127,
+     *  emp_no{r}#1210, language_code{r}#1220]]
+     *       \_Filter[emp_no{r}#1210 > 10000[INTEGER]]
+     *         \_ViewUnionAll[[null, view1, view2, view3]]
+     *           |_Project[[_meta_field{f}#1152, emp_no{f}#1146, first_name{f}#1147, gender{f}#1148, hire_date{f}#1153, job{f}#1154, job.
+     * raw{f}#1155, languages{f}#1149, last_name{f}#1150, long_noidx{f}#1156, salary{f}#1151, language_code{r}#1176,
+     * languageName{r}#1177, max(@timestamp){r}#1178, language_name{r}#1179]]
+     *           | \_Eval[[null[INTEGER] AS language_code#1176, null[KEYWORD] AS languageName#1177, null[DATETIME] AS max(@timestamp)#11
+     * 78, null[KEYWORD] AS language_name#1179]]
+     *           |   \_EsRelation[test][_meta_field{f}#1152, emp_no{f}#1146, first_name{f}#..]
+     *           |_Project[[_meta_field{r}#1180, emp_no{r}#1181, first_name{r}#1182, gender{r}#1183, hire_date{r}#1184, job{r}#1185, job.
+     * raw{r}#1186, languages{r}#1187, last_name{r}#1188, long_noidx{r}#1189, salary{r}#1190, language_code{f}#1157,
+     * languageName{r}#1139, max(@timestamp){r}#1191, language_name{r}#1192]]
+     *           | \_Eval[[null[KEYWORD] AS _meta_field#1180, null[INTEGER] AS emp_no#1181, null[KEYWORD] AS first_name#1182, null[TEXT]
+     *  AS gender#1183, null[DATETIME] AS hire_date#1184, null[TEXT] AS job#1185, null[KEYWORD] AS job.raw#1186, null
+     * [INTEGER] AS languages#1187, null[KEYWORD] AS last_name#1188, null[LONG] AS long_noidx#1189, null[INTEGER] AS
+     * salary#1190, null[DATETIME] AS max(@timestamp)#1191, null[KEYWORD] AS language_name#1192]]
+     *           |   \_Project[[language_code{f}#1157, language_name{f}#1158 AS languageName#1139]]
+     *           |     \_Filter[language_code{f}#1157 > 10[INTEGER]]
+     *           |       \_EsRelation[languages][language_code{f}#1157, language_name{f}#1158]
+     *           |_Project[[_meta_field{r}#1193, emp_no{r}#1194, first_name{r}#1195, gender{r}#1196, hire_date{r}#1197, job{r}#1198, job.
+     * raw{r}#1199, languages{r}#1200, last_name{r}#1201, long_noidx{r}#1202, salary{r}#1203, language_code{r}#1204,
+     * languageName{r}#1205, max(@timestamp){r}#1141, language_name{r}#1206]]
+     *           | \_Eval[[null[KEYWORD] AS _meta_field#1193, null[INTEGER] AS emp_no#1194, null[KEYWORD] AS first_name#1195, null[TEXT]
+     *  AS gender#1196, null[DATETIME] AS hire_date#1197, null[TEXT] AS job#1198, null[KEYWORD] AS job.raw#1199, null
+     * [INTEGER] AS languages#1200, null[KEYWORD] AS last_name#1201, null[LONG] AS long_noidx#1202, null[INTEGER] AS
+     * salary#1203, null[INTEGER] AS language_code#1204, null[KEYWORD] AS languageName#1205, null[KEYWORD] AS languag
+     * e_name#1206]]
+     *           |   \_Aggregate[[],[MAX(@timestamp{f}#1159,true[BOOLEAN],PT0S[TIME_DURATION]) AS max(@timestamp)#1141]]
+     *           |     \_EsRelation[sample_data][@timestamp{f}#1159, client_ip{f}#1160, event_durati..]
+     *           \_Project[[_meta_field{f}#1169, emp_no{f}#1163, first_name{f}#1164, gender{f}#1165, hire_date{f}#1170, job{f}#1171, job.
+     * raw{f}#1172, languages{f}#1166, last_name{f}#1167, long_noidx{f}#1173, salary{f}#1168, language_code{r}#1144,
+     * languageName{r}#1207, max(@timestamp){r}#1208, language_name{f}#1175]]
+     *             \_Eval[[null[KEYWORD] AS languageName#1207, null[DATETIME] AS max(@timestamp)#1208]]
+     *               \_LookupJoin[LEFT,[language_code{r}#1144],[language_code{f}#1174],false,null]
+     *                 |_Eval[[languages{f}#1166 AS language_code#1144]]
+     *                 | \_EsRelation[test][_meta_field{f}#1169, emp_no{f}#1163, first_name{f}#..]
+     *                 \_EsRelation[languages_lookup][LOOKUP][language_code{f}#1174, language_name{f}#1175]
+     */
+    public void testMultipleViewsInFrom() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        LogicalPlan plan = basic().addLanguages()
+            .addSampleData()
+            .addLanguagesLookup()
+            .addView("view1", "FROM languages | WHERE language_code > 10 | RENAME language_name as languageName")
+            .addView("view2", "FROM sample_data | STATS max(@timestamp)")
+            .addView("view3", "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code")
+            .query("""
+                FROM test, view1, view2, view3
+                | WHERE emp_no > 10000
+                | STATS count(*) by emp_no, language_code
+                | RENAME emp_no AS empNo, language_code AS languageCode
+                | MV_EXPAND languageCode
+                """);
+
+        Limit limit = as(plan, Limit.class);
+        MvExpand mvExpand = as(limit.child(), MvExpand.class);
+        NamedExpression mvExpandTarget = as(mvExpand.target(), NamedExpression.class);
+        assertEquals("languageCode", mvExpandTarget.name());
+        ReferenceAttribute mvExpandExpanded = as(mvExpand.expanded(), ReferenceAttribute.class);
+        assertEquals("languageCode", mvExpandExpanded.name());
+        Project rename = as(mvExpand.child(), Project.class);
+        List<? extends NamedExpression> projections = rename.projections();
+        assertEquals(3, projections.size());
+        Alias a = as(projections.get(1), Alias.class);
+        assertEquals("empNo", a.name());
+        ReferenceAttribute ra = as(a.child(), ReferenceAttribute.class);
+        assertEquals("emp_no", ra.name());
+        a = as(projections.get(2), Alias.class);
+        assertEquals("languageCode", a.name());
+        ra = as(a.child(), ReferenceAttribute.class);
+        assertEquals("language_code", ra.name());
+        Aggregate aggregate = as(rename.child(), Aggregate.class);
+        List<? extends NamedExpression> aggregates = aggregate.aggregates();
+        assertEquals(3, aggregates.size());
+        a = as(aggregates.get(0), Alias.class);
+        assertEquals("count(*)", a.name());
+        List<Expression> groupings = aggregate.groupings();
+        assertEquals(2, groupings.size());
+        ra = as(groupings.get(0), ReferenceAttribute.class);
+        assertEquals("emp_no", ra.name());
+        ra = as(groupings.get(1), ReferenceAttribute.class);
+        assertEquals("language_code", ra.name());
+        Filter filter = as(aggregate.child(), Filter.class);
+        GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
+        ReferenceAttribute empNo = as(greaterThan.left(), ReferenceAttribute.class);
+        assertEquals("emp_no", empNo.name());
+        Literal literal = as(greaterThan.right(), Literal.class);
+        assertEquals(10000, literal.value());
+        ViewUnionAll viewUninAll = as(filter.child(), ViewUnionAll.class);
+        assertEquals(4, viewUninAll.children().size());
+
+        Project viewProject = as(viewUninAll.children().get(0), Project.class);
+        projections = viewProject.projections();
+        assertEquals(15, projections.size()); // all fields from the other legs
+        Eval viewEval = as(viewProject.child(), Eval.class);
+        List<Alias> aliases = viewEval.fields(); // nullEvals from the other legs
+        assertEquals(4, aliases.size());
+        EsRelation subqueryIndex = as(viewEval.child(), EsRelation.class);
+        assertEquals("test", subqueryIndex.indexPattern());
+
+        viewProject = as(viewUninAll.children().get(1), Project.class);
+        projections = viewProject.projections();
+        assertEquals(15, projections.size()); // all fields from the other legs
+        viewEval = as(viewProject.child(), Eval.class);
+        aliases = viewEval.fields(); // nullEvals from the other legs
+        assertEquals(13, aliases.size());
+        rename = as(viewEval.child(), Project.class);
+        List<? extends NamedExpression> renameProjections = rename.projections();
+        assertEquals(2, renameProjections.size());
+        FieldAttribute language_code = as(renameProjections.get(0), FieldAttribute.class);
+        assertEquals("language_code", language_code.name());
+        a = as(renameProjections.get(1), Alias.class);
+        assertEquals("languageName", a.name());
+        FieldAttribute language_name = as(a.child(), FieldAttribute.class);
+        assertEquals("language_name", language_name.name());
+        Filter subqueryFilter = as(rename.child(), Filter.class);
+        greaterThan = as(subqueryFilter.condition(), GreaterThan.class);
+        language_code = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("language_code", language_code.name());
+        literal = as(greaterThan.right(), Literal.class);
+        assertEquals(10, literal.value());
+        subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
+        assertEquals("languages", subqueryIndex.indexPattern());
+
+        viewProject = as(viewUninAll.children().get(2), Project.class);
+        projections = viewProject.projections();
+        assertEquals(15, projections.size()); // all fields from the other legs
+        viewEval = as(viewProject.child(), Eval.class);
+        aliases = viewEval.fields(); // nullEvals from the other legs
+        assertEquals(14, aliases.size());
+        Aggregate subqueryAggregate = as(viewEval.child(), Aggregate.class);
+        subqueryIndex = as(subqueryAggregate.child(), EsRelation.class);
+        assertEquals("sample_data", subqueryIndex.indexPattern());
+
+        viewProject = as(viewUninAll.children().get(3), Project.class);
+        projections = viewProject.projections();
+        assertEquals(15, projections.size()); // all fields from the other legs
+        viewEval = as(viewProject.child(), Eval.class);
+        aliases = viewEval.fields(); // nullEvals from the other legs
+        assertEquals(2, aliases.size());
+        LookupJoin lookupJoin = as(viewEval.child(), LookupJoin.class);
+        subqueryIndex = as(lookupJoin.right(), EsRelation.class);
+        assertEquals("languages_lookup", subqueryIndex.indexPattern());
+        viewEval = as(lookupJoin.left(), Eval.class);
+        subqueryIndex = as(viewEval.child(), EsRelation.class);
+        assertEquals("test", subqueryIndex.indexPattern());
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_MvExpand[languageCode{r}#801,languageCode{r}#867]
+     *   \_Project[[count(*){r}#795, emp_no{r}#853 AS empNo#798, language_code{r}#863 AS languageCode#801]]
+     *     \_Aggregate[[emp_no{r}#853, language_code{r}#863],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*)#795, em
+     * p_no{r}#853, language_code{r}#863]]
+     *       \_Filter[emp_no{r}#853 > 10000[INTEGER]]
+     *         \_UnionAll[[_meta_field{r}#852, emp_no{r}#853, first_name{r}#854, gender{r}#855, hire_date{r}#856, job{r}#857, job.raw{r}
+     * #858, languages{r}#859, last_name{r}#860, long_noidx{r}#861, salary{r}#862, language_code{r}#863, language_nam
+     * e{r}#864, languageName{r}#865, max(@timestamp){r}#866]]
+     *           |_Project[[_meta_field{f}#810, emp_no{f}#804, first_name{f}#805, gender{f}#806, hire_date{f}#811, job{f}#812, job.raw{f}
+     * #813, languages{f}#807, last_name{f}#808, long_noidx{f}#814, salary{f}#809, language_code{r}#785, language_nam
+     * e{f}#816, languageName{r}#823, max(@timestamp){r}#824]]
+     *           | \_Eval[[null[KEYWORD] AS languageName#823, null[DATETIME] AS max(@timestamp)#824]]
+     *           |   \_Subquery[]
+     *           |     \_LookupJoin[LEFT,[language_code{r}#785],[language_code{f}#815],false,null]
+     *           |       |_Eval[[languages{f}#807 AS language_code#785]]
+     *           |       | \_EsRelation[test][_meta_field{f}#810, emp_no{f}#804, first_name{f}#80..]
+     *           |       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#815, language_name{f}#816]
+     *           |_Project[[_meta_field{r}#825, emp_no{r}#826, first_name{r}#827, gender{r}#828, hire_date{r}#829, job{r}#830, job.raw{r}
+     * #831, languages{r}#832, last_name{r}#833, long_noidx{r}#834, salary{r}#835, language_code{f}#817, language_nam
+     * e{r}#836, languageName{r}#789, max(@timestamp){r}#837]]
+     *           | \_Eval[[null[KEYWORD] AS _meta_field#825, null[INTEGER] AS emp_no#826, null[KEYWORD] AS first_name#827, null[TEXT] AS
+     *  gender#828, null[DATETIME] AS hire_date#829, null[TEXT] AS job#830, null[KEYWORD] AS job.raw#831, null[INTEGE
+     * R] AS languages#832, null[KEYWORD] AS last_name#833, null[LONG] AS long_noidx#834, null[INTEGER] AS salary#835
+     * , null[KEYWORD] AS language_name#836, null[DATETIME] AS max(@timestamp)#837]]
+     *           |   \_Subquery[]
+     *           |     \_Project[[language_code{f}#817, language_name{f}#818 AS languageName#789]]
+     *           |       \_Filter[language_code{f}#817 > 10[INTEGER]]
+     *           |         \_EsRelation[languages][language_code{f}#817, language_name{f}#818]
+     *           \_Project[[_meta_field{r}#838, emp_no{r}#839, first_name{r}#840, gender{r}#841, hire_date{r}#842, job{r}#843, job.raw{r}
+     * #844, languages{r}#845, last_name{r}#846, long_noidx{r}#847, salary{r}#848, language_code{r}#849, language_nam
+     * e{r}#850, languageName{r}#851, max(@timestamp){r}#791]]
+     *             \_Eval[[null[KEYWORD] AS _meta_field#838, null[INTEGER] AS emp_no#839, null[KEYWORD] AS first_name#840, null[TEXT] AS
+     *  gender#841, null[DATETIME] AS hire_date#842, null[TEXT] AS job#843, null[KEYWORD] AS job.raw#844, null[INTEGE
+     * R] AS languages#845, null[KEYWORD] AS last_name#846, null[LONG] AS long_noidx#847, null[INTEGER] AS salary#848
+     * , null[INTEGER] AS language_code#849, null[KEYWORD] AS language_name#850, null[KEYWORD] AS languageName#851]]
+     *               \_Subquery[]
+     *                 \_Aggregate[[],[MAX(@timestamp{f}#819,true[BOOLEAN],PT0S[TIME_DURATION]) AS max(@timestamp)#791]]
+     *                   \_EsRelation[sample_data][@timestamp{f}#819, client_ip{f}#820, event_duration..]
+     */
+    public void testMultipleSubqueryInFromWithoutMainIndexPattern() {
+        LogicalPlan plan = basic().addLanguages().addSampleData().addLanguagesLookup().query("""
+            FROM (FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code)
+            , (FROM languages | WHERE language_code > 10 | RENAME language_name as languageName)
+            , (FROM sample_data | STATS max(@timestamp))
+            | WHERE emp_no > 10000
+            | STATS count(*) by emp_no, language_code
+            | RENAME emp_no AS empNo, language_code AS languageCode
+            | MV_EXPAND languageCode
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        MvExpand mvExpand = as(limit.child(), MvExpand.class);
+        NamedExpression mvExpandTarget = as(mvExpand.target(), NamedExpression.class);
+        assertEquals("languageCode", mvExpandTarget.name());
+        ReferenceAttribute mvExpandExpanded = as(mvExpand.expanded(), ReferenceAttribute.class);
+        assertEquals("languageCode", mvExpandExpanded.name());
+        Project rename = as(mvExpand.child(), Project.class);
+        List<? extends NamedExpression> projections = rename.projections();
+        assertEquals(3, projections.size());
+        Alias a = as(projections.get(1), Alias.class);
+        assertEquals("empNo", a.name());
+        ReferenceAttribute ra = as(a.child(), ReferenceAttribute.class);
+        assertEquals("emp_no", ra.name());
+        a = as(projections.get(2), Alias.class);
+        assertEquals("languageCode", a.name());
+        ra = as(a.child(), ReferenceAttribute.class);
+        assertEquals("language_code", ra.name());
+        Aggregate aggregate = as(rename.child(), Aggregate.class);
+        List<? extends NamedExpression> aggregates = aggregate.aggregates();
+        assertEquals(3, aggregates.size());
+        a = as(aggregates.get(0), Alias.class);
+        assertEquals("count(*)", a.name());
+        List<Expression> groupings = aggregate.groupings();
+        assertEquals(2, groupings.size());
+        ra = as(groupings.get(0), ReferenceAttribute.class);
+        assertEquals("emp_no", ra.name());
+        ra = as(groupings.get(1), ReferenceAttribute.class);
+        assertEquals("language_code", ra.name());
+        Filter filter = as(aggregate.child(), Filter.class);
+        GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
+        ReferenceAttribute empNo = as(greaterThan.left(), ReferenceAttribute.class);
+        assertEquals("emp_no", empNo.name());
+        Literal literal = as(greaterThan.right(), Literal.class);
+        assertEquals(10000, literal.value());
+        UnionAll unionAll = as(filter.child(), UnionAll.class);
+        assertEquals(3, unionAll.children().size());
+
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        projections = subqueryProject.projections();
+        assertEquals(15, projections.size()); // all fields from the other legs
+        Eval subqueryEval = as(subqueryProject.child(), Eval.class);
+        List<Alias> aliases = subqueryEval.fields(); // nullEvals from the other legs
+        assertEquals(2, aliases.size());
+        Subquery subquery = as(subqueryEval.child(), Subquery.class);
+        LookupJoin lookupJoin = as(subquery.child(), LookupJoin.class);
+        EsRelation subqueryIndex = as(lookupJoin.right(), EsRelation.class);
+        assertEquals("languages_lookup", subqueryIndex.indexPattern());
+        subqueryEval = as(lookupJoin.left(), Eval.class);
+        subqueryIndex = as(subqueryEval.child(), EsRelation.class);
+        assertEquals("test", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        projections = subqueryProject.projections();
+        assertEquals(15, projections.size()); // all fields from the other legs
+        subqueryEval = as(subqueryProject.child(), Eval.class);
+        aliases = subqueryEval.fields(); // nullEvals from the other legs
+        assertEquals(13, aliases.size());
+        subquery = as(subqueryEval.child(), Subquery.class);
+        rename = as(subquery.child(), Project.class);
+        List<? extends NamedExpression> renameProjections = rename.projections();
+        assertEquals(2, renameProjections.size());
+        FieldAttribute language_code = as(renameProjections.get(0), FieldAttribute.class);
+        assertEquals("language_code", language_code.name());
+        a = as(renameProjections.get(1), Alias.class);
+        assertEquals("languageName", a.name());
+        FieldAttribute language_name = as(a.child(), FieldAttribute.class);
+        assertEquals("language_name", language_name.name());
+        Filter subqueryFilter = as(rename.child(), Filter.class);
+        greaterThan = as(subqueryFilter.condition(), GreaterThan.class);
+        language_code = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("language_code", language_code.name());
+        literal = as(greaterThan.right(), Literal.class);
+        assertEquals(10, literal.value());
+        subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
+        assertEquals("languages", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(2), Project.class);
+        projections = subqueryProject.projections();
+        assertEquals(15, projections.size()); // all fields from the other legs
+        subqueryEval = as(subqueryProject.child(), Eval.class);
+        aliases = subqueryEval.fields(); // nullEvals from the other legs
+        assertEquals(14, aliases.size());
+        subquery = as(subqueryEval.child(), Subquery.class);
+        Aggregate subqueryAggregate = as(subquery.child(), Aggregate.class);
+        subqueryIndex = as(subqueryAggregate.child(), EsRelation.class);
+        assertEquals("sample_data", subqueryIndex.indexPattern());
+
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_OrderBy[[Order[emp_no{r}#2190,ASC,LAST], Order[language_code{r}#2200,ASC,LAST]]]
+     *   \_Filter[emp_no{r}#2190 > 10000[INTEGER]]
+     *     \_UnionAll[[_meta_field{r}#2189, emp_no{r}#2190, first_name{r}#2191, gender{r}#2192, hire_date{r}#2193, job{r}#2194, job.
+     * raw{r}#2195, languages{r}#2196, last_name{r}#2197, long_noidx{r}#2198, salary{r}#2199, language_code{r}#2200,
+     * language_name{r}#2201, count(*){r}#2202]]
+     *       |_Project[[_meta_field{f}#2158, emp_no{f}#2152, first_name{f}#2153, gender{f}#2154, hire_date{f}#2159, job{f}#2160, job.
+     * raw{f}#2161, languages{f}#2155, last_name{f}#2156, long_noidx{f}#2162, salary{f}#2157, language_code{r}#2175,
+     * language_name{r}#2176, count(*){r}#2177]]
+     *       | \_Eval[[null[INTEGER] AS language_code#2175, null[KEYWORD] AS language_name#2176, null[LONG] AS count(*)#2177]]
+     *       |   \_EsRelation[test][_meta_field{f}#2158, emp_no{f}#2152, first_name{f}#..]
+     *       \_Project[[_meta_field{r}#2178, emp_no{r}#2179, first_name{r}#2180, gender{r}#2181, hire_date{r}#2182, job{r}#2183, job.
+     * raw{r}#2184, languages{r}#2185, last_name{r}#2186, long_noidx{r}#2187, salary{r}#2188, language_code{r}#2172,
+     * language_name{r}#2173, count(*){r}#2174]]
+     *         \_Eval[[null[KEYWORD] AS _meta_field#2178, null[INTEGER] AS emp_no#2179, null[KEYWORD] AS first_name#2180, null[TEXT]
+     *  AS gender#2181, null[DATETIME] AS hire_date#2182, null[TEXT] AS job#2183, null[KEYWORD] AS job.raw#2184, null
+     * [INTEGER] AS languages#2185, null[KEYWORD] AS last_name#2186, null[LONG] AS long_noidx#2187, null[INTEGER] AS
+     * salary#2188]]
+     *           \_Subquery[]
+     *             \_Filter[language_code{r}#2172 > 10[INTEGER]]
+     *               \_UnionAll[[language_code{r}#2172, language_name{r}#2173, count(*){r}#2174]]
+     *                 |_Project[[language_code{f}#2163, language_name{f}#2164, count(*){r}#2169]]
+     *                 | \_Eval[[null[LONG] AS count(*)#2169]]
+     *                 |   \_EsRelation[languages][language_code{f}#2163, language_name{f}#2164]
+     *                 \_Project[[language_code{r}#2170, language_name{r}#2171, count(*){r}#2147]]
+     *                   \_Eval[[null[INTEGER] AS language_code#2170, null[KEYWORD] AS language_name#2171]]
+     *                     \_Subquery[]
+     *                       \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*)#2147]]
+     *                         \_EsRelation[sample_data][@timestamp{f}#2165, client_ip{f}#2166, event_durati..]
+     */
+    public void testNestedSubqueryInFrom() {
+        LogicalPlan plan = basic().addLanguages().addSampleData().query("""
+            FROM test, (FROM languages, (FROM sample_data | STATS count(*)) | WHERE language_code > 10)
+            | WHERE emp_no > 10000
+            | SORT emp_no, language_code
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        OrderBy orderBy = as(limit.child(), OrderBy.class);
+        Filter filter = as(orderBy.child(), Filter.class);
+        UnionAll unionAll = as(filter.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        Eval subqueryEval = as(subqueryProject.child(), Eval.class);
+        EsRelation subqueryIndex = as(subqueryEval.child(), EsRelation.class);
+        assertEquals("test", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        subqueryEval = as(subqueryProject.child(), Eval.class);
+        Subquery subquery = as(subqueryEval.child(), Subquery.class);
+        Filter subqueryFilter = as(subquery.child(), Filter.class);
+        unionAll = as(subqueryFilter.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        subqueryProject = as(unionAll.children().get(0), Project.class);
+        subqueryEval = as(subqueryProject.child(), Eval.class);
+        subqueryIndex = as(subqueryEval.child(), EsRelation.class);
+        assertEquals("languages", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        subqueryEval = as(subqueryProject.child(), Eval.class);
+        subquery = as(subqueryEval.child(), Subquery.class);
+        Aggregate subqueryAggregate = as(subquery.child(), Aggregate.class);
+        subqueryIndex = as(subqueryAggregate.child(), EsRelation.class);
+        assertEquals("sample_data", subqueryIndex.indexPattern());
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_OrderBy[[Order[emp_no{r}#2415,ASC,LAST], Order[language_code{r}#2426,ASC,LAST]]]
+     *   \_Filter[emp_no{r}#2415 > 10000[INTEGER]]
+     *     \_UnionAll[[_meta_field{r}#2414, emp_no{r}#2415, first_name{r}#2416, gender{r}#2417, hire_date{r}#2418, job{r}#2419, job.
+     * raw{r}#2420, languages{r}#2421, last_name{r}#2422, long_noidx{r}#2423, salary{r}#2424, _index{r}#2425, languag
+     * e_code{r}#2426, language_name{r}#2427, count(*){r}#2428]]
+     *       |_Project[[_meta_field{f}#2382, emp_no{f}#2376, first_name{f}#2377, gender{f}#2378, hire_date{f}#2383, job{f}#2384, job.
+     * raw{f}#2385, languages{f}#2379, last_name{f}#2380, long_noidx{f}#2386, salary{f}#2381, _index{m}#2372, languag
+     * e_code{r}#2399, language_name{r}#2400, count(*){r}#2401]]
+     *       | \_Eval[[null[INTEGER] AS language_code#2399, null[KEYWORD] AS language_name#2400, null[LONG] AS count(*)#2401]]
+     *       |   \_EsRelation[test][_meta_field{f}#2382, emp_no{f}#2376, first_name{f}#..]
+     *       \_Project[[_meta_field{r}#2402, emp_no{r}#2403, first_name{r}#2404, gender{r}#2405, hire_date{r}#2406, job{r}#2407, job.
+     * raw{r}#2408, languages{r}#2409, last_name{r}#2410, long_noidx{r}#2411, salary{r}#2412, _index{r}#2413, languag
+     * e_code{r}#2396, language_name{r}#2397, count(*){r}#2398]]
+     *         \_Eval[[null[KEYWORD] AS _meta_field#2402, null[INTEGER] AS emp_no#2403, null[KEYWORD] AS first_name#2404, null[TEXT]
+     *  AS gender#2405, null[DATETIME] AS hire_date#2406, null[TEXT] AS job#2407, null[KEYWORD] AS job.raw#2408, null
+     * [INTEGER] AS languages#2409, null[KEYWORD] AS last_name#2410, null[LONG] AS long_noidx#2411, null[INTEGER] AS
+     * salary#2412, null[KEYWORD] AS _index#2413]]
+     *           \_Subquery[]
+     *             \_Filter[language_code{r}#2396 > 10[INTEGER]]
+     *               \_UnionAll[[language_code{r}#2396, language_name{r}#2397, count(*){r}#2398]]
+     *                 |_Project[[language_code{f}#2387, language_name{f}#2388, count(*){r}#2393]]
+     *                 | \_Eval[[null[LONG] AS count(*)#2393]]
+     *                 |   \_EsRelation[languages][language_code{f}#2387, language_name{f}#2388]
+     *                 \_Project[[language_code{r}#2394, language_name{r}#2395, count(*){r}#2370]]
+     *                   \_Eval[[null[INTEGER] AS language_code#2394, null[KEYWORD] AS language_name#2395]]
+     *                     \_Subquery[]
+     *                       \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*)#2370]]
+     *                         \_EsRelation[sample_data][@timestamp{f}#2389, client_ip{f}#2390, event_durati..]
+     */
+    public void testNestedSubqueryInFromWithMetadata() {
+        LogicalPlan plan = basic().addLanguages().addSampleData().query("""
+            FROM test, (FROM languages, (FROM sample_data | STATS count(*)) | WHERE language_code > 10) metadata _index
+            | WHERE emp_no > 10000
+            | SORT emp_no, language_code
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        OrderBy orderBy = as(limit.child(), OrderBy.class);
+        Filter filter = as(orderBy.child(), Filter.class);
+        UnionAll unionAll = as(filter.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        Eval subqueryEval = as(subqueryProject.child(), Eval.class);
+        EsRelation subqueryIndex = as(subqueryEval.child(), EsRelation.class);
+        assertEquals("test", subqueryIndex.indexPattern());
+        List<Attribute> output = subqueryIndex.output();
+        assertEquals(12, output.size());
+        MetadataAttribute metadataAttribute = as(output.get(11), MetadataAttribute.class);
+        assertEquals("_index", metadataAttribute.name());
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        subqueryEval = as(subqueryProject.child(), Eval.class);
+        Subquery subquery = as(subqueryEval.child(), Subquery.class);
+        Filter subqueryFilter = as(subquery.child(), Filter.class);
+        unionAll = as(subqueryFilter.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        subqueryProject = as(unionAll.children().get(0), Project.class);
+        subqueryEval = as(subqueryProject.child(), Eval.class);
+        subqueryIndex = as(subqueryEval.child(), EsRelation.class);
+        assertEquals("languages", subqueryIndex.indexPattern());
+        output = subqueryIndex.output();
+        assertEquals(2, output.size());
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        subqueryEval = as(subqueryProject.child(), Eval.class);
+        subquery = as(subqueryEval.child(), Subquery.class);
+        Aggregate subqueryAggregate = as(subquery.child(), Aggregate.class);
+        subqueryIndex = as(subqueryAggregate.child(), EsRelation.class);
+        assertEquals("sample_data", subqueryIndex.indexPattern());
+        output = subqueryIndex.output();
+        assertEquals(4, output.size());
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_OrderBy[[Order[emp_no{r}#1645,ASC,LAST], Order[languages{r}#1651,ASC,LAST]]]
+     *   \_Filter[ISNOTNULL(languages{r}#1651)]
+     *     \_Filter[emp_no{r}#1645 > 10[INTEGER]]
+     *       \_UnionAll[[_meta_field{r}#1644, emp_no{r}#1645, first_name{r}#1646, gender{r}#1647, hire_date{r}#1648, job{r}#1649, job.
+     * raw{r}#1650, languages{r}#1651, last_name{r}#1652, long_noidx{r}#1653, salary{r}#1654, count(*){r}#1655]]
+     *         |_Project[[_meta_field{f}#1623, emp_no{f}#1617, first_name{f}#1618, gender{f}#1619, hire_date{f}#1624, job{f}#1625, job.
+     * raw{f}#1626, languages{f}#1620, last_name{f}#1621, long_noidx{f}#1627, salary{f}#1622, count(*){r}#1632]]
+     *         | \_Eval[[null[LONG] AS count(*)#1632]]
+     *         |   \_EsRelation[test][_meta_field{f}#1623, emp_no{f}#1617, first_name{f}#..]
+     *         \_Project[[_meta_field{r}#1633, emp_no{r}#1634, first_name{r}#1635, gender{r}#1636, hire_date{r}#1637, job{r}#1638, job.
+     * raw{r}#1639, languages{r}#1640, last_name{r}#1641, long_noidx{r}#1642, salary{r}#1643, count(*){r}#1612]]
+     *           \_Eval[[null[KEYWORD] AS _meta_field#1633, null[INTEGER] AS emp_no#1634, null[KEYWORD] AS first_name#1635, null[TEXT]
+     *  AS gender#1636, null[DATETIME] AS hire_date#1637, null[TEXT] AS job#1638, null[KEYWORD] AS job.raw#1639, null
+     * [INTEGER] AS languages#1640, null[KEYWORD] AS last_name#1641, null[LONG] AS long_noidx#1642, null[INTEGER] AS
+     * salary#1643]]
+     *             \_Subquery[]
+     *               \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*)#1612]]
+     *                 \_EsRelation[sample_data][@timestamp{f}#1628, client_ip{f}#1629, event_durati..]
+     */
+    public void testNestedSubqueriesInFromWithoutMainIndexPattern() {
+        LogicalPlan plan = basic().addSampleData().query("""
+            FROM (FROM test, (FROM sample_data | STATS count(*)) | WHERE emp_no > 10)
+            | WHERE languages is not null
+            | SORT emp_no, languages
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        OrderBy orderBy = as(limit.child(), OrderBy.class);
+        List<Order> orderKeys = orderBy.order();
+        assertEquals(2, orderKeys.size());
+        ReferenceAttribute emp_no = as(orderKeys.get(0).child(), ReferenceAttribute.class);
+        assertEquals("emp_no", emp_no.name());
+        ReferenceAttribute languages = as(orderKeys.get(1).child(), ReferenceAttribute.class);
+        assertEquals("languages", languages.name());
+        Filter filter = as(orderBy.child(), Filter.class);
+        IsNotNull isNotNull = as(filter.condition(), IsNotNull.class);
+        languages = as(isNotNull.field(), ReferenceAttribute.class);
+        assertEquals("languages", languages.name());
+        filter = as(filter.child(), Filter.class);
+        GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
+        emp_no = as(greaterThan.left(), ReferenceAttribute.class);
+        assertEquals("emp_no", emp_no.name());
+        UnionAll unionAll = as(filter.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        Eval subqueryEval = as(subqueryProject.child(), Eval.class);
+        EsRelation subqueryIndex = as(subqueryEval.child(), EsRelation.class);
+        assertEquals("test", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        subqueryEval = as(subqueryProject.child(), Eval.class);
+        Subquery subquery = as(subqueryEval.child(), Subquery.class);
+        Aggregate subqueryAggregate = as(subquery.child(), Aggregate.class);
+        subqueryIndex = as(subqueryAggregate.child(), EsRelation.class);
+        assertEquals("sample_data", subqueryIndex.indexPattern());
+    }
+
+    /*
+     * When there are mixed date types between the main query and the subquery, the fields/references need to be casted to a common type
+     * in the UnionAll legs, otherwise FORK's postAnalysisPlanVerification will fail. The common type can be date_nanos,
+     * or unsupported if the fields have conflicting types (regardless of whether they are referenced in the main query).
+     *
+     * Project[[!avg_worked_seconds, birth_date{r}#1450, !first_name, !gender, height{r}#1454, height.float{r}#1455, height.h
+     * alf_float{r}#1456, height.scaled_float{r}#1457, hire_date{r}#1458, !is_rehired, !job_positions, languages{r}#1
+     * 461, languages.byte{r}#1462, languages.long{r}#1463, languages.short{r}#1464, !last_name, !salary, salary_chan
+     * ge{r}#1467, salary_change.int{r}#1468, salary_change.keyword{r}#1469, salary_change.long{r}#1470, !still_hired
+     * , height.double{r}#1472, languages.int{r}#1473, emp_no{r}#1396]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_OrderBy[[Order[emp_no{r}#1396,ASC,LAST]]]
+     *     \_Filter[emp_no{r}#1396 > 10000[INTEGER]]
+     *       \_Eval[[$$emp_no$converted_to$long{r$}#1476 AS emp_no#1396]]
+     *         \_UnionAll[[!avg_worked_seconds, birth_date{r}#1450, !emp_no, $$emp_no$converted_to$long{r$}#1476, !first_name, !gender,
+     * height{r}#1454, height.float{r}#1455, height.half_float{r}#1456, height.scaled_float{r}#1457, hire_date{r}#145
+     * 8, !is_rehired, !job_positions, languages{r}#1461, languages.byte{r}#1462, languages.long{r}#1463, languages.s
+     * hort{r}#1464, !last_name, !salary, salary_change{r}#1467, salary_change.int{r}#1468, salary_change.keyword{r}#
+     * 1469, salary_change.long{r}#1470, !still_hired, height.double{r}#1472, languages.int{r}#1473]]
+     *           |_Project[[avg_worked_seconds{r}#1477, birth_date{f}#1403, emp_no{r}#1478, $$emp_no$converted_to$long{r$}#1474, first_na
+     * me{r}#1479, gender{r}#1480, height{f}#1410, height.float{f}#1411, height.half_float{f}#1413, height.scaled_flo
+     * at{f}#1412, hire_date{r}#1481, is_rehired{r}#1482, job_positions{r}#1483, languages{f}#1406, languages.byte{f}
+     * #1409, languages.long{f}#1407, languages.short{f}#1408, last_name{r}#1484, salary{r}#1485, salary_change{f}#14
+     * 18, salary_change.int{f}#1419, salary_change.keyword{f}#1421, salary_change.long{f}#1420, still_hired{r}#1486,
+     *  height.double{r}#1442, languages.int{r}#1443]]
+     *           | \_Eval[[null[KEYWORD] AS avg_worked_seconds#1477, null[KEYWORD] AS emp_no#1478, null[KEYWORD] AS first_name#1479, nul
+     * l[KEYWORD] AS gender#1480, TODATENANOS(hire_date{f}#1404) AS hire_date#1481, null[KEYWORD] AS is_rehired#1482,
+     *  null[KEYWORD] AS job_positions#1483, null[KEYWORD] AS last_name#1484, null[KEYWORD] AS salary#1485, null[KEYW
+     * ORD] AS still_hired#1486]]
+     *           |   \_Eval[[TOLONG(emp_no{f}#1399) AS $$emp_no$converted_to$long#1474]]
+     *           |     \_Eval[[null[DOUBLE] AS height.double#1442, null[INTEGER] AS languages.int#1443]]
+     *           |       \_EsRelation[test][avg_worked_seconds{f}#1415, birth_date{f}#1403, emp..]
+     *           \_Project[[avg_worked_seconds{r}#1487, birth_date{f}#1426, emp_no{r}#1488, $$emp_no$converted_to$long{r$}#1475, first_na
+     * me{r}#1489, gender{r}#1490, height{f}#1433, height.float{r}#1444, height.half_float{f}#1436, height.scaled_flo
+     * at{f}#1435, hire_date{f}#1427, is_rehired{r}#1491, job_positions{r}#1492, languages{f}#1429, languages.byte{r}
+     * #1445, languages.long{f}#1430, languages.short{f}#1431, last_name{r}#1493, salary{r}#1494, salary_change{f}#14
+     * 41, salary_change.int{r}#1446, salary_change.keyword{r}#1447, salary_change.long{r}#1448, still_hired{r}#1495,
+     *  height.double{f}#1434, languages.int{f}#1432]]
+     *             \_Eval[[null[KEYWORD] AS avg_worked_seconds#1487, null[KEYWORD] AS emp_no#1488, null[KEYWORD] AS first_name#1489, nul
+     * l[KEYWORD] AS gender#1490, null[KEYWORD] AS is_rehired#1491, null[KEYWORD] AS job_positions#1492, null[KEYWORD
+     * ] AS last_name#1493, null[KEYWORD] AS salary#1494, null[KEYWORD] AS still_hired#1495]]
+     *               \_Eval[[TOLONG(emp_no{f}#1422) AS $$emp_no$converted_to$long#1475]]
+     *                 \_Eval[[null[DOUBLE] AS height.float#1444, null[INTEGER] AS languages.byte#1445, null[INTEGER] AS salary_change.int#1
+     * 446, null[KEYWORD] AS salary_change.keyword#1447, null[LONG] AS salary_change.long#1448]]
+     *                   \_Subquery[]
+     *                     \_Filter[languages{f}#1429 > 0[INTEGER]]
+     *                       \_EsRelation[test_mixed_types][avg_worked_seconds{f}#1438, birth_date{f}#1426, emp..]
+     */
+    public void testMixedDataTypesInSubquery() {
+        LogicalPlan plan = defaultMapping().addDefaultIncompatible().query("""
+            FROM test, (FROM test_mixed_types | WHERE languages > 0)
+            | EVAL emp_no = emp_no::long
+            | WHERE emp_no > 10000
+            | SORT emp_no
+            """);
+
+        Project project = as(plan, Project.class);
+        List<? extends NamedExpression> projections = project.projections();
+        assertEquals(25, projections.size());
+        Limit limit = as(project.child(), Limit.class);
+        OrderBy orderBy = as(limit.child(), OrderBy.class);
+        Filter filter = as(orderBy.child(), Filter.class);
+        Eval eval = as(filter.child(), Eval.class);
+        List<Alias> aliases = eval.fields();
+        assertEquals(1, aliases.size());
+        Alias alias = aliases.get(0);
+        assertEquals("emp_no", alias.name());
+        ReferenceAttribute emp_no = as(alias.child(), ReferenceAttribute.class);
+        assertEquals("$$emp_no$converted_to$long", emp_no.name());
+        UnionAll unionAll = as(eval.child(), UnionAll.class);
+        List<Attribute> output = unionAll.output();
+        assertEquals(26, output.size());
+        assertEquals(2, unionAll.children().size());
+
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        Eval implicitCastingEval = as(subqueryProject.child(), Eval.class);
+        assertEquals(10, implicitCastingEval.fields().size());
+        Eval explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
+        assertEquals(1, explicitCastingEval.fields().size());
+        Eval missingFieldEval = as(explicitCastingEval.child(), Eval.class);
+        assertEquals(2, missingFieldEval.fields().size());
+        EsRelation subqueryIndex = as(missingFieldEval.child(), EsRelation.class);
+        assertEquals("test", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        implicitCastingEval = as(subqueryProject.child(), Eval.class);
+        assertEquals(9, implicitCastingEval.fields().size());
+        explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
+        assertEquals(1, explicitCastingEval.fields().size());
+        missingFieldEval = as(explicitCastingEval.child(), Eval.class);
+        assertEquals(5, missingFieldEval.fields().size());
+        Subquery subquery = as(missingFieldEval.child(), Subquery.class);
+        Filter subqueryFilter = as(subquery.child(), Filter.class);
+        GreaterThan greaterThan = as(subqueryFilter.condition(), GreaterThan.class);
+        FieldAttribute fa = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("languages", fa.name());
+        assertEquals(INTEGER, fa.dataType());
+        Literal literal = as(greaterThan.right(), Literal.class);
+        assertEquals(0, literal.value());
+        assertEquals(INTEGER, literal.dataType());
+        subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
+        assertEquals("test_mixed_types", subqueryIndex.indexPattern());
+    }
+
+    /*
+     * Project[[!avg_worked_seconds, birth_date{r}#1560, !first_name, !gender, height{r}#1564, height.float{r}#1565, height.h
+     * alf_float{r}#1566, height.scaled_float{r}#1567, hire_date{r}#1568, !job_positions, languages{r}#1571, language
+     * s.byte{r}#1572, languages.long{r}#1573, languages.short{r}#1574, !last_name, !salary, salary_change{r}#1577, s
+     * alary_change.int{r}#1578, salary_change.keyword{r}#1579, salary_change.long{r}#1580, height.double{r}#1582, la
+     * nguages.int{r}#1583, emp_no{r}#1499, still_hired{r}#1503, is_rehired{r}#1506]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_OrderBy[[Order[still_hired{r}#1503,ASC,LAST], Order[is_rehired{r}#1506,ASC,LAST]]]
+     *     \_Eval[[$$still_hired$converted_to$keyword{r$}#1592 AS still_hired#1503, $$is_rehired$converted_to$keyword{r$}#1591 A
+     * S is_rehired#1506]]
+     *       \_Filter[emp_no{r}#1499 > 10000[INTEGER]]
+     *         \_Eval[[$$emp_no$converted_to$long{r$}#1590 AS emp_no#1499]]
+     *           \_UnionAll[[!avg_worked_seconds, birth_date{r}#1560, !emp_no, $$emp_no$converted_to$long{r$}#1590, !first_name, !gender,
+     * height{r}#1564, height.float{r}#1565, height.half_float{r}#1566, height.scaled_float{r}#1567, hire_date{r}#156
+     * 8, !is_rehired, $$is_rehired$converted_to$keyword{r$}#1591, !job_positions, languages{r}#1571, languages.byte{
+     * r}#1572, languages.long{r}#1573, languages.short{r}#1574, !last_name, !salary, salary_change{r}#1577, salary_c
+     * hange.int{r}#1578, salary_change.keyword{r}#1579, salary_change.long{r}#1580, !still_hired, $$still_hired$conv
+     * erted_to$keyword{r$}#1592, height.double{r}#1582, languages.int{r}#1583]]
+     *             |_Project[[avg_worked_seconds{r}#1593, birth_date{f}#1513, emp_no{r}#1594, $$emp_no$converted_to$long{r$}#1584, first_na
+     * me{r}#1595, gender{r}#1596, height{f}#1520, height.float{f}#1521, height.half_float{f}#1523, height.scaled_flo
+     * at{f}#1522, hire_date{r}#1597, is_rehired{r}#1598, $$is_rehired$converted_to$keyword{r$}#1585, job_positions{r
+     * }#1599, languages{f}#1516, languages.byte{f}#1519, languages.long{f}#1517, languages.short{f}#1518, last_name{
+     * r}#1600, salary{r}#1601, salary_change{f}#1528, salary_change.int{f}#1529, salary_change.keyword{f}#1531, sala
+     * ry_change.long{f}#1530, still_hired{r}#1602, $$still_hired$converted_to$keyword{r$}#1586, height.double{r}#155
+     * 2, languages.int{r}#1553]]
+     *             | \_Eval[[null[KEYWORD] AS avg_worked_seconds#1593, null[KEYWORD] AS emp_no#1594, null[KEYWORD] AS first_name#1595, nul
+     * l[KEYWORD] AS gender#1596, TODATENANOS(hire_date{f}#1514) AS hire_date#1597, null[KEYWORD] AS is_rehired#1598,
+     *  null[KEYWORD] AS job_positions#1599, null[KEYWORD] AS last_name#1600, null[KEYWORD] AS salary#1601, null[KEYW
+     * ORD] AS still_hired#1602]]
+     *             |   \_Eval[[TOLONG(emp_no{f}#1509) AS $$emp_no$converted_to$long#1584, TOSTRING(is_rehired{f}#1527) AS $$is_rehired$conve
+     * rted_to$keyword#1585, TOSTRING(still_hired{f}#1524) AS $$still_hired$converted_to$keyword#1586]]
+     *             |     \_Eval[[null[DOUBLE] AS height.double#1552, null[INTEGER] AS languages.int#1553]]
+     *             |       \_EsRelation[test][avg_worked_seconds{f}#1525, birth_date{f}#1513, emp..]
+     *             \_Project[[avg_worked_seconds{r}#1603, birth_date{f}#1536, emp_no{r}#1604, $$emp_no$converted_to$long{r$}#1587, first_na
+     * me{r}#1605, gender{r}#1606, height{f}#1543, height.float{r}#1554, height.half_float{f}#1546, height.scaled_flo
+     * at{f}#1545, hire_date{f}#1537, is_rehired{r}#1607, $$is_rehired$converted_to$keyword{r$}#1588, job_positions{r
+     * }#1608, languages{f}#1539, languages.byte{r}#1555, languages.long{f}#1540, languages.short{f}#1541, last_name{
+     * r}#1609, salary{r}#1610, salary_change{f}#1551, salary_change.int{r}#1556, salary_change.keyword{r}#1557, sala
+     * ry_change.long{r}#1558, still_hired{r}#1611, $$still_hired$converted_to$keyword{r$}#1589, height.double{f}#154
+     * 4, languages.int{f}#1542]]
+     *               \_Eval[[null[KEYWORD] AS avg_worked_seconds#1603, null[KEYWORD] AS emp_no#1604, null[KEYWORD] AS first_name#1605, nul
+     * l[KEYWORD] AS gender#1606, null[KEYWORD] AS is_rehired#1607, null[KEYWORD] AS job_positions#1608, null[KEYWORD
+     * ] AS last_name#1609, null[KEYWORD] AS salary#1610, null[KEYWORD] AS still_hired#1611]]
+     *                 \_Eval[[TOLONG(emp_no{f}#1532) AS $$emp_no$converted_to$long#1587, TOSTRING(is_rehired{f}#1550) AS $$is_rehired$conve
+     * rted_to$keyword#1588, TOSTRING(still_hired{f}#1547) AS $$still_hired$converted_to$keyword#1589]]
+     *                   \_Eval[[null[DOUBLE] AS height.float#1554, null[INTEGER] AS languages.byte#1555,
+     * null[INTEGER] AS salary_change.int#1556, null[KEYWORD] AS salary_change.keyword#1557, null[LONG] AS salary_change.long#1558]]
+     *                     \_Subquery[]
+     *                       \_Filter[languages{f}#1539 > 0[INTEGER]]
+     *                         \_EsRelation[test_mixed_types][avg_worked_seconds{f}#1548, birth_date{f}#1536, emp..]
+     */
+    public void testMixedDataTypesWithExplicitCastingInSubquery() {
+        LogicalPlan plan = defaultMapping().addDefaultIncompatible().query("""
+            FROM test, (FROM test_mixed_types | WHERE languages > 0)
+            | EVAL emp_no = emp_no::long
+            | WHERE emp_no > 10000
+            | EVAL still_hired = still_hired::string, is_rehired = is_rehired::string
+            | SORT still_hired, is_rehired
+            """);
+
+        Project project = as(plan, Project.class);
+        List<? extends NamedExpression> projections = project.projections();
+        assertEquals(25, projections.size());
+        Limit limit = as(project.child(), Limit.class);
+        OrderBy orderBy = as(limit.child(), OrderBy.class);
+        Eval eval = as(orderBy.child(), Eval.class);
+        List<Alias> aliases = eval.fields();
+        assertEquals(2, aliases.size());
+        Alias a = aliases.get(0);
+        assertEquals("still_hired", a.name());
+        ReferenceAttribute still_hired = as(a.child(), ReferenceAttribute.class);
+        assertEquals("$$still_hired$converted_to$keyword", still_hired.name());
+        a = aliases.get(1);
+        assertEquals("is_rehired", a.name());
+        ReferenceAttribute is_rehired = as(a.child(), ReferenceAttribute.class);
+        assertEquals("$$is_rehired$converted_to$keyword", is_rehired.name());
+        Filter filter = as(eval.child(), Filter.class);
+        eval = as(filter.child(), Eval.class);
+        aliases = eval.fields();
+        assertEquals(1, aliases.size());
+        a = aliases.get(0);
+        assertEquals("emp_no", a.name());
+        ReferenceAttribute emp_no = as(a.child(), ReferenceAttribute.class);
+        assertEquals("$$emp_no$converted_to$long", emp_no.name());
+        UnionAll unionAll = as(eval.child(), UnionAll.class);
+        List<Attribute> output = unionAll.output();
+        assertEquals(28, output.size());
+        assertEquals(2, unionAll.children().size());
+
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        Eval implicitCastingEval = as(subqueryProject.child(), Eval.class);
+        assertEquals(10, implicitCastingEval.fields().size());
+        Eval explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
+        assertEquals(3, explicitCastingEval.fields().size());
+        Eval missingFieldEval = as(explicitCastingEval.child(), Eval.class);
+        assertEquals(2, missingFieldEval.fields().size());
+        EsRelation subqueryIndex = as(missingFieldEval.child(), EsRelation.class);
+        assertEquals("test", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        implicitCastingEval = as(subqueryProject.child(), Eval.class);
+        assertEquals(9, implicitCastingEval.fields().size());
+        explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
+        assertEquals(3, explicitCastingEval.fields().size());
+        missingFieldEval = as(explicitCastingEval.child(), Eval.class);
+        assertEquals(5, missingFieldEval.fields().size());
+        Subquery subquery = as(missingFieldEval.child(), Subquery.class);
+        Filter subqueryFilter = as(subquery.child(), Filter.class);
+        GreaterThan greaterThan = as(subqueryFilter.condition(), GreaterThan.class);
+        FieldAttribute fa = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("languages", fa.name());
+        assertEquals(INTEGER, fa.dataType());
+        Literal literal = as(greaterThan.right(), Literal.class);
+        assertEquals(0, literal.value());
+        assertEquals(INTEGER, literal.dataType());
+        subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
+        assertEquals("test_mixed_types", subqueryIndex.indexPattern());
+    }
+
+    /*
+     * Project[[!avg_worked_seconds, birth_date{r}#961, !emp_no, !gender, height{r}#965, height.float{r}#966, height.half_flo
+     * at{r}#967, height.scaled_float{r}#968, hire_date{r}#969, !job_positions, languages{r}#972, languages.byte{r}#9
+     * 73, languages.long{r}#974, languages.short{r}#975, !last_name, !salary, salary_change{r}#978, salary_change.in
+     * t{r}#979, salary_change.keyword{r}#980, salary_change.long{r}#981, height.double{r}#983, languages.int{r}#984,
+     *  x{r}#891, y{r}#894, z{r}#897, first_name{r}#900, still_hired{r}#904, is_rehired{r}#907]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_OrderBy[[Order[still_hired{r}#904,ASC,LAST], Order[is_rehired{r}#907,ASC,LAST]]]
+     *     \_Eval[[$$still_hired$converted_to$keyword{r$}#1002 AS still_hired#904, $$is_rehired$converted_to$keyword{r$}#1001 AS
+     *  is_rehired#907]]
+     *       \_Filter[z{r}#897 > 10000[INTEGER]]
+     *         \_Eval[[$$emp_no$converted_to$long{r$}#998 AS x#891, $$emp_no$converted_to$keyword{r$}#997 AS y#894, $$emp_no$convert
+     * ed_to$double{r$}#999 AS z#897, $$first_name$converted_to$keyword{r$}#1000 AS first_name#900]]
+     *           \_UnionAll[[!avg_worked_seconds, birth_date{r}#961, !emp_no, $$emp_no$converted_to$keyword{r$}#997, $$emp_no$converted_to
+     * $long{r$}#998, $$emp_no$converted_to$double{r$}#999, !first_name, $$first_name$converted_to$keyword{r$}#1000,
+     * !gender, height{r}#965, height.float{r}#966, height.half_float{r}#967, height.scaled_float{r}#968, hire_date{r
+     * }#969, !is_rehired, $$is_rehired$converted_to$keyword{r$}#1001, !job_positions, languages{r}#972, languages.by
+     * te{r}#973, languages.long{r}#974, languages.short{r}#975, !last_name, !salary, salary_change{r}#978, salary_ch
+     * ange.int{r}#979, salary_change.keyword{r}#980, salary_change.long{r}#981, !still_hired, $$still_hired$converte
+     * d_to$keyword{r$}#1002, height.double{r}#983, languages.int{r}#984]]
+     *             |_Project[[avg_worked_seconds{r}#1003, birth_date{f}#914, emp_no{r}#1004, $$emp_no$converted_to$keyword{r$}#985, $$emp_n
+     * o$converted_to$long{r$}#986, $$emp_no$converted_to$double{r$}#987, first_name{r}#1005, $$first_name$converted_
+     * to$keyword{r$}#988, gender{r}#1006, height{f}#921, height.float{f}#922, height.half_float{f}#924, height.scale
+     * d_float{f}#923, hire_date{r}#1007, is_rehired{r}#1008, $$is_rehired$converted_to$keyword{r$}#989, job_position
+     * s{r}#1009, languages{f}#917, languages.byte{f}#920, languages.long{f}#918, languages.short{f}#919, last_name{r
+     * }#1010, salary{r}#1011, salary_change{f}#929, salary_change.int{f}#930, salary_change.keyword{f}#932, salary_c
+     * hange.long{f}#931, still_hired{r}#1012, $$still_hired$converted_to$keyword{r$}#990, height.double{r}#953, lang
+     * uages.int{r}#954]]
+     *             | \_Eval[[null[KEYWORD] AS avg_worked_seconds#1003, null[KEYWORD] AS emp_no#1004, null[KEYWORD] AS first_name#1005, nul
+     * l[KEYWORD] AS gender#1006, TODATENANOS(hire_date{f}#915) AS hire_date#1007, null[KEYWORD] AS is_rehired#1008,
+     * null[KEYWORD] AS job_positions#1009, null[KEYWORD] AS last_name#1010, null[KEYWORD] AS salary#1011, null[KEYWO
+     * RD] AS still_hired#1012]]
+     *             |   \_Eval[[TOSTRING(emp_no{f}#910) AS $$emp_no$converted_to$keyword#985, TOLONG(emp_no{f}#910) AS $$emp_no$converted_to$
+     * long#986, TODOUBLE(emp_no{f}#910) AS $$emp_no$converted_to$double#987, TOSTRING(first_name{f}#911) AS $$first_
+     * name$converted_to$keyword#988, TOSTRING(is_rehired{f}#928) AS $$is_rehired$converted_to$keyword#989, TOSTRING(
+     * still_hired{f}#925) AS $$still_hired$converted_to$keyword#990]]
+     *             |     \_Eval[[null[DOUBLE] AS height.double#953, null[INTEGER] AS languages.int#954]]
+     *             |       \_EsRelation[test][avg_worked_seconds{f}#926, birth_date{f}#914, emp_n..]
+     *             \_Project[[avg_worked_seconds{r}#1013, birth_date{f}#937, emp_no{r}#1014, $$emp_no$converted_to$keyword{r$}#991, $$emp_n
+     * o$converted_to$long{r$}#992, $$emp_no$converted_to$double{r$}#993, first_name{r}#1015, $$first_name$converted_
+     * to$keyword{r$}#994, gender{r}#1016, height{f}#944, height.float{r}#955, height.half_float{f}#947, height.scale
+     * d_float{f}#946, hire_date{f}#938, is_rehired{r}#1017, $$is_rehired$converted_to$keyword{r$}#995, job_positions
+     * {r}#1018, languages{f}#940, languages.byte{r}#956, languages.long{f}#941, languages.short{f}#942, last_name{r}
+     * #1019, salary{r}#1020, salary_change{f}#952, salary_change.int{r}#957, salary_change.keyword{r}#958, salary_ch
+     * ange.long{r}#959, still_hired{r}#1021, $$still_hired$converted_to$keyword{r$}#996, height.double{f}#945, langu
+     * ages.int{f}#943]]
+     *               \_Eval[[null[KEYWORD] AS avg_worked_seconds#1013, null[KEYWORD] AS emp_no#1014, null[KEYWORD] AS first_name#1015, nul
+     * l[KEYWORD] AS gender#1016, null[KEYWORD] AS is_rehired#1017, null[KEYWORD] AS job_positions#1018, null[KEYWORD
+     * ] AS last_name#1019, null[KEYWORD] AS salary#1020, null[KEYWORD] AS still_hired#1021]]
+     *                 \_Eval[[TOSTRING(emp_no{f}#933) AS $$emp_no$converted_to$keyword#991, TOLONG(emp_no{f}#933) AS $$emp_no$converted_to$
+     * long#992, TODOUBLE(emp_no{f}#933) AS $$emp_no$converted_to$double#993, TOSTRING(first_name{f}#934) AS $$first_
+     * name$converted_to$keyword#994, TOSTRING(is_rehired{f}#951) AS $$is_rehired$converted_to$keyword#995, TOSTRING(
+     * still_hired{f}#948) AS $$still_hired$converted_to$keyword#996]]
+     *                   \_Eval[[null[DOUBLE] AS height.float#955, null[INTEGER] AS languages.byte#956,
+     * null[INTEGER] AS salary_change.int#957, null[KEYWORD] AS salary_change.keyword#958, null[LONG] AS salary_change.long#959]]
+     *                     \_Subquery[]
+     *                       \_Filter[languages{f}#940 > 0[INTEGER]]
+     *                         \_EsRelation[test_mixed_types][avg_worked_seconds{f}#949, birth_date{f}#937, emp_n..]
+     */
+    public void testMixedDataTypesWithMultipleExplicitCastingInSubquery() {
+        LogicalPlan plan = defaultMapping().addDefaultIncompatible().query("""
+            FROM test, (FROM test_mixed_types | WHERE languages > 0)
+            | EVAL x = emp_no::long, y = emp_no::string, z = emp_no::double, first_name = first_name::string
+            | WHERE z > 10000
+            | EVAL still_hired = still_hired::string, is_rehired = is_rehired::string
+            | SORT still_hired, is_rehired
+            """);
+
+        Project project = as(plan, Project.class);
+        List<? extends NamedExpression> projections = project.projections();
+        assertEquals(28, projections.size());
+        Limit limit = as(project.child(), Limit.class);
+        OrderBy orderBy = as(limit.child(), OrderBy.class);
+        Eval eval = as(orderBy.child(), Eval.class);
+        List<Alias> aliases = eval.fields();
+        assertEquals(2, aliases.size());
+        Alias a = aliases.get(0);
+        assertEquals("still_hired", a.name());
+        ReferenceAttribute still_hired = as(a.child(), ReferenceAttribute.class);
+        assertEquals("$$still_hired$converted_to$keyword", still_hired.name());
+        a = aliases.get(1);
+        assertEquals("is_rehired", a.name());
+        ReferenceAttribute is_rehired = as(a.child(), ReferenceAttribute.class);
+        assertEquals("$$is_rehired$converted_to$keyword", is_rehired.name());
+        Filter filter = as(eval.child(), Filter.class);
+        eval = as(filter.child(), Eval.class);
+        aliases = eval.fields();
+        assertEquals(4, aliases.size());
+        a = aliases.get(0);
+        assertEquals("x", a.name());
+        ReferenceAttribute emp_no = as(a.child(), ReferenceAttribute.class);
+        assertEquals("$$emp_no$converted_to$long", emp_no.name());
+        a = aliases.get(1);
+        assertEquals("y", a.name());
+        emp_no = as(a.child(), ReferenceAttribute.class);
+        assertEquals("$$emp_no$converted_to$keyword", emp_no.name());
+        a = aliases.get(2);
+        assertEquals("z", a.name());
+        emp_no = as(a.child(), ReferenceAttribute.class);
+        assertEquals("$$emp_no$converted_to$double", emp_no.name());
+        a = aliases.get(3);
+        assertEquals("first_name", a.name());
+        ReferenceAttribute first_name = as(a.child(), ReferenceAttribute.class);
+        assertEquals("$$first_name$converted_to$keyword", first_name.name());
+        UnionAll unionAll = as(eval.child(), UnionAll.class);
+        List<Attribute> output = unionAll.output();
+        assertEquals(31, output.size());
+        assertEquals(2, unionAll.children().size());
+
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        Eval implicitCastingEval = as(subqueryProject.child(), Eval.class);
+        assertEquals(10, implicitCastingEval.fields().size());
+        Eval explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
+        assertEquals(6, explicitCastingEval.fields().size());
+        Eval missingFieldEval = as(explicitCastingEval.child(), Eval.class);
+        assertEquals(2, missingFieldEval.fields().size());
+        EsRelation subqueryIndex = as(missingFieldEval.child(), EsRelation.class);
+        assertEquals("test", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        implicitCastingEval = as(subqueryProject.child(), Eval.class);
+        assertEquals(9, implicitCastingEval.fields().size());
+        explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
+        assertEquals(6, explicitCastingEval.fields().size());
+        missingFieldEval = as(explicitCastingEval.child(), Eval.class);
+        assertEquals(5, missingFieldEval.fields().size());
+        Subquery subquery = as(missingFieldEval.child(), Subquery.class);
+        Filter subqueryFilter = as(subquery.child(), Filter.class);
+        GreaterThan greaterThan = as(subqueryFilter.condition(), GreaterThan.class);
+        FieldAttribute fa = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("languages", fa.name());
+        assertEquals(INTEGER, fa.dataType());
+        Literal literal = as(greaterThan.right(), Literal.class);
+        assertEquals(0, literal.value());
+        assertEquals(INTEGER, literal.dataType());
+        subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
+        assertEquals("test_mixed_types", subqueryIndex.indexPattern());
+    }
+
+    /*
+     * Project[[_meta_field{r}#135, !first_name, gender{r}#138, hire_date{r}#139, job{r}#140, job.raw{r}#141, languages{r}#14
+     * 2, !last_name, long_noidx{r}#144, !salary, avg_worked_seconds{r}#146, birth_date{r}#147, height{r}#148, height
+     * .double{r}#149, height.half_float{r}#150, height.scaled_float{r}#151, is_rehired{r}#152, job_positions{r}#153,
+     *  languages.int{r}#154, languages.long{r}#155, languages.short{r}#156, salary_change{r}#157, still_hired{r}#158
+     * , emp_no{r}#84]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_OrderBy[[Order[emp_no{r}#84,ASC,LAST]]]
+     *     \_Filter[emp_no{r}#84 > 1[INTEGER]]
+     *       \_Eval[[$$languages$converted_to$long{r$}#161 AS emp_no#84]]
+     *         \_UnionAll[[_meta_field{r}#135, !emp_no, !first_name, gender{r}#138, hire_date{r}#139, job{r}#140, job.raw{r}#141, langua
+     * ges{r}#142, $$languages$converted_to$long{r$}#161, !last_name, long_noidx{r}#144, !salary, avg_worked_seconds{
+     * r}#146, birth_date{r}#147, height{r}#148, height.double{r}#149, height.half_float{r}#150, height.scaled_float{
+     * r}#151, is_rehired{r}#152, job_positions{r}#153, languages.int{r}#154, languages.long{r}#155, languages.short{
+     * r}#156, salary_change{r}#157, still_hired{r}#158]]
+     *           |_Project[[_meta_field{f}#93, emp_no{r}#162, first_name{r}#163, gender{f}#89, hire_date{r}#164, job{f}#95, job.raw{f}#96
+     * , languages{f}#90, $$languages$converted_to$long{r$}#159, last_name{r}#165, long_noidx{f}#97, salary{r}#166, a
+     * vg_worked_seconds{r}#118, birth_date{r}#119, height{r}#120, height.double{r}#121, height.half_float{r}#122, he
+     * ight.scaled_float{r}#123, is_rehired{r}#124, job_positions{r}#125, languages.int{r}#126, languages.long{r}#127
+     * , languages.short{r}#128, salary_change{r}#129, still_hired{r}#130]]
+     *           | \_Eval[[null[KEYWORD] AS emp_no#162, null[KEYWORD] AS first_name#163, TODATENANOS(hire_date{f}#94) AS hire_date#164,
+     * null[KEYWORD] AS last_name#165, null[KEYWORD] AS salary#166]]
+     *           |   \_Eval[[TOLONG(languages{f}#90) AS $$languages$converted_to$long#159]]
+     *           |     \_Eval[[null[UNSIGNED_LONG] AS avg_worked_seconds#118, null[DATETIME] AS birth_date#119, null[DOUBLE] AS height#120,
+     * null[DOUBLE] AS height.double#121, null[DOUBLE] AS height.half_float#122, null[DOUBLE] AS height.scaled_float#
+     * 123, null[KEYWORD] AS is_rehired#124, null[TEXT] AS job_positions#125, null[INTEGER] AS languages.int#126, nul
+     * l[LONG] AS languages.long#127, null[INTEGER] AS languages.short#128, null[DOUBLE] AS salary_change#129, null[K
+     * EYWORD] AS still_hired#130]]
+     *           |       \_EsRelation[test][_meta_field{f}#93, emp_no{f}#87, first_name{f}#88, ..]
+     *           \_Project[[_meta_field{r}#131, emp_no{r}#167, first_name{r}#168, gender{f}#101, hire_date{f}#103, job{r}#132, job.raw{r}
+     * #133, languages{f}#105, $$languages$converted_to$long{r$}#160, last_name{r}#169, long_noidx{r}#134, salary{r}#
+     * 170, avg_worked_seconds{f}#114, birth_date{f}#102, height{f}#109, height.double{f}#110, height.half_float{f}#1
+     * 12, height.scaled_float{f}#111, is_rehired{f}#116, job_positions{f}#115, languages.int{f}#108, languages.long{
+     * f}#106, languages.short{f}#107, salary_change{f}#117, still_hired{f}#113]]
+     *             \_Eval[[null[KEYWORD] AS emp_no#167, null[KEYWORD] AS first_name#168, null[KEYWORD] AS last_name#169, null[KEYWORD] A
+     * S salary#170]]
+     *               \_Eval[[TOLONG(languages{f}#105) AS $$languages$converted_to$long#160]]
+     *                 \_Eval[[null[KEYWORD] AS _meta_field#131, null[TEXT] AS job#132, null[KEYWORD] AS job.raw#133, null[LONG] AS long_noi
+     * dx#134]]
+     *                   \_Subquery[]
+     *                     \_Filter[languages{f}#105 > 1[INTEGER]]
+     *                       \_EsRelation[test_mixed_types][avg_worked_seconds{f}#114, birth_date{f}#102, emp_n..]
+     */
+    public void testSubqueryWithUnionAllOutputOverwritten() {
+        LogicalPlan plan = basic().addDefaultIncompatible().query("""
+            FROM test, (FROM test_mixed_types | WHERE languages > 1)
+            | EVAL emp_no = languages::long
+            | WHERE emp_no > 1
+            | SORT emp_no
+            """);
+
+        Project project = as(plan, Project.class);
+        List<? extends NamedExpression> projections = project.projections();
+        assertEquals(24, projections.size());
+        Limit limit = as(project.child(), Limit.class);
+        OrderBy orderBy = as(limit.child(), OrderBy.class);
+        Filter filter = as(orderBy.child(), Filter.class);
+        GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
+        ReferenceAttribute emp_no = as(greaterThan.left(), ReferenceAttribute.class);
+        assertEquals("emp_no", emp_no.name());
+        Literal literal = as(greaterThan.right(), Literal.class);
+        assertEquals(1, literal.value());
+        Eval eval = as(filter.child(), Eval.class);
+        List<Alias> aliases = eval.fields();
+        assertEquals(1, aliases.size());
+        Alias alias = aliases.get(0);
+        assertEquals("emp_no", alias.name());
+        ReferenceAttribute language_code = as(alias.child(), ReferenceAttribute.class);
+        assertEquals("$$languages$converted_to$long", language_code.name());
+        UnionAll unionAll = as(eval.child(), UnionAll.class);
+        List<Attribute> output = unionAll.output();
+        assertEquals(25, output.size());
+        assertEquals(2, unionAll.children().size());
+
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        Eval implicitCastingEval = as(subqueryProject.child(), Eval.class);
+        Eval explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
+        Eval missingFieldEval = as(explicitCastingEval.child(), Eval.class);
+        EsRelation subqueryIndex = as(missingFieldEval.child(), EsRelation.class);
+        assertEquals("test", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        implicitCastingEval = as(subqueryProject.child(), Eval.class);
+        explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
+        missingFieldEval = as(explicitCastingEval.child(), Eval.class);
+        Subquery subquery = as(missingFieldEval.child(), Subquery.class);
+        Filter subqueryFilter = as(subquery.child(), Filter.class);
+        greaterThan = as(subqueryFilter.condition(), GreaterThan.class);
+        FieldAttribute fa = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("languages", fa.name());
+        literal = as(greaterThan.right(), Literal.class);
+        assertEquals(1, literal.value());
+        assertEquals(INTEGER, literal.dataType());
+        subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
+        assertEquals("test_mixed_types", subqueryIndex.indexPattern());
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Project[[!client_ip]]
+     *   \_UnionAll[[@timestamp{r}#879, !client_ip, event_duration{r}#881, message{r}#882]]
+     *     |_Project[[@timestamp{f}#871, client_ip{r}#883, event_duration{f}#873, message{f}#874]]
+     *     | \_Eval[[null[KEYWORD] AS client_ip#883]]
+     *     |   \_Subquery[]
+     *     |     \_EsRelation[sample_data][@timestamp{f}#871, client_ip{f}#872, event_duration..]
+     *     \_Project[[@timestamp{f}#875, client_ip{r}#884, event_duration{f}#877, message{f}#878]]
+     *       \_Eval[[null[KEYWORD] AS client_ip#884]]
+     *         \_Subquery[]
+     *           \_Eval[[1[INTEGER] AS client_ip#869]]
+     *             \_EsRelation[sample_data][@timestamp{f}#875, client_ip{f}#876, event_duration..]
+     */
+    public void testUnionAllWithConflictingTypesFromSubqueries() {
+
+        LogicalPlan plan = sampleData().query("""
+            FROM (FROM sample_data), (FROM sample_data | EVAL client_ip = 1) | keep client_ip
+            """);
+
+        // Limit[1000]
+        Limit limit = as(plan, Limit.class);
+
+        // Project[[!client_ip]] — client_ip is UnsupportedAttribute due to type conflict (ip vs integer)
+        Project project = as(limit.child(), Project.class);
+        var projections = project.projections();
+        assertThat(projections, hasSize(1));
+        UnsupportedAttribute ua = as(projections.getFirst(), UnsupportedAttribute.class);
+        assertEquals(UNSUPPORTED, ua.dataType());
+        List<String> originalTypes = ua.originalTypes();
+        assertThat(originalTypes, hasSize(2));
+        assertThat(originalTypes, is(List.of(IP.esType(), INTEGER.esType())));
+        assertEquals("client_ip", ua.name());
+
+        // UnionAll[[@timestamp, !client_ip, event_duration, message]]
+        UnionAll unionAll = as(project.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        // Left leg: Project → Eval[null[KEYWORD] AS client_ip] → Subquery → EsRelation[sample_data]
+        Project leftProject = as(unionAll.children().get(0), Project.class);
+        Eval leftEval = as(leftProject.child(), Eval.class);
+        List<Alias> leftAliases = leftEval.fields();
+        assertThat(leftAliases, hasSize(1));
+        Alias leftAlias = leftAliases.getFirst();
+        assertEquals("client_ip", leftAlias.name());
+        Literal leftNull = as(leftAlias.child(), Literal.class);
+        assertNull(leftNull.value());
+        assertEquals(KEYWORD, leftNull.dataType());
+
+        Subquery leftSubquery = as(leftEval.child(), Subquery.class);
+        EsRelation leftRelation = as(leftSubquery.child(), EsRelation.class);
+
+        // Right leg: Project → Eval[null[KEYWORD] AS client_ip] → Subquery → Eval[1[INTEGER] AS client_ip] → EsRelation[sample_data]
+        Project rightProject = as(unionAll.children().get(1), Project.class);
+        Eval rightEval = as(rightProject.child(), Eval.class);
+        List<Alias> rightAliases = rightEval.fields();
+        assertThat(rightAliases, hasSize(1));
+        Alias rightAlias = rightAliases.getFirst();
+        assertEquals("client_ip", rightAlias.name());
+        Literal rightNull = as(rightAlias.child(), Literal.class);
+        assertNull(rightNull.value());
+        assertEquals(KEYWORD, rightNull.dataType());
+
+        Subquery rightSubquery = as(rightEval.child(), Subquery.class);
+        Eval innerEval = as(rightSubquery.child(), Eval.class);
+        List<Alias> innerAliases = innerEval.fields();
+        assertThat(innerAliases, hasSize(1));
+        Alias innerAlias = innerAliases.getFirst();
+        assertEquals("client_ip", innerAlias.name());
+        Literal one = as(innerAlias.child(), Literal.class);
+        assertEquals(1, one.value());
+        assertEquals(INTEGER, one.dataType());
+        EsRelation rightRelation = as(innerEval.child(), EsRelation.class);
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[@timestamp{r}#2464, !client_ip, event_duration{r}#2466, message{r}#2467]]
+     *   |_Project[[@timestamp{f}#2456, client_ip{r}#2468, event_duration{f}#2458, message{f}#2459]]
+     *   | \_Eval[[null[KEYWORD] AS client_ip#2468]]
+     *   |   \_Subquery[]
+     *   |     \_EsRelation[sample_data][@timestamp{f}#2456, client_ip{f}#2457, event_durati..]
+     *   \_Project[[@timestamp{f}#2460, client_ip{r}#2469, event_duration{f}#2462, message{f}#2463]]
+     *     \_Eval[[null[KEYWORD] AS client_ip#2469]]
+     *       \_Subquery[]
+     *         \_Eval[[1[INTEGER] AS client_ip#2455]]
+     *           \_EsRelation[sample_data][@timestamp{f}#2460, client_ip{f}#2461, event_durati..]
+     */
+    public void testUnionAllWithConflictingTypesFromSubqueriesWithoutUsageInMainQuery() {
+
+        LogicalPlan plan = sampleData().query("""
+            FROM (FROM sample_data), (FROM sample_data | EVAL client_ip = 1)
+            """);
+
+        // Limit[1000]
+        Limit limit = as(plan, Limit.class);
+
+        // Limit directly over UnionAll since there is no keep/project
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        List<Attribute> output = unionAll.output();
+        Attribute clientIpAttr = output.stream().filter(a -> "client_ip".equals(a.name())).findFirst().orElseThrow();
+        UnsupportedAttribute ua = as(clientIpAttr, UnsupportedAttribute.class);
+        assertEquals(UNSUPPORTED, ua.dataType());
+        assertThat(ua.originalTypes(), is(List.of(IP.esType(), INTEGER.esType())));
+        assertEquals("client_ip", ua.name());
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Project[[!emp_no]]
+     *   \_UnionAll[[!avg_worked_seconds, birth_date{r}#739, !emp_no, !first_name, !gender, height{r}#743, height.float{r}#744, he
+     * ight.half_float{r}#745, height.scaled_float{r}#746, hire_date{r}#747, !is_rehired, !job_positions, languages{r
+     * }#750, languages.byte{r}#751, languages.long{r}#752, languages.short{r}#753, !last_name, !salary, salary_chang
+     * e{r}#756, salary_change.int{r}#757, salary_change.keyword{r}#758, salary_change.long{r}#759, !still_hired, hei
+     * ght.double{r}#761, languages.int{r}#762]]
+     *     |_Project[[avg_worked_seconds{r}#763, birth_date{f}#692, emp_no{r}#764, first_name{r}#765, gender{r}#766, height{f}#699,
+     *  height.float{f}#700, height.half_float{f}#702, height.scaled_float{f}#701, hire_date{r}#767, is_rehired{r}#76
+     * 8, job_positions{r}#769, languages{f}#695, languages.byte{f}#698, languages.long{f}#696, languages.short{f}#69
+     * 7, last_name{r}#770, salary{r}#771, salary_change{f}#707, salary_change.int{f}#708, salary_change.keyword{f}#7
+     * 10, salary_change.long{f}#709, still_hired{r}#772, height.double{r}#731, languages.int{r}#732]]
+     *     | \_Eval[[null[KEYWORD] AS avg_worked_seconds#763, null[KEYWORD] AS emp_no#764, null[KEYWORD] AS first_name#765, null[K
+     * EYWORD] AS gender#766, TODATENANOS(hire_date{f}#693) AS hire_date#767, null[KEYWORD] AS is_rehired#768, null[K
+     * EYWORD] AS job_positions#769, null[KEYWORD] AS last_name#770, null[KEYWORD] AS salary#771, null[KEYWORD] AS st
+     * ill_hired#772]]
+     *     |   \_Eval[[null[DOUBLE] AS height.double#731, null[INTEGER] AS languages.int#732]]
+     *     |     \_EsRelation[test][avg_worked_seconds{f}#704, birth_date{f}#692, emp_n..]
+     *     \_Project[[avg_worked_seconds{r}#773, birth_date{f}#715, emp_no{r}#774, first_name{r}#775, gender{r}#776, height{f}#722,
+     *  height.float{r}#733, height.half_float{f}#725, height.scaled_float{f}#724, hire_date{f}#716, is_rehired{r}#77
+     * 7, job_positions{r}#778, languages{f}#718, languages.byte{r}#734, languages.long{f}#719, languages.short{f}#72
+     * 0, last_name{r}#779, salary{r}#780, salary_change{f}#730, salary_change.int{r}#735, salary_change.keyword{r}#7
+     * 36, salary_change.long{r}#737, still_hired{r}#781, height.double{f}#723, languages.int{f}#721]]
+     *       \_Eval[[null[KEYWORD] AS avg_worked_seconds#773, null[KEYWORD] AS emp_no#774, null[KEYWORD] AS first_name#775, null[K
+     * EYWORD] AS gender#776, null[KEYWORD] AS is_rehired#777, null[KEYWORD] AS job_positions#778, null[KEYWORD] AS l
+     * ast_name#779, null[KEYWORD] AS salary#780, null[KEYWORD] AS still_hired#781]]
+     *         \_Eval[[null[DOUBLE] AS height.float#733, null[INTEGER] AS languages.byte#734, null[INTEGER] AS salary_change.int#735
+     * , null[KEYWORD] AS salary_change.keyword#736, null[LONG] AS salary_change.long#737]]
+     *           \_Subquery[]
+     *             \_EsRelation[test_mixed_types][avg_worked_seconds{f}#727, birth_date{f}#715, emp_n..]
+     */
+    public void testUnionAllWithConflictingNumericTypesFromSubqueries() {
+
+        LogicalPlan plan = defaultMapping().addDefaultIncompatible().query("""
+            FROM test, (FROM test_mixed_types) | keep emp_no
+            """);
+
+        // Limit[1000]
+        Limit limit = as(plan, Limit.class);
+
+        // Project[[!emp_no]]
+        Project project = as(limit.child(), Project.class);
+        var projections = project.projections();
+        assertThat(projections, hasSize(1));
+        UnsupportedAttribute ua = as(projections.getFirst(), UnsupportedAttribute.class);
+        assertEquals(UNSUPPORTED, ua.dataType());
+        assertThat(ua.originalTypes(), is(List.of(INTEGER.esType(), LONG.esType())));
+        assertEquals("emp_no", ua.name());
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Filter[@timestamp{r}#1733 > 1759795200000[DATETIME]]
+     *   \_UnionAll[[@timestamp{r}#1733, client.ip{r}#1734, cluster{r}#1735, event{r}#1736, event_city{r}#1737, event_city_boundar
+     * y{r}#1738, event_location{r}#1739, event_log{r}#1740, event_shape{r}#1741, events_received{r}#1742, network.by
+     * tes_in{r}#1743, network.cost{r}#1744, network.eth0.currently_connected_clients{r}#1745, network.eth0.firmware_
+     * version{r}#1746, network.eth0.last_up{r}#1747, network.eth0.rx{r}#1748, network.eth0.tx{r}#1749, network.eth0.
+     * up{r}#1750, network.total_bytes_in{r}#1751, network.total_cost{r}#1752, pod{r}#1753, client_ip{r}#1754, event_
+     * duration{r}#1755, message{r}#1756]]
+     *     |_Project[[@timestamp{f}#1658, client.ip{f}#1662, cluster{f}#1659, event{f}#1663, event_city{f}#1666, event_city_boundar
+     * y{f}#1667, event_location{f}#1669, event_log{f}#1664, event_shape{f}#1668, events_received{f}#1665, network.by
+     * tes_in{f}#1671, network.cost{f}#1673, network.eth0.currently_connected_clients{f}#1681, network.eth0.firmware_
+     * version{f}#1680, network.eth0.last_up{f}#1679, network.eth0.rx{f}#1678, network.eth0.tx{f}#1677, network.eth0.
+     * up{f}#1676, network.total_bytes_in{r}#1757, network.total_cost{r}#1758, pod{f}#1660, client_ip{r}#1690, event_
+     * duration{r}#1691, message{r}#1692]]
+     *     | \_Eval[[TOLONG(network.total_bytes_in{f}#1672) AS network.total_bytes_in#1757, TODOUBLE(network.total_cost{f}#1674) A
+     * S network.total_cost#1758]]
+     *     |   \_Eval[[null[IP] AS client_ip#1690, null[LONG] AS event_duration#1691, null[KEYWORD] AS message#1692]]
+     *     |     \_EsRelation[k8s][@timestamp{f}#1658, client.ip{f}#1662, cluster{f}#1..]
+     *     |_Project[[@timestamp{f}#1682, client.ip{r}#1693, cluster{r}#1694, event{r}#1695, event_city{r}#1696, event_city_boundar
+     * y{r}#1697, event_location{r}#1698, event_log{r}#1699, event_shape{r}#1700, events_received{r}#1701, network.by
+     * tes_in{r}#1702, network.cost{r}#1703, network.eth0.currently_connected_clients{r}#1704, network.eth0.firmware_
+     * version{r}#1705, network.eth0.last_up{r}#1706, network.eth0.rx{r}#1707, network.eth0.tx{r}#1708, network.eth0.
+     * up{r}#1709, network.total_bytes_in{r}#1710, network.total_cost{r}#1711, pod{r}#1712, client_ip{f}#1683, event_
+     * duration{f}#1684, message{f}#1685]]
+     *     | \_Eval[[null[IP] AS client.ip#1693, null[KEYWORD] AS cluster#1694, null[KEYWORD] AS event#1695, null[GEO_POINT] AS ev
+     * ent_city#1696, null[GEO_SHAPE] AS event_city_boundary#1697, null[CARTESIAN_POINT] AS event_location#1698, null
+     * [TEXT] AS event_log#1699, null[CARTESIAN_SHAPE] AS event_shape#1700, null[LONG] AS events_received#1701, null[
+     * LONG] AS network.bytes_in#1702, null[DOUBLE] AS network.cost#1703, null[INTEGER] AS network.eth0.currently_con
+     * nected_clients#1704, null[VERSION] AS network.eth0.firmware_version#1705, null[DATE_NANOS] AS network.eth0.las
+     * t_up#1706, null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.rx#1707, null[AGGREGATE_METRIC_DOUBLE] AS network.eth
+     * 0.tx#1708, null[BOOLEAN] AS network.eth0.up#1709, null[LONG] AS network.total_bytes_in#1710, null[DOUBLE] AS n
+     * etwork.total_cost#1711, null[KEYWORD] AS pod#1712]]
+     *     |   \_Subquery[]
+     *     |     \_EsRelation[sample_data][@timestamp{f}#1682, client_ip{f}#1683, event_durati..]
+     *     \_Project[[@timestamp{f}#1686, client.ip{r}#1713, cluster{r}#1714, event{r}#1715, event_city{r}#1716, event_city_boundar
+     * y{r}#1717, event_location{r}#1718, event_log{r}#1719, event_shape{r}#1720, events_received{r}#1721, network.by
+     * tes_in{r}#1722, network.cost{r}#1723, network.eth0.currently_connected_clients{r}#1724, network.eth0.firmware_
+     * version{r}#1725, network.eth0.last_up{r}#1726, network.eth0.rx{r}#1727, network.eth0.tx{r}#1728, network.eth0.
+     * up{r}#1729, network.total_bytes_in{r}#1730, network.total_cost{r}#1731, pod{r}#1732, client_ip{f}#1687, event_
+     * duration{f}#1688, message{f}#1689]]
+     *       \_Eval[[null[IP] AS client.ip#1713, null[KEYWORD] AS cluster#1714, null[KEYWORD] AS event#1715, null[GEO_POINT] AS ev
+     * ent_city#1716, null[GEO_SHAPE] AS event_city_boundary#1717, null[CARTESIAN_POINT] AS event_location#1718, null
+     * [TEXT] AS event_log#1719, null[CARTESIAN_SHAPE] AS event_shape#1720, null[LONG] AS events_received#1721, null[
+     * LONG] AS network.bytes_in#1722, null[DOUBLE] AS network.cost#1723, null[INTEGER] AS network.eth0.currently_con
+     * nected_clients#1724, null[VERSION] AS network.eth0.firmware_version#1725, null[DATE_NANOS] AS network.eth0.las
+     * t_up#1726, null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.rx#1727, null[AGGREGATE_METRIC_DOUBLE] AS network.eth
+     * 0.tx#1728, null[BOOLEAN] AS network.eth0.up#1729, null[LONG] AS network.total_bytes_in#1730, null[DOUBLE] AS n
+     * etwork.total_cost#1731, null[KEYWORD] AS pod#1732]]
+     *         \_Subquery[]
+     *           \_Filter[client_ip{f}#1687 == [0 0 0 0 0 0 0 0 0 0 ff ff 7f 0 0 1][IP]]
+     *             \_EsRelation[sample_data][@timestamp{f}#1686, client_ip{f}#1687, event_durati..]
+     */
+    public void testSubqueryWithTimeSeriesIndexInMainQuery() {
+        LogicalPlan plan = k8s().addSampleData().query("""
+            FROM k8s, (FROM sample_data), (FROM sample_data | WHERE client_ip == "127.0.0.1")
+            | WHERE @timestamp > "2025-10-07"
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        UnionAll unionAll = as(filter.child(), UnionAll.class);
+        List<Attribute> output = unionAll.output();
+        assertEquals(24, output.size());
+        assertEquals(3, unionAll.children().size());
+
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        Eval eval = as(subqueryProject.child(), Eval.class);
+        eval = as(eval.child(), Eval.class);
+        EsRelation relation = as(eval.child(), EsRelation.class);
+        assertEquals("k8s", relation.indexPattern());
+        assertEquals(IndexMode.STANDARD, relation.indexMode());
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        eval = as(subqueryProject.child(), Eval.class);
+        Subquery subquery = as(eval.child(), Subquery.class);
+        relation = as(subquery.child(), EsRelation.class);
+        assertEquals("sample_data", relation.indexPattern());
+        assertEquals(IndexMode.STANDARD, relation.indexMode());
+
+        subqueryProject = as(unionAll.children().get(2), Project.class);
+        eval = as(subqueryProject.child(), Eval.class);
+        subquery = as(eval.child(), Subquery.class);
+        filter = as(subquery.child(), Filter.class);
+        relation = as(filter.child(), EsRelation.class);
+        assertEquals("sample_data", relation.indexPattern());
+        assertEquals(IndexMode.STANDARD, relation.indexMode());
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Filter[@timestamp{r}#2290 > 1759795200000[DATETIME]]
+     *   \_UnionAll[[@timestamp{r}#2290, client_ip{r}#2291, event_duration{r}#2292, message{r}#2293, client.ip{r}#2294, cluster{r}
+     * #2295, event{r}#2296, event_city{r}#2297, event_city_boundary{r}#2298, event_location{r}#2299, event_log{r}#23
+     * 00, event_shape{r}#2301, events_received{r}#2302, network.bytes_in{r}#2303, network.cost{r}#2304, network.eth0
+     * .currently_connected_clients{r}#2305, network.eth0.firmware_version{r}#2306, network.eth0.last_up{r}#2307, net
+     * work.eth0.rx{r}#2308, network.eth0.tx{r}#2309, network.eth0.up{r}#2310, network.total_bytes_in{r}#2311, networ
+     * k.total_cost{r}#2312, a{r}#2313, tx_max{r}#2314, pod{r}#2315]]
+     *     |_Project[[@timestamp{f}#2211, client_ip{f}#2212, event_duration{f}#2213, message{f}#2214, client.ip{r}#2243, cluster{r}
+     * #2244, event{r}#2245, event_city{r}#2246, event_city_boundary{r}#2247, event_location{r}#2248, event_log{r}#22
+     * 49, event_shape{r}#2250, events_received{r}#2251, network.bytes_in{r}#2252, network.cost{r}#2253, network.eth0
+     * .currently_connected_clients{r}#2254, network.eth0.firmware_version{r}#2255, network.eth0.last_up{r}#2256, net
+     * work.eth0.rx{r}#2257, network.eth0.tx{r}#2258, network.eth0.up{r}#2259, network.total_bytes_in{r}#2260, networ
+     * k.total_cost{r}#2261, a{r}#2262, tx_max{r}#2263, pod{r}#2264]]
+     *     | \_Eval[[null[IP] AS client.ip#2243, null[KEYWORD] AS cluster#2244, null[KEYWORD] AS event#2245, null[GEO_POINT] AS ev
+     * ent_city#2246, null[GEO_SHAPE] AS event_city_boundary#2247, null[CARTESIAN_POINT] AS event_location#2248, null
+     * [TEXT] AS event_log#2249, null[CARTESIAN_SHAPE] AS event_shape#2250, null[LONG] AS events_received#2251, null[
+     * LONG] AS network.bytes_in#2252, null[DOUBLE] AS network.cost#2253, null[INTEGER] AS network.eth0.currently_con
+     * nected_clients#2254, null[VERSION] AS network.eth0.firmware_version#2255, null[DATE_NANOS] AS network.eth0.las
+     * t_up#2256, null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.rx#2257, null[AGGREGATE_METRIC_DOUBLE] AS network.eth
+     * 0.tx#2258, null[BOOLEAN] AS network.eth0.up#2259, null[LONG] AS network.total_bytes_in#2260, null[DOUBLE] AS n
+     * etwork.total_cost#2261, null[AGGREGATE_METRIC_DOUBLE] AS a#2262, null[DOUBLE] AS tx_max#2263, null[KEYWORD] AS
+     *  pod#2264]]
+     *     |   \_EsRelation[sample_data][@timestamp{f}#2211, client_ip{f}#2212, event_durati..]
+     *     |_Project[[@timestamp{f}#2215, client_ip{r}#2265, event_duration{r}#2266, message{r}#2267, client.ip{f}#2219, cluster{f}
+     * #2216, event{f}#2220, event_city{f}#2223, event_city_boundary{f}#2224, event_location{f}#2226, event_log{f}#22
+     * 21, event_shape{f}#2225, events_received{f}#2222, network.bytes_in{f}#2228, network.cost{f}#2230, network.eth0
+     * .currently_connected_clients{f}#2238, network.eth0.firmware_version{f}#2237, network.eth0.last_up{f}#2236, net
+     * work.eth0.rx{f}#2235, network.eth0.tx{f}#2234, network.eth0.up{f}#2233, network.total_bytes_in{r}#2316, networ
+     * k.total_cost{r}#2317, a{r}#2208, tx_max{r}#2205, pod{f}#2217]]
+     *     | \_Eval[[TOLONG(network.total_bytes_in{f}#2229) AS network.total_bytes_in#2316, TODOUBLE(network.total_cost{f}#2231) A
+     * S network.total_cost#2317]]
+     *     |   \_Eval[[null[IP] AS client_ip#2265, null[LONG] AS event_duration#2266, null[KEYWORD] AS message#2267]]
+     *     |     \_Subquery[]
+     *     |       \_InlineStats[]
+     *     |         \_Aggregate[[pod{f}#2217],[MAX(network.eth0.tx{f}#2234,true[BOOLEAN],PT0S[TIME_DURATION]) AS tx_max#2205, pod{f}#2217]]
+     *     |           \_Eval[[TOAGGREGATEMETRICDOUBLE(1[INTEGER]) AS a#2208]]
+     *     |             \_EsRelation[k8s][@timestamp{f}#2215, client.ip{f}#2219, cluster{f}#2..]
+     *     \_Project[[@timestamp{f}#2239, client_ip{f}#2240, event_duration{f}#2241, message{f}#2242, client.ip{r}#2268, cluster{r}
+     * #2269, event{r}#2270, event_city{r}#2271, event_city_boundary{r}#2272, event_location{r}#2273, event_log{r}#22
+     * 74, event_shape{r}#2275, events_received{r}#2276, network.bytes_in{r}#2277, network.cost{r}#2278, network.eth0
+     * .currently_connected_clients{r}#2279, network.eth0.firmware_version{r}#2280, network.eth0.last_up{r}#2281, net
+     * work.eth0.rx{r}#2282, network.eth0.tx{r}#2283, network.eth0.up{r}#2284, network.total_bytes_in{r}#2285, networ
+     * k.total_cost{r}#2286, a{r}#2287, tx_max{r}#2288, pod{r}#2289]]
+     *       \_Eval[[null[IP] AS client.ip#2268, null[KEYWORD] AS cluster#2269, null[KEYWORD] AS event#2270, null[GEO_POINT] AS ev
+     * ent_city#2271, null[GEO_SHAPE] AS event_city_boundary#2272, null[CARTESIAN_POINT] AS event_location#2273, null
+     * [TEXT] AS event_log#2274, null[CARTESIAN_SHAPE] AS event_shape#2275, null[LONG] AS events_received#2276, null[
+     * LONG] AS network.bytes_in#2277, null[DOUBLE] AS network.cost#2278, null[INTEGER] AS network.eth0.currently_con
+     * nected_clients#2279, null[VERSION] AS network.eth0.firmware_version#2280, null[DATE_NANOS] AS network.eth0.las
+     * t_up#2281, null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.rx#2282, null[AGGREGATE_METRIC_DOUBLE] AS network.eth
+     * 0.tx#2283, null[BOOLEAN] AS network.eth0.up#2284, null[LONG] AS network.total_bytes_in#2285, null[DOUBLE] AS n
+     * etwork.total_cost#2286, null[AGGREGATE_METRIC_DOUBLE] AS a#2287, null[DOUBLE] AS tx_max#2288, null[KEYWORD] AS
+     *  pod#2289]]
+     *         \_Subquery[]
+     *           \_Filter[client_ip{f}#2240 == [0 0 0 0 0 0 0 0 0 0 ff ff 7f 0 0 1][IP]]
+     *             \_EsRelation[sample_data][@timestamp{f}#2239, client_ip{f}#2240, event_durati..]
+     */
+    public void testSubqueryWithTimeSeriesIndexInSubquery() {
+        LogicalPlan plan = sampleData().addK8sDownsampled().query("""
+            FROM sample_data,
+                       (FROM k8s | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1) | INLINE STATS tx_max = MAX(network.eth0.tx) BY pod),
+                       (FROM sample_data | WHERE client_ip == "127.0.0.1")
+            | WHERE @timestamp > "2025-10-07"
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        UnionAll unionAll = as(filter.child(), UnionAll.class);
+        List<Attribute> output = unionAll.output();
+        assertEquals(26, output.size());
+        assertEquals(3, unionAll.children().size());
+
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        Eval eval = as(subqueryProject.child(), Eval.class);
+        EsRelation relation = as(eval.child(), EsRelation.class);
+        assertEquals("sample_data", relation.indexPattern());
+        assertEquals(IndexMode.STANDARD, relation.indexMode());
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        eval = as(subqueryProject.child(), Eval.class);
+        eval = as(eval.child(), Eval.class);
+        Subquery subquery = as(eval.child(), Subquery.class);
+        InlineStats inlineStats = as(subquery.child(), InlineStats.class);
+        Aggregate aggregate = as(inlineStats.child(), Aggregate.class);
+        eval = as(aggregate.child(), Eval.class);
+        relation = as(eval.child(), EsRelation.class);
+        assertEquals("k8s", relation.indexPattern());
+        assertEquals(IndexMode.STANDARD, relation.indexMode());
+
+        subqueryProject = as(unionAll.children().get(2), Project.class);
+        eval = as(subqueryProject.child(), Eval.class);
+        subquery = as(eval.child(), Subquery.class);
+        filter = as(subquery.child(), Filter.class);
+        relation = as(filter.child(), EsRelation.class);
+        assertEquals("sample_data", relation.indexPattern());
+        assertEquals(IndexMode.STANDARD, relation.indexMode());
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Filter[@timestamp{r}#320 > 1759795200000[DATETIME]]
+     *   \_UnionAll[[@timestamp{r}#320, client.ip{r}#321, cluster{r}#322, event{r}#323, event_city{r}#324, event_city_boundary{r}#
+     * 325, event_location{r}#326, event_log{r}#327, event_shape{r}#328, events_received{r}#329, network.bytes_in{r}#
+     * 330, network.cost{r}#331, network.eth0.currently_connected_clients{r}#332, network.eth0.firmware_version{r}#33
+     * 3, network.eth0.last_up{r}#334, network.eth0.rx{r}#335, network.eth0.tx{r}#336, network.eth0.up{r}#337, networ
+     * k.total_bytes_in{r}#338, network.total_cost{r}#339, pod{r}#340, a{r}#341, tx_max{r}#342, client_ip{r}#343, eve
+     * nt_duration{r}#344, message{r}#345]]
+     *     |_Project[[@timestamp{f}#238, client.ip{f}#242, cluster{f}#239, event{f}#243, event_city{f}#246, event_city_boundary{f}#
+     * 247, event_location{f}#249, event_log{f}#244, event_shape{f}#248, events_received{f}#245, network.bytes_in{f}#
+     * 251, network.cost{f}#253, network.eth0.currently_connected_clients{f}#261, network.eth0.firmware_version{f}#26
+     * 0, network.eth0.last_up{f}#259, network.eth0.rx{f}#258, network.eth0.tx{f}#257, network.eth0.up{f}#256, networ
+     * k.total_bytes_in{r}#346, network.total_cost{r}#347, pod{f}#240, a{r}#290, tx_max{r}#291, client_ip{r}#292, eve
+     * nt_duration{r}#293, message{r}#294]]
+     *     | \_Eval[[TOLONG(network.total_bytes_in{f}#252) AS network.total_bytes_in#346, TODOUBLE(network.total_cost{f}#254) AS n
+     * etwork.total_cost#347]]
+     *     |   \_Eval[[null[AGGREGATE_METRIC_DOUBLE] AS a#290, null[DOUBLE] AS tx_max#291, null[IP] AS client_ip#292, null[LONG] AS
+     * event_duration#293, null[KEYWORD] AS message#294]]
+     *     |     \_EsRelation[k8s][@timestamp{f}#238, client.ip{f}#242, cluster{f}#239, ..]
+     *     |_Project[[@timestamp{f}#262, client.ip{f}#266, cluster{f}#263, event{f}#267, event_city{f}#270, event_city_boundary{f}#
+     * 271, event_location{f}#273, event_log{f}#268, event_shape{f}#272, events_received{f}#269, network.bytes_in{f}#
+     * 275, network.cost{f}#277, network.eth0.currently_connected_clients{f}#285, network.eth0.firmware_version{f}#28
+     * 4, network.eth0.last_up{f}#283, network.eth0.rx{f}#282, network.eth0.tx{f}#281, network.eth0.up{f}#280, networ
+     * k.total_bytes_in{r}#348, network.total_cost{r}#349, pod{f}#264, a{r}#235, tx_max{r}#232, client_ip{r}#295, eve
+     * nt_duration{r}#296, message{r}#297]]
+     *     | \_Eval[[TOLONG(network.total_bytes_in{f}#276) AS network.total_bytes_in#348, TODOUBLE(network.total_cost{f}#278) AS n
+     * etwork.total_cost#349]]
+     *     |   \_Eval[[null[IP] AS client_ip#295, null[LONG] AS event_duration#296, null[KEYWORD] AS message#297]]
+     *     |     \_Subquery[]
+     *     |       \_InlineStats[]
+     *     |         \_Aggregate[[pod{f}#264],[MAX(network.eth0.tx{f}#281,true[BOOLEAN],PT0S[TIME_DURATION]) AS tx_max#232, pod{f}#264]]
+     *     |           \_Eval[[TOAGGREGATEMETRICDOUBLE(1[INTEGER]) AS a#235]]
+     *     |             \_EsRelation[k8s][@timestamp{f}#262, client.ip{f}#266, cluster{f}#263, ..]
+     *     \_Project[[@timestamp{f}#286, client.ip{r}#298, cluster{r}#299, event{r}#300, event_city{r}#301, event_city_boundary{r}#
+     * 302, event_location{r}#303, event_log{r}#304, event_shape{r}#305, events_received{r}#306, network.bytes_in{r}#
+     * 307, network.cost{r}#308, network.eth0.currently_connected_clients{r}#309, network.eth0.firmware_version{r}#31
+     * 0, network.eth0.last_up{r}#311, network.eth0.rx{r}#312, network.eth0.tx{r}#313, network.eth0.up{r}#314, networ
+     * k.total_bytes_in{r}#315, network.total_cost{r}#316, pod{r}#317, a{r}#318, tx_max{r}#319, client_ip{f}#287, eve
+     * nt_duration{f}#288, message{f}#289]]
+     *       \_Eval[[null[IP] AS client.ip#298, null[KEYWORD] AS cluster#299, null[KEYWORD] AS event#300, null[GEO_POINT] AS event
+     * _city#301, null[GEO_SHAPE] AS event_city_boundary#302, null[CARTESIAN_POINT] AS event_location#303, null[TEXT]
+     *  AS event_log#304, null[CARTESIAN_SHAPE] AS event_shape#305, null[LONG] AS events_received#306, null[LONG] AS
+     * network.bytes_in#307, null[DOUBLE] AS network.cost#308, null[INTEGER] AS network.eth0.currently_connected_clie
+     * nts#309, null[VERSION] AS network.eth0.firmware_version#310, null[DATE_NANOS] AS network.eth0.last_up#311, nul
+     * l[AGGREGATE_METRIC_DOUBLE] AS network.eth0.rx#312, null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.tx#313, null[
+     * BOOLEAN] AS network.eth0.up#314, null[LONG] AS network.total_bytes_in#315, null[DOUBLE] AS network.total_cost#
+     * 316, null[KEYWORD] AS pod#317, null[AGGREGATE_METRIC_DOUBLE] AS a#318, null[DOUBLE] AS tx_max#319]]
+     *         \_Subquery[]
+     *           \_Filter[client_ip{f}#287 == [0 0 0 0 0 0 0 0 0 0 ff ff 7f 0 0 1][IP]]
+     *             \_EsRelation[sample_data][@timestamp{f}#286, client_ip{f}#287, event_duration..]
+     */
+    public void testSubqueryWithTimeSeriesIndexInMainQueryAndSubquery() {
+        LogicalPlan plan = k8s().addSampleData().query("""
+            FROM k8s,
+                       (FROM k8s | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1) | INLINE STATS tx_max = MAX(network.eth0.tx) BY pod),
+                       (FROM sample_data | WHERE client_ip == "127.0.0.1")
+            | WHERE @timestamp > "2025-10-07"
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        UnionAll unionAll = as(filter.child(), UnionAll.class);
+        List<Attribute> output = unionAll.output();
+        assertEquals(26, output.size());
+        assertEquals(3, unionAll.children().size());
+
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        Eval eval = as(subqueryProject.child(), Eval.class);
+        eval = as(eval.child(), Eval.class);
+        EsRelation relation = as(eval.child(), EsRelation.class);
+        assertEquals("k8s", relation.indexPattern());
+        assertEquals(IndexMode.STANDARD, relation.indexMode());
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        eval = as(subqueryProject.child(), Eval.class);
+        eval = as(eval.child(), Eval.class);
+        Subquery subquery = as(eval.child(), Subquery.class);
+        InlineStats inlineStats = as(subquery.child(), InlineStats.class);
+        Aggregate aggregate = as(inlineStats.child(), Aggregate.class);
+        eval = as(aggregate.child(), Eval.class);
+        relation = as(eval.child(), EsRelation.class);
+        assertEquals("k8s", relation.indexPattern());
+        assertEquals(IndexMode.STANDARD, relation.indexMode());
+
+        subqueryProject = as(unionAll.children().get(2), Project.class);
+        eval = as(subqueryProject.child(), Eval.class);
+        subquery = as(eval.child(), Subquery.class);
+        filter = as(subquery.child(), Filter.class);
+        relation = as(filter.child(), EsRelation.class);
+        assertEquals("sample_data", relation.indexPattern());
+        assertEquals(IndexMode.STANDARD, relation.indexMode());
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Filter[MATCH(client_ip{r}#598,127.0.0.1[KEYWORD])]
+     *   \_UnionAll[[@timestamp{r}#597, client_ip{r}#598, event_duration{r}#599, message{r}#600]]
+     *     |_Project[[@timestamp{f}#589, client_ip{f}#590, event_duration{f}#591, message{f}#592]]
+     *     | \_EsRelation[sample_data][@timestamp{f}#589, client_ip{f}#590, event_duration..]
+     *     \_Project[[@timestamp{f}#593, client_ip{f}#594, event_duration{f}#595, message{f}#596]]
+     *       \_Subquery[]
+     *         \_Filter[:(message{f}#596,error[KEYWORD])]
+     *           \_EsRelation[sample_data][@timestamp{f}#593, client_ip{f}#594, event_duration..]
+     */
+    public void testSubqueryWithFullTextFunctionInMainQuery() {
+        LogicalPlan plan = basic().addSampleData().query("""
+            FROM sample_data, (FROM sample_data | WHERE message:"error")
+            | WHERE match(client_ip,"127.0.0.1")
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        Match matchFunction = as(filter.condition(), Match.class);
+        ReferenceAttribute clientIP = as(matchFunction.field(), ReferenceAttribute.class);
+        assertEquals("client_ip", clientIP.name());
+        Literal literal = as(matchFunction.query(), Literal.class);
+        assertEquals(new BytesRef("127.0.0.1"), literal.value());
+        UnionAll unionAll = as(filter.child(), UnionAll.class);
+        List<Attribute> output = unionAll.output();
+        // all fields from the two indices
+        assertEquals(4, output.size());
+        assertEquals(2, unionAll.children().size());
+
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        EsRelation subqueryIndex = as(subqueryProject.child(), EsRelation.class);
+        assertEquals("sample_data", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        Subquery subquery = as(subqueryProject.child(), Subquery.class);
+        Filter subqueryFilter = as(subquery.child(), Filter.class);
+        MatchOperator matchOperator = as(subqueryFilter.condition(), MatchOperator.class);
+        FieldAttribute message = as(matchOperator.field(), FieldAttribute.class);
+        assertEquals("message", message.name());
+        literal = as(matchOperator.query(), Literal.class);
+        assertEquals(new BytesRef("error"), literal.value());
+        subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
+        assertEquals("sample_data", subqueryIndex.indexPattern());
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Filter[MATCH(client_ip{r}#2140,127.0.0.1[KEYWORD])]
+     *   \_UnionAll[[_meta_field{r}#2128, emp_no{r}#2129, first_name{r}#2130, gender{r}#2131, hire_date{r}#2132, job{r}#2133, job.
+     * raw{r}#2134, languages{r}#2135, last_name{r}#2136, long_noidx{r}#2137, salary{r}#2138, @timestamp{r}#2139, cli
+     * ent_ip{r}#2140, event_duration{r}#2141, message{r}#2142]]
+     *     |_Project[[_meta_field{f}#2104, emp_no{f}#2098, first_name{f}#2099, gender{f}#2100, hire_date{f}#2105, job{f}#2106, job.
+     * raw{f}#2107, languages{f}#2101, last_name{f}#2102, long_noidx{f}#2108, salary{f}#2103, @timestamp{r}#2113, cli
+     * ent_ip{r}#2114, event_duration{r}#2115, message{r}#2116]]
+     *     | \_Eval[[null[DATETIME] AS @timestamp#2113, null[IP] AS client_ip#2114, null[LONG] AS event_duration#2115, null[KEYWOR
+     * D] AS message#2116]]
+     *     |   \_EsRelation[test][_meta_field{f}#2104, emp_no{f}#2098, first_name{f}#..]
+     *     \_Project[[_meta_field{r}#2117, emp_no{r}#2118, first_name{r}#2119, gender{r}#2120, hire_date{r}#2121, job{r}#2122, job.
+     * raw{r}#2123, languages{r}#2124, last_name{r}#2125, long_noidx{r}#2126, salary{r}#2127, @timestamp{f}#2109, cli
+     * ent_ip{f}#2110, event_duration{f}#2111, message{f}#2112]]
+     *       \_Eval[[null[KEYWORD] AS _meta_field#2117, null[INTEGER] AS emp_no#2118, null[KEYWORD] AS first_name#2119, null[TEXT]
+     *  AS gender#2120, null[DATETIME] AS hire_date#2121, null[TEXT] AS job#2122, null[KEYWORD] AS job.raw#2123, null
+     * [INTEGER] AS languages#2124, null[KEYWORD] AS last_name#2125, null[LONG] AS long_noidx#2126, null[INTEGER] AS
+     * salary#2127]]
+     *         \_Subquery[]
+     *           \_EsRelation[sample_data][@timestamp{f}#2109, client_ip{f}#2110, event_durati..]
+     */
+    public void testPruneEmptySubquery() {
+        assumeTrue(
+            "Requires subquery in FROM command support",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
+
+        LogicalPlan plan = basic().addSampleData().addRemoteMissingIndex().query("""
+            FROM test, (FROM remote:missingIndex | WHERE message:"error"), (FROM sample_data)
+            | WHERE match(client_ip,"127.0.0.1")
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        Match matchFunction = as(filter.condition(), Match.class);
+        ReferenceAttribute clientIP = as(matchFunction.field(), ReferenceAttribute.class);
+        assertEquals("client_ip", clientIP.name());
+        UnionAll unionAll = as(filter.child(), UnionAll.class);
+        List<Attribute> output = unionAll.output();
+        assertEquals(15, output.size());
+        // the subquery with remote:missingIndex is pruned, validate PruneEmptyUnionAllBranch
+        assertEquals(2, unionAll.children().size());
+
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        Eval subqueryEval = as(subqueryProject.child(), Eval.class);
+        EsRelation subqueryIndex = as(subqueryEval.child(), EsRelation.class);
+        assertEquals("test", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        subqueryEval = as(subqueryProject.child(), Eval.class);
+        Subquery subquery = as(subqueryEval.child(), Subquery.class);
+        subqueryIndex = as(subquery.child(), EsRelation.class);
+        assertEquals("sample_data", subqueryIndex.indexPattern());
+    }
+
+    // no_fields_index has empty mapping, however there is entry in indexNameWithModes,originalIndices and concreteIndices
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[]]
+     *   |_Project[[]]
+     *   | \_EsRelation[no_fields_index][<no-fields>{r$}#2]
+     *   |_Project[[]]
+     *   | \_Subquery[]
+     *   |   \_EsRelation[no_fields_index][<no-fields>{r$}#2]
+     *   \_Project[[]]
+     *     \_Subquery[]
+     *       \_EsRelation[no_fields_index][<no-fields>{r$}#2]
+     */
+    public void testSubqueryInFromWithNoFieldsIndices() {
+        assumeTrue(
+            "Requires subquery in FROM command support",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
+
+        LogicalPlan plan = basic().addNoFieldsIndex().query("""
+            FROM
+                no_fields_index,
+                (FROM no_fields_index),
+                (FROM no_fields_index)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        List<Attribute> output = unionAll.output();
+        assertEquals(0, output.size());
+        assertEquals(3, unionAll.children().size());
+
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        assertTrue(subqueryProject.projections().isEmpty());
+        EsRelation subqueryIndex = as(subqueryProject.child(), EsRelation.class);
+        assertEquals("no_fields_index", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        assertTrue(subqueryProject.projections().isEmpty());
+        Subquery subquery = as(subqueryProject.child(), Subquery.class);
+        subqueryIndex = as(subquery.child(), EsRelation.class);
+        assertEquals("no_fields_index", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(2), Project.class);
+        assertTrue(subqueryProject.projections().isEmpty());
+        subquery = as(subqueryProject.child(), Subquery.class);
+        subqueryIndex = as(subquery.child(), EsRelation.class);
+        assertEquals("no_fields_index", subqueryIndex.indexPattern());
+    }
+
+    // empty_index has empty mapping,indexNameWithModes,originalIndices and concreteIndices
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[]]
+     *   |_Project[[]]
+     *   | \_EsRelation[empty_index][<no-fields>{r$}#2]
+     *   |_Project[[]]
+     *   | \_Subquery[]
+     *   |   \_EsRelation[empty_index][<no-fields>{r$}#2]
+     *   \_Project[[]]
+     *     \_Subquery[]
+     *       \_EsRelation[empty_index][<no-fields>{r$}#2]
+     */
+    public void testSubqueryInFromWithEmptyIndex() {
+        assumeTrue(
+            "Requires subquery in FROM command support",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
+
+        LogicalPlan plan = basic().addEmptyIndex().query("""
+            FROM
+                empty_index,
+                (FROM empty_index),
+                (FROM empty_index)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        List<Attribute> output = unionAll.output();
+        assertEquals(0, output.size());
+        assertEquals(3, unionAll.children().size());
+
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        assertTrue(subqueryProject.projections().isEmpty());
+        EsRelation subqueryIndex = as(subqueryProject.child(), EsRelation.class);
+        assertEquals("empty_index", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        assertTrue(subqueryProject.projections().isEmpty());
+        Subquery subquery = as(subqueryProject.child(), Subquery.class);
+        subqueryIndex = as(subquery.child(), EsRelation.class);
+        assertEquals("empty_index", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(2), Project.class);
+        assertTrue(subqueryProject.projections().isEmpty());
+        subquery = as(subqueryProject.child(), Subquery.class);
+        subqueryIndex = as(subquery.child(), EsRelation.class);
+        assertEquals("empty_index", subqueryIndex.indexPattern());
+    }
+
+    // no_fields_index has empty mapping, however there is entry in indexNameWithModes,originalIndices and concreteIndices
+    // empty_index has empty mapping,indexNameWithModes,originalIndices and concreteIndices
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[]]
+     *   |_Project[[]]
+     *   | \_Subquery[]
+     *   |   \_EsRelation[no_fields_index][<no-fields>{r$}#2]
+     *   |_Project[[]]
+     *   | \_Subquery[]
+     *   |   \_EsRelation[no_fields_index][<no-fields>{r$}#2]
+     *   \_Project[[]]
+     *     \_Subquery[]
+     *       \_EsRelation[empty_index][<no-fields>{r$}#2]
+     */
+    public void testSubqueryInFromWithNoFieldsAndEmptyIndex() {
+        assumeTrue(
+            "Requires subquery in FROM command support",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
+
+        LogicalPlan plan = basic().addNoFieldsIndex().addEmptyIndex().query("""
+            FROM
+                (FROM no_fields_index),
+                (FROM no_fields_index),
+                (FROM empty_index)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        List<Attribute> output = unionAll.output();
+        assertEquals(0, output.size());
+        assertEquals(3, unionAll.children().size());
+
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        assertTrue(subqueryProject.projections().isEmpty());
+        Subquery subquery = as(subqueryProject.child(), Subquery.class);
+        EsRelation subqueryIndex = as(subquery.child(), EsRelation.class);
+        assertEquals("no_fields_index", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        assertTrue(subqueryProject.projections().isEmpty());
+        subquery = as(subqueryProject.child(), Subquery.class);
+        subqueryIndex = as(subquery.child(), EsRelation.class);
+        assertEquals("no_fields_index", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(2), Project.class);
+        assertTrue(subqueryProject.projections().isEmpty());
+        subquery = as(subqueryProject.child(), Subquery.class);
+        subqueryIndex = as(subquery.child(), EsRelation.class);
+        assertEquals("empty_index", subqueryIndex.indexPattern());
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count()#2367]]
+     *   \_UnionAll[[]]
+     *     |_Project[[]]
+     *     | \_Subquery[]
+     *     |   \_EsRelation[no_fields_index][<no-fields>{r$}#2]
+     *     \_Project[[]]
+     *       \_Subquery[]
+     *         \_EsRelation[no_fields_index][<no-fields>{r$}#2]
+     */
+    public void testCountWithSubqueryWithNoFields() {
+        assumeTrue("Prune no-fields in subquery", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_PRUNE_NO_FIELDS.isEnabled());
+        for (String count : List.of("count()", "count(*)", "count(1)")) {
+            String query = LoggerMessageFormat.format(null, """
+                FROM (FROM no_fields_index), (FROM no_fields_index)
+                | STATS {}
+                """, count);
+            var plan = basic().addNoFieldsIndex().query(query);
+
+            Limit limit = as(plan, Limit.class);
+            Aggregate aggregate = as(limit.child(), Aggregate.class);
+            UnionAll unionAll = as(aggregate.child(), UnionAll.class);
+            assertEquals(0, unionAll.output().size());
+            assertEquals(2, unionAll.children().size());
+
+            for (int i = 0; i < 2; i++) {
+                Project project = as(unionAll.children().get(i), Project.class);
+                assertEquals(0, project.projections().size());
+                Subquery subquery = as(project.child(), Subquery.class);
+                EsRelation relation = as(subquery.child(), EsRelation.class);
+                assertEquals("no_fields_index", relation.indexPattern());
+            }
+        }
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count()#171]]
+     *   \_UnionAll[[]]
+     *     |_Project[[]]
+     *     | \_Subquery[]
+     *     |   \_EsRelation[empty_index][<no-fields>{r$}#2]
+     *     \_Project[[]]
+     *       \_Subquery[]
+     *         \_EsRelation[empty_index][<no-fields>{r$}#2]
+     */
+    public void testCountWithSubqueryWithEmptyIndex() {
+        assumeTrue("Prune no-fields in subquery", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_PRUNE_NO_FIELDS.isEnabled());
+        for (String count : List.of("count()", "count(*)", "count(1)")) {
+            String query = LoggerMessageFormat.format(null, """
+                FROM (FROM empty_index), (FROM empty_index)
+                | STATS {}
+                """, count);
+            var plan = basic().addEmptyIndex().query(query);
+
+            Limit limit = as(plan, Limit.class);
+            Aggregate aggregate = as(limit.child(), Aggregate.class);
+            UnionAll unionAll = as(aggregate.child(), UnionAll.class);
+            assertEquals(0, unionAll.output().size());
+            assertEquals(2, unionAll.children().size());
+
+            for (int i = 0; i < 2; i++) {
+                Project project = as(unionAll.children().get(i), Project.class);
+                assertEquals(0, project.projections().size());
+                Subquery subquery = as(project.child(), Subquery.class);
+                EsRelation relation = as(subquery.child(), EsRelation.class);
+                assertEquals("empty_index", relation.indexPattern());
+            }
+        }
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count()#885]]
+     *   \_UnionAll[[]]
+     *     |_Project[[]]
+     *     | \_Subquery[]
+     *     |   \_EsRelation[no_fields_index][<no-fields>{r$}#2]
+     *     \_Project[[]]
+     *       \_Subquery[]
+     *         \_EsRelation[empty_index][<no-fields>{r$}#2]
+     */
+    public void testCountWithSubqueryWithNoFieldsAndEmptyIndex() {
+        assumeTrue("Prune no-fields in subquery", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_PRUNE_NO_FIELDS.isEnabled());
+        for (String count : List.of("count()", "count(*)", "count(1)")) {
+            String query = LoggerMessageFormat.format(null, """
+                FROM (FROM no_fields_index), (FROM empty_index)
+                | STATS {}
+                """, count);
+            var plan = basic().addEmptyIndex().addNoFieldsIndex().query(query);
+
+            Limit limit = as(plan, Limit.class);
+            Aggregate aggregate = as(limit.child(), Aggregate.class);
+            UnionAll unionAll = as(aggregate.child(), UnionAll.class);
+            assertEquals(0, unionAll.output().size());
+            assertEquals(2, unionAll.children().size());
+
+            for (int i = 0; i < 2; i++) {
+                Project project = as(unionAll.children().get(i), Project.class);
+                assertEquals(0, project.projections().size());
+                Subquery subquery = as(project.child(), Subquery.class);
+                EsRelation relation = as(subquery.child(), EsRelation.class);
+                assertEquals(i == 0 ? "no_fields_index" : "empty_index", relation.indexPattern());
+            }
+        }
+    }
+
+    // Subqueries with TS source command
+
+    /*
+     * A TS subquery alongside a standard FROM index pattern. Mirrors {@link #testSubqueryInFrom} but with
+     * a TS source instead of FROM in the subquery; the right-hand branch is wrapped in {@link Subquery}
+     * over an {@link EsRelation} in {@link IndexMode#TIME_SERIES}, with counter fields demoted to their
+     * base type before union.
+     *
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[_meta_field{r}#1090, emp_no{r}#1091, first_name{r}#1092, gender{r}#1093, hire_date{r}#1094, job{r}#1095, job.
+     * raw{r}#1096, languages{r}#1097, last_name{r}#1098, long_noidx{r}#1099, salary{r}#1100, @timestamp{r}#1101, cli
+     * ent.ip{r}#1102, cluster{r}#1103, event{r}#1104, event_city{r}#1105, event_city_boundary{r}#1106, event_locatio
+     * n{r}#1107, event_log{r}#1108, event_shape{r}#1109, events_received{r}#1110, network.bytes_in{r}#1111, network.
+     * cost{r}#1112, network.eth0.currently_connected_clients{r}#1113, network.eth0.firmware_version{r}#1114, network
+     * .eth0.last_up{r}#1115, network.eth0.rx{r}#1116, network.eth0.tx{r}#1117, network.eth0.up{r}#1118, network.tota
+     * l_bytes_in{r}#1119, network.total_cost{r}#1120, pod{r}#1121]]
+     *   |_Project[[_meta_field{f}#1029, emp_no{f}#1023, first_name{f}#1024, gender{f}#1025, hire_date{f}#1030, job{f}#1031, job.
+     * raw{f}#1032, languages{f}#1026, last_name{f}#1027, long_noidx{f}#1033, salary{f}#1028, @timestamp{r}#1058, cli
+     * ent.ip{r}#1059, cluster{r}#1060, event{r}#1061, event_city{r}#1062, event_city_boundary{r}#1063, event_locatio
+     * n{r}#1064, event_log{r}#1065, event_shape{r}#1066, events_received{r}#1067, network.bytes_in{r}#1068, network.
+     * cost{r}#1069, network.eth0.currently_connected_clients{r}#1070, network.eth0.firmware_version{r}#1071, network
+     * .eth0.last_up{r}#1072, network.eth0.rx{r}#1073, network.eth0.tx{r}#1074, network.eth0.up{r}#1075, network.tota
+     * l_bytes_in{r}#1076, network.total_cost{r}#1077, pod{r}#1078]]
+     *   | \_Eval[[null[DATETIME] AS @timestamp#1058, null[IP] AS client.ip#1059, null[KEYWORD] AS cluster#1060, null[KEYWORD] A
+     * S event#1061, null[GEO_POINT] AS event_city#1062, null[GEO_SHAPE] AS event_city_boundary#1063, null[CARTESIAN_
+     * POINT] AS event_location#1064, null[TEXT] AS event_log#1065, null[CARTESIAN_SHAPE] AS event_shape#1066, null[L
+     * ONG] AS events_received#1067, null[LONG] AS network.bytes_in#1068, null[DOUBLE] AS network.cost#1069, null[INT
+     * EGER] AS network.eth0.currently_connected_clients#1070, null[VERSION] AS network.eth0.firmware_version#1071, n
+     * ull[DATE_NANOS] AS network.eth0.last_up#1072, null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.rx#1073, null[AGGR
+     * EGATE_METRIC_DOUBLE] AS network.eth0.tx#1074, null[BOOLEAN] AS network.eth0.up#1075, null[LONG] AS network.tot
+     * al_bytes_in#1076, null[DOUBLE] AS network.total_cost#1077, null[KEYWORD] AS pod#1078]]
+     *   |   \_EsRelation[test][_meta_field{f}#1029, emp_no{f}#1023, first_name{f}#..]
+     *   \_Project[[_meta_field{r}#1079, emp_no{r}#1080, first_name{r}#1081, gender{r}#1082, hire_date{r}#1083, job{r}#1084, job.
+     * raw{r}#1085, languages{r}#1086, last_name{r}#1087, long_noidx{r}#1088, salary{r}#1089, @timestamp{f}#1034, cli
+     * ent.ip{f}#1038, cluster{f}#1035, event{f}#1039, event_city{f}#1042, event_city_boundary{f}#1043, event_locatio
+     * n{f}#1045, event_log{f}#1040, event_shape{f}#1044, events_received{f}#1041, network.bytes_in{f}#1047, network.
+     * cost{f}#1049, network.eth0.currently_connected_clients{f}#1057, network.eth0.firmware_version{f}#1056, network
+     * .eth0.last_up{f}#1055, network.eth0.rx{f}#1054, network.eth0.tx{f}#1053, network.eth0.up{f}#1052, network.tota
+     * l_bytes_in{r}#1122, network.total_cost{r}#1123, pod{f}#1036]]
+     *     \_Eval[[TOLONG(network.total_bytes_in{f}#1048) AS network.total_bytes_in#1122, TODOUBLE(network.total_cost{f}#1050) A
+     * S network.total_cost#1123]]
+     *       \_Eval[[null[KEYWORD] AS _meta_field#1079, null[INTEGER] AS emp_no#1080, null[KEYWORD] AS first_name#1081, null[TEXT]
+     *  AS gender#1082, null[DATETIME] AS hire_date#1083, null[TEXT] AS job#1084, null[KEYWORD] AS job.raw#1085, null
+     * [INTEGER] AS languages#1086, null[KEYWORD] AS last_name#1087, null[LONG] AS long_noidx#1088, null[INTEGER] AS
+     * salary#1089]]
+     *         \_Subquery[]
+     *           \_Filter[@timestamp{f}#1034 > 1759795200000[DATETIME]]
+     *             \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#1034, client.ip{f}#1038, cluster{f}#1..]
+     */
+    public void testTSSubqueryInFrom() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        LogicalPlan plan = basic().addK8sDownsampled().query("""
+            FROM test, (TS k8s | WHERE @timestamp > "2025-10-07")
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        // 11 test fields + 21 k8s fields
+        assertEquals(32, unionAll.output().size());
+        assertEquals(2, unionAll.children().size());
+
+        // Left leg (test): Project -> Eval[null evals for k8s fields] -> EsRelation[test]
+        Project testProject = as(unionAll.children().get(0), Project.class);
+        assertEquals(32, testProject.projections().size());
+        Eval testNullEval = as(testProject.child(), Eval.class);
+        // null evals for the 21 k8s fields missing in test
+        assertEquals(21, testNullEval.fields().size());
+        EsRelation testRelation = as(testNullEval.child(), EsRelation.class);
+        assertEquals("test", testRelation.indexPattern());
+        assertEquals(IndexMode.STANDARD, testRelation.indexMode());
+
+        // Right leg (TS k8s): Project -> Eval[counter demotions] -> Eval[null evals] -> Subquery -> Filter -> EsRelation[TIME_SERIES]
+        Project tsProject = as(unionAll.children().get(1), Project.class);
+        assertEquals(32, tsProject.projections().size());
+        Eval counterDemotionEval = as(tsProject.child(), Eval.class);
+        // network.total_bytes_in (counter_long -> long) and network.total_cost (counter_double -> double)
+        assertEquals(2, counterDemotionEval.fields().size());
+        Eval tsNullEval = as(counterDemotionEval.child(), Eval.class);
+        // null evals for the 11 test fields missing in k8s
+        assertEquals(11, tsNullEval.fields().size());
+        Subquery subquery = as(tsNullEval.child(), Subquery.class);
+        Filter subqueryFilter = as(subquery.child(), Filter.class);
+        GreaterThan gt = as(subqueryFilter.condition(), GreaterThan.class);
+        FieldAttribute ts = as(gt.left(), FieldAttribute.class);
+        assertEquals("@timestamp", ts.name());
+        EsRelation tsRelation = as(subqueryFilter.child(), EsRelation.class);
+        assertEquals("k8s", tsRelation.indexPattern());
+        assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());
+    }
+
+    /*
+     * If the only branch of FROM is a TS subquery the {@link UnionAll}/{@link Subquery} wrappers are
+     * collapsed and the TS {@link EsRelation} surfaces directly. Because the source is TS, an implicit
+     * {@code SORT @timestamp DESC} is inserted above the filter — this is the time-series default and
+     * is what distinguishes this case from {@link #testSubqueryInFromWithoutMainIndexPattern}.
+     *
+     * Limit[1000[INTEGER],false,false]
+     * \_OrderBy[[Order[@timestamp{f}#2430,DESC,LAST]]]
+     *   \_Filter[@timestamp{f}#2430 > 1759795200000[DATETIME]]
+     *     \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#2430, client.ip{f}#2434, cluster{f}#2..]
+     */
+    public void testTSSubqueryInFromWithoutMainIndexPattern() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        LogicalPlan plan = analyzer().addK8sDownsampled().query("""
+            FROM (TS k8s | WHERE @timestamp > "2025-10-07")
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        OrderBy orderBy = as(limit.child(), OrderBy.class);
+        List<Order> order = orderBy.order();
+        assertEquals(1, order.size());
+        FieldAttribute orderField = as(order.get(0).child(), FieldAttribute.class);
+        assertEquals("@timestamp", orderField.name());
+        assertEquals(Order.OrderDirection.DESC, order.get(0).direction());
+
+        Filter filter = as(orderBy.child(), Filter.class);
+        GreaterThan gt = as(filter.condition(), GreaterThan.class);
+        FieldAttribute ts = as(gt.left(), FieldAttribute.class);
+        assertEquals("@timestamp", ts.name());
+        EsRelation relation = as(filter.child(), EsRelation.class);
+        assertEquals("k8s", relation.indexPattern());
+        assertEquals(IndexMode.TIME_SERIES, relation.indexMode());
+    }
+
+    /*
+     * TS subquery with a time-series aggregation ({@code rate} inside an outer {@code MAX}) — verifies
+     * the subquery is rewritten to a {@link TimeSeriesAggregate} node that retains the
+     * {@link IndexMode#TIME_SERIES} relation underneath.
+     *
+     * Limit[10000[INTEGER],false,false]
+     * \_UnionAll[[_meta_field{r}#1281, emp_no{r}#1282, first_name{r}#1283, gender{r}#1284, hire_date{r}#1285, job{r}#1286, job.
+     * raw{r}#1287, languages{r}#1288, last_name{r}#1289, long_noidx{r}#1290, salary{r}#1291, m{r}#1292, cluster{r}#1
+     * 293, pod{r}#1294]]
+     *   |_Project[[_meta_field{f}#1237, emp_no{f}#1231, first_name{f}#1232, gender{f}#1233, hire_date{f}#1238, job{f}#1239, job.
+     * raw{f}#1240, languages{f}#1234, last_name{f}#1235, long_noidx{f}#1241, salary{f}#1236, m{r}#1267, cluster{r}#1
+     * 268, pod{r}#1269]]
+     *   | \_Eval[[null[DOUBLE] AS m#1267, null[KEYWORD] AS cluster#1268, null[KEYWORD] AS pod#1269]]
+     *   |   \_EsRelation[test][_meta_field{f}#1237, emp_no{f}#1231, first_name{f}#..]
+     *   \_Project[[_meta_field{r}#1270, emp_no{r}#1271, first_name{r}#1272, gender{r}#1273, hire_date{r}#1274, job{r}#1275, job.
+     * raw{r}#1276, languages{r}#1277, last_name{r}#1278, long_noidx{r}#1279, salary{r}#1280, m{r}#1229, cluster{f}#1
+     * 243, pod{f}#1244]]
+     *     \_Eval[[null[KEYWORD] AS _meta_field#1270, null[INTEGER] AS emp_no#1271, null[KEYWORD] AS first_name#1272, null[TEXT]
+     *  AS gender#1273, null[DATETIME] AS hire_date#1274, null[TEXT] AS job#1275, null[KEYWORD] AS job.raw#1276, null
+     * [INTEGER] AS languages#1277, null[KEYWORD] AS last_name#1278, null[LONG] AS long_noidx#1279, null[INTEGER] AS
+     * salary#1280]]
+     *       \_Subquery[]
+     *         \_TimeSeriesAggregate[[cluster{f}#1243, pod{f}#1244],[MAX(RATE(network.total_bytes_in{f}#1256,
+     * true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#1242),true[BOOLEAN],PT0S[TIME_DURATION]) AS m#1229,
+     * cluster{f}#1243, pod{f}#1244],null,null,@timestamp{f}#1242,false]
+     *           \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#1242, client.ip{f}#1246, cluster{f}#1..]
+     */
+    public void testTSSubqueryWithTimeSeriesAggregate() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        LogicalPlan plan = basic().addK8sDownsampled().query("""
+            FROM test, (TS k8s | STATS m = max(rate(network.total_bytes_in)) BY cluster, pod)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        // 11 test fields + 3 subquery fields (cluster, pod, m)
+        assertEquals(14, unionAll.output().size());
+        assertEquals(2, unionAll.children().size());
+
+        // Left leg (test): Project -> Eval[3 null evals: cluster, pod, m] -> EsRelation[test]
+        Project testProject = as(unionAll.children().get(0), Project.class);
+        Eval testNullEval = as(testProject.child(), Eval.class);
+        assertEquals(3, testNullEval.fields().size());
+        EsRelation testRelation = as(testNullEval.child(), EsRelation.class);
+        assertEquals("test", testRelation.indexPattern());
+        assertEquals(IndexMode.STANDARD, testRelation.indexMode());
+
+        // Right leg (TS k8s | STATS): Project -> Eval[11 null evals for test fields] -> Subquery -> TimeSeriesAggregate ->
+        // EsRelation[TIME_SERIES]
+        Project tsProject = as(unionAll.children().get(1), Project.class);
+        Eval tsNullEval = as(tsProject.child(), Eval.class);
+        assertEquals(11, tsNullEval.fields().size());
+        Subquery subquery = as(tsNullEval.child(), Subquery.class);
+        TimeSeriesAggregate tsAggregate = as(subquery.child(), TimeSeriesAggregate.class);
+        // STATS BY cluster, pod
+        assertEquals(2, tsAggregate.groupings().size());
+        FieldAttribute clusterGrouping = as(tsAggregate.groupings().get(0), FieldAttribute.class);
+        assertEquals("cluster", clusterGrouping.name());
+        FieldAttribute podGrouping = as(tsAggregate.groupings().get(1), FieldAttribute.class);
+        assertEquals("pod", podGrouping.name());
+        EsRelation tsRelation = as(tsAggregate.child(), EsRelation.class);
+        assertEquals("k8s", tsRelation.indexPattern());
+        assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());
+    }
+
+    /*
+     * Three subqueries mixing TS and FROM. The {@link UnionAll} has three branches: a TS subquery with
+     * a time-series aggregation, a FROM subquery with a regular {@link Aggregate}, and the standard
+     * main index pattern as the first branch.
+     *
+     * Limit[10000[INTEGER],false,false]
+     * \_UnionAll[[_meta_field{r}#2034, emp_no{r}#2035, first_name{r}#2036, gender{r}#2037, hire_date{r}#2038, job{r}#2039, job.
+     * raw{r}#2040, languages{r}#2041, last_name{r}#2042, long_noidx{r}#2043, salary{r}#2044, rate{r}#2045, cluster{r
+     * }#2046, cnt{r}#2047]]
+     *   |_Project[[_meta_field{f}#1972, emp_no{f}#1966, first_name{f}#1967, gender{f}#1968, hire_date{f}#1973, job{f}#1974, job.
+     * raw{f}#1975, languages{f}#1969, last_name{f}#1970, long_noidx{f}#1976, salary{f}#1971, rate{r}#2006, cluster{r
+     * }#2007, cnt{r}#2008]]
+     *   | \_Eval[[null[DOUBLE] AS rate#2006, null[KEYWORD] AS cluster#2007, null[LONG] AS cnt#2008]]
+     *   |   \_EsRelation[test][_meta_field{f}#1972, emp_no{f}#1966, first_name{f}#..]
+     *   |_Project[[_meta_field{r}#2009, emp_no{r}#2010, first_name{r}#2011, gender{r}#2012, hire_date{r}#2013, job{r}#2014, job.
+     * raw{r}#2015, languages{r}#2016, last_name{r}#2017, long_noidx{r}#2018, salary{r}#2019, rate{r}#1962, cluster{f
+     * }#1978, cnt{r}#2020]]
+     *   | \_Eval[[null[KEYWORD] AS _meta_field#2009, null[INTEGER] AS emp_no#2010, null[KEYWORD] AS first_name#2011, null[TEXT]
+     *  AS gender#2012, null[DATETIME] AS hire_date#2013, null[TEXT] AS job#2014, null[KEYWORD] AS job.raw#2015, null
+     * [INTEGER] AS languages#2016, null[KEYWORD] AS last_name#2017, null[LONG] AS long_noidx#2018, null[INTEGER] AS
+     * salary#2019, null[LONG] AS cnt#2020]]
+     *   |   \_Subquery[]
+     *   |     \_TimeSeriesAggregate[[cluster{f}#1978],[MAX(RATE(network.total_bytes_in{f}#1991,
+     * true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#1977),true[BOOLEAN],PT0S[TIME_DURATION]) AS rate#1962,
+     * cluster{f}#1978],null,null,@timestamp{f}#1977,false]
+     *   |       \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#1977, client.ip{f}#1981, cluster{f}#1..]
+     *   \_Project[[_meta_field{r}#2021, emp_no{r}#2022, first_name{r}#2023, gender{r}#2024, hire_date{r}#2025, job{r}#2026, job.
+     * raw{r}#2027, languages{r}#2028, last_name{r}#2029, long_noidx{r}#2030, salary{r}#2031, rate{r}#2032, cluster{r
+     * }#2033, cnt{r}#1965]]
+     *     \_Eval[[null[KEYWORD] AS _meta_field#2021, null[INTEGER] AS emp_no#2022, null[KEYWORD] AS first_name#2023, null[TEXT]
+     *  AS gender#2024, null[DATETIME] AS hire_date#2025, null[TEXT] AS job#2026, null[KEYWORD] AS job.raw#2027, null
+     * [INTEGER] AS languages#2028, null[KEYWORD] AS last_name#2029, null[LONG] AS long_noidx#2030, null[INTEGER] AS
+     * salary#2031, null[DOUBLE] AS rate#2032, null[KEYWORD] AS cluster#2033]]
+     *       \_Subquery[]
+     *         \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS cnt#1965]]
+     *           \_EsRelation[sample_data][@timestamp{f}#2001, client_ip{f}#2002, event_durati..]
+     */
+    public void testMultipleSubqueriesInFromWithTS() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        LogicalPlan plan = basic().addK8sDownsampled().addSampleData().query("""
+            FROM test,
+              (TS k8s | STATS rate = max(rate(network.total_bytes_in)) BY cluster),
+              (FROM sample_data | STATS cnt = count(*))
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(3, unionAll.children().size());
+
+        // Branch 0: main FROM test
+        Project testProject = as(unionAll.children().get(0), Project.class);
+        Eval testNullEval = as(testProject.child(), Eval.class);
+        EsRelation testRelation = as(testNullEval.child(), EsRelation.class);
+        assertEquals("test", testRelation.indexPattern());
+        assertEquals(IndexMode.STANDARD, testRelation.indexMode());
+
+        // Branch 1: TS k8s subquery with TimeSeriesAggregate
+        Project tsProject = as(unionAll.children().get(1), Project.class);
+        Eval tsNullEval = as(tsProject.child(), Eval.class);
+        Subquery tsSubquery = as(tsNullEval.child(), Subquery.class);
+        TimeSeriesAggregate tsAggregate = as(tsSubquery.child(), TimeSeriesAggregate.class);
+        EsRelation tsRelation = as(tsAggregate.child(), EsRelation.class);
+        assertEquals("k8s", tsRelation.indexPattern());
+        assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());
+
+        // Branch 2: FROM sample_data subquery with regular Aggregate
+        Project sampleProject = as(unionAll.children().get(2), Project.class);
+        Eval sampleNullEval = as(sampleProject.child(), Eval.class);
+        Subquery sampleSubquery = as(sampleNullEval.child(), Subquery.class);
+        Aggregate sampleAggregate = as(sampleSubquery.child(), Aggregate.class);
+        assertFalse(sampleAggregate instanceof TimeSeriesAggregate);
+        EsRelation sampleRelation = as(sampleAggregate.child(), EsRelation.class);
+        assertEquals("sample_data", sampleRelation.indexPattern());
+        assertEquals(IndexMode.STANDARD, sampleRelation.indexMode());
+    }
+
+    /*
+     * TS subquery with chained processing commands ({@code WHERE | EVAL | KEEP}) — verifies the subquery
+     * preserves the per-command tree and that the {@link EsRelation} remains in
+     * {@link IndexMode#TIME_SERIES}. Mirrors the pattern of FROM subqueries with processing commands.
+     *
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[_meta_field{r}#573, emp_no{r}#574, first_name{r}#575, gender{r}#576, hire_date{r}#577, job{r}#578, job.raw{r}
+     * #579, languages{r}#580, last_name{r}#581, long_noidx{r}#582, salary{r}#583, cluster{r}#584, pod{r}#585, double
+     * d{r}#586]]
+     *   |_Project[[_meta_field{f}#530, emp_no{f}#524, first_name{f}#525, gender{f}#526, hire_date{f}#531, job{f}#532, job.raw{f}
+     * #533, languages{f}#527, last_name{f}#528, long_noidx{f}#534, salary{f}#529, cluster{r}#559, pod{r}#560, double
+     * d{r}#561]]
+     *   | \_Eval[[null[KEYWORD] AS cluster#559, null[KEYWORD] AS pod#560, null[DOUBLE] AS doubled#561]]
+     *   |   \_EsRelation[test][_meta_field{f}#530, emp_no{f}#524, first_name{f}#52..]
+     *   \_Project[[_meta_field{r}#562, emp_no{r}#563, first_name{r}#564, gender{r}#565, hire_date{r}#566, job{r}#567, job.raw{r}
+     * #568, languages{r}#569, last_name{r}#570, long_noidx{r}#571, salary{r}#572, cluster{f}#536, pod{f}#537, double
+     * d{r}#523]]
+     *     \_Eval[[null[KEYWORD] AS _meta_field#562, null[INTEGER] AS emp_no#563, null[KEYWORD] AS first_name#564, null[TEXT] AS
+     *  gender#565, null[DATETIME] AS hire_date#566, null[TEXT] AS job#567, null[KEYWORD] AS job.raw#568, null[INTEGE
+     * R] AS languages#569, null[KEYWORD] AS last_name#570, null[LONG] AS long_noidx#571, null[INTEGER] AS salary#572
+     * ]]
+     *       \_Subquery[]
+     *         \_Project[[cluster{f}#536, pod{f}#537, doubled{r}#523]]
+     *           \_Eval[[network.cost{f}#550 * 2[INTEGER] AS doubled#523]]
+     *             \_Filter[@timestamp{f}#535 > 1759795200000[DATETIME]]
+     *               \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#535, client.ip{f}#539, cluster{f}#536, ..]
+     */
+    public void testTSSubqueryWithProcessingCommands() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        LogicalPlan plan = basic().addK8sDownsampled().query("""
+            FROM test, (TS k8s
+                        | WHERE @timestamp > "2025-10-07"
+                        | EVAL doubled = network.cost * 2
+                        | KEEP cluster, pod, doubled)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        // 11 test fields + 3 subquery fields (cluster, pod, doubled)
+        assertEquals(14, unionAll.output().size());
+        assertEquals(2, unionAll.children().size());
+
+        // Left leg (test)
+        Project testProject = as(unionAll.children().get(0), Project.class);
+        Eval testNullEval = as(testProject.child(), Eval.class);
+        assertEquals(3, testNullEval.fields().size());
+        EsRelation testRelation = as(testNullEval.child(), EsRelation.class);
+        assertEquals("test", testRelation.indexPattern());
+
+        // Right leg (TS k8s | WHERE | EVAL | KEEP)
+        Project tsProject = as(unionAll.children().get(1), Project.class);
+        Eval tsNullEval = as(tsProject.child(), Eval.class);
+        assertEquals(11, tsNullEval.fields().size());
+        Subquery subquery = as(tsNullEval.child(), Subquery.class);
+        Project keepProject = as(subquery.child(), Project.class);
+        // KEEP projects 3 fields
+        assertEquals(3, keepProject.projections().size());
+        Eval evalNode = as(keepProject.child(), Eval.class);
+        assertEquals(1, evalNode.fields().size());
+        Alias doubledAlias = evalNode.fields().get(0);
+        assertEquals("doubled", doubledAlias.name());
+        Filter subqueryFilter = as(evalNode.child(), Filter.class);
+        EsRelation tsRelation = as(subqueryFilter.child(), EsRelation.class);
+        assertEquals("k8s", tsRelation.indexPattern());
+        assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());
+    }
+
+    /*
+     * TS subquery nested inside an outer FROM subquery — verifies that a {@code Subquery} can host its
+     * own {@code UnionAll}, and that a TS subquery sitting inside still resolves to a
+     * {@link IndexMode#TIME_SERIES} {@link EsRelation} at the leaf.
+     *
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[_meta_field{r}#472, emp_no{r}#473, first_name{r}#474, gender{r}#475, hire_date{r}#476, job{r}#477, job.raw{r}
+     * #478, languages{r}#479, last_name{r}#480, long_noidx{r}#481, salary{r}#482, @timestamp{r}#483, client_ip{r}#48
+     * 4, event_duration{r}#485, message{r}#486, client.ip{r}#487, cluster{r}#488, event{r}#489, event_city{r}#490, e
+     * vent_city_boundary{r}#491, event_location{r}#492, event_log{r}#493, event_shape{r}#494, events_received{r}#495
+     * , network.bytes_in{r}#496, network.cost{r}#497, network.eth0.currently_connected_clients{r}#498, network.eth0.
+     * firmware_version{r}#499, network.eth0.last_up{r}#500, network.eth0.rx{r}#501, network.eth0.tx{r}#502, network.
+     * eth0.up{r}#503, network.total_bytes_in{r}#504, network.total_cost{r}#505, pod{r}#506]]
+     *   |_Project[[_meta_field{f}#357, emp_no{f}#351, first_name{f}#352, gender{f}#353, hire_date{f}#358, job{f}#359, job.raw{f}
+     * #360, languages{f}#354, last_name{f}#355, long_noidx{f}#361, salary{f}#356, @timestamp{r}#437, client_ip{r}#43
+     * 8, event_duration{r}#439, message{r}#440, client.ip{r}#441, cluster{r}#442, event{r}#443, event_city{r}#444, e
+     * vent_city_boundary{r}#445, event_location{r}#446, event_log{r}#447, event_shape{r}#448, events_received{r}#449
+     * , network.bytes_in{r}#450, network.cost{r}#451, network.eth0.currently_connected_clients{r}#452, network.eth0.
+     * firmware_version{r}#453, network.eth0.last_up{r}#454, network.eth0.rx{r}#455, network.eth0.tx{r}#456, network.
+     * eth0.up{r}#457, network.total_bytes_in{r}#458, network.total_cost{r}#459, pod{r}#460]]
+     *   | \_Eval[[null[DATETIME] AS @timestamp#437, null[IP] AS client_ip#438, null[LONG] AS event_duration#439, null[KEYWORD]
+     * AS message#440, null[IP] AS client.ip#441, null[KEYWORD] AS cluster#442, null[KEYWORD] AS event#443, null[GEO_
+     * POINT] AS event_city#444, null[GEO_SHAPE] AS event_city_boundary#445, null[CARTESIAN_POINT] AS event_location#
+     * 446, null[TEXT] AS event_log#447, null[CARTESIAN_SHAPE] AS event_shape#448, null[LONG] AS events_received#449,
+     *  null[LONG] AS network.bytes_in#450, null[DOUBLE] AS network.cost#451, null[INTEGER] AS network.eth0.currently
+     * _connected_clients#452, null[VERSION] AS network.eth0.firmware_version#453, null[DATE_NANOS] AS network.eth0.l
+     * ast_up#454, null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.rx#455, null[AGGREGATE_METRIC_DOUBLE] AS network.eth
+     * 0.tx#456, null[BOOLEAN] AS network.eth0.up#457, null[LONG] AS network.total_bytes_in#458, null[DOUBLE] AS netw
+     * ork.total_cost#459, null[KEYWORD] AS pod#460]]
+     *   |   \_EsRelation[test][_meta_field{f}#357, emp_no{f}#351, first_name{f}#35..]
+     *   \_Project[[_meta_field{r}#461, emp_no{r}#462, first_name{r}#463, gender{r}#464, hire_date{r}#465, job{r}#466, job.raw{r}
+     * #467, languages{r}#468, last_name{r}#469, long_noidx{r}#470, salary{r}#471, @timestamp{r}#413, client_ip{r}#41
+     * 4, event_duration{r}#415, message{r}#416, client.ip{r}#417, cluster{r}#418, event{r}#419, event_city{r}#420, e
+     * vent_city_boundary{r}#421, event_location{r}#422, event_log{r}#423, event_shape{r}#424, events_received{r}#425
+     * , network.bytes_in{r}#426, network.cost{r}#427, network.eth0.currently_connected_clients{r}#428, network.eth0.
+     * firmware_version{r}#429, network.eth0.last_up{r}#430, network.eth0.rx{r}#431, network.eth0.tx{r}#432, network.
+     * eth0.up{r}#433, network.total_bytes_in{r}#509, network.total_cost{r}#510, pod{r}#436]]
+     *     \_Eval[[$$network.total_bytes_in$converted_to$long{r$}#515 AS network.total_bytes_in#509, $$network.total_cost$conver
+     * ted_to$double{r$}#516 AS network.total_cost#510]]
+     *       \_Eval[[null[KEYWORD] AS _meta_field#461, null[INTEGER] AS emp_no#462, null[KEYWORD] AS first_name#463, null[TEXT] AS
+     *  gender#464, null[DATETIME] AS hire_date#465, null[TEXT] AS job#466, null[KEYWORD] AS job.raw#467, null[INTEGE
+     * R] AS languages#468, null[KEYWORD] AS last_name#469, null[LONG] AS long_noidx#470, null[INTEGER] AS salary#471
+     * ]]
+     *         \_Subquery[]
+     *           \_UnionAll[[@timestamp{r}#413, client_ip{r}#414, event_duration{r}#415, message{r}#416, client.ip{r}#417, cluster{r}#418,
+     *  event{r}#419, event_city{r}#420, event_city_boundary{r}#421, event_location{r}#422, event_log{r}#423, event_s
+     * hape{r}#424, events_received{r}#425, network.bytes_in{r}#426, network.cost{r}#427, network.eth0.currently_conn
+     * ected_clients{r}#428, network.eth0.firmware_version{r}#429, network.eth0.last_up{r}#430, network.eth0.rx{r}#43
+     * 1, network.eth0.tx{r}#432, network.eth0.up{r}#433, network.total_bytes_in{r}#434, $$network.total_bytes_in$con
+     * verted_to$long{r$}#515, network.total_cost{r}#435, $$network.total_cost$converted_to$double{r$}#516, pod{r}#43
+     * 6]]
+     *             |_Project[[@timestamp{f}#362, client_ip{f}#363, event_duration{f}#364, message{f}#365, client.ip{r}#390, cluster{r}#391,
+     *  event{r}#392, event_city{r}#393, event_city_boundary{r}#394, event_location{r}#395, event_log{r}#396, event_s
+     * hape{r}#397, events_received{r}#398, network.bytes_in{r}#399, network.cost{r}#400, network.eth0.currently_conn
+     * ected_clients{r}#401, network.eth0.firmware_version{r}#402, network.eth0.last_up{r}#403, network.eth0.rx{r}#40
+     * 4, network.eth0.tx{r}#405, network.eth0.up{r}#406, network.total_bytes_in{r}#407, $$network.total_bytes_in$con
+     * verted_to$long{r$}#511, network.total_cost{r}#408, $$network.total_cost$converted_to$double{r$}#512, pod{r}#40
+     * 9]]
+     *             | \_Eval[[TOLONG(network.total_bytes_in{r}#407) AS $$network.total_bytes_in$converted_to$long#511, TODOUBLE(network.tot
+     * al_cost{r}#408) AS $$network.total_cost$converted_to$double#512]]
+     *             |   \_Eval[[null[IP] AS client.ip#390, null[KEYWORD] AS cluster#391, null[KEYWORD] AS event#392, null[GEO_POINT] AS event
+     * _city#393, null[GEO_SHAPE] AS event_city_boundary#394, null[CARTESIAN_POINT] AS event_location#395, null[TEXT]
+     *  AS event_log#396, null[CARTESIAN_SHAPE] AS event_shape#397, null[LONG] AS events_received#398, null[LONG] AS
+     * network.bytes_in#399, null[DOUBLE] AS network.cost#400, null[INTEGER] AS network.eth0.currently_connected_clie
+     * nts#401, null[VERSION] AS network.eth0.firmware_version#402, null[DATE_NANOS] AS network.eth0.last_up#403, nul
+     * l[AGGREGATE_METRIC_DOUBLE] AS network.eth0.rx#404, null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.tx#405, null[
+     * BOOLEAN] AS network.eth0.up#406, null[LONG] AS network.total_bytes_in#407, null[DOUBLE] AS network.total_cost#
+     * 408, null[KEYWORD] AS pod#409]]
+     *             |     \_EsRelation[sample_data][@timestamp{f}#362, client_ip{f}#363, event_duration..]
+     *             \_Project[[@timestamp{f}#366, client_ip{r}#410, event_duration{r}#411, message{r}#412, client.ip{f}#370, cluster{f}#367,
+     *  event{f}#371, event_city{f}#374, event_city_boundary{f}#375, event_location{f}#377, event_log{f}#372, event_s
+     * hape{f}#376, events_received{f}#373, network.bytes_in{f}#379, network.cost{f}#381, network.eth0.currently_conn
+     * ected_clients{f}#389, network.eth0.firmware_version{f}#388, network.eth0.last_up{f}#387, network.eth0.rx{f}#38
+     * 6, network.eth0.tx{f}#385, network.eth0.up{f}#384, network.total_bytes_in{r}#507, $$network.total_bytes_in$con
+     * verted_to$long{r$}#513, network.total_cost{r}#508, $$network.total_cost$converted_to$double{r$}#514, pod{f}#36
+     * 8]]
+     *               \_Eval[[TOLONG(network.total_bytes_in{r}#507) AS $$network.total_bytes_in$converted_to$long#513, TODOUBLE(network.tot
+     * al_cost{r}#508) AS $$network.total_cost$converted_to$double#514]]
+     *                 \_Eval[[TOLONG(network.total_bytes_in{f}#380) AS network.total_bytes_in#507, TODOUBLE(network.total_cost{f}#382) AS n
+     * etwork.total_cost#508]]
+     *                   \_Eval[[null[IP] AS client_ip#410, null[LONG] AS event_duration#411, null[KEYWORD] AS message#412]]
+     *                     \_Subquery[]
+     *                       \_Filter[@timestamp{f}#366 > 1759795200000[DATETIME]]
+     *                         \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#366, client.ip{f}#370, cluster{f}#367, ..]
+     */
+    public void testNestedTSSubqueryInFrom() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        LogicalPlan plan = basic().addK8sDownsampled().addSampleData().query("""
+            FROM test, (FROM sample_data, (TS k8s | WHERE @timestamp > "2025-10-07"))
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll outerUnion = as(limit.child(), UnionAll.class);
+        assertEquals(2, outerUnion.children().size());
+
+        // Left leg: test
+        Project testProject = as(outerUnion.children().get(0), Project.class);
+        Eval testNullEval = as(testProject.child(), Eval.class);
+        EsRelation testRelation = as(testNullEval.child(), EsRelation.class);
+        assertEquals("test", testRelation.indexPattern());
+
+        // Right leg: outer FROM subquery wrapping (sample_data union TS k8s)
+        // Because the inner UnionAll surfaces counter-typed fields, the outer right leg adds a
+        // counter-rename Eval on top of the null-eval before the Subquery wrapper.
+        Project rightProject = as(outerUnion.children().get(1), Project.class);
+        Eval rightCounterRename = as(rightProject.child(), Eval.class);
+        assertEquals(2, rightCounterRename.fields().size());
+        Eval rightNullEval = as(rightCounterRename.child(), Eval.class);
+        // 11 null evals for the missing test fields
+        assertEquals(11, rightNullEval.fields().size());
+        Subquery outerSubquery = as(rightNullEval.child(), Subquery.class);
+        UnionAll innerUnion = as(outerSubquery.child(), UnionAll.class);
+        assertEquals(2, innerUnion.children().size());
+
+        // Inner branch 0: sample_data — needs counter demotions for fields surfaced by the TS branch
+        Project sampleProject = as(innerUnion.children().get(0), Project.class);
+        Eval sampleCounterEval = as(sampleProject.child(), Eval.class);
+        // TOLONG/TODOUBLE for network.total_bytes_in, network.total_cost
+        assertEquals(2, sampleCounterEval.fields().size());
+        Eval sampleNullEval = as(sampleCounterEval.child(), Eval.class);
+        EsRelation sampleRelation = as(sampleNullEval.child(), EsRelation.class);
+        assertEquals("sample_data", sampleRelation.indexPattern());
+        assertEquals(IndexMode.STANDARD, sampleRelation.indexMode());
+
+        // Inner branch 1: TS k8s subquery — two stacked counter demotions (outer rename + inner cast),
+        // followed by null evals for sample_data fields, then the Subquery wrapping the TS relation.
+        Project tsProject = as(innerUnion.children().get(1), Project.class);
+        Eval tsOuterRename = as(tsProject.child(), Eval.class);
+        assertEquals(2, tsOuterRename.fields().size());
+        Eval tsInnerCast = as(tsOuterRename.child(), Eval.class);
+        assertEquals(2, tsInnerCast.fields().size());
+        Eval tsNullEval = as(tsInnerCast.child(), Eval.class);
+        Subquery innerTSSubquery = as(tsNullEval.child(), Subquery.class);
+        Filter tsFilter = as(innerTSSubquery.child(), Filter.class);
+        EsRelation tsRelation = as(tsFilter.child(), EsRelation.class);
+        assertEquals("k8s", tsRelation.indexPattern());
+        assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());
+    }
+
+    /*
+     * TS subquery alongside another FROM subquery in a {@code FROM} that has no main index pattern.
+     * The {@link UnionAll} has two {@link Subquery}-wrapped branches and no standalone index pattern
+     * leg. Counter-typed fields surfaced by the TS branch are demoted to their base type before union.
+     *
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[@timestamp{r}#55, client.ip{r}#56, cluster{r}#57, event{r}#58, event_city{r}#59, event_city_boundary{r}#60, e
+     * vent_location{r}#61, event_log{r}#62, event_shape{r}#63, events_received{r}#64, network.bytes_in{r}#65, networ
+     * k.cost{r}#66, network.eth0.currently_connected_clients{r}#67, network.eth0.firmware_version{r}#68, network.eth
+     * 0.last_up{r}#69, network.eth0.rx{r}#70, network.eth0.tx{r}#71, network.eth0.up{r}#72, network.total_bytes_in{r
+     * }#73, network.total_cost{r}#74, pod{r}#75, client_ip{r}#76, event_duration{r}#77, message{r}#78]]
+     *   |_Project[[@timestamp{f}#4, client.ip{f}#8, cluster{f}#5, event{f}#9, event_city{f}#12, event_city_boundary{f}#13, event
+     * _location{f}#15, event_log{f}#10, event_shape{f}#14, events_received{f}#11, network.bytes_in{f}#17, network.co
+     * st{f}#19, network.eth0.currently_connected_clients{f}#27, network.eth0.firmware_version{f}#26, network.eth0.la
+     * st_up{f}#25, network.eth0.rx{f}#24, network.eth0.tx{f}#23, network.eth0.up{f}#22, network.total_bytes_in{r}#79
+     * , network.total_cost{r}#80, pod{f}#6, client_ip{r}#32, event_duration{r}#33, message{r}#34]]
+     *   | \_Eval[[TOLONG(network.total_bytes_in{f}#18) AS network.total_bytes_in#79, TODOUBLE(network.total_cost{f}#20) AS netw
+     * ork.total_cost#80]]
+     *   |   \_Eval[[null[IP] AS client_ip#32, null[LONG] AS event_duration#33, null[KEYWORD] AS message#34]]
+     *   |     \_Subquery[]
+     *   |       \_Filter[@timestamp{f}#4 > 1759795200000[DATETIME]]
+     *   |         \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#4, client.ip{f}#8, cluster{f}#5, even..]
+     *   \_Project[[@timestamp{f}#28, client.ip{r}#35, cluster{r}#36, event{r}#37, event_city{r}#38, event_city_boundary{r}#39, e
+     * vent_location{r}#40, event_log{r}#41, event_shape{r}#42, events_received{r}#43, network.bytes_in{r}#44, networ
+     * k.cost{r}#45, network.eth0.currently_connected_clients{r}#46, network.eth0.firmware_version{r}#47, network.eth
+     * 0.last_up{r}#48, network.eth0.rx{r}#49, network.eth0.tx{r}#50, network.eth0.up{r}#51, network.total_bytes_in{r
+     * }#52, network.total_cost{r}#53, pod{r}#54, client_ip{f}#29, event_duration{f}#30, message{f}#31]]
+     *     \_Eval[[null[IP] AS client.ip#35, null[KEYWORD] AS cluster#36, null[KEYWORD] AS event#37, null[GEO_POINT] AS event_ci
+     * ty#38, null[GEO_SHAPE] AS event_city_boundary#39, null[CARTESIAN_POINT] AS event_location#40, null[TEXT] AS ev
+     * ent_log#41, null[CARTESIAN_SHAPE] AS event_shape#42, null[LONG] AS events_received#43, null[LONG] AS network.b
+     * ytes_in#44, null[DOUBLE] AS network.cost#45, null[INTEGER] AS network.eth0.currently_connected_clients#46, nul
+     * l[VERSION] AS network.eth0.firmware_version#47, null[DATE_NANOS] AS network.eth0.last_up#48, null[AGGREGATE_ME
+     * TRIC_DOUBLE] AS network.eth0.rx#49, null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.tx#50, null[BOOLEAN] AS netw
+     * ork.eth0.up#51, null[LONG] AS network.total_bytes_in#52, null[DOUBLE] AS network.total_cost#53, null[KEYWORD]
+     * AS pod#54]]
+     *       \_Subquery[]
+     *         \_EsRelation[sample_data][@timestamp{f}#28, client_ip{f}#29, event_duration{f..]
+     */
+    public void testTSAndFromSubqueriesInFromWithoutMainIndexPattern() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        LogicalPlan plan = analyzer().addK8sDownsampled().addSampleData().query("""
+            FROM (TS k8s | WHERE @timestamp > "2025-10-07"), (FROM sample_data)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        // Branch 0: TS k8s subquery
+        Project tsProject = as(unionAll.children().get(0), Project.class);
+        Eval tsCounterDemotionEval = as(tsProject.child(), Eval.class);
+        // counter_long and counter_double fields demoted to long/double
+        assertEquals(2, tsCounterDemotionEval.fields().size());
+        Eval tsNullEval = as(tsCounterDemotionEval.child(), Eval.class);
+        Subquery tsSubquery = as(tsNullEval.child(), Subquery.class);
+        Filter tsFilter = as(tsSubquery.child(), Filter.class);
+        EsRelation tsRelation = as(tsFilter.child(), EsRelation.class);
+        assertEquals("k8s", tsRelation.indexPattern());
+        assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());
+
+        // Branch 1: FROM sample_data subquery
+        Project sampleProject = as(unionAll.children().get(1), Project.class);
+        Eval sampleNullEval = as(sampleProject.child(), Eval.class);
+        Subquery sampleSubquery = as(sampleNullEval.child(), Subquery.class);
+        EsRelation sampleRelation = as(sampleSubquery.child(), EsRelation.class);
+        assertEquals("sample_data", sampleRelation.indexPattern());
+        assertEquals(IndexMode.STANDARD, sampleRelation.indexMode());
+    }
+
+    /*
+     * Subquery using TS with a BY WITHOUT(...) grouping, combined with a FROM subquery.
+     * Validates that the WITHOUT(...) grouping surfaces as an attribute in the UnionAll output
+     * and is propagated as a null reference into the non-TS branch.
+     *
+     * Limit[10000[INTEGER],false,false]
+     * \_UnionAll[[m{r}#2090, WITHOUT(pod){r}#2091, @timestamp{r}#2092, client_ip{r}#2093, event_duration{r}#2094, message{r}#20
+     * 95]]
+     *   |_Project[[m{r}#2052, WITHOUT(pod){r}#2049, @timestamp{r}#2084, client_ip{r}#2085, event_duration{r}#2086, message{r}#20
+     * 87]]
+     *   | \_Eval[[null[DATETIME] AS @timestamp#2084, null[IP] AS client_ip#2085, null[LONG] AS event_duration#2086, null[KEYWOR
+     * D] AS message#2087]]
+     *   |   \_Subquery[]
+     *   |     \_TimeSeriesAggregate[[TIMESERIESWITHOUT(pod{f}#2057) AS WITHOUT(pod)#2049],
+     * [MAX(RATE(network.total_bytes_in{f}#2069,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#2055),
+     * true[BOOLEAN],PT0S[TIME_DURATION]) AS m#2052, WITHOUT(pod){r}#2049],null,null,@timestamp{f}#2055,false]
+     *   |       \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#2055, client.ip{f}#2059, cluster{f}#2..]
+     *   \_Project[[m{r}#2088, WITHOUT(pod){r}#2089, @timestamp{f}#2079, client_ip{f}#2080, event_duration{f}#2081, message{f}#20
+     * 82]]
+     *     \_Eval[[null[DOUBLE] AS m#2088, null[KEYWORD] AS WITHOUT(pod)#2089]]
+     *       \_Subquery[]
+     *         \_EsRelation[sample_data][@timestamp{f}#2079, client_ip{f}#2080, event_durati..]
+     */
+    public void testTSSubqueryWithByWithoutAndFromSubquery() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires ESQL_WITHOUT_GROUPING", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+
+        LogicalPlan plan = analyzer().addK8sDownsampled().addSampleData().query("""
+            FROM (TS k8s | STATS m = max(rate(network.total_bytes_in)) BY WITHOUT(pod)),
+              (FROM sample_data)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        // The UnionAll output combines the TS aggregate columns (m, WITHOUT(pod)) with the
+        // sample_data fields (@timestamp, client_ip, event_duration, message).
+        List<? extends NamedExpression> unionOutput = unionAll.output();
+        assertEquals(6, unionOutput.size());
+        Attribute mAttr = (Attribute) unionOutput.get(0);
+        assertEquals("m", mAttr.name());
+        assertThat(mAttr, instanceOf(ReferenceAttribute.class));
+        Attribute withoutAttr = (Attribute) unionOutput.get(1);
+        assertEquals("WITHOUT(pod)", withoutAttr.name());
+        assertThat(withoutAttr, instanceOf(ReferenceAttribute.class));
+
+        // Branch 0: TS subquery with BY WITHOUT(pod)
+        Project tsProject = as(unionAll.children().get(0), Project.class);
+        Eval tsNullEval = as(tsProject.child(), Eval.class);
+        assertEquals(4, tsNullEval.fields().size());
+        // Each null eval corresponds to a missing sample_data field.
+        for (Alias nullAlias : tsNullEval.fields()) {
+            assertThat(nullAlias.child(), instanceOf(Literal.class));
+        }
+        Subquery tsSubquery = as(tsNullEval.child(), Subquery.class);
+        TimeSeriesAggregate tsAggregate = as(tsSubquery.child(), TimeSeriesAggregate.class);
+
+        // The WITHOUT(pod) grouping survives the analyzer as an Alias wrapping a TimeSeriesWithout.
+        assertEquals(1, tsAggregate.groupings().size());
+        Alias withoutGrouping = as(tsAggregate.groupings().get(0), Alias.class);
+        assertEquals("WITHOUT(pod)", withoutGrouping.name());
+        TimeSeriesWithout tsWithout = as(withoutGrouping.child(), TimeSeriesWithout.class);
+        // The grouping references the excluded dimension.
+        FieldAttribute excluded = as(tsWithout.children().get(0), FieldAttribute.class);
+        assertEquals("pod", excluded.name());
+
+        // The aggregate output exposes [m, WITHOUT(pod)].
+        assertEquals(2, tsAggregate.aggregates().size());
+        Alias mAlias = as(tsAggregate.aggregates().get(0), Alias.class);
+        assertEquals("m", mAlias.name());
+        // The second aggregate is the grouping reference WITHOUT(pod).
+        ReferenceAttribute withoutRef = as(tsAggregate.aggregates().get(1), ReferenceAttribute.class);
+        assertEquals("WITHOUT(pod)", withoutRef.name());
+        // It points back at the Alias of the grouping.
+        assertEquals(withoutGrouping.toAttribute().id(), withoutRef.id());
+
+        EsRelation tsRelation = as(tsAggregate.child(), EsRelation.class);
+        assertEquals("k8s", tsRelation.indexPattern());
+        assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());
+
+        // Branch 1: FROM sample_data — produces null Evals for m (DOUBLE) and WITHOUT(pod) (KEYWORD).
+        Project sampleProject = as(unionAll.children().get(1), Project.class);
+        Eval sampleNullEval = as(sampleProject.child(), Eval.class);
+        assertEquals(2, sampleNullEval.fields().size());
+        Alias sampleMNull = sampleNullEval.fields().get(0);
+        assertEquals("m", sampleMNull.name());
+        Alias sampleWithoutNull = sampleNullEval.fields().get(1);
+        assertEquals("WITHOUT(pod)", sampleWithoutNull.name());
+        Subquery sampleSubquery = as(sampleNullEval.child(), Subquery.class);
+        EsRelation sampleRelation = as(sampleSubquery.child(), EsRelation.class);
+        assertEquals("sample_data", sampleRelation.indexPattern());
+        assertEquals(IndexMode.STANDARD, sampleRelation.indexMode());
+    }
+
+    /*
+     * Combines a main FROM index, a TS subquery using BY WITHOUT(...), and another FROM subquery.
+     * Validates the UnionAll surfaces the WITHOUT(...) attribute across all three branches and that
+     * the non-TS branches receive a null Eval for the WITHOUT(...) reference.
+     *
+     * Limit[10000[INTEGER],false,false]
+     * \_UnionAll[[_meta_field{r}#1376, emp_no{r}#1377, first_name{r}#1378, gender{r}#1379, hire_date{r}#1380, job{r}#1381, job.
+     * raw{r}#1382, languages{r}#1383, last_name{r}#1384, long_noidx{r}#1385, salary{r}#1386, m{r}#1387, WITHOUT(pod)
+     * {r}#1388, @timestamp{r}#1389, client_ip{r}#1390, event_duration{r}#1391, message{r}#1392]]
+     *   |_Project[[_meta_field{f}#1308, emp_no{f}#1302, first_name{f}#1303, gender{f}#1304, hire_date{f}#1309, job{f}#1310, job.
+     * raw{f}#1311, languages{f}#1305, last_name{f}#1306, long_noidx{f}#1312, salary{f}#1307, m{r}#1342, WITHOUT(pod)
+     * {r}#1343, @timestamp{r}#1344, client_ip{r}#1345, event_duration{r}#1346, message{r}#1347]]
+     *   | \_Eval[[null[DOUBLE] AS m#1342, null[KEYWORD] AS WITHOUT(pod)#1343, null[DATETIME] AS @timestamp#1344, null[IP] AS cl
+     * ient_ip#1345, null[LONG] AS event_duration#1346, null[KEYWORD] AS message#1347]]
+     *   |   \_EsRelation[test][_meta_field{f}#1308, emp_no{f}#1302, first_name{f}#..]
+     *   |_Project[[_meta_field{r}#1348, emp_no{r}#1349, first_name{r}#1350, gender{r}#1351, hire_date{r}#1352, job{r}#1353, job.
+     * raw{r}#1354, languages{r}#1355, last_name{r}#1356, long_noidx{r}#1357, salary{r}#1358, m{r}#1299, WITHOUT(pod)
+     * {r}#1296, @timestamp{r}#1359, client_ip{r}#1360, event_duration{r}#1361, message{r}#1362]]
+     *   | \_Eval[[null[KEYWORD] AS _meta_field#1348, null[INTEGER] AS emp_no#1349, null[KEYWORD] AS first_name#1350, null[TEXT]
+     *  AS gender#1351, null[DATETIME] AS hire_date#1352, null[TEXT] AS job#1353, null[KEYWORD] AS job.raw#1354, null
+     * [INTEGER] AS languages#1355, null[KEYWORD] AS last_name#1356, null[LONG] AS long_noidx#1357, null[INTEGER] AS
+     * salary#1358, null[DATETIME] AS @timestamp#1359, null[IP] AS client_ip#1360, null[LONG] AS event_duration#1361,
+     *  null[KEYWORD] AS message#1362]]
+     *   |   \_Subquery[]
+     *   |     \_TimeSeriesAggregate[[TIMESERIESWITHOUT(pod{f}#1315) AS WITHOUT(pod)#1296],
+     * [MAX(RATE(network.total_bytes_in{f}#1327,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#1313),
+     * true[BOOLEAN],PT0S[TIME_DURATION]) AS m#1299, WITHOUT(pod){r}#1296],null,null,@timestamp{f}#1313,false]
+     *   |       \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#1313, client.ip{f}#1317, cluster{f}#1..]
+     *   \_Project[[_meta_field{r}#1363, emp_no{r}#1364, first_name{r}#1365, gender{r}#1366, hire_date{r}#1367, job{r}#1368, job.
+     * raw{r}#1369, languages{r}#1370, last_name{r}#1371, long_noidx{r}#1372, salary{r}#1373, m{r}#1374, WITHOUT(pod)
+     * {r}#1375, @timestamp{f}#1337, client_ip{f}#1338, event_duration{f}#1339, message{f}#1340]]
+     *     \_Eval[[null[KEYWORD] AS _meta_field#1363, null[INTEGER] AS emp_no#1364, null[KEYWORD] AS first_name#1365, null[TEXT]
+     *  AS gender#1366, null[DATETIME] AS hire_date#1367, null[TEXT] AS job#1368, null[KEYWORD] AS job.raw#1369, null
+     * [INTEGER] AS languages#1370, null[KEYWORD] AS last_name#1371, null[LONG] AS long_noidx#1372, null[INTEGER] AS
+     * salary#1373, null[DOUBLE] AS m#1374, null[KEYWORD] AS WITHOUT(pod)#1375]]
+     *       \_Subquery[]
+     *         \_EsRelation[sample_data][@timestamp{f}#1337, client_ip{f}#1338, event_durati..]
+     */
+    public void testTSSubqueryWithByWithoutInFromCommand() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires ESQL_WITHOUT_GROUPING", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+
+        LogicalPlan plan = basic().addK8sDownsampled().addSampleData().query("""
+            FROM test,
+              (TS k8s | STATS m = max(rate(network.total_bytes_in)) BY WITHOUT(pod)),
+              (FROM sample_data)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(3, unionAll.children().size());
+
+        // The UnionAll output spans all branches: 11 test fields + m + WITHOUT(pod) + 4 sample_data fields.
+        List<? extends NamedExpression> unionOutput = unionAll.output();
+        assertEquals(17, unionOutput.size());
+        // Locate the WITHOUT(pod) attribute in the union output.
+        Attribute unionWithout = (Attribute) unionOutput.stream()
+            .filter(a -> a.name().equals("WITHOUT(pod)"))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("UnionAll output must contain WITHOUT(pod) attribute"));
+        assertThat(unionWithout, instanceOf(ReferenceAttribute.class));
+        Attribute unionM = (Attribute) unionOutput.stream()
+            .filter(a -> a.name().equals("m"))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("UnionAll output must contain m attribute"));
+        assertThat(unionM, instanceOf(ReferenceAttribute.class));
+
+        // Branch 0: main FROM test — null Evals for the missing aggregate + sample_data columns.
+        Project testProject = as(unionAll.children().get(0), Project.class);
+        Eval testNullEval = as(testProject.child(), Eval.class);
+        // 6 nulls: m, WITHOUT(pod), @timestamp, client_ip, event_duration, message
+        assertEquals(6, testNullEval.fields().size());
+        assertTrue(
+            "test branch must materialize WITHOUT(pod) as a null reference",
+            testNullEval.fields().stream().anyMatch(a -> a.name().equals("WITHOUT(pod)"))
+        );
+        EsRelation testRelation = as(testNullEval.child(), EsRelation.class);
+        assertEquals("test", testRelation.indexPattern());
+
+        // Branch 1: TS subquery with BY WITHOUT(pod).
+        Project tsProject = as(unionAll.children().get(1), Project.class);
+        Eval tsNullEval = as(tsProject.child(), Eval.class);
+        // null evals for the 11 test fields + 4 sample_data fields = 15.
+        assertEquals(15, tsNullEval.fields().size());
+        // Verify the TS branch itself does not emit a null for WITHOUT(pod) — it owns that column.
+        assertTrue(
+            "TS branch must not null-eval WITHOUT(pod)",
+            tsNullEval.fields().stream().noneMatch(a -> a.name().equals("WITHOUT(pod)"))
+        );
+        Subquery tsSubquery = as(tsNullEval.child(), Subquery.class);
+        TimeSeriesAggregate tsAggregate = as(tsSubquery.child(), TimeSeriesAggregate.class);
+        assertEquals(1, tsAggregate.groupings().size());
+        Alias withoutGrouping = as(tsAggregate.groupings().get(0), Alias.class);
+        assertEquals("WITHOUT(pod)", withoutGrouping.name());
+        as(withoutGrouping.child(), TimeSeriesWithout.class);
+        EsRelation tsRelation = as(tsAggregate.child(), EsRelation.class);
+        assertEquals("k8s", tsRelation.indexPattern());
+        assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());
+
+        // Branch 2: FROM sample_data — null Evals for the 11 test fields + m + WITHOUT(pod) = 13.
+        Project sampleProject = as(unionAll.children().get(2), Project.class);
+        Eval sampleNullEval = as(sampleProject.child(), Eval.class);
+        assertEquals(13, sampleNullEval.fields().size());
+        assertTrue(
+            "sample_data branch must materialize WITHOUT(pod) as a null reference",
+            sampleNullEval.fields().stream().anyMatch(a -> a.name().equals("WITHOUT(pod)"))
+        );
+        Subquery sampleSubquery = as(sampleNullEval.child(), Subquery.class);
+        EsRelation sampleRelation = as(sampleSubquery.child(), EsRelation.class);
+        assertEquals("sample_data", sampleRelation.indexPattern());
+        assertEquals(IndexMode.STANDARD, sampleRelation.indexMode());
+    }
+
+    /*
+     * TS subquery aggregates produce {@code m} as LONG while a sibling FROM subquery emits {@code m} as KEYWORD.
+     * Without an explicit cast, the analyzer marks the column as {@link UnsupportedAttribute} in the
+     * UnionAll output and rewrites both branches' {@code m} reference to a null KEYWORD eval.
+     *
+     * Limit[10000[INTEGER],false,false]
+     * \_UnionAll[[!m, cluster{r}#2360, @timestamp{r}#2361, client_ip{r}#2362, event_duration{r}#2363, message{r}#2364]]
+     *   |_Project[[m{r}#2365, cluster{f}#2326, @timestamp{r}#2354, client_ip{r}#2355, event_duration{r}#2356, message{r}#2357]]
+     *   | \_Eval[[null[KEYWORD] AS m#2365]]
+     *   |   \_Eval[[null[DATETIME] AS @timestamp#2354, null[IP] AS client_ip#2355, null[LONG] AS event_duration#2356, null[KEYWOR
+     * D] AS message#2357]]
+     *   |     \_Subquery[]
+     *   |       \_TimeSeriesAggregate[[cluster{f}#2326],[MAX(RATE(network.total_bytes_in{f}#2339,
+     * true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#2325),true[BOOLEAN],PT0S[TIME_DURATION]) AS m#2321,
+     * cluster{f}#2326],null,null,@timestamp{f}#2325,false]
+     *   |         \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#2325, client.ip{f}#2329, cluster{f}#2..]
+     *   \_Project[[m{r}#2366, cluster{r}#2358, @timestamp{f}#2349, client_ip{f}#2350, event_duration{f}#2351, message{f}#2352]]
+     *     \_Eval[[null[KEYWORD] AS m#2366]]
+     *       \_Eval[[null[KEYWORD] AS cluster#2358]]
+     *         \_Subquery[]
+     *           \_Eval[[abc[KEYWORD] AS m#2324]]
+     *             \_EsRelation[sample_data][@timestamp{f}#2349, client_ip{f}#2350, event_durati..]
+     */
+    public void testTSSubqueryWithConflictingTypesInUnionAll() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+
+        LogicalPlan plan = analyzer().addK8sDownsampled().addSampleData().query("""
+            FROM (TS k8s | STATS m = max(rate(network.total_bytes_in)) BY cluster),
+              (FROM sample_data | EVAL m = "abc")
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        List<Attribute> output = unionAll.output();
+        assertEquals(6, output.size());
+        UnsupportedAttribute mUnsupported = as(output.get(0), UnsupportedAttribute.class);
+        assertEquals("m", mUnsupported.name());
+        assertEquals(UNSUPPORTED, mUnsupported.dataType());
+        assertThat(mUnsupported.originalTypes(), hasSize(2));
+        assertThat(mUnsupported.originalTypes(), is(List.of(DOUBLE.esType(), KEYWORD.esType())));
+
+        // Branch 0: TS leg
+        Project tsProject = as(unionAll.children().get(0), Project.class);
+        Eval tsNullM = as(tsProject.child(), Eval.class);
+        assertEquals(1, tsNullM.fields().size());
+        Alias tsNullMAlias = tsNullM.fields().get(0);
+        assertEquals("m", tsNullMAlias.name());
+        Literal tsNullMLit = as(tsNullMAlias.child(), Literal.class);
+        assertNull(tsNullMLit.value());
+        assertEquals(KEYWORD, tsNullMLit.dataType());
+
+        Eval tsNullSampleFields = as(tsNullM.child(), Eval.class);
+        assertEquals(4, tsNullSampleFields.fields().size());
+        Subquery tsSubquery = as(tsNullSampleFields.child(), Subquery.class);
+        TimeSeriesAggregate tsAggregate = as(tsSubquery.child(), TimeSeriesAggregate.class);
+        assertEquals(1, tsAggregate.groupings().size());
+        FieldAttribute clusterGrouping = as(tsAggregate.groupings().get(0), FieldAttribute.class);
+        assertEquals("cluster", clusterGrouping.name());
+        EsRelation tsRelation = as(tsAggregate.child(), EsRelation.class);
+        assertEquals("k8s", tsRelation.indexPattern());
+        assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());
+
+        // Branch 1: FROM sample_data
+        Project sampleProject = as(unionAll.children().get(1), Project.class);
+        Eval sampleNullM = as(sampleProject.child(), Eval.class);
+        assertEquals(1, sampleNullM.fields().size());
+        Alias sampleNullMAlias = sampleNullM.fields().get(0);
+        assertEquals("m", sampleNullMAlias.name());
+        Literal sampleNullMLit = as(sampleNullMAlias.child(), Literal.class);
+        assertNull(sampleNullMLit.value());
+        assertEquals(KEYWORD, sampleNullMLit.dataType());
+
+        Eval sampleNullCluster = as(sampleNullM.child(), Eval.class);
+        assertEquals(1, sampleNullCluster.fields().size());
+        assertEquals("cluster", sampleNullCluster.fields().get(0).name());
+        Subquery sampleSubquery = as(sampleNullCluster.child(), Subquery.class);
+        Eval innerEval = as(sampleSubquery.child(), Eval.class);
+        assertEquals(1, innerEval.fields().size());
+        Alias innerMAlias = innerEval.fields().get(0);
+        assertEquals("m", innerMAlias.name());
+        Literal innerMLit = as(innerMAlias.child(), Literal.class);
+        assertEquals(KEYWORD, innerMLit.dataType());
+        EsRelation sampleRelation = as(innerEval.child(), EsRelation.class);
+        assertEquals("sample_data", sampleRelation.indexPattern());
+        assertEquals(IndexMode.STANDARD, sampleRelation.indexMode());
+    }
+
+    /*
+     * Same shape as {@link #testTSSubqueryWithConflictingTypesInUnionAll} but the conflicting {@code m}
+     * is reconciled by an explicit cast {@code EVAL m = m::string}. The cast pushes a {@code TOSTRING}
+     * eval into each UnionAll branch and exposes a {@code $$m$converted_to$keyword} reference at the top.
+     *
+     * Limit[10000[INTEGER],false,false]
+     * \_Project[[m{r}#183]]
+     *   \_Eval[[$$m$converted_to$keyword{r$}#227 AS m#183]]
+     *     \_UnionAll[[!m, $$m$converted_to$keyword{r$}#227, cluster{r}#220, @timestamp{r}#221, client_ip{r}#222, event_duration{r}#
+     * 223, message{r}#224]]
+     *       |_Project[[m{r}#228, $$m$converted_to$keyword{r$}#225, cluster{f}#186, @timestamp{r}#214, client_ip{r}#215, event_durati
+     * on{r}#216, message{r}#217]]
+     *       | \_Eval[[null[KEYWORD] AS m#228]]
+     *       |   \_Eval[[TOSTRING(m{r}#177) AS $$m$converted_to$keyword#225]]
+     *       |     \_Eval[[null[DATETIME] AS @timestamp#214, null[IP] AS client_ip#215, null[LONG] AS event_duration#216, null[KEYWORD]
+     * AS message#217]]
+     *       |       \_Subquery[]
+     *       |         \_TimeSeriesAggregate[[cluster{f}#186],[MAX(RATE(network.total_bytes_in{f}#199,
+     * true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#185),true[BOOLEAN],PT0S[TIME_DURATION]) AS m#177,
+     * cluster{f}#186],null,null,@timestamp{f}#185,false]
+     *       |           \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#185, client.ip{f}#189, cluster{f}#186, ..]
+     *       \_Project[[m{r}#229, $$m$converted_to$keyword{r$}#226, cluster{r}#218, @timestamp{f}#209, client_ip{f}#210, event_durati
+     * on{f}#211, message{f}#212]]
+     *         \_Eval[[null[KEYWORD] AS m#229]]
+     *           \_Eval[[TOSTRING(m{r}#180) AS $$m$converted_to$keyword#226]]
+     *             \_Eval[[null[KEYWORD] AS cluster#218]]
+     *               \_Subquery[]
+     *                 \_Eval[[abc[KEYWORD] AS m#180]]
+     *                   \_EsRelation[sample_data][@timestamp{f}#209, client_ip{f}#210, event_duration..]
+     */
+    public void testTSSubqueryWithConflictingTypesAndExplicitCast() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+
+        LogicalPlan plan = analyzer().addK8sDownsampled().addSampleData().query("""
+            FROM (TS k8s | STATS m = max(rate(network.total_bytes_in)) BY cluster),
+              (FROM sample_data | EVAL m = "abc")
+            | EVAL m = m::string
+            | KEEP m
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Project topProject = as(limit.child(), Project.class);
+        assertEquals(1, topProject.projections().size());
+        assertEquals("m", topProject.projections().get(0).name());
+
+        Eval topEval = as(topProject.child(), Eval.class);
+        assertEquals(1, topEval.fields().size());
+        Alias mFromCast = topEval.fields().get(0);
+        assertEquals("m", mFromCast.name());
+        ReferenceAttribute castRef = as(mFromCast.child(), ReferenceAttribute.class);
+        assertEquals("$$m$converted_to$keyword", castRef.name());
+        assertEquals(KEYWORD, castRef.dataType());
+
+        UnionAll unionAll = as(topEval.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        List<Attribute> output = unionAll.output();
+        assertEquals(7, output.size());
+        UnsupportedAttribute mUnsupported = as(output.get(0), UnsupportedAttribute.class);
+        assertEquals("m", mUnsupported.name());
+        assertEquals(UNSUPPORTED, mUnsupported.dataType());
+        ReferenceAttribute castedAttr = as(output.get(1), ReferenceAttribute.class);
+        assertEquals("$$m$converted_to$keyword", castedAttr.name());
+        assertEquals(KEYWORD, castedAttr.dataType());
+
+        // Branch 0: TS leg — TOSTRING(m) eval is inserted above the null sample-data evals.
+        Project tsProject = as(unionAll.children().get(0), Project.class);
+        Eval tsNullM = as(tsProject.child(), Eval.class);
+        assertEquals(1, tsNullM.fields().size());
+        assertEquals("m", tsNullM.fields().get(0).name());
+        Eval tsCastEval = as(tsNullM.child(), Eval.class);
+        assertEquals(1, tsCastEval.fields().size());
+        Alias tsCastAlias = tsCastEval.fields().get(0);
+        assertEquals("$$m$converted_to$keyword", tsCastAlias.name());
+        Eval tsNullSampleFields = as(tsCastEval.child(), Eval.class);
+        assertEquals(4, tsNullSampleFields.fields().size());
+        Subquery tsSubquery = as(tsNullSampleFields.child(), Subquery.class);
+        TimeSeriesAggregate tsAggregate = as(tsSubquery.child(), TimeSeriesAggregate.class);
+        EsRelation tsRelation = as(tsAggregate.child(), EsRelation.class);
+        assertEquals("k8s", tsRelation.indexPattern());
+        assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());
+
+        // Branch 1: FROM sample_data — TOSTRING(m) is inserted above the cluster null and inner literal eval.
+        Project sampleProject = as(unionAll.children().get(1), Project.class);
+        Eval sampleNullM = as(sampleProject.child(), Eval.class);
+        assertEquals("m", sampleNullM.fields().get(0).name());
+        Eval sampleCastEval = as(sampleNullM.child(), Eval.class);
+        assertEquals(1, sampleCastEval.fields().size());
+        assertEquals("$$m$converted_to$keyword", sampleCastEval.fields().get(0).name());
+        Eval sampleNullCluster = as(sampleCastEval.child(), Eval.class);
+        assertEquals("cluster", sampleNullCluster.fields().get(0).name());
+        Subquery sampleSubquery = as(sampleNullCluster.child(), Subquery.class);
+        Eval innerEval = as(sampleSubquery.child(), Eval.class);
+        Alias innerMAlias = innerEval.fields().get(0);
+        assertEquals("m", innerMAlias.name());
+        assertEquals(KEYWORD, as(innerMAlias.child(), Literal.class).dataType());
+        EsRelation sampleRelation = as(innerEval.child(), EsRelation.class);
+        assertEquals("sample_data", sampleRelation.indexPattern());
+        assertEquals(IndexMode.STANDARD, sampleRelation.indexMode());
+    }
+
+    /*
+     * TS aggregate produces {@code m} as LONG while the sibling FROM subquery emits {@code m} as DOUBLE.
+     * Even though both types are numeric, the analyzer does not implicitly promote across UnionAll
+     * branches, so {@code m} surfaces as {@link UnsupportedAttribute} (LONG vs DOUBLE). An explicit
+     * cast resolves the conflict.
+     *
+     * planNoCast:
+     * Limit[10000[INTEGER],false,false]
+     * \_UnionAll[[!m, @timestamp{r}#1799, client_ip{r}#1800, event_duration{r}#1801, message{r}#1802]]
+     *   |_Project[[m{r}#1803, @timestamp{r}#1794, client_ip{r}#1795, event_duration{r}#1796, message{r}#1797]]
+     *   | \_Eval[[null[KEYWORD] AS m#1803]]
+     *   |   \_Eval[[null[DATETIME] AS @timestamp#1794, null[IP] AS client_ip#1795, null[LONG] AS event_duration#1796, null[KEYWOR
+     * D] AS message#1797]]
+     *   |     \_Subquery[]
+     *   |       \_TimeSeriesAggregate[[],[SUM(LASTOVERTIME(network.bytes_in{f}#1778,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#1765),
+     * true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_throw[KEYWORD]) AS m#1761],null,null,
+     * @timestamp{f}#1765,false]
+     *   |         \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#1765, client.ip{f}#1769, cluster{f}#1..]
+     *   \_Project[[m{r}#1804, @timestamp{f}#1789, client_ip{f}#1790, event_duration{f}#1791, message{f}#1792]]
+     *     \_Eval[[null[KEYWORD] AS m#1804]]
+     *       \_Subquery[]
+     *         \_Eval[[1.5[DOUBLE] AS m#1764]]
+     *           \_EsRelation[sample_data][@timestamp{f}#1789, client_ip{f}#1790, event_durati..]
+     *
+     * planCast:
+     * Limit[10000[INTEGER],false,false]
+     * \_Project[[m{r}#1813]]
+     *   \_Eval[[$$m$converted_to$double{r$}#1855 AS m#1813]]
+     *     \_UnionAll[[!m, $$m$converted_to$double{r$}#1855, @timestamp{r}#1849, client_ip{r}#1850, event_duration{r}#1851, message{
+     * r}#1852]]
+     *       |_Project[[m{r}#1856, $$m$converted_to$double{r$}#1853, @timestamp{r}#1844, client_ip{r}#1845, event_duration{r}#1846, m
+     * essage{r}#1847]]
+     *       | \_Eval[[null[KEYWORD] AS m#1856]]
+     *       |   \_Eval[[TODOUBLE(m{r}#1807) AS $$m$converted_to$double#1853]]
+     *       |     \_Eval[[null[DATETIME] AS @timestamp#1844, null[IP] AS client_ip#1845, null[LONG] AS event_duration#1846, null[KEYWOR
+     * D] AS message#1847]]
+     *       |       \_Subquery[]
+     *       |         \_TimeSeriesAggregate[[],[SUM(LASTOVERTIME(network.bytes_in{f}#1828,true[BOOLEAN],PT0S[TIME_DURATION],
+     * @timestamp{f}#1815),true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_throw[KEYWORD]) AS m#1807],
+     * null,null,@timestamp{f}#1815,false]
+     *       |           \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#1815, client.ip{f}#1819, cluster{f}#1..]
+     *       \_Project[[m{r}#1857, $$m$converted_to$double{r$}#1854, @timestamp{f}#1839, client_ip{f}#1840, event_duration{f}#1841, m
+     * essage{f}#1842]]
+     *         \_Eval[[null[KEYWORD] AS m#1857]]
+     *           \_Eval[[TODOUBLE(m{r}#1810) AS $$m$converted_to$double#1854]]
+     *             \_Subquery[]
+     *               \_Eval[[1.5[DOUBLE] AS m#1810]]
+     *                 \_EsRelation[sample_data][@timestamp{f}#1839, client_ip{f}#1840, event_durati..]
+     */
+    public void testTSSubqueryWithNumericConflictAndExplicitCast() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+
+        // (1) Without explicit cast: LONG vs DOUBLE → UNSUPPORTED.
+        LogicalPlan planNoCast = analyzer().addK8sDownsampled().addSampleData().query("""
+            FROM (TS k8s | STATS m = sum(last_over_time(network.bytes_in))),
+              (FROM sample_data | EVAL m = 1.5)
+            """);
+
+        Limit noCastLimit = as(planNoCast, Limit.class);
+        UnionAll noCastUnion = as(noCastLimit.child(), UnionAll.class);
+        assertEquals(2, noCastUnion.children().size());
+        List<Attribute> noCastOutput = noCastUnion.output();
+        assertEquals(5, noCastOutput.size());
+        UnsupportedAttribute mNoCast = as(noCastOutput.get(0), UnsupportedAttribute.class);
+        assertEquals("m", mNoCast.name());
+        assertEquals(UNSUPPORTED, mNoCast.dataType());
+        assertThat(mNoCast.originalTypes(), is(List.of(LONG.esType(), DOUBLE.esType())));
+
+        Project tsProject = as(noCastUnion.children().get(0), Project.class);
+        Eval tsNullM = as(tsProject.child(), Eval.class);
+        assertEquals("m", tsNullM.fields().get(0).name());
+        assertEquals(KEYWORD, as(tsNullM.fields().get(0).child(), Literal.class).dataType());
+        Eval tsNullSampleFields = as(tsNullM.child(), Eval.class);
+        assertEquals(4, tsNullSampleFields.fields().size());
+        Subquery tsSubquery = as(tsNullSampleFields.child(), Subquery.class);
+        TimeSeriesAggregate tsAggregate = as(tsSubquery.child(), TimeSeriesAggregate.class);
+        assertTrue(tsAggregate.groupings().isEmpty());
+        EsRelation tsRelation = as(tsAggregate.child(), EsRelation.class);
+        assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());
+
+        Project sampleProject = as(noCastUnion.children().get(1), Project.class);
+        Eval sampleNullM = as(sampleProject.child(), Eval.class);
+        assertEquals("m", sampleNullM.fields().get(0).name());
+        Subquery sampleSubquery = as(sampleNullM.child(), Subquery.class);
+        Eval innerEval = as(sampleSubquery.child(), Eval.class);
+        Literal oneAndAHalf = as(innerEval.fields().get(0).child(), Literal.class);
+        assertEquals(DOUBLE, oneAndAHalf.dataType());
+        assertEquals(1.5, oneAndAHalf.value());
+        EsRelation sampleRelation = as(innerEval.child(), EsRelation.class);
+        assertEquals("sample_data", sampleRelation.indexPattern());
+
+        // (2) With explicit cast m::double: TODOUBLE is pushed into each branch.
+        LogicalPlan planCast = analyzer().addK8sDownsampled().addSampleData().query("""
+            FROM (TS k8s | STATS m = sum(last_over_time(network.bytes_in))),
+              (FROM sample_data | EVAL m = 1.5)
+            | EVAL m = m::double
+            | KEEP m
+            """);
+
+        Limit castLimit = as(planCast, Limit.class);
+        Project castTopProject = as(castLimit.child(), Project.class);
+        assertEquals(1, castTopProject.projections().size());
+        Eval castTopEval = as(castTopProject.child(), Eval.class);
+        Alias mFromCast = castTopEval.fields().get(0);
+        assertEquals("m", mFromCast.name());
+        ReferenceAttribute castRef = as(mFromCast.child(), ReferenceAttribute.class);
+        assertEquals("$$m$converted_to$double", castRef.name());
+        assertEquals(DOUBLE, castRef.dataType());
+
+        UnionAll castUnion = as(castTopEval.child(), UnionAll.class);
+        assertEquals(2, castUnion.children().size());
+        ReferenceAttribute castedOutput = as(castUnion.output().get(1), ReferenceAttribute.class);
+        assertEquals("$$m$converted_to$double", castedOutput.name());
+        assertEquals(DOUBLE, castedOutput.dataType());
+
+        Project castTsProject = as(castUnion.children().get(0), Project.class);
+        Eval castTsNullM = as(castTsProject.child(), Eval.class);
+        assertEquals("m", castTsNullM.fields().get(0).name());
+        Eval castTsConvertEval = as(castTsNullM.child(), Eval.class);
+        assertEquals("$$m$converted_to$double", castTsConvertEval.fields().get(0).name());
+        Eval castTsNullSamples = as(castTsConvertEval.child(), Eval.class);
+        assertEquals(4, castTsNullSamples.fields().size());
+        Subquery castTsSubquery = as(castTsNullSamples.child(), Subquery.class);
+        TimeSeriesAggregate castTsAggregate = as(castTsSubquery.child(), TimeSeriesAggregate.class);
+        EsRelation castTsRelation = as(castTsAggregate.child(), EsRelation.class);
+        assertEquals(IndexMode.TIME_SERIES, castTsRelation.indexMode());
+
+        Project castSampleProject = as(castUnion.children().get(1), Project.class);
+        Eval castSampleNullM = as(castSampleProject.child(), Eval.class);
+        assertEquals("m", castSampleNullM.fields().get(0).name());
+        Eval castSampleConvertEval = as(castSampleNullM.child(), Eval.class);
+        assertEquals("$$m$converted_to$double", castSampleConvertEval.fields().get(0).name());
+        Subquery castSampleSubquery = as(castSampleConvertEval.child(), Subquery.class);
+        Eval castSampleInnerEval = as(castSampleSubquery.child(), Eval.class);
+        assertEquals(DOUBLE, as(castSampleInnerEval.fields().get(0).child(), Literal.class).dataType());
+        EsRelation castSampleRelation = as(castSampleInnerEval.child(), EsRelation.class);
+        assertEquals("sample_data", castSampleRelation.indexPattern());
+    }
+
+    private static TestAnalyzer basic() {
+        return analyzer().addEmployees("test").stripErrorPrefix(true);
+    }
+
+    private static TestAnalyzer k8s() {
+        return analyzer().addK8sDownsampled();
+    }
+
+    private static TestAnalyzer sampleData() {
+        return analyzer().addSampleData();
+    }
+
+    private static TestAnalyzer defaultMapping() {
+        return analyzer().addDefaultIndex();
+    }
+}

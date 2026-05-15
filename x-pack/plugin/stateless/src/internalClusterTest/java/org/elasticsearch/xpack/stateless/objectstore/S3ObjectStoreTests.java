@@ -530,7 +530,8 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
             setReplicaCount(1, indexName);
             ensureGreen(indexName);
-            // we are setting size to 0 because we don't want to retrieve the documents (which are heavy in this test case) as it can cause suite timeouts when the cache is very small
+            // we are setting size to 0 because we don't want to retrieve the documents (which are heavy in this test case) as it can cause
+            // suite timeouts when the cache is very small
             assertHitCount(prepareSearch(indexName).setSize(0), numDocs);
         } finally {
             // Stop the node otherwise the test can fail because node tries to publish cluster state to a closed HTTP handler

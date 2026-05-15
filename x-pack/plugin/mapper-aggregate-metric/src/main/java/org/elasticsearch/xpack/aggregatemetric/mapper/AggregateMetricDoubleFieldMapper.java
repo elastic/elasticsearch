@@ -546,6 +546,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             final Metric metric;
 
             private AggregateMetricValues(SortedNumericDocValues values, Metric metric) {
+                super(DocValues.unwrapSingleton(values) != null);
                 this.values = values;
                 this.metric = metric;
             }

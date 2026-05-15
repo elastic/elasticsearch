@@ -128,6 +128,11 @@ public final class ColumnMapping implements Writeable {
         return index[globalIndex];
     }
 
+    @Nullable
+    DataType cast(int globalIndex) {
+        return cast == null ? null : cast[globalIndex];
+    }
+
     private boolean hasMissingColumns() {
         for (int idx : index) {
             if (idx == -1) return true;

@@ -103,6 +103,14 @@ public class ReplaceStaticTests extends ESTestCase {
         assertPrefix("\\Aabc", "abc");
     }
 
+    public void testLiteralPrefixInputAnchorEquivalentToCaret() {
+        // \A is the start-of-input anchor and must behave identically to ^ for all of our walker logic,
+        // including the quantifier handling that drops the preceding literal on `?` / `*` and keeps it on `+`.
+        assertPrefix("\\Ahttps?://", "http");
+        assertPrefix("\\Afoob+", "foob");
+        assertPrefix("\\Afoob{0,3}", "foo");
+    }
+
     public void testLiteralPrefixOptionalChar() {
         // `s?` makes the preceding `s` optional, so the prefix is only `http`.
         assertPrefix("^https?://", "http");

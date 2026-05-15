@@ -70,9 +70,6 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         }
         bool.build().visit(visitor);
 
-        // Each accountable leaf contributes exactly its ramBytesUsed() — the inner queries built
-        // by a compound Lucene query (mirroring what Lucene's QueryParser produces inside a
-        // single LeafQueryBuilder) must all be counted, not just the outer container.
         assertEquals(perLeaf * leaves, visitor.getEstimatedBytes());
         assertEquals(leaves, visitor.getNumClauses());
     }
@@ -95,8 +92,6 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
 
         iodv.visit(visitor);
 
-        // The IODV branch in getSubVisitor returns EMPTY_VISITOR, so the inner Accountable
-        // ramBytesUsed() must never be added to the running total — only the IODV wrapper is.
         long iodvOnly = RamUsageEstimator.shallowSizeOf(iodv) + MaxClauseCountQueryVisitor.LEAF_BASE_BYTES;
         assertEquals(iodvOnly, visitor.getEstimatedBytes());
         assertEquals(1, visitor.getNumClauses());
@@ -108,8 +103,6 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
 
         visitor.visitLeaf(skipped);
 
-        // The Lucene primary IndexSortSortedNumeric query is just an optimisation around its
-        // fallback; the fallback gets its own walk, so the wrapper must never count itself.
         assertEquals(0, visitor.getNumClauses());
         assertEquals(0L, visitor.getEstimatedBytes());
     }
@@ -133,7 +126,6 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
     public void testConsumeTermsMatchingThrowsOnOverflow() {
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(1);
         visitor.consumeTermsMatching(new MatchAllDocsQuery(), "f", () -> null);
-
         expectThrows(
             IndexSearcher.TooManyNestedClauses.class,
             () -> visitor.consumeTermsMatching(new MatchAllDocsQuery(), "f", () -> null)
@@ -143,7 +135,6 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
     public void testIndexOrDocValuesQueryThrowsOnOverflow() {
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(0);
         IndexOrDocValuesQuery iodv = new IndexOrDocValuesQuery(new MatchAllDocsQuery(), new MatchAllDocsQuery());
-
         expectThrows(IndexSearcher.TooManyNestedClauses.class, () -> iodv.visit(visitor));
     }
 
@@ -151,9 +142,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
         new AccountableTestQuery(randomLongBetween(1L, 10_000L)).visit(visitor);
         assertTrue("precondition: visitor accumulated state", visitor.getNumClauses() > 0 && visitor.getEstimatedBytes() > 0);
-
         visitor.reset();
-
         assertEquals(0, visitor.getNumClauses());
         assertEquals(0L, visitor.getEstimatedBytes());
     }
@@ -163,7 +152,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         MaxClauseCountQueryVisitor inner = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
         long innerBytes = randomLongBetween(100L, 10_000L);
         new AccountableTestQuery(innerBytes).visit(inner);
-
+        
         outer.merge(inner);
 
         assertEquals(inner.getNumClauses(), outer.getNumClauses());
@@ -181,15 +170,12 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
     }
 
     public void testNullBreakerNeverTrips() {
-        // The two-arg ctor with a null breaker disables the early-trip peek entirely.
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), null);
         new AccountableTestQuery(Long.MAX_VALUE / 2).visit(visitor);
-        // No exception, and the running total is still tracked.
         assertEquals(Long.MAX_VALUE / 2, visitor.getEstimatedBytes());
     }
 
     public void testNoopCircuitBreakerNeverTrips() {
-        // Negative sentinel limit must short-circuit maybeTripBreaker.
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(
             IndexSearcher.getMaxClauseCount(),
             new NoopCircuitBreaker(CircuitBreaker.REQUEST)
@@ -203,11 +189,9 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         FakeCircuitBreaker breaker = new FakeCircuitBreaker(limit, 0L);
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), breaker);
 
-        // First leaf well under the limit — no trip.
         new AccountableTestQuery(500L).visit(visitor);
         assertFalse("first leaf should fit inside the limit", breaker.tripped);
 
-        // Second leaf pushes the running total above the limit — must trip.
         expectThrows(CircuitBreakingException.class, () -> new AccountableTestQuery(600L).visit(visitor));
         assertTrue("second leaf should have tripped the breaker", breaker.tripped);
     }
@@ -217,9 +201,6 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         long preExisting = 900L;
         FakeCircuitBreaker breaker = new FakeCircuitBreaker(limit, preExisting);
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), breaker);
-
-        // Only 200 bytes of new memory, but combined with the captured 900-byte baseline that
-        // already exists on the breaker the projected total (1100) exceeds the 1000-byte limit.
         expectThrows(CircuitBreakingException.class, () -> new AccountableTestQuery(200L).visit(visitor));
         assertTrue(breaker.tripped);
     }
@@ -230,10 +211,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         MaxClauseCountQueryVisitor outer = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), breaker);
 
         MaxClauseCountQueryVisitor inner = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
-        new AccountableTestQuery(2_000L).visit(inner);
-
-        // Even though the outer visitor never saw a leaf, merging from an inner visitor must
-        // route bytes through addEstimatedBytes() and trigger the breaker peek.
+        new AccountableTestQuery(2_000L).visit(inner);.
         expectThrows(CircuitBreakingException.class, () -> outer.merge(inner));
         assertTrue("merge must trip the breaker once projected total exceeds the limit", breaker.tripped);
     }

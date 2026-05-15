@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.ClearScrollRequest;
@@ -317,30 +316,59 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     private void clearScrollLoggingExceptions(String scrollId) {
+        if (scrollId == null) {
+            return;
+        }
         try {
-            innerClearScroll(scrollId);
+            boolean succeeded = innerClearScroll(scrollId);
+            if (succeeded == false) {
+                boolean isCcsScroll = lastLinkedClusterStates.isEmpty() == false;
+                if (isCcsScroll) {
+                    logger.info(
+                        "[{}] CCS scroll context could not be cleared, will retry [{}]",
+                        context.jobId,
+                        scrollId
+                    );
+                    failedClearScrollIds.add(scrollId);
+                } else {
+                    logger.debug(
+                        "[{}] Transient scroll clear failure, context will expire on its own [{}]",
+                        context.jobId,
+                        scrollId
+                    );
+                }
+            }
         } catch (Exception e) {
-            logger.error(() -> "[" + context.jobId + "] Failed to clear scroll", e);
-            if (scrollId != null) {
+            // Transport exception during clear (e.g. NodeNotConnectedException)
+            boolean isCcsScroll = lastLinkedClusterStates.isEmpty() == false;
+            if (isCcsScroll) {
+                logger.info(
+                    () -> "[" + context.jobId + "] CCS scroll context could not be cleared, will retry [" + scrollId + "]",
+                    e
+                );
                 failedClearScrollIds.add(scrollId);
+            } else {
+                logger.debug(
+                    () -> "[" + context.jobId + "] Transient scroll clear failure, context will expire on its own [" + scrollId + "]",
+                    e
+                );
             }
         }
     }
 
-    private void innerClearScroll(String scrollId) {
-        if (scrollId != null) {
-            ClearScrollRequest request = new ClearScrollRequest();
-            request.addScrollId(scrollId);
-            ClearScrollResponse response = ClientHelper.executeWithHeaders(
-                context.queryContext.headers,
-                ClientHelper.ML_ORIGIN,
-                client,
-                () -> client.execute(TransportClearScrollAction.TYPE, request).actionGet()
-            );
-            if (response.isSucceeded() == false) {
-                throw new ElasticsearchException("Failed to clear scroll context [{}]", scrollId);
-            }
+    private boolean innerClearScroll(String scrollId) {
+        if (scrollId == null) {
+            return true;
         }
+        ClearScrollRequest request = new ClearScrollRequest();
+        request.addScrollId(scrollId);
+        ClearScrollResponse response = ClientHelper.executeWithHeaders(
+            context.queryContext.headers,
+            ClientHelper.ML_ORIGIN,
+            client,
+            () -> client.execute(TransportClearScrollAction.TYPE, request).actionGet()
+        );
+        return response.isSucceeded();
     }
 
     @Override

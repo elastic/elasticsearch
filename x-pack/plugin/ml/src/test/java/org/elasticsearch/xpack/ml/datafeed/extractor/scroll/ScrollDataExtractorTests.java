@@ -575,8 +575,8 @@ public class ScrollDataExtractorTests extends ESTestCase {
 
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
 
-        // Get a scroll ID by fetching the first page
-        SearchResponse response1 = createSearchResponse(Arrays.asList(1100L, 1200L), Arrays.asList("a1", "a2"), Arrays.asList("b1", "b2"));
+        // Get a scroll ID by fetching the first page (CCS metadata so failed clears are retried via factory)
+        SearchResponse response1 = createCcsSearchResponse(Arrays.asList(1100L, 1200L), Arrays.asList("a1", "a2"), Arrays.asList("b1", "b2"));
         extractor.setNextResponse(response1);
         extractor.next();
 

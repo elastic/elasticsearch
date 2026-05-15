@@ -12,5 +12,6 @@ esplugin {
 dependencies {
     compileOnly project(':x-pack:plugin:core')
     testImplementation testArtifact(project(':server'))
+    testImplementation project(':test:framework')
     testImplementation project(':x-pack:plugin:core')
 }

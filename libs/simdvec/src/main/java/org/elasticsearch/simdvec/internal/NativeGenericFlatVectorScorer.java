@@ -359,6 +359,11 @@ public final class NativeGenericFlatVectorScorer implements FlatVectorsScorer {
         };
     }
 
+    private static float dotProductByteCorrection(float score, int dims) {
+        // not available as a separate method in VectorUtil
+        return 0.5f + score / (float) (dims * (1 << 15));
+    }
+
     private static class ByteScoringSupplier implements RandomVectorScorerSupplier {
         private final ByteVectorValues vectors;
         private final ByteVectorValues targetVectors;
@@ -386,7 +391,7 @@ public final class NativeGenericFlatVectorScorer implements FlatVectorsScorer {
 
                     @Override
                     float correction(float score) {
-                        return 1f / (1f + score);
+                        return normalizeDistanceToUnitInterval(score);
                     }
                 };
                 case DOT_PRODUCT -> new NativeUpdateableByteScorer(vectors, targetVectors) {
@@ -402,7 +407,7 @@ public final class NativeGenericFlatVectorScorer implements FlatVectorsScorer {
 
                     @Override
                     float correction(float score) {
-                        return 0.5f + score / (float) (dims * (1 << 15));
+                        return dotProductByteCorrection(score, dims);
                     }
                 };
                 case COSINE -> new NativeUpdateableByteScorer(vectors, targetVectors) {
@@ -471,7 +476,7 @@ public final class NativeGenericFlatVectorScorer implements FlatVectorsScorer {
 
                 @Override
                 float correction(float score) {
-                    return 1f / (1f + score);
+                    return normalizeDistanceToUnitInterval(score);
                 }
             };
             case DOT_PRODUCT -> new NativeByteScorer(values) {
@@ -492,7 +497,7 @@ public final class NativeGenericFlatVectorScorer implements FlatVectorsScorer {
 
                 @Override
                 float correction(float score) {
-                    return 0.5f + score / (float) (dims * (1 << 15));
+                    return dotProductByteCorrection(score, dims);
                 }
             };
             case COSINE -> new NativeByteScorer(values) {
@@ -513,7 +518,7 @@ public final class NativeGenericFlatVectorScorer implements FlatVectorsScorer {
 
                 @Override
                 float correction(float score) {
-                    return (1f + score) / 2f;
+                    return normalizeToUnitInterval(score);
                 }
             };
             case MAXIMUM_INNER_PRODUCT -> new NativeByteScorer(values) {

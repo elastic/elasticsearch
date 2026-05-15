@@ -81,9 +81,9 @@ public class GenericFlatVectorScorerTests extends BaseVectorizationTests {
         assertArrayEqualsPercent(singleScores, natBulkScores, DELTA_PERCENT);
     }
 
-    public void testFloatScorer(KnnVectorValues values) throws IOException {
-        FloatVectorValues floatVectors = randomFloatVectors();
-        float[] queryVector = generateRandomFloatVector(floatVectors.dimension());
+    public void testFloatScorer() throws IOException {
+        FloatVectorValues values = randomFloatVectors();
+        float[] queryVector = generateRandomFloatVector(values.dimension());
 
         var def = defaultScorer.getRandomVectorScorer(function, values.copy(), queryVector);
         var nat = nativeScorer.getRandomVectorScorer(function, values.copy(), queryVector);
@@ -111,9 +111,9 @@ public class GenericFlatVectorScorerTests extends BaseVectorizationTests {
         assertArrayEqualsPercent(singleScores, natBulkScores, DELTA_PERCENT);
     }
 
-    public void testByteScorer(KnnVectorValues values) throws IOException {
-        ByteVectorValues floatVectors = randomByteVectors();
-        byte[] queryVector = randomByteArrayOfLength(floatVectors.dimension());
+    public void testByteScorer() throws IOException {
+        ByteVectorValues values = randomByteVectors();
+        byte[] queryVector = randomByteArrayOfLength(values.dimension());
 
         var def = defaultScorer.getRandomVectorScorer(function, values.copy(), queryVector);
         var nat = nativeScorer.getRandomVectorScorer(function, values.copy(), queryVector);

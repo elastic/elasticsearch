@@ -168,10 +168,11 @@ public abstract class TaskStatusTrackerPlugin implements Plugin<Project> {
             if (GcpPreemptionWatchdog.isPreempted()) {
                 cancelled = true;
             }
-            // Fill in any planned tasks that never got an onFinish event.
-            TaskOutcome neverRanOutcome = cancelled ? TaskOutcome.INTERRUPTED : TaskOutcome.NOT_RUN;
+            // Tasks with no onFinish event were never dispatched — always NOT_RUN regardless of
+            // cancellation. INTERRUPTED is assigned in onFinish() for tasks that were actively
+            // executing when the build was cancelled (they receive a TaskFailureResult there).
             for (String path : planned) {
-                outcomes.putIfAbsent(path, neverRanOutcome);
+                outcomes.putIfAbsent(path, TaskOutcome.NOT_RUN);
             }
             writeReport();
         }
@@ -182,9 +183,8 @@ public abstract class TaskStatusTrackerPlugin implements Plugin<Project> {
          * so concurrent calls from those two paths produce a complete file rather than interleaved writes.
          */
         private synchronized void writeReport() {
-            // NOT_RUN is the safest fallback for any path not yet in outcomes; close() backfills
-            // these properly, but the onPreempted snapshot may call writeReport() before close().
-            TaskOutcome fallback = cancelled ? TaskOutcome.INTERRUPTED : TaskOutcome.NOT_RUN;
+            // Tasks not yet in outcomes haven't started; NOT_RUN is correct at any point in time.
+            TaskOutcome fallback = TaskOutcome.NOT_RUN;
 
             Set<String> allPaths = new TreeSet<>(planned);
             allPaths.addAll(outcomes.keySet());

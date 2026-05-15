@@ -103,12 +103,12 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
 
     public void testFieldValueRangeForColumnarLogsdbModeWithCFS() throws Exception {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        testFieldValueRange(true, IndexMode.COLUMNAR_LOGSDB);
+        testFieldValueRange(true, IndexMode.LOGSDB_COLUMNAR);
     }
 
     public void testFieldValueRangeForColumnarLogsdbModeNoCFS() throws Exception {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        testFieldValueRange(false, IndexMode.COLUMNAR_LOGSDB);
+        testFieldValueRange(false, IndexMode.LOGSDB_COLUMNAR);
     }
 
     public void testSoftDeletesAreAlmostAlwaysDisregardedForTimestampRange() throws Exception {
@@ -366,7 +366,10 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
     }
 
     private DocumentMapper getDocumentMapper(IndexMode indexMode) throws IOException {
-        if (indexMode == IndexMode.STANDARD || indexMode == IndexMode.LOOKUP) {
+        if (indexMode == IndexMode.STANDARD
+            || indexMode == IndexMode.LOOKUP
+            || indexMode == IndexMode.COLUMNAR
+            || indexMode == IndexMode.VECTORDB_DOCUMENT) {
             boolean nanosTimestampResolution = randomBoolean();
             if (nanosTimestampResolution) {
                 return createDocumentMapper(mapping(b -> {
@@ -398,7 +401,7 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
                 .build();
             return createMapperService(settings, mapping(b -> {})).documentMapper();
         } else {
-            // LOGSDB indexing modes use a fixed mapping for the @timestamp field
+            // LOGSDB and LOGSDB_COLUMNAR indexing modes use a fixed mapping for the @timestamp field
             return createDocumentMapper(mapping(b -> {}), indexMode);
         }
     }

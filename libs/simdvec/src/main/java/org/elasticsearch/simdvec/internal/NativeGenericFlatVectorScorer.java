@@ -88,13 +88,14 @@ public final class NativeGenericFlatVectorScorer implements FlatVectorsScorer {
         return createScorer(similarityFunction, target, (ByteVectorValues) vectorValues);
     }
 
-    private static abstract class AbstractNativeScorer extends RandomVectorScorer.AbstractRandomVectorScorer
+    private abstract static class AbstractNativeScorer extends RandomVectorScorer.AbstractRandomVectorScorer
         implements
             RandomVectorScorer,
             HasKnnVectorValues {
         final int dims;
+        private final MemorySegment[] segments = new MemorySegment[8];
 
-        public AbstractNativeScorer(KnnVectorValues vectors) {
+        AbstractNativeScorer(KnnVectorValues vectors) {
             super(vectors);
             dims = vectors.dimension();
         }
@@ -116,7 +117,6 @@ public final class NativeGenericFlatVectorScorer implements FlatVectorsScorer {
 
         @Override
         public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
-            MemorySegment[] segments = new MemorySegment[8];
             MemorySegment querySegment = queryVectorSegment();
             MemorySegment scoreSegment = MemorySegment.ofArray(scores);
 
@@ -142,10 +142,10 @@ public final class NativeGenericFlatVectorScorer implements FlatVectorsScorer {
         }
     }
 
-    private static abstract class NativeFloatScorer extends AbstractNativeScorer {
+    private abstract static class NativeFloatScorer extends AbstractNativeScorer {
         private final FloatVectorValues vectors;
 
-        public NativeFloatScorer(FloatVectorValues vectors) {
+        NativeFloatScorer(FloatVectorValues vectors) {
             super(vectors);
             this.vectors = vectors;
         }
@@ -156,11 +156,11 @@ public final class NativeGenericFlatVectorScorer implements FlatVectorsScorer {
         }
     }
 
-    private static abstract class NativeUpdateableFloatScorer extends NativeFloatScorer implements UpdateableRandomVectorScorer {
+    private abstract static class NativeUpdateableFloatScorer extends NativeFloatScorer implements UpdateableRandomVectorScorer {
         private final FloatVectorValues targetVectors;
         private final float[] vector;
 
-        public NativeUpdateableFloatScorer(FloatVectorValues vectors, FloatVectorValues targetVectors) {
+        NativeUpdateableFloatScorer(FloatVectorValues vectors, FloatVectorValues targetVectors) {
             super(vectors);
             this.targetVectors = targetVectors;
             vector = new float[targetVectors.dimension()];
@@ -177,10 +177,10 @@ public final class NativeGenericFlatVectorScorer implements FlatVectorsScorer {
         }
     }
 
-    private static abstract class NativeByteScorer extends AbstractNativeScorer {
+    private abstract static class NativeByteScorer extends AbstractNativeScorer {
         private final ByteVectorValues vectors;
 
-        public NativeByteScorer(ByteVectorValues vectors) {
+        NativeByteScorer(ByteVectorValues vectors) {
             super(vectors);
             this.vectors = vectors;
         }
@@ -191,11 +191,11 @@ public final class NativeGenericFlatVectorScorer implements FlatVectorsScorer {
         }
     }
 
-    private static abstract class NativeUpdateableByteScorer extends NativeByteScorer implements UpdateableRandomVectorScorer {
+    private abstract static class NativeUpdateableByteScorer extends NativeByteScorer implements UpdateableRandomVectorScorer {
         private final ByteVectorValues targetVectors;
         private final byte[] vector;
 
-        public NativeUpdateableByteScorer(ByteVectorValues vectors, ByteVectorValues targetVectors) {
+        NativeUpdateableByteScorer(ByteVectorValues vectors, ByteVectorValues targetVectors) {
             super(vectors);
             this.targetVectors = targetVectors;
             vector = new byte[targetVectors.dimension()];
@@ -217,7 +217,7 @@ public final class NativeGenericFlatVectorScorer implements FlatVectorsScorer {
         private final FloatVectorValues targetVectors;
         private final VectorSimilarityFunction function;
 
-        private FloatScoringSupplier(FloatVectorValues vectors, VectorSimilarityFunction function) throws IOException {
+        FloatScoringSupplier(FloatVectorValues vectors, VectorSimilarityFunction function) throws IOException {
             this.vectors = vectors;
             targetVectors = vectors.copy();
             this.function = function;
@@ -364,7 +364,7 @@ public final class NativeGenericFlatVectorScorer implements FlatVectorsScorer {
         private final ByteVectorValues targetVectors;
         private final VectorSimilarityFunction function;
 
-        private ByteScoringSupplier(ByteVectorValues vectors, VectorSimilarityFunction function) throws IOException {
+        ByteScoringSupplier(ByteVectorValues vectors, VectorSimilarityFunction function) throws IOException {
             this.vectors = vectors;
             targetVectors = vectors.copy();
             this.function = function;

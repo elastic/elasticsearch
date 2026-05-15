@@ -65,10 +65,11 @@ public final class GcdCodecStage implements NumericCodecStage {
         for (int i = 1; i < valueCount; i++) {
             gcd = MathUtil.gcd(gcd, values[i]);
             if (Long.compareUnsigned(gcd, 1) <= 0) {
-                break;
+                return;
             }
         }
 
+        // Covers the valueCount == 1 case, where the loop body never runs and gcd is just values[0].
         if (Long.compareUnsigned(gcd, 1) <= 0) {
             return;
         }

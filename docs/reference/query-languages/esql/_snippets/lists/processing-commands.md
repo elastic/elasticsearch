@@ -17,7 +17,7 @@
 * [`REGISTERED_DOMAIN`](/reference/query-languages/esql/commands/registered-domain.md) {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
 * [`RENAME`](/reference/query-languages/esql/commands/rename.md)
 * [`RERANK`](/reference/query-languages/esql/commands/rerank.md) {applies_to}`stack: preview 9.2` {applies_to}`stack: ga 9.4`
-* [`SAMPLE`](/reference/query-languages/esql/commands/sample.md) {applies_to}`stack: preview 9.1` {applies_to}`serverless: preview`
+* [`SAMPLE`](/reference/query-languages/esql/commands/sample.md) {applies_to}`stack: preview 9.1-9.4` {applies_to}`stack: ga 9.5`
 * [`SORT`](/reference/query-languages/esql/commands/sort.md)
 * [`STATS`](/reference/query-languages/esql/commands/stats-by.md)
 * [`TS_INFO`](/reference/query-languages/esql/commands/ts-info.md) {applies_to}`stack: ga 9.4` {applies_to}`serverless: preview`

@@ -64,6 +64,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
@@ -383,6 +384,11 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
 
         GoogleCloudStorageBlobStoreHttpHandler(final String bucket) {
             super(bucket);
+        }
+
+        @Override
+        public Set<String> blobsKeyset() {
+            return blobs().keySet();
         }
     }
 

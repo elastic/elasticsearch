@@ -14,14 +14,22 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.junit.ClassRule;
 import org.junit.rules.TestRule;
 
+import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Integration test verifying that metrics are buffered to disk when the OTLP endpoint is failing,
- * and replayed with correct original timestamps when the endpoint recovers.
+ * End-to-end coverage for the OTel SDK export pipeline:
+ * <ul>
+ *   <li>{@code BufferingMetricExporter}: persists batches when OTLP is unreachable and replays
+ *       them after recovery, preserving original collection timestamps.</li>
+ *   <li>{@code QueueingMetricExporter}: when APM is slow enough to back up the worker, the queue
+ *       drops the <em>newest</em> incoming batches.</li>
+ * </ul>
  */
 public class OTelMetricsBufferingIT extends AbstractMetricsIT {
+
+    public static RecordingApmServer recordingApmServer = new RecordingApmServer();
 
     public static ElasticsearchCluster cluster = AbstractMetricsIT.baseClusterBuilder()
         .systemProperty("telemetry.otel.metrics.enabled", "true")
@@ -29,31 +37,25 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
         .setting("telemetry.otel.metrics.interval", "1s")
         .setting("telemetry.otel.metrics.disk_buffer_size", "10mb")
         .setting("telemetry.otel.metrics.buffer_ttl", "5m")
+        .setting("telemetry.otel.metrics.export_queue_size", "2")
+        .setting("telemetry.otel.metrics.otlp.request_timeout", "1s")
         .build();
 
     @ClassRule
     public static TestRule ruleChain = AbstractMetricsIT.buildRuleChain(recordingApmServer, cluster);
 
     @Override
+    protected RecordingApmServer apmServer() {
+        return recordingApmServer;
+    }
+
+    @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
     }
 
-    /**
-     * Proves that metrics collected during an outage are persisted to disk and replayed with their
-     * original collection timestamps after recovery.
-     */
-    public void testMetricsBufferedDuringOutageAndReplayedOnRecovery() throws Exception {
-        CountDownLatch baselineLatch = new CountDownLatch(1);
-        recordingApmServer.addMessageConsumer(msg -> {
-            if (msg instanceof ReceivedTelemetry.ReceivedMetricSet m && "elasticsearch".equals(m.instrumentationScopeName())) {
-                baselineLatch.countDown();
-            }
-        });
-
-        client().performRequest(new Request("GET", "/_use_apm_metrics"));
-        client().performRequest(new Request("GET", "/_flush_telemetry"));
-        assertTrue("Timed out waiting for baseline metrics", baselineLatch.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS));
+    public void testOutageBuffersToDiskAndDrainsOnRecovery() throws Exception {
+        waitForMetricCollectionGreen();
 
         long outageStartEpochMs = System.currentTimeMillis();
         recordingApmServer.setResponseCode(503);
@@ -61,27 +63,83 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
         client().performRequest(new Request("GET", "/_use_apm_metrics"));
         client().performRequest(new Request("GET", "/_flush_telemetry"));
 
-        Thread.sleep(5000);
+        // Long enough to span at least one full retry chain (~3s) plus a couple of collection cycles,
+        // so the disk buffer is guaranteed to have absorbed at least one batch before recovery.
+        Thread.sleep(3000);
 
         long outageStartEpochNanos = outageStartEpochMs * 1_000_000L;
         long outageEndEpochNanos = System.currentTimeMillis() * 1_000_000L;
 
-        CountDownLatch recoveryLatch = new CountDownLatch(1);
+        CountDownLatch replaysObserved = new CountDownLatch(1);
+        CountDownLatch outageWindowBatchReplayed = new CountDownLatch(1);
         recordingApmServer.addMessageConsumer(msg -> {
             if (msg instanceof ReceivedTelemetry.ReceivedMetricSet m && "elasticsearch".equals(m.instrumentationScopeName())) {
                 long timestamp = m.collectionTime();
                 if (timestamp >= outageStartEpochNanos && timestamp <= outageEndEpochNanos) {
-                    recoveryLatch.countDown();
+                    outageWindowBatchReplayed.countDown();
                 }
+                if (positiveLongSample(m, "es.apm.metrics.disk_buffer.replays")) replaysObserved.countDown();
             }
         });
 
         recordingApmServer.setResponseCode(0);
 
         client().performRequest(new Request("GET", "/_flush_telemetry"));
+
         assertTrue(
-            "Timed out waiting for disk-replayed metrics with outage-window timestamps",
-            recoveryLatch.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS)
+            "expected at least one disk-buffered batch to be replayed after recovery "
+                + "(es.apm.metrics.disk_buffer.replays never reached >0; this implies no write happened either)",
+            replaysObserved.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS)
         );
+        assertTrue(
+            "expected a replayed metricset carrying an outage-window timestamp",
+            outageWindowBatchReplayed.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS)
+        );
+    }
+
+    /**
+     * Slow APM (above the OTLP request timeout) → queue fills → drop-newest kicks in.
+     * Asserts that {@code es.apm.metrics.export_queue.dropped} reaches a non-zero value once APM
+     * recovers and the counter can be exported.
+     */
+    public void testQueueDropsNewestUnderSlowApm() throws Exception {
+        waitForMetricCollectionGreen();
+
+        // 2s > the configured 1s OTLP request_timeout, to trigger retry logic and eventually fill the export queue
+        recordingApmServer.setResponseDelayMillis(2000);
+        Thread.sleep(8_000);
+
+        CountDownLatch droppedObserved = new CountDownLatch(1);
+        recordingApmServer.addMessageConsumer(msg -> {
+            if (msg instanceof ReceivedTelemetry.ReceivedMetricSet m
+                && "elasticsearch".equals(m.instrumentationScopeName())
+                && positiveLongSample(m, "es.apm.metrics.export_queue.dropped")) {
+                droppedObserved.countDown();
+            }
+        });
+
+        recordingApmServer.setResponseDelayMillis(0);
+        client().performRequest(new Request("GET", "/_flush_telemetry"));
+
+        assertTrue(
+            "expected the queue to drop at least one incoming batch under sustained slow APM "
+                + "(es.apm.metrics.export_queue.dropped never reached >0)",
+            droppedObserved.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS)
+        );
+    }
+
+    private static void waitForMetricCollectionGreen() throws IOException, InterruptedException {
+        CountDownLatch baselineLatch = new CountDownLatch(1);
+        recordingApmServer.addMessageConsumer(msg -> {
+            if (msg instanceof ReceivedTelemetry.ReceivedMetricSet m && "elasticsearch".equals(m.instrumentationScopeName())) {
+                baselineLatch.countDown();
+            }
+        });
+        client().performRequest(new Request("GET", "/_flush_telemetry"));
+        assertTrue("Timed out waiting for baseline metrics", baselineLatch.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS));
+    }
+
+    private static boolean positiveLongSample(ReceivedTelemetry.ReceivedMetricSet metricSet, String metricName) {
+        return metricSet.samples().get(metricName) instanceof ReceivedTelemetry.ValueSample(Number value) && value.longValue() > 0;
     }
 }

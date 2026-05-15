@@ -47,6 +47,7 @@ public class RecordingApmServer extends ExternalResource {
     private volatile Consumer<ReceivedTelemetry> consumer;
     private volatile boolean running = true;
     private volatile int overrideResponseCode = 0;
+    private volatile long responseDelayMillis = 0;
 
     @Override
     protected void before() throws Throwable {
@@ -100,8 +101,24 @@ public class RecordingApmServer extends ExternalResource {
         this.overrideResponseCode = code;
     }
 
+    /**
+     * Delay every response by the given duration before sending headers/body. Pass {@code 0} to reset.
+     */
+    public void setResponseDelayMillis(long delayMillis) {
+        this.responseDelayMillis = delayMillis;
+    }
+
     private void handle(HttpExchange exchange) throws IOException {
         try (exchange) {
+            long delay = responseDelayMillis;
+            if (delay > 0) {
+                try {
+                    Thread.sleep(delay);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
             int responseCode = overrideResponseCode;
             if (responseCode > 0) {
                 exchange.getRequestBody().readAllBytes();

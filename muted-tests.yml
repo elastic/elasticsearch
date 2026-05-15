@@ -486,9 +486,6 @@ tests:
   method: testDeleteIndexWhileNodeStopping
   issue: https://github.com/elastic/elasticsearch/issues/148807
 - class: org.elasticsearch.xpack.stateless.commits.IndexCommitTimestampFieldRangeTests
-  method: testSoftDeletesAreAlmostAlwaysDisregardedForTimestampRange
-  issue: https://github.com/elastic/elasticsearch/issues/148966
-- class: org.elasticsearch.xpack.stateless.commits.IndexCommitTimestampFieldRangeTests
   method: testFieldValueRangeForBatchedCompoundCommit
   issue: https://github.com/elastic/elasticsearch/issues/148961
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
@@ -506,9 +503,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotIT
   method: testSnapshotFailsCleanlyWhenShardClosesDuringDisconnect
   issue: https://github.com/elastic/elasticsearch/issues/149032
-- class: org.elasticsearch.xpack.stateless.objectstore.S3ObjectStoreTests
-  method: testUploadIndicesDataWithRetries
-  issue: https://github.com/elastic/elasticsearch/issues/149037
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
   method: testConcurrentRolloverDuringTransition
   issue: https://github.com/elastic/elasticsearch/issues/149039
@@ -545,3 +539,15 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests;
   method: testOneRepeatedVector
   issue: https://github.com/elastic/elasticsearch/issues/149168
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/148339
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/148339
+- class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
+  method: testGetVirtualBatchedCompoundCommitShouldNotStuckForConcurrentShardClose
+  issue: https://github.com/elastic/elasticsearch/issues/149188
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/148190

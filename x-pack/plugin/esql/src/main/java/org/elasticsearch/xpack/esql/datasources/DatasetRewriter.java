@@ -80,6 +80,15 @@ public final class DatasetRewriter {
         }
         DatasetMetadata datasetMetadata = DatasetMetadata.get(projectMetadata);
         if (datasetMetadata.datasets().isEmpty()) {
+            // #149038 diag: surfaces the case where customs has DatasetMetadata.TYPE but its inner map is empty —
+            // suspicious because Builder.datasets(...) always stores a non-empty map. Remove once root cause known.
+            if (projectMetadata.customs().containsKey(DatasetMetadata.TYPE)) {
+                logger.warn(
+                    "[#149038] datasetMetadata.datasets() is empty but customs contains [{}]; customs keys={}",
+                    DatasetMetadata.TYPE,
+                    projectMetadata.customs().keySet()
+                );
+            }
             return parsed;
         }
         DataSourceMetadata dataSourceMetadata = DataSourceMetadata.get(projectMetadata);
@@ -108,6 +117,18 @@ public final class DatasetRewriter {
 
         // Skip the O(indices) resolver expansion when no pattern could match a registered dataset name.
         if (anyPatternCouldMatchDataset(patterns, datasets.datasets().keySet()) == false) {
+            // #149038 diag: a literal pattern matches a dataset name char-for-char but Regex.simpleMatch returned false —
+            // suggests locale-sensitive equality somewhere in the match path. Remove once root cause known.
+            for (String p : patterns) {
+                if (datasets.datasets().containsKey(p)) {
+                    logger.warn(
+                        "[#149038] anyPatternCouldMatchDataset returned false but pattern [{}] is in datasets {}",
+                        p,
+                        datasets.datasets().keySet()
+                    );
+                    break;
+                }
+            }
             return relation;
         }
 
@@ -138,6 +159,16 @@ public final class DatasetRewriter {
         }
 
         if (datasetNames.isEmpty()) {
+            // #149038 diag: we have datasets registered AND a pattern that should match one, but the resolver
+            // returned no DATASET-type abstractions. Logs the resolver's view of indicesLookup to compare with
+            // the seeded datasets. Remove once root cause known.
+            logger.warn(
+                "[#149038] datasetNames empty post-resolver: patterns={} datasets={} resolved={} lookupKeys={}",
+                patterns,
+                datasets.datasets().keySet(),
+                resolved.getLocalIndicesList(),
+                indicesLookup.keySet()
+            );
             return relation;
         }
         if (relation.indexMode() != null && relation.indexMode() != IndexMode.STANDARD) {

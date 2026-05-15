@@ -8,7 +8,6 @@
 
 package org.elasticsearch.xpack.inference.services.validation;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
@@ -17,7 +16,6 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
-import org.elasticsearch.rest.RestStatus;
 
 import java.util.List;
 import java.util.Map;
@@ -38,26 +36,7 @@ public class SimpleServiceIntegrationValidator implements ServiceIntegrationVali
             Map.of(),
             InputType.INTERNAL_INGEST,
             timeout,
-            ActionListener.wrap(r -> {
-                if (r != null) {
-                    listener.onResponse(r);
-                } else {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(
-                            "Could not complete inference endpoint creation as validation call to service returned null response.",
-                            RestStatus.BAD_REQUEST
-                        )
-                    );
-                }
-            }, e -> {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        "Could not complete inference endpoint creation as validation call to service threw an exception.",
-                        RestStatus.BAD_REQUEST,
-                        e
-                    )
-                );
-            })
+            ServiceIntegrationValidator.wrapListenerForValidation(listener)
         );
     }
 }

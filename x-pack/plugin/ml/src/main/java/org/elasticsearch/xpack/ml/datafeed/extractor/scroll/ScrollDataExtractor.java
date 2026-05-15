@@ -105,7 +105,7 @@ class ScrollDataExtractor implements DataExtractor {
         clearScroll();
         List<String> scrollIdsToRetry = List.copyOf(failedClearScrollIds);
         failedClearScrollIds.clear();
-        // Second attempt for those same ids before handing off to the factory. 
+        // Second attempt for those same ids before handing off to the factory.
         for (String orphanedScrollId : scrollIdsToRetry) {
             clearScrollLoggingExceptions(orphanedScrollId);
         }

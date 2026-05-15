@@ -11,6 +11,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.DefaultHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.FieldHighlightContext;
@@ -24,11 +25,12 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.Semantic
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
@@ -97,9 +99,9 @@ public class SemanticTextHighlighter implements Highlighter {
             );
             offsetToContent = entry -> getContentFromLegacyNestedSources(fieldType.name(), entry, nestedSources);
         } else {
-            Map<String, String> fieldToContent = new HashMap<>();
+            Map<String, SemanticFieldContent> fieldToContent = new HashMap<>();
             offsetToContent = entry -> {
-                String content = fieldToContent.computeIfAbsent(entry.offset().field(), key -> {
+                SemanticFieldContent content = fieldToContent.computeIfAbsent(entry.offset().field(), key -> {
                     try {
                         return extractFieldContent(
                             fieldContext.context.getSearchExecutionContext(),
@@ -110,7 +112,35 @@ public class SemanticTextHighlighter implements Highlighter {
                         throw new UncheckedIOException("Error extracting field content from field " + entry.offset().field(), e);
                     }
                 });
-                return content.substring(entry.offset().start(), entry.offset().end());
+
+                String offsetContent;
+                if (entry.offset().inputIndex() != null) {
+                    InferenceString inferenceString = content.inferenceStringValues().get(entry.offset().inputIndex());
+                    if (inferenceString == null) {
+                        throw new IllegalStateException(
+                            "Invalid content detected for field ["
+                                + entry.offset().field()
+                                + "]: missing InferenceString value at index ["
+                                + entry.offset().inputIndex()
+                                + "]"
+                        );
+                    }
+                    offsetContent = content.inferenceStringValues().get(entry.offset().inputIndex()).value();
+                } else {
+                    if (content.textValues().length() < entry.offset().end()) {
+                        throw new IllegalStateException(
+                            "Invalid content detected for field ["
+                                + entry.offset().field()
+                                + "]: missing text for the chunk at offset ["
+                                + entry.offset().start()
+                                + ", "
+                                + entry.offset().end()
+                                + "]"
+                        );
+                    }
+                    offsetContent = content.textValues().substring(entry.offset().start(), entry.offset().end());
+                }
+                return offsetContent;
             };
         }
         for (int i = 0; i < size; i++) {
@@ -118,12 +148,7 @@ public class SemanticTextHighlighter implements Highlighter {
             String content = offsetToContent.apply(chunk);
             if (content == null) {
                 throw new IllegalStateException(
-                    String.format(
-                        Locale.ROOT,
-                        "Invalid content detected for field [%s]: missing text for the chunk at offset [%d].",
-                        fieldType.name(),
-                        chunk.offset().start()
-                    )
+                    "Invalid content detected for field [" + fieldType.name() + "]: missing text for the chunk " + chunk
                 );
             }
             snippets[i] = new Text(content);
@@ -131,20 +156,38 @@ public class SemanticTextHighlighter implements Highlighter {
         return new HighlightField(fieldContext.fieldName, snippets);
     }
 
-    private String extractFieldContent(SearchExecutionContext searchContext, FetchSubPhase.HitContext hitContext, String sourceField)
-        throws IOException {
+    private SemanticFieldContent extractFieldContent(
+        SearchExecutionContext searchContext,
+        FetchSubPhase.HitContext hitContext,
+        String sourceField
+    ) throws IOException {
         var sourceFieldType = searchContext.getMappingLookup().getFieldType(sourceField);
         if (sourceFieldType == null) {
-            return null;
+            throw new IllegalStateException("Field [" + sourceField + "] is not mapped");
         }
 
-        var values = HighlightUtils.loadFieldValues(sourceFieldType, searchContext, hitContext)
-            .stream()
-            .<Object>map((s) -> DefaultHighlighter.convertFieldValue(sourceFieldType, s))
-            .toList();
-        if (values.size() == 0) {
-            return null;
+        List<Object> textValues = new ArrayList<>();
+        Map<Integer, InferenceString> inferenceStringValues = new HashMap<>();
+        List<Object> rawFieldValues = HighlightUtils.loadFieldValues(sourceFieldType, searchContext, hitContext);
+
+        int valueIndex = 0;
+        for (Object rawFieldValue : rawFieldValues) {
+            if (rawFieldValue instanceof InferenceString inferenceString) {
+                inferenceStringValues.put(valueIndex, inferenceString);
+            } else {
+                textValues.add(DefaultHighlighter.convertFieldValue(sourceFieldType, rawFieldValue));
+            }
+
+            valueIndex++;
         }
-        return DefaultHighlighter.mergeFieldValues(values, MULTIVAL_SEP_CHAR);
+
+        return new SemanticFieldContent(DefaultHighlighter.mergeFieldValues(textValues, MULTIVAL_SEP_CHAR), inferenceStringValues);
+    }
+
+    private record SemanticFieldContent(String textValues, Map<Integer, InferenceString> inferenceStringValues) {
+        private SemanticFieldContent {
+            Objects.requireNonNull(textValues);
+            Objects.requireNonNull(inferenceStringValues);
+        }
     }
 }

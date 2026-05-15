@@ -1173,6 +1173,14 @@ public final class IndexSettings {
         }
     }, Property.IndexScope, Property.Final);
 
+    public static final Setting<Boolean> INDEX_MAPPING_INCLUDE_SEMANTIC_FIELDS_IN_SOURCE_SETTING = Setting.boolSetting(
+        "index.mapping.include_source_semanatic_field",
+        false,
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
+    );
+
     private final Index index;
     private final IndexVersion version;
     private final Logger logger;

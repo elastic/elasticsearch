@@ -459,7 +459,8 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                 ),
                 builderParams,
                 modelRegistry,
-                vectorsFormatProviders
+                vectorsFormatProviders,
+                isFieldIncludedInSource
             );
         }
 
@@ -474,9 +475,10 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         MappedFieldType mappedFieldType,
         BuilderParams builderParams,
         ModelRegistry modelRegistry,
-        List<VectorsFormatProvider> vectorsFormatProviders
+        List<VectorsFormatProvider> vectorsFormatProviders,
+        boolean isFieldIncludedInSource
     ) {
-        super(simpleName, mappedFieldType, builderParams, modelRegistry, vectorsFormatProviders);
+        super(simpleName, mappedFieldType, builderParams, modelRegistry, vectorsFormatProviders, isFieldIncludedInSource);
     }
 
     @Override

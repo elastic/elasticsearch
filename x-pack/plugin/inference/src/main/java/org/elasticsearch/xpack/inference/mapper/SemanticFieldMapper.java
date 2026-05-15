@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -125,6 +126,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         protected final IndexSettings indexSettings;
         protected final IndexVersion indexVersionCreated;
         protected final boolean experimentalFeaturesEnabled;
+        protected final boolean isFieldIncludedInSource;
         protected final List<VectorsFormatProvider> vectorsFormatProviders;
 
         protected final Parameter<String> inferenceId;
@@ -149,6 +151,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             this.indexSettings = indexSettings;
             this.indexVersionCreated = indexSettings.getIndexVersionCreated();
             this.experimentalFeaturesEnabled = IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(indexSettings.getSettings());
+            this.isFieldIncludedInSource = IndexSettings.INDEX_MAPPING_INCLUDE_SEMANTIC_FIELDS_IN_SOURCE_SETTING.get(indexSettings.getSettings());
             this.vectorsFormatProviders = vectorsFormatProviders;
 
             this.inferenceId = configureInferenceIdParam();
@@ -522,7 +525,8 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 ),
                 builderParams,
                 modelRegistry,
-                vectorsFormatProviders
+                vectorsFormatProviders,
+                isFieldIncludedInSource
             );
         }
 
@@ -552,18 +556,21 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
     protected final ModelRegistry modelRegistry;
     protected final List<VectorsFormatProvider> vectorsFormatProviders;
+    private final boolean isFieldIncludedInSource;
 
     SemanticFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
         BuilderParams builderParams,
         ModelRegistry modelRegistry,
-        List<VectorsFormatProvider> vectorsFormatProviders
+        List<VectorsFormatProvider> vectorsFormatProviders,
+        boolean isFieldIncludedInSource
     ) {
         super(simpleName, mappedFieldType, builderParams);
         ensureMultiFields(builderParams.multiFields().iterator());
         this.modelRegistry = modelRegistry;
         this.vectorsFormatProviders = vectorsFormatProviders;
+        this.isFieldIncludedInSource = isFieldIncludedInSource;
     }
 
     private void ensureMultiFields(Iterator<FieldMapper> mappers) {
@@ -642,8 +649,18 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        // Value parsing is handled by parseCreateFieldFromContext
-        context.parser().skipChildren();
+        if (isFieldIncludedInSource) {
+            context.parser().skipChildren();
+            return;
+        }
+        // Store field value as doc values
+
+    }
+
+    @Override
+    public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
+        // TODO: return a loader to load values from doc values field
+        return null;
     }
 
     protected SemanticTextField.ParserContext getParserContext(DocumentParserContext context) {

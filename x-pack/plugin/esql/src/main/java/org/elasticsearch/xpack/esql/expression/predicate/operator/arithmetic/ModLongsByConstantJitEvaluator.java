@@ -87,7 +87,7 @@ public abstract class ModLongsByConstantJitEvaluator implements ExpressionEvalua
                         continue position;
                 }
                 long lhsVal = lhsBlock.getLong(lhsBlock.getFirstValueIndex(p));
-                result.appendLong(Mod.processLongsByConstant(lhsVal, rhs()));
+                result.appendLong(lhsVal % rhs());
             }
             return result.build();
         }
@@ -97,7 +97,7 @@ public abstract class ModLongsByConstantJitEvaluator implements ExpressionEvalua
         try (LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
             for (int p = 0; p < positionCount; p++) {
                 long lhsVal = lhsVector.getLong(p);
-                result.appendLong(p, Mod.processLongsByConstant(lhsVal, rhs()));
+                result.appendLong(p, lhsVal % rhs());
             }
             return result.build();
         }

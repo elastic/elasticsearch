@@ -68,7 +68,7 @@ public abstract class DivIntsByConstantJitEvaluator implements ExpressionEvaluat
                         continue position;
                 }
                 int lhsVal = lhsBlock.getInt(lhsBlock.getFirstValueIndex(p));
-                result.appendInt(Div.processIntsByConstant(lhsVal, rhs()));
+                result.appendInt(lhsVal / rhs());
             }
             return result.build();
         }
@@ -78,7 +78,7 @@ public abstract class DivIntsByConstantJitEvaluator implements ExpressionEvaluat
         try (IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
             for (int p = 0; p < positionCount; p++) {
                 int lhsVal = lhsVector.getInt(p);
-                result.appendInt(p, Div.processIntsByConstant(lhsVal, rhs()));
+                result.appendInt(p, lhsVal / rhs());
             }
             return result.build();
         }

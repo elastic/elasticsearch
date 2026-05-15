@@ -73,7 +73,9 @@ public abstract class DivLongsByConstantJitEvaluator implements ExpressionEvalua
                         continue position;
                 }
                 long lhsVal = lhsBlock.getLong(lhsBlock.getFirstValueIndex(p));
-                result.appendLong(Div.processLongsByConstant(lhsVal, rhs()));
+                // Inlined Div.processLongsByConstant to drop one inlining frame — helps C2 fire GM
+                // on Graviton/Intel/AMD where the indirect through processLongsByConstant blocks folding.
+                result.appendLong(lhsVal / rhs());
             }
             return result.build();
         }
@@ -83,7 +85,7 @@ public abstract class DivLongsByConstantJitEvaluator implements ExpressionEvalua
         try (LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
             for (int p = 0; p < positionCount; p++) {
                 long lhsVal = lhsVector.getLong(p);
-                result.appendLong(p, Div.processLongsByConstant(lhsVal, rhs()));
+                result.appendLong(p, lhsVal / rhs());
             }
             return result.build();
         }

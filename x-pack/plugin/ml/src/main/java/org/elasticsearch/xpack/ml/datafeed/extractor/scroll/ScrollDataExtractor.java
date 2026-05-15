@@ -101,9 +101,13 @@ class ScrollDataExtractor implements DataExtractor {
     @Override
     public void destroy() {
         cancel();
+        // First clear attempt for the active scroll. CCS failure -> INFO + scroll id added to failedClearScrollIds.
         clearScroll();
         List<String> scrollIdsToRetry = List.copyOf(failedClearScrollIds);
         failedClearScrollIds.clear();
+        // Second attempt for those same ids before handing off to the factory. A CCS id can therefore log INFO twice
+        // in one destroy() (once above, once here); we skip extra bookkeeping to dedupe. After addOrphanedScrollIds,
+        // ScrollDataExtractorFactory.retryClearOrphanedScrollIds logs further failures at DEBUG only.
         for (String orphanedScrollId : scrollIdsToRetry) {
             clearScrollLoggingExceptions(orphanedScrollId);
         }
@@ -117,6 +121,7 @@ class ScrollDataExtractor implements DataExtractor {
         // important when the datafeed is shutting down and no further initScroll() calls will
         // happen to trigger the retry there. If the network has since recovered, these will clear.
         if (factory.hasOrphanedScrollIds()) {
+            // DEBUG-only retry path as initScroll() for orphans from other extractors.
             factory.retryClearOrphanedScrollIds();
         }
     }
@@ -154,6 +159,7 @@ class ScrollDataExtractor implements DataExtractor {
 
     protected InputStream initScroll(long startTimestamp) throws IOException {
         if (factory.hasOrphanedScrollIds()) {
+            // Queued CCS orphans from prior extractors: clear failures are DEBUG in ScrollDataExtractorFactory.
             factory.retryClearOrphanedScrollIds();
         }
         logger.debug("[{}] Initializing scroll with start time [{}]", context.jobId, startTimestamp);
@@ -315,8 +321,6 @@ class ScrollDataExtractor implements DataExtractor {
         scrollId = null;
     }
 
-    // NOTE: The same scroll ID can log at INFO twice during destroy() (initial clearScroll plus the retry loop).
-    // Suppressing the second line would need per-ID state for little benefit; factory-side retries log failures at DEBUG.
     private void clearScrollLoggingExceptions(String scrollId) {
         if (scrollId == null) {
             return;
@@ -326,28 +330,17 @@ class ScrollDataExtractor implements DataExtractor {
             if (succeeded == false) {
                 boolean isCcsScroll = lastLinkedClusterStates.isEmpty() == false;
                 if (isCcsScroll) {
-                    logger.info(
-                        "[{}] CCS scroll context could not be cleared, will retry [{}]",
-                        context.jobId,
-                        scrollId
-                    );
+                    logger.info("[{}] CCS scroll context could not be cleared, will retry [{}]", context.jobId, scrollId);
                     failedClearScrollIds.add(scrollId);
                 } else {
-                    logger.debug(
-                        "[{}] Transient scroll clear failure, context will expire on its own [{}]",
-                        context.jobId,
-                        scrollId
-                    );
+                    logger.debug("[{}] Transient scroll clear failure, context will expire on its own [{}]", context.jobId, scrollId);
                 }
             }
         } catch (Exception e) {
             // Transport exception during clear (e.g. NodeNotConnectedException)
             boolean isCcsScroll = lastLinkedClusterStates.isEmpty() == false;
             if (isCcsScroll) {
-                logger.info(
-                    () -> "[" + context.jobId + "] CCS scroll context could not be cleared, will retry [" + scrollId + "]",
-                    e
-                );
+                logger.info(() -> "[" + context.jobId + "] CCS scroll context could not be cleared, will retry [" + scrollId + "]", e);
                 failedClearScrollIds.add(scrollId);
             } else {
                 logger.debug(

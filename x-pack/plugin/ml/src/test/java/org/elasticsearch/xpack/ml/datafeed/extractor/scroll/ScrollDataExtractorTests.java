@@ -40,8 +40,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
@@ -575,8 +575,12 @@ public class ScrollDataExtractorTests extends ESTestCase {
 
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
 
-        // Get a scroll ID by fetching the first page (CCS metadata so failed clears are retried via factory)
-        SearchResponse response1 = createCcsSearchResponse(Arrays.asList(1100L, 1200L), Arrays.asList("a1", "a2"), Arrays.asList("b1", "b2"));
+        // Get a scroll ID by fetching the first page
+        SearchResponse response1 = createCcsSearchResponse(
+            Arrays.asList(1100L, 1200L),
+            Arrays.asList("a1", "a2"),
+            Arrays.asList("b1", "b2")
+        );
         extractor.setNextResponse(response1);
         extractor.next();
 
@@ -660,7 +664,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testLocalScrollClearFailureDoesNotQueueOrphan() throws IOException {
+    public void testLocalScrollClearWithSucceededFalseShouldNotQueueOrphan() throws IOException {
         ActionFuture<ClearScrollResponse> failedClearFuture = mock(ActionFuture.class);
         when(failedClearFuture.actionGet()).thenReturn(new ClearScrollResponse(false, 0));
         when(client.execute(same(TransportClearScrollAction.TYPE), any(ClearScrollRequest.class))).thenReturn(
@@ -685,7 +689,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testLocalScrollClearTransportExceptionDoesNotQueueOrphan() throws IOException {
+    public void testLocalScrollClearTransportExceptionShouldNotQueueOrphan() throws IOException {
         ActionFuture<ClearScrollResponse> throwingClearFuture = mock(ActionFuture.class);
         when(throwingClearFuture.actionGet()).thenThrow(new ElasticsearchException("network disruption"));
         when(client.execute(same(TransportClearScrollAction.TYPE), any(ClearScrollRequest.class))).thenReturn(
@@ -710,7 +714,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testCcsScrollClearFailureQueuesOrphanWithMetadata() throws IOException {
+    public void testCcsScrollClearWithSucceededFalseShouldQueueOrphanWithMetadata() throws IOException {
         ActionFuture<ClearScrollResponse> failedClearFuture = mock(ActionFuture.class);
         when(failedClearFuture.actionGet()).thenReturn(new ClearScrollResponse(false, 0));
         when(client.execute(same(TransportClearScrollAction.TYPE), any(ClearScrollRequest.class))).thenReturn(

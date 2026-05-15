@@ -19,10 +19,10 @@ import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -92,11 +92,11 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
     /**
      * Records scroll IDs that a destroyed extractor could not clear during a network disruption (typically CCS).
      * <p>
-     * Queuing is bounded: at most {@value #MAX_ORPHAN_QUEUE_SIZE} entries are retained (overflow evicts the
-     * eldest with a WARN). {@link #retryClearOrphanedScrollIds()} is invoked when a new extractor starts
+     * Queuing is bounded: at most {@value #MAX_ORPHAN_QUEUE_SIZE} newest entries are retained.
+     * {@link #retryClearOrphanedScrollIds()} is invoked when a new extractor starts
      * ({@link ScrollDataExtractor#initScroll(long)}) or during {@link ScrollDataExtractor#destroy()}; each
      * entry is dropped after {@link #ORPHAN_TTL_MILLIS} milliseconds since enqueue or after {@value #MAX_ORPHAN_RETRIES}
-     * consecutive failed clears (evicted with a WARN).
+     * consecutive failed clears.
      */
     void addOrphanedScrollIds(List<String> scrollIds) {
         long now = System.currentTimeMillis();
@@ -104,7 +104,7 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
             if (orphanedScrolls.size() >= MAX_ORPHAN_QUEUE_SIZE) {
                 OrphanedScroll eldest = orphanedScrolls.poll();  // removes head (eldest)
                 if (eldest != null) {
-                    logger.warn(
+                    logger.debug(
                         "[{}] Orphan scroll queue overflow, dropping eldest entry aged {}ms",
                         job.getId(),
                         now - eldest.createdAtMillis()
@@ -124,10 +124,6 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
 
     /**
      * Attempts to clear every queued orphaned scroll ID. Successfully cleared IDs are removed.
-     * <p>
-     * Failures increment per-entry retry bookkeeping and the ID stays in the queue for later passes until
-     * {@link #ORPHAN_TTL_MILLIS} milliseconds elapse since it was queued or {@value #MAX_ORPHAN_RETRIES} failures are
-     * reached, after which the ID is evicted with a WARN (no infinite retry).
      */
     void retryClearOrphanedScrollIds() {
         long now = System.currentTimeMillis();
@@ -136,7 +132,7 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
             OrphanedScroll entry = it.next();
             // Evict if stale by age or max retries reached
             if (now - entry.createdAtMillis() > ORPHAN_TTL_MILLIS || entry.retryAttempts() >= MAX_ORPHAN_RETRIES) {
-                logger.warn(
+                logger.info(
                     "[{}] Giving up on orphaned CCS scroll context [{}] after {} retries / {}ms — remote scroll may persist until TTL",
                     job.getId(),
                     entry.scrollId(),
@@ -158,15 +154,10 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
                 if (response.isSucceeded() == false) {
                     throw new ElasticsearchException("Clear scroll returned failure for scroll [{}]", entry.scrollId());
                 }
-                it.remove();  // success: silently remove
+                it.remove();
             } catch (Exception e) {
                 int newRetries = entry.retryAttempts() + 1;
-                logger.debug(
-                    "[{}] Retry {} for orphaned scroll [{}] still failed",
-                    job.getId(),
-                    newRetries,
-                    entry.scrollId()
-                );
+                logger.debug("[{}] Retry {} for orphaned scroll [{}] still failed", job.getId(), newRetries, entry.scrollId());
                 // Replace entry with incremented retry count
                 it.remove();
                 orphanedScrolls.add(new OrphanedScroll(entry.scrollId(), entry.createdAtMillis(), newRetries));

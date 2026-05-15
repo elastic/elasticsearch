@@ -9,6 +9,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -17,14 +18,17 @@ public class RecoveryThrottlingQueue {
 
     private final ThreadPool threadPool;
     private final int maxConcurrentRecoveries;
+    // Logger useful for testing, might remove later
+    private final Logger logger;
     private final ConcurrentLinkedQueue<RecoveryTask> pending = new ConcurrentLinkedQueue<>();
     private final Object mutex = new Object();
     // Protected by mutex
     private int running;
 
-    public RecoveryThrottlingQueue(ThreadPool threadPool, int maxConcurrentRecoveries) {
+    public RecoveryThrottlingQueue(ThreadPool threadPool, int maxConcurrentRecoveries, Logger logger) {
         this.threadPool = threadPool;
         this.maxConcurrentRecoveries = maxConcurrentRecoveries;
+        this.logger = logger;
     }
 
     public void enqueue(RecoveryTask recoveryTask) {

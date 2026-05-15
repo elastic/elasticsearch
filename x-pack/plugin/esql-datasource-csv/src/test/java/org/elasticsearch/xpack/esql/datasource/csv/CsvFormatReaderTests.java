@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -2811,15 +2812,15 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     public void testFindLastRecordBoundaryQuotedFieldsOnlyMatchesDefaultPolyloop() throws IOException {
-        // Equivalence: across randomized inputs, the override must produce the same answer as the
-        // inherited default polyloop did before the override existed (i.e. driving findNextRecordBoundary
-        // forward through the buffer).
+        // Equivalence: across randomized inputs, the override must produce the same answer as
+        // driving findNextRecordBoundary forward through the buffer — i.e. what
+        // SegmentableFormatReader.findLastRecordBoundary's default body computes.
         CsvFormatReader reader = noMvcReader(blockFactory);
         for (int trial = 0; trial < 50; trial++) {
             byte[] data = randomQuotedFieldsCsv(randomIntBetween(0, 4096));
             int override = reader.findLastRecordBoundary(data, data.length);
-            int polyloop = referenceDefaultPolyloop(reader, data, data.length);
-            assertEquals("trial " + trial + " input=" + new String(data, StandardCharsets.UTF_8), polyloop, override);
+            int oracle = referenceDefaultPolyloop(reader, data, data.length);
+            assertEquals("trial " + trial + " input=" + new String(data, StandardCharsets.UTF_8), oracle, override);
         }
     }
 
@@ -2836,9 +2837,9 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Pre-refactor reference: replays the {@code SegmentableFormatReader#findLastRecordBoundary}
-     * default body, dispatching {@code reader.findNextRecordBoundary} forward through the buffer.
-     * Used as the equivalence oracle for the override.
+     * Replays the {@link SegmentableFormatReader#findLastRecordBoundary} default body — drives
+     * the current {@code findNextRecordBoundary} forward through the buffer. Used as the
+     * equivalence oracle for the override.
      */
     private static int referenceDefaultPolyloop(CsvFormatReader reader, byte[] buf, int length) throws IOException {
         if (length <= 0) {

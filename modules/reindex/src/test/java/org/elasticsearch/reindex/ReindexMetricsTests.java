@@ -161,7 +161,8 @@ public class ReindexMetricsTests extends ESTestCase {
     public void testRecordRelocationStarted() {
         metrics.recordRelocationStarted();
 
-        List<Measurement> measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_RELOCATION_STARTED_COUNTER);
+        List<Measurement> measurements = registry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_RELOCATION_STARTED_COUNTER);
         assertEquals(1, measurements.size());
         assertEquals(1, measurements.getFirst().getLong());
         assertNull(measurements.getFirst().attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));

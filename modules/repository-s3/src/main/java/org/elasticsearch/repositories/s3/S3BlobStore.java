@@ -164,10 +164,10 @@ class S3BlobStore implements BlobStore {
         this.bufferSize = bufferSize;
         this.maxCopySizeBeforeMultipart = service.settings(projectId, repositoryMetadata).maxCopySizeBeforeMultipart;
         this.cannedACL = initCannedACL(cannedACL);
-        this.fallbackStorageClass = initStorageClass(fallbackStorageClass);
-        this.dataStorageClass = Strings.hasText(dataStorageClass) ? initStorageClass(dataStorageClass) : this.fallbackStorageClass;
+        this.fallbackStorageClass = initStorageClass(fallbackStorageClass, false);
+        this.dataStorageClass = Strings.hasText(dataStorageClass) ? initStorageClass(dataStorageClass, true) : this.fallbackStorageClass;
         this.metadataStorageClass = Strings.hasText(metadataStorageClass)
-            ? initStorageClass(metadataStorageClass)
+            ? initStorageClass(metadataStorageClass, true)
             : this.fallbackStorageClass;
         this.supportsConditionalWrites = supportConditionalWrites;
         this.repositoryMetadata = repositoryMetadata;
@@ -503,7 +503,7 @@ class S3BlobStore implements BlobStore {
         return getRegisterRetryDelay;
     }
 
-    public static StorageClass initStorageClass(String storageClassName) {
+    public static StorageClass initStorageClass(String storageClassName, boolean checkInAllowList) {
         if (Strings.hasText(storageClassName) == false) {
             return DEFAULT_S3_STORAGE_CLASS;
         }
@@ -519,8 +519,13 @@ class S3BlobStore implements BlobStore {
             throw new BlobStoreException("`" + storageClassName + "` is not a known S3 Storage Class.");
         }
 
-        if (ALLOWED_STORAGE_CLASSES.contains(storageClass) == false) {
-            throw new BlobStoreException("`" + storageClassName + "` is not an allowed S3 Storage Class.");
+        if (checkInAllowList) {
+            if (ALLOWED_STORAGE_CLASSES.contains(storageClass) == false) {
+                throw new BlobStoreException("`" + storageClassName + "` is not an allowed S3 Storage Class.");
+            }
+        } else if (storageClass.equals(StorageClass.GLACIER)) {
+            // legacy validation for storage_class; only validate against GLACIER
+            throw new BlobStoreException("Glacier storage class is not supported");
         }
 
         return storageClass;

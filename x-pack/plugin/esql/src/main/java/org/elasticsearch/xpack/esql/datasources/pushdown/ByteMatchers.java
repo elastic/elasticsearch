@@ -169,7 +169,11 @@ public final class ByteMatchers {
         int prefixLen = prefix == null ? 0 : prefix.length;
         int suffixLen = suffix == null ? 0 : suffix.length;
         int literalLen = literal == null ? 0 : literal.length;
-        if (prefixLen + suffixLen + literalLen > value.length) {
+        // Widen to long so the sum cannot wrap negative on pathological inputs and slip past the
+        // guard. In the LIKE-pattern path the lengths come from short UTF-8 segments and overflow
+        // is impossible — but ByteMatchers advertises itself as a generic primitive, so this
+        // single-instruction defense is the right price for the contract.
+        if ((long) prefixLen + suffixLen + literalLen > value.length) {
             return false;
         }
         if (prefixLen > 0 && startsWith(value, prefix) == false) {

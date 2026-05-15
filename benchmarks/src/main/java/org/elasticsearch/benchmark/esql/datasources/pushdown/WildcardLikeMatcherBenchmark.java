@@ -77,7 +77,17 @@ public class WildcardLikeMatcherBenchmark {
      * one-for-one; "complex" exercises the automaton fallback (the {@code ?} wildcard prevents
      * the affix-contains dispatch).
      */
-    @Param({ "PREFIX_ONLY", "SUFFIX_ONLY", "CONTAINS_ONLY", "PREFIX_SUFFIX", "PREFIX_CONTAINS_SUFFIX", "COMPLEX_AUTOMATON_FALLBACK" })
+    @Param(
+        {
+            "PREFIX_ONLY",
+            "SUFFIX_ONLY",
+            "CONTAINS_ONLY",
+            "PREFIX_SUFFIX",
+            "PREFIX_CONTAINS",
+            "CONTAINS_SUFFIX",
+            "PREFIX_CONTAINS_SUFFIX",
+            "COMPLEX_AUTOMATON_FALLBACK" }
+    )
     public String shape;
 
     /** Approximate value length in bytes; sweep crosses the SIMD activation threshold (~24). */
@@ -188,6 +198,8 @@ public class WildcardLikeMatcherBenchmark {
             case "SUFFIX_ONLY" -> "*.com";
             case "CONTAINS_ONLY" -> "*google*";
             case "PREFIX_SUFFIX" -> "https://*.com";
+            case "PREFIX_CONTAINS" -> "https://*google*";
+            case "CONTAINS_SUFFIX" -> "*google*.com";
             case "PREFIX_CONTAINS_SUFFIX" -> "https://*google*.com";
             case "COMPLEX_AUTOMATON_FALLBACK" -> "*go?gle*"; // '?' forces the automaton path
             default -> throw new IllegalArgumentException("Unknown shape: " + shape);

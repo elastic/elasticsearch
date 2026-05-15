@@ -34,7 +34,7 @@ public class ESClientYamlSuiteTestCaseMultipleFailuresIT extends ESClientYamlSui
         super(testCandidate);
     }
 
-    @ParametersFactory
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
         try {
             return createParameters("20_multiple_failures");

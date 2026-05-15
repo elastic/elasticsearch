@@ -30,7 +30,7 @@ public class EsqlClientYamlAsyncSubmitAndFetchIT extends AbstractEsqlClientYamlI
         super(testCandidate);
     }
 
-    @ParametersFactory
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
         return updateEsqlQueryDoSections(partialResultsCheckingParameters(), DoEsqlAsync::new);
     }

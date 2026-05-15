@@ -23,7 +23,7 @@ public class WatcherYamlRestIT extends WatcherYamlSuiteTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = watcherClusterSpec().build();
 
-    @ParametersFactory
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
         return createParameters("mustache", "painless", "watcher");
     }

@@ -26,7 +26,7 @@ public class DiscoveryAzureClassicClientYamlTestSuiteIT extends ESClientYamlSuit
         super(testCandidate);
     }
 
-    @ParametersFactory
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
         return ESClientYamlSuiteTestCase.createParameters();
     }

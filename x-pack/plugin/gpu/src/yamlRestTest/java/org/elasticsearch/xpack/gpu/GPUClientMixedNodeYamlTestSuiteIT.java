@@ -56,7 +56,7 @@ public class GPUClientMixedNodeYamlTestSuiteIT extends ESClientYamlSuiteTestCase
         super(testCandidate);
     }
 
-    @ParametersFactory
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
         // excluding int8_hnsw tests as the dataset is too small for CPU indexing to assert precise results
         return ESClientYamlSuiteTestCase.createParameters("gpu/supported/10_hnsw");

@@ -297,7 +297,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         throw new IllegalArgumentException("Either String or List<String> expected");
     }
 
-    @ParametersFactory
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
         return createParameters();
     }

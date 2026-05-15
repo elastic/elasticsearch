@@ -32,7 +32,7 @@ public class ExampleCustomSettingsClientYamlTestSuiteIT extends ESClientYamlSuit
         super(testCandidate);
     }
 
-    @ParametersFactory
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
         // The test executes all the test candidates by default
         // see ESClientYamlSuiteTestCase.REST_TESTS_SUITE

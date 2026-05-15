@@ -24,6 +24,7 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ClasspathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -47,6 +48,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -93,6 +95,18 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * Property that allows to control whether spec validation is enabled or not (default true).
      */
     private static final String REST_TESTS_VALIDATE_SPEC = "tests.rest.validate_spec";
+    /**
+     * Property controlling YAML test ordering. When {@code true} (the default), tests run
+     * grouped by suite (yaml file) — every test in a given file runs consecutively, in
+     * declared order. Set to {@code false} to instead shuffle tests across all files
+     * (preserved-seed randomization). Suite grouping pairs with the lazy-cleanup framework
+     * to maximize setup-state reuse within a file.
+     *
+     * <p>Note: this only takes effect for test classes that opt out of the framework-level
+     * shuffle by declaring {@code @ParametersFactory(shuffle = false)}. Otherwise the runner
+     * re-shuffles the parameters after this method returns and the grouping is lost.</p>
+     */
+    public static final String REST_TESTS_SUITE_GROUPING = "tests.rest.suite.grouping";
 
     private static final String TESTS_PATH = "rest-api-spec/test";
     private static final String SPEC_PATH = "rest-api-spec/api";
@@ -219,6 +233,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             restTestExecutionContext = null;
             adminExecutionContext = null;
             clientYamlTestClient = null;
+            deferredCleanupForFile = null;
         }
     }
 
@@ -341,9 +356,54 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 tests.add(new Object[] { new ClientYamlTestCandidate(yamlTestSuite, testSection) });
             }
         }
-        // sort the candidates so they will always be in the same order before being shuffled, for repeatability
+        // Sort by test path first for a deterministic baseline, then shuffle with the
+        // runner's seeded random. When suite-grouping is enabled (the default), re-cluster
+        // shuffled tests by their yaml file: each file's tests run consecutively, and the
+        // position of each file's cluster in the final order is determined by where the
+        // first test from that file lands in the shuffle. This preserves the seeded
+        // randomization across files while keeping each file's tests together so the
+        // lazy-cleanup framework can reuse setup state within a file. Test classes opt
+        // into this ordering by declaring @ParametersFactory(shuffle = false), so the
+        // runner does not re-shuffle and undo what we set up here.
         tests.sort(Comparator.comparing(o -> ((ClientYamlTestCandidate) o[0]).getTestPath()));
+        // Use a Random seeded directly from the tests.seed system property: this method runs
+        // during parameter collection, before any RandomizedRunner per-test context is set up,
+        // so RandomizedTest.getRandom() throws here. If tests.seed is unset (unusual outside
+        // of an ad-hoc run) we skip the shuffle and keep the sorted suite-grouped order.
+        java.util.Random seededRandom = parameterFactoryRandom();
+        if (seededRandom != null) {
+            Collections.shuffle(tests, seededRandom);
+        }
+        if (RandomizedTest.systemPropertyAsBoolean(REST_TESTS_SUITE_GROUPING, true)) {
+            Map<String, List<Object[]>> byFile = new LinkedHashMap<>();
+            for (Object[] test : tests) {
+                String suitePath = ((ClientYamlTestCandidate) test[0]).getSuitePath();
+                byFile.computeIfAbsent(suitePath, k -> new ArrayList<>()).add(test);
+            }
+            tests = new ArrayList<>(tests.size());
+            for (List<Object[]> group : byFile.values()) {
+                tests.addAll(group);
+            }
+        }
         return tests;
+    }
+
+    /**
+     * Returns a {@link java.util.Random} seeded from the {@code tests.seed} system property
+     * for use when collecting test parameters. {@link RandomizedTest#getRandom()} requires
+     * an active per-test {@code RandomizedContext}, which is not set up while the runner
+     * is invoking {@code @ParametersFactory} methods, so we re-derive a Random from the
+     * raw seed here. Falls back to a fresh non-deterministic {@code Random} if the property
+     * is unset (e.g. running ad hoc without a configured seed).
+     */
+    private static java.util.Random parameterFactoryRandom() {
+        String seedProp = System.getProperty("tests.seed");
+        if (seedProp == null || seedProp.isEmpty()) {
+            return null;
+        }
+        // tests.seed can be "<master>" or "<master>:<method>"; the first part is the suite seed.
+        String masterPart = seedProp.split(":", 2)[0];
+        return new java.util.Random(Long.parseUnsignedLong(masterPart, 16));
     }
 
     /** Find all yaml suites that match the given list of paths from the root test path. */
@@ -517,6 +577,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             inFipsJvm() && testCandidate.getTestSection().getPrerequisiteSection().hasYamlRunnerFeature("fips_140")
         );
 
+        // Reset the persistent-resource flag so it tracks only this test's setup+body.
+        // Unlike the write-occurred flag (reset between setup and body), this one must span
+        // setup AND body so that a setup-phase _start/_open still forces teardown to run.
+        org.elasticsearch.client.LazyRefreshRestClient.resetPersistentResourceCreated();
+
         if (skipSetupSections() == false && testCandidate.getSetupSection().isEmpty() == false) {
             logger.debug("start setup test [{}]", testCandidate.getTestPath());
             for (ExecutableSection executableSection : testCandidate.getSetupSection().getExecutableSections()) {
@@ -528,6 +593,15 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         restTestExecutionContext.clear();
         // Prepare the stash so that ${_project_id_prefix_} is expanded as needed in some assertions:
         restTestExecutionContext.stash().stashValue("_project_id_prefix_", activeProjectPrefix());
+
+        // Reset the write-occurred flag so it is scoped to the test body only — writes done by
+        // setup (or by @Before hooks) are not what determines whether end-of-test cleanup must run.
+        org.elasticsearch.client.LazyRefreshRestClient.resetWriteOccurred();
+
+        // Mark that we've reached the body. If a test was skipped (assumeFalse) or setup
+        // threw, this stays false and preserveClusterUponCompletion won't mark this file's
+        // setup as cached on the cluster.
+        testBodyRan = true;
 
         try {
             for (ExecutableSection executableSection : testCandidate.getTestSection().getExecutableSections()) {
@@ -554,11 +628,13 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             );
             throw e;
         } finally {
-            logger.debug("start teardown test [{}]", testCandidate.getTestPath());
-            for (ExecutableSection doSection : testCandidate.getTeardownSection().getDoSections()) {
-                executeSection(doSection);
+            if (skipTeardownSections() == false) {
+                logger.debug("start teardown test [{}]", testCandidate.getTestPath());
+                for (ExecutableSection doSection : testCandidate.getTeardownSection().getDoSections()) {
+                    executeSection(doSection);
+                }
+                logger.debug("end teardown test [{}]", testCandidate.getTestPath());
             }
-            logger.debug("end teardown test [{}]", testCandidate.getTestPath());
         }
     }
 
@@ -585,8 +661,152 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         });
     }
 
+    /**
+     * Yaml file path whose setup state is currently sitting in the cluster, awaiting a deferred
+     * cleanup. {@code null} when no deferred state is pending. Drives the default
+     * {@link #skipSetupSections()} / {@link #skipTeardownSections()} /
+     * {@link #preserveClusterUponCompletion()} behavior, which lets read-only tests reuse the
+     * previous test's setup state and write tests pay the normal setup+cleanup cost.
+     */
+    private static String deferredCleanupForFile = null;
+
+    /** Cached per-test result for {@link #preserveClusterUponCompletion()} so its decision and
+     *  side effects run exactly once even though the framework calls it twice
+     *  ({@code cleanUpCluster} and {@code assertEmptyProjects}). */
+    private Boolean cachedPreserve = null;
+
+    /** Set to {@code true} once execution reaches the body section of {@link #test()}. Stays
+     *  {@code false} when a test is skipped early (blacklist, fips, prerequisite features) or
+     *  when setup throws before the body. Used to avoid claiming "this file's setup is on the
+     *  cluster" when nothing actually got loaded. */
+    private boolean testBodyRan = false;
+
+    /**
+     * Yaml runner feature name a test (or its setup section) can declare to opt out of the
+     * lazy-cleanup optimization. Tests that assert on cumulative cluster state — request cache
+     * hit/miss counters, search/indexing stats, anything else that is incremented by reads and
+     * not reset by {@code _cache/clear} — should declare this so the framework runs setup and
+     * teardown around them and wipes any deferred state from earlier tests in the same file.
+     *
+     * <p>Usage in YAML:</p>
+     * <pre>
+     * "Some test that asserts on cache stats":
+     *   - requires:
+     *       test_runner_features: ["clean_setup"]
+     *   - do: ...
+     * </pre>
+     */
+    public static final String CLEAN_SETUP_FEATURE = "clean_setup";
+
+    /**
+     * Set by the {@code yamlRestCompatTest} task. When true, the lazy-cleanup optimization is
+     * suppressed for the entire JVM run because the compat task replays yaml tests checked
+     * out from a prior branch, which won't carry any {@link #CLEAN_SETUP_FEATURE} markers we
+     * add going forward.
+     */
+    private static final boolean REST_COMPAT_MODE = Booleans.parseBoolean(System.getProperty("tests.restCompat", "false"));
+
+    /**
+     * Whether the current test (or its setup section) requires a clean cluster setup. Tests
+     * marked with the {@link #CLEAN_SETUP_FEATURE} yaml runner feature opt out of the
+     * lazy-cleanup optimization for the current invocation. Also returns {@code true}
+     * unconditionally when running under {@code yamlRestCompatTest}.
+     */
+    private boolean requiresCleanSetup() {
+        if (REST_COMPAT_MODE) {
+            return true;
+        }
+        return testCandidate.getTestSection().getPrerequisiteSection().hasYamlRunnerFeature(CLEAN_SETUP_FEATURE)
+            || testCandidate.getSetupSection().getPrerequisiteSection().hasYamlRunnerFeature(CLEAN_SETUP_FEATURE);
+    }
+
+    /**
+     * Default lazy-cleanup behavior: skip the YAML setup section when the previous test
+     * deferred cleanup AND it was from the same yaml file (so the current test's setup
+     * state is already in the cluster). When the previous test deferred cleanup but the
+     * current test is from a different yaml file, this method wipes the stale cluster state
+     * before returning {@code false}, so setup runs against a clean cluster. Subclasses may
+     * override to disable this.
+     */
     protected boolean skipSetupSections() {
+        String currentFile = testCandidate.getSuitePath();
+        // Tests marked clean_setup must always run their setup against a wiped cluster, even
+        // if the previous same-file test deferred cleanup.
+        if (requiresCleanSetup()) {
+            if (deferredCleanupForFile != null) {
+                try {
+                    wipeCluster();
+                } catch (Exception e) {
+                    throw new AssertionError("failed to wipe stale cluster state for clean_setup test", e);
+                }
+                deferredCleanupForFile = null;
+            }
+            return false;
+        }
+        if (deferredCleanupForFile == null) {
+            return false;
+        }
+        if (deferredCleanupForFile.equals(currentFile)) {
+            return true;
+        }
+        // File changed across a deferred cleanup. Wipe the stale state so this file's setup
+        // runs against a clean cluster.
+        try {
+            wipeCluster();
+        } catch (Exception e) {
+            throw new AssertionError("failed to wipe stale cluster state on yaml file change", e);
+        }
+        deferredCleanupForFile = null;
         return false;
+    }
+
+    /**
+     * Default lazy-cleanup behavior: skip the YAML teardown section when the body issued no
+     * non-read HTTP requests AND no persistent cluster-side resource (started transform, opened
+     * ML job, point-in-time, async search, etc.) was created during setup or body. Cleanup is
+     * deferred to the next test or until a write/persistent-resource event happens. Subclasses
+     * may override.
+     */
+    protected boolean skipTeardownSections() {
+        if (requiresCleanSetup()) {
+            return false;
+        }
+        return org.elasticsearch.client.LazyRefreshRestClient.writeOccurred() == false
+            && org.elasticsearch.client.LazyRefreshRestClient.persistentResourceCreated() == false;
+    }
+
+    /**
+     * Default lazy-cleanup behavior: preserve cluster state (skip framework wipe and
+     * {@code assertEmptyProjects}) when the body issued no non-read HTTP requests AND no
+     * persistent cluster-side resource was created during setup or body. The deferred-cleanup
+     * marker is updated to the current file on the way out, so the next same-file test can skip
+     * its setup. Subclasses may override.
+     */
+    @Override
+    protected boolean preserveClusterUponCompletion() {
+        if (cachedPreserve != null) {
+            return cachedPreserve;
+        }
+        if (requiresCleanSetup()) {
+            cachedPreserve = false;
+            deferredCleanupForFile = null;
+            return false;
+        }
+        boolean writeHappened = org.elasticsearch.client.LazyRefreshRestClient.writeOccurred();
+        boolean persistentResourceCreated = org.elasticsearch.client.LazyRefreshRestClient.persistentResourceCreated();
+        cachedPreserve = (writeHappened == false && persistentResourceCreated == false);
+        if (cachedPreserve) {
+            // Only mark this file's setup as cached on the cluster when the body actually
+            // executed. If the test was skipped (assumeFalse for blacklist/fips/prerequisites)
+            // setup never ran, so leaving deferredCleanupForFile untouched prevents the next
+            // same-file test from skipping its own setup against an empty cluster.
+            if (testBodyRan) {
+                deferredCleanupForFile = testCandidate.getSuitePath();
+            }
+        } else {
+            deferredCleanupForFile = null;
+        }
+        return cachedPreserve;
     }
 
     protected boolean randomizeContentType() {

@@ -44,7 +44,7 @@ public class InferenceRestMultiNodeIT extends ESClientYamlSuiteTestCase {
         return cluster.getHttpAddresses();
     }
 
-    @ParametersFactory
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
         return ESClientYamlSuiteTestCase.createParameters();
     }

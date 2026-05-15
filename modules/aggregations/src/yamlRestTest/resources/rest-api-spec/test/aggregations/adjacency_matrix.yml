@@ -65,7 +65,8 @@ setup:
 "Terms lookup":
   - requires:
       cluster_features: ["gte_v7.9.0"]
-      reason:  fixed in 7.9.0
+      test_runner_features: ["clean_setup"]
+      reason:  fixed in 7.9.0; asserts on cumulative request_cache stats so cannot reuse state from a previous read-only test in the same file
   - do:
       indices.create:
           index: lookup

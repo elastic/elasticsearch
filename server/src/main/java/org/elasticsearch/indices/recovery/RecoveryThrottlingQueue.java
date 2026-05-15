@@ -11,10 +11,16 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.concurrent.ConcurrentLinkedQueue;
+
 public class RecoveryThrottlingQueue {
 
     private final ThreadPool threadPool;
     private final int maxConcurrentRecoveries;
+    private final ConcurrentLinkedQueue<RecoveryTask> pending = new ConcurrentLinkedQueue<>();
+    private final Object mutex = new Object();
+    // Protected by mutex
+    private int running;
 
     public RecoveryThrottlingQueue(ThreadPool threadPool, int maxConcurrentRecoveries) {
         this.threadPool = threadPool;
@@ -22,7 +28,37 @@ public class RecoveryThrottlingQueue {
     }
 
     public void enqueue(RecoveryTask recoveryTask) {
-        threadPool.generic().execute(recoveryTask);
+        synchronized (mutex) {
+            if (running < maxConcurrentRecoveries) {
+                running++;
+                dispatch(recoveryTask);
+            } else {
+                pending.add(recoveryTask);
+            }
+        }
+    }
+
+    private void dispatch(RecoveryTask recoveryTask) {
+        threadPool.generic().execute(() -> {
+            try {
+                recoveryTask.run();
+            } finally {
+                scheduleNext();
+            }
+        });
+    }
+
+    private void scheduleNext() {
+        RecoveryTask next;
+        synchronized (mutex) {
+            next = pending.poll();
+            if (next == null) {
+                running--;
+            }
+        }
+        if (next != null) {
+            dispatch(next);
+        }
     }
 
     @FunctionalInterface

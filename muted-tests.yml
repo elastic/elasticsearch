@@ -486,9 +486,6 @@ tests:
   method: testDeleteIndexWhileNodeStopping
   issue: https://github.com/elastic/elasticsearch/issues/148807
 - class: org.elasticsearch.xpack.stateless.commits.IndexCommitTimestampFieldRangeTests
-  method: testSoftDeletesAreAlmostAlwaysDisregardedForTimestampRange
-  issue: https://github.com/elastic/elasticsearch/issues/148966
-- class: org.elasticsearch.xpack.stateless.commits.IndexCommitTimestampFieldRangeTests
   method: testFieldValueRangeForBatchedCompoundCommit
   issue: https://github.com/elastic/elasticsearch/issues/148961
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
@@ -545,6 +542,12 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests;
   method: testOneRepeatedVector
   issue: https://github.com/elastic/elasticsearch/issues/149168
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/148339
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/148339
   # TODO: exclude replicas that have not acked cluster state from async await
 - class: org.elasticsearch.cluster.coordination.RareClusterStateIT
   issue: https://github.com/elastic/elasticsearch/pull/145363

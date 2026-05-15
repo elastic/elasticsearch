@@ -27,6 +27,11 @@ public class PreMapper {
 
     /**
      * Invokes any premapping steps that need to be applied to the logical plan, before this is being mapped to a physical one.
+     * <p>
+     * The plan is passed as a {@link Versioned} so that the minimum transport version of the cluster is available here, even
+     * though the current query rewrites do not need it. Should the pre-mapper's query rewrites ever be refactored in a way
+     * that is not backwards compatible, the minimum version can be used to gate the new behavior. See {@link Versioned} for
+     * the broader rationale.
      */
     public void preMapper(Versioned<LogicalPlan> plan, ActionListener<LogicalPlan> listener) {
         queryRewrite(plan.inner(), listener.delegateFailureAndWrap((l, p) -> {

@@ -22,8 +22,8 @@ import org.elasticsearch.index.engine.Engine.Operation.Origin;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequestBuilder;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
@@ -128,7 +128,7 @@ public class CancelTests extends ReindexTestCase {
 
         // Status should show the task running
         TaskInfo mainTask = findTaskToCancel(action.name(), request.getSlices());
-        BulkByScrollTask.Status status = (BulkByScrollTask.Status) mainTask.status();
+        BulkByPaginatedSearchTask.Status status = (BulkByPaginatedSearchTask.Status) mainTask.status();
         assertNull(status.getReasonCancelled());
 
         // Description shouldn't be empty
@@ -143,7 +143,7 @@ public class CancelTests extends ReindexTestCase {
         /* The status should now show canceled. The request will still be in the
          * list because it is (or its children are) still blocked. */
         mainTask = clusterAdmin().prepareGetTask(mainTask.taskId()).get().getTask().getTask();
-        status = (BulkByScrollTask.Status) mainTask.status();
+        status = (BulkByPaginatedSearchTask.Status) mainTask.status();
         logger.debug("asserting that parent is marked canceled {}", status);
         assertEquals(CancelTasksRequest.DEFAULT_REASON, status.getReasonCancelled());
 
@@ -156,7 +156,7 @@ public class CancelTests extends ReindexTestCase {
             sliceList.rethrowFailures("Fetch slice tasks");
             logger.debug("finding at least one canceled child among {}", sliceList.getTasks());
             for (TaskInfo slice : sliceList.getTasks()) {
-                BulkByScrollTask.Status sliceStatus = (BulkByScrollTask.Status) slice.status();
+                BulkByPaginatedSearchTask.Status sliceStatus = (BulkByPaginatedSearchTask.Status) slice.status();
                 if (sliceStatus.getReasonCancelled() == null) continue;
                 assertEquals(CancelTasksRequest.DEFAULT_REASON, sliceStatus.getReasonCancelled());
                 foundCancelled = true;

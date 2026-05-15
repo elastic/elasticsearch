@@ -48,15 +48,15 @@ import java.io.IOException;
  * Example 1:
  * Suppose we are resharding an index from 2 -> 4 shards. While splitting a bulk request, the coordinator observes
  * that target shards are not ready for indexing. So requests that are meant for shard 0 and 2 are bundled together,
- * sent to shard 0 with “reshardSplitShardCountSummary” 2 in the request.
+ * sent to shard 0 with “splitShardCountSummary” 2 in the request.
  * Requests that are meant for shard 1 and 3 are bundled together,
- * sent to shard 1 with “reshardSplitShardCountSummary” 2 in the request.
+ * sent to shard 1 with “splitShardCountSummary” 2 in the request.
  * <p>
  * Example 2:
  * Suppose we are resharding an index from 4 -> 8 shards. While splitting a bulk request, the coordinator observes
  * that source shard 0 has completed handoff but source shards 1, 2, 3 have not completed handoff.
- * So, the shard-bulk-request it sends to shard 0 and 4 has the "reshardSplitShardCountSummary" 8,
- * while the shard-bulk-request it sends to shard 1,2,3 has the "reshardSplitShardCountSummary" 4.
+ * So, the shard-bulk-request it sends to shard 0 and 4 has the "splitShardCountSummary" 8,
+ * while the shard-bulk-request it sends to shard 1,2,3 has the "splitShardCountSummary" 4.
  * Note that in this case no shard-bulk-request is sent to shards 5, 6, 7 and the requests that were meant for these target shards
  * are bundled together with and sent to their source shards.
  * <p>
@@ -75,17 +75,17 @@ import java.io.IOException;
  * that target shard 5 is in SPLIT state but target shards 4, 6, 7 are in CLONE/HANDOFF state.
  * The coordinator will send shard search requests to all source shards (0, 1, 2, 3) and to all target shards
  * that are at least in SPLIT state (5).
- * Shard search request sent to source shards 0, 2, 3 has the "reshardSplitShardCountSummary" of 4
+ * Shard search request sent to source shards 0, 2, 3 has the "splitShardCountSummary" of 4
  * since corresponding target shards (4, 6, 7) have not advanced to SPLIT state.
- * Shard search request sent to source shard 1 has the "reshardSplitShardCountSummary" of 8
+ * Shard search request sent to source shard 1 has the "splitShardCountSummary" of 8
  * since the corresponding target shard 5 is in SPLIT state.
- * When a shard search request is executed on the source shard 1, "reshardSplitShardCountSummary" value
+ * When a shard search request is executed on the source shard 1, "splitShardCountSummary" value
  * is checked and documents that will be returned by target shard 5 are excluded
  * (they are still present in the source shard because the resharding process is not complete).
  * All other source shard search requests (0, 2, 3) return all available documents since corresponding target shards
  * are not yet available to do that.
  * <p>
- * A value of 0 indicates an INVALID reshardSplitShardCountSummary. Hence, a request with INVALID reshardSplitShardCountSummary
+ * A value of 0 indicates an INVALID splitShardCountSummary. Hence, a request with INVALID splitShardCountSummary
  * will be treated as a Summary mismatch on the source shard node.
  */
 
@@ -105,12 +105,12 @@ public class SplitShardCountSummary implements Writeable, Comparable<SplitShardC
      * Given {@code IndexMetadata} and a {@code shardId}, this method returns the "effective" shard count
      * as seen by this IndexMetadata, for indexing operations.
      *
-     * See {@code getReshardSplitShardCountSummary} for more details.
+     * See {@code getSplitShardCountSummary} for more details.
      * @param indexMetadata IndexMetadata of the shard for which we want to calculate the effective shard count
      * @param shardId       Input shardId for which we want to calculate the effective shard count
      */
     public static SplitShardCountSummary forIndexing(IndexMetadata indexMetadata, int shardId) {
-        return getReshardSplitShardCountSummary(indexMetadata, shardId, IndexReshardingState.Split.TargetShardState.HANDOFF);
+        return getSplitShardCountSummary(indexMetadata, shardId, IndexReshardingState.Split.TargetShardState.HANDOFF);
     }
 
     /**
@@ -118,12 +118,12 @@ public class SplitShardCountSummary implements Writeable, Comparable<SplitShardC
      * Given a {@code shardId}, this method returns the "effective" shard count
      * as seen by this IndexMetadata, for search operations.
      *
-     * See {@code getReshardSplitShardCount} for more details.
+     * See {@code getSplitShardCount} for more details.
      * @param indexMetadata IndexMetadata of the shard for which we want to calculate the effective shard count
      * @param shardId  Input shardId for which we want to calculate the effective shard count
      */
     public static SplitShardCountSummary forSearch(IndexMetadata indexMetadata, int shardId) {
-        return getReshardSplitShardCountSummary(indexMetadata, shardId, IndexReshardingState.Split.TargetShardState.SPLIT);
+        return getSplitShardCountSummary(indexMetadata, shardId, IndexReshardingState.Split.TargetShardState.SPLIT);
     }
 
     /**
@@ -132,7 +132,7 @@ public class SplitShardCountSummary implements Writeable, Comparable<SplitShardC
      * an operation to be routed to target shards,
      * this method returns the "effective" shard count as seen by this IndexMetadata.
      *
-     * The reshardSplitShardCountSummary tells us whether the coordinator routed requests to the source shard or
+     * The splitShardCountSummary tells us whether the coordinator routed requests to the source shard or
      * to both source and target shards. Requests are routed to both source and target shards
      * once the target shards are ready for an operation.
      *
@@ -140,14 +140,14 @@ public class SplitShardCountSummary implements Writeable, Comparable<SplitShardC
      * undergoing a resharding operation. This method is used to populate a field in the shard level requests sent to
      * source and target shards, as a proxy for the cluster state version. The same calculation is then done at the source shard
      * to verify if the coordinator and source node's view of the resharding state have a mismatch.
-     * See {@link org.elasticsearch.action.support.replication.ReplicationRequest#reshardSplitShardCountSummary}
+     * See {@link org.elasticsearch.action.support.replication.ReplicationRequest#splitShardCountSummary}
      * for a detailed description of how this value is used.
      *
      * @param shardId  Input shardId for which we want to calculate the effective shard count
      * @param minShardState Minimum target shard state required for the target to be considered ready
      * @return Effective shard count as seen by an operation using this IndexMetadata
      */
-    private static SplitShardCountSummary getReshardSplitShardCountSummary(
+    private static SplitShardCountSummary getSplitShardCountSummary(
         IndexMetadata indexMetadata,
         int shardId,
         IndexReshardingState.Split.TargetShardState minShardState

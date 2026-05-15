@@ -22,6 +22,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -32,7 +33,8 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
-import java.util.ArrayList;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +49,13 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
     // This field type is not supported for scrolling datafeeds.
     private static final String AGGREGATE_METRIC_DOUBLE = "aggregate_metric_double";
 
+    // Package-private record so tests can inspect queue contents
+    record OrphanedScroll(String scrollId, long createdAtMillis, int retryAttempts) {}
+
+    static final int MAX_ORPHAN_QUEUE_SIZE = 64;
+    static final int MAX_ORPHAN_RETRIES = 5;
+    static final long ORPHAN_TTL_MILLIS = TimeValue.timeValueMinutes(60).millis();
+
     private final Client client;
     private final DatafeedConfig datafeedConfig;
     private final QueryBuilder extraFilters;
@@ -60,9 +69,9 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
      * These survive across extractor lifetimes and are retried when the next
      * extractor successfully connects to the remote cluster.
      */
-    private final List<String> orphanedScrollIds = new ArrayList<>();
+    final Deque<OrphanedScroll> orphanedScrolls = new ArrayDeque<>();
 
-    private ScrollDataExtractorFactory(
+    ScrollDataExtractorFactory(
         Client client,
         DatafeedConfig datafeedConfig,
         QueryBuilder extraFilters,
@@ -85,14 +94,14 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
      * These will be retried the next time an extractor successfully connects.
      */
     void addOrphanedScrollIds(List<String> scrollIds) {
-        orphanedScrollIds.addAll(scrollIds);
+        scrollIds.forEach(id -> orphanedScrolls.add(new OrphanedScroll(id, System.currentTimeMillis(), 0)));
     }
 
     /**
      * Returns {@code true} if there are orphaned scroll IDs waiting to be cleared.
      */
     boolean hasOrphanedScrollIds() {
-        return orphanedScrollIds.isEmpty() == false;
+        return orphanedScrolls.isEmpty() == false;
     }
 
     /**
@@ -100,9 +109,10 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
      * IDs that still fail (e.g. persistent network issue) remain for the next retry.
      */
     void retryClearOrphanedScrollIds() {
-        Iterator<String> it = orphanedScrollIds.iterator();
+        Iterator<OrphanedScroll> it = orphanedScrolls.iterator();
         while (it.hasNext()) {
-            String scrollId = it.next();
+            OrphanedScroll orphan = it.next();
+            String scrollId = orphan.scrollId();
             try {
                 ClearScrollRequest request = new ClearScrollRequest();
                 request.addScrollId(scrollId);

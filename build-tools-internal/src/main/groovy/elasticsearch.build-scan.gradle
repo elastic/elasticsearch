@@ -31,6 +31,7 @@ def taskNames = gradle.startParameter.taskNames.join(' ')
 // is needed for the prototype.
 GcpPreemptionWatchdog.start()
 PreemptionBuildCanceller.install(gradle)
+pluginManager.apply('elasticsearch.task-status-tracker')
 
 develocity {
 

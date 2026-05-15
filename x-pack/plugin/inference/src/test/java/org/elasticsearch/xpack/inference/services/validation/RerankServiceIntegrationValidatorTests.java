@@ -9,20 +9,18 @@ package org.elasticsearch.xpack.inference.services.validation;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.TaskTypeTests;
 import org.junit.Before;
 import org.mockito.Mock;
 
 import java.util.List;
-import java.util.Map;
 
+import static org.elasticsearch.inference.DataType.TEXT;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -32,10 +30,10 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
-public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
+public class RerankServiceIntegrationValidatorTests extends ESTestCase {
 
     private static final List<String> TEST_INPUT = List.of("how big");
-    private static final TimeValue TIMEOUT = TimeValue.ONE_MINUTE;
+    private static final String TEST_QUERY = "test query";
 
     @Mock
     private InferenceService mockInferenceService;
@@ -46,84 +44,62 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
     @Mock
     private InferenceServiceResults mockInferenceServiceResults;
 
-    private SimpleServiceIntegrationValidator underTest;
+    private RerankServiceIntegrationValidator underTest;
 
     @Before
     public void setup() {
         openMocks(this);
 
-        underTest = new SimpleServiceIntegrationValidator();
+        underTest = new RerankServiceIntegrationValidator();
 
         when(mockActionListener.delegateFailureAndWrap(any())).thenCallRealMethod();
     }
 
     public void testValidate_ServiceThrowsException() {
-        when(mockModel.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
-
         doThrow(ElasticsearchStatusException.class).when(mockInferenceService)
-            .infer(
+            .rerankInfer(
                 eq(mockModel),
-                eq(null),
-                eq(null),
-                eq(null),
-                eq(TEST_INPUT),
-                eq(false),
-                eq(Map.of()),
-                eq(InputType.INTERNAL_INGEST),
-                eq(TIMEOUT),
+                eq(new RerankRequest(InferenceString.fromStringList(TEST_INPUT), new InferenceString(TEXT, TEST_QUERY), null, null, null)),
+                eq(TEST_REQUEST_TIMEOUT),
                 any()
             );
 
         assertThrows(
             ElasticsearchStatusException.class,
-            () -> { underTest.validate(mockInferenceService, mockModel, TIMEOUT, mockActionListener); }
+            () -> underTest.validate(mockInferenceService, mockModel, TEST_REQUEST_TIMEOUT, mockActionListener)
         );
 
         verifyCallToService();
     }
 
-    public void testValidate_SuccessfulCallToServiceForNonReRankTaskType() {
-        when(mockModel.getTaskType()).thenReturn(randomValueOtherThan(TaskType.RERANK, TaskTypeTests::randomTaskTypeOtherThanAny));
-
+    public void testValidate_SuccessfulCallToServiceForReRankTaskType() {
         mockSuccessfulCallToService(mockInferenceServiceResults);
         verify(mockActionListener).onResponse(mockInferenceServiceResults);
         verifyCallToService();
     }
 
     private void mockSuccessfulCallToService(InferenceServiceResults result) {
+        when(mockInferenceService.supportsNewRerankCodePath()).thenReturn(true);
         doAnswer(ans -> {
-            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(9);
+            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(3);
             responseListener.onResponse(result);
             return null;
         }).when(mockInferenceService)
-            .infer(
+            .rerankInfer(
                 eq(mockModel),
-                eq(null),
-                eq(null),
-                eq(null),
-                eq(TEST_INPUT),
-                eq(false),
-                eq(Map.of()),
-                eq(InputType.INTERNAL_INGEST),
-                eq(TIMEOUT),
+                eq(new RerankRequest(InferenceString.fromStringList(TEST_INPUT), new InferenceString(TEXT, TEST_QUERY), null, null, null)),
+                eq(TEST_REQUEST_TIMEOUT),
                 any()
             );
 
-        underTest.validate(mockInferenceService, mockModel, TIMEOUT, mockActionListener);
+        underTest.validate(mockInferenceService, mockModel, TEST_REQUEST_TIMEOUT, mockActionListener);
     }
 
     private void verifyCallToService() {
-        verify(mockModel).getTaskType();
-        verify(mockInferenceService).infer(
+        verify(mockInferenceService).rerankInfer(
             eq(mockModel),
-            eq(null),
-            eq(null),
-            eq(null),
-            eq(TEST_INPUT),
-            eq(false),
-            eq(Map.of()),
-            eq(InputType.INTERNAL_INGEST),
-            eq(TIMEOUT),
+            eq(new RerankRequest(InferenceString.fromStringList(TEST_INPUT), new InferenceString(TEXT, TEST_QUERY), null, null, null)),
+            eq(TEST_REQUEST_TIMEOUT),
             any()
         );
         verifyNoMoreInteractions(mockInferenceService, mockModel, mockActionListener, mockInferenceServiceResults);

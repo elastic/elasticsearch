@@ -1,4 +1,4 @@
-import { readdir, readFile } from "fs/promises";
+import { readdir, readFile, stat } from "fs/promises";
 import { join } from "path";
 import { XMLParser } from "fast-xml-parser";
 
@@ -41,6 +41,11 @@ const SUITE_TIMEOUT_PATTERNS = [
   "Suite timeout exceeded (>= ",
 ];
 
+const SKIP_DIRS = new Set([
+  "node_modules", ".git", ".gradle", "dist", "out",
+  ".idea", ".vscode", ".cache",
+]);
+
 export function classifyFailure(f: FailureEntry): FailureKind {
   const msg = f.message ?? "";
   for (const pat of SUITE_TIMEOUT_PATTERNS) {
@@ -67,8 +72,10 @@ async function findXmlReports(root: string): Promise<string[]> {
     }
     for (const e of entries) {
       const p = join(dir, e.name);
-      if (e.isDirectory()) await walk(p);
-      else if (e.isFile() && /^TEST-.*\.xml$/.test(e.name) && p.includes("/build/test-results/")) {
+      if (e.isDirectory()) {
+        if (SKIP_DIRS.has(e.name)) continue;
+        await walk(p);
+      } else if (e.isFile() && /^TEST-.*\.xml$/.test(e.name) && p.includes("/build/test-results/")) {
         out.push(p);
       }
     }
@@ -77,7 +84,10 @@ async function findXmlReports(root: string): Promise<string[]> {
   return out;
 }
 
-export async function analyzeReports(roots: string[]): Promise<FlakinessReport> {
+export async function analyzeReports(
+  roots: string[],
+  minMtimeMs?: number
+): Promise<FlakinessReport> {
   const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "" });
   const perTestMap = new Map<string, TestSummary>();
   const batches: BatchSummary[] = [];
@@ -88,6 +98,10 @@ export async function analyzeReports(roots: string[]): Promise<FlakinessReport> 
   for (const root of roots) {
     const files = await findXmlReports(root);
     for (const file of files) {
+      if (minMtimeMs !== undefined) {
+        const s = await stat(file);
+        if (s.mtimeMs < minMtimeMs) continue;
+      }
       const xml = parser.parse(await readFile(file, "utf8"));
       const suite = xml.testsuite ?? xml.testsuites?.testsuite;
       if (!suite) continue;

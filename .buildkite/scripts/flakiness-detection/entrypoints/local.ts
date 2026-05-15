@@ -5,6 +5,8 @@ import { classifyExplicitList } from "../detectors/explicit-list";
 import { buildCommands } from "../commands";
 import { runLocally } from "../runners/local";
 import { DEFAULT_BATCHING_CONFIG } from "../domain";
+import { analyzeReports } from "../analyzer/analyze";
+import { renderMarkdown } from "../analyzer/render";
 
 const PROJECT_ROOT = resolve(`${import.meta.dir}/../../../..`);
 
@@ -50,10 +52,9 @@ export async function run(): Promise<void> {
       }
     : DEFAULT_BATCHING_CONFIG;
 
+  const startMs = Date.now();
   const exitCode = runLocally(buildCommands(located, cfg), PROJECT_ROOT);
-  const { analyzeReports } = await import("../analyzer/analyze");
-  const { renderMarkdown } = await import("../analyzer/render");
-  const report = await analyzeReports([PROJECT_ROOT]);
+  const report = await analyzeReports([PROJECT_ROOT], startMs);
   console.log("\n" + renderMarkdown(report));
   process.exit(exitCode);
 }

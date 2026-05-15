@@ -627,8 +627,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 }
 
                 for (String nodeName : internalCluster.getNodeNames()) {
-                    IndicesClusterStateService service = internalCluster.getInstance(IndicesClusterStateService.class, nodeName);
                     Settings nodeSettings = internalCluster.getInstance(Settings.class, nodeName);
+
+                    // IndicesClusterStateService doesn't register as applier on non data nodes
+                    if (DiscoveryNode.canContainData(nodeSettings) == false) {
+                        continue;
+                    }
+
+                    IndicesClusterStateService service = internalCluster.getInstance(IndicesClusterStateService.class, nodeName);
 
                     if (IndicesClusterStateService.ASYNC_CLUSTER_STATE_APPLIER_ENABLED.get(nodeSettings)) {
                         assertTrue(
@@ -664,9 +670,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             final Scope currentClusterScope = getCurrentClusterScope();
             if (isInternalCluster()) {
                 internalCluster().clearDisruptionScheme();
-                if (verifyAsyncApplier()) {
-                    verifyAsyncIndicesClusterStateServiceApplier();
-                }
+                verifyAsyncIndicesClusterStateServiceApplier();
             }
             try {
                 if (cluster() != null && cluster().size() > 0) {
@@ -703,10 +707,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 // afterTestRule.forceFailure();
             }
         }
-    }
-
-    protected boolean verifyAsyncApplier() {
-        return true;
     }
 
     /**

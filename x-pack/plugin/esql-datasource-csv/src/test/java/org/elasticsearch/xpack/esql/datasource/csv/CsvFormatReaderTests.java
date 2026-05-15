@@ -2647,6 +2647,84 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals("before,[not\n".length(), boundary);
     }
 
+    // --- findLastRecordBoundary tests ---
+
+    public void testFindLastRecordBoundarySimpleTwoLines() throws IOException {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        byte[] data = "a,b\nc,d\n".getBytes(StandardCharsets.UTF_8);
+        int boundary = reader.findLastRecordBoundary(data, data.length);
+        assertEquals(data.length - 1, boundary);
+    }
+
+    public void testFindLastRecordBoundarySingleTrailingLineNoTerminator() throws IOException {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        byte[] data = "a,b\nc,d".getBytes(StandardCharsets.UTF_8);
+        int boundary = reader.findLastRecordBoundary(data, data.length);
+        assertEquals(3, boundary);
+    }
+
+    public void testFindLastRecordBoundaryEmpty() throws IOException {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        assertEquals(-1, reader.findLastRecordBoundary(new byte[0], 0));
+    }
+
+    public void testFindLastRecordBoundaryAllInsideQuotedField() throws IOException {
+        // Unterminated quoted cell: no boundary; caller must grow.
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        byte[] data = "\"line one\nline two\nline three\n".getBytes(StandardCharsets.UTF_8);
+        assertEquals(-1, reader.findLastRecordBoundary(data, data.length));
+    }
+
+    public void testFindLastRecordBoundarySkipsEmbeddedNewlineInQuotedField() throws IOException {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        byte[] data = "\"row1\nwith\nembedded\",a\nrow2,b\n".getBytes(StandardCharsets.UTF_8);
+        int boundary = reader.findLastRecordBoundary(data, data.length);
+        assertEquals(data.length - 1, boundary);
+    }
+
+    public void testFindLastRecordBoundaryEmbeddedNewlineFollowedByUnterminatedTail() throws IOException {
+        // Complete row, then an unterminated quoted field whose closing quote is in the next chunk.
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        byte[] data = "row1,a\n\"row2 starts here\nstill inside quote".getBytes(StandardCharsets.UTF_8);
+        int boundary = reader.findLastRecordBoundary(data, data.length);
+        assertEquals("row1,a\n".length() - 1, boundary);
+    }
+
+    public void testFindLastRecordBoundaryRespectsBracketMvc() throws IOException {
+        // Embedded \n inside [..] must not be a boundary.
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        byte[] data = "a,[v1\nv2\nv3],b\nrow2,plain,c\n".getBytes(StandardCharsets.UTF_8);
+        int boundary = reader.findLastRecordBoundary(data, data.length);
+        assertEquals(data.length - 1, boundary);
+    }
+
+    public void testFindLastRecordBoundaryLengthSubsetOfBuffer() throws IOException {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        byte[] body = "a,b\nc,d\n".getBytes(StandardCharsets.UTF_8);
+        byte[] padded = new byte[body.length + 64];
+        System.arraycopy(body, 0, padded, 0, body.length);
+        Arrays.fill(padded, body.length, padded.length, (byte) 0xff);
+        int boundary = reader.findLastRecordBoundary(padded, body.length);
+        assertEquals(body.length - 1, boundary);
+    }
+
+    public void testFindLastRecordBoundaryCRLF() throws IOException {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        byte[] data = "a,b\r\nc,d\r\n".getBytes(StandardCharsets.UTF_8);
+        int boundary = reader.findLastRecordBoundary(data, data.length);
+        assertEquals(data.length - 1, boundary);
+        assertEquals('\n', data[boundary]);
+    }
+
+    public void testFindLastRecordBoundaryDoubledQuoteEscape() throws IOException {
+        // RFC 4180: "" is a literal quote inside a quoted field, not close-then-reopen.
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        byte[] data = "\"value with \"\"escaped\"\" quotes\"\nrest\n".getBytes(StandardCharsets.UTF_8);
+        int boundary = reader.findLastRecordBoundary(data, data.length);
+        assertEquals(data.length - 1, boundary);
+        assertEquals('\n', data[boundary]);
+    }
+
     public void testBracketAwareLeadingWhitespaceBeforeBracketOpensMvc() throws IOException {
         String csv = "prefix:keyword,mid:keyword,suffix:keyword\nx,  [[37]],y\n";
         StorageObject object = createStorageObject(csv);
@@ -4193,5 +4271,92 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertTrue("expected col0, got: " + summary, summary.contains("col0=[1]"));
         assertTrue("expected col1, got: " + summary, summary.contains("col1=[Alice]"));
         assertTrue("expected col2, got: " + summary, summary.contains("col2=[null]"));
+    }
+
+    // --- FormatReadContext.readSchema() honor tests ---
+    // These tests prove the runtime CSV reader uses the planner-resolved read schema (passed via
+    // FormatReadContext.readSchema()) as the authoritative positional column layout, overriding
+    // per-file inference. This closes the multi-file headerless CSV type-drift bug where two
+    // files in the same glob would otherwise infer different types for the same column.
+
+    public void testHeaderlessReadHonorsContextReadSchema() throws IOException {
+        // Headerless CSV with two integer-looking columns. Per-file inference would say INTEGER,
+        // INTEGER. With a bound schema of [col1:KEYWORD, col2:LONG], the emitted blocks must
+        // reflect the bound types, not the inferred ones.
+        String csv = "10,20\n30,40\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+
+        List<Attribute> boundSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.KEYWORD, Nullability.TRUE, null, false),
+            new ReferenceAttribute(Source.EMPTY, null, "col2", DataType.LONG, Nullability.TRUE, null, false)
+        );
+        FormatReadContext ctx = FormatReadContext.builder().batchSize(10).readSchema(boundSchema).build();
+
+        try (CloseableIterator<Page> iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(2, page.getBlockCount());
+            // col1 was bound as KEYWORD — must emit BytesRefBlock with the raw token.
+            BytesRefBlock col1 = (BytesRefBlock) page.getBlock(0);
+            assertEquals(new BytesRef("10"), col1.getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("30"), col1.getBytesRef(1, new BytesRef()));
+            // col2 was bound as LONG — must emit LongBlock with the parsed value.
+            LongBlock col2 = (LongBlock) page.getBlock(1);
+            assertEquals(20L, col2.getLong(0));
+            assertEquals(40L, col2.getLong(1));
+        }
+    }
+
+    public void testHeaderlessReadFallsBackToInferenceWhenContextReadSchemaNull() throws IOException {
+        // Same input as the previous test but with no bound schema. The reader falls back to
+        // per-file inference (INTEGER, INTEGER). This is the negative control proving the new
+        // slot is opt-in: existing call sites that don't set readSchema get the existing behavior.
+        String csv = "10,20\n30,40\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+
+        FormatReadContext ctx = FormatReadContext.builder().batchSize(10).build();
+        assertNull("readSchema must default to null", ctx.readSchema());
+
+        try (CloseableIterator<Page> iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(2, page.getBlockCount());
+            // Both columns infer as INTEGER from the data sample.
+            assertEquals(10, ((IntBlock) page.getBlock(0)).getInt(0));
+            assertEquals(30, ((IntBlock) page.getBlock(0)).getInt(1));
+            assertEquals(20, ((IntBlock) page.getBlock(1)).getInt(0));
+            assertEquals(40, ((IntBlock) page.getBlock(1)).getInt(1));
+        }
+    }
+
+    public void testHeaderlessReadSchemaResolvesCrossFileTypeDrift() throws IOException {
+        // Cross-file type-drift case: two headerless files whose per-file inference would disagree
+        // on col1 (file A has empty col1 → KEYWORD fallback; file B has integer col1 → INTEGER).
+        // With a planner-resolved read schema [col1:KEYWORD, col2:LONG] passed via
+        // context.readSchema(), file B emits BytesRefBlock for col1 instead of IntBlock —
+        // the type-mismatch crash that TopN otherwise catches goes away.
+        String fileB = "10,20\n30,40\n"; // would infer col1 as INTEGER without a bound read schema
+        StorageObject fileBObject = createStorageObject(fileB);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.KEYWORD, Nullability.TRUE, null, false),
+            new ReferenceAttribute(Source.EMPTY, null, "col2", DataType.LONG, Nullability.TRUE, null, false)
+        );
+        FormatReadContext ctx = FormatReadContext.builder().batchSize(10).readSchema(readSchema).build();
+
+        try (CloseableIterator<Page> iterator = reader.read(fileBObject, ctx)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            // col1 must be BytesRef-typed despite the file's integer-looking content.
+            assertTrue(
+                "col1 must be BytesRefBlock under bound read schema, got " + page.getBlock(0).getClass().getSimpleName(),
+                page.getBlock(0) instanceof BytesRefBlock
+            );
+        }
     }
 }

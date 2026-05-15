@@ -12,6 +12,8 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.telemetry.InferenceProductContext;
+import org.elasticsearch.inference.telemetry.InferenceProductContextTests;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
@@ -20,8 +22,8 @@ import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationA
 
 import java.net.URI;
 
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_ES_VERSION;
-import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -32,7 +34,7 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
         var secret = "secret";
         var productOrigin = "elastic";
         var elasticInferenceServiceRequestWrapper = getDummyElasticInferenceServiceRequest(
-            new ElasticInferenceServiceRequestMetadata(productOrigin, null, null),
+            new ElasticInferenceServiceRequestMetadata(new InferenceProductContext(null, productOrigin), null),
             new CCMAuthenticationApplierFactory.AuthenticationHeaderApplier(new SecureString(secret.toCharArray()))
         );
         var httpRequest = RequestTests.getHttpRequestSync(elasticInferenceServiceRequestWrapper);
@@ -44,7 +46,7 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
     public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithProductOrigin() {
         var productOrigin = "elastic";
         var elasticInferenceServiceRequestWrapper = getDummyElasticInferenceServiceRequest(
-            new ElasticInferenceServiceRequestMetadata(productOrigin, null, null)
+            new ElasticInferenceServiceRequestMetadata(new InferenceProductContext(null, productOrigin), null)
         );
         var httpRequest = RequestTests.getHttpRequestSync(elasticInferenceServiceRequestWrapper);
         var productOriginHeader = httpRequest.httpRequestBase().getFirstHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
@@ -57,7 +59,7 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
     public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithProductUseCase() {
         var productUseCase = "ai assistant";
         var elasticInferenceServiceRequestWrapper = getDummyElasticInferenceServiceRequest(
-            new ElasticInferenceServiceRequestMetadata(null, productUseCase, null)
+            new ElasticInferenceServiceRequestMetadata(new InferenceProductContext(productUseCase, null), null)
         );
         var httpRequest = RequestTests.getHttpRequestSync(elasticInferenceServiceRequestWrapper);
         var productUseCaseHeader = httpRequest.httpRequestBase().getFirstHeader(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
@@ -70,7 +72,7 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
     public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithEsVersion() {
         var esVersion = "1.2.3";
         var elasticInferenceServiceRequestWrapper = getDummyElasticInferenceServiceRequest(
-            new ElasticInferenceServiceRequestMetadata(null, null, esVersion)
+            new ElasticInferenceServiceRequestMetadata(InferenceProductContext.EMPTY, esVersion)
         );
         var httpRequest = RequestTests.getHttpRequestSync(elasticInferenceServiceRequestWrapper);
         var productUseCaseHeader = httpRequest.httpRequestBase().getFirstHeader(X_ELASTIC_ES_VERSION);
@@ -125,9 +127,8 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
 
     public static ElasticInferenceServiceRequestMetadata randomElasticInferenceServiceRequestMetadata() {
         return new ElasticInferenceServiceRequestMetadata(
-            randomFrom(new String[] { null, randomAlphaOfLength(10) }),
-            randomFrom(new String[] { null, randomAlphaOfLength(10) }),
-            randomFrom(new String[] { null, randomAlphaOfLength(10) })
+            InferenceProductContextTests.randomInferenceProductContext(),
+            randomFrom(randomAlphaOfLength(10), null)
         );
     }
 }

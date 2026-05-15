@@ -405,7 +405,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                     : "expect all inputs to be closed at the time the directory is closed but found that shard "
                         + shardId
                         + " has open generational files "
-                        + String.join(", ", generationalFilesTermAndGens.keySet().toArray(new String[0]));
+                        + generationalFilesTermAndGens.keySet();
             }
         }
         super.close();

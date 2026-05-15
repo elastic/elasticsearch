@@ -365,7 +365,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
 
     // --- createSnapshot tests ---
 
-    public void testCreateSnapshot_success() {
+    public void testCreateSnapshot_success() throws InterruptedException {
         ProjectState projectState = createProjectState();
         setClusterState(projectState);
         mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
@@ -401,7 +401,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
 
     // --- deleteSnapshotIfExists tests ---
 
-    public void testDeleteSnapshotIfExists_success() {
+    public void testDeleteSnapshotIfExists_success() throws InterruptedException {
         setClusterState(createProjectState());
         mockDeleteSnapshotResponse.set(AcknowledgedResponse.TRUE);
 
@@ -427,7 +427,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         assertDeleteSnapshotRequest(REPO_NAME, snapshotName);
     }
 
-    public void testDeleteSnapshotIfExists_snapshotMissingSilentlySucceeds() {
+    public void testDeleteSnapshotIfExists_snapshotMissingSilentlySucceeds() throws InterruptedException {
         setClusterState(createProjectState());
         mockDeleteSnapshotFailure.set(new SnapshotMissingException(REPO_NAME, "missing"));
 
@@ -458,7 +458,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
 
     // --- getSnapshot tests ---
 
-    public void testGetSnapshot_snapshotMissingReturnsNull() {
+    public void testGetSnapshot_snapshotMissingReturnsNull() throws InterruptedException {
         setClusterState(createProjectState());
         mockGetSnapshotsFailure.set(new SnapshotMissingException(REPO_NAME, "missing"));
 
@@ -488,7 +488,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
 
     // --- deleteAndRestartSnapshot tests ---
 
-    public void testDeleteAndRestartSnapshot_deleteThenCreates() {
+    public void testDeleteAndRestartSnapshot_deleteThenCreates() throws InterruptedException {
         ProjectState projectState = createProjectState();
         setClusterState(projectState);
         mockDeleteSnapshotResponse.set(AcknowledgedResponse.TRUE);
@@ -518,7 +518,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Failed to acknowledge delete"));
     }
 
-    public void testDeleteAndRestartSnapshot_snapshotMissingStillCreates() {
+    public void testDeleteAndRestartSnapshot_snapshotMissingStillCreates() throws InterruptedException {
         ProjectState projectState = createProjectState();
         setClusterState(projectState);
         mockDeleteSnapshotFailure.set(new SnapshotMissingException(REPO_NAME, "missing"));
@@ -535,7 +535,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
 
     // --- checkForOrphanedSnapshotAndStart tests ---
 
-    public void testCheckForOrphanedSnapshot_noExistingSnapshot_createsNew() {
+    public void testCheckForOrphanedSnapshot_noExistingSnapshot_createsNew() throws InterruptedException {
         ProjectState projectState = createProjectState();
         setClusterState(projectState);
         mockGetSnapshotsResponse.set(emptyGetSnapshotsResponse());
@@ -550,7 +550,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         assertThat(capturedDeleteSnapshotRequest.get(), is(nullValue()));
     }
 
-    public void testCheckForOrphanedSnapshot_validOrphaned_skipsCreate() {
+    public void testCheckForOrphanedSnapshot_validOrphaned_skipsCreate() throws InterruptedException {
         ProjectState projectState = createProjectState();
         setClusterState(projectState);
         SnapshotInfo validSnapshot = createSnapshotInfo(SnapshotState.SUCCESS, 0);
@@ -565,7 +565,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         assertThat(capturedCreateSnapshotRequest.get(), is(nullValue()));
     }
 
-    public void testCheckForOrphanedSnapshot_invalidOrphaned_deletesAndRecreates() {
+    public void testCheckForOrphanedSnapshot_invalidOrphaned_deletesAndRecreates() throws InterruptedException {
         ProjectState projectState = createProjectState();
         setClusterState(projectState);
         SnapshotInfo failedSnapshot = createSnapshotInfo(SnapshotState.FAILED, 1);
@@ -582,7 +582,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
     }
 
-    public void testCheckForOrphanedSnapshot_snapshotMissing_createsNew() {
+    public void testCheckForOrphanedSnapshot_snapshotMissing_createsNew() throws InterruptedException {
         ProjectState projectState = createProjectState();
         setClusterState(projectState);
         mockGetSnapshotsFailure.set(new SnapshotMissingException(REPO_NAME, "missing"));
@@ -611,7 +611,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         assertThat(e.getCause().getMessage(), containsString("get failed"));
     }
 
-    public void testHandleInProgressSnapshot_exceededTimeout_deletesAndRestarts() {
+    public void testHandleInProgressSnapshot_exceededTimeout_deletesAndRestarts() throws InterruptedException {
         // Snapshot started longer ago than SNAPSHOT_TIMEOUT (12h)
         long oldStartTime = clock.millis() - TimeValue.timeValueHours(13).millis(); // exceeds 12h SNAPSHOT_TIMEOUT
         ProjectState projectState = createProjectStateWithInProgressSnapshot(oldStartTime);
@@ -628,7 +628,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
     }
 
-    public void testWaitForSnapshotCompletion_snapshotAlreadyComplete_succeeds() {
+    public void testWaitForSnapshotCompletion_snapshotAlreadyComplete_succeeds() throws InterruptedException {
         // Set up cluster state with NO in-progress snapshot so the predicate is immediately true
         ProjectState projectState = createProjectState();
         setClusterState(projectState);

@@ -169,6 +169,42 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
             """, MODEL_ID, INPUT_VALUE, ROLE_VALUE));
     }
 
+    public void testSerializationWithSystemMessageExtractedToTopLevelField() throws IOException {
+        var messages = List.of(
+            new Message(new ContentString("You are a pirate."), "system", null, null),
+            new Message(new ContentString("Hello!"), "user", null, null)
+        );
+        testSerializationWithMessages(true, messages, taskSettings(1024, null, null, null), Strings.format("""
+            {
+                "model": "%s",
+                "system": "You are a pirate.",
+                "messages": [{"content": "Hello!", "role": "user"}],
+                "stream": true,
+                "max_tokens": 1024
+            }
+            """, MODEL_ID));
+    }
+
+    public void testSerializationWithMultipleSystemMessagesWrittenAsTextBlockArray() throws IOException {
+        var messages = List.of(
+            new Message(new ContentString("You are a pirate."), "system", null, null),
+            new Message(new ContentString("Always respond in verse."), "system", null, null),
+            new Message(new ContentString("Hello!"), "user", null, null)
+        );
+        testSerializationWithMessages(true, messages, taskSettings(1024, null, null, null), Strings.format("""
+            {
+                "model": "%s",
+                "system": [
+                    {"type": "text", "text": "You are a pirate."},
+                    {"type": "text", "text": "Always respond in verse."}
+                ],
+                "messages": [{"content": "Hello!", "role": "user"}],
+                "stream": true,
+                "max_tokens": 1024
+            }
+            """, MODEL_ID));
+    }
+
     public void testSerializationWithToolChoiceStringUnknownValueRejected() {
         var toolChoice = new ToolChoice.ToolChoiceString("unsupported_value");
         var entity = entity(true, null, null, null, List.of(), toolChoice, taskSettings(1024, null, null, null));
@@ -231,6 +267,19 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
     ) throws IOException {
         var entity = entity(stream, requestMaxCompletionTokens, requestTemperature, requestTopP, tools, toolChoice, taskSettings);
 
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertThat(Strings.toString(builder), is(XContentHelper.stripWhitespace(expectedJson)));
+    }
+
+    private static void testSerializationWithMessages(
+        boolean stream,
+        List<Message> messages,
+        AnthropicChatCompletionTaskSettings taskSettings,
+        String expectedJson
+    ) throws IOException {
+        var unifiedRequest = new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null);
+        var entity = new AnthropicUnifiedChatCompletionRequestEntity(new UnifiedChatInput(unifiedRequest, stream), MODEL_ID, taskSettings);
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertThat(Strings.toString(builder), is(XContentHelper.stripWhitespace(expectedJson)));

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.anthropic.request;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
 import org.elasticsearch.rest.RestStatus;
@@ -26,6 +27,7 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MESS
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MODEL_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.NAME_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TEMPERATURE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TEXT_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL_CHOICE_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOP_P_FIELD;
@@ -45,9 +47,12 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TYPE
 public class AnthropicUnifiedChatCompletionRequestEntity implements ToXContentObject {
 
     private static final String STREAM_FIELD = "stream";
+    private static final String SYSTEM_FIELD = "system";
     private static final String INPUT_SCHEMA_FIELD = "input_schema";
     private static final String TOP_K_FIELD = "top_k";
     private static final String TOOL_CHOICE_TOOL_TYPE = "tool";
+    private static final String TEXT_TYPE = "text";
+    private static final String SYSTEM_ROLE = "system";
 
     private final UnifiedCompletionRequest unifiedRequest;
     private final boolean stream;
@@ -84,7 +89,30 @@ public class AnthropicUnifiedChatCompletionRequestEntity implements ToXContentOb
         builder.startObject();
 
         builder.field(MODEL_FIELD, modelId);
-        builder.field(MESSAGES_FIELD, unifiedRequest.messages());
+
+        // Anthropic requires system prompts as a top-level "system" field, not inside the messages array.
+        var allMessages = unifiedRequest.messages();
+        var systemMessages = allMessages.stream().filter(m -> SYSTEM_ROLE.equals(m.role())).toList();
+        var nonSystemMessages = allMessages.stream().filter(m -> SYSTEM_ROLE.equals(m.role()) == false).toList();
+
+        if (systemMessages.isEmpty() == false) {
+            if (systemMessages.size() == 1 && systemMessages.get(0).content() instanceof ContentString cs) {
+                builder.field(SYSTEM_FIELD, cs.content());
+            } else {
+                builder.startArray(SYSTEM_FIELD);
+                for (var msg : systemMessages) {
+                    builder.startObject();
+                    builder.field(TYPE_FIELD, TEXT_TYPE);
+                    if (msg.content() instanceof ContentString cs) {
+                        builder.field(TEXT_FIELD, cs.content());
+                    }
+                    builder.endObject();
+                }
+                builder.endArray();
+            }
+        }
+
+        builder.field(MESSAGES_FIELD, nonSystemMessages);
 
         if (unifiedRequest.temperature() != null) {
             builder.field(TEMPERATURE_FIELD, unifiedRequest.temperature());

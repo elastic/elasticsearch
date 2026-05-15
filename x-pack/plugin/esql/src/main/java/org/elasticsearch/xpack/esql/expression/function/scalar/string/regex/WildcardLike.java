@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.datasources.pushdown.ByteMatchers;
+import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -167,21 +167,21 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
      */
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (caseInsensitive() == false) {
-            String prefix = pattern().matchesPrefix();
-            if (prefix != null) {
-                return new StartsWith(source(), field(), Literal.keyword(source(), prefix)).toEvaluator(toEvaluator);
-            }
-            String suffix = pattern().matchesSuffix();
-            if (suffix != null) {
-                return new EndsWith(source(), field(), Literal.keyword(source(), suffix)).toEvaluator(toEvaluator);
-            }
-            String contains = pattern().matchesContains();
-            if (contains != null) {
-                return new WildcardLikeContainsEvaluator.Factory(source(), toEvaluator.apply(field()), new BytesRef(contains));
-            }
+        if (caseInsensitive()) {
+            return super.toEvaluator(toEvaluator);
         }
-        return super.toEvaluator(toEvaluator);
+        return switch (pattern().shape()) {
+            case WildcardPattern.Shape.Prefix(String prefix) -> new StartsWith(source(), field(), Literal.keyword(source(), prefix))
+                .toEvaluator(toEvaluator);
+            case WildcardPattern.Shape.Suffix(String suffix) -> new EndsWith(source(), field(), Literal.keyword(source(), suffix))
+                .toEvaluator(toEvaluator);
+            case WildcardPattern.Shape.Contains(String literal) -> new WildcardLikeContainsEvaluator.Factory(
+                source(),
+                toEvaluator.apply(field()),
+                new BytesRef(literal)
+            );
+            case WildcardPattern.Shape.General ignored -> super.toEvaluator(toEvaluator);
+        };
     }
 
     /**

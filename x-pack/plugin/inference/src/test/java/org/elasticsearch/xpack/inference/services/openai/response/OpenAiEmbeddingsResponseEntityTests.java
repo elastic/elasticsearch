@@ -646,11 +646,11 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
         List<String> entries = new ArrayList<>(embeddings.size());
         for (int i = 0; i < embeddings.size(); i++) {
             entries.add(Strings.format("""
-                    {
-                        "object": "embedding",
-                        "index": %d,
-                        "embedding": "%s"
-                    }""", i, encodeFloats(embeddings.get(i))));
+                {
+                    "object": "embedding",
+                    "index": %d,
+                    "embedding": "%s"
+                }""", i, encodeFloats(embeddings.get(i))));
         }
         return Strings.format("""
             {

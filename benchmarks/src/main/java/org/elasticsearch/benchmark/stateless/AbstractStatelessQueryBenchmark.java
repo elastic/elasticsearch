@@ -20,6 +20,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.stateless.lucene.StatelessDirectoryFactory;
 import org.openjdk.jmh.annotations.AuxCounters;
@@ -124,7 +125,7 @@ public abstract class AbstractStatelessQueryBenchmark {
         System.setProperty(StatelessDirectoryFactory.FIRST_BYTE_LATENCY_MS_PROP, Long.toString(firstByteLatencyMs));
         deleteRecursively(workPath);
         Files.createDirectories(workPath);
-        directory = StatelessDirectoryFactory.create(dataPath, workPath);
+        directory = StatelessDirectoryFactory.create(dataPath, workPath, extraNodeSettings());
         if (cacheState == CacheState.HOT) {
             preWarm(directory);
         }
@@ -182,6 +183,15 @@ public abstract class AbstractStatelessQueryBenchmark {
 
     /** Subclass hook: populate query-side state. Runs once per trial, after the (possibly cached) index is ready. */
     protected void prepareQuery() throws IOException {}
+
+    /**
+     * Subclass hook: extra node settings to merge into the simulated directory's configuration on every invocation.
+     * Caller-supplied keys override the factory defaults. Sample use is to set {@code node.roles}, for example to
+     * {@code search} when the benchmark needs to exercise code paths gated on {@code hasSearchRole}.
+     */
+    protected Settings extraNodeSettings() {
+        return Settings.EMPTY;
+    }
 
     private static void preWarm(Directory dir) throws IOException {
         byte[] buf = new byte[64 * 1024];

@@ -12,31 +12,27 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 
 import java.util.List;
-import java.util.Map;
 
-public class SimpleServiceIntegrationValidator implements ServiceIntegrationValidator {
+import static org.elasticsearch.inference.DataType.TEXT;
+
+public class RerankServiceIntegrationValidator implements ServiceIntegrationValidator {
     private static final List<String> TEST_INPUT = List.of("how big");
     private static final String QUERY = "test query";
 
     @Override
     public void validate(InferenceService service, Model model, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
-        service.infer(
+        service.rerankInfer(
             model,
-            model.getTaskType().equals(TaskType.RERANK) ? QUERY : null,
-            null,
-            null,
-            TEST_INPUT,
-            false,
-            Map.of(),
-            InputType.INTERNAL_INGEST,
+            new RerankRequest(InferenceString.fromStringList(TEST_INPUT), new InferenceString(TEXT, QUERY), null, null, null),
             timeout,
             ServiceIntegrationValidator.wrapListenerForValidation(listener)
         );
     }
+
 }

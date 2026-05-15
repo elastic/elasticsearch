@@ -486,9 +486,6 @@ tests:
   method: testDeleteIndexWhileNodeStopping
   issue: https://github.com/elastic/elasticsearch/issues/148807
 - class: org.elasticsearch.xpack.stateless.commits.IndexCommitTimestampFieldRangeTests
-  method: testSoftDeletesAreAlmostAlwaysDisregardedForTimestampRange
-  issue: https://github.com/elastic/elasticsearch/issues/148966
-- class: org.elasticsearch.xpack.stateless.commits.IndexCommitTimestampFieldRangeTests
   method: testFieldValueRangeForBatchedCompoundCommit
   issue: https://github.com/elastic/elasticsearch/issues/148961
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT

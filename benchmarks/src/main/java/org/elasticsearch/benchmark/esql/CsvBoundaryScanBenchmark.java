@@ -161,15 +161,18 @@ public class CsvBoundaryScanBenchmark {
      * scanner — the version that lived in production before this PR.
      */
     private static class CsvReaderWithOriginalScanner extends CsvFormatReader {
+        private final CsvFormatOptions opts;
+
         CsvReaderWithOriginalScanner(BlockFactory bf, CsvFormatOptions opts, String format, List<String> extensions) {
             super(bf, opts, format, extensions);
+            this.opts = opts;
         }
 
         @Override
         public long findNextRecordBoundary(InputStream stream) throws IOException {
             long consumed = 0;
             boolean inQuotes = false;
-            byte quoteAsByte = (byte) '"';
+            byte quoteAsByte = (byte) opts.quoteChar();
             byte[] scratch = new byte[8192];
             int bytesRead;
             while ((bytesRead = stream.read(scratch, 0, scratch.length)) > 0) {

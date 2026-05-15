@@ -56,7 +56,7 @@
       }
     },
     "body": {
-      "description": "Use the `query` element to start a query. Use `columnar` to format the answer. Use the nested `settings` object to supply per-query configuration that mirrors in-query `SET` statements (e.g. `settings.time_zone`).",
+      "description": "Use the `query` element to start a query. Use `columnar` to format the answer.",
       "required": true
     }
   }

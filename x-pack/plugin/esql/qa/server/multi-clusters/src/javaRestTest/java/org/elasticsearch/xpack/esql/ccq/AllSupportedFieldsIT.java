@@ -122,6 +122,12 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
     }
 
     @Override
+    protected boolean fetchFlattenedDatatypeSortedKeysSupported() throws IOException {
+        return super.fetchFlattenedDatatypeSortedKeysSupported()
+            && clusterHasCapability(remoteClient(), "GET", "/_query", List.of(), List.of("FLATTENED_DATATYPE_SORTED_KEYS")).orElse(false);
+    }
+
+    @Override
     protected boolean fetchAllIsCrossCluster() {
         return true;
     }

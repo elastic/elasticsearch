@@ -60,6 +60,10 @@ public abstract class SortedNumericDoubleValues {
         return isSingleton;
     }
 
+    /**
+     * Converts a {@link SortedNumericDoubleValues} values to a singly valued {@link DoubleValues}
+     * if possible
+     */
     public DoubleValues asDoubleValues() {
         if (isSingleton && doubleValues == null) {
             var singleton = this;

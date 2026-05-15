@@ -17,7 +17,7 @@ import org.apache.lucene.search.LongValues;
 import java.io.IOException;
 
 /**
- * A multivalued version of {@link LongValues}
+ * Clone of {@link SortedNumericDocValues} for long values.
  */
 public abstract class SortedNumericLongValues {
 
@@ -79,6 +79,10 @@ public abstract class SortedNumericLongValues {
         return isSingleton;
     }
 
+    /**
+     * Converts a {@link SortedNumericLongValues} values to a singly valued {@link LongValues}
+     * if possible
+     */
     public LongValues asLongValues() {
         if (isSingleton && longValues == null) {
             var singleton = this;

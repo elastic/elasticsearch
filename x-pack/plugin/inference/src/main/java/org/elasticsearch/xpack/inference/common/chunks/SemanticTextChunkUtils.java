@@ -41,8 +41,9 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceField;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
+import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper.SemanticFieldType;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
-import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SemanticTextFieldType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -104,7 +105,7 @@ public class SemanticTextChunkUtils {
     public static List<OffsetAndScore> extractOffsetAndScores(
         SearchExecutionContext context,
         LeafReader reader,
-        SemanticTextFieldMapper.SemanticTextFieldType fieldType,
+        SemanticFieldType fieldType,
         int docId,
         List<Query> leafQueries
     ) throws IOException {
@@ -126,8 +127,9 @@ public class SemanticTextChunkUtils {
             return List.of();
         }
 
+        final boolean useLegacyFormat = (fieldType instanceof SemanticTextFieldType stft && stft.useLegacyFormat());
         OffsetSourceField.OffsetSourceLoader offsetReader = null;
-        if (fieldType.useLegacyFormat() == false) {
+        if (useLegacyFormat == false) {
             var terms = reader.terms(fieldType.getOffsetsField().fullPath());
             if (terms == null) {
                 // The field is empty

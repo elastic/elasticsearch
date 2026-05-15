@@ -18,6 +18,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.xcontent.Text;
+import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper.SemanticFieldType;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SemanticTextFieldType;
 
@@ -46,7 +47,7 @@ public class SemanticTextHighlighter implements Highlighter {
 
     @Override
     public boolean canHighlight(MappedFieldType fieldType) {
-        return fieldType instanceof SemanticTextFieldType;
+        return fieldType instanceof SemanticFieldType;
     }
 
     @Override
@@ -54,7 +55,7 @@ public class SemanticTextHighlighter implements Highlighter {
         if (canHighlight(fieldContext.fieldType) == false) {
             return null;
         }
-        SemanticTextFieldType fieldType = (SemanticTextFieldType) fieldContext.fieldType;
+        SemanticFieldType fieldType = (SemanticFieldType) fieldContext.fieldType;
         if (fieldType.getModelSettings() == null || fieldType.getEmbeddingsField() == null) {
             // nothing indexed yet
             return null;
@@ -89,7 +90,7 @@ public class SemanticTextHighlighter implements Highlighter {
         }
         Text[] snippets = new Text[size];
         final Function<OffsetAndScore, String> offsetToContent;
-        if (fieldType.useLegacyFormat()) {
+        if (fieldType instanceof SemanticTextFieldType stft && stft.useLegacyFormat()) {
             List<Map<?, ?>> nestedSources = XContentMapValues.extractNestedSources(
                 fieldType.getChunksField().fullPath(),
                 fieldContext.hitContext.source().source()

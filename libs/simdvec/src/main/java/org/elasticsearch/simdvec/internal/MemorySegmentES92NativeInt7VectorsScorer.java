@@ -44,7 +44,17 @@ public final class MemorySegmentES92NativeInt7VectorsScorer extends MemorySegmen
     }
 
     @Override
-    public void scoreBulk(byte[] q, float queryLowerInterval, float queryUpperInterval, int queryComponentSum, float queryAdditionalCorrection, VectorSimilarityFunction similarityFunction, float centroidDp, float[] scores, int bulkSize) throws IOException {
+    public void scoreBulk(
+        byte[] q,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
+        VectorSimilarityFunction similarityFunction,
+        float centroidDp,
+        float[] scores,
+        int bulkSize
+    ) throws IOException {
         int7DotProductBulk(q, bulkSize, scores);
         IndexInputUtils.withSlice(in, 16L * bulkSize, this::getScratch, memorySegment -> {
             nativeApplyCorrectionsBulk(

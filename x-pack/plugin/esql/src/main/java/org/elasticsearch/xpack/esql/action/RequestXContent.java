@@ -20,8 +20,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
-import org.elasticsearch.xpack.esql.plan.QuerySettings.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
@@ -49,6 +49,12 @@ import static org.elasticsearch.xpack.esql.parser.ParserUtils.paramClassificatio
 
 /** Static methods for parsing xcontent requests to transport requests. */
 final class RequestXContent {
+
+    /**
+     * Force {@link QuerySettings}'s static initializer to run before any body is parsed, so the registry holds the
+     * SET catalog by the time {@link QuerySettingDef#lookup(String)} is called in {@link #parseSettingsObject}.
+     */
+    private static final QuerySettingDef<?> SETTINGS_REGISTRY_INIT = QuerySettings.TIME_ZONE;
 
     private static class TempObjects {
         Map<String, Object> fields = new HashMap<>();
@@ -127,13 +133,13 @@ final class RequestXContent {
             PRAGMA_FIELD
         );
         parser.declareField(EsqlQueryRequest::params, RequestXContent::parseParams, PARAMS_FIELD, VALUE_OBJECT_ARRAY);
-        parser.declareString((request, timeZone) -> request.timeZone(ZoneId.of(timeZone)), TIME_ZONE_FIELD);
+        parser.declareString((request, tz) -> request.set(QuerySettings.TIME_ZONE, ZoneId.of(tz)), TIME_ZONE_FIELD);
         parser.declareString((request, localeTag) -> request.locale(Locale.forLanguageTag(localeTag)), LOCALE_FIELD);
         parser.declareBoolean(EsqlQueryRequest::profile, PROFILE_FIELD);
         parser.declareField((p, r, c) -> new ParseTables(r, p).parseTables(), TABLES_FIELD, ObjectParser.ValueType.OBJECT);
-        parser.declareString(EsqlQueryRequest::projectRouting, PROJECT_ROUTING);
+        parser.declareString((request, pr) -> request.set(QuerySettings.PROJECT_ROUTING, pr), PROJECT_ROUTING);
         parser.declareObjectOrBooleanOrNull(
-            EsqlQueryRequest::approximation,
+            (request, value) -> request.set(QuerySettings.APPROXIMATION, value),
             (p, c) -> ApproximationSettings.fromXContent(p),
             ApproximationSettings.EXPLICIT_NULL,
             APPROXIMATION_FIELD
@@ -142,10 +148,10 @@ final class RequestXContent {
     }
 
     /**
-     * Parses the canonical {@code settings.{}} block. Each key must be a body-exposed SET in the registry; any
-     * unknown key, or any key naming a SET-only setting, is rejected. Values are read via the registry entry's
-     * {@link QuerySettingDef#jsonValueParser()} and stashed in the request's canonical map. The canonical-vs-
-     * additional-binding precedence is resolved later in {@link EsqlQueryRequest#applyCanonicalRequestSettings()}.
+     * Parses the canonical {@code settings.{}} block. Each key must name a body-exposed setting in the registry;
+     * unknown keys and SET-only keys are rejected with a 400. Values are read through the registry entry and
+     * stashed in the request's canonical envelope; canonical-vs-additional-binding precedence is resolved later
+     * by {@link EsqlQueryRequest#applyCanonicalRequestSettings()}.
      */
     private static void parseSettingsObject(XContentParser p, EsqlQueryRequest request) throws IOException {
         if (p.currentToken() != XContentParser.Token.START_OBJECT) {
@@ -160,14 +166,14 @@ final class RequestXContent {
                 );
             }
             String settingName = p.currentName();
-            QuerySettingDef<?> def = QuerySettings.SETTINGS_BY_NAME.get(settingName);
+            QuerySettingDef<?> def = QuerySettingDef.lookup(settingName);
             if (def == null) {
                 throw new XContentParseException(
                     p.getTokenLocation(),
                     "Unknown setting [" + settingName + "] under [" + SETTINGS_FIELD.getPreferredName() + "]"
                 );
             }
-            if (def.requestParameterExposed() == false) {
+            if (def.isRequestParameterExposed() == false) {
                 throw new XContentParseException(
                     p.getTokenLocation(),
                     "Setting [" + settingName + "] is not exposed as a request body parameter"
@@ -176,7 +182,7 @@ final class RequestXContent {
             p.nextToken(); // move to value
             Object value;
             try {
-                value = def.jsonValueParser().parse(p);
+                value = def.readFromJson(p);
             } catch (IOException e) {
                 throw e;
             } catch (Exception e) {

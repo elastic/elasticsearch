@@ -11,39 +11,35 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Typed, immutable view of resolved query setting values. Produced by
+ * Immutable typed view of resolved query setting values. Produced by
  * {@link QuerySettings#resolve(Map, EsqlStatement, SettingsValidationContext)} after folding the precedence-ordered
- * sources (request parameter, query SET) over the registry's per-setting default.
+ * sources over the registry's per-setting default.
  *
- * <p>Reads via {@link #get(QuerySettings.QuerySettingDef)}: the return type is the setting's declared {@code T}.
- * Returns the registry default when no source supplied a value, otherwise the resolved value.
+ * <p>Reads via {@link QuerySettingDef#get(EffectiveSettings)} on each setting's constant — the only public
+ * way to read a setting's value. Returns the setting's registry default when no source supplied a value.
  *
- * <p>{@link #consumedSettingNames()} lists the SET key names that had at least one source contribute a value, used
- * for telemetry. A setting whose only contribution was the registry default is not "consumed".
+ * <p>{@link #consumedSettingNames()} lists the SET keys that had at least one source contribute, used for
+ * telemetry.
  */
 public final class EffectiveSettings {
 
-    private final Map<QuerySettings.QuerySettingDef<?>, Object> values;
+    /** Empty envelope — every setting returns its registry default. Useful in tests. */
+    public static final EffectiveSettings EMPTY = new EffectiveSettings(Map.of(), Set.of());
+
+    private final Map<QuerySettingDef<?>, Object> values;
     private final Set<String> consumed;
 
-    EffectiveSettings(Map<QuerySettings.QuerySettingDef<?>, Object> values, Set<String> consumed) {
+    EffectiveSettings(Map<QuerySettingDef<?>, Object> values, Set<String> consumed) {
         this.values = Map.copyOf(values);
         this.consumed = Set.copyOf(consumed);
     }
 
-    /**
-     * Returns the resolved value for {@code def}. May be {@code null} if the registry default is {@code null} and no
-     * source supplied a value.
-     */
     @SuppressWarnings("unchecked")
-    public <T> T get(QuerySettings.QuerySettingDef<T> def) {
-        return (T) values.get(def);
+    <T> T get(QuerySettingDef<T> def) {
+        Object v = values.get(def);
+        return v != null ? (T) v : def.defaultValue();
     }
 
-    /**
-     * SET key names where at least one source (request parameter or query SET) contributed a value. Use for telemetry
-     * counting consumed settings.
-     */
     public Set<String> consumedSettingNames() {
         return consumed;
     }

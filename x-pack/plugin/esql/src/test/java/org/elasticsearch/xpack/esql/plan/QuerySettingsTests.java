@@ -36,7 +36,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class QuerySettingsTests extends ESTestCase {
@@ -222,12 +221,12 @@ public class QuerySettingsTests extends ESTestCase {
         );
     }
 
-    private static <T> void assertValid(QuerySettings.QuerySettingDef<T> settingDef, Expression value, Matcher<T> parsedValueMatcher) {
+    private static <T> void assertValid(QuerySettingDef<T> settingDef, Expression value, Matcher<T> parsedValueMatcher) {
         assertValid(settingDef, value, parsedValueMatcher, SNAPSHOT_CTX_WITH_CPS_ENABLED);
     }
 
     private static <T> void assertValid(
-        QuerySettings.QuerySettingDef<T> settingDef,
+        QuerySettingDef<T> settingDef,
         Expression value,
         Matcher<T> parsedValueMatcher,
         SettingsValidationContext ctx
@@ -278,7 +277,7 @@ public class QuerySettingsTests extends ESTestCase {
         );
     }
 
-    private static <T> void assertDefault(QuerySettings.QuerySettingDef<T> settingDef, Matcher<? super T> defaultMatcher) {
+    private static <T> void assertDefault(QuerySettingDef<T> settingDef, Matcher<? super T> defaultMatcher) {
         EsqlStatement statement = new EsqlStatement(null, List.of());
 
         T value = statement.setting(settingDef);
@@ -297,7 +296,7 @@ public class QuerySettingsTests extends ESTestCase {
     }
 
     public void testResolve_RequestParameterAppliesWhenNoQuerySet() {
-        Map<QuerySettings.QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
         requestParams.put(QuerySettings.TIME_ZONE, ZoneId.of("Europe/Paris"));
         EffectiveSettings effective = QuerySettings.resolve(requestParams, null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
         assertThat(effective.get(QuerySettings.TIME_ZONE), equalTo(ZoneId.of("Europe/Paris")));
@@ -306,7 +305,7 @@ public class QuerySettingsTests extends ESTestCase {
 
     public void testResolve_QuerySetOverridesRequestParameter() {
         // Request says Europe/Paris, query SET says UTC → query SET wins.
-        Map<QuerySettings.QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
         requestParams.put(QuerySettings.TIME_ZONE, ZoneId.of("Europe/Paris"));
         QuerySetting set = new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, "time_zone", of("UTC")));
         EsqlStatement statement = new EsqlStatement(null, List.of(set));
@@ -318,7 +317,7 @@ public class QuerySettingsTests extends ESTestCase {
     public void testResolve_ApproximationFieldLevelMerge() {
         // Request supplies {rows: 10000}, query SET supplies {confidence_level: 0.92}. With field-level merge,
         // the resolved value carries both. (Last-wins would drop rows.)
-        Map<QuerySettings.QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
         requestParams.put(QuerySettings.APPROXIMATION, new ApproximationSettings(10000, 0.90));
         QuerySetting set = new QuerySetting(
             Source.EMPTY,
@@ -339,35 +338,26 @@ public class QuerySettingsTests extends ESTestCase {
 
     public void testResolve_UnmappedFieldsIsSetOnly() {
         // UNMAPPED_FIELDS opted out of body exposure. The registry exposure flag is false.
-        assertThat(QuerySettings.UNMAPPED_FIELDS.requestParameterExposed(), is(false));
-        assertThat(QuerySettings.UNMAPPED_FIELDS.additionalBindings().isEmpty(), is(true));
+        assertThat(QuerySettings.UNMAPPED_FIELDS.isRequestParameterExposed(), is(false));
+        assertThat(QuerySettings.UNMAPPED_FIELDS.aliases().isEmpty(), is(true));
     }
 
-    public void testResolve_BodyExposedSettingsDeclareBindings() {
-        // The three body-exposed settings each carry exactly one additional binding at the top level of the body,
-        // mirroring the legacy field names.
-        for (QuerySettings.QuerySettingDef<?> def : List.of(
-            QuerySettings.TIME_ZONE,
-            QuerySettings.PROJECT_ROUTING,
-            QuerySettings.APPROXIMATION
-        )) {
-            assertThat("requestParameterExposed for [" + def.name() + "]", def.requestParameterExposed(), is(true));
-            assertThat("jsonValueParser for [" + def.name() + "]", def.jsonValueParser(), is(notNullValue()));
-            assertThat("additionalBindings for [" + def.name() + "]", def.additionalBindings(), hasSize(1));
-            QuerySettings.RequestBodyBinding binding = def.additionalBindings().get(0);
-            assertThat(binding.isAtRoot(), is(true));
-            assertThat(binding.name(), equalTo(def.name()));
+    public void testResolve_BodyExposedSettingsDeclareAliases() {
+        // The three body-exposed settings each carry exactly one root alias mirroring the legacy field names.
+        for (QuerySettingDef<?> def : List.of(QuerySettings.TIME_ZONE, QuerySettings.PROJECT_ROUTING, QuerySettings.APPROXIMATION)) {
+            assertThat("requestParameterExposed for [" + def.name() + "]", def.isRequestParameterExposed(), is(true));
+            assertThat("aliases for [" + def.name() + "]", def.aliases(), hasSize(1));
+            QuerySettingDef.RequestBodyBinding alias = def.aliases().get(0);
+            assertThat(alias.isAtRoot(), is(true));
+            assertThat(alias.name(), equalTo(def.name()));
         }
     }
 
     @AfterClass
     public static void generateDocs() throws Exception {
-        List<QuerySettings.QuerySettingDef<?>> settings = QuerySettings.SETTINGS_BY_NAME.values()
-            .stream()
-            .sorted(Comparator.comparing(QuerySettings.QuerySettingDef::name))
-            .toList();
+        List<QuerySettingDef<?>> settings = QuerySettingDef.all().stream().sorted(Comparator.comparing(QuerySettingDef::name)).toList();
 
-        for (QuerySettings.QuerySettingDef<?> def : settings) {
+        for (QuerySettingDef<?> def : settings) {
             DocsV3Support.SettingsDocsSupport settingsDocsSupport = new DocsV3Support.SettingsDocsSupport(
                 def,
                 QuerySettingsTests.class,

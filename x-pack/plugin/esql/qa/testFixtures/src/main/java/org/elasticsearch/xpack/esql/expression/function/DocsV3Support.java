@@ -40,8 +40,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
-import org.elasticsearch.xpack.esql.plan.QuerySettings.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -1282,7 +1282,7 @@ public abstract class DocsV3Support {
             builder.append(SETTINGS_WARNING);
 
             for (QuerySettingDef<?> setting : settings) {
-                if (setting.snapshotOnly()) {
+                if (setting.isSnapshotOnly()) {
                     continue;
                 }
                 builder.append(":::{include} ");
@@ -1313,7 +1313,7 @@ public abstract class DocsV3Support {
         }
 
         private void renderSettingDefinition() throws IOException {
-            if (setting.snapshotOnly()) {
+            if (setting.isSnapshotOnly()) {
                 return;
             }
 
@@ -1332,14 +1332,14 @@ public abstract class DocsV3Support {
 
             builder.append("```{applies_to}\n");
             builder.append("serverless: ");
-            builder.append(setting.preview() ? "preview" : "ga");
+            builder.append(setting.isPreview() ? "preview" : "ga");
             builder.append("\n");
 
-            if (setting.serverlessOnly()) {
+            if (setting.isServerlessOnly()) {
                 builder.append("stack: unavailable");
             } else {
                 builder.append("stack: ");
-                builder.append(setting.preview() ? "preview" : "ga");
+                builder.append(setting.isPreview() ? "preview" : "ga");
                 String since = param != null ? param.since() : mapParam.since();
                 if (since.length() > 0) {
                     builder.append(" ");
@@ -1424,9 +1424,9 @@ public abstract class DocsV3Support {
                             .collect(Collectors.joining(", "))
                     );
                 }
-                builder.field("serverlessOnly", setting.serverlessOnly());
-                builder.field("preview", setting.preview());
-                builder.field("snapshotOnly", setting.snapshotOnly());
+                builder.field("serverlessOnly", setting.isServerlessOnly());
+                builder.field("preview", setting.isPreview());
+                builder.field("snapshotOnly", setting.isSnapshotOnly());
                 builder.field("description", param != null ? param.description() : mapParam.description());
                 String rendered = Strings.toString(builder.endObject());
                 logger.info("Writing kibana setting definition for [{}]", name);

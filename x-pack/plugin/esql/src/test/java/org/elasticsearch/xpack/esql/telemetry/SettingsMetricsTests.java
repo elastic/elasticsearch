@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.telemetry;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
-import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 
 import java.util.Map;
 
@@ -74,7 +74,7 @@ public class SettingsMetricsTests extends ESTestCase {
         Counters stats = metrics.stats();
 
         // With all flags enabled, all settings should be registered
-        for (String settingName : QuerySettings.SETTINGS_BY_NAME.keySet()) {
+        for (String settingName : QuerySettingDef.all().stream().map(QuerySettingDef::name).toList()) {
             assertTrue("Missing metric for setting: " + settingName, hasMetric(stats, SETTINGS_PREFIX + settingName));
             assertThat(stats.get(SETTINGS_PREFIX + settingName), equalTo(0L));
         }
@@ -168,13 +168,13 @@ public class SettingsMetricsTests extends ESTestCase {
         Metrics metrics = createMetricsWithAllSettings();
 
         // Increment all known settings
-        for (String settingName : QuerySettings.SETTINGS_BY_NAME.keySet()) {
+        for (String settingName : QuerySettingDef.all().stream().map(QuerySettingDef::name).toList()) {
             metrics.incSetting(settingName);
         }
 
         // Verify all settings are now 1
         Counters stats = metrics.stats();
-        for (String settingName : QuerySettings.SETTINGS_BY_NAME.keySet()) {
+        for (String settingName : QuerySettingDef.all().stream().map(QuerySettingDef::name).toList()) {
             assertThat("Wrong count for setting: " + settingName, stats.get(SETTINGS_PREFIX + settingName), equalTo(1L));
         }
     }
@@ -192,10 +192,7 @@ public class SettingsMetricsTests extends ESTestCase {
         assertThat(stats.get(SETTINGS_PREFIX + "project_routing"), equalTo(1L));
 
         // Verify project_routing is serverless-only
-        assertTrue(
-            "project_routing should be a serverless-only setting",
-            QuerySettings.SETTINGS_BY_NAME.get("project_routing").serverlessOnly()
-        );
+        assertTrue("project_routing should be a serverless-only setting", QuerySettingDef.lookup("project_routing").isServerlessOnly());
     }
 
     public void testIncProjectRoutingSetting_Stateful() {

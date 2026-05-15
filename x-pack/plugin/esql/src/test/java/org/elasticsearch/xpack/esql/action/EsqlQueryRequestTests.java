@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 
 import java.io.IOException;
@@ -100,7 +101,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
-        assertEquals(timeZone, request.timeZone());
+        assertEquals(timeZone, request.get(QuerySettings.TIME_ZONE));
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
@@ -161,7 +162,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
-        assertEquals(timeZone, request.timeZone());
+        assertEquals(timeZone, request.get(QuerySettings.TIME_ZONE));
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
@@ -205,7 +206,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
-        assertEquals(timeZone, request.timeZone());
+        assertEquals(timeZone, request.get(QuerySettings.TIME_ZONE));
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
@@ -254,7 +255,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
-        assertEquals(timeZone, request.timeZone());
+        assertEquals(timeZone, request.get(QuerySettings.TIME_ZONE));
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
@@ -664,7 +665,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
-        assertEquals(timeZone, request.timeZone());
+        assertEquals(timeZone, request.get(QuerySettings.TIME_ZONE));
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
@@ -701,8 +702,8 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 }
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
-        assertEquals(ZoneId.of("Europe/Paris"), request.timeZone());
-        assertEquals("*", request.projectRouting());
+        assertEquals(ZoneId.of("Europe/Paris"), request.get(QuerySettings.TIME_ZONE));
+        assertEquals("*", request.get(QuerySettings.PROJECT_ROUTING));
     }
 
     public void testSettingsBlock_ApproximationObject() throws IOException {
@@ -714,8 +715,8 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 }
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
-        assertNotNull(request.approximation());
-        assertEquals(Integer.valueOf(10000), request.approximation().rows());
+        assertNotNull(request.get(QuerySettings.APPROXIMATION));
+        assertEquals(Integer.valueOf(10000), request.get(QuerySettings.APPROXIMATION).rows());
     }
 
     public void testSettingsBlock_CanonicalWinsOverLegacyTopLevel() throws IOException {
@@ -730,7 +731,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 }
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
-        assertEquals(ZoneId.of("UTC"), request.timeZone());
+        assertEquals(ZoneId.of("UTC"), request.get(QuerySettings.TIME_ZONE));
     }
 
     public void testSettingsBlock_CanonicalWinsRegardlessOfOrder() throws IOException {
@@ -744,7 +745,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 "time_zone": "Europe/Paris"
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
-        assertEquals(ZoneId.of("UTC"), request.timeZone());
+        assertEquals(ZoneId.of("UTC"), request.get(QuerySettings.TIME_ZONE));
     }
 
     public void testSettingsBlock_RejectsUnknownKey() {
@@ -1061,7 +1062,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 "project_routing": "_alias:_origin"
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
-        assertThat(request.projectRouting(), is("_alias:_origin"));
+        assertThat(request.get(QuerySettings.PROJECT_ROUTING), is("_alias:_origin"));
     }
 
     public void testApproximationNull() throws IOException {
@@ -1071,7 +1072,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 "approximation": null
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
-        assertThat(request.approximation(), equalTo(ApproximationSettings.EXPLICIT_NULL));
+        assertThat(request.get(QuerySettings.APPROXIMATION), equalTo(ApproximationSettings.EXPLICIT_NULL));
     }
 
     public void testApproximationTrue() throws IOException {
@@ -1081,8 +1082,8 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 "approximation": true
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
-        assertThat(request.approximation(), equalTo(ApproximationSettings.DEFAULT));
-        assertThat(request.approximation().confidenceLevel(), equalTo(0.90));
+        assertThat(request.get(QuerySettings.APPROXIMATION), equalTo(ApproximationSettings.DEFAULT));
+        assertThat(request.get(QuerySettings.APPROXIMATION).confidenceLevel(), equalTo(0.90));
     }
 
     public void testApproximationFalse() throws IOException {
@@ -1092,7 +1093,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 "approximation": false
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
-        assertThat(request.approximation(), equalTo(ApproximationSettings.EXPLICIT_NULL));
+        assertThat(request.get(QuerySettings.APPROXIMATION), equalTo(ApproximationSettings.EXPLICIT_NULL));
     }
 
     public void testApproximationObject() throws IOException {
@@ -1105,7 +1106,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 }
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
-        assertThat(request.approximation(), equalTo(new ApproximationSettings(50000, 0.678)));
+        assertThat(request.get(QuerySettings.APPROXIMATION), equalTo(new ApproximationSettings(50000, 0.678)));
     }
 
     public void testApproximationObjectPartial() throws IOException {
@@ -1117,7 +1118,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 }
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
-        assertThat(request.approximation(), equalTo(new ApproximationSettings(20000, 0.9)));
+        assertThat(request.get(QuerySettings.APPROXIMATION), equalTo(new ApproximationSettings(20000, 0.9)));
     }
 
     public void testApproximationObjectEmpty() throws IOException {
@@ -1127,7 +1128,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 "approximation": {}
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
-        assertThat(request.approximation(), equalTo(ApproximationSettings.DEFAULT));
+        assertThat(request.get(QuerySettings.APPROXIMATION), equalTo(ApproximationSettings.DEFAULT));
     }
 
     public void testApproximationNotSet() throws IOException {
@@ -1136,7 +1137,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 "query": "FROM test | STATS count()"
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
-        assertNull(request.approximation());
+        assertNull(request.get(QuerySettings.APPROXIMATION));
     }
 
     public void testApproximationInvalidRows() {
@@ -1161,8 +1162,8 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 }
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
-        assertThat(request.approximation(), not(nullValue()));
-        assertThat(request.approximation().confidenceLevel(), nullValue());
+        assertThat(request.get(QuerySettings.APPROXIMATION), not(nullValue()));
+        assertThat(request.get(QuerySettings.APPROXIMATION).confidenceLevel(), nullValue());
     }
 
     public void testApproximationInvalidConfidenceLevel() {

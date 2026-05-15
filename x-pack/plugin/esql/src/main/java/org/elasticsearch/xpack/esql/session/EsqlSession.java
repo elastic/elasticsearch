@@ -311,14 +311,14 @@ public class EsqlSession {
             new SettingsValidationContext(crossProjectModeDecider.crossProjectEnabled(), Build.current().isSnapshot())
         );
 
-        ZoneId timeZone = effective.get(QuerySettings.TIME_ZONE);
+        ZoneId timeZone = QuerySettings.TIME_ZONE.get(effective);
 
-        String projectRouting = effective.get(QuerySettings.PROJECT_ROUTING);
+        String projectRouting = QuerySettings.PROJECT_ROUTING.get(effective);
         if (projectRouting != null && crossProjectModeDecider.crossProjectEnabled() == false) {
             throw new VerificationException("[project_routing] is only allowed when cross-project search is enabled");
         }
 
-        ApproximationSettings approximationSettings = effective.get(QuerySettings.APPROXIMATION);
+        ApproximationSettings approximationSettings = QuerySettings.APPROXIMATION.get(effective);
         if (approximationSettings != null) {
             EsqlLicenseChecker.checkQueryApproximation(verifier.licenseState());
         }

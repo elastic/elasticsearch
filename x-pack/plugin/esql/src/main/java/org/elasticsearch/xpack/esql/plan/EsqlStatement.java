@@ -25,7 +25,7 @@ public record EsqlStatement(LogicalPlan plan, List<QuerySetting> settings) {
      *
      * @param settingDef the setting to retrieve
      */
-    public <T> T setting(QuerySettings.QuerySettingDef<T> settingDef) {
+    public <T> T setting(QuerySettingDef<T> settingDef) {
         return settingOrDefault(settingDef, settingDef.defaultValue());
     }
 
@@ -44,19 +44,19 @@ public record EsqlStatement(LogicalPlan plan, List<QuerySetting> settings) {
      * @param settingDef the setting to retrieve
      * @param defaultValue the value to return if the setting is not set
      */
-    public <T> T settingOrDefault(QuerySettings.QuerySettingDef<T> settingDef, T defaultValue) {
+    public <T> T settingOrDefault(QuerySettingDef<T> settingDef, T defaultValue) {
         Expression expression = setting(settingDef.name());
         if (expression == null) {
             return defaultValue;
         }
-        return settingDef.parse(expression);
+        return settingDef.readFromExpression(expression);
     }
 
     /**
      * Returns the expression corresponding to a setting value.
      * If the setting name appears multiple times, this will return last occurrence.
      * <p>
-     *     For testing purposes; use {@link #setting(QuerySettings.QuerySettingDef)} instead.
+     *     For testing purposes; use {@link #setting(QuerySettingDef)} instead.
      * </p>
      *
      * @param name the setting name

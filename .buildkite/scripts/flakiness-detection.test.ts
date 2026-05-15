@@ -17,7 +17,7 @@ import {
   locateUnmutedTest,
   findUnmutedTests,
   dedupeTests,
-} from "./repeat-changed-tests";
+} from "./flakiness-detection";
 
 describe("toGradleProject", () => {
   test("converts simple path", () => {

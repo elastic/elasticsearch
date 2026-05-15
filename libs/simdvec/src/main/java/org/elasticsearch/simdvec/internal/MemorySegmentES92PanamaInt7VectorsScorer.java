@@ -225,7 +225,7 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
         }
     }
 
-    protected void applyCorrectionsBulk(
+    protected void panamaApplyCorrectionsBulk(
         float queryLowerInterval,
         float queryUpperInterval,
         int queryComponentSum,

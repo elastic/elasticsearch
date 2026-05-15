@@ -232,42 +232,6 @@ tests:
 - class: org.elasticsearch.xpack.core.transform.transforms.pivot.ScriptConfigTests
   method: testFromXContent
   issue: https://github.com/elastic/elasticsearch/issues/147543
-- class: org.elasticsearch.xpack.esql.datasource.orc.OrcFormatReaderTests
-  methods:
-  - testMetadataReturnsCorrectSourceType
-  - testReadDecimalColumnWithNulls
-  - testReadNullValuesInColumns
-  - testReadIntegerColumn
-  - testReadListTimestampColumn
-  - testReadDecimalHighPrecision
-  - testBinaryMapsToUnsupported
-  - testDiscoverSplitRanges_emptyFile
-  - testDiscoverSplitRanges_multiStripeFile
-  - testPreEpochTimestamp
-  - testTimestampTruncatesToMillisPrecision
-  - testReadListDecimalColumn
-  - testReadRepeatingVectors
-  - testProjectedColumnMissingFromFileReturnsNullBlock
-  - testReadWithPushedFilterMatchingNone
-  - testReadRange_readsOnlyAssignedStripes
-  - testReadRange_withPredicate
-  - testReadWithColumnProjection
-  - testReadTimestampColumn
-  - testReadDataFromSimpleOrc
-  - testReadDateColumn
-  - testReadWithBatching
-  - testReadWithPushedFilterMatchingAll
-  - testReadFloatColumn
-  - testReadTimestampColumnWithNulls
-  - testReadDecimalColumn
-  - testReadWithPushedFilterAndColumnProjection
-  - testIteratorCloseReleasesResourcesOnPartialRead
-  - testReadBooleanColumn
-  - testReadSchemaFromSimpleOrc
-  - testReadRange_withProjection
-  - testDiscoverSplitRanges_singleStripe
-  - testReadListColumnAsMultiValue
-  issue: https://github.com/elastic/elasticsearch/issues/147545
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueGroupColumn}
   issue: https://github.com/elastic/elasticsearch/issues/147613
@@ -527,12 +491,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testDeleteIndexWhileNodeStopping
   issue: https://github.com/elastic/elasticsearch/issues/148807
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
-  method: testMixedOperationsDuringSplit
-  issue: https://github.com/elastic/elasticsearch/issues/148809
-- class: org.elasticsearch.reindex.management.ReindexRethrottleRelocationIT
-  method: testRethrottleByOriginalTaskIdAfterRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/148893
 - class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
   method: testProcessOnceOnPrimary
   issue: https://github.com/elastic/elasticsearch/issues/148943
@@ -578,3 +536,18 @@ tests:
 - class: org.elasticsearch.xpack.security.ReindexRelocationWithSecurityIT
   method: testReindexRelocatesWhenCoordinatorShutsDown
   issue: https://github.com/elastic/elasticsearch/issues/149055
+- class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
+  method: testRetainCommitForReadersAfterShardMovedAway
+  issue: https://github.com/elastic/elasticsearch/issues/149083
+- class: org.elasticsearch.xpack.stateless.StatelessFieldCapabilitiesIT
+  method: testFieldCapsForHollowShards
+  issue: https://github.com/elastic/elasticsearch/issues/149113
+- class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
+  method: test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [LOCAL]}
+  issue: https://github.com/elastic/elasticsearch/issues/149126
+- class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
+  method: test {csv-spec:csv-union-by-name.multiFileUnionByNameRecipe [LOCAL]}
+  issue: https://github.com/elastic/elasticsearch/issues/149127
+- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
+  method: testMultipleInferencesTriggeringDownloadAndDeploy
+  issue: https://github.com/elastic/elasticsearch/issues/149130

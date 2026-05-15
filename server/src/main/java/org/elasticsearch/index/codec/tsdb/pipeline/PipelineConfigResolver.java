@@ -7,23 +7,21 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.tsdb.es95;
-
-import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
+package org.elasticsearch.index.codec.tsdb.pipeline;
 
 /**
- * Factory that creates a {@link PipelineConfig} for a given block size.
- * The format class provides the implementation; the numeric codec and
- * field writer consume it.
+ * Resolves a {@link PipelineConfig} for a given field. Implementations may
+ * return different pipelines based on the {@link FieldContext}, enabling
+ * per-field encoding strategies such as delta-of-delta for timestamp fields.
  */
 @FunctionalInterface
-interface PipelineConfigFactory {
+public interface PipelineConfigResolver {
 
     /**
-     * Creates a pipeline configuration for the given block size.
+     * Resolves the pipeline configuration for the given field.
      *
-     * @param blockSize the number of values per numeric block
+     * @param context the field context for pipeline selection
      * @return the pipeline configuration
      */
-    PipelineConfig create(int blockSize);
+    PipelineConfig resolve(FieldContext context);
 }

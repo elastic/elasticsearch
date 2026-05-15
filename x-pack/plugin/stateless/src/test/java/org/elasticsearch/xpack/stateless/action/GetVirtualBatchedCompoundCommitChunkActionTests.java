@@ -47,12 +47,11 @@ public class GetVirtualBatchedCompoundCommitChunkActionTests extends ESTestCase 
         final var shard = mock(IndexShard.class);
         when(shard.shardId()).thenReturn(shardId);
         when(shard.getOperationPrimaryTerm()).thenReturn(request.getPrimaryTerm());
-        final var indexMetadata = mock(IndexMetadata.class);
-        when(indexMetadata.getState()).thenReturn(IndexMetadata.State.OPEN);
-        when(indexMetadata.getIndex()).thenReturn(shardId.getIndex());
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build();
-        when(indexMetadata.getSettings()).thenReturn(settings);
-        when(indexMetadata.getCreationVersion()).thenReturn(IndexVersion.current());
+        Settings settings = indexSettings(IndexVersion.current(), 1, 0).build();
+        final var indexMetadata = IndexMetadata.builder(shardId.getIndex().getName())
+            .settings(settings)
+            .state(IndexMetadata.State.OPEN)
+            .build();
         final var indexSettings = new IndexSettings(indexMetadata, settings);
         when(shard.indexSettings()).thenReturn(indexSettings);
 

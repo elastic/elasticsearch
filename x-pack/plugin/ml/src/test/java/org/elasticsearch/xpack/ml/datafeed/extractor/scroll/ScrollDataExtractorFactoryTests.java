@@ -147,15 +147,11 @@ public class ScrollDataExtractorFactoryTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testCcsOrphanSuccessfullyClearedShouldBeRemovedFromQueue() {
         ScrollDataExtractorFactory factory = newFactory();
-        factory.orphanedScrolls.addLast(
-            new ScrollDataExtractorFactory.OrphanedScroll("scroll-recoverable", System.currentTimeMillis(), 0)
-        );
+        factory.orphanedScrolls.addLast(new ScrollDataExtractorFactory.OrphanedScroll("scroll-recoverable", System.currentTimeMillis(), 0));
 
         ActionFuture<ClearScrollResponse> successFuture = mock(ActionFuture.class);
         when(successFuture.actionGet()).thenReturn(new ClearScrollResponse(true, 1));
-        when(client.execute(same(TransportClearScrollAction.TYPE), any(ClearScrollRequest.class))).thenReturn(
-            (ActionFuture) successFuture
-        );
+        when(client.execute(same(TransportClearScrollAction.TYPE), any(ClearScrollRequest.class))).thenReturn((ActionFuture) successFuture);
 
         factory.retryClearOrphanedScrollIds();
 

@@ -892,6 +892,9 @@ public abstract class RangeAggregator extends BucketsAggregator {
     }
 
     public static boolean hasOverlap(Range[] ranges) {
+        if (ranges.length == 0) {
+            return false;
+        }
         double lastEnd = ranges[0].to;
         for (int i = 1; i < ranges.length; ++i) {
             if (ranges[i].from < lastEnd) {

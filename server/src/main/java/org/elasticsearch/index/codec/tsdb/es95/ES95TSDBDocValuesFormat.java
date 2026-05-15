@@ -89,7 +89,7 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
     /**
      * Creates a new ES95 format with default configuration.
      * NOTE: required by SPI but not used at runtime; codec selection goes through
-     * {@link CachedES95TSDBDocValuesFormatFactory}.
+     * {@link ES95TSDBDocValuesFormatFactory}.
      */
     public ES95TSDBDocValuesFormat() {
         this(

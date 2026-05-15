@@ -23,7 +23,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatFactory;
-import org.elasticsearch.index.codec.tsdb.es95.CachedES95TSDBDocValuesFormatFactory;
+import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatFactory;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -97,7 +97,7 @@ public class TSDBDocValuesBulkWriteBenchmark {
             false,
             false
         );
-        final DocValuesFormat es95Format = CachedES95TSDBDocValuesFormatFactory.createDocValuesFormat(false, false, false);
+        final DocValuesFormat es95Format = ES95TSDBDocValuesFormatFactory.createDocValuesFormat(false, false, false);
         es819Codec = wrapCodec(es819Format);
         es95Codec = wrapCodec(es95Format);
         es95UncachedCodec = wrapUncachedES95Codec();
@@ -169,7 +169,7 @@ public class TSDBDocValuesBulkWriteBenchmark {
         return new Elasticsearch93Lucene104Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
-                return CachedES95TSDBDocValuesFormatFactory.createDocValuesFormatUncached(false, false, false);
+                return ES95TSDBDocValuesFormatFactory.createDocValuesFormatUncached(false, false, false);
             }
         };
     }

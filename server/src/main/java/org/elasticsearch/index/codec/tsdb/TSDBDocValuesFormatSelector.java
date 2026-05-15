@@ -16,7 +16,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatFactory;
-import org.elasticsearch.index.codec.tsdb.es95.CachedES95TSDBDocValuesFormatFactory;
+import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatFactory;
 
 /**
  * Selects the appropriate TSDB doc values format based on index settings,
@@ -41,11 +41,7 @@ public final class TSDBDocValuesFormatSelector {
             && indexCreatedVersion.onOrAfter(IndexVersions.WRITE_TSID_PREFIX_PARTITION);
 
         if (useES95(indexSettings)) {
-            return CachedES95TSDBDocValuesFormatFactory.createDocValuesFormat(
-                useLargeNumericBlockSize,
-                useLargeBinaryBlockSize,
-                writePartitions
-            );
+            return ES95TSDBDocValuesFormatFactory.createDocValuesFormat(useLargeNumericBlockSize, useLargeBinaryBlockSize, writePartitions);
         }
         return ES819TSDBDocValuesFormatFactory.createDocValuesFormat(
             indexCreatedVersion,

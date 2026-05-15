@@ -23,7 +23,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatFactory;
-import org.elasticsearch.index.codec.tsdb.es95.CachedES95TSDBDocValuesFormatFactory;
+import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatFactory;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -52,7 +52,7 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>This is the place to look for per segment and per field differences such as the
  * effect of caching {@code ES95TSDBDocValuesFormat} instances in
- * {@code CachedES95TSDBDocValuesFormatFactory}. For per block encoder differences,
+ * {@code ES95TSDBDocValuesFormatFactory}. For per block encoder differences,
  * see {@code TSDBDocValuesBulkWriteBenchmark}.
  *
  * <h2>Ready to run command</h2>
@@ -102,7 +102,7 @@ public class TSDBDocValuesSmallSegmentWriteBenchmark {
             false,
             false
         );
-        final DocValuesFormat es95Format = CachedES95TSDBDocValuesFormatFactory.createDocValuesFormat(false, false, false);
+        final DocValuesFormat es95Format = ES95TSDBDocValuesFormatFactory.createDocValuesFormat(false, false, false);
         es819Codec = wrapCodec(es819Format);
         es95Codec = wrapCodec(es95Format);
         es95UncachedCodec = wrapUncachedES95Codec();
@@ -180,7 +180,7 @@ public class TSDBDocValuesSmallSegmentWriteBenchmark {
         return new Elasticsearch93Lucene104Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
-                return CachedES95TSDBDocValuesFormatFactory.createDocValuesFormatUncached(false, false, false);
+                return ES95TSDBDocValuesFormatFactory.createDocValuesFormatUncached(false, false, false);
             }
         };
     }

@@ -17,7 +17,7 @@ import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
  * Factory for creating {@link ES95TSDBDocValuesFormat} instances with block size
  * configuration matching index settings.
  */
-public final class CachedES95TSDBDocValuesFormatFactory {
+public final class ES95TSDBDocValuesFormatFactory {
 
     static final int BINARY_BLOCK_BYTES_SMALL = 128 * 1024;
     static final int BINARY_BLOCK_COUNT_SMALL = 1024;
@@ -28,7 +28,7 @@ public final class CachedES95TSDBDocValuesFormatFactory {
     // bounds checked load instead of three dependent loads on the per field hot path.
     private static final DocValuesFormat[] INSTANCES = buildInstances();
 
-    private CachedES95TSDBDocValuesFormatFactory() {}
+    private ES95TSDBDocValuesFormatFactory() {}
 
     private static DocValuesFormat[] buildInstances() {
         final DocValuesFormat[] cache = new DocValuesFormat[8];

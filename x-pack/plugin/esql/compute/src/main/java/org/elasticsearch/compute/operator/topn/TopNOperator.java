@@ -11,6 +11,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
@@ -24,6 +25,7 @@ import org.elasticsearch.core.Releasables;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.Executor;
 
 /**
  * An operator that sorts "rows" of values by encoding the values to sort on, as bytes (using BytesRef). Each data type is encoded
@@ -39,6 +41,13 @@ import java.util.List;
 public class TopNOperator implements Operator, Accountable {
     static final byte SMALL_NULL = 0x01; // "null" representation for "nulls first"
     static final byte BIG_NULL = 0x02; // "null" representation for "nulls last"
+
+    public static final FeatureFlag PARALLEL_TOPN_FEATURE_FLAG = new FeatureFlag("parallel_topn");
+
+    public static final long DEFAULT_PROMOTION_THRESHOLD_ROWS = 1_000_000L;
+
+    /** Opts the operator into parallel workers; promotion is one-way once {@code promotionThresholdRows} is crossed. */
+    public record ParallelWorkerConfig(Executor executor, int workerCount, int maxInFlightPages, long promotionThresholdRows) {}
 
     public enum InputOrdering {
         SORTED,
@@ -147,11 +156,23 @@ public class TopNOperator implements Operator, Accountable {
         int maxPageRows,
         long jumboPageBytes,
         InputOrdering inputOrdering,
-        @Nullable SharedMinCompetitive.Supplier minCompetitive
+        @Nullable SharedMinCompetitive.Supplier minCompetitive,
+        @Nullable ParallelWorkerConfig parallelWorkerConfig
     ) implements OperatorFactory {
-        public TopNOperatorFactory
+        public TopNOperatorFactory(
+            int topCount,
+            List<ElementType> elementTypes,
+            List<TopNEncoder> encoders,
+            List<SortOrder> sortOrders,
+            int maxPageRows,
+            long jumboPageBytes,
+            InputOrdering inputOrdering,
+            @Nullable SharedMinCompetitive.Supplier minCompetitive
+        ) {
+            this(topCount, elementTypes, encoders, sortOrders, maxPageRows, jumboPageBytes, inputOrdering, minCompetitive, null);
+        }
 
-        {
+        public TopNOperatorFactory {
             for (ElementType e : elementTypes) {
                 if (e == null) {
                     throw new IllegalArgumentException("ElementType not known");
@@ -161,9 +182,23 @@ public class TopNOperator implements Operator, Accountable {
 
         @Override
         public TopNOperator get(DriverContext driverContext) {
+            TopNOperator op = getTopNOperator(driverContext.blockFactory());
+            if (parallelWorkerConfig != null) {
+                op.factory = this;
+                op.parallelWorkerConfig = parallelWorkerConfig;
+            }
+            return op;
+        }
+
+        @Override
+        public TopNOperator getWorkerOperator(DriverContext driverContext) {
+            return getTopNOperator(driverContext.workerBlockFactory());
+        }
+
+        private TopNOperator getTopNOperator(BlockFactory blockFactory) {
             return new TopNOperator(
-                driverContext.blockFactory(),
-                driverContext.breaker(),
+                blockFactory,
+                blockFactory.breaker(),
                 topCount,
                 elementTypes,
                 encoders,
@@ -193,6 +228,14 @@ public class TopNOperator implements Operator, Accountable {
 
     private final BlockFactory blockFactory;
     private final CircuitBreaker breaker;
+
+    /** Set by {@link TopNOperatorFactory#get} when parallel promotion is configured. */
+    @Nullable
+    TopNOperatorFactory factory;
+
+    /** Set by {@link TopNOperatorFactory#get} when parallel promotion is configured. */
+    @Nullable
+    ParallelWorkerConfig parallelWorkerConfig;
 
     /**
      * Maximum number of rows per output page.
@@ -404,6 +447,20 @@ public class TopNOperator implements Operator, Accountable {
         pagesEmitted++;
         rowsEmitted += ret.getPositionCount();
         return ret;
+    }
+
+    @Override
+    public Operator tryPromote(DriverContext driverContext) {
+        if (parallelWorkerConfig == null || factory == null) {
+            return this;
+        }
+        if (PARALLEL_TOPN_FEATURE_FLAG.isEnabled() == false) {
+            return this;
+        }
+        if (rowsReceived > parallelWorkerConfig.promotionThresholdRows()) {
+            return new ParallelTopNOperator(parallelWorkerConfig, driverContext, factory, this);
+        }
+        return this;
     }
 
     @Override

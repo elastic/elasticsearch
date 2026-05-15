@@ -115,6 +115,15 @@ public class DriverContext {
         return blockFactory;
     }
 
+    public BlockFactory workerBlockFactory() {
+        final var workerBreaker = new LocalCircuitBreaker(
+            blockFactory.breaker(),
+            localBreakerSettings.overReservedBytes(),
+            localBreakerSettings.maxOverReservedBytes()
+        );
+        return blockFactory.newChildFactory(workerBreaker);
+    }
+
     /** See {@link Driver#shortDescription}. */
     @Nullable
     public String driverDescription() {

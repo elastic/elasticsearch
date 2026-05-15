@@ -110,12 +110,20 @@ public interface Operator extends Releasable {
 
     IsBlockedResult NOT_BLOCKED = new IsBlockedResult(SubscribableListener.nullSuccess(), "not blocked");
 
+    default Operator tryPromote(DriverContext driverContext) {
+        return this;
+    }
+
     /**
      * A factory for creating intermediate operators.
      */
     interface OperatorFactory extends Describable {
         /** Creates a new intermediate operator. */
         Operator get(DriverContext driverContext);
+
+        default Operator getWorkerOperator(DriverContext driverContext) {
+            throw new UnsupportedOperationException();
+        }
     }
 
     /**

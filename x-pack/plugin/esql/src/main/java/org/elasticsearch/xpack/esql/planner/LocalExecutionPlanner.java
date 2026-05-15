@@ -23,6 +23,7 @@ import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
@@ -188,6 +189,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -227,6 +229,8 @@ public class LocalExecutionPlanner {
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final PhysicalOperationProviders physicalOperationProviders;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
+    @Nullable
+    private final Executor parallelWorkerExecutor;
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -243,7 +247,8 @@ public class LocalExecutionPlanner {
         InferenceService inferenceService,
         UserAgentParserRegistry userAgentParserRegistry,
         PhysicalOperationProviders physicalOperationProviders,
-        OperatorFactoryRegistry operatorFactoryRegistry
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        @Nullable Executor parallelWorkerExecutor
     ) {
 
         this.sessionId = sessionId;
@@ -261,6 +266,7 @@ public class LocalExecutionPlanner {
         this.userAgentParserRegistry = userAgentParserRegistry;
         this.physicalOperationProviders = physicalOperationProviders;
         this.operatorFactoryRegistry = operatorFactoryRegistry;
+        this.parallelWorkerExecutor = parallelWorkerExecutor;
     }
 
     /**
@@ -619,6 +625,15 @@ public class LocalExecutionPlanner {
         final Integer rowSize = topNExec.estimatedRowSize();
         PhysicalOperation source = plan(topNExec.child(), context);
         var common = topNCommon(rowSize, topNExec.order(), topNExec.limit(), topNExec.docValuesAttributes(), source, context);
+        TopNOperator.ParallelWorkerConfig parallelWorkerConfig = null;
+        if (parallelWorkerExecutor != null && TopNOperator.PARALLEL_TOPN_FEATURE_FLAG.isEnabled()) {
+            parallelWorkerConfig = new TopNOperator.ParallelWorkerConfig(
+                parallelWorkerExecutor,
+                4,
+                16,
+                TopNOperator.DEFAULT_PROMOTION_THRESHOLD_ROWS
+            );
+        }
         return source.with(
             new TopNOperatorFactory(
                 common.limit,
@@ -628,7 +643,8 @@ public class LocalExecutionPlanner {
                 context.pageSize(topNExec, rowSize),
                 context.plannerSettings.valuesLoadingJumboSize().getBytes(),
                 topNExec.inputOrdering(),
-                topNExec.minCompetitive()
+                topNExec.minCompetitive(),
+                parallelWorkerConfig
             ),
             source.layout
         );

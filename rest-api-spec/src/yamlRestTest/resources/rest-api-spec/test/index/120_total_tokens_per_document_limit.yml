@@ -1,0 +1,150 @@
+---
+"Test document within token limit succeeds":
+  - do:
+      indices.create:
+        index: test_token_limit
+        body:
+          settings:
+            index:
+              mapping:
+                total_tokens_per_document:
+                  limit: 100
+          mappings:
+            properties:
+              body:
+                type: text
+
+  - do:
+      index:
+        index: test_token_limit
+        id: "1"
+        body:
+          body: "hello world"
+
+  - match: { result: created }
+
+---
+"Test document exceeding token limit is rejected":
+  - do:
+      indices.create:
+        index: test_token_limit_exceeded
+        body:
+          settings:
+            index:
+              mapping:
+                total_tokens_per_document:
+                  limit: 3
+          mappings:
+            properties:
+              body:
+                type: text
+
+  - do:
+      catch: /total_tokens_per_document\.limit/
+      index:
+        index: test_token_limit_exceeded
+        id: "1"
+        body:
+          body: "one two three four five"
+
+---
+"Test token limit accumulates across fields":
+  - do:
+      indices.create:
+        index: test_token_limit_multi
+        body:
+          settings:
+            index:
+              mapping:
+                total_tokens_per_document:
+                  limit: 4
+          mappings:
+            properties:
+              field1:
+                type: text
+              field2:
+                type: text
+
+  - do:
+      catch: /total_tokens_per_document\.limit/
+      index:
+        index: test_token_limit_multi
+        id: "1"
+        body:
+          field1: "one two"
+          field2: "three four five"
+
+---
+"Test no limit by default":
+  - do:
+      indices.create:
+        index: test_token_no_limit
+        body:
+          mappings:
+            properties:
+              body:
+                type: text
+
+  - do:
+      index:
+        index: test_token_no_limit
+        id: "1"
+        body:
+          body: "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen"
+
+  - match: { result: created }
+
+---
+"Test setting rejects zero":
+  - do:
+      catch: /must be -1 \(no limit\) or a positive number/
+      indices.create:
+        index: test_token_limit_zero
+        body:
+          settings:
+            index:
+              mapping:
+                total_tokens_per_document:
+                  limit: 0
+
+---
+"Test dynamic update of token limit":
+  - do:
+      indices.create:
+        index: test_token_dynamic
+        body:
+          settings:
+            index:
+              mapping:
+                total_tokens_per_document:
+                  limit: 1000
+          mappings:
+            properties:
+              body:
+                type: text
+
+  - do:
+      index:
+        index: test_token_dynamic
+        id: "1"
+        body:
+          body: "hello world"
+
+  - match: { result: created }
+
+  - do:
+      indices.put_settings:
+        index: test_token_dynamic
+        body:
+          index:
+            mapping:
+              total_tokens_per_document:
+                limit: 1
+
+  - do:
+      catch: /total_tokens_per_document\.limit/
+      index:
+        index: test_token_dynamic
+        id: "2"
+        body:
+          body: "hello world"

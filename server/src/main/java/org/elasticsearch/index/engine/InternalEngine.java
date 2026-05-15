@@ -10,6 +10,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -81,6 +82,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.analysis.TokenCountingAnalyzer;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.codec.TrackingPostingsInMemoryBytesCodec;
 import org.elasticsearch.index.mapper.DocumentParser;
@@ -1707,6 +1709,7 @@ public class InternalEngine extends Engine {
         index.parsedDoc().version().setLongValue(plan.versionForIndexing);
         try {
             logDocumentsDetails(index.docs(), index.id(), index.uid());
+            resetTokenCountingAnalyzer();
             if (plan.addStaleOpToLucene) {
                 addStaleDocs(index.docs(), indexWriter);
             } else if (plan.useLuceneUpdateDocument) {
@@ -1786,6 +1789,17 @@ public class InternalEngine extends Engine {
     private void addDocs(final List<LuceneDocument> docs, final IndexWriter indexWriter) throws IOException {
         indexWriter.addDocuments(docs);
         numDocAppends.inc(docs.size());
+    }
+
+    /**
+     * Resets the per-document token counter if the engine's analyzer is a {@link TokenCountingAnalyzer}.
+     * Must be called before each document is sent to Lucene for indexing.
+     */
+    private void resetTokenCountingAnalyzer() {
+        Analyzer analyzer = engineConfig.getAnalyzer();
+        if (analyzer instanceof TokenCountingAnalyzer tokenCountingAnalyzer) {
+            tokenCountingAnalyzer.resetTokenCount();
+        }
     }
 
     private void addStaleDocs(final List<LuceneDocument> docs, final IndexWriter indexWriter) throws IOException {

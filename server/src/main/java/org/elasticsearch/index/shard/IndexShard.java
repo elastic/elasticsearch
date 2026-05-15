@@ -83,6 +83,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.analysis.TokenCountingAnalyzer;
 import org.elasticsearch.index.bulk.stats.BulkOperationListener;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.bulk.stats.ShardBulkStats;
@@ -3925,10 +3926,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public static Analyzer buildIndexAnalyzer(MapperService mapperService) {
+        return buildIndexAnalyzer(mapperService, () -> -1L);
+    }
+
+    /**
+     * Builds the index analyzer, optionally wrapping it with a {@link TokenCountingAnalyzer}
+     * that enforces a per-document token limit.
+     *
+     * @param mapperService          the mapper service to use for field analyzer resolution
+     * @param maxTokenCountSupplier  supplies the maximum number of tokens allowed per document, or -1 for no limit
+     * @return the analyzer to use for indexing, or null if no mapper service is available
+     */
+    static Analyzer buildIndexAnalyzer(MapperService mapperService, LongSupplier maxTokenCountSupplier) {
         if (mapperService == null) {
             return null;
         }
-        return new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
+        Analyzer baseAnalyzer = new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
             @Override
             protected Analyzer getWrappedAnalyzer(String fieldName) {
                 return mapperService.indexAnalyzer(
@@ -3937,6 +3950,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 );
             }
         };
+        return new TokenCountingAnalyzer(baseAnalyzer, maxTokenCountSupplier);
     }
 
     private EngineConfig newEngineConfig(LongSupplier globalCheckpointSupplier) {
@@ -3957,7 +3971,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             warmer,
             store,
             indexSettings.getMergePolicy(isTimeBasedIndex),
-            buildIndexAnalyzer(mapperService),
+            buildIndexAnalyzer(mapperService, indexSettings::getMaxIndexTokenCount),
             similarityService.similarity(mapperService == null ? null : mapperService::fieldType),
             codecService,
             shardEventListener,

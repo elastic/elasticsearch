@@ -584,7 +584,7 @@ public class LookupExecutionPlanner {
 
         @Override
         public int getPositionCount(Page inputPage) {
-            return inputPage.getPositionCount();
+            return bulkKeywordLookup.getPositionCount(inputPage);
         }
 
         @Override

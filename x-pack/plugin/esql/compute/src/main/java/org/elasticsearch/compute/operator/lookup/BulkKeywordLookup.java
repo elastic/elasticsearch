@@ -19,6 +19,8 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 
@@ -30,11 +32,14 @@ import java.io.IOException;
  */
 
 public class BulkKeywordLookup {
+    private static final Logger logger = LogManager.getLogger(BulkKeywordLookup.class);
+
     private final int matchChannelOffset;
     private final int extractChannelOffset;
     private final Warnings warnings;
     private final String fieldName;
 
+    private Thread creationThread = null;
     private TermsEnum[] termsEnumCache = null;
     private PostingsEnum[] postingsCache = null;
     private final BytesRef scratch = new BytesRef();
@@ -60,6 +65,8 @@ public class BulkKeywordLookup {
         IntVector.Builder positionsBuilder
     ) {
         try {
+            initializeCaches(indexReader);
+
             final BytesRefBlock block = inputPage.getBlock(matchChannelOffset);
             final int valueCount = block.getValueCount(position);
             if (valueCount > 1) {
@@ -119,20 +126,25 @@ public class BulkKeywordLookup {
     }
 
     /**
-     * Initialize caches for the given index reader. This should be called once
-     * before the first processQuery call for a given index reader.
+     * Initialize caches for the given index reader as necessary.
+     * The current thread is tracked because Lucene only allows
+     * TermsEnum and PostingsEnum to be used from the thread that creates them.
      */
     public void initializeCaches(IndexReader indexReader) throws IOException {
-        if (termsEnumCache == null) {
-            final int numLeaves = indexReader.leaves().size();
+        final Thread current = Thread.currentThread();
+        final int numLeaves = indexReader.leaves().size();
+        if (termsEnumCache == null || creationThread != current || termsEnumCache.length != numLeaves) {
+
+            creationThread = current;
+            logger.debug("initializeCaches creationThread = ", creationThread);
+
             termsEnumCache = new TermsEnum[numLeaves];
             postingsCache = new PostingsEnum[numLeaves];
-
-            // Pre-populate caches with TermsEnum for each leaf
             for (int i = 0; i < numLeaves; i++) {
                 LeafReaderContext leafContext = indexReader.leaves().get(i);
                 Terms terms = leafContext.reader().terms(fieldName);
                 termsEnumCache[i] = (terms == null) ? TermsEnum.EMPTY : terms.iterator();
+                // postingsCache[i] starts null; will be (re)filled lazily in processQuery
             }
         }
     }

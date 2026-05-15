@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.openai.response;
 
 import org.apache.http.HttpResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -18,7 +19,11 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
@@ -426,5 +431,244 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
             assertThat(parsedResults, instanceOf(GenericDenseEmbeddingFloatResults.class));
         }
         return parsedResults;
+    }
+
+    // === base64 shape =====================================================
+    //
+    // The cases below cover the wire shape OpenAI and Azure OpenAI return now
+    // that the request always carries encoding_format=base64. The parser is
+    // adaptive: every JSON-array assertion above continues to pass for the
+    // other OpenAI-compatible providers that share this entity.
+
+    public void testFromResponse_BaseSixtyFour_SingleEntry_TextEmbedding() throws IOException {
+        testFromResponse_BaseSixtyFour_SingleEntry(TaskType.TEXT_EMBEDDING);
+    }
+
+    public void testFromResponse_BaseSixtyFour_SingleEntry_Embedding() throws IOException {
+        testFromResponse_BaseSixtyFour_SingleEntry(TaskType.EMBEDDING);
+    }
+
+    private static void testFromResponse_BaseSixtyFour_SingleEntry(TaskType taskType) throws IOException {
+        float[] expected = new float[] { 0.014539449F, -0.015288644F };
+        String responseJson = baseSixtyFourResponse(List.of(expected), "text-embedding-ada-002-v2");
+
+        EmbeddingFloatResults parsedResults = getEmbeddingFloatResultsAndAssertType(taskType, responseJson);
+        assertThat(parsedResults.embeddings(), is(List.of(new EmbeddingFloatResults.Embedding(expected))));
+    }
+
+    public void testFromResponse_BaseSixtyFour_MultipleEntries() throws IOException {
+        float[] first = new float[] { 0.014539449F, -0.015288644F };
+        float[] second = new float[] { 0.0123F, -0.0123F };
+        String responseJson = baseSixtyFourResponse(List.of(first, second), "text-embedding-ada-002-v2");
+
+        EmbeddingFloatResults parsedResults = getEmbeddingFloatResultsAndAssertType(TaskType.TEXT_EMBEDDING, responseJson);
+        assertThat(
+            parsedResults.embeddings(),
+            is(List.of(new EmbeddingFloatResults.Embedding(first), new EmbeddingFloatResults.Embedding(second)))
+        );
+    }
+
+    /**
+     * Round-trips a full 3072-dim embedding, the dimension produced by
+     * {@code text-embedding-3-large}. The buffer used by the parser's
+     * JSON-array branch starts at 1024 and doubles geometrically; the base64
+     * branch sizes the {@code float[]} exactly from the byte length. This
+     * test exercises the large-dim path end-to-end.
+     */
+    public void testFromResponse_BaseSixtyFour_FullThreeThousandSeventyTwoDim() throws IOException {
+        float[] expected = new float[3072];
+        for (int i = 0; i < expected.length; i++) {
+            // Mix of denormals, ones, negatives, and a NaN-free range so the
+            // assertion stays exact across all 3072 lanes.
+            expected[i] = (float) ((i % 7) - 3) * 0.13125F + i * 1e-6F;
+        }
+        String responseJson = baseSixtyFourResponse(List.of(expected), "text-embedding-3-large");
+
+        EmbeddingFloatResults parsedResults = getEmbeddingFloatResultsAndAssertType(TaskType.TEXT_EMBEDDING, responseJson);
+        assertThat(parsedResults.embeddings(), is(List.of(new EmbeddingFloatResults.Embedding(expected))));
+    }
+
+    public void testFromResponse_BaseSixtyFour_MalformedString() {
+        String responseJson = """
+            {
+              "object": "list",
+              "data": [
+                  {
+                      "object": "embedding",
+                      "index": 0,
+                      "embedding": "!!!not-base64!!!"
+                  }
+              ],
+              "model": "text-embedding-3-large",
+              "usage": { "prompt_tokens": 1, "total_tokens": 1 }
+            }
+            """;
+
+        var thrown = expectThrows(
+            XContentParseException.class,
+            () -> OpenAiEmbeddingsResponseEntity.fromResponse(
+                mock(OutboundRequest.class),
+                new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+            )
+        );
+
+        assertThat(thrown.getMessage(), containsString("[EmbeddingFloatResult] failed to parse field [data]"));
+    }
+
+    public void testFromResponse_BaseSixtyFour_LengthNotMultipleOfFour() {
+        // 5 raw bytes -> 8-char base64 string; not a whole number of float32 lanes.
+        String fiveByteBase64 = Base64.getEncoder().encodeToString(new byte[] { 1, 2, 3, 4, 5 });
+        String responseJson = Strings.format("""
+            {
+              "object": "list",
+              "data": [
+                  {
+                      "object": "embedding",
+                      "index": 0,
+                      "embedding": "%s"
+                  }
+              ],
+              "model": "text-embedding-3-large",
+              "usage": { "prompt_tokens": 1, "total_tokens": 1 }
+            }
+            """, fiveByteBase64);
+
+        var thrown = expectThrows(
+            XContentParseException.class,
+            () -> OpenAiEmbeddingsResponseEntity.fromResponse(
+                mock(OutboundRequest.class),
+                new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+            )
+        );
+
+        assertThat(thrown.getMessage(), containsString("[EmbeddingFloatResult] failed to parse field [data]"));
+    }
+
+    public void testFromResponse_FailsWhenEmbeddingFieldIsAnObject() {
+        // Distinct from the existing testFromResponse_FailsWhenEmbeddingValueIsAnObject:
+        // there the array contains an object, here the embedding field itself is one.
+        String responseJson = """
+            {
+              "object": "list",
+              "data": [
+                  {
+                      "object": "embedding",
+                      "index": 0,
+                      "embedding": {}
+                  }
+              ],
+              "model": "text-embedding-3-large",
+              "usage": { "prompt_tokens": 1, "total_tokens": 1 }
+            }
+            """;
+
+        var thrown = expectThrows(
+            XContentParseException.class,
+            () -> OpenAiEmbeddingsResponseEntity.fromResponse(
+                mock(OutboundRequest.class),
+                new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+            )
+        );
+
+        assertThat(thrown.getMessage(), containsString("[EmbeddingFloatResult] failed to parse field [data]"));
+    }
+
+    public void testFromResponse_FailsWhenEmbeddingFieldIsANumber() {
+        String responseJson = """
+            {
+              "object": "list",
+              "data": [
+                  {
+                      "object": "embedding",
+                      "index": 0,
+                      "embedding": 1.0
+                  }
+              ],
+              "model": "text-embedding-3-large",
+              "usage": { "prompt_tokens": 1, "total_tokens": 1 }
+            }
+            """;
+
+        var thrown = expectThrows(
+            XContentParseException.class,
+            () -> OpenAiEmbeddingsResponseEntity.fromResponse(
+                mock(OutboundRequest.class),
+                new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+            )
+        );
+
+        assertThat(thrown.getMessage(), containsString("[EmbeddingFloatResult] failed to parse field [data]"));
+    }
+
+    /**
+     * Same response carries a base64-encoded entry alongside a JSON-array
+     * entry. In production this never happens (a given upstream returns one
+     * shape consistently), but the adaptive parser decides per entry, so
+     * verify each entry's branch can produce the correct {@code float[]}
+     * irrespective of its sibling.
+     */
+    public void testFromResponse_MixedBaseSixtyFourAndJsonArrayEntries() throws IOException {
+        float[] base64Vec = new float[] { 0.5F, -0.25F, 0.125F };
+        String base64Str = encodeFloats(base64Vec);
+        String responseJson = Strings.format("""
+            {
+              "object": "list",
+              "data": [
+                  {
+                      "object": "embedding",
+                      "index": 0,
+                      "embedding": "%s"
+                  },
+                  {
+                      "object": "embedding",
+                      "index": 1,
+                      "embedding": [ 1.0, -2.0, 3.0 ]
+                  }
+              ],
+              "model": "text-embedding-3-large",
+              "usage": { "prompt_tokens": 2, "total_tokens": 2 }
+            }
+            """, base64Str);
+
+        EmbeddingFloatResults parsedResults = getEmbeddingFloatResultsAndAssertType(TaskType.TEXT_EMBEDDING, responseJson);
+        assertThat(
+            parsedResults.embeddings(),
+            is(
+                List.of(
+                    new EmbeddingFloatResults.Embedding(base64Vec),
+                    new EmbeddingFloatResults.Embedding(new float[] { 1.0F, -2.0F, 3.0F })
+                )
+            )
+        );
+    }
+
+    private static String baseSixtyFourResponse(List<float[]> embeddings, String model) {
+        List<String> entries = new ArrayList<>(embeddings.size());
+        for (int i = 0; i < embeddings.size(); i++) {
+            entries.add(Strings.format("""
+                    {
+                        "object": "embedding",
+                        "index": %d,
+                        "embedding": "%s"
+                    }""", i, encodeFloats(embeddings.get(i))));
+        }
+        return Strings.format("""
+            {
+              "object": "list",
+              "data": [
+            %s
+              ],
+              "model": "%s",
+              "usage": { "prompt_tokens": 1, "total_tokens": 1 }
+            }""", String.join(",\n", entries), model);
+    }
+
+    /** Encode a {@code float[]} as the wire shape OpenAI emits: packed little-endian float32, then base64. */
+    private static String encodeFloats(float[] values) {
+        ByteBuffer buf = ByteBuffer.allocate(values.length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        for (float v : values) {
+            buf.putFloat(v);
+        }
+        return Base64.getEncoder().encodeToString(buf.array());
     }
 }

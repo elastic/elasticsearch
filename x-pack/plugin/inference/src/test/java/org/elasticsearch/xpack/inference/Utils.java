@@ -39,6 +39,9 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -81,6 +84,20 @@ public final class Utils {
 
     public static ScalingExecutorBuilder[] inferenceUtilityExecutors() {
         return inferenceUtilityExecutors(MAX_THREADS, MAX_THREADS);
+    }
+
+    /**
+     * Encode a {@code float[]} the same way OpenAI and Azure OpenAI emit
+     * embeddings on the wire when the request carries
+     * {@code encoding_format=base64}: packed little-endian {@code float32},
+     * then base64. Suitable for splicing into mock JSON response bodies.
+     */
+    public static String encodeFloatsAsOpenAiBase64(float... values) {
+        ByteBuffer buf = ByteBuffer.allocate(values.length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        for (float v : values) {
+            buf.putFloat(v);
+        }
+        return Base64.getEncoder().encodeToString(buf.array());
     }
 
     public static ScalingExecutorBuilder[] inferenceUtilityExecutors(int maxUtilityThreads, int maxResponseThreads) {

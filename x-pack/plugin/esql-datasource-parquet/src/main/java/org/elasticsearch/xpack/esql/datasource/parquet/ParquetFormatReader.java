@@ -750,7 +750,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             }
             // The framework passes planning-time resolved attributes for this query (AsyncExternalSourceOperatorFactory).
             // Reuse them to avoid redundant schema conversion work per split. We still read Parquet metadata to drive row groups.
-            List<Attribute> attributes = (resolvedAttributes != null && resolvedAttributes.isEmpty() == false)
+            List<Attribute> attributes = resolvedAttributes != null && resolvedAttributes.isEmpty() == false
                 ? resolvedAttributes
                 : convertParquetSchemaToAttributes(parquetSchema);
             List<Attribute> projectedAttributes = buildProjectedAttributes(projectedColumns, attributes);

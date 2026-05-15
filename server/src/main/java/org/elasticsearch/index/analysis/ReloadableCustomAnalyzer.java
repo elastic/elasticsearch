@@ -60,7 +60,7 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
         }
     };
 
-    ReloadableCustomAnalyzer(AnalyzerComponents components, int positionIncrementGap, int offsetGap) {
+    public ReloadableCustomAnalyzer(AnalyzerComponents components, int positionIncrementGap, int offsetGap) {
         super(UPDATE_STRATEGY);
         if (components.analysisMode().equals(AnalysisMode.SEARCH_TIME) == false) {
             throw new IllegalArgumentException(
@@ -165,7 +165,8 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
 
     @Override
     protected TokenStreamComponents createComponents(String fieldName) {
-        final AnalyzerComponents components = getStoredComponents();
+        AnalyzerComponents stored = getStoredComponents();
+        final AnalyzerComponents components = stored != null ? stored : getComponents();
         Tokenizer tokenizer = components.getTokenizerFactory().create();
         TokenStream tokenStream = tokenizer;
         for (TokenFilterFactory tokenFilter : components.getTokenFilters()) {
@@ -176,7 +177,11 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
 
     @Override
     protected Reader initReader(String fieldName, Reader reader) {
-        final AnalyzerComponents components = getStoredComponents();
+        AnalyzerComponents stored = getStoredComponents();
+        // AnalyzerWrapper subclasses that wrap this RCA bypass UPDATE_STRATEGY, so storedComponents
+        // may be unset; fall back to the volatile. initReader and createComponents may then see
+        // different versions, but char filters are never updateable so the difference is harmless.
+        final AnalyzerComponents components = stored != null ? stored : getComponents();
         if (CollectionUtils.isEmpty(components.getCharFilters()) == false) {
             for (CharFilterFactory charFilter : components.getCharFilters()) {
                 reader = charFilter.create(reader);

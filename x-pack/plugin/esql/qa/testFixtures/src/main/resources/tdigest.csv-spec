@@ -938,3 +938,23 @@ cnt:long
 8841
 // end::countTDigestForDocs-result[]
 ;
+
+// -------------------------------------------------------------------------------
+
+isNotNullFilter (timeseries mode)
+required_capability: fix_histogram_blockloaders_isnull
+
+TS tdigest_timeseries_index
+ | WHERE caseTestPlaceholder IS NOT NULL
+ | STATS cnt = COUNT(caseTestPlaceholder) BY instance
+ | KEEP instance, cnt
+ | SORT instance
+;
+
+instance:keyword  | cnt:long
+hand-rolled       | 28
+hand-rolled-empty | 40
+instance-0        | 0
+instance-1        | 0
+instance-2        | 0
+;

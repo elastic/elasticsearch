@@ -129,14 +129,14 @@ setup:
   - match: { hits.hits.1._source.message: "Second log entry" }
 
 ---
-"Create columnar_logsdb index, index docs, and retrieve them":
+"Create logsdb_columnar index, index docs, and retrieve them":
   - do:
       indices.create:
         index: test-columnar-logsdb
         body:
           settings:
             index:
-              mode: columnar_logsdb
+              mode: logsdb_columnar
               number_of_shards: 2
               number_of_replicas: 0
           mappings:
@@ -161,11 +161,11 @@ setup:
         refresh: true
         body:
           - { "index": { } }
-          - { "@timestamp": "2024-06-01T10:00:00Z", "host.name": "host-a", "agent_id": "agent-1", "process_id": 101, "http_method": "GET", "message": "Hello from columnar_logsdb" }
+          - { "@timestamp": "2024-06-01T10:00:00Z", "host.name": "host-a", "agent_id": "agent-1", "process_id": 101, "http_method": "GET", "message": "Hello from logsdb_columnar" }
           - { "index": { } }
-          - { "@timestamp": "2024-06-01T10:01:00Z", "host.name": "host-b", "agent_id": "agent-2", "process_id": 102, "http_method": "POST", "message": "Second doc in columnar_logsdb" }
+          - { "@timestamp": "2024-06-01T10:01:00Z", "host.name": "host-b", "agent_id": "agent-2", "process_id": 102, "http_method": "POST", "message": "Second doc in logsdb_columnar" }
           - { "index": { } }
-          - { "@timestamp": "2024-06-01T10:02:00Z", "host.name": "host-a", "agent_id": "agent-1", "process_id": 103, "http_method": "GET", "message": "Third doc in columnar_logsdb" }
+          - { "@timestamp": "2024-06-01T10:02:00Z", "host.name": "host-a", "agent_id": "agent-1", "process_id": 103, "http_method": "GET", "message": "Third doc in logsdb_columnar" }
 
   - match: { errors: false }
 
@@ -181,27 +181,27 @@ setup:
   - match: { hits.hits.0._source.agent_id: "agent-1" }
   - match: { hits.hits.0._source.process_id: 101 }
   - match: { hits.hits.0._source.http_method: "GET" }
-  - match: { hits.hits.0._source.message: "Hello from columnar_logsdb" }
+  - match: { hits.hits.0._source.message: "Hello from logsdb_columnar" }
   - match: { hits.hits.0._source.host\.name: "host-a" }
   - match: { hits.hits.1._source.agent_id: "agent-2" }
   - match: { hits.hits.1._source.process_id: 102 }
   - match: { hits.hits.1._source.http_method: "POST" }
-  - match: { hits.hits.1._source.message: "Second doc in columnar_logsdb" }
+  - match: { hits.hits.1._source.message: "Second doc in logsdb_columnar" }
   - match: { hits.hits.1._source.host\.name: "host-b" }
   - match: { hits.hits.2._source.agent_id: "agent-1" }
   - match: { hits.hits.2._source.process_id: 103 }
   - match: { hits.hits.2._source.http_method: "GET" }
-  - match: { hits.hits.2._source.message: "Third doc in columnar_logsdb" }
+  - match: { hits.hits.2._source.message: "Third doc in logsdb_columnar" }
   - match: { hits.hits.2._source.host\.name: "host-a" }
 
   - do:
       indices.get_settings:
         index: test-columnar-logsdb
 
-  - match: { test-columnar-logsdb.settings.index.mode: "columnar_logsdb" }
+  - match: { test-columnar-logsdb.settings.index.mode: "logsdb_columnar" }
 
 ---
-"Create columnar_logsdb data stream, index docs, and retrieve them":
+"Create logsdb_columnar data stream, index docs, and retrieve them":
   - do:
       allowed_warnings:
         - "index template [columnar-logsdb-template] has index patterns [columnar-logsdb-logs*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [columnar-logsdb-template] will take precedence during new index creation"
@@ -213,7 +213,7 @@ setup:
           template:
             settings:
               index:
-                mode: columnar_logsdb
+                mode: logsdb_columnar
                 number_of_replicas: 0
             mappings:
               subobjects: false

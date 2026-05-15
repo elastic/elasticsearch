@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 145907
+pr: 149151
+summary: Include conflict metadata in `InvalidMappedField` equality checks
+type: bug

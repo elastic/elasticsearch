@@ -36,6 +36,13 @@ public final class SearchFeatures implements FeatureSpecification {
     public static final NodeFeature SEARCH_RESCORE_SCRIPT = new NodeFeature("search.rescore.script");
     public static final NodeFeature NEGATIVE_FUNCTION_SCORE_BAD_REQUEST = new NodeFeature("search.negative.function.score.bad.request");
     public static final NodeFeature DATE_FORMAT_MISSING_AS_NULL = new NodeFeature("search.sort.date_format_missing_as_null");
+    /**
+     * A non-top-level {@code date_histogram} with {@code hard_bounds} that excludes every fixed rounding point
+     * produced from the data no longer throws {@code ArrayIndexOutOfBoundsException}; it returns an empty histogram.
+     */
+    public static final NodeFeature DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX = new NodeFeature(
+        "search.aggs.date_histogram.hard_bounds_outside_data_fix"
+    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -49,7 +56,8 @@ public final class SearchFeatures implements FeatureSpecification {
             SEARCH_WITH_NO_DIMENSIONS_BUGFIX,
             SEARCH_RESCORE_SCRIPT,
             NEGATIVE_FUNCTION_SCORE_BAD_REQUEST,
-            DATE_FORMAT_MISSING_AS_NULL
+            DATE_FORMAT_MISSING_AS_NULL,
+            DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX
         );
     }
 }

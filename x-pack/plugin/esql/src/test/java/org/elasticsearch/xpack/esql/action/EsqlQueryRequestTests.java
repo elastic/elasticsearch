@@ -691,6 +691,88 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals(TimeValue.timeValueDays(5), request.keepAlive());
     }
 
+    public void testSettingsBlock_TimeZoneAndProjectRouting() throws IOException {
+        String json = """
+            {
+                "query": "FROM idx",
+                "settings": {
+                    "time_zone": "Europe/Paris",
+                    "project_routing": "*"
+                }
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+        assertEquals(ZoneId.of("Europe/Paris"), request.timeZone());
+        assertEquals("*", request.projectRouting());
+    }
+
+    public void testSettingsBlock_ApproximationObject() throws IOException {
+        String json = """
+            {
+                "query": "FROM idx",
+                "settings": {
+                    "approximation": {"rows": 10000}
+                }
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+        assertNotNull(request.approximation());
+        assertEquals(Integer.valueOf(10000), request.approximation().rows());
+    }
+
+    public void testSettingsBlock_CanonicalWinsOverLegacyTopLevel() throws IOException {
+        // Both legacy top-level "time_zone" and canonical settings.time_zone supply a value.
+        // Canonical wins silently (no error, regardless of JSON field order).
+        String json = """
+            {
+                "query": "FROM idx",
+                "time_zone": "Europe/Paris",
+                "settings": {
+                    "time_zone": "UTC"
+                }
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+        assertEquals(ZoneId.of("UTC"), request.timeZone());
+    }
+
+    public void testSettingsBlock_CanonicalWinsRegardlessOfOrder() throws IOException {
+        // Same as above but with the order swapped — canonical still wins (the resolver doesn't depend on order).
+        String json = """
+            {
+                "query": "FROM idx",
+                "settings": {
+                    "time_zone": "UTC"
+                },
+                "time_zone": "Europe/Paris"
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+        assertEquals(ZoneId.of("UTC"), request.timeZone());
+    }
+
+    public void testSettingsBlock_RejectsUnknownKey() {
+        // The parser wraps XContentParseException; the inner cause carries our detailed message.
+        Exception e = expectThrows(IllegalArgumentException.class, () -> parseEsqlQueryRequestSync("""
+            {
+                "query": "FROM idx",
+                "settings": {
+                    "no_such_setting": "x"
+                }
+            }"""));
+        assertThat(e.getMessage(), containsString("settings"));
+        assertThat(e.getCause().getMessage(), containsString("Unknown setting [no_such_setting] under [settings]"));
+    }
+
+    public void testSettingsBlock_RejectsSetOnlySetting() {
+        // unmapped_fields is in the registry but opted out of body exposure.
+        Exception e = expectThrows(IllegalArgumentException.class, () -> parseEsqlQueryRequestSync("""
+            {
+                "query": "FROM idx",
+                "settings": {
+                    "unmapped_fields": "NULLIFY"
+                }
+            }"""));
+        assertThat(e.getMessage(), containsString("settings"));
+        assertThat(e.getCause().getMessage(), containsString("Setting [unmapped_fields] is not exposed as a request body parameter"));
+    }
+
     public void testRejectUnknownFields() {
         assertParserErrorMessage("""
             {

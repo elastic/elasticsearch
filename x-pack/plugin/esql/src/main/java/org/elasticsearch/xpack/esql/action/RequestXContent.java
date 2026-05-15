@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.QuerySettings.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
@@ -93,18 +95,23 @@ final class RequestXContent {
     static final ParseField KEEP_ON_COMPLETION = new ParseField("keep_on_completion");
     static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
     private static final ParseField APPROXIMATION_FIELD = new ParseField("approximation");
+    static final ParseField SETTINGS_FIELD = new ParseField("settings");
 
     private static final ObjectParser<EsqlQueryRequest, Void> SYNC_PARSER = objectParserSync(() -> syncEsqlQueryRequest(null));
     private static final ObjectParser<EsqlQueryRequest, Void> ASYNC_PARSER = objectParserAsync(() -> asyncEsqlQueryRequest(null));
 
     /** Parses a synchronous request. */
     static EsqlQueryRequest parseSync(XContentParser parser) {
-        return SYNC_PARSER.apply(parser, null);
+        EsqlQueryRequest request = SYNC_PARSER.apply(parser, null);
+        request.applyCanonicalRequestSettings();
+        return request;
     }
 
     /** Parses an asynchronous request. */
     static EsqlQueryRequest parseAsync(XContentParser parser) {
-        return ASYNC_PARSER.apply(parser, null);
+        EsqlQueryRequest request = ASYNC_PARSER.apply(parser, null);
+        request.applyCanonicalRequestSettings();
+        return request;
     }
 
     private static void objectParserCommon(ObjectParser<EsqlQueryRequest, ?> parser) {
@@ -131,6 +138,55 @@ final class RequestXContent {
             ApproximationSettings.EXPLICIT_NULL,
             APPROXIMATION_FIELD
         );
+        parser.declareField((p, request, c) -> parseSettingsObject(p, request), SETTINGS_FIELD, ObjectParser.ValueType.OBJECT);
+    }
+
+    /**
+     * Parses the canonical {@code settings.{}} block. Each key must be a body-exposed SET in the registry; any
+     * unknown key, or any key naming a SET-only setting, is rejected. Values are read via the registry entry's
+     * {@link QuerySettingDef#jsonValueParser()} and stashed in the request's canonical map. The canonical-vs-
+     * additional-binding precedence is resolved later in {@link EsqlQueryRequest#applyCanonicalRequestSettings()}.
+     */
+    private static void parseSettingsObject(XContentParser p, EsqlQueryRequest request) throws IOException {
+        if (p.currentToken() != XContentParser.Token.START_OBJECT) {
+            throw new XContentParseException(p.getTokenLocation(), "[" + SETTINGS_FIELD.getPreferredName() + "] must be an object");
+        }
+        XContentParser.Token token;
+        while ((token = p.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token != XContentParser.Token.FIELD_NAME) {
+                throw new XContentParseException(
+                    p.getTokenLocation(),
+                    "Expected a setting name inside [" + SETTINGS_FIELD.getPreferredName() + "], got [" + token + "]"
+                );
+            }
+            String settingName = p.currentName();
+            QuerySettingDef<?> def = QuerySettings.SETTINGS_BY_NAME.get(settingName);
+            if (def == null) {
+                throw new XContentParseException(
+                    p.getTokenLocation(),
+                    "Unknown setting [" + settingName + "] under [" + SETTINGS_FIELD.getPreferredName() + "]"
+                );
+            }
+            if (def.requestParameterExposed() == false) {
+                throw new XContentParseException(
+                    p.getTokenLocation(),
+                    "Setting [" + settingName + "] is not exposed as a request body parameter"
+                );
+            }
+            p.nextToken(); // move to value
+            Object value;
+            try {
+                value = def.jsonValueParser().parse(p);
+            } catch (IOException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new XContentParseException(
+                    p.getTokenLocation(),
+                    "Failed to parse value for setting [" + settingName + "]: " + e.getMessage()
+                );
+            }
+            request.canonicalRequestSettings().put(def, value);
+        }
     }
 
     private static ObjectParser<EsqlQueryRequest, Void> objectParserSync(Supplier<EsqlQueryRequest> supplier) {

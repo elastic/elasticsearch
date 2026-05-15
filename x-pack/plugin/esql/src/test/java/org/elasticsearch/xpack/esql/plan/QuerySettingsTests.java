@@ -25,14 +25,18 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomizeCase;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class QuerySettingsTests extends ESTestCase {
@@ -50,9 +54,13 @@ public class QuerySettingsTests extends ESTestCase {
     );
 
     public void testValidate_NonExistingSetting() {
+        // Unknown SET keys in the query string warn and are skipped — they do not throw.
+        // (The body surface — settings.{} — is the strict one; that path is covered by RequestXContent tests.)
         String settingName = "non_existing";
-
-        assertInvalid(settingName, of("12"), "Unknown setting [" + settingName + "]");
+        QuerySetting setting = new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, settingName, of("12")));
+        EsqlStatement statement = new EsqlStatement(null, List.of(setting));
+        QuerySettings.validate(statement, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertWarnings("Unknown ES|QL setting [" + settingName + "] — ignored");
     }
 
     public void testValidate_ProjectRouting() {
@@ -276,6 +284,80 @@ public class QuerySettingsTests extends ESTestCase {
         T value = statement.setting(settingDef);
 
         assertThat(value, defaultMatcher);
+    }
+
+    public void testResolve_EmptySources() {
+        EffectiveSettings effective = QuerySettings.resolve(Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(effective.consumedSettingNames(), is(java.util.Collections.emptySet()));
+        // Default for time_zone is UTC
+        assertThat(effective.get(QuerySettings.TIME_ZONE), equalTo(ZoneOffset.UTC));
+        // Defaults for the rest are null
+        assertThat(effective.get(QuerySettings.PROJECT_ROUTING), is(nullValue()));
+        assertThat(effective.get(QuerySettings.APPROXIMATION), is(nullValue()));
+    }
+
+    public void testResolve_RequestParameterAppliesWhenNoQuerySet() {
+        Map<QuerySettings.QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.TIME_ZONE, ZoneId.of("Europe/Paris"));
+        EffectiveSettings effective = QuerySettings.resolve(requestParams, null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(effective.get(QuerySettings.TIME_ZONE), equalTo(ZoneId.of("Europe/Paris")));
+        assertThat(effective.consumedSettingNames(), equalTo(java.util.Set.of("time_zone")));
+    }
+
+    public void testResolve_QuerySetOverridesRequestParameter() {
+        // Request says Europe/Paris, query SET says UTC → query SET wins.
+        Map<QuerySettings.QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.TIME_ZONE, ZoneId.of("Europe/Paris"));
+        QuerySetting set = new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, "time_zone", of("UTC")));
+        EsqlStatement statement = new EsqlStatement(null, List.of(set));
+        EffectiveSettings effective = QuerySettings.resolve(requestParams, statement, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(effective.get(QuerySettings.TIME_ZONE), equalTo(ZoneId.of("UTC")));
+        assertThat(effective.consumedSettingNames(), equalTo(java.util.Set.of("time_zone")));
+    }
+
+    public void testResolve_ApproximationFieldLevelMerge() {
+        // Request supplies {rows: 10000}, query SET supplies {confidence_level: 0.92}. With field-level merge,
+        // the resolved value carries both. (Last-wins would drop rows.)
+        Map<QuerySettings.QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.APPROXIMATION, new ApproximationSettings(10000, 0.90));
+        QuerySetting set = new QuerySetting(
+            Source.EMPTY,
+            new Alias(
+                Source.EMPTY,
+                "approximation",
+                new MapExpression(
+                    Source.EMPTY,
+                    List.of(Literal.keyword(Source.EMPTY, "confidence_level"), Literal.fromDouble(Source.EMPTY, 0.92))
+                )
+            )
+        );
+        EsqlStatement statement = new EsqlStatement(null, List.of(set));
+        EffectiveSettings effective = QuerySettings.resolve(requestParams, statement, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        ApproximationSettings resolved = effective.get(QuerySettings.APPROXIMATION);
+        assertThat(resolved, is(new ApproximationSettings(10000, 0.92)));
+    }
+
+    public void testResolve_UnmappedFieldsIsSetOnly() {
+        // UNMAPPED_FIELDS opted out of body exposure. The registry exposure flag is false.
+        assertThat(QuerySettings.UNMAPPED_FIELDS.requestParameterExposed(), is(false));
+        assertThat(QuerySettings.UNMAPPED_FIELDS.additionalBindings().isEmpty(), is(true));
+    }
+
+    public void testResolve_BodyExposedSettingsDeclareBindings() {
+        // The three body-exposed settings each carry exactly one additional binding at the top level of the body,
+        // mirroring the legacy field names.
+        for (QuerySettings.QuerySettingDef<?> def : List.of(
+            QuerySettings.TIME_ZONE,
+            QuerySettings.PROJECT_ROUTING,
+            QuerySettings.APPROXIMATION
+        )) {
+            assertThat("requestParameterExposed for [" + def.name() + "]", def.requestParameterExposed(), is(true));
+            assertThat("jsonValueParser for [" + def.name() + "]", def.jsonValueParser(), is(notNullValue()));
+            assertThat("additionalBindings for [" + def.name() + "]", def.additionalBindings(), hasSize(1));
+            QuerySettings.RequestBodyBinding binding = def.additionalBindings().get(0);
+            assertThat(binding.isAtRoot(), is(true));
+            assertThat(binding.name(), equalTo(def.name()));
+        }
     }
 
     @AfterClass

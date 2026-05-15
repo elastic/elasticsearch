@@ -231,13 +231,39 @@ Which returns:
 ```
 % TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
 
+### Configuring a query via request-body settings [esql-request-settings]
+```{applies_to}
+stack: ga 9.5
+serverless: ga
+```
+
+Any in-query `SET <key>=<value>;` that has been exposed as a request parameter can also be supplied via a top-level `settings` object in the `_query` request body. The body key inside `settings` is the SET key name. Currently exposed via `settings`: `time_zone`, `project_routing`, `approximation`. The setting `unmapped_fields` is currently in-query only.
+
+```console
+POST /_query
+{
+  "query": "FROM logs | WHERE status == 500",
+  "settings": {
+    "time_zone": "Europe/Paris"
+  }
+}
+```
+
+Precedence — narrowest scope wins:
+
+    in-query SET   >   request body   >   registry default
+
+For backwards compatibility, the legacy top-level fields `time_zone`, `project_routing`, and `approximation` continue to work in the same request body as they did before this change. They are first-class permanent alternates to `settings.<key>`. If the same setting is supplied via both `settings.<key>` and the legacy top-level field in one request, the value under `settings` wins silently.
+
+Unknown keys under `settings.{}` are rejected with `400`. Unknown SET keys inside the query string emit a deprecation warning and are skipped — the in-query surface is forgiving of typos.
+
 ### Setting the query timezone [esql-timezones]
 ```{applies_to}
 stack: ga 9.4
 serverless: ga
 ```
 
-To set the default timezone for the query, use the `time_zone` parameter in the request body. If not specified, the default timezone is UTC.
+To set the default timezone for the query, use the `time_zone` parameter in the request body, or use `settings.time_zone` (see [Configuring a query via request-body settings](#esql-request-settings)). If not specified, the default timezone is UTC.
 
 This parameter accepts both an offset (e.g. `+01:00`) or a timezone ID (e.g. `Europe/Paris`).
 

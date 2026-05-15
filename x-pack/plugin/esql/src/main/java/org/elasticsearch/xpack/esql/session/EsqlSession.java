@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
@@ -86,6 +87,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.EffectiveSettings;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
@@ -300,9 +302,26 @@ public class EsqlSession {
 
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
 
-        ZoneId timeZone = request.timeZone() == null
-            ? statement.setting(QuerySettings.TIME_ZONE)
-            : statement.settingOrDefault(QuerySettings.TIME_ZONE, request.timeZone());
+        // Resolve every registered setting in one pass: registry default < request parameter < query SET.
+        // The resolver is the single merge point for what used to be three divergent helpers (inline ternary
+        // for time_zone, projectRouting(...), approximationSettings(...)).
+        EffectiveSettings effective = QuerySettings.resolve(
+            request.requestSettings(),
+            statement,
+            new SettingsValidationContext(crossProjectModeDecider.crossProjectEnabled(), Build.current().isSnapshot())
+        );
+
+        ZoneId timeZone = effective.get(QuerySettings.TIME_ZONE);
+
+        String projectRouting = effective.get(QuerySettings.PROJECT_ROUTING);
+        if (projectRouting != null && crossProjectModeDecider.crossProjectEnabled() == false) {
+            throw new VerificationException("[project_routing] is only allowed when cross-project search is enabled");
+        }
+
+        ApproximationSettings approximationSettings = effective.get(QuerySettings.APPROXIMATION);
+        if (approximationSettings != null) {
+            EsqlLicenseChecker.checkQueryApproximation(verifier.licenseState());
+        }
 
         Configuration configuration = new Configuration(
             timeZone,
@@ -321,8 +340,8 @@ public class EsqlSession {
             request.allowPartialResults(),
             analyzerSettings.timeseriesResultTruncationMaxSize(),
             analyzerSettings.timeseriesResultTruncationDefaultSize(),
-            projectRouting(request, statement),
-            approximationSettings(request, statement),
+            projectRouting,
+            approximationSettings,
             viewResolution.viewQueries()
         );
 
@@ -402,29 +421,6 @@ public class EsqlSession {
                 }
             }
         );
-    }
-
-    private String projectRouting(EsqlQueryRequest request, EsqlStatement statement) {
-        String projectRouting = statement.setting(QuerySettings.PROJECT_ROUTING);
-        if (projectRouting == null) {
-            projectRouting = request.projectRouting();
-        }
-
-        if (projectRouting != null && crossProjectModeDecider.crossProjectEnabled() == false) {
-            throw new VerificationException("[project_routing] is only allowed when cross-project search is enabled");
-        }
-        return projectRouting;
-    }
-
-    private ApproximationSettings approximationSettings(EsqlQueryRequest request, EsqlStatement statement) {
-        // The precedence for settings is: SET in the statement > request parameter > default (=disabled).
-        ApproximationSettings settings = new ApproximationSettings.Builder(false).merge(request.approximation())
-            .merge(statement.setting(QuerySettings.APPROXIMATION))
-            .build();
-        if (settings != null) {
-            EsqlLicenseChecker.checkQueryApproximation(verifier.licenseState());
-        }
-        return settings;
     }
 
     /**

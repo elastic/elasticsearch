@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -18,9 +20,12 @@ import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
+import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
@@ -45,7 +50,7 @@ public class QuerySettings {
         (value, ctx) -> ctx.crossProjectEnabled() ? null : "cross-project search not enabled",
         (value) -> Foldables.stringLiteralValueOf(value, "Unexpected value"),
         null
-    );
+    ).withRequestParameter(XContentParser::text).withAdditionalBinding(RequestBodyBinding.atRoot("project_routing"));
 
     @Param(
         name = "time_zone",
@@ -70,7 +75,7 @@ public class QuerySettings {
             }
         },
         ZoneOffset.UTC
-    );
+    ).withRequestParameter(p -> ZoneId.of(p.text())).withAdditionalBinding(RequestBodyBinding.atRoot("time_zone"));
 
     @Param(name = "unmapped_fields", type = { "keyword" }, since = "9.3.0", description = """
         Determines how unmapped fields are treated. Possible values are:
@@ -156,7 +161,11 @@ public class QuerySettings {
         false,
         ApproximationSettings::parse,
         null
-    );
+    ).withRequestParameter(ApproximationSettings::fromXContent)
+        .withAdditionalBinding(RequestBodyBinding.atRoot("approximation"))
+        // Approximation merges field-by-field rather than last-wins, so a query SET that only sets `confidence_level`
+        // does not erase a request-supplied `rows` value.
+        .withCombiner((lower, higher) -> new ApproximationSettings.Builder(false).merge(lower).merge(higher).build());
 
     public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(
         UNMAPPED_FIELDS,
@@ -165,11 +174,83 @@ public class QuerySettings {
         APPROXIMATION
     ).collect(Collectors.toMap(QuerySettingDef::name, Function.identity()));
 
+    /**
+     * Resolves the effective value of every registered setting by folding the precedence-ordered sources
+     * latest-wins per setting:
+     *
+     * <pre>
+     *     registry default  &lt;  request parameter  &lt;  query SET
+     * </pre>
+     *
+     * The fold uses each setting's {@link QuerySettingDef#combiner()}; the default is "higher precedence wins"
+     * but settings like {@code approximation} use a custom field-level merge.
+     *
+     * <p>The returned {@link EffectiveSettings} additionally reports which SET keys had at least one source
+     * contribute a value, intended for telemetry.
+     *
+     * <p>Validation of query SET values runs separately via {@link #validate(EsqlStatement, SettingsValidationContext)}
+     * before this resolver is called. Body-supplied values are validated at parse time by the per-setting
+     * {@link QuerySettingDef#jsonValueParser()}. Context-dependent runtime checks (e.g. {@code crossProjectEnabled})
+     * continue to live in the consumer code paths.
+     *
+     * @param requestParams body-supplied values keyed by registry definition, as accumulated on {@code EsqlQueryRequest}
+     * @param statement     parsed statement carrying the in-query SETs (may be {@code null})
+     * @param ctx           validation context — currently unused by this resolver but reserved for future use
+     */
+    public static EffectiveSettings resolve(
+        Map<QuerySettingDef<?>, Object> requestParams,
+        @Nullable EsqlStatement statement,
+        SettingsValidationContext ctx
+    ) {
+        Map<QuerySettingDef<?>, Object> resolved = new java.util.HashMap<>();
+        java.util.Set<String> consumed = new java.util.HashSet<>();
+        for (QuerySettingDef<?> def : SETTINGS_BY_NAME.values()) {
+            resolveSingle(def, requestParams, statement, resolved, consumed);
+        }
+        return new EffectiveSettings(resolved, consumed);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> void resolveSingle(
+        QuerySettingDef<T> def,
+        Map<QuerySettingDef<?>, Object> requestParams,
+        @Nullable EsqlStatement statement,
+        Map<QuerySettingDef<?>, Object> resolved,
+        java.util.Set<String> consumed
+    ) {
+        T value = def.defaultValue();
+
+        if (requestParams.containsKey(def)) {
+            T requestValue = (T) requestParams.get(def);
+            if (requestValue != null) {
+                value = def.combiner().combine(value, requestValue);
+                consumed.add(def.name());
+            }
+        }
+
+        if (statement != null && statement.settings() != null) {
+            Expression querySetExpression = statement.setting(def.name());
+            if (querySetExpression != null) {
+                T querySetValue = def.parse(querySetExpression);
+                value = def.combiner().combine(value, querySetValue);
+                consumed.add(def.name());
+            }
+        }
+
+        if (value != null) {
+            resolved.put(def, value);
+        }
+    }
+
     public static void validate(EsqlStatement statement, SettingsValidationContext ctx) {
         for (QuerySetting setting : statement.settings()) {
             QuerySettingDef<?> def = SETTINGS_BY_NAME.get(setting.name());
             if (def == null) {
-                throw new ParsingException(setting.source(), "Unknown setting [" + setting.name() + "]");
+                // Unknown SET keys in a query string are forgiven: emit a deprecation header and skip. The user is typing
+                // and an unknown key may be a typo or a setting that does not exist on this version. Strict rejection
+                // remains for the body surface (settings.{}), which is tooling-facing.
+                HeaderWarning.addWarning("Unknown ES|QL setting [" + setting.name() + "] — ignored");
+                continue;
             }
 
             if (def.snapshotOnly && ctx.isSnapshot() == false) {
@@ -209,6 +290,16 @@ public class QuerySettings {
      *                  Defaults to calling the {@link #parser} and returning the error message of any exception it throws.
      * @param parser A function to parse the setting value into the final object.
      * @param defaultValue A default value to be used when the setting is not set.
+     * @param requestParameterExposed Whether the setting can also be supplied via the {@code _query} request body. SET-only by default;
+     *                                opt in with {@link #withRequestParameter(JsonValueParser)}.
+     * @param requestBodyName Optional override for the name used inside the body {@code settings} object and on every additional
+     *                        binding that did not specify its own name. {@code null} means use the SET key {@link #name}.
+     * @param additionalBindings Zero or more extra request-body locations that alias this setting. Permanent first-class alternates
+     *                           to {@code settings.<name>}, not deprecated.
+     * @param jsonValueParser Reads the typed value from an {@link XContentParser} positioned at this setting's value. Required when
+     *                        {@code requestParameterExposed = true}; must be {@code null} when SET-only.
+     * @param combiner Combines a lower-precedence and a higher-precedence value into the resolved value. Defaults to
+     *                 last-wins; a setting can override (e.g., {@code approximation} uses field-level merge).
      * @param <T> The type of the setting value.
      */
     public record QuerySettingDef<T>(
@@ -219,11 +310,71 @@ public class QuerySettings {
         boolean snapshotOnly,
         Validator validator,
         Parser<T> parser,
-        T defaultValue
+        T defaultValue,
+        boolean requestParameterExposed,
+        @Nullable String requestBodyName,
+        List<RequestBodyBinding> additionalBindings,
+        @Nullable JsonValueParser<T> jsonValueParser,
+        Combiner<T> combiner
     ) {
 
+        public QuerySettingDef {
+            if (requestParameterExposed == false) {
+                if (requestBodyName != null) {
+                    throw new IllegalArgumentException("requestBodyName requires requestParameterExposed=true for setting [" + name + "]");
+                }
+                if (additionalBindings.isEmpty() == false) {
+                    throw new IllegalArgumentException(
+                        "additionalBindings require requestParameterExposed=true for setting [" + name + "]"
+                    );
+                }
+                if (jsonValueParser != null) {
+                    throw new IllegalArgumentException("jsonValueParser requires requestParameterExposed=true for setting [" + name + "]");
+                }
+            } else if (jsonValueParser == null) {
+                throw new IllegalArgumentException(
+                    "jsonValueParser is required when requestParameterExposed=true for setting [" + name + "]"
+                );
+            }
+            if (combiner == null) {
+                throw new IllegalArgumentException("combiner is required for setting [" + name + "]");
+            }
+            additionalBindings = List.copyOf(additionalBindings);
+        }
+
         /**
-         * Constructor with a default validator that delegates to the parser.
+         * Convenience constructor: defaults to SET-only ({@code requestParameterExposed = false}).
+         * Opt in to body exposure with {@link #withRequestParameter(JsonValueParser)}.
+         */
+        public QuerySettingDef(
+            String name,
+            DataType type,
+            boolean serverlessOnly,
+            boolean preview,
+            boolean snapshotOnly,
+            Validator validator,
+            Parser<T> parser,
+            T defaultValue
+        ) {
+            this(
+                name,
+                type,
+                serverlessOnly,
+                preview,
+                snapshotOnly,
+                validator,
+                parser,
+                defaultValue,
+                false,
+                null,
+                List.of(),
+                null,
+                lastWins()
+            );
+        }
+
+        /**
+         * Convenience constructor with a default validator that delegates to the parser. SET-only.
          */
         public QuerySettingDef(
             String name,
@@ -241,7 +392,102 @@ public class QuerySettings {
                 } catch (Exception exc) {
                     return exc.getMessage();
                 }
-            }, parser, defaultValue);
+            }, parser, defaultValue, false, null, List.of(), null, lastWins());
+        }
+
+        /**
+         * Returns a copy of this definition with {@code requestParameterExposed = true} and the supplied JSON value parser.
+         * The setting becomes reachable from the request body at {@code settings.<name>}.
+         */
+        public QuerySettingDef<T> withRequestParameter(JsonValueParser<T> jsonValueParser) {
+            return new QuerySettingDef<>(
+                name,
+                type,
+                serverlessOnly,
+                preview,
+                snapshotOnly,
+                validator,
+                parser,
+                defaultValue,
+                true,
+                requestBodyName,
+                additionalBindings,
+                jsonValueParser,
+                combiner
+            );
+        }
+
+        /**
+         * Returns a copy of this definition with {@code requestParameterExposed = true}, a JSON value parser, and the
+         * body parameter renamed. The override applies uniformly to {@code settings.<paramName>} and to every additional
+         * binding that did not specify its own name.
+         */
+        public QuerySettingDef<T> withRequestParameter(String paramName, JsonValueParser<T> jsonValueParser) {
+            return new QuerySettingDef<>(
+                name,
+                type,
+                serverlessOnly,
+                preview,
+                snapshotOnly,
+                validator,
+                parser,
+                defaultValue,
+                true,
+                paramName,
+                additionalBindings,
+                jsonValueParser,
+                combiner
+            );
+        }
+
+        /**
+         * Returns a copy of this definition with an additional request-body binding.
+         * Requires {@link #withRequestParameter(JsonValueParser)} to have been called first.
+         */
+        public QuerySettingDef<T> withAdditionalBinding(RequestBodyBinding binding) {
+            if (requestParameterExposed == false) {
+                throw new IllegalStateException(
+                    "withAdditionalBinding requires withRequestParameter(...) first for setting [" + name + "]"
+                );
+            }
+            List<RequestBodyBinding> bindings = new ArrayList<>(additionalBindings);
+            bindings.add(binding);
+            return new QuerySettingDef<>(
+                name,
+                type,
+                serverlessOnly,
+                preview,
+                snapshotOnly,
+                validator,
+                parser,
+                defaultValue,
+                requestParameterExposed,
+                requestBodyName,
+                bindings,
+                jsonValueParser,
+                combiner
+            );
+        }
+
+        /**
+         * Returns a copy of this definition with a custom combiner. Use when last-wins is not the right merge rule.
+         */
+        public QuerySettingDef<T> withCombiner(Combiner<T> combiner) {
+            return new QuerySettingDef<>(
+                name,
+                type,
+                serverlessOnly,
+                preview,
+                snapshotOnly,
+                validator,
+                parser,
+                defaultValue,
+                requestParameterExposed,
+                requestBodyName,
+                additionalBindings,
+                jsonValueParser,
+                combiner
+            );
         }
 
         public T parse(@Nullable Expression value) {
@@ -249,6 +495,15 @@ public class QuerySettings {
                 return defaultValue;
             }
             return parser.parse(value);
+        }
+
+        /**
+         * The name used to address this setting on the body surface (inside {@code settings.{}} and as the default for
+         * additional bindings). Equal to {@link #name} unless an override was provided via
+         * {@link #withRequestParameter(String, JsonValueParser)}.
+         */
+        public String canonicalRequestBodyName() {
+            return requestBodyName != null ? requestBodyName : name;
         }
 
         @FunctionalInterface
@@ -266,6 +521,56 @@ public class QuerySettings {
              * Parses an already validated literal.
              */
             T parse(Expression value);
+        }
+
+        /**
+         * Parses a setting value out of a request body {@link XContentParser} positioned on the value token.
+         */
+        @FunctionalInterface
+        public interface JsonValueParser<T> {
+            T parse(XContentParser parser) throws IOException;
+        }
+
+        /**
+         * Combines a lower-precedence value with a higher-precedence value into a single resolved value. Both inputs may
+         * be {@code null} (meaning "not supplied"). The default ({@link #lastWins()}) returns the higher-precedence value
+         * if non-null, otherwise the lower-precedence value.
+         */
+        @FunctionalInterface
+        public interface Combiner<T> {
+            T combine(@Nullable T lower, @Nullable T higher);
+        }
+
+        /** Default combiner: higher precedence wins, unless null. */
+        public static <T> Combiner<T> lastWins() {
+            return (lower, higher) -> higher != null ? higher : lower;
+        }
+    }
+
+    /**
+     * Location of a setting in the {@code _query} request body, outside the canonical {@code settings.{}} block.
+     * {@code parentPath} is a dotted JSON path to the parent object ({@code ""} = top level). {@code name} is the field name
+     * inside that parent. Permanent first-class alternates to the canonical path; not deprecated.
+     */
+    public record RequestBodyBinding(String parentPath, String name) {
+
+        public RequestBodyBinding {
+            if (parentPath == null) {
+                throw new IllegalArgumentException("parentPath must not be null (use \"\" for root)");
+            }
+            if (name == null || name.isEmpty()) {
+                throw new IllegalArgumentException("name must not be null or empty");
+            }
+        }
+
+        /** Convenience: a binding directly at the top level of the request body. */
+        public static RequestBodyBinding atRoot(String name) {
+            return new RequestBodyBinding("", name);
+        }
+
+        /** True if this binding sits at the top level of the request body. */
+        public boolean isAtRoot() {
+            return parentPath.isEmpty();
         }
     }
 }

@@ -30,12 +30,14 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.QuerySettings.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
@@ -55,7 +57,6 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean profile;
     private Boolean includeCCSMetadata;
     private Boolean includeExecutionMetadata;
-    private ZoneId timeZone;
     private Locale locale;
     private QueryBuilder filter;
     private QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
@@ -66,8 +67,21 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean onSnapshotBuild = Build.current().isSnapshot();
     private boolean acceptedPragmaRisks = false;
     private Boolean allowPartialResults = null;
-    private String projectRouting;
-    private ApproximationSettings approximation;
+
+    /**
+     * Body-supplied values for SETtings, keyed by registry definition. Populated by {@link RequestXContent} from the
+     * {@code settings.{}} block and from any registry-declared additional bindings. Read by {@code EsqlSession} during
+     * resolution, where it sits at lower precedence than query SETs.
+     */
+    private final Map<QuerySettingDef<?>, Object> requestSettings = new HashMap<>();
+
+    /**
+     * Values supplied via the canonical {@code settings.{}} block, accumulated during JSON parsing.
+     * Merged into {@link #requestSettings} (overwriting any additional-binding values) by
+     * {@link #applyCanonicalRequestSettings()} after parsing completes. This implements the
+     * "canonical wins over additional binding" precedence rule without depending on JSON field order.
+     */
+    private final Map<QuerySettingDef<?>, Object> canonicalRequestSettings = new HashMap<>();
 
     /**
      * "Tables" provided in the request for use with things like {@code LOOKUP}.
@@ -100,7 +114,6 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.profile = source.profile;
         this.includeCCSMetadata = source.includeCCSMetadata;
         this.includeExecutionMetadata = source.includeExecutionMetadata;
-        this.timeZone = source.timeZone;
         this.locale = source.locale;
         this.filter = source.filter;
         this.pragmas = source.pragmas;
@@ -111,8 +124,8 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.onSnapshotBuild = source.onSnapshotBuild;
         this.acceptedPragmaRisks = source.acceptedPragmaRisks;
         this.allowPartialResults = source.allowPartialResults;
-        this.projectRouting = source.projectRouting;
-        this.approximation = source.approximation;
+        this.requestSettings.putAll(source.requestSettings);
+        this.canonicalRequestSettings.putAll(source.canonicalRequestSettings);
         this.tables.putAll(source.tables);
     }
 
@@ -227,11 +240,11 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     }
 
     public void timeZone(ZoneId timeZone) {
-        this.timeZone = timeZone;
+        setRequestSetting(QuerySettings.TIME_ZONE, timeZone);
     }
 
     public ZoneId timeZone() {
-        return timeZone;
+        return getRequestSetting(QuerySettings.TIME_ZONE);
     }
 
     public void locale(Locale locale) {
@@ -374,20 +387,61 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     }
 
     public EsqlQueryRequest projectRouting(String projectRouting) {
-        this.projectRouting = projectRouting;
+        setRequestSetting(QuerySettings.PROJECT_ROUTING, projectRouting);
         return this;
     }
 
     public String projectRouting() {
-        return projectRouting;
+        return getRequestSetting(QuerySettings.PROJECT_ROUTING);
     }
 
     public EsqlQueryRequest approximation(ApproximationSettings approximation) {
-        this.approximation = approximation;
+        setRequestSetting(QuerySettings.APPROXIMATION, approximation);
         return this;
     }
 
     public ApproximationSettings approximation() {
-        return approximation;
+        return getRequestSetting(QuerySettings.APPROXIMATION);
+    }
+
+    /**
+     * The body-supplied SET values keyed by registry definition. Lower precedence than query-string SET.
+     * Reflects the final merged view after {@link #applyCanonicalRequestSettings()} runs at end of parsing.
+     */
+    public Map<QuerySettingDef<?>, Object> requestSettings() {
+        return requestSettings;
+    }
+
+    /**
+     * Map populated by {@link RequestXContent} while parsing the {@code settings.{}} block. Not for external
+     * consumption — call {@link #requestSettings()} after parsing instead.
+     */
+    public Map<QuerySettingDef<?>, Object> canonicalRequestSettings() {
+        return canonicalRequestSettings;
+    }
+
+    /**
+     * Merge canonical {@code settings.{}} values into {@link #requestSettings}, overwriting any values supplied via
+     * additional bindings (legacy top-level fields). Called once by {@link RequestXContent} after parsing.
+     */
+    public void applyCanonicalRequestSettings() {
+        if (canonicalRequestSettings.isEmpty()) {
+            return;
+        }
+        requestSettings.putAll(canonicalRequestSettings);
+        canonicalRequestSettings.clear();
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T getRequestSetting(QuerySettingDef<T> def) {
+        return (T) requestSettings.get(def);
+    }
+
+    private <T> void setRequestSetting(QuerySettingDef<T> def, T value) {
+        if (value == null) {
+            requestSettings.remove(def);
+        } else {
+            requestSettings.put(def, value);
+        }
     }
 }

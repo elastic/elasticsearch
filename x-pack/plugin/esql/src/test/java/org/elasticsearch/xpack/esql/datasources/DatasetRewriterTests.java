@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.List;
@@ -48,14 +47,6 @@ import static org.hamcrest.Matchers.not;
 public class DatasetRewriterTests extends ESTestCase {
 
     private static final IndexNameExpressionResolver RESOLVER = TestIndexNameExpressionResolver.newInstance();
-
-    // Skip when the feature flag is off: these tests bypass the CRUD gate that keeps datasets out
-    // of cluster state in production, so without the skip they exercise paths production cannot
-    // reach. Same pattern as FromDatasetIT#requireFeatureFlag.
-    @Before
-    public void requireFeatureFlag() {
-        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
-    }
 
     public void testNoDatasetsLeavesPlanUnchanged() {
         UnresolvedRelation relation = relationOf("my_index");

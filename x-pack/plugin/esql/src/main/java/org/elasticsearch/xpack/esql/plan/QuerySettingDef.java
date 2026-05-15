@@ -130,16 +130,27 @@ public final class QuerySettingDef<T> {
     }
 
     /**
-     * Adds a legacy top-level body alias for this setting with the same name. Implies {@link #exposed()}.
-     * Use for backwards compatibility with pre-existing top-level body fields.
+     * Adds a body alias for this setting at the top level of the request body, named after the SET key. Implies
+     * {@link #exposed()}. Convenience for the common BWC case where a pre-existing top-level field shares its name
+     * with the SET key.
      */
     public QuerySettingDef<T> aliasAtRoot() {
-        return aliasAtRoot(name);
+        return aliasAt("", name);
     }
 
+    /** As {@link #aliasAtRoot()} but with a different name. */
     public QuerySettingDef<T> aliasAtRoot(String aliasName) {
+        return aliasAt("", aliasName);
+    }
+
+    /**
+     * Adds a body alias for this setting at an arbitrary location. {@code parentPath} is a dotted JSON path to the
+     * parent object ({@code ""} = root); {@code name} is the field name inside that parent. Implies
+     * {@link #exposed()}. A setting may carry multiple aliases — call this method multiple times.
+     */
+    public QuerySettingDef<T> aliasAt(String parentPath, String name) {
         this.requestParameterExposed = true;
-        this.aliases.add(new RequestBodyBinding("", aliasName));
+        this.aliases.add(new RequestBodyBinding(parentPath, name));
         return this;
     }
 

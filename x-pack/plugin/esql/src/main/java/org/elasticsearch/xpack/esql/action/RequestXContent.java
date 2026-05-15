@@ -15,7 +15,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
@@ -25,7 +24,6 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -133,18 +131,40 @@ final class RequestXContent {
             PRAGMA_FIELD
         );
         parser.declareField(EsqlQueryRequest::params, RequestXContent::parseParams, PARAMS_FIELD, VALUE_OBJECT_ARRAY);
-        parser.declareString((request, tz) -> request.set(QuerySettings.TIME_ZONE, ZoneId.of(tz)), TIME_ZONE_FIELD);
         parser.declareString((request, localeTag) -> request.locale(Locale.forLanguageTag(localeTag)), LOCALE_FIELD);
         parser.declareBoolean(EsqlQueryRequest::profile, PROFILE_FIELD);
         parser.declareField((p, r, c) -> new ParseTables(r, p).parseTables(), TABLES_FIELD, ObjectParser.ValueType.OBJECT);
-        parser.declareString((request, pr) -> request.set(QuerySettings.PROJECT_ROUTING, pr), PROJECT_ROUTING);
-        parser.declareObjectOrBooleanOrNull(
-            (request, value) -> request.set(QuerySettings.APPROXIMATION, value),
-            (p, c) -> ApproximationSettings.fromXContent(p),
-            ApproximationSettings.EXPLICIT_NULL,
-            APPROXIMATION_FIELD
-        );
+        declareRegistryAliases(parser);
         parser.declareField((p, request, c) -> parseSettingsObject(p, request), SETTINGS_FIELD, ObjectParser.ValueType.OBJECT);
+    }
+
+    /**
+     * Walks {@link QuerySettingDef#all()} and declares a top-level parser for each registered alias. Each alias
+     * routes its parsed value into the request envelope via {@link EsqlQueryRequest#set}. Multiple aliases per
+     * setting are supported by virtue of iterating the list. Non-root aliases — a real possibility in the data
+     * model — are not yet wired in the parser; they fail loudly at parser-build time so we don't silently drop them.
+     */
+    private static void declareRegistryAliases(ObjectParser<EsqlQueryRequest, ?> parser) {
+        for (QuerySettingDef<?> def : QuerySettingDef.all()) {
+            for (QuerySettingDef.RequestBodyBinding alias : def.aliases()) {
+                if (alias.isAtRoot() == false) {
+                    throw new IllegalStateException(
+                        "Body alias for setting ["
+                            + def.name()
+                            + "] at nested path ["
+                            + alias.parentPath()
+                            + "."
+                            + alias.name()
+                            + "] is not wired in RequestXContent yet; only root-level aliases are currently parsed."
+                    );
+                }
+                declareRootAlias(parser, def, alias.name());
+            }
+        }
+    }
+
+    private static <T> void declareRootAlias(ObjectParser<EsqlQueryRequest, ?> parser, QuerySettingDef<T> def, String aliasName) {
+        parser.declareField((p, request, c) -> request.set(def, def.readFromJson(p)), new ParseField(aliasName), VALUE_OBJECT_ARRAY);
     }
 
     /**

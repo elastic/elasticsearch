@@ -25,19 +25,14 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Three variants of "find last record terminator in a synthetic TSV buffer":
- * the production override, the SPI default driver against the current per-record
- * scanner, and the same driver against a reimplemented pre-fix bulk-read scanner.
- * Pairwise differences attribute Layer 1 (override vs default driver) and Layer 2
- * (current scanner vs bulk-read) of the fix.
+ * Measures {@link CsvFormatReader#findLastRecordBoundary} on a synthetic TSV buffer
+ * representative of a streaming-segmentator chunk (2.5 MiB, ~100-byte rows, ~25K records).
  */
 @Fork(1)
 @Warmup(iterations = 3)
@@ -53,7 +48,8 @@ public class CsvBoundaryScanBenchmark {
     @Param({ "100" })
     int approxRowBytes;
 
-    private CsvFormatReader reader;
+    private CsvFormatReader tsvReader;
+    private CsvFormatReader csvReader;
     private byte[] buf;
     private int length;
 
@@ -61,99 +57,22 @@ public class CsvBoundaryScanBenchmark {
     public void setup() {
         Utils.configureBenchmarkLogging();
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("bench")).build();
-        reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("delimiter", "\t"));
+        tsvReader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("delimiter", "\t"));
+        csvReader = new CsvFormatReader(blockFactory);
         buf = generateTsv(bufferBytes, approxRowBytes);
         length = buf.length;
     }
 
+    /** TSV config — uses the new {@code findLastRecordBoundary} override (Layer 1 fast path). */
     @Benchmark
-    public int overrideSinglePass() throws IOException {
-        return reader.findLastRecordBoundary(buf, length);
+    public int tsv() throws IOException {
+        return tsvReader.findLastRecordBoundary(buf, length);
     }
 
+    /** Default CSV config — falls through to the inherited SPI default in the override's dispatch. */
     @Benchmark
-    public int inheritedDefault() throws IOException {
-        return runDefaultDriver(buf, length, this::findNextRecordBoundaryViaReader);
-    }
-
-    @Benchmark
-    public int defaultWithBulkReadScanner() throws IOException {
-        return runDefaultDriver(buf, length, this::findNextRecordBoundaryBulkReadV1);
-    }
-
-    private long findNextRecordBoundaryViaReader(InputStream stream) throws IOException {
-        return reader.findNextRecordBoundary(stream);
-    }
-
-    /** Bench-only Layer-2 baseline — fresh {@code byte[8192]} per call, bulk-read. */
-    private long findNextRecordBoundaryBulkReadV1(InputStream stream) throws IOException {
-        long consumed = 0;
-        boolean inQuotes = false;
-        byte quoteAsByte = (byte) '"';
-        byte[] scratch = new byte[8192];
-        int bytesRead;
-        while ((bytesRead = stream.read(scratch, 0, scratch.length)) > 0) {
-            for (int i = 0; i < bytesRead; i++) {
-                consumed++;
-                byte b = scratch[i];
-                if (b == quoteAsByte) {
-                    if (inQuotes) {
-                        if (i + 1 < bytesRead) {
-                            if (scratch[i + 1] == quoteAsByte) {
-                                i++;
-                                consumed++;
-                                continue;
-                            }
-                            inQuotes = false;
-                            if (scratch[i + 1] == '\n') {
-                                consumed++;
-                                return consumed;
-                            }
-                            continue;
-                        }
-                        int next = stream.read();
-                        if (next == -1) {
-                            return -1;
-                        }
-                        consumed++;
-                        if (next == quoteAsByte) {
-                            continue;
-                        }
-                        inQuotes = false;
-                        if (next == '\n') {
-                            return consumed;
-                        }
-                        continue;
-                    } else {
-                        inQuotes = true;
-                    }
-                } else if (b == '\n' && inQuotes == false) {
-                    return consumed;
-                }
-            }
-        }
-        return -1;
-    }
-
-    private interface RecordScanner {
-        long findNext(InputStream stream) throws IOException;
-    }
-
-    private static int runDefaultDriver(byte[] buf, int length, RecordScanner scanner) throws IOException {
-        if (length <= 0) {
-            return -1;
-        }
-        int lastBoundary = -1;
-        int cumulative = 0;
-        while (cumulative < length) {
-            long consumed = scanner.findNext(new ByteArrayInputStream(buf, cumulative, length - cumulative));
-            if (consumed < 0) {
-                return lastBoundary;
-            }
-            cumulative += Math.toIntExact(consumed);
-            lastBoundary = cumulative - 1;
-        }
-        return lastBoundary;
+    public int csvDefault() throws IOException {
+        return csvReader.findLastRecordBoundary(buf, length);
     }
 
     private static byte[] generateTsv(int bufferBytes, int approxRowBytes) {
@@ -161,8 +80,7 @@ public class CsvBoundaryScanBenchmark {
         byte[] data = new byte[bufferBytes];
         int p = 0;
         while (p + approxRowBytes < bufferBytes) {
-            int rowLen = approxRowBytes;
-            int end = Math.min(p + rowLen - 1, bufferBytes - 2);
+            int end = Math.min(p + approxRowBytes - 1, bufferBytes - 2);
             for (int i = p; i < end; i++) {
                 int r = rng.nextInt(63);
                 data[i] = (byte) (r == 0 ? '\t' : ('a' + (r % 26)));
@@ -170,7 +88,6 @@ public class CsvBoundaryScanBenchmark {
             data[end] = '\n';
             p = end + 1;
         }
-        // Tail: fill with non-newline non-quote so the last \n is the boundary answer.
         for (int i = p; i < bufferBytes; i++) {
             data[i] = 'x';
         }

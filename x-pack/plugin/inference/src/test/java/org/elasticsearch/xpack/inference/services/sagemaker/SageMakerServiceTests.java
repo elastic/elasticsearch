@@ -45,7 +45,6 @@ import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchema;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStreamSchema;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -254,10 +253,10 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
             service.rerankInfer(model, new RerankRequest(inputs, query, null, null, new HashMap<>()), null, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
-            assertThat(thrownException.status(), Matchers.is(RestStatus.BAD_REQUEST));
+            assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
             assertThat(
                 thrownException.getMessage(),
-                Matchers.is("The amazon_sagemaker service does not support rerank with non-text inputs or queries")
+                is("The amazon_sagemaker service does not support rerank with non-text inputs or queries")
             );
         }
     }

@@ -17,11 +17,11 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
-import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.simdvec.internal.BFloat16VectorScorer;
 import org.elasticsearch.simdvec.internal.BFloat16VectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.Float32VectorScorer;
 import org.elasticsearch.simdvec.internal.Float32VectorScorerSupplier;
+import org.elasticsearch.simdvec.internal.IndexInputUtils;
 import org.elasticsearch.simdvec.internal.Int4VectorScorer;
 import org.elasticsearch.simdvec.internal.Int4VectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.Int7SQVectorScorer;
@@ -30,19 +30,70 @@ import org.elasticsearch.simdvec.internal.Int7uOSQVectorScorer;
 import org.elasticsearch.simdvec.internal.Int7uOSQVectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.Int8VectorScorer;
 import org.elasticsearch.simdvec.internal.Int8VectorScorerSupplier;
+import org.elasticsearch.simdvec.internal.MemorySegmentES92Int7VectorsScorer;
+import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentES940OSQVectorsScorer;
+import org.elasticsearch.simdvec.internal.vectorization.NativeBinaryQuantizedVectorScorer;
+import org.elasticsearch.simdvec.internal.vectorization.PanamaVectorConstants;
 
+import java.io.IOException;
 import java.util.Optional;
 
-import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
+final class Native22VectorScorerFactory implements VectorScorerFactory {
 
-final class VectorScorerFactoryImpl implements VectorScorerFactory {
+    private static final VectorScorerFactory FALLBACK = new Panama22VectorScorerFactory();
 
-    static final VectorScorerFactoryImpl INSTANCE;
+    @Override
+    public ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
+        return FALLBACK.newES91OSQVectorsScorer(input, dimension, bulkSize);
+    }
 
-    private VectorScorerFactoryImpl() {}
+    @Override
+    public ES940OSQVectorsScorer newES940OSQVectorsScorer(
+        IndexInput input,
+        byte queryBits,
+        byte indexBits,
+        int dimension,
+        int dataLength,
+        int bulkSize,
+        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
+    ) throws IOException {
+        if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS
+            && ((queryBits == 4 && (indexBits == 1 || indexBits == 2 || indexBits == 4)) || (queryBits == 7 && indexBits == 7))) {
+            IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
+            unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
+            if (IndexInputUtils.canUseSegmentSlices(unwrappedInput)) {
+                return new MemorySegmentES940OSQVectorsScorer(
+                    unwrappedInput,
+                    queryBits,
+                    indexBits,
+                    dimension,
+                    dataLength,
+                    bulkSize,
+                    int4Encoding,
+                    true
+                );
+            }
+        }
+        return FALLBACK.newES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, int4Encoding);
+    }
 
-    static {
-        INSTANCE = NativeAccess.instance().getVectorSimilarityFunctions().map(ignore -> new VectorScorerFactoryImpl()).orElse(null);
+    @Override
+    public ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
+        IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
+        unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
+
+        if (IndexInputUtils.canUseSegmentSlices(unwrappedInput)) {
+            return new MemorySegmentES92Int7VectorsScorer(unwrappedInput, dimension, bulkSize);
+        }
+        return FALLBACK.newES92Int7VectorsScorer(input, dimension, bulkSize);
+    }
+
+    @Override
+    public ES93BinaryQuantizedVectorScorer newES93BinaryQuantizedVectorScorer(IndexInput input, int dimensions, int vectorLengthInBytes)
+        throws IOException {
+        IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
+        unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
+        return new NativeBinaryQuantizedVectorScorer(unwrappedInput, dimensions, vectorLengthInBytes);
     }
 
     @Override
@@ -51,9 +102,6 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         IndexInput input,
         FloatVectorValues values
     ) {
-        if (SUPPORTS_HEAP_SEGMENTS == false) {
-            return Optional.empty();
-        }
         input = FilterIndexInput.unwrapOnlyTest(input);
         input = MemorySegmentAccessInputAccess.unwrap(input);
         checkInvariants(values.size(), values.dimension(), input);
@@ -70,9 +118,6 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         IndexInput input,
         FloatVectorValues values
     ) {
-        if (SUPPORTS_HEAP_SEGMENTS == false) {
-            return Optional.empty();
-        }
         input = FilterIndexInput.unwrapOnlyTest(input);
         input = MemorySegmentAccessInputAccess.unwrap(input);
         checkInvariants(values.size(), values.getVectorByteLength(), input);
@@ -89,9 +134,6 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         IndexInput input,
         ByteVectorValues values
     ) {
-        if (SUPPORTS_HEAP_SEGMENTS == false) {
-            return Optional.empty();
-        }
         input = FilterIndexInput.unwrapOnlyTest(input);
         input = MemorySegmentAccessInputAccess.unwrap(input);
         checkInvariants(values.size(), values.dimension(), input);
@@ -133,9 +175,6 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         QuantizedByteVectorValues values,
         float scoreCorrectionConstant
     ) {
-        if (SUPPORTS_HEAP_SEGMENTS == false) {
-            return Optional.empty();
-        }
         input = FilterIndexInput.unwrapOnlyTest(input);
         input = MemorySegmentAccessInputAccess.unwrap(input);
         checkInvariants(values.size(), values.dimension(), input);
@@ -165,9 +204,6 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         IndexInput input,
         org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values
     ) {
-        if (SUPPORTS_HEAP_SEGMENTS == false) {
-            return Optional.empty();
-        }
         input = FilterIndexInput.unwrapOnlyTest(input);
         input = MemorySegmentAccessInputAccess.unwrap(input);
         checkInvariants(values.size(), values.dimension(), input);
@@ -236,5 +272,10 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         if (input.length() < (long) vectorByteLength * maxOrd) {
             throw new IllegalArgumentException("input length is less than expected vector data");
         }
+    }
+
+    @Override
+    public String toString() {
+        return "Native22VectorScorerFactory";
     }
 }

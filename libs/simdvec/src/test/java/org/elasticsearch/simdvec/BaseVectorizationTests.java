@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.simdvec.internal.vectorization;
+package org.elasticsearch.simdvec;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterIndexInput;
@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 
-public class BaseVectorizationTests extends ESTestCase {
+public abstract class BaseVectorizationTests extends ESTestCase {
 
     @Before
     public void sanity() {
@@ -31,11 +31,15 @@ public class BaseVectorizationTests extends ESTestCase {
     }
 
     public static ESVectorizationProvider defaultProvider() {
-        return new DefaultESVectorizationProvider();
+        return ESVectorizationProvider.lookup(false, false);
     }
 
-    public static ESVectorizationProvider maybePanamaProvider() {
-        return ESVectorizationProvider.lookup(true);
+    public static ESVectorizationProvider panamaProvider() {
+        return ESVectorizationProvider.lookup(true, false);
+    }
+
+    public static ESVectorizationProvider nativeProvider() {
+        return ESVectorizationProvider.lookup(true, true);
     }
 
     /**
@@ -44,7 +48,7 @@ public class BaseVectorizationTests extends ESTestCase {
      * {@code dir.openInput(name, IOContext.DEFAULT)} in tests that want
      * to assert per-slice byte lengths.
      */
-    static IndexInput openTestInput(Directory dir, String name, int expectedSliceLength) throws IOException {
+    protected static IndexInput openTestInput(Directory dir, String name, int expectedSliceLength) throws IOException {
         return wrapForAssertion(dir.openInput(name, IOContext.DEFAULT), expectedSliceLength);
     }
 
@@ -59,7 +63,7 @@ public class BaseVectorizationTests extends ESTestCase {
      * <p>If {@code in} does not expose a fast-path interface this method
      * returns it unchanged.
      */
-    static IndexInput wrapForAssertion(IndexInput in, int expectedSliceLength) {
+    protected static IndexInput wrapForAssertion(IndexInput in, int expectedSliceLength) {
         IndexInput unwrapped = FilterIndexInput.unwrapOnlyTest(in);
         if (unwrapped instanceof DirectAccessInput) {
             return new AssertingDirectAccessInput("asserting(" + unwrapped + ")", unwrapped, expectedSliceLength);

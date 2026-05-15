@@ -208,6 +208,23 @@ public class CaseExtraTests extends ESTestCase {
         );
     }
 
+    /**
+     * A CASE whose only non-else branch has a literally-FALSE condition is foldable iff the
+     * else value is foldable — the dead branch's value is irrelevant because it will never
+     * be evaluated. The {@code else { continue; }} in {@link Case#foldable()} is load-bearing
+     * here: without it, control falls through to the "value must be foldable" check and
+     * returns {@code false} for the non-foldable field in the dead branch.
+     */
+    public void testFoldableWhenDeadBranchHasNonFoldableValue() {
+        Case c = new Case(
+            Source.synthetic("case"),
+            new Literal(Source.EMPTY, false, DataType.BOOLEAN),
+            List.of(field("dead_value", DataType.LONG), new Literal(Source.EMPTY, 42L, DataType.LONG))
+        );
+        assertThat(c.foldable(), equalTo(true));
+        assertThat(c.fold(FoldContext.small()), equalTo(42L));
+    }
+
     public void testEvalCase() {
         testCase(caseExpr -> {
             DriverContext driverContext = driverContext();

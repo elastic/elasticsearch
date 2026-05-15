@@ -55,6 +55,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -68,6 +69,7 @@ import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
@@ -210,14 +212,23 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
                 indexName
             );
         }
-        boolean repoIsRegistered = RepositoriesMetadata.get(getProjectState().metadata())
+        RepositoryMetadata registeredRepo = RepositoriesMetadata.get(getProjectState().metadata())
             .repositories()
             .stream()
-            .anyMatch(repositoryMetadata -> repositoryMetadata.name().equals(repositoryName));
-        if (repoIsRegistered == false) {
+            .filter(repositoryMetadata -> repositoryMetadata.name().equals(repositoryName))
+            .findFirst()
+            .orElse(null);
+        if (registeredRepo == null) {
             throw new DLMUnrecoverableException(
                 indexName,
                 "Repository [{}] required for convert-to-frozen steps is no longer registered in project [{}]",
+                repositoryName,
+                projectId
+            );
+        }
+        if (RepositoriesService.isReadOnly(registeredRepo.settings())) {
+            throw new DLMUnrecoverableException(
+                "Repository [{}] required for convert-to-frozen steps is configured as read-only in project [{}]",
                 repositoryName,
                 projectId
             );

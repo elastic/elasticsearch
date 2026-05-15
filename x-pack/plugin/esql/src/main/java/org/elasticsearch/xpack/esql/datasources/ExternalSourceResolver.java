@@ -664,11 +664,11 @@ public class ExternalSourceResolver {
 
     static FormatReader.SchemaResolution parseSchemaResolution(@Nullable Map<String, Object> config) {
         if (config == null) {
-            return FormatReader.SchemaResolution.UNION_BY_NAME;
+            return FormatReader.DEFAULT_SCHEMA_RESOLUTION;
         }
         Object value = config.get(CONFIG_SCHEMA_RESOLUTION);
         if (value == null) {
-            return FormatReader.SchemaResolution.UNION_BY_NAME;
+            return FormatReader.DEFAULT_SCHEMA_RESOLUTION;
         }
         return switch (value.toString().toLowerCase(Locale.ROOT)) {
             case "first_file_wins" -> FormatReader.SchemaResolution.FIRST_FILE_WINS;

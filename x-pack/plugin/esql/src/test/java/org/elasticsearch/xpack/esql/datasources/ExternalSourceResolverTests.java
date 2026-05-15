@@ -608,9 +608,30 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     // ===== Default schema resolution strategy =====
 
-    public void testDefaultSchemaResolutionIsUnionByName() {
+    /**
+     * Both the SPI default ({@link FormatReader#defaultSchemaResolution()}) and the resolver's
+     * config-parse fallback ({@code parseSchemaResolution(null/missing)}) must derive from the
+     * same constant — keeping them in lockstep is the whole point of
+     * {@link FormatReader#DEFAULT_SCHEMA_RESOLUTION}. This test catches a drift between the two
+     * (which previously had to be kept in sync by convention).
+     */
+    public void testDefaultSchemaResolutionIsSingleSourceOfTruth() {
         FormatReader reader = new StubFormatReader(Map.of());
-        assertEquals(FormatReader.SchemaResolution.UNION_BY_NAME, reader.defaultSchemaResolution());
+        assertEquals(
+            "SPI default must equal the FormatReader.DEFAULT_SCHEMA_RESOLUTION constant",
+            FormatReader.DEFAULT_SCHEMA_RESOLUTION,
+            reader.defaultSchemaResolution()
+        );
+        assertEquals(
+            "Resolver's null-config fallback must equal the FormatReader.DEFAULT_SCHEMA_RESOLUTION constant",
+            FormatReader.DEFAULT_SCHEMA_RESOLUTION,
+            ExternalSourceResolver.parseSchemaResolution(null)
+        );
+        assertEquals(
+            "Resolver's missing-key fallback must equal the FormatReader.DEFAULT_SCHEMA_RESOLUTION constant",
+            FormatReader.DEFAULT_SCHEMA_RESOLUTION,
+            ExternalSourceResolver.parseSchemaResolution(Map.of())
+        );
     }
 
     // ===== Multiple paths resolution =====
@@ -1074,12 +1095,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolver resolver = createResolver(schemasByPath, listingsByPrefix);
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
 
-        Map<String, Map<String, Object>> pathConfigs = new HashMap<>();
-        if (config.isEmpty() == false) {
-            pathConfigs.put(globPattern, new HashMap<>(config));
-        }
-
-        resolver.resolve(List.of(globPattern), pathConfigs, future);
+        // The resolver treats a missing path key and a present-but-empty config map identically
+        // (see ExternalSourceResolver.resolve: pathConfigs.getOrDefault(path, Map.of())), so
+        // always forward the per-path config — no special-casing the empty case.
+        resolver.resolve(List.of(globPattern), Map.of(globPattern, new HashMap<>(config)), future);
         return future.actionGet();
     }
 
@@ -1144,8 +1163,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         ExternalSourceResolver resolver = new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        Map<String, Map<String, Object>> pathConfigs = config.isEmpty() ? Map.of() : Map.of(globPattern, new HashMap<>(config));
-        resolver.resolve(List.of(globPattern), pathConfigs, future);
+        // The resolver treats a missing path key and a present-but-empty config map identically
+        // (see ExternalSourceResolver.resolve: pathConfigs.getOrDefault(path, Map.of())), so
+        // always forward the per-path config — no special-casing the empty case.
+        resolver.resolve(List.of(globPattern), Map.of(globPattern, new HashMap<>(config)), future);
         return future.actionGet();
     }
 

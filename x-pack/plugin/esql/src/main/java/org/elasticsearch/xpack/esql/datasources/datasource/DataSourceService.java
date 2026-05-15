@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.logging.LogManager;
@@ -119,7 +120,7 @@ public class DataSourceService {
     public void putDataSource(
         ProjectId projectId,
         PutDataSourceAction.Request request,
-        EncryptionService encryptionService,
+        @Nullable EncryptionService encryptionService,
         FeatureService featureService,
         ActionListener<AcknowledgedResponse> listener
     ) {
@@ -141,7 +142,8 @@ public class DataSourceService {
                     currentState,
                     EsqlFeatures.DATA_SOURCE_ENCRYPTION_FEATURE
                 );
-                final Map<String, DataSourceSetting> finalSettings = encryptionFeatureSupported
+                final boolean canEncrypt = encryptionFeatureSupported && encryptionService != null;
+                final Map<String, DataSourceSetting> finalSettings = canEncrypt
                     ? encryptSecrets(validated.settings(), encryptionService)
                     : announceDeferral(validated.settings());
                 // Preserve UUID on update; assign fresh on create or legacy (pre-UUID) migration.

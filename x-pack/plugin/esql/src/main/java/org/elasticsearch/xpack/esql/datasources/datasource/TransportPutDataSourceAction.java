@@ -26,8 +26,24 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 
 public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNodeProjectAction<PutDataSourceAction.Request> {
     private final DataSourceService dataSourceService;
-    private final EncryptionService encryptionService;
     private final FeatureService featureService;
+
+    /**
+     * Wired by an optional Guice setter ({@link #setEncryptionService}) — the security plugin binds
+     * {@link EncryptionService} only when the primary-encryption-key feature flag is on. When off
+     * (or when the security plugin is absent in test environments), the setter is never called and
+     * this field stays null; the put path then skips encryption — equivalent to the mixed-version
+     * fallback documented on {@link DataSourceService#putDataSource}.
+     *
+     * <p>This Guice fork supports {@code @Inject(optional = true)} only on methods and constructors,
+     * not fields — hence the setter rather than a direct field annotation.
+     */
+    private volatile EncryptionService encryptionService;
+
+    @Inject(optional = true)
+    public void setEncryptionService(EncryptionService encryptionService) {
+        this.encryptionService = encryptionService;
+    }
 
     @Inject
     public TransportPutDataSourceAction(
@@ -36,7 +52,6 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
         ThreadPool threadPool,
         ActionFilters actionFilters,
         DataSourceService dataSourceService,
-        EncryptionService encryptionService,
         FeatureService featureService,
         ProjectResolver projectResolver
     ) {
@@ -51,14 +66,7 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.dataSourceService = dataSourceService;
-        // EncryptionService is bound by the security plugin via PluginComponentBinding; PluginServices does not
-        // expose it, so Guice constructor injection on this Transport action is the supported reach.
-        this.encryptionService = encryptionService;
         this.featureService = featureService;
-        // Plant the service into the data-node decrypt seam so the connector-side helper can reach it
-        // without its own Guice plumbing. Transport actions are instantiated on every node at plugin
-        // init, so this runs on data nodes too — by the time any FROM query arrives, the holder is set.
-        DataSourceCredentials.initialize(encryptionService);
     }
 
     @Override
@@ -81,6 +89,11 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
         ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        // Plant the service into the data-node decrypt seam idempotently — runs on every PUT but is
+        // a no-op after the first call, and a no-op forever if EncryptionService is unbound.
+        if (encryptionService != null) {
+            DataSourceCredentials.initialize(encryptionService);
+        }
         dataSourceService.putDataSource(state.projectId(), request, encryptionService, featureService, listener);
     }
 

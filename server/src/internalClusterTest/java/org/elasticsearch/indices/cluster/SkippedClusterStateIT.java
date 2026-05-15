@@ -173,7 +173,7 @@ public class SkippedClusterStateIT extends ESIntegTestCase {
                 equalTo(startedRoutingOnMaster.allocationId().getId())
             );
 
-            // If "term is only increased as part of primary promotion" assertion fires, reroute times out
+            // Before fixing, "term is only increased as part of primary promotion" would show up here and reroute would fail
             ClusterRerouteUtils.reroute(client(masterNodeName), new CancelAllocationCommand(INDEX_NAME, SHARD_ID, primaryNodeName, true));
 
             final var reinitRoutingOnMaster = masterClusterService.state().routingTable().shardRoutingTable(shardId).primaryShard();
@@ -184,11 +184,7 @@ public class SkippedClusterStateIT extends ESIntegTestCase {
             final var finalState = masterClusterService.state();
             final var finalRouting = finalState.routingTable().shardRoutingTable(shardId).primaryShard();
             final var finalTerm = finalState.metadata().getProject().index(INDEX_NAME).primaryTerm(SHARD_ID);
-            assertEquals(
-
-                finalRouting.allocationId().getId(),
-                startedRoutingOnMaster.allocationId().getId()
-            );
+            assertEquals(finalRouting.allocationId().getId(), startedRoutingOnMaster.allocationId().getId());
             assertThat("expected the primary term to have been bumped", finalTerm, greaterThan(initialTerm));
             assertThat(initializingCount.get(), greaterThanOrEqualTo(2));
         } finally {

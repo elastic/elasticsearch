@@ -13,18 +13,22 @@ import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointWith
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
@@ -41,9 +45,11 @@ import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchema;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStreamSchema;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -57,6 +63,7 @@ import static org.elasticsearch.action.ActionListener.assertOnce;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.elasticsearch.core.TimeValue.THIRTY_SECONDS;
+import static org.elasticsearch.inference.InferenceStringTests.createRandomUsingDataTypes;
 import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomTextInputOnlyUnifiedCompletionRequest;
 import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomUnifiedCompletionRequest;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
@@ -190,6 +197,71 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         verifyNoMoreInteractions(client, schemas, schema);
     }
 
+    public void testRerankInfer() {
+        var model = mockModel();
+
+        SageMakerSchema schema = mock();
+        when(schemas.schemaFor(model)).thenReturn(schema);
+        mockInvoke();
+
+        var returnDocuments = randomOptionalBoolean();
+        var topN = randomNonNegativeIntOrNull();
+        sageMakerService.rerankInfer(
+            model,
+            new RerankRequest(
+                InferenceString.fromStringList(INPUT),
+                new InferenceString(DataType.TEXT, QUERY),
+                topN,
+                returnDocuments,
+                null
+            ),
+            THIRTY_SECONDS,
+            assertNoFailureListener(ignored -> {
+                verify(schemas, only()).schemaFor(eq(model));
+                verify(schema, times(1)).request(eq(model), assertRerankRequest(returnDocuments, topN));
+                verify(schema, times(1)).response(eq(model), any(), any());
+            })
+        );
+        verify(client, only()).invoke(any(), any(), any(), any(), any());
+        verifyNoMoreInteractions(client, schemas, schema);
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextQuery() throws IOException {
+        var textInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.of(DataType.TEXT)));
+        var nonTextQuery = createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT)));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(textInputs, nonTextQuery);
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextInputs() throws IOException {
+        var nonTextInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT))));
+        var textQuery = createRandomUsingDataTypes(EnumSet.of(DataType.TEXT));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(nonTextInputs, textQuery);
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextInputsAndQuery() throws IOException {
+        var nonTextInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT))));
+        var nonTextQuery = createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT)));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(nonTextInputs, nonTextQuery);
+    }
+
+    private void testRerankInfer_ThrowsError_WithNonTextInputOrQuery(List<InferenceString> inputs, InferenceString query)
+        throws IOException {
+        var model = mock(SageMakerModel.class);
+
+        try (var service = createInferenceService()) {
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+
+            service.rerankInfer(model, new RerankRequest(inputs, query, null, null, new HashMap<>()), null, listener);
+
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(thrownException.status(), Matchers.is(RestStatus.BAD_REQUEST));
+            assertThat(
+                thrownException.getMessage(),
+                Matchers.is("The amazon_sagemaker service does not support rerank with non-text inputs or queries")
+            );
+        }
+    }
+
     @SuppressWarnings("unchecked")
     public void test_nullTimeoutUsesClusterSetting() throws InterruptedException {
         var model = mockModel();
@@ -246,7 +318,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
     private SageMakerModel mockModel() {
         SageMakerModel model = mock();
-        when(model.override(null)).thenReturn(model);
+        when(model.override(any())).thenReturn(model);
         when(model.awsSecretSettings()).thenReturn(
             Optional.of(new AwsSecretSettings(new SecureString("test-accessKey"), new SecureString("test-secretKey")))
         );
@@ -268,6 +340,16 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
             assertThat(request.inputType(), equalTo(InputType.UNSPECIFIED));
             assertNull(request.returnDocuments());
             assertNull(request.topN());
+        });
+    }
+
+    private static SageMakerInferenceRequest assertRerankRequest(Boolean returnDocuments, Integer topN) {
+        return assertArg(request -> {
+            assertThat(request.query(), is(QUERY));
+            assertThat(request.input(), is(INPUT));
+            assertThat(request.inputType(), is(InputType.UNSPECIFIED));
+            assertThat(request.returnDocuments(), is(returnDocuments));
+            assertThat(request.topN(), is(topN));
         });
     }
 

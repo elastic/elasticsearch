@@ -713,3 +713,163 @@ setup:
   - match: { hits.hits.0.inner_hits.nested.hits.total.value: 1 }
   - match: { hits.hits.0.inner_hits.nested.hits.hits.0.fields.nested.0.paragraph_id.0: "3" }
   - match: { hits.hits.0.inner_hits.nested.hits.hits.0.fields.nested.0.language.0: "FR" }
+
+---
+"kNN query search with must_not that excludes all nested docs for a parent":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ knn_filter_on_nested_fields ]
+      test_runner_features: ["capabilities"]
+      reason: "Capability for filtering on nested fields required"
+
+  - do:
+      search:
+        index: test
+        body:
+          _source: false
+          query:
+            nested:
+              path: nested
+              query:
+                knn:
+                  field: nested.vector
+                  query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+                  k: 10
+                  num_candidates: 10
+                  filter:
+                    bool:
+                      must_not:
+                        - term:
+                            nested.language: "FR"
+              inner_hits: { size: 3, "fields": [ "nested.paragraph_id", "nested.language"], _source: false }
+
+  # rabbit.jpg (doc 3) has only FR nested docs, so it should be excluded entirely.
+  # cow.jpg and moose.jpg should only have EN inner_hits.
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.0.inner_hits.nested.hits.total.value: 2 }
+  - match: { hits.hits.0.inner_hits.nested.hits.hits.0.fields.nested.0.language.0: "EN" }
+  - match: { hits.hits.0.inner_hits.nested.hits.hits.1.fields.nested.0.language.0: "EN" }
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.1.inner_hits.nested.hits.total.value: 1 }
+  - match: { hits.hits.1.inner_hits.nested.hits.hits.0.fields.nested.0.language.0: "EN" }
+
+---
+"kNN query search with multiple must_not clauses on nested fields":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ knn_filter_on_nested_fields ]
+      test_runner_features: ["capabilities"]
+      reason: "Capability for filtering on nested fields required"
+
+  - do:
+      search:
+        index: test
+        body:
+          _source: false
+          query:
+            nested:
+              path: nested
+              query:
+                knn:
+                  field: nested.vector
+                  query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+                  k: 10
+                  num_candidates: 10
+                  filter:
+                    bool:
+                      must_not:
+                        - term:
+                            nested.language: "EN"
+                        - term:
+                            nested.language: "FR"
+              inner_hits: { size: 3, "fields": [ "nested.paragraph_id", "nested.language"], _source: false }
+
+  # All nested docs are either EN or FR, so excluding both should return 0 hits
+  - match: { hits.total.value: 0 }
+
+---
+"kNN query search with mixed positive and negative nested filters":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ knn_filter_on_nested_fields ]
+      test_runner_features: ["capabilities"]
+      reason: "Capability for filtering on nested fields required"
+
+  - do:
+      search:
+        index: test
+        body:
+          _source: false
+          query:
+            nested:
+              path: nested
+              query:
+                knn:
+                  field: nested.vector
+                  query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+                  k: 10
+                  num_candidates: 10
+                  filter:
+                    bool:
+                      must:
+                        - term:
+                            nested.language: "EN"
+                      must_not:
+                        - term:
+                            nested.paragraph_id: "0"
+              inner_hits: { size: 3, "fields": [ "nested.paragraph_id", "nested.language"], _source: false }
+
+  # Both filter clauses target nested fields (pure-nested, no decomposition).
+  # cow.jpg: EN(pid=0) excluded by must_not, FR doesn't match must -> 0 matches -> excluded
+  # moose.jpg: EN(pid=0) excluded, EN(pid=2) matches both -> 1 inner_hit
+  # rabbit.jpg: FR doesn't match must -> excluded
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.0.inner_hits.nested.hits.total.value: 1 }
+  - match: { hits.hits.0.inner_hits.nested.hits.hits.0.fields.nested.0.paragraph_id.0: "2" }
+  - match: { hits.hits.0.inner_hits.nested.hits.hits.0.fields.nested.0.language.0: "EN" }
+
+---
+"kNN query search with must_not on parent field (non-nested regression)":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ knn_filter_on_nested_fields ]
+      test_runner_features: ["capabilities"]
+      reason: "Capability for filtering on nested fields required"
+
+  - do:
+      search:
+        index: test
+        body:
+          _source: false
+          query:
+            nested:
+              path: nested
+              query:
+                knn:
+                  field: nested.vector
+                  query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+                  k: 10
+                  num_candidates: 10
+                  filter:
+                    bool:
+                      must_not:
+                        - term:
+                            name: "moose.jpg"
+              inner_hits: { size: 3, "fields": [ "nested.paragraph_id", "nested.language"], _source: false }
+
+  # must_not on a parent field should exclude moose.jpg (doc 2), return cow.jpg and rabbit.jpg
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0.inner_hits.nested.hits.total.value: 1 }
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.1.inner_hits.nested.hits.total.value: 2 }

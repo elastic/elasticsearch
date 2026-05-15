@@ -99,7 +99,7 @@ Source: Gateway TDD §"Unavailability issues mitigation" point 1: *"In case of c
 
 ES must not emit OTel audit records when audit logging is disabled for the cluster. Filtering must happen in ES before the OTel emit, not downstream in the gateway or MOTel. For project-per-cluster, this reduces to a cluster-level `telemetry.otel.logs.enabled` toggle; see [§4.8](#sec-4-8). Multi-project per-project filtering rationale and design are in [Appendix C](#sec-appendix-c).
 
-**Customer toggle**: `_cluster/settings` is permanently off the table in serverless (Ryan Ernst, Mark Vieira; see [§4.15](#sec-4-15)). Customers turn audit on/off per project via the Control Plane's Project API (`PATCH /api/v1/serverless/projects/<type>/{id}`), which is already wired up for audit-logging enablement today. The signal reaches ES via file-based settings. In a project-per-cluster deployment, R8 reduces to making `telemetry.otel.logs.enabled` `Dynamic` so the OTel-logs path responds to changes without a restart; see [§4.9](#sec-4-9).
+**Customer toggle**: `_cluster/settings` is permanently off the table in serverless (Ryan Ernst, Mark Vieira; see [§4.15](#sec-4-15)). Customers turn audit on/off per project via the Control Plane's Project API (`PATCH /api/v1/serverless/projects/<type>/{id}`), which is already wired up for audit-logging enablement today. The signal reaches ES via file-based settings. In a project-per-cluster deployment, R8 reduces to a cluster-level dynamic delivery toggle; see [§4.9](#sec-4-9).
 
 ### <a id="sec-2-9"></a>2.9 R9: Non-blocking emit path
 
@@ -294,13 +294,17 @@ Today the `BatchLogRecordProcessor` drops on queue overflow with no fallback. Pr
 
 ### <a id="sec-4-8"></a>4.8 R8: Per-project ID filter
 
-Multi-project per-project filtering is explicitly out of scope. In a project-per-cluster deployment, R8 reduces to a cluster-level toggle: is `telemetry.otel.logs.enabled` true for this cluster? The toggle already flows through the file-settings path (rendered by `elasticsearch-controller` from the Project API value). The remaining work is making `telemetry.otel.logs.enabled` `Dynamic` so changes take effect without a restart; see [§4.9](#sec-4-9).
+Multi-project per-project filtering is explicitly out of scope. In a project-per-cluster deployment, R8 reduces to a cluster-level toggle: is OTel audit delivery currently active for this cluster? The toggle flows through the file-settings path (rendered by `elasticsearch-controller` from the Project API value) and is described in [§4.9](#sec-4-9).
 
 ### <a id="sec-4-9"></a>4.9 R12: Configuration without cluster restart
 
-The only R12 gap for the OTel-logs path is that `telemetry.otel.logs.enabled` and `telemetry.otel.logs.endpoint` are declared `NodeScope` only — not `Dynamic`. `OtelSdkExportLogsSupplier.install()` reads them once at startup; toggling requires a restart today.
+`telemetry.otel.logs.enabled` is a static (NodeScope) install-time gate and should remain so — it controls whether the OTel SDK is installed at all, not whether delivery is currently active. There is no dynamic on/off mechanism today.
 
-The fix follows the `DataStreamGlobalRetentionSettings` pattern: add `Dynamic` to both settings' property declarations, and register a `clusterSettings.addSettingsUpdateConsumer(...)` listener in `OtelSdkExportLogsSupplier` that reconfigures or re-installs the OTel SDK appender on change. The audit filter settings (`xpack.security.audit.logfile.events.*` and `emit_*`) are already `NodeScope + Dynamic` with listeners registered in `LoggingAuditTrail`; no changes needed there.
+The suggested approach: a second Dynamic NodeScope setting paired with a `LogRecordProcessor` that wraps `BatchLogRecordProcessor`. The processor gates delivery on a `BooleanSupplier` that a settings listener updates; records are dropped before they enter the queue when delivery is off. No SDK teardown, no SDK restart.
+
+This processor sits at the seam between the `OpenTelemetryAppender` and the `BatchLogRecordProcessor`, making it naturally owned by the Security/audit layer rather than Core/Infra. The `BooleanSupplier` is also the right abstraction for the long-term multi-project case: today it is a volatile boolean; with ProjectScope it becomes a per-project setting accessor called on the original thread (which carries the right project context). The processor itself does not change. See [§6.3](#sec-6-3) (Ankit Sethi) for the coordination needed.
+
+The audit filter settings (`xpack.security.audit.logfile.events.*` and `emit_*`) are already `NodeScope + Dynamic` with listeners registered in `LoggingAuditTrail`; no changes needed there.
 
 Cluster-level dynamic on/off for `xpack.security.audit.enabled` is being addressed separately by Audit TDD Req 1 / [PR 147333](https://github.com/elastic/elasticsearch/pull/147333).
 
@@ -444,8 +448,8 @@ Pulled from [§4](#sec-4) and [§5](#sec-5). **What's implemented:** R1 (OTLP de
 2. <a id="sec-6-2-2"></a>**R4: mTLS to gateway ([§4.5](#sec-4-5)).** Needs cert-identity alignment with the gateway team, cert-distribution alignment with Control-Plane, and an open question on whether the gRPC exporter exposes client TLS directly.
 3. <a id="sec-6-2-3"></a>**R6: strip cluster/node fields ([§4.6](#sec-4-6)).** Set `emit_node_id` and `emit_cluster_uuid` to `false` in `serverless-default-settings.yml`. No ES code change.
 4. <a id="sec-6-2-4"></a>**R7: stdout fallback on exhausted retries ([§4.7](#sec-4-7)).** Format and replay-ingestion contract need alignment with the gateway and replay-service teams.
-5. <a id="sec-6-2-5"></a>**R8: audit-enabled toggle ([§4.8](#sec-4-8)).** The `telemetry.otel.logs.enabled` flag flows through the file-settings path from `elasticsearch-controller`; the remaining work is making it `Dynamic` (see [6.2.6](#sec-6-2-6)).
-6. <a id="sec-6-2-6"></a>**R12: make `telemetry.otel.logs.enabled` Dynamic ([§4.9](#sec-4-9)).** Add `Dynamic` to `telemetry.otel.logs.enabled` and `telemetry.otel.logs.endpoint`; register a `clusterSettings.addSettingsUpdateConsumer(...)` listener in `OtelSdkExportLogsSupplier` following the `DataStreamGlobalRetentionSettings` pattern. Satisfies R12 for the OTel-logs path and closes R8 for project-per-cluster.
+5. <a id="sec-6-2-5"></a>**R8: audit delivery toggle ([§4.8](#sec-4-8)).** In project-per-cluster, R8 and R12 share the same mechanism; see [6.2.6](#sec-6-2-6).
+6. <a id="sec-6-2-6"></a>**R12: dynamic OTel delivery toggle ([§4.9](#sec-4-9)).** Add a second Dynamic NodeScope setting for runtime on/off. Introduce a `LogRecordProcessor` wrapping `BatchLogRecordProcessor` that gates delivery on a `BooleanSupplier` updated by a settings listener — no SDK teardown needed. Suggested ownership: Security/audit team (Ankit Sethi), as this processor is the seam that evolves to per-project delivery in multi-project. See [§6.3](#sec-6-3).
 7. <a id="sec-6-2-7"></a>**R13: retry/buffer tuning ([§4.10](#sec-4-10)).** Straightforward once the gateway team confirms the ~2 min retry / ~30–50 MB buffer targets.
 8. <a id="sec-6-2-8"></a>**Bare semconv keys on the wire ([§4.1](#sec-4-1)).** Follows [6.1.1](#sec-6-1-1).
 9. <a id="sec-6-2-9"></a>**Per-field translation ([§4.2](#sec-4-2)).** Follows [6.1.1](#sec-6-1-1) and [6.1.2](#sec-6-1-2).
@@ -471,6 +475,7 @@ Routing view of [§6.1](#sec-6-1) and [§6.2](#sec-6-2).
 1. **Is `security_config_change` missing `withThreadContext` a bug?** ([§4.3](#sec-4-3), [§6.2.1](#sec-6-2-1))
 2. **`CustomAuditLoggingMetadataProvider` contract** (Req 7 of his TDD). ([§5.4](#sec-5-4), [§6.1.8](#sec-6-1-8), [§6.1.10](#sec-6-1-10))
 3. **Hard rows in the field-mapping table.** `apikey.*`, `indices`, nested `security_config_change` blobs. Needs Kibana team input for cross-product naming consistency. ([§5.2](#sec-5-2), [§6.1.2](#sec-6-1-2))
+4. **R12 gating processor: ownership and design.** A `LogRecordProcessor` wrapping `BatchLogRecordProcessor` is the suggested home for the dynamic OTel delivery check — it gates on a `BooleanSupplier` that today is a volatile boolean and in multi-project becomes a per-project ProjectScope setting accessor. Worth confirming that the Security team owns this and agreeing on the interface before implementation. ([§4.9](#sec-4-9), [§6.2.6](#sec-6-2-6))
 
 #### CPS team
 

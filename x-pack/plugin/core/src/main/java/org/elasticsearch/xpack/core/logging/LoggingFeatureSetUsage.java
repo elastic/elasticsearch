@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.logging;
 
+import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,6 +23,8 @@ import java.util.Map;
 import java.util.Objects;
 
 public class LoggingFeatureSetUsage extends XPackFeatureUsage {
+
+    private static final TransportVersion LOGGING_XPACK_USAGE = TransportVersion.fromName("logging_xpack_usage");
 
     record LoggingConfig(boolean enabled, boolean userInfo) implements Writeable, ToXContentFragment {
 
@@ -67,11 +70,45 @@ public class LoggingFeatureSetUsage extends XPackFeatureUsage {
         }
     }
 
+    // Backported from upstream versions, not really used in 9.3
+    record QueryLoggingConfig(LoggingConfig base, boolean system, String threshold) implements Writeable, ToXContentObject {
+
+        QueryLoggingConfig(StreamInput input) throws IOException {
+            this(new LoggingConfig(input), input.readBoolean(), input.readOptionalString());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            base.writeTo(out);
+            out.writeBoolean(system);
+            out.writeOptionalString(threshold);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            base.toXContent(builder, params);
+            builder.field("system", system);
+            if (Strings.isNotEmpty(threshold)) {
+                builder.field("threshold", threshold);
+            }
+            builder.endObject();
+            return builder;
+        }
+    }
+
     private final EsqlLoggingConfig esqlConfig;
+    private final QueryLoggingConfig queryConfig;
 
     LoggingFeatureSetUsage(EsqlLoggingConfig esqlConfig) {
         super(XPackField.LOGGING, true, true);
         this.esqlConfig = esqlConfig;
+        // fake config for forward compatibility
+        this.queryConfig = new QueryLoggingConfig(new LoggingConfig(false, false), false, null);
+    }
+
+    QueryLoggingConfig queryConfig() {
+        return queryConfig;
     }
 
     EsqlLoggingConfig esqlConfig() {
@@ -81,12 +118,14 @@ public class LoggingFeatureSetUsage extends XPackFeatureUsage {
     public LoggingFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
         esqlConfig = new EsqlLoggingConfig(input);
+        queryConfig = new QueryLoggingConfig(input);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         esqlConfig.writeTo(out);
+        queryConfig.writeTo(out);
     }
 
     @Override
@@ -96,7 +135,7 @@ public class LoggingFeatureSetUsage extends XPackFeatureUsage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.zero();
+        return LOGGING_XPACK_USAGE;
     }
 
     @Override
@@ -105,11 +144,11 @@ public class LoggingFeatureSetUsage extends XPackFeatureUsage {
             return false;
         }
         LoggingFeatureSetUsage that = (LoggingFeatureSetUsage) o;
-        return Objects.equals(esqlConfig, that.esqlConfig);
+        return Objects.equals(esqlConfig, that.esqlConfig) && Objects.equals(queryConfig, that.queryConfig);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(esqlConfig);
+        return Objects.hash(esqlConfig, queryConfig);
     }
 }

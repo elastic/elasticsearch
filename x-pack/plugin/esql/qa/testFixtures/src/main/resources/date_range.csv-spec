@@ -744,7 +744,7 @@ decade:integer | date_range:date_range
 ;
 
 rangeContainsPushdownMultiValue
-required_capability: fn_range_contains
+required_capability: date_range_field_type_v6
 
 FROM mv_decades
 | WHERE RANGE_CONTAINS(date_range, TO_DATETIME("1905-01-01"))
@@ -1099,4 +1099,41 @@ warningRegex:java.lang.IllegalArgumentException: single-value function encounter
 
 decade:integer | event_dates:date
 1900           | 1905-06-01T00:00:00.000Z
+;
+
+
+###############################################
+# MV_EXPAND tests
+###############################################
+
+// MV_EXPAND on a date_range field: each MV position is split into individual rows.
+mvExpandDateRange
+required_capability: date_range_field_type_v6
+
+FROM mv_decades
+| MV_EXPAND date_range
+| KEEP decade, date_range
+;
+
+ignoreOrder:true
+decade:integer | date_range:date_range
+1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z
+1950           | 1950-01-01T00:00:00.000Z..1960-01-01T00:00:00.000Z
+1950           | 1955-01-01T00:00:00.000Z..1965-01-01T00:00:00.000Z
+2000           | 1995-01-01T00:00:00.000Z..2005-01-01T00:00:00.000Z
+2000           | 2000-01-01T00:00:00.000Z..2010-01-01T00:00:00.000Z
+;
+
+// MV_EXPAND followed by a scalar filter: after expansion each row has a single date_range value.
+mvExpandDateRangeThenFilter
+required_capability: date_range_field_type_v6
+
+FROM mv_decades
+| MV_EXPAND date_range
+| WHERE RANGE_WITHIN(TO_DATETIME("1951-01-01"), date_range)
+| KEEP decade, description, date_range
+;
+
+decade:integer | description:keyword | date_range:date_range
+1950           | Two                 | 1950-01-01T00:00:00.000Z..1960-01-01T00:00:00.000Z
 ;

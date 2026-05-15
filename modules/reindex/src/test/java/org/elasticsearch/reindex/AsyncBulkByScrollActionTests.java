@@ -59,9 +59,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
@@ -138,13 +138,13 @@ import static org.mockito.Mockito.when;
 
 public class AsyncBulkByScrollActionTests extends ESTestCase {
     private MyMockClient client;
-    private DummyAbstractBulkByScrollRequest testRequest;
+    private DummyAbstractBulkByPaginatedSearchRequest testRequest;
     private PlainActionFuture<BulkByScrollResponse> listener;
     private String scrollId;
     private ThreadPool threadPool;
     private ThreadPool clientThreadPool;
     private TaskManager taskManager;
-    private BulkByScrollTask testTask;
+    private BulkByPaginatedSearchTask testTask;
     private WorkerBulkByScrollTaskState worker;
     private Map<String, String> expectedHeaders = new HashMap<>();
     private DiscoveryNode localNode;
@@ -158,12 +158,12 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
         threadPool = new TestThreadPool(getTestName());
         setupClient(threadPool);
-        testRequest = new DummyAbstractBulkByScrollRequest(new SearchRequest());
+        testRequest = new DummyAbstractBulkByPaginatedSearchRequest(new SearchRequest());
         testRequest.setEligibleForRelocationOnShutdown(true); // for relocation tests
         listener = new PlainActionFuture<>();
         scrollId = null;
         taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
-        testTask = (BulkByScrollTask) taskManager.register("don'tcare", "hereeither", testRequest);
+        testTask = (BulkByPaginatedSearchTask) taskManager.register("don'tcare", "hereeither", testRequest);
         testTask.setWorker(testRequest.getRequestsPerSecond(), null);
         worker = testTask.getWorkerState();
 
@@ -1929,7 +1929,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 null
             )
         );
-        testTask = (BulkByScrollTask) taskManager.register("don'tcare", "hereeither", testRequest);
+        testTask = (BulkByPaginatedSearchTask) taskManager.register("don'tcare", "hereeither", testRequest);
         testTask.setWorker(testRequest.getRequestsPerSecond(), null);
         worker = testTask.getWorkerState();
         assertTrue(testTask.isRelocatedTask());
@@ -1960,13 +1960,13 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         // unregister unused task for test, just for cleanliness
         taskManager.unregister(testTask);
 
-        final BulkByScrollTask.Status status = randomStatus();
+        final BulkByPaginatedSearchTask.Status status = randomStatus();
 
         final WorkerBulkByScrollTaskState workerState = mock(WorkerBulkByScrollTaskState.class);
         when(workerState.getNodeToRelocateTo()).thenReturn(Optional.of("target-node"));
         when(workerState.getStatus()).thenReturn(status);
 
-        final BulkByScrollTask task = mock(BulkByScrollTask.class);
+        final BulkByPaginatedSearchTask task = mock(BulkByPaginatedSearchTask.class);
         when(task.getStartTimeNanos()).thenReturn(System.nanoTime() - TimeUnit.SECONDS.toNanos(randomIntBetween(5, 100)));
         when(task.getWorkerState()).thenReturn(workerState);
         when(task.isWorker()).thenReturn(true);
@@ -2028,7 +2028,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     private class DummyAsyncBulkByScrollAction extends AbstractAsyncBulkByScrollAction<
-        DummyAbstractBulkByScrollRequest,
+        DummyAbstractBulkByPaginatedSearchRequest,
         DummyTransportAsyncBulkByScrollAction> {
 
         DummyAsyncBulkByScrollAction() {
@@ -2039,7 +2039,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             this(testTask, timeout);
         }
 
-        DummyAsyncBulkByScrollAction(BulkByScrollTask task, TimeValue maxTaskShutdownGracePeriod) {
+        DummyAsyncBulkByScrollAction(BulkByPaginatedSearchTask task, TimeValue maxTaskShutdownGracePeriod) {
             super(
                 task,
                 randomBoolean(),
@@ -2081,7 +2081,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     private static class DummyTransportAsyncBulkByScrollAction extends TransportAction<
-        DummyAbstractBulkByScrollRequest,
+        DummyAbstractBulkByPaginatedSearchRequest,
         BulkByScrollResponse> {
 
         protected DummyTransportAsyncBulkByScrollAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
@@ -2089,24 +2089,34 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
 
         @Override
-        protected void doExecute(Task task, DummyAbstractBulkByScrollRequest request, ActionListener<BulkByScrollResponse> listener) {
+        protected void doExecute(
+            Task task,
+            DummyAbstractBulkByPaginatedSearchRequest request,
+            ActionListener<BulkByScrollResponse> listener
+        ) {
             // no-op
         }
     }
 
-    private static class DummyAbstractBulkByScrollRequest extends AbstractBulkByScrollRequest<DummyAbstractBulkByScrollRequest> {
+    private static class DummyAbstractBulkByPaginatedSearchRequest extends AbstractBulkByPaginatedSearchRequest<
+        DummyAbstractBulkByPaginatedSearchRequest> {
 
-        DummyAbstractBulkByScrollRequest(SearchRequest searchRequest) {
+        DummyAbstractBulkByPaginatedSearchRequest(SearchRequest searchRequest) {
             super(searchRequest, true);
         }
 
         @Override
-        public DummyAbstractBulkByScrollRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices, int activeSlices) {
+        public DummyAbstractBulkByPaginatedSearchRequest forSlice(
+            TaskId slicingTask,
+            SearchRequest slice,
+            int totalSlices,
+            int activeSlices
+        ) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        protected DummyAbstractBulkByScrollRequest self() {
+        protected DummyAbstractBulkByPaginatedSearchRequest self() {
             return this;
         }
     }
@@ -2289,7 +2299,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         return new ResumeInfo.ScrollWorkerResumeInfo(
             randomAlphaOfLength(10),
             randomLong(),
-            new BulkByScrollTask.Status(
+            new BulkByPaginatedSearchTask.Status(
                 randomNonNegativeInt(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
@@ -2355,8 +2365,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
     }
 
-    private static BulkByScrollTask.Status randomStatus() {
-        return new BulkByScrollTask.Status(
+    private static BulkByPaginatedSearchTask.Status randomStatus() {
+        return new BulkByPaginatedSearchTask.Status(
             randomNonNegativeInt(),
             randomNonNegativeInt(),
             randomNonNegativeInt(),

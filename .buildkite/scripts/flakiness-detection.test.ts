@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  buildCommands,
   classifyChangedFiles,
   collapseYamlSuites,
   deduplicateYamlRunners,
+  DEFAULT_BATCHING_CONFIG,
   generateBatchCommand,
   generatePipeline,
   resolveMergeBaseTarget,
@@ -343,7 +345,7 @@ describe("generateBatchCommand", () => {
     const batch: ClassifiedTest[] = [
       { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.index.IndexTests" },
     ];
-    expect(generateBatchCommand(batch)).toBe(
+    expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
       ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.index.IndexTests"
     );
   });
@@ -353,7 +355,7 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.index.FooTests" },
       { gradleProject: ":libs:core", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.core.BarTests" },
     ];
-    expect(generateBatchCommand(batch)).toBe(
+    expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
       ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.index.FooTests :libs:core:test --tests org.elasticsearch.core.BarTests"
     );
   });
@@ -363,7 +365,7 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.FooTests" },
       { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.BarTests" },
     ];
-    expect(generateBatchCommand(batch)).toBe(
+    expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
       ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.FooTests --tests org.elasticsearch.BarTests"
     );
   });
@@ -377,7 +379,7 @@ describe("generateBatchCommand", () => {
         fqcn: "org.elasticsearch.cluster.ClusterIT",
       },
     ];
-    expect(generateBatchCommand(batch)).toBe(
+    expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
       ".ci/scripts/run-gradle.sh -Dtests.iters=20 -Dtests.timeoutSuite=3600000! :server:internalClusterTest --tests org.elasticsearch.cluster.ClusterIT"
     );
   });
@@ -391,7 +393,7 @@ describe("generateBatchCommand", () => {
         fqcn: "org.elasticsearch.rest.RestIT",
       },
     ];
-    expect(generateBatchCommand(batch)).toBe(
+    expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
       ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :modules:transport-netty4:javaRestTest --tests org.elasticsearch.rest.RestIT --rerun"
     );
   });
@@ -401,7 +403,7 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":mod:a", kind: "javaRestTest", sourceSet: "javaRestTest", fqcn: "org.es.FooIT" },
       { gradleProject: ":mod:b", kind: "javaRestTest", sourceSet: "javaRestTest", fqcn: "org.es.BarIT" },
     ];
-    expect(generateBatchCommand(batch)).toBe(
+    expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
       ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :mod:a:javaRestTest --tests org.es.FooIT --rerun :mod:b:javaRestTest --tests org.es.BarIT --rerun"
     );
   });
@@ -410,7 +412,7 @@ describe("generateBatchCommand", () => {
     const batch: ClassifiedTest[] = [
       { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestRunner", sourceSet: "yamlRestTest" },
     ];
-    expect(generateBatchCommand(batch)).toBe(
+    expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
       ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun"
     );
   });
@@ -424,7 +426,7 @@ describe("generateBatchCommand", () => {
         suitePath: "ml/anomaly_detectors_get",
       },
     ];
-    expect(generateBatchCommand(batch)).toBe(
+    expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
       ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun -Dtests.rest.suite.:x-pack:plugin:ml:yamlRestTest=ml/anomaly_detectors_get"
     );
   });
@@ -444,7 +446,7 @@ describe("generateBatchCommand", () => {
         suitePath: "ml/test2",
       },
     ];
-    expect(generateBatchCommand(batch)).toBe(
+    expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
       ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun -Dtests.rest.suite.:x-pack:plugin:ml:yamlRestTest=ml/test1,ml/test2"
     );
   });
@@ -464,7 +466,7 @@ describe("generateBatchCommand", () => {
         suitePath: "security/test1",
       },
     ];
-    expect(generateBatchCommand(batch)).toBe(
+    expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
       ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun :x-pack:plugin:security:yamlRestTest --rerun -Dtests.rest.suite.:x-pack:plugin:ml:yamlRestTest=ml/test1 -Dtests.rest.suite.:x-pack:plugin:security:yamlRestTest=security/test1"
     );
   });
@@ -479,7 +481,7 @@ describe("generateBatchCommand", () => {
         yamlTest: "test {yaml=/10_apm/Test template reinstallation}",
       },
     ];
-    expect(generateBatchCommand(batch)).toBe(
+    expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
       '.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:apm-data:yamlRestTest --tests "org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT.test {yaml=/10_apm/Test template reinstallation}" --rerun'
     );
   });
@@ -501,7 +503,7 @@ describe("generateBatchCommand", () => {
         yamlTest: "test {yaml=ml/anomaly_detectors_get/basic}",
       },
     ];
-    expect(generateBatchCommand(batch)).toBe(
+    expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
       '.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:apm-data:yamlRestTest --tests "org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT.test {yaml=/10_apm/Test template reinstallation}" --rerun :x-pack:plugin:ml:yamlRestTest --tests "org.elasticsearch.xpack.ml.MlYamlIT.test {yaml=ml/anomaly_detectors_get/basic}" --rerun'
     );
   });
@@ -523,7 +525,7 @@ describe("generateBatchCommand", () => {
         yamlTest: "test {yaml=ml/b}",
       },
     ];
-    expect(generateBatchCommand(batch)).toBe(
+    expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
       '.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --tests "org.elasticsearch.xpack.ml.MlYamlIT.test {yaml=ml/a}" --tests "org.elasticsearch.xpack.ml.MlYamlIT.test {yaml=ml/b}" --rerun'
     );
   });
@@ -537,11 +539,11 @@ describe("generatePipeline", () => {
 
     const pipeline = generatePipeline(tests);
     expect(pipeline.steps).toHaveLength(1);
-    expect(pipeline.steps[0].group).toBe("repeat-changed-tests");
+    expect(pipeline.steps[0].group).toBe("flakiness-detection");
 
     const step = pipeline.steps[0].steps[0];
     expect(step.label).toBe("unit tests");
-    expect(step.key).toBe("repeat-changed-tests:unit");
+    expect(step.key).toBe("flakiness-detection:unit");
     expect(step.parallelism).toBeUndefined();
     expect(step.env).toBeUndefined();
     expect(step.command).toBe(
@@ -567,12 +569,12 @@ describe("generatePipeline", () => {
     expect(pipeline.steps).toHaveLength(1);
 
     const group = pipeline.steps[0];
-    expect(group.group).toBe("repeat-changed-tests");
+    expect(group.group).toBe("flakiness-detection");
     expect(group.steps).toHaveLength(1);
 
     const step = group.steps[0];
     expect(step.label).toBe("java rest tests");
-    expect(step.key).toBe("repeat-changed-tests:java-rest");
+    expect(step.key).toBe("flakiness-detection:java-rest");
     expect(step.parallelism).toBe(2);
     expect(step.env).toBeDefined();
     expect(step.env!["BATCH_COMMAND_0"]).toContain("repeat-rest-test.sh");
@@ -598,12 +600,12 @@ describe("generatePipeline", () => {
 
     const pipeline = generatePipeline(tests);
     expect(pipeline.steps).toHaveLength(1);
-    expect(pipeline.steps[0].group).toBe("repeat-changed-tests");
+    expect(pipeline.steps[0].group).toBe("flakiness-detection");
     expect(pipeline.steps[0].steps).toHaveLength(2);
     expect(pipeline.steps[0].steps[0].label).toBe("unit tests");
-    expect(pipeline.steps[0].steps[0].key).toBe("repeat-changed-tests:unit");
+    expect(pipeline.steps[0].steps[0].key).toBe("flakiness-detection:unit");
     expect(pipeline.steps[0].steps[1].label).toBe("integ tests");
-    expect(pipeline.steps[0].steps[1].key).toBe("repeat-changed-tests:integ");
+    expect(pipeline.steps[0].steps[1].key).toBe("flakiness-detection:integ");
   });
 
   test("yaml runners and suites get separate labels", () => {
@@ -627,7 +629,7 @@ describe("generatePipeline", () => {
   test("returns empty group for empty input", () => {
     const pipeline = generatePipeline([]);
     expect(pipeline.steps).toHaveLength(1);
-    expect(pipeline.steps[0].group).toBe("repeat-changed-tests");
+    expect(pipeline.steps[0].group).toBe("flakiness-detection");
     expect(pipeline.steps[0].steps).toEqual([]);
   });
 });
@@ -1138,5 +1140,57 @@ describe("classifyExplicitList", () => {
     );
     expect(located).toHaveLength(1);
     expect(unlocated).toEqual([]);
+  });
+});
+
+describe("buildCommands", () => {
+  test("emits one RunnableCommand per batch, grouped by kind", () => {
+    const tests: ClassifiedTest[] = [
+      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "A" },
+      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "B" },
+      { gradleProject: ":server", kind: "internalClusterTest", sourceSet: "internalClusterTest", fqcn: "C" },
+    ];
+    const cmds = buildCommands(tests, DEFAULT_BATCHING_CONFIG);
+    expect(cmds.map((c) => c.kind)).toEqual(["test", "internalClusterTest"]);
+    expect(cmds[0].key).toBe("flakiness-detection:unit");
+    expect(cmds[1].key).toBe("flakiness-detection:integ");
+    expect(cmds[0].command).toContain("--tests A");
+    expect(cmds[0].command).toContain("--tests B");
+  });
+
+  test("respects capByKind to produce multiple batches per kind", () => {
+    const tests: ClassifiedTest[] = Array.from({ length: 5 }, (_, i) => ({
+      gradleProject: ":server",
+      kind: "test",
+      sourceSet: "test",
+      fqcn: `Test${i}`,
+    }));
+    const cmds = buildCommands(tests, {
+      ...DEFAULT_BATCHING_CONFIG,
+      capByKind: { ...DEFAULT_BATCHING_CONFIG.capByKind, test: 2 },
+    });
+    expect(cmds.filter((c) => c.kind === "test")).toHaveLength(3); // 2 + 2 + 1
+  });
+
+  test("threads itersByKind override into the gradle command", () => {
+    const tests: ClassifiedTest[] = [
+      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "A" },
+    ];
+    const cmds = buildCommands(tests, {
+      ...DEFAULT_BATCHING_CONFIG,
+      itersByKind: { test: 5 },
+    });
+    expect(cmds[0].command).toContain("-Dtests.iters=5");
+  });
+
+  test("threads suiteTimeoutMs override into the gradle command", () => {
+    const tests: ClassifiedTest[] = [
+      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "A" },
+    ];
+    const cmds = buildCommands(tests, {
+      ...DEFAULT_BATCHING_CONFIG,
+      suiteTimeoutMs: 60_000,
+    });
+    expect(cmds[0].command).toContain("-Dtests.timeoutSuite=60000!");
   });
 });

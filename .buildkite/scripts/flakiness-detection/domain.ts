@@ -84,10 +84,29 @@ export const KIND_LABELS: Record<TestKind, string> = {
 };
 
 export const KIND_KEYS: Record<TestKind, string> = {
-  test: "repeat-changed-tests:unit",
-  internalClusterTest: "repeat-changed-tests:integ",
-  javaRestTest: "repeat-changed-tests:java-rest",
-  yamlRestTestRunner: "repeat-changed-tests:yaml-runner",
-  yamlRestTestSuite: "repeat-changed-tests:yaml-suite",
-  yamlRestTestCase: "repeat-changed-tests:yaml-case",
+  test: "flakiness-detection:unit",
+  internalClusterTest: "flakiness-detection:integ",
+  javaRestTest: "flakiness-detection:java-rest",
+  yamlRestTestRunner: "flakiness-detection:yaml-runner",
+  yamlRestTestSuite: "flakiness-detection:yaml-suite",
+  yamlRestTestCase: "flakiness-detection:yaml-case",
+};
+
+export interface RunnableCommand {
+  kind: TestKind;
+  label: string;     // "unit tests"
+  key: string;       // "flakiness-detection:unit"
+  command: string;   // shell-ready invocation
+}
+
+export interface BatchingConfig {
+  capByKind: Record<TestKind, number>;
+  itersByKind: Partial<Record<TestKind, number>>;
+  suiteTimeoutMs: number;
+}
+
+export const DEFAULT_BATCHING_CONFIG: BatchingConfig = {
+  capByKind: BATCH_CAPS,
+  itersByKind: { test: 100, internalClusterTest: 20 },
+  suiteTimeoutMs: 3_600_000,
 };

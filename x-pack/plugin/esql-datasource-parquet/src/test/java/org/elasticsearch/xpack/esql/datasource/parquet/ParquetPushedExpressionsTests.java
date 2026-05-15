@@ -43,6 +43,7 @@ import static org.apache.parquet.schema.LogicalTypeAnnotation.float16Type;
 import static org.apache.parquet.schema.LogicalTypeAnnotation.timestampType;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.DOUBLE;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY;
+import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.FLOAT;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT32;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT96;
@@ -462,6 +463,14 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
 
         assertNull("DOUBLE predicate against FIXED_LEN_BYTE_ARRAY+DECIMAL must be suppressed", pushed.toFilterPredicate(schema));
+    }
+
+    public void testDoubleEqAgainstFloatIsNotPushed() {
+        MessageType schema = Types.buildMessage().required(FLOAT).named("ratio").named("test");
+        Expression expr = eq("ratio", DataType.DOUBLE, 0.5);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        assertNull("DOUBLE predicate against FLOAT physical must be suppressed", pushed.toFilterPredicate(schema));
     }
 
     public void testDoubleEqAgainstFloat16IsNotPushed() {

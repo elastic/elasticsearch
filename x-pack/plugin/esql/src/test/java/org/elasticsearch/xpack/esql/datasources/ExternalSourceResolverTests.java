@@ -81,14 +81,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
         schemasByPath.put("s3://bucket/data/file2.parquet", schema2);
         schemasByPath.put("s3://bucket/data/file3.parquet", schema3);
 
-        ExternalSourceResolution resolution = resolveMultiFile(
+        ExternalSourceResolution resolution = resolveMultiFileWithConfig(
             "s3://bucket/data/*.parquet",
             schemasByPath,
             List.of(
                 entry("s3://bucket/data/file1.parquet", 100),
                 entry("s3://bucket/data/file2.parquet", 200),
                 entry("s3://bucket/data/file3.parquet", 300)
-            )
+            ),
+            firstFileWinsConfig()
         );
 
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
@@ -109,14 +110,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
         schemasByPath.put("s3://bucket/data/f2.parquet", schema2);
         schemasByPath.put("s3://bucket/data/f3.parquet", schema3);
 
-        ExternalSourceResolution resolution = resolveMultiFile(
+        ExternalSourceResolution resolution = resolveMultiFileWithConfig(
             "s3://bucket/data/*.parquet",
             schemasByPath,
             List.of(
                 entry("s3://bucket/data/f1.parquet", 10),
                 entry("s3://bucket/data/f2.parquet", 20),
                 entry("s3://bucket/data/f3.parquet", 30)
-            )
+            ),
+            firstFileWinsConfig()
         );
 
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
@@ -133,10 +135,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, List<Attribute>> schemasByPath = new HashMap<>();
         schemasByPath.put("s3://bucket/data/only.parquet", schema);
 
-        ExternalSourceResolution resolution = resolveMultiFile(
+        ExternalSourceResolution resolution = resolveMultiFileWithConfig(
             "s3://bucket/data/*.parquet",
             schemasByPath,
-            List.of(entry("s3://bucket/data/only.parquet", 500))
+            List.of(entry("s3://bucket/data/only.parquet", 500)),
+            firstFileWinsConfig()
         );
 
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
@@ -156,10 +159,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
         schemasByPath.put("s3://bucket/data/a.parquet", schema);
         schemasByPath.put("s3://bucket/data/b.parquet", schema);
 
-        ExternalSourceResolution resolution = resolveMultiFile(
+        ExternalSourceResolution resolution = resolveMultiFileWithConfig(
             "s3://bucket/data/*.parquet",
             schemasByPath,
-            List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200))
+            List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200)),
+            firstFileWinsConfig()
         );
 
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
@@ -175,14 +179,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
         schemasByPath.put("s3://bucket/data/b.parquet", schema);
         schemasByPath.put("s3://bucket/data/c.parquet", schema);
 
-        ExternalSourceResolution resolution = resolveMultiFile(
+        ExternalSourceResolution resolution = resolveMultiFileWithConfig(
             "s3://bucket/data/*.parquet",
             schemasByPath,
             List.of(
                 entry("s3://bucket/data/a.parquet", 100),
                 entry("s3://bucket/data/b.parquet", 200),
                 entry("s3://bucket/data/c.parquet", 300)
-            )
+            ),
+            firstFileWinsConfig()
         );
 
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
@@ -204,14 +209,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
         schemasByPath.put("s3://bucket/data/b.parquet", List.of(attr("col0", DataType.INTEGER), attr("col1", DataType.INTEGER)));
         schemasByPath.put("s3://bucket/data/c.parquet", List.of(attr("col0", DataType.INTEGER), attr("col1", DataType.KEYWORD)));
 
-        ExternalSourceResolution resolution = resolveMultiFile(
+        ExternalSourceResolution resolution = resolveMultiFileWithConfig(
             "s3://bucket/data/*.parquet",
             schemasByPath,
             List.of(
                 entry("s3://bucket/data/a.parquet", 100),
                 entry("s3://bucket/data/b.parquet", 200),
                 entry("s3://bucket/data/c.parquet", 300)
-            )
+            ),
+            firstFileWinsConfig()
         );
 
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
@@ -240,10 +246,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, List<Attribute>> schemasByPath = new HashMap<>();
         schemasByPath.put("s3://bucket/data/only.parquet", schema);
 
-        ExternalSourceResolution resolution = resolveMultiFile(
+        ExternalSourceResolution resolution = resolveMultiFileWithConfig(
             "s3://bucket/data/*.parquet",
             schemasByPath,
-            List.of(entry("s3://bucket/data/only.parquet", 100))
+            List.of(entry("s3://bucket/data/only.parquet", 100)),
+            firstFileWinsConfig()
         );
 
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
@@ -276,7 +283,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 entry("s3://bucket/data/a.parquet", 100),
                 entry("s3://bucket/data/b.parquet", 200),
                 entry("s3://bucket/data/c.parquet", 300)
-            )
+            ),
+            firstFileWinsConfig()
         );
 
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
@@ -416,9 +424,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     // ===== Default schema resolution strategy =====
 
-    public void testDefaultSchemaResolutionIsFirstFileWins() {
+    public void testDefaultSchemaResolutionIsUnionByName() {
         FormatReader reader = new StubFormatReader(Map.of());
-        assertEquals(FormatReader.SchemaResolution.FIRST_FILE_WINS, reader.defaultSchemaResolution());
+        assertEquals(FormatReader.SchemaResolution.UNION_BY_NAME, reader.defaultSchemaResolution());
     }
 
     // ===== Multiple paths resolution =====
@@ -669,11 +677,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
 
+        // The listing/schema cache is only exercised on the FIRST_FILE_WINS fast path; multi-file
+        // reconciliation strategies read every file's metadata directly and bypass the cache.
+        Map<String, Map<String, Object>> pathConfigs = Map.of("s3://bucket/data/*.parquet", new HashMap<>(firstFileWinsConfig()));
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
             ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
 
             PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
-            resolver.resolve(List.of("s3://bucket/data/*.parquet"), Map.of(), f1);
+            resolver.resolve(List.of("s3://bucket/data/*.parquet"), pathConfigs, f1);
             ExternalSourceResolution res1 = f1.actionGet();
             assertNotNull(res1.resolvedSource("s3://bucket/data/*.parquet"));
             assertEquals(2, res1.resolvedSource("s3://bucket/data/*.parquet").fileList().fileCount());
@@ -683,7 +694,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             assertTrue("schema loader should have been called at least once", schemaCallsAfterFirst > 0);
 
             PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
-            resolver.resolve(List.of("s3://bucket/data/*.parquet"), Map.of(), f2);
+            resolver.resolve(List.of("s3://bucket/data/*.parquet"), pathConfigs, f2);
             ExternalSourceResolution res2 = f2.actionGet();
             assertNotNull(res2.resolvedSource("s3://bucket/data/*.parquet"));
             assertEquals(2, res2.resolvedSource("s3://bucket/data/*.parquet").fileList().fileCount());
@@ -895,6 +906,16 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, Long> rowCountsByPath,
         List<StorageEntry> listing
     ) throws Exception {
+        return resolveMultiFileWithStats(globPattern, schemasByPath, rowCountsByPath, listing, Map.of());
+    }
+
+    private ExternalSourceResolution resolveMultiFileWithStats(
+        String globPattern,
+        Map<String, List<Attribute>> schemasByPath,
+        Map<String, Long> rowCountsByPath,
+        List<StorageEntry> listing,
+        Map<String, Object> config
+    ) throws Exception {
         Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
         StoragePath sp = StoragePath.of(globPattern);
         listingsByPrefix.put(sp.patternPrefix().toString(), listing);
@@ -936,8 +957,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         ExternalSourceResolver resolver = new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(globPattern), Map.of(), future);
+        Map<String, Map<String, Object>> pathConfigs = config.isEmpty() ? Map.of() : Map.of(globPattern, new HashMap<>(config));
+        resolver.resolve(List.of(globPattern), pathConfigs, future);
         return future.actionGet();
+    }
+
+    private static Map<String, Object> firstFileWinsConfig() {
+        return Map.of("schema_resolution", "first_file_wins");
     }
 
     private ExternalSourceResolution resolveSingleFile(String path, Map<String, List<Attribute>> schemasByPath) throws Exception {

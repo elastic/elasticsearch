@@ -326,11 +326,11 @@ public class SchemaReconciliationTests extends ESTestCase {
     // === Config parsing tests ===
 
     public void testParseSchemaResolutionNull() {
-        assertThat(ExternalSourceResolver.parseSchemaResolution(null), equalTo(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+        assertThat(ExternalSourceResolver.parseSchemaResolution(null), equalTo(FormatReader.SchemaResolution.UNION_BY_NAME));
     }
 
     public void testParseSchemaResolutionEmpty() {
-        assertThat(ExternalSourceResolver.parseSchemaResolution(Map.of()), equalTo(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+        assertThat(ExternalSourceResolver.parseSchemaResolution(Map.of()), equalTo(FormatReader.SchemaResolution.UNION_BY_NAME));
     }
 
     public void testParseSchemaResolutionFirstFileWins() {

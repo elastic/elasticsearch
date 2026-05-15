@@ -48,14 +48,14 @@ public interface FormatReader extends Closeable {
     enum SchemaResolution {
         /** Use the schema from the first file; ignore differences in subsequent files. */
         FIRST_FILE_WINS,
-        // TODO: implement strict schema validation across files
+        /** Require all files to share the exact same schema (modulo nullability). */
         STRICT,
-        // TODO: implement union-by-name schema merging across files
+        /** Merge schemas from all files by column name, with safe type widening. */
         UNION_BY_NAME
     }
 
     default SchemaResolution defaultSchemaResolution() {
-        return SchemaResolution.FIRST_FILE_WINS;
+        return SchemaResolution.UNION_BY_NAME;
     }
 
     /**

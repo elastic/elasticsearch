@@ -1,6 +1,6 @@
 # OTel audit log delivery: POC writeup for ES-14356
 
-This PoC validates the ES side of the OTel audit-log pipeline: an audit event emitted by `LoggingAuditTrail` reaches an in-process recording OTLP server over OTLP/gRPC (okhttp-based sender) through log4j and the OTel SDK, in a security-enabled multi-node test, with `project.id` attached and the SDK's `BatchLogRecordProcessor` keeping I/O off the calling thread. The real `otel-delivery-gateway`, MOTel, and destination project aren't exercised here; closing that gap is [§4.12](#sec-4-12). Around half of the cross-team requirements are satisfied or close to it; the meaningful gaps are mTLS to the gateway, a stdout fallback for exhausted retries, per-project filtering, dynamic configuration, and a few field-shape problems caused by the upstream `OpenTelemetryAppender`. R3 specifically has four open gaps that are larger than the PoC suggests: `security_config_change` events bypass `withThreadContext` in the existing audit-emit code ([§4.3](#sec-4-3)); cross-cluster CPS strips the project header at the boundary, so linked-side events have no `project.id` ([§4.4](#sec-4-4)); Cloud API key audit (the dominant serverless path) is structurally incomplete and gets `project.id` only because the platform ingress sets it ([§4.13](#sec-4-13)); and audit reads `project.id` via a different mechanism than authorization, so the two can disagree on any deployment ([§4.14](#sec-4-14)).
+This PoC validates the ES side of the OTel audit-log pipeline: an audit event emitted by `LoggingAuditTrail` reaches an in-process recording OTLP server over OTLP/gRPC (okhttp-based sender) through log4j and the OTel SDK, in a security-enabled multi-node test, with `project.id` attached and the SDK's `BatchLogRecordProcessor` keeping I/O off the calling thread. The real `otel-delivery-gateway`, MOTel, and destination project aren't exercised here; closing that gap is [§4.12](#sec-4-12). Around half of the cross-team requirements are satisfied or close to it; the meaningful gaps are mTLS to the gateway, a stdout fallback for exhausted retries, a cluster-level audit-enabled toggle without restart, dynamic configuration, and a few field-shape problems caused by the upstream `OpenTelemetryAppender`. R3 specifically has four open gaps that are larger than the PoC suggests: `security_config_change` events bypass `withThreadContext` in the existing audit-emit code ([§4.3](#sec-4-3)); cross-cluster CPS strips the project header at the boundary, so linked-side events have no `project.id` ([§4.4](#sec-4-4)); Cloud API key audit (the dominant serverless path) is structurally incomplete and gets `project.id` only because the platform ingress sets it ([§4.13](#sec-4-13)); and audit reads `project.id` via a different mechanism than authorization, so the two can disagree on any deployment ([§4.14](#sec-4-14)).
 
 I'm not expecting anyone to read this doc end-to-end;
 I've arranged it so you can skip to the parts you care about.
@@ -97,13 +97,9 @@ Source: Gateway TDD §"Unavailability issues mitigation" point 1: *"In case of c
 
 *Gap ([§4](#sec-4)).*
 
-In a multi-project setup, ES must drop audit records for projects whose customers haven't opted into audit logging, *before* the records reach the gateway, so that disabled projects don't pay the network hop.
+ES must not emit OTel audit records when audit logging is disabled for the cluster. Filtering must happen in ES before the OTel emit, not downstream in the gateway or MOTel. For project-per-cluster, this reduces to a cluster-level `telemetry.otel.logs.enabled` toggle; see [§4.8](#sec-4-8). Multi-project per-project filtering rationale and design are in [Appendix C](#sec-appendix-c).
 
-**Placement** (must be ES-side; downstream components can't filter per project today): in the [#log-delivery-project-team thread of 2026-04-29](https://elastic.slack.com/archives/C09PANY7FFS/p1777474914646739), Ankit Sethi wrote *"a lot of this can/should happen within the security plugin itself"*; Valentin Crettaz concurred *"MOTel is too far away down the delivery pipeline to do this, the filtering needs to happen at the source (i.e. by ES/Serverless itself)"*; Julio Camarero wrote *"since these logs are sent over HTTP, we can save a lot of resources if only logs which should be routed are sent, therefore, I fully agree with the approach of filtering happening at elasticsearch."* In a parallel [#hosted-otel-collector thread the same day](https://elastic.slack.com/archives/C076MUD9BK8/p1777471821757409), Vignesh Shanmugam wrote *"the processing/redact bits should live as part of the SDK layer inside ES for now till we have support for managed processing layer"*, and Andrew Wilkins later noted *"otel-delivery-gateway is the thing that would be transforming logs before they hit MOTel"* (i.e. the eventual external home for transformations is the gateway, not MOTel). As of today, neither MOTel nor the gateway filters per project.
-
-**Durable reason** (ES-side even if downstream filtering eventually becomes possible): cost. Emitting OTLP for N projects only to drop most of it downstream still pays the ES → gateway network hop. Even a future gateway-side filter wouldn't satisfy this; the cost is incurred before the filter sees the record.
-
-**Customer toggle**: `_cluster/settings` is permanently off the table in serverless (Ryan Ernst, Mark Vieira; see [§4.15](#sec-4-15)). Customers turn audit on/off per project via the Control Plane's Project API (`PATCH /api/v1/serverless/projects/<type>/{id}`), which is already wired up for audit-logging enablement today. The signal reaches ES via file-based settings; see [§4.15](#sec-4-15) for the structural cost of exposing additional audit settings this way, and [§5.5](#sec-5-5) for the `ProjectScope` setting-type alternative.
+**Customer toggle**: `_cluster/settings` is permanently off the table in serverless (Ryan Ernst, Mark Vieira; see [§4.15](#sec-4-15)). Customers turn audit on/off per project via the Control Plane's Project API (`PATCH /api/v1/serverless/projects/<type>/{id}`), which is already wired up for audit-logging enablement today. The signal reaches ES via file-based settings. In a project-per-cluster deployment, R8 reduces to making `telemetry.otel.logs.enabled` `Dynamic` so the OTel-logs path responds to changes without a restart; see [§4.9](#sec-4-9).
 
 ### <a id="sec-2-9"></a>2.9 R9: Non-blocking emit path
 
@@ -133,9 +129,9 @@ Source: Gateway TDD §"Reliability & throughput" + §"Unavailability issues miti
 
 *Gap ([§4](#sec-4)).*
 
-Toggling audit logging must take effect without a restart, both at cluster level and per project (R8). The PoC reads `telemetry.otel.logs.enabled` once in `OtelSdkExportLogsSupplier.install()` at startup, so toggling it requires a restart today.
+Toggling audit logging must take effect without a restart. The PoC reads `telemetry.otel.logs.enabled` once in `OtelSdkExportLogsSupplier.install()` at startup, so toggling it requires a restart today.
 
-For the cluster-level case, Audit TDD §"Requirement 1" calls for *"... enable or disable audit logging with a simple setting on the Cloud console without any downtime (cluster restart)"*; this is in flight under [PR 147333](https://github.com/elastic/elasticsearch/pull/147333) for `xpack.security.audit.enabled`. That setting governs the audit logger, not the OTel-logs path; we still need our own dynamic listener for `telemetry.otel.logs.enabled` and for R8's per-project state. (The R6 `emit_*` settings, by contrast, are already `Property.Dynamic`; toggling them on serverless requires no extra work.)
+Audit TDD §"Requirement 1" calls for *"... enable or disable audit logging with a simple setting on the Cloud console without any downtime (cluster restart)"*; this is in flight under [PR 147333](https://github.com/elastic/elasticsearch/pull/147333) for `xpack.security.audit.enabled`. That setting governs the audit logger, not the OTel-logs path; we still need our own dynamic listener for `telemetry.otel.logs.enabled`. (The R6 `emit_*` settings are already `Property.Dynamic`; toggling them on serverless requires no extra work.)
 
 ### <a id="sec-2-13"></a>2.13 R13: Retry-policy and buffer-size targets
 
@@ -153,7 +149,7 @@ These concerns belong to other tracks.
 
 - **The existing `audit_rolling` file appender is unchanged.** Customers consuming `<cluster>_audit.json` with Filebeat keep doing so. Making `audit_rolling` non-blocking is also out of scope.
 - **Non-audit ES log streams** (server, deprecation, slowlog, ESQL). Tracked under ES-13255.
-- **Cluster-level dynamic enable/disable of audit logging** (Audit TDD Req 1; in flight via [PR 147333](https://github.com/elastic/elasticsearch/pull/147333)). Per-project granularity (R8 / R12) is on us; cluster-level is not.
+- **Cluster-level dynamic enable/disable of `xpack.security.audit.enabled`** (Audit TDD Req 1; in flight via [PR 147333](https://github.com/elastic/elasticsearch/pull/147333)). The corresponding work for `telemetry.otel.logs.enabled` is ours; see [§4.9](#sec-4-9). Multi-project per-project granularity is deferred; see [Appendix C](#sec-appendix-c).
 - **Origin-type / realm filtering of internal traffic.** Audit TDD Reqs 3, 4. Owned by Ankit Sethi; tracked under elasticsearch-team#2170.
 - **Operator-privilege placeholder for Elastic-employee access.** Audit TDD Req 5.
 - **UIAM / CPS audit instrumentation.** Audit TDD Req 6.
@@ -298,11 +294,15 @@ Today the `BatchLogRecordProcessor` drops on queue overflow with no fallback. Pr
 
 ### <a id="sec-4-8"></a>4.8 R8: Per-project ID filter
 
-The PoC has no per-project gating; the only per-project field on the record today is `project.id` itself (R3). Production needs (a) an appender-path filter that drops events whose `project.id` is not in the enabled set, and (b) a config source for the enabled set. Per the Gateway TDD §"Conditionally enabling per-tenant log delivery in ECP services / applications", the mechanism is per-project file-based settings rendered by the `elasticsearch-controller`, which ES then reads. This is coupled to R12: the filter has to react to those settings changing without a restart. See [§4.15](#sec-4-15) for the structural cost of carrying this per-project.
+Multi-project per-project filtering is explicitly out of scope. In a project-per-cluster deployment, R8 reduces to a cluster-level toggle: is `telemetry.otel.logs.enabled` true for this cluster? The toggle already flows through the file-settings path (rendered by `elasticsearch-controller` from the Project API value). The remaining work is making `telemetry.otel.logs.enabled` `Dynamic` so changes take effect without a restart; see [§4.9](#sec-4-9).
 
 ### <a id="sec-4-9"></a>4.9 R12: Configuration without cluster restart
 
-The PoC reads `telemetry.otel.logs.enabled` once in `OtelSdkExportLogsSupplier.install()` at startup; toggling it requires a restart. R8's per-project state would have the same problem if implemented today. Production needs a settings/state listener that re-installs or reconfigures the appender path on change. Cluster-level dynamic on/off for `xpack.security.audit.enabled` is being addressed separately by Audit TDD Req 1 / [PR 147333](https://github.com/elastic/elasticsearch/pull/147333), but that's a different setting and doesn't cover the OTel-logs path. R12's per-project state inherits the [§4.15](#sec-4-15) structural cost.
+The only R12 gap for the OTel-logs path is that `telemetry.otel.logs.enabled` and `telemetry.otel.logs.endpoint` are declared `NodeScope` only — not `Dynamic`. `OtelSdkExportLogsSupplier.install()` reads them once at startup; toggling requires a restart today.
+
+The fix follows the `DataStreamGlobalRetentionSettings` pattern: add `Dynamic` to both settings' property declarations, and register a `clusterSettings.addSettingsUpdateConsumer(...)` listener in `OtelSdkExportLogsSupplier` that reconfigures or re-installs the OTel SDK appender on change. The audit filter settings (`xpack.security.audit.logfile.events.*` and `emit_*`) are already `NodeScope + Dynamic` with listeners registered in `LoggingAuditTrail`; no changes needed there.
+
+Cluster-level dynamic on/off for `xpack.security.audit.enabled` is being addressed separately by Audit TDD Req 1 / [PR 147333](https://github.com/elastic/elasticsearch/pull/147333).
 
 ### <a id="sec-4-10"></a>4.10 R13: Tuned retry policy and buffer size
 
@@ -350,20 +350,15 @@ The fix is to pull audit and auth onto the same source of truth. [§5.4](#sec-5-
 
 Note on terminology: `DEFAULT_PROJECT_ID` is the legitimate marker only in non-serverless deployments (which have no project concept). In any serverless deployment — single-project per cluster or multi-project — every cluster has a real customer-assigned project ID, and `DEFAULT_PROJECT_ID` is always wrong. The storage-architecture axis (stateful = disk, stateless = object store) is orthogonal to this.
 
-### <a id="sec-4-15"></a>4.15 Per-project exposure of existing ES audit settings is structural work, not configuration
+### <a id="sec-4-15"></a>4.15 Customer-facing audit configuration
 
-Audit logging in ES already has the relevant knobs: `xpack.security.audit.enabled`, `xpack.security.audit.logfile.emit_*`, the event filters, etc. Each is a cluster-level `Setting<T>`, consumed via `Settings` plus (where applicable) a cluster-settings listener. In serverless multi-project, cluster-level granularity is wrong — the cluster can host multiple projects, each potentially wanting different audit configuration. Exposing any of these per-project (which R8 requires for the audit-enabled toggle, and which R12's per-project state would need) requires:
+Multi-project per-project settings scoping is explicitly out of scope for this work. In a project-per-cluster serverless deployment, the cluster is the project, so cluster-level settings are the right granularity.
 
-1. Negotiating the Project API contract with the Control Plane team — field names, shape, per-log-type sub-levers.
-2. Adding a `Metadata.ProjectCustom` (or extending an existing one) to hold the per-project copy, populated from the rendered file settings via a `ReservedProjectStateHandler`.
-3. Generalizing each setting's consumer so it reads from either `Settings` (for stateful and single-project serverless) or the per-project `ProjectCustom` (for multi-project).
-4. Maintaining the dual representation going forward: each new audit setting that needs per-project granularity pays the same tax.
+The delivery path already exists. Customers configure audit logging via the Project API's public `PATCH /api/v1/serverless/projects/<type>/{id}` endpoint, already used today to enable audit logging at the project level. The API persists configuration in CosmosDB and propagates it via `elasticsearchappconfig` / `kibanaappconfig` Kubernetes resources to the regional `elasticsearch-controller` / `kibana-controller`, which renders file settings into the cluster. ES reads them via the generic `ReservedClusterSettingsAction` — the same handler used by data stream retention settings and other dynamically-delivered cluster settings. No dedicated handler is needed.
 
-This is significant structural work relative to the apparent ask ("let the customer turn audit logging on or off per project"). R8 ([§4.8](#sec-4-8)) and R12 ([§4.9](#sec-4-9)) both inherit this cost. Worth surfacing to stakeholders before the work starts so they can weigh it against alternatives: e.g., cluster-wide audit configuration in serverless (which constrains the UX but avoids the per-project plumbing entirely), or scoping R8 narrowly to delivery-side filtering (drop on emit based on `project.id`) without exposing customer-facing per-project toggles in this round.
+The audit filter and emit settings (`xpack.security.audit.logfile.events.include`, `events.exclude`, the five `events.ignore_filters.*` affix settings, and the six `emit_*` settings) are already declared `NodeScope + Dynamic` and already have `addSettingsUpdateConsumer` / `addAffixGroupUpdateConsumer` listeners registered in `LoggingAuditTrail`. Changes delivered via file settings fire the existing listeners and take effect without a restart. The only gap on the OTel-logs side is that `telemetry.otel.logs.enabled` and `telemetry.otel.logs.endpoint` are not yet `Dynamic`; see [§4.9](#sec-4-9).
 
-The customer-facing configuration flow: customers configure audit logging via the Project API's public `PATCH /api/v1/serverless/projects/<type>/{id}` endpoint, already used today to enable audit logging at the project level. The API persists configuration in CosmosDB and propagates it via `elasticsearchappconfig` / `kibanaappconfig` Kubernetes resources to the regional `elasticsearch-controller` / `kibana-controller`, which renders per-project file settings into the cluster. ES reads via reserved-state handlers. The Customer-facing audit log configuration TDD ([§2](#sec-2) references) covers the full Project API shape design, cross-app consistency between ES, Kibana, and Fleet. A preliminary discussion with Mark Vieira established that Project Custom is the current recommended path for existing cluster settings needing per-project scope; the full design conversation with Ankit Sethi, Valentin, Ryan, and Julio Camarero is still needed.
-
-The customer-controllable settings inventory covers at least: five `xpack.security.audit.logfile.events.ignore_filters.*`, plus `events.include` and `events.exclude`. Valentin Crettaz is compiling a full mapping covering ES audit logs, Kibana audit logs, ES query logs, and Kibana user activity logs.
+The Customer-facing audit log configuration TDD ([§2](#sec-2) references) covers the full Project API shape, cross-app consistency between ES, Kibana, and Fleet. The customer-controllable settings inventory covers at least: five `xpack.security.audit.logfile.events.ignore_filters.*`, plus `events.include` and `events.exclude`. Valentin Crettaz is compiling a full mapping covering ES audit logs, Kibana audit logs, ES query logs, and Kibana user activity logs.
 
 Two constraints bound the solution space:
 - **`_cluster/settings` and any new in-app settings endpoint are off the table.** The cluster-settings endpoint is `@ServerlessScope(Scope.INTERNAL)`. Adding a new endpoint (e.g. `_security/audit/settings`) would split configuration between cloud UI and in-app, which is the thing the serverless architecture deliberately avoids (Tim Vernum, [#log-delivery-project-team, 2026-05-13](https://elastic.slack.com/archives/C09PANY7FFS/p1778666710166199)). The only customer path is the Project API.
@@ -425,22 +420,7 @@ The PoC reads `X-Elastic-Project-Id` from `ThreadContext` directly inside `withT
 
 ### <a id="sec-5-5"></a>5.5 Per-setting plumbing vs. `ProjectScope` setting type
 
-The [§4.15](#sec-4-15) structural cost is per-setting today: each audit setting we want to expose to serverless customers requires the four-step ritual (Project API field, CosmosDB persistence, `ProjectCustom` in ES, consumer refactor). Audit alone needs at least seven settings; Valentin's pending inventory will add Kibana audit, ES query logs, and Kibana user activity logs. Most cluster settings in serverless are already not user-configurable, so the universe of settings that need per-project scope is smaller than it might appear.
-
-A structural alternative, raised in [#log-delivery-project-team 2026-05-13](https://elastic.slack.com/archives/C8UUBNASY/p1778614459655819): introduce a `ProjectScope` setting type alongside the existing `NodeScope`. The idea:
-
-- A `ProjectScope` setting knows how to source its value contextually: from `Settings` / cluster settings in non-serverless deployments; from per-project file settings (rendered into a `ProjectCustom` by the reserved-state handler) in serverless.
-- Existing `NodeScope` settings can be converted to `ProjectScope` over time without callsite refactors — the `Setting<T>` itself handles the dual lookup, and the listeners run in a thread context where `ProjectLocal.get()` returns the right per-project value.
-- Mark Vieira (Core/Infra) green-lit the direction in principle: *"That should be possible. If they are existing settings, you'd just make them project scoped and then it would be set by the existing file-based settings mechanism for cluster settings."* (with the caveat: *"with some work in this area to make per-project settings more ergonomic"*).
-
-Two options:
-
-| Option | Pros | Cons |
-|---|---|---|
-| **Plan A: per-setting plumbing.** Each setting we expose gets its own field in the Project API, its own field in a `ProjectCustom`, and its own consumer refactor. | Smallest delta for the specific audit settings we need now. No new framework. Current recommended path for existing cluster settings that need per-project scope. | Repeats the four-step ritual for every future per-project setting. Drift risk between `Setting<T>` and `ProjectCustom` representations. |
-| **Plan B: `ProjectScope` setting type.** Build the framework once; every `ProjectScope` setting routes correctly without per-callsite work. | Amortizes cost across settings beyond audit. Cleaner ergonomics; one `Setting<T>` per concept rather than parallel representations. Mark indicated this aligns with how Core/Infra would want per-project settings to work. | Larger upfront investment (framework + listener semantics + thread-context plumbing for `ProjectLocal`). Crosses into Tim Vernum / Yang Wang's design territory. The fallback mechanism is not yet built: in non-multi-project mode, asking for a per-project setting for the default project should return the cluster-setting value, and that plumbing doesn't exist today. |
-
-This decision is broader than the audit PoC and likely needs to happen in the design-discussion meeting referenced in [§4.15](#sec-4-15). Tim Vernum is the obvious person to involve (he wrote the canonical project-id-resolution pattern; see [§4.14](#sec-4-14)); Yang Wang likely as well. See also the Customer-facing audit log configuration TDD ([§2](#sec-2) references). An in-app settings endpoint is not an option; see [§4.15](#sec-4-15).
+Multi-project concern; deferred. See [Appendix C](#sec-appendix-c).
 
 ## <a id="sec-6"></a>6. Next steps
 
@@ -456,7 +436,7 @@ Pulled from [§4](#sec-4) and [§5](#sec-5). **What's implemented:** R1 (OTLP de
 8. <a id="sec-6-1-8"></a>**`LoggingAuditTrail` constructor ([§5.4](#sec-5-4)).** `CustomAuditLoggingMetadataProvider` vs inject `ProjectResolver` vs keep direct `ThreadContext` read. Doc recommends the extension point: it resolves [§4.14](#sec-4-14), [§4.4](#sec-4-4), and [§4.13](#sec-4-13) in one place; effectively merges with [6.1.10](#sec-6-1-10) if chosen. *[Core/Infra + Ankit Sethi. Gates [6.1.10](#sec-6-1-10), [6.2.11](#sec-6-2-11), [6.2.12](#sec-6-2-12).]*
 9. <a id="sec-6-1-9"></a>**Cloud API key audit shape ([§4.13](#sec-4-13)).** What `api_key.*` holds for UIAM-authenticated events. *[UIAM team (Slobodan Adamović). Gates [6.2.12](#sec-6-2-12), [6.1.3](#sec-6-1-3).]*
 10. <a id="sec-6-1-10"></a>**Linked-side `project.id` mechanism ([§4.4](#sec-4-4)).** Cluster-config-derived, cross-cluster transport propagation, or via `CustomAuditLoggingMetadataProvider`. Resolving [6.1.8](#sec-6-1-8) in favor of the extension point collapses this into "implement the linked-side provider." *[CPS team. Gates [6.2.11](#sec-6-2-11), [6.1.3](#sec-6-1-3).]*
-11. <a id="sec-6-1-11"></a>**Per-project settings: Plan A vs Plan B ([§5.5](#sec-5-5)).** Per-setting plumbing vs. `ProjectScope` setting type. See also the Customer-facing audit log configuration TDD ([§4.15](#sec-4-15)). *[Core/Infra + Tim Vernum + Yang Wang + Julio Camarero. Gates [6.2.5](#sec-6-2-5), [6.2.6](#sec-6-2-6).]*
+11. <a id="sec-6-1-11"></a>**Per-project settings: Plan A vs Plan B ([§5.5](#sec-5-5)).** Multi-project concern; deferred. See [Appendix C](#sec-appendix-c). *[Core/Infra + Tim Vernum + Yang Wang + Julio Camarero.]*
 
 ### <a id="sec-6-2"></a>6.2 Implementation work
 
@@ -464,8 +444,8 @@ Pulled from [§4](#sec-4) and [§5](#sec-5). **What's implemented:** R1 (OTLP de
 2. <a id="sec-6-2-2"></a>**R4: mTLS to gateway ([§4.5](#sec-4-5)).** Needs cert-identity alignment with the gateway team, cert-distribution alignment with Control-Plane, and an open question on whether the gRPC exporter exposes client TLS directly.
 3. <a id="sec-6-2-3"></a>**R6: strip cluster/node fields ([§4.6](#sec-4-6)).** Set `emit_node_id` and `emit_cluster_uuid` to `false` in `serverless-default-settings.yml`. No ES code change.
 4. <a id="sec-6-2-4"></a>**R7: stdout fallback on exhausted retries ([§4.7](#sec-4-7)).** Format and replay-ingestion contract need alignment with the gateway and replay-service teams.
-5. <a id="sec-6-2-5"></a>**R8: per-project filter ([§4.8](#sec-4-8)).** Appender-path filter keyed on `project.id`, fed by per-project file settings from `elasticsearch-controller`. Config-rendering contract needs alignment. Coupled to [6.2.6](#sec-6-2-6). *Gated on [6.1.11](#sec-6-1-11).*
-6. <a id="sec-6-2-6"></a>**R12: dynamic config ([§4.9](#sec-4-9)).** Settings listener for `telemetry.otel.logs.enabled` and the per-project state from [6.2.5](#sec-6-2-5). *Gated on [6.2.5](#sec-6-2-5).*
+5. <a id="sec-6-2-5"></a>**R8: audit-enabled toggle ([§4.8](#sec-4-8)).** The `telemetry.otel.logs.enabled` flag flows through the file-settings path from `elasticsearch-controller`; the remaining work is making it `Dynamic` (see [6.2.6](#sec-6-2-6)).
+6. <a id="sec-6-2-6"></a>**R12: make `telemetry.otel.logs.enabled` Dynamic ([§4.9](#sec-4-9)).** Add `Dynamic` to `telemetry.otel.logs.enabled` and `telemetry.otel.logs.endpoint`; register a `clusterSettings.addSettingsUpdateConsumer(...)` listener in `OtelSdkExportLogsSupplier` following the `DataStreamGlobalRetentionSettings` pattern. Satisfies R12 for the OTel-logs path and closes R8 for project-per-cluster.
 7. <a id="sec-6-2-7"></a>**R13: retry/buffer tuning ([§4.10](#sec-4-10)).** Straightforward once the gateway team confirms the ~2 min retry / ~30–50 MB buffer targets.
 8. <a id="sec-6-2-8"></a>**Bare semconv keys on the wire ([§4.1](#sec-4-1)).** Follows [6.1.1](#sec-6-1-1).
 9. <a id="sec-6-2-9"></a>**Per-field translation ([§4.2](#sec-4-2)).** Follows [6.1.1](#sec-6-1-1) and [6.1.2](#sec-6-1-2).
@@ -509,10 +489,6 @@ Routing view of [§6.1](#sec-6-1) and [§6.2](#sec-6-2).
 
 1. **Project API audit-configuration fields** and their file-settings shape. ([§4.15](#sec-4-15), [§6.2.5](#sec-6-2-5))
 2. **Cert distribution path** for the gateway client cert. ([§4.5](#sec-4-5), [§6.2.2](#sec-6-2-2))
-
-#### Tim Vernum, Yang Wang
-
-1. **`ProjectScope` setting type** viability and listener semantics. ([§5.5](#sec-5-5), [§6.1.11](#sec-6-1-11))
 
 #### ES Security team
 
@@ -566,3 +542,32 @@ Rather than going through log4j at all, have `LoggingAuditTrail.LogEntryBuilder`
 - **Hand-wired OTel SDK and declarative config don't compose easily.** ES uses `OpenTelemetrySdk.builder()` (the bare SDK builder), which has no public way to set a `ConfigProvider`. As a result, instrumentation-config flags can't be set through the public SDK API. The most relevant example is `otel.instrumentation.common.v3-preview`, the upstream library's preview knob for dropping the `log4j.map_message.` prefix. They're settable via `AutoConfiguredOpenTelemetrySdk.builder().addPropertiesSupplier(...)` (auto-configure module) or by implementing `ExtendedOpenTelemetry` ourselves with a `YamlDeclarativeConfigProperties.create(Map, ComponentLoader)` (incubator + declarative-config extension modules). This is a real OTel-Java friction point that affects more than just this feature. The OTel configuration spec itself requires SDKs to expose programmatic config; the Java SDK does, but only outside the bare builder.
 - **The `OpenTelemetryAppender.install(sdk)` static method is order-dependent.** It pushes the SDK to *already-registered* `OpenTelemetryAppender` instances. Calling it before the appender is in the log4j config is a silent no-op for that appender. Using `Builder.setOpenTelemetry(sdk)` directly is more robust.
 - **Audit events use `StringMapMessage`, which is structured but bodyless.** The OTel appender library treats this as "no `LogRecord.body`, capture entries as attributes." With `setCaptureMapMessageAttributes(true)` this works but adds the prefix discussed in [§5.1](#sec-5-1).
+
+## <a id="sec-appendix-c"></a>Appendix C: Multi-project considerations (deferred)
+
+These considerations become relevant when multi-project support is added. They are preserved here rather than in the main sections to keep the project-per-cluster scope clear.
+
+### <a id="sec-c-1"></a>C.1 R8 in multi-project: ES-side filtering rationale
+
+In a multi-project cluster, ES must drop audit records for projects whose customers haven't opted into audit logging, *before* the records reach the gateway, so that disabled projects don't pay the network hop.
+
+**Placement** (must be ES-side; downstream components can't filter per project): in the [#log-delivery-project-team thread of 2026-04-29](https://elastic.slack.com/archives/C09PANY7FFS/p1777474914646739), Ankit Sethi wrote *"a lot of this can/should happen within the security plugin itself"*; Valentin Crettaz concurred *"MOTel is too far away down the delivery pipeline to do this, the filtering needs to happen at the source (i.e. by ES/Serverless itself)"*; Julio Camarero wrote *"since these logs are sent over HTTP, we can save a lot of resources if only logs which should be routed are sent, therefore, I fully agree with the approach of filtering happening at elasticsearch."* In a parallel [#hosted-otel-collector thread the same day](https://elastic.slack.com/archives/C076MUD9BK8/p1777471821757409), Vignesh Shanmugam wrote *"the processing/redact bits should live as part of the SDK layer inside ES for now till we have support for managed processing layer"*, and Andrew Wilkins later noted *"otel-delivery-gateway is the thing that would be transforming logs before they hit MOTel"* (i.e. the eventual external home for transformations is the gateway, not MOTel). As of today, neither MOTel nor the gateway filters per project.
+
+**Durable reason** (ES-side even if downstream filtering eventually becomes possible): cost. Emitting OTLP for N projects only to drop most of it downstream still pays the ES → gateway network hop. Even a future gateway-side filter wouldn't satisfy this; the cost is incurred before the filter sees the record.
+
+### <a id="sec-c-2"></a>C.2 Per-project settings design: Plan A vs Plan B
+
+In a multi-project cluster, each project may want different audit configuration, requiring per-project scoping of what are currently cluster-level settings. Exposing any of these per-project requires per-setting plumbing (Plan A) or a framework-level solution (Plan B). Audit alone would need at least seven settings; Valentin Crettaz is compiling a full inventory covering ES audit logs, Kibana audit logs, ES query logs, and Kibana user activity logs. Most cluster settings in serverless are already not user-configurable, so the universe of settings that need per-project scope is smaller than it might appear.
+
+A structural alternative, raised in [#log-delivery-project-team 2026-05-13](https://elastic.slack.com/archives/C8UUBNASY/p1778614459655819): introduce a `ProjectScope` setting type alongside the existing `NodeScope`. The idea:
+
+- A `ProjectScope` setting knows how to source its value contextually: from `Settings` / cluster settings in non-serverless deployments; from per-project file settings (rendered into a `ProjectCustom` by the reserved-state handler) in serverless.
+- Existing `NodeScope` settings can be converted to `ProjectScope` over time without callsite refactors — the `Setting<T>` itself handles the dual lookup, and the listeners run in a thread context where `ProjectLocal.get()` returns the right per-project value.
+- Mark Vieira (Core/Infra) green-lit the direction in principle: *"That should be possible. If they are existing settings, you'd just make them project scoped and then it would be set by the existing file-based settings mechanism for cluster settings."* (with the caveat: *"with some work in this area to make per-project settings more ergonomic"*).
+
+| Option | Pros | Cons |
+|---|---|---|
+| **Plan A: per-setting plumbing.** Each setting we expose gets its own field in the Project API, its own field in a `ProjectCustom`, and its own consumer refactor. | Smallest delta for the specific audit settings needed. No new framework. Current recommended path for existing cluster settings that need per-project scope. | Repeats the four-step ritual for every future per-project setting. Drift risk between `Setting<T>` and `ProjectCustom` representations. |
+| **Plan B: `ProjectScope` setting type.** Build the framework once; every `ProjectScope` setting routes correctly without per-callsite work. | Amortizes cost across settings beyond audit. Cleaner ergonomics; one `Setting<T>` per concept rather than parallel representations. Mark indicated this aligns with how Core/Infra would want per-project settings to work. | Larger upfront investment (framework + listener semantics + thread-context plumbing for `ProjectLocal`). Crosses into Tim Vernum / Yang Wang's design territory. The fallback mechanism is not yet built: in non-multi-project mode, asking for a per-project setting for the default project should return the cluster-setting value, and that plumbing doesn't exist today. |
+
+This decision needs involvement from Tim Vernum (canonical project-id-resolution pattern; see [§4.14](#sec-4-14)), Yang Wang, and Julio Camarero. See also the Customer-facing audit log configuration TDD ([§2](#sec-2) references). An in-app settings endpoint is not an option; see [§4.15](#sec-4-15).

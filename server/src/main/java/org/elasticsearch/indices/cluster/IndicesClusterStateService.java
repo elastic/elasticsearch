@@ -587,18 +587,42 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             shardCloseExecutor,
                             getShardsClosedListener()
                         );
-                    } else if (newShardRouting.primary() && currentRoutingEntry.primary() == false && newShardRouting.initializing()) {
-                        assert currentRoutingEntry.initializing() : currentRoutingEntry; // see above if clause
-                        // this can happen when cluster state batching batches activation of the shard, closing an index, reopening it
-                        // and assigning an initializing primary to this node
-                        logger.debug("{} removing shard (not active, current {}, new {})", shardId, currentRoutingEntry, newShardRouting);
-                        indexService.removeShard(
-                            shardId.id(),
-                            "removing shard (stale copy)",
-                            shardCloseExecutor,
-                            getShardsClosedListener()
-                        );
-                    }
+                    } else if (newShardRouting.initializing()
+                        && indexMetadata != null
+                        && indexMetadata.primaryTerm(shardId.id()) > existingMetadata.primaryTerm(shardId.id())) {
+                            // this can happen if a shard failed recovery and is re-assigned with the same allocation id
+                            // but a bumped primary term.
+                            // Batch cluster state processing could cause the shard to miss the unassigned state and
+                            // directly receive the initializing one. The stale shard should be cleaned up
+                            logger.debug(
+                                "{} removing shard (primary bump, current {}, new {})",
+                                shardId,
+                                currentRoutingEntry,
+                                newShardRouting
+                            );
+                            indexService.removeShard(
+                                shardId.id(),
+                                "removing shard (stale copy)",
+                                shardCloseExecutor,
+                                getShardsClosedListener()
+                            );
+                        } else if (newShardRouting.primary() && currentRoutingEntry.primary() == false && newShardRouting.initializing()) {
+                            assert currentRoutingEntry.initializing() : currentRoutingEntry; // see above if clause
+                            // this can happen when cluster state batching batches activation of the shard, closing an index, reopening it
+                            // and assigning an initializing primary to this node
+                            logger.debug(
+                                "{} removing shard (not active, current {}, new {})",
+                                shardId,
+                                currentRoutingEntry,
+                                newShardRouting
+                            );
+                            indexService.removeShard(
+                                shardId.id(),
+                                "removing shard (stale copy)",
+                                shardCloseExecutor,
+                                getShardsClosedListener()
+                            );
+                        }
                 }
             }
         }

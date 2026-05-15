@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 /// Each test in this class drops a different window of COMMIT messages on the data node to
 /// reproduce a different bug from this family.
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0)
-public class MissedClusterStateIT extends ESIntegTestCase {
+public class SkippedClusterStateIT extends ESIntegTestCase {
 
     private static final String INDEX_NAME = "test";
     private static final int SHARD_ID = 0;

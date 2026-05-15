@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.List;
@@ -47,6 +48,20 @@ import static org.hamcrest.Matchers.not;
 public class DatasetRewriterTests extends ESTestCase {
 
     private static final IndexNameExpressionResolver RESOLVER = TestIndexNameExpressionResolver.newInstance();
+
+    /**
+     * In release-tests CI, {@code build.snapshot=false} disables {@link DataSourceMetadata#ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG}.
+     * These unit tests bypass the CRUD layer (which is the production gate) by constructing {@link ProjectMetadata} with datasets
+     * directly via {@code Builder.datasets(...)}, so they exercise rewriter paths that production cannot reach when the flag is off.
+     * Skip the entire class when the flag is off — same pattern {@code FromDatasetIT} uses for the same reason.
+     */
+    @Before
+    public void requireFeatureFlag() {
+        assumeTrue(
+            "ES|QL external datasources feature flag must be enabled",
+            DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
+        );
+    }
 
     public void testNoDatasetsLeavesPlanUnchanged() {
         UnresolvedRelation relation = relationOf("my_index");

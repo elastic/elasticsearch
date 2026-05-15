@@ -11,6 +11,7 @@ package org.elasticsearch.telemetry.apm.internal;
 
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.Meter;
+import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
@@ -34,8 +35,9 @@ public class APMMeterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void attemptFlushMetrics() {
+            public CompletableResultCode attemptFlushMetrics() {
                 calls.add("attemptFlushMetrics");
+                return CompletableResultCode.ofSuccess();
             }
 
             @Override
@@ -65,8 +67,9 @@ public class APMMeterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void attemptFlushMetrics() {
+            public CompletableResultCode attemptFlushMetrics() {
                 calls.add("attemptFlushMetrics");
+                return CompletableResultCode.ofSuccess();
             }
         };
         MeterSupplier noopSupplier = () -> OpenTelemetry.noop().getMeter("noop");
@@ -92,7 +95,7 @@ public class APMMeterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void attemptFlushMetrics() {
+            public CompletableResultCode attemptFlushMetrics() {
                 throw new RuntimeException("simulated flush failure");
             }
 
@@ -131,8 +134,9 @@ public class APMMeterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void attemptFlushMetrics() {
+            public CompletableResultCode attemptFlushMetrics() {
                 calls.add("attemptFlushMetrics");
+                return CompletableResultCode.ofSuccess();
             }
 
             @Override

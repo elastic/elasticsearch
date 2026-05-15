@@ -44,6 +44,12 @@ public interface TelemetryProvider {
      */
     void attemptFlushTraces();
 
+    /** Flushes both metrics and traces. Implementations may override to flush concurrently. */
+    default void attemptFlushAll() {
+        attemptFlushMetrics();
+        attemptFlushTraces();
+    }
+
     TelemetryProvider NOOP = new NoopTelemetryProvider();
 
     class NoopTelemetryProvider implements TelemetryProvider {

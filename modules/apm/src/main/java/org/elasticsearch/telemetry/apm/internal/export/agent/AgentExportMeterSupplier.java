@@ -11,6 +11,7 @@ package org.elasticsearch.telemetry.apm.internal.export.agent;
 
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.metrics.Meter;
+import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
@@ -42,7 +43,8 @@ public final class AgentExportMeterSupplier implements MeterSupplier {
     }
 
     @Override
-    public void attemptFlushMetrics() {
+    public CompletableResultCode attemptFlushMetrics() {
         flushFn.run();
+        return CompletableResultCode.ofSuccess();
     }
 }

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
+import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter;
@@ -75,11 +76,13 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
         supplier.close();
     }
 
-    /** attemptFlushMetrics() after close() (resources nulled) must be a no-op and not throw. */
+    /** attemptFlushMetrics() after close() must return a successful no-op result. */
     public void testAttemptFlushMetricsAfterCloseIsNoop() {
         OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(testResources(InMemoryMetricExporter.create()));
         supplier.close();
-        supplier.attemptFlushMetrics(); // must not throw
+        CompletableResultCode result = supplier.attemptFlushMetrics();
+        result.join(5, java.util.concurrent.TimeUnit.SECONDS);
+        assertTrue(result.isSuccess());
     }
 
     /** attemptFlushMetrics() with initialized resources triggers an export of buffered metric data. */
@@ -88,7 +91,7 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
         OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(testResources(exporter));
 
         supplier.get().counterBuilder("test.counter").build().add(1);
-        supplier.attemptFlushMetrics();
+        supplier.attemptFlushMetrics().join(5, java.util.concurrent.TimeUnit.SECONDS);
 
         assertThat(
             "expected at least one metric export after attemptFlushMetrics",

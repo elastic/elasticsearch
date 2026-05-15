@@ -9,18 +9,33 @@
 
 package org.elasticsearch.telemetry.apm.internal;
 
+import io.opentelemetry.sdk.common.CompletableResultCode;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.apm.APMMeterRegistry;
+import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
+
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 public class APMTelemetryProvider implements TelemetryProvider {
     private final APMTracer apmTracer;
     private final APMMeterService apmMeterService;
+    private final long flushTimeoutMillis;
 
     public APMTelemetryProvider(Settings settings) {
         apmTracer = new APMTracer(settings);
         apmMeterService = new APMMeterService(settings);
+        flushTimeoutMillis = OtelSdkSettings.TELEMETRY_OTEL_FLUSH_TIMEOUT.get(settings).millis();
+    }
+
+    // visible for testing: pre-built service/tracer instances with stubbed suppliers
+    public APMTelemetryProvider(APMMeterService apmMeterService, APMTracer apmTracer, long flushTimeoutMillis) {
+        this.apmMeterService = apmMeterService;
+        this.apmTracer = apmTracer;
+        this.flushTimeoutMillis = flushTimeoutMillis;
     }
 
     @Override
@@ -39,11 +54,18 @@ public class APMTelemetryProvider implements TelemetryProvider {
 
     @Override
     public void attemptFlushMetrics() {
-        apmMeterService.attemptFlushMetrics();
+        apmMeterService.attemptFlushMetrics().join(flushTimeoutMillis, TimeUnit.MILLISECONDS);
     }
 
     @Override
     public void attemptFlushTraces() {
-        apmTracer.attemptFlushTraces();
+        apmTracer.attemptFlushTraces().join(flushTimeoutMillis, TimeUnit.MILLISECONDS);
+    }
+
+    @Override
+    public void attemptFlushAll() {
+        CompletableResultCode metrics = apmMeterService.attemptFlushMetrics();
+        CompletableResultCode traces = apmTracer.attemptFlushTraces();
+        CompletableResultCode.ofAll(List.of(metrics, traces)).join(flushTimeoutMillis, TimeUnit.MILLISECONDS);
     }
 }

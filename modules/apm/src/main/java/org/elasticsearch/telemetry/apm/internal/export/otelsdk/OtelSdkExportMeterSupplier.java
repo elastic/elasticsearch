@@ -15,6 +15,7 @@ import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporter;
 import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporterBuilder;
 import io.opentelemetry.instrumentation.runtimetelemetry.RuntimeTelemetry;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.common.InternalTelemetryVersion;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.export.AggregationTemporalitySelector;
@@ -26,8 +27,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 
+import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
 
@@ -122,18 +123,34 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         return null;
     }
 
+    /**
+     * Runs two flush cycles so that {@code PeriodicMetricReader}'s {@code collection.duration}
+     * self-telemetry (recorded after each collection) is exported. Both providers flush in parallel
+     * within each cycle. Callers must join the result with an appropriate timeout.
+     */
     @Override
-    public void attemptFlushMetrics() {
+    public CompletableResultCode attemptFlushMetrics() {
         synchronized (mutex) {
-            if (resources != null) {
-                long timeoutMillis = OtelSdkSettings.TELEMETRY_OTEL_FLUSH_TIMEOUT.get(settings).millis();
-                resources.systemMeterProvider.forceFlush().join(timeoutMillis, TimeUnit.MILLISECONDS);
-                resources.meterHealthMeterProvider.forceFlush().join(timeoutMillis, TimeUnit.MILLISECONDS);
-                // PeriodicMetricReader records collection.duration after
-                // each collection, so a second cycle is required to collect and export it.
-                resources.systemMeterProvider.forceFlush().join(timeoutMillis, TimeUnit.MILLISECONDS);
-                resources.meterHealthMeterProvider.forceFlush().join(timeoutMillis, TimeUnit.MILLISECONDS);
+            if (resources == null) {
+                return CompletableResultCode.ofSuccess();
             }
+            CompletableResultCode result = new CompletableResultCode();
+            CompletableResultCode cycle1 = CompletableResultCode.ofAll(
+                List.of(resources.systemMeterProvider.forceFlush(), resources.meterHealthMeterProvider.forceFlush())
+            );
+            cycle1.whenComplete(() -> {
+                CompletableResultCode cycle2 = CompletableResultCode.ofAll(
+                    List.of(resources.systemMeterProvider.forceFlush(), resources.meterHealthMeterProvider.forceFlush())
+                );
+                cycle2.whenComplete(() -> {
+                    if (cycle2.isSuccess()) {
+                        result.succeed();
+                    } else {
+                        result.fail();
+                    }
+                });
+            });
+            return result;
         }
     }
 

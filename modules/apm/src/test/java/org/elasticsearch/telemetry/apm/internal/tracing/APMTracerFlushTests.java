@@ -10,6 +10,7 @@
 package org.elasticsearch.telemetry.apm.internal.tracing;
 
 import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
@@ -35,8 +36,9 @@ public class APMTracerFlushTests extends ESTestCase {
             }
 
             @Override
-            public void attemptFlushTraces() {
+            public CompletableResultCode attemptFlushTraces() {
                 calls.add("attemptFlushTraces");
+                return CompletableResultCode.ofSuccess();
             }
 
             @Override
@@ -65,8 +67,9 @@ public class APMTracerFlushTests extends ESTestCase {
             }
 
             @Override
-            public void attemptFlushTraces() {
+            public CompletableResultCode attemptFlushTraces() {
                 calls.add("attemptFlushTraces");
+                return CompletableResultCode.ofSuccess();
             }
         };
 
@@ -91,7 +94,7 @@ public class APMTracerFlushTests extends ESTestCase {
             }
 
             @Override
-            public void attemptFlushTraces() {
+            public CompletableResultCode attemptFlushTraces() {
                 throw new RuntimeException("simulated flush failure");
             }
 
@@ -124,8 +127,9 @@ public class APMTracerFlushTests extends ESTestCase {
             }
 
             @Override
-            public void attemptFlushTraces() {
+            public CompletableResultCode attemptFlushTraces() {
                 calls.add("attemptFlushTraces");
+                return CompletableResultCode.ofSuccess();
             }
 
             @Override

@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.TreeSet;
+import java.util.TreeMap;
 
 public class CrossProjectSearchMetrics implements Writeable, ToXContentFragment {
     private long preProcessingTookTime;
@@ -41,6 +41,8 @@ public class CrossProjectSearchMetrics implements Writeable, ToXContentFragment 
     public static final ParseField MERGING_PHASE_TOOK_TIME_FIELD = new ParseField("merging_phase_took_time");
     public static final String PROJECTS_ROUND_TRIP_TIME = "projects_round_trip_time";
     public static final String PROJECTS_NAME = "projects";
+    /** Serialized when {@link #perProjectRoundtripTime} has no timing recorded for a project name (null map value). */
+    public static final String UNKNOWN_PROJECT_ROUND_TRIP_TIME = "Unknown";
 
     public CrossProjectSearchMetrics() {
         this.preProcessingTookTime = 0;
@@ -98,12 +100,17 @@ public class CrossProjectSearchMetrics implements Writeable, ToXContentFragment 
 
         builder.startObject(PROJECTS_ROUND_TRIP_TIME).startArray(PROJECTS_NAME);
 
-        TreeSet<String> sorted = new TreeSet<>(perProjectRoundtripTime.keySet());
-        for (String projectName : sorted) {
-            long projectTookTime = perProjectRoundtripTime.get(projectName);
+        Map<String, Long> sortedByProject = new TreeMap<>(perProjectRoundtripTime);
+        for (Map.Entry<String, Long> entry : sortedByProject.entrySet()) {
+            String projectName = entry.getKey();
+            Long projectTookTime = entry.getValue();
 
             builder.startObject();
-            builder.field(projectName, projectTookTime);
+            if (projectTookTime == null) {
+                builder.field(projectName, UNKNOWN_PROJECT_ROUND_TRIP_TIME);
+            } else {
+                builder.field(projectName, projectTookTime);
+            }
             builder.endObject();
         }
 

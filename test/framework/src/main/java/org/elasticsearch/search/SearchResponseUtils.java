@@ -495,7 +495,12 @@ public enum SearchResponseUtils {
                                 if (token == XContentParser.Token.FIELD_NAME) {
                                     projectKey = parser.currentName();
                                 } else if (token.isValue()) {
-                                    metrics.trackProjectRoundtripTime(projectKey, parser.longValue());
+                                    if (token == XContentParser.Token.VALUE_STRING
+                                        && CrossProjectSearchMetrics.UNKNOWN_PROJECT_ROUND_TRIP_TIME.equals(parser.text())) {
+                                        // Serialized when round-trip timing was unavailable for this project
+                                    } else {
+                                        metrics.trackProjectRoundtripTime(projectKey, parser.longValue());
+                                    }
                                 } else {
                                     parser.skipChildren();
                                 }

@@ -105,7 +105,6 @@ public class TSDBDocValuesBulkWriteBenchmark {
         final Random random = new Random(42L);
         values = new long[docCount];
         for (int i = 0; i < docCount; i++) {
-            // Values inside Long.valueOf's cached range so setLongValue does not allocate per call.
             values[i] = random.nextInt(256) - 128;
         }
     }

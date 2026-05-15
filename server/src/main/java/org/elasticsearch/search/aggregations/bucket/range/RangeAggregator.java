@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
@@ -643,7 +642,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         @Override
         public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
             final SortedNumericDoubleValues values = ((ValuesSource.Numeric) this.valuesSource).doubleValues(aggCtx.getLeafReaderContext());
-            final DoubleValues singleton = FieldData.unwrapSingleton(values);
+            final DoubleValues singleton = SortedNumericDoubleValues.unwrapSingleton(values);
 
             if (singleton != null) {
                 super.singletonRanges++;

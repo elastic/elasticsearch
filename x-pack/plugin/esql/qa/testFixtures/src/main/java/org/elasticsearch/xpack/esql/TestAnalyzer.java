@@ -416,7 +416,7 @@ public class TestAnalyzer {
                 return "parquet";
             }
         };
-        var resolvedSource = new ExternalSourceResolution.ResolvedSource(metadata, fileSet);
+        var resolvedSource = new ExternalSourceResolution.ResolvedSource(metadata, fileSet, java.util.Map.of());
         return externalSourceResolution(new ExternalSourceResolution(Map.of(path, resolvedSource)));
     }
 

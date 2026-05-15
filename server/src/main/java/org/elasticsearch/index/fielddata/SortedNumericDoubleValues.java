@@ -27,14 +27,6 @@ public abstract class SortedNumericDoubleValues {
     private final DocIdSetIterator docIdSetIterator;
     private DoubleValues doubleValues;
 
-    protected SortedNumericDoubleValues() {
-        this(false, null);
-    }
-
-    protected SortedNumericDoubleValues(boolean isSingleton) {
-        this(isSingleton, null);
-    }
-
     protected SortedNumericDoubleValues(DocIdSetIterator docIdSetIterator) {
         this(false, docIdSetIterator);
     }
@@ -111,7 +103,7 @@ public abstract class SortedNumericDoubleValues {
      * Converts a {@link DoubleValues} to a {@link SortedNumericDoubleValues}
      */
     public static SortedNumericDoubleValues singleton(DoubleValues values) {
-        return new SortedNumericDoubleValues(true) {
+        return new SortedNumericDoubleValues(true, null) {
             @Override
             public boolean advanceExact(int target) throws IOException {
                 return values.advanceExact(target);

@@ -99,7 +99,7 @@ public class FieldDataTests extends ESTestCase {
         assertTrue(asLongs.advanceExact(0));
         assertEquals(valueBits, asLongs.longValue());
 
-        SortedNumericDoubleValues multiValues = new SortedNumericDoubleValues() {
+        SortedNumericDoubleValues multiValues = new SortedNumericDoubleValues(null) {
             @Override
             public double nextValue() {
                 return value;

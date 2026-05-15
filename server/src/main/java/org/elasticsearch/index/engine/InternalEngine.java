@@ -1134,6 +1134,14 @@ public class InternalEngine extends Engine {
                 versionMap.enforceSafeAccess();
             }
             // The versionMap can still be unsafe at this point due to archive being unsafe
+            //
+            // Note: the internal refresh above only makes docs visible in the local Lucene searcher. In stateless,
+            // the version map also uses a LiveVersionMapArchive that retains entries from previous refreshes, and
+            // this archive is NOT cleared by an internal refresh. If the map became unsafe because a put was skipped
+            // (due to the race between beforeRefresh() and enforceSafeAccess()), the archive may still hold a stale
+            // version. The subsequent getUnderLock() will find that stale entry in the archive before falling through
+            // to Lucene. This recovery path is therefore insufficient for stateless — the engine bypass in index()
+            // (using IndexingStrategy.safeAccessEnforced) prevents the put from being skipped in the first place.
         }
         return versionMap.getUnderLock(id);
     }

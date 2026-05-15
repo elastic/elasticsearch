@@ -2168,22 +2168,39 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Returns a set of nodes that have at least one shard of the given index.
+     * Returns the names of the nodes that have at least one shard of the given index.
      */
-    public synchronized Set<String> nodesInclude(String index) {
-        if (clusterService().state().routingTable().hasIndex(index)) {
-            List<ShardRouting> allShards = clusterService().state().routingTable().allShards(index);
-            DiscoveryNodes discoveryNodes = clusterService().state().getNodes();
-            Set<String> nodeNames = new HashSet<>();
-            for (ShardRouting shardRouting : allShards) {
+    private static Set<String> nodesInclude(ClusterState clusterState, String index) {
+        if (clusterState.routingTable().hasIndex(index)) {
+            final var discoveryNodes = clusterState.getNodes();
+            final var nodeNames = new HashSet<String>();
+            for (final var shardRouting : clusterState.routingTable().allShards(index)) {
                 if (shardRouting.assignedToNode()) {
-                    DiscoveryNode discoveryNode = discoveryNodes.get(shardRouting.currentNodeId());
-                    nodeNames.add(discoveryNode.getName());
+                    nodeNames.add(discoveryNodes.get(shardRouting.currentNodeId()).getName());
                 }
             }
             return nodeNames;
         }
         return Collections.emptySet();
+    }
+
+    /**
+     * Returns the names of the nodes that have at least one shard of the given index.
+     */
+    public synchronized Set<String> nodesInclude(String index) {
+        return nodesInclude(clusterService().state(), index);
+    }
+
+    /**
+     * Blocks until the set of nodes that have at least one shard of the given index matches the given predicate.
+     */
+    public void awaitNodesInclude(String index, Predicate<Set<String>> nodeNamesPredicate) {
+        safeAwait(
+            ClusterServiceUtils.addTemporaryStateListener(
+                clusterService(),
+                clusterState -> nodeNamesPredicate.test(nodesInclude(clusterState, index))
+            )
+        );
     }
 
     /**

@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.arrow.ArrowToEsql;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -142,6 +143,18 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
             return this;
         }
         return new ParquetRsFormatReader(blockFactory, pushedExpressions, serializeConfig(config));
+    }
+
+    @Override
+    public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+        // ParquetRs forwards the entire config map to the native side as JSON, so every input
+        // key is "claimed" from the validator's perspective. Treating an unknown key as recognised
+        // here matches the historical permissive behaviour; tightening validation belongs in a
+        // dedicated parquet-rs change once the native side exposes a RECOGNIZED_KEYS set.
+        if (config == null || config.isEmpty()) {
+            return Configured.empty(this);
+        }
+        return new Configured<>(withConfig(config), config.keySet());
     }
 
     /**

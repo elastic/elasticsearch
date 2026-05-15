@@ -1,0 +1,5 @@
+pr: 148754
+summary: Fix UOE in CanMatch empty-shards skipped-by-cluster map
+area: Search
+type: bug
+issues: []

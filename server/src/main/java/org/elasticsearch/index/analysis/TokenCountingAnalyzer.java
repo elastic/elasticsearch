@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.search.suggest.document.CompletionTokenStream;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -66,6 +67,12 @@ public final class TokenCountingAnalyzer extends AnalyzerWrapper {
 
     @Override
     protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
+        // CompletionTokenStream is a special token stream used by Lucene's suggest/completion fields.
+        // Wrapping it with a TokenFilter would break the suggest indexing pipeline, so we skip counting
+        // for completion fields.
+        if (components.getTokenStream() instanceof CompletionTokenStream) {
+            return components;
+        }
         return new TokenStreamComponents(components.getSource(), new TokenCountingTokenFilter(components.getTokenStream()));
     }
 

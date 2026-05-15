@@ -121,6 +121,26 @@ The connector service has the following known issues:
     As a result, true document volume will be under-reported by a factor of 1024.
 
 
+* **DLS queries fail to match documents for content indices created on 9.0+**
+
+    The DLS query template stored in access control documents (`.search-acl-filter-*` indices) references the sub-field `_allow_access_control.enum`. This sub-field was created by a custom dynamic mapping template that was [removed in connectors v9.0.0](https://github.com/elastic/connectors/pull/3013). Under Elasticsearch's default dynamic mapping, the correct sub-field is `_allow_access_control.keyword`. As a result, DLS-protected documents are silently filtered out — users see no results for documents that have access control set.
+
+    **Affected versions**: 9.0.0+, for any content index created after upgrading. Indices created before 9.0 are not affected because the old mapping is preserved.
+
+    **Workaround**: After fetching the DLS query from the access control document, replace `_allow_access_control.enum` with `_allow_access_control.keyword` before using it in an API key role descriptor.
+
+    **Fix**: Tracked in [elastic/connectors#4005](https://github.com/elastic/connectors/issues/4005). After the fix is deployed, re-run an **access control sync** so the corrected query template is written to the `.search-acl-filter-*` documents.
+
+
+* **Generic database connectors fail to sync with `ModuleNotFoundError: No module named 'pkg_resources'`**
+
+    The pinned `python-tds` 1.12.0 dependency, loaded transitively by the generic database connectors through `sqlalchemy_pytds`, imports `pkg_resources` at module load time. Starting in 9.3.0, the official `elastic-connectors` Docker image no longer ships `setuptools` in the connector service's Python environment, and therefore does not provide `pkg_resources`. As a result, the connectors fail with `ModuleNotFoundError: No module named 'pkg_resources'` when attempting to connect to the data source, and syncs cannot start.
+
+    **Affected versions**: `docker.elastic.co/integrations/elastic-connectors` images 9.3.0 and later. Earlier versions are not affected because their image still ships `setuptools`. Self-managed deployments that install `setuptools` into their Python environment are also unaffected.
+
+    **Fix**: Tracked in [elastic/connectors#4014](https://github.com/elastic/connectors/issues/4014). The fix is to bump `python-tds` to `>=1.15.0`, where the `pkg_resources` import was removed.
+
+
 ## Individual connector known issues [es-connectors-known-issues-specific]
 
 Individual connectors may have additional known issues. Refer to [each connector’s reference documentation](/reference/search-connectors/index.md) for connector-specific known issues.

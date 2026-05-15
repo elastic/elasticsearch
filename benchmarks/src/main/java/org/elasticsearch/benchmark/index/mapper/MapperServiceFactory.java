@@ -26,7 +26,6 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -75,7 +74,7 @@ public class MapperServiceFactory {
             () -> {
                 throw new UnsupportedOperationException();
             },
-            new ProvidedIdFieldMapper(() -> true),
+            () -> true,
             new ScriptCompiler() {
                 @Override
                 public <T> T compile(Script script, ScriptContext<T> scriptContext) {

@@ -1,0 +1,25 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "time",
+  "name" : "day_of_month",
+  "description" : "returns the day of the month for each of those timestamps (in UTC). Returned values are from 1 to 31.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "v",
+          "type" : "instant_vector",
+          "optional" : true,
+          "description" : "Optional instant vector input. If omitted, evaluation timestamp is used."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "day_of_month()"
+  ],
+  "preview" : true,
+  "snapshot_only" : false
+}

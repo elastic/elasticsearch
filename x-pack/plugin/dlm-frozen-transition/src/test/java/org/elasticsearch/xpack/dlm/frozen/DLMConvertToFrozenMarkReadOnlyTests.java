@@ -13,6 +13,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
 import org.elasticsearch.cluster.ClusterName;
@@ -36,6 +38,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -67,6 +70,9 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
     private AtomicReference<AddIndexBlockRequest> capturedRequest;
     private AtomicReference<AddIndexBlockResponse> mockResponse;
     private AtomicReference<Exception> mockFailure;
+    private AtomicReference<ClusterHealthRequest> capturedHealthRequest;
+    private AtomicReference<ClusterHealthResponse> mockHealthResponse;
+    private AtomicReference<Exception> mockHealthFailure;
 
     @Before
     public void setup() {
@@ -82,6 +88,9 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         capturedRequest = new AtomicReference<>();
         mockResponse = new AtomicReference<>();
         mockFailure = new AtomicReference<>();
+        capturedHealthRequest = new AtomicReference<>();
+        mockHealthResponse = new AtomicReference<>(new ClusterHealthResponse()); // default: non-timed-out
+        mockHealthFailure = new AtomicReference<>();
     }
 
     @After
@@ -105,6 +114,13 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
                         listener.onFailure(mockFailure.get());
                     } else if (mockResponse.get() != null) {
                         listener.onResponse((Response) mockResponse.get());
+                    }
+                } else if (request instanceof ClusterHealthRequest healthRequest) {
+                    capturedHealthRequest.set(healthRequest);
+                    if (mockHealthFailure.get() != null) {
+                        listener.onFailure(mockHealthFailure.get());
+                    } else if (mockHealthResponse.get() != null) {
+                        listener.onResponse((Response) mockHealthResponse.get());
                     }
                 }
             }
@@ -143,7 +159,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
         converter.maybeMarkIndexReadOnly();
@@ -161,7 +177,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
         // Acknowledged response - should not throw
@@ -182,7 +198,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
 
@@ -200,7 +216,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
 
@@ -225,7 +241,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
 
@@ -242,7 +258,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
 
@@ -283,7 +299,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
         converter.maybeMarkIndexReadOnly();
@@ -319,7 +335,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
 
@@ -342,7 +358,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
 
@@ -359,7 +375,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
         converter.maybeMarkIndexReadOnly();
@@ -379,7 +395,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
 
@@ -396,11 +412,28 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
 
         DLMUnrecoverableException exception = expectThrows(DLMUnrecoverableException.class, converter::checkIfEligibleForConvertToFrozen);
+        assertThat(exception.getMessage(), containsString(repoName));
+    }
+
+    public void testIsEligibleThrowsWhenRepositoryIsReadOnly() {
+        String repoName = "my-repo";
+        createProjectStateWithRepo(repoName, Settings.builder().put(BlobStoreRepository.READONLY_SETTING_KEY, true).build());
+
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
+            indexName,
+            projectId,
+            createMockClient(),
+            clusterService,
+            () -> licenseState,
+            Clock.systemUTC()
+        );
+
+        ElasticsearchException exception = expectThrows(DLMUnrecoverableException.class, converter::checkIfEligibleForConvertToFrozen);
         assertThat(exception.getMessage(), containsString(repoName));
     }
 
@@ -419,7 +452,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            basicLicenseState,
+            () -> basicLicenseState,
             Clock.systemUTC()
         );
 
@@ -440,7 +473,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             projectId,
             createMockClient(),
             clusterService,
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
 
@@ -448,11 +481,37 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         converter.checkIfEligibleForConvertToFrozen();
     }
 
+    public void testThrowsWhenYellowStatusTimeoutBreached() {
+        createProjectState();
+        ClusterHealthResponse timedOut = new ClusterHealthResponse();
+        timedOut.setTimedOut(true);
+        mockHealthResponse.set(timedOut);
+
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
+            indexName,
+            projectId,
+            createMockClient(),
+            clusterService,
+            () -> licenseState,
+            Clock.systemUTC()
+        );
+
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, converter::maybeMarkIndexReadOnly);
+        assertThat(exception.getMessage(), containsString("timed out"));
+        assertThat(exception.getMessage(), containsString(indexName));
+        // No AddIndexBlockRequest should have been issued since we failed before reaching that step
+        assertThat(capturedRequest.get(), is(nullValue()));
+    }
+
     /**
      * Creates a ProjectState with the target index, a default repository setting on the cluster metadata,
      * and optionally registers a matching repository in the project's RepositoriesMetadata.
      */
     private void createProjectStateWithRepo(String repoName, boolean registerRepo) {
+        createProjectStateWithRepo(repoName, registerRepo ? Settings.EMPTY : null);
+    }
+
+    private void createProjectStateWithRepo(String repoName, Settings repoSettings) {
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
             .put(
                 IndexMetadata.builder(indexName)
@@ -467,8 +526,8 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
                 false
             );
 
-        if (registerRepo) {
-            RepositoryMetadata repo = new RepositoryMetadata(repoName, "fs", Settings.EMPTY);
+        if (repoSettings != null) {
+            RepositoryMetadata repo = new RepositoryMetadata(repoName, "fs", repoSettings);
             projectMetadataBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)));
         }
 

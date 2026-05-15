@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 // begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 $endif$
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -54,6 +55,12 @@ $endif$
     }
 
 $if(BytesRef)$
+    @Override
+    public PagedBytesCursor get(int position, PagedBytesCursor scratch) {
+        scratch.init(value.bytes, value.offset, value.length);
+        return scratch;
+    }
+
 $else$
     @Override
     public void copyTo(int srcPosition, $type$[] dst, int dstPosition, int length) {
@@ -72,6 +79,15 @@ $if(BytesRef)$
         return null;
     }
 $endif$
+
+    @Override
+    public int valueMaxByteSize() {
+$if(BytesRef)$
+        return getPositionCount() == 0 ? 0 : value.length;
+$else$
+        return $BYTES$;
+$endif$
+    }
 
     @Override
     public $Type$Vector filter(boolean mayContainDuplicates, int... positions) {

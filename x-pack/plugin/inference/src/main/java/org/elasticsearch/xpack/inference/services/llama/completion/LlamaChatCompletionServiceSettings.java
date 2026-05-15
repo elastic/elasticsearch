@@ -16,7 +16,6 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.llama.LlamaService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -54,21 +53,31 @@ public class LlamaChatCompletionServiceSettings extends FilteredXContentObject i
      * @throws ValidationException if required fields are missing or invalid
      */
     public static LlamaChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
-        var model = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var uri = extractUri(map, URL, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new LlamaChatCompletionServiceSettings(modelId, uri, rateLimitSettings);
+    }
+
+    @Override
+    public LlamaChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
             validationException,
-            LlamaService.NAME,
-            context
+            ConfigurationParseContext.REQUEST
         );
 
         validationException.throwIfValidationErrorsExist();
 
-        return new LlamaChatCompletionServiceSettings(model, uri, rateLimitSettings);
+        return new LlamaChatCompletionServiceSettings(this.modelId, this.uri, extractedRateLimitSettings);
     }
 
     /**

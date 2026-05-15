@@ -513,7 +513,7 @@ public class BlockTestUtils {
         }
         bytes.appendBytesRef(v);
         int o = dedupe.size();
-        dedupe.put(v, o);
+        dedupe.put(BytesRef.deepCopyOf(v), o);
         return o;
     }
 }

@@ -363,6 +363,8 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
         final BinarizedByteVectorValues quantizedVectorValues;
 
         BinarizedVectorValues(FloatVectorValues rawVectorValues, BinarizedByteVectorValues quantizedVectorValues) {
+            // Its critical that `rawVectorValues` are the filtered format
+            // this aligns with rescore assumptions with HasSlice
             super(rawVectorValues);
             this.quantizedVectorValues = quantizedVectorValues;
         }

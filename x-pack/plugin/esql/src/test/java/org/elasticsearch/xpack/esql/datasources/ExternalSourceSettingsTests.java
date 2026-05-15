@@ -54,6 +54,6 @@ public class ExternalSourceSettingsTests extends ESTestCase {
 
     public void testSettingsListNotEmpty() {
         assertFalse(ExternalSourceSettings.settings().isEmpty());
-        assertEquals(2, ExternalSourceSettings.settings().size());
+        assertEquals(4, ExternalSourceSettings.settings().size());
     }
 }

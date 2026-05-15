@@ -1865,7 +1865,7 @@ public class AnalyzerTests extends ESTestCase {
         // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
         final String supportedTypes =
             "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or date_range or datetime "
-                + "or dense_vector or exponential_histogram or geo_point "
+                + "or dense_vector or exponential_histogram or flattened or geo_point "
                 + "or geo_shape or geohash or geohex or geotile or histogram or ip or numeric or string or version";
         analyzer().error(
             "row period = 1 year | eval to_string(period)",
@@ -3352,7 +3352,7 @@ public class AnalyzerTests extends ESTestCase {
             ),
             List.of()
         );
-        IndexResolution resolution = mergedResolution("foo,bar", caps);
+        IndexResolution resolution = mergedResolution("foo,bar", caps, true);
 
         String query = "FROM foo, bar | INSIST_🐔 message";
         var plan = analyzer().addIndex(resolution).query(query);
@@ -3361,28 +3361,6 @@ public class AnalyzerTests extends ESTestCase {
         var attribute = (FieldAttribute) EsqlTestUtils.singleValue(insist.output());
         assertThat(attribute.name(), is("message"));
         assertThat(attribute.field(), is(new PotentiallyUnmappedKeywordEsField("message")));
-    }
-
-    public void testResolveInsist_multiIndexFieldExistsWithSingleTypeButIsNotKeywordAndMissingCast_createsAnInvalidMappedField() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
-            List.of(
-                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
-                fieldCapabilitiesIndexResponse("bar", Map.of())
-            ),
-            List.of()
-        );
-        IndexResolution resolution = mergedResolution("foo,bar", caps);
-        var plan = analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message");
-        var limit = as(plan, Limit.class);
-        var insist = as(limit.child(), Insist.class);
-        var attribute = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
-        assertThat(attribute.name(), is("message"));
-
-        String expected = "Cannot use field [message] due to ambiguities being mapped as [2] incompatible types: "
-            + "[keyword] due to loading from _source, [long] in [foo]";
-        assertThat(attribute.unresolvedMessage(), is(expected));
     }
 
     public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesNoKeyword_createsAnInvalidMappedField() {
@@ -3396,7 +3374,7 @@ public class AnalyzerTests extends ESTestCase {
             ),
             List.of()
         );
-        IndexResolution resolution = mergedResolution("foo,bar", caps);
+        IndexResolution resolution = mergedResolution("foo,bar", caps, true);
         var plan = analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message");
         var limit = as(plan, Limit.class);
         var insist = as(limit.child(), Insist.class);
@@ -3419,7 +3397,7 @@ public class AnalyzerTests extends ESTestCase {
             ),
             List.of()
         );
-        IndexResolution resolution = mergedResolution("foo,bar", caps);
+        IndexResolution resolution = mergedResolution("foo,bar", caps, true);
         var plan = analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message");
         var limit = as(plan, Limit.class);
         var insist = as(limit.child(), Insist.class);
@@ -3441,6 +3419,7 @@ public class AnalyzerTests extends ESTestCase {
                 "foo",
                 false,
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false),
+                false,
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyzer().addIndex(resolution).query("FROM foo");
@@ -3452,6 +3431,7 @@ public class AnalyzerTests extends ESTestCase {
                 "foo",
                 false,
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false, false),
+                false,
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyzer().addIndex(resolution).query("FROM foo");
@@ -3476,6 +3456,7 @@ public class AnalyzerTests extends ESTestCase {
                 "foo",
                 false,
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false),
+                false,
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyzer().addIndex(resolution).query("FROM foo");
@@ -3490,6 +3471,7 @@ public class AnalyzerTests extends ESTestCase {
                 "foo",
                 false,
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true, false),
+                false,
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyzer().addIndex(resolution).query("FROM foo");
@@ -3508,6 +3490,7 @@ public class AnalyzerTests extends ESTestCase {
             "test",
             false,
             fieldsInfoOnCurrentVersion(caps, false),
+            false,
             (p, r) -> Map.of()
         );
         var plan = analyzer().addIndex(resolution).query("FROM test | KEEP status");
@@ -3527,6 +3510,7 @@ public class AnalyzerTests extends ESTestCase {
             "test",
             false,
             fieldsInfoOnCurrentVersion(caps, true),
+            false,
             (p, r) -> Map.of()
         );
         assertThat(resolution.get().mapping().get("status"), instanceOf(InvalidMappedField.class));
@@ -3545,6 +3529,7 @@ public class AnalyzerTests extends ESTestCase {
             "test",
             false,
             fieldsInfoOnCurrentVersion(caps, false),
+            false,
             (p, r) -> Map.of()
         );
         var plan = analyzer().addIndex(resolution).query("TS test | KEEP status");
@@ -3558,11 +3543,14 @@ public class AnalyzerTests extends ESTestCase {
      * just like TS + STATS.
      */
     public void testPromqlQueryWithConflictingTsTypesMarksFieldUnsupported() {
+        assumeTrue("Requires PROMQL", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
+
         FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
         IndexResolution resolution = IndexResolver.mergedMappings(
             "test",
             false,
             fieldsInfoOnCurrentVersion(caps, true),
+            false,
             (p, r) -> Map.of()
         );
         assertThat(resolution.get().mapping().get("status"), instanceOf(InvalidMappedField.class));
@@ -3903,6 +3891,7 @@ public class AnalyzerTests extends ESTestCase {
                     List.of()
                 )
             ),
+            false,
             IndexResolver.DO_NOT_GROUP
         );
 
@@ -4105,7 +4094,29 @@ public class AnalyzerTests extends ESTestCase {
             """
                 FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe")""",
             ParsingException.class,
-            containsString("error building [text_embedding]: expects exactly two arguments")
+            containsString("error building [text_embedding]: expects two or three arguments")
+        );
+    }
+
+    public void testTextEmbeddingFunctionInvalidOptions() {
+        books().error(
+            String.format(
+                Locale.ROOT,
+                """
+                    FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s", {"invalid": "value"})""",
+                TEXT_EMBEDDING_INFERENCE_ID
+            ),
+            containsString("Invalid option [invalid]")
+        );
+
+        books().error(
+            String.format(
+                Locale.ROOT,
+                """
+                    FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s", {"timeout": "a long one"})""",
+                TEXT_EMBEDDING_INFERENCE_ID
+            ),
+            containsString("failed to parse setting [timeout]")
         );
     }
 
@@ -4684,7 +4695,6 @@ public class AnalyzerTests extends ESTestCase {
             Map.of("id", idField, "foo", fooField), // Updated mapping keys
             Map.of("union_index_1", IndexMode.STANDARD, "union_index_2", IndexMode.STANDARD),
             Map.of(),
-            Map.of(),
             Map.of()
         );
         IndexResolution resolution = IndexResolution.valid(index);
@@ -4726,7 +4736,6 @@ public class AnalyzerTests extends ESTestCase {
             "union_index*",
             Map.of("id", idField),
             Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
-            Map.of(),
             Map.of(),
             Map.of()
         );
@@ -4999,7 +5008,6 @@ public class AnalyzerTests extends ESTestCase {
             "k8s,k8s-downsampled",
             mapping,
             Map.of("k8s", IndexMode.TIME_SERIES, "k8s-downsampled", IndexMode.TIME_SERIES),
-            Map.of(),
             Map.of(),
             Map.of()
         );

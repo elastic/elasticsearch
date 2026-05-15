@@ -25,10 +25,13 @@ public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatV
 
     /**
      * Retrieves the float value stored at the given value index.
-     *
-     * <p> Values for a given position are between getFirstValueIndex(position) (inclusive) and
-     * getFirstValueIndex(position) + getValueCount(position) (exclusive).
-     *
+     * <p>
+     *    The {@code valueIndex} for a position is between.
+     * </p>
+     * {@snippet :
+     *    int start = getFirstValueIndex(position);  // @highlight
+     *    int end = start + getValueCount(position);  // @highlight
+     * }
      * @param valueIndex the value index
      * @return the data value (as a float)
      */
@@ -120,6 +123,12 @@ public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatV
 
     @Override
     FloatBlock expand();
+
+    /**
+     * The maximum size in bytes of any single value stored in this block, or {@code 0} if there are no values.
+     * Always {@code Float.BYTES} since all float values encode to the same number of bytes.
+     */
+    int valueMaxByteSize();
 
     static FloatBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();

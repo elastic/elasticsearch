@@ -48,10 +48,82 @@ dependencies {
   clusterPlugins project(xpackModule('esql-datasource-azure'))
 }
 
-// The CSV fixtures (employees.csv and csv-basic.csv-spec) are included
-// directly in this module's javaRestTest/resources directory
+// Standalone CSVs under iceberg-fixtures/ are copied from esql:qa:testFixtures (single source of truth).
+def testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
+def serverProject = project(xpackModule('esql:qa:server'))
+def csvIcebergFixtureRoot = file("${buildDir}/csv-iceberg-fixtures")
+def tsvFixtureOutputRoot = file("${buildDir}/generated-tsv-fixtures")
+
+tasks.register('syncCsvIcebergFixtures', Sync) {
+  dependsOn testFixturesProject.tasks.named('processResources')
+  duplicatesStrategy = DuplicatesStrategy.FAIL
+  from(testFixturesProject.file('src/main/resources/data')) {
+    include 'employees.csv', 'web_logs.csv', 'books.csv'
+  }
+  into file("${csvIcebergFixtureRoot}/iceberg-fixtures/standalone")
+}
+
+// Two-file headerless fixture set with anchor-vs-other type-drift on col1. Used by the
+// csv-headerless.csv-spec multi-file glob test to prove the anchor schema is honored end-to-end.
+tasks.register('syncCsvIcebergMultifileFixtures', Sync) {
+  dependsOn testFixturesProject.tasks.named('processResources')
+  duplicatesStrategy = DuplicatesStrategy.FAIL
+  from(testFixturesProject.file('src/main/resources/data')) {
+    include 'multifile_a_anchor.csv', 'multifile_b_other.csv'
+  }
+  into file("${csvIcebergFixtureRoot}/iceberg-fixtures/multifile")
+}
+
+// UNION_BY_NAME fixture set with divergent schemas across files: a has [name, age:int],
+// b has [age:long, name, city]. Used by csv-headerless.csv-spec to prove the UBN recipe
+// (reorder + null-fill + widening cast) works end-to-end across the full pipeline.
+tasks.register('syncCsvIcebergMultifileUbnFixtures', Sync) {
+  dependsOn testFixturesProject.tasks.named('processResources')
+  duplicatesStrategy = DuplicatesStrategy.FAIL
+  from(testFixturesProject.file('src/main/resources/data')) {
+    include 'multifile_ubn_a.csv', 'multifile_ubn_b.csv'
+  }
+  into file("${csvIcebergFixtureRoot}/iceberg-fixtures/multifile_ubn")
+}
+
+// Same basenames as syncCsvIcebergFixtures — external-basic.csv-spec uses {{employees}}, {{web_logs}}, {{books}}.
+def csvBasenamesForTsv = ['employees', 'web_logs', 'books']
+
+def generateStandaloneTsvTasks = []
+csvBasenamesForTsv.each { baseName ->
+  def taskName = "generateStandaloneTsv_${baseName}"
+  def csvSynced = file("${csvIcebergFixtureRoot}/iceberg-fixtures/standalone/${baseName}.csv")
+  def tsvOut = file("${tsvFixtureOutputRoot}/iceberg-fixtures/standalone/${baseName}.tsv")
+  tasks.register(taskName, JavaExec) {
+    dependsOn tasks.named('syncCsvIcebergFixtures'), serverProject.tasks.named('compileTsvFixtureGeneratorJava')
+    classpath = serverProject.configurations.tsvFixtureGenerator + serverProject.sourceSets.tsvFixtureGenerator.output
+    mainClass = 'org.elasticsearch.xpack.esql.datasources.TsvFixtureGenerator'
+    args = [csvSynced.path, tsvOut.path]
+    inputs.file(csvSynced)
+    outputs.file(tsvOut)
+  }
+  generateStandaloneTsvTasks.add(tasks.named(taskName))
+}
+
+tasks.register('generateStandaloneTsvFixtures') {
+  dependsOn generateStandaloneTsvTasks
+}
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.tsv'
+}
+
+sourceSets.javaRestTest.resources {
+  srcDir csvIcebergFixtureRoot
+  srcDir tsvFixtureOutputRoot
+}
+
+tasks.named('processJavaRestTestResources').configure {
+  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'syncCsvIcebergMultifileUbnFixtures', 'generateStandaloneTsvFixtures'
+}
 
 tasks.named('javaRestTest') {
+  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'syncCsvIcebergMultifileUbnFixtures', 'generateStandaloneTsvFixtures'
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
   enabled = buildParams.snapshotBuild

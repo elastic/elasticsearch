@@ -19,7 +19,6 @@ import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDeta
 import com.microsoft.windowsazure.management.configuration.ManagementConfiguration;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.azure.classic.AzureServiceRemoteException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -89,7 +88,6 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent implemen
 
     @Override
     public HostedServiceGetDetailedResponse getServiceDetails() {
-        SpecialPermission.check();
         try {
             return client.getHostedServicesOperations().getDetailed(serviceName);
         } catch (Exception e) {

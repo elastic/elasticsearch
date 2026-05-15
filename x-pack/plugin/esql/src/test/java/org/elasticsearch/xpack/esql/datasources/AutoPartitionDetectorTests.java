@@ -33,7 +33,7 @@ public class AutoPartitionDetectorTests extends ESTestCase {
     }
 
     public void testBarePathsWithTemplateConfig() {
-        PartitionConfig config = new PartitionConfig(PartitionConfig.AUTO, "{year}/{month}");
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.AUTO, "{year}/{month}");
         PartitionDetector detector = AutoPartitionDetector.fromConfig(config);
 
         List<StorageEntry> files = List.of(
@@ -61,7 +61,7 @@ public class AutoPartitionDetectorTests extends ESTestCase {
     }
 
     public void testHivePathsWithTemplateStrategyUsesTemplate() {
-        PartitionConfig config = new PartitionConfig(PartitionConfig.TEMPLATE, "{year}");
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}");
         PartitionDetector detector = new TemplatePartitionDetector("{year}");
 
         List<StorageEntry> files = List.of(
@@ -76,7 +76,7 @@ public class AutoPartitionDetectorTests extends ESTestCase {
     }
 
     public void testNoneStrategyReturnsEmpty() {
-        PartitionConfig config = new PartitionConfig(PartitionConfig.NONE, null);
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.NONE, null);
         PartitionDetector detector = GlobExpander.resolveDetector(config);
 
         assertNull(detector);
@@ -93,7 +93,7 @@ public class AutoPartitionDetectorTests extends ESTestCase {
     }
 
     public void testHiveDetectedBeforeTemplate() {
-        PartitionConfig config = new PartitionConfig(PartitionConfig.AUTO, "{col}");
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.AUTO, "{col}");
         PartitionDetector detector = AutoPartitionDetector.fromConfig(config);
 
         List<StorageEntry> files = List.of(

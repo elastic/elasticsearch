@@ -17,12 +17,15 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -40,9 +43,9 @@ import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -147,7 +150,7 @@ public class JobDataDeleter {
     private static BulkByScrollResponse emptyBulkByScrollResponse() {
         return new BulkByScrollResponse(
             TimeValue.ZERO,
-            new BulkByScrollTask.Status(Collections.emptyList(), null),
+            new BulkByPaginatedSearchTask.Status(Collections.emptyList(), null, 0f),
             Collections.emptyList(),
             Collections.emptyList(),
             false
@@ -205,7 +208,7 @@ public class JobDataDeleter {
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRefresh(true)
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
 
         // _doc is the most efficient sort order and will also disable scoring
         dbqRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
@@ -275,7 +278,7 @@ public class JobDataDeleter {
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRefresh(true)
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
 
         // _doc is the most efficient sort order and will also disable scoring
         dbqRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
@@ -298,7 +301,7 @@ public class JobDataDeleter {
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRefresh(false)
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
 
         // _doc is the most efficient sort order and will also disable scoring
         dbqRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
@@ -311,7 +314,10 @@ public class JobDataDeleter {
     }
 
     /**
-     * Delete the datafeed timing stats document from all the job results indices
+     * Delete the datafeed timing stats document from the job results index.
+     * Uses a direct delete-by-ID rather than delete-by-query to avoid the two-phase
+     * search-then-delete race where an un-refreshed document can be missed by the
+     * search phase.
      *
      * @param listener Response listener
      */
@@ -323,14 +329,17 @@ public class JobDataDeleter {
             () -> listener.onResponse(emptyBulkByScrollResponse())
         );
         if (indicesToQuery.length == 0) return;
-        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(indicesToQuery).setRefresh(true)
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-            .setQuery(QueryBuilders.idsQuery().addIds(DatafeedTimingStats.documentId(jobId)));
 
-        // _doc is the most efficient sort order and will also disable scoring
-        deleteByQueryRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
+        DeleteRequest deleteRequest = new DeleteRequest(indicesToQuery[0], DatafeedTimingStats.documentId(jobId));
+        deleteRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener);
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            TransportDeleteAction.TYPE,
+            deleteRequest,
+            listener.delegateFailureAndWrap((l, deleteResponse) -> l.onResponse(emptyBulkByScrollResponse()))
+        );
     }
 
     /**
@@ -520,7 +529,7 @@ public class JobDataDeleter {
             if (indicesToQuery.length == 0) return;
             DeleteByQueryRequest request = new DeleteByQueryRequest(indicesToQuery).setQuery(query)
                 .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpenHidden()))
-                .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
+                .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES)
                 .setAbortOnVersionConflict(false)
                 .setRefresh(true);
 

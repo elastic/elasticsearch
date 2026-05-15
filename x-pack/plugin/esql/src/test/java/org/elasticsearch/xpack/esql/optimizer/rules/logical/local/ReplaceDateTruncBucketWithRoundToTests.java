@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.TestOptimizer;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -78,7 +79,7 @@ public class ReplaceDateTruncBucketWithRoundToTests extends AbstractLocalLogical
     );
 
     // The date range of SearchStats is from 2023-10-20 to 2023-10-23.
-    private static final SearchStats searchStats = searchStats();
+    private static final SearchStats searchStats = searchStats("hire_date", 1697804103360L, 1698069301543L);
 
     public void testSubstituteDateTruncInEvalWithRoundTo() {
         for (Map.Entry<String, Integer> predicate : predicatesWithDateTruncBucket.entrySet()) {
@@ -243,21 +244,28 @@ public class ReplaceDateTruncBucketWithRoundToTests extends AbstractLocalLogical
     }
 
     private void verifySubstitution(Alias a, int roundToPointsSize) {
-        FieldAttribute fa = null;
         Expression e = a.child();
         if (roundToPointsSize > 0) {
             RoundTo roundTo = as(e, RoundTo.class);
-            fa = as(roundTo.field(), FieldAttribute.class);
+            FieldAttribute fa = as(roundTo.field(), FieldAttribute.class);
             assertEquals(roundToPointsSize, roundTo.points().size());
+            assertEquals("hire_date", fa.name());
+            assertEquals(DATETIME, fa.dataType());
         } else if (roundToPointsSize == 0) {
+            // Predicates exclude all rounding points so DateTrunc/Bucket was kept as-is
+            FieldAttribute fa;
             if (e instanceof DateTrunc dateTrunc) {
                 fa = as(dateTrunc.field(), FieldAttribute.class);
             } else if (e instanceof Bucket bucket) {
                 fa = as(bucket.field(), FieldAttribute.class);
             } else {
                 fail(e.getClass() + " is not supported");
+                return;
             }
+            assertEquals("hire_date", fa.name());
+            assertEquals(DATETIME, fa.dataType());
         } else {
+            // DateTrunc/Bucket applied to a non-field expression so substitution was not possible
             if (e instanceof DateTrunc dateTrunc) {
                 assertTrue(dateTrunc.field() instanceof ReferenceAttribute);
             } else if (e instanceof Bucket bucket) {
@@ -266,16 +274,36 @@ public class ReplaceDateTruncBucketWithRoundToTests extends AbstractLocalLogical
                 fail(e.getClass() + " is not supported");
             }
         }
-        if (roundToPointsSize >= 0) {
-            assertEquals("hire_date", fa.name());
-            assertEquals(DATETIME, fa.dataType());
-        }
     }
 
-    private static SearchStats searchStats() {
-        // create a SearchStats with min and max millis
-        Map<String, Object> minValue = Map.of("hire_date", 1697804103360L); // 2023-10-20T12:15:03.360Z
-        Map<String, Object> maxValue = Map.of("hire_date", 1698069301543L); // 2023-10-23T13:55:01.543Z
-        return new EsqlTestUtils.TestSearchStatsWithMinMax(minValue, maxValue);
+    private static SearchStats searchStats(String field, long min, long max) {
+        return new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of(field, min), Map.of(field, max));
+    }
+
+    /**
+     * TStep (upper-bound) buckets are NOT substituted with a {@link RoundTo}: ceiling lookup needs a
+     * specialized RoundTo path that does not exist yet, so the rule keeps the {@link Bucket} so the
+     * eval path uses the wrapped {@code Rounding.Prepared} directly.
+     */
+    public void testRightClosedBucketIsNotSubstituted() {
+        String query = """
+            FROM sample_data
+            | WHERE @timestamp >= "2023-10-23T12:00:00Z" AND @timestamp <= "2023-10-23T14:00:00Z"
+            | STATS count(*) BY x = TSTEP(10 minutes, "2023-10-23T12:15:00Z", "2023-10-23T14:00:00Z")
+            """;
+        TestOptimizer analyzer = EsqlTestUtils.optimizer().addSampleData();
+        SearchStats stats = searchStats("@timestamp", 1698063303360L, 1698069301543L);
+        LogicalPlan localPlan = localPlan(analyzer.coordinatorPlan(query), TEST_CFG, stats);
+        Limit limit = as(localPlan, Limit.class);
+        Aggregate aggregate = as(limit.child(), Aggregate.class);
+        Eval eval = as(aggregate.child(), Eval.class);
+        List<Alias> fields = eval.fields();
+        assertEquals(1, fields.size());
+        Alias a = fields.get(0);
+        assertEquals("x", a.name());
+        Bucket bucket = as(a.child(), Bucket.class);
+        FieldAttribute fa = as(bucket.field(), FieldAttribute.class);
+        assertEquals("@timestamp", fa.name());
+        assertEquals(DATETIME, fa.dataType());
     }
 }

@@ -2091,6 +2091,10 @@ setup:
   - skip:
       features: headers
 
+  - requires:
+      cluster_features: [ "data_stream.mappings_api" ]
+      reason: test uses data_stream mappings api
+
   - do:
       indices.put_index_template:
         name: test

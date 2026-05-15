@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -53,6 +54,7 @@ import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.transform.TransformExtensionHolder;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
@@ -64,6 +66,7 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -82,6 +85,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
     private final Settings nodeSettings;
     private final SourceDestValidator sourceDestValidator;
     private final Settings destIndexSettings;
+    private final BooleanSupplier hasLinkedProjects;
 
     @Inject
     public TransportPreviewTransformAction(
@@ -93,7 +97,9 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         ClusterService clusterService,
         Settings settings,
         IngestService ingestService,
-        TransformExtensionHolder transformExtensionHolder
+        TransformExtensionHolder transformExtensionHolder,
+        TransformServices transformServices,
+        ProjectResolver projectResolver
     ) {
         super(PreviewTransformAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
@@ -117,6 +123,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             License.OperationMode.BASIC.description()
         );
         this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
+        this.hasLinkedProjects = () -> transformServices.hasLinkedProjects().apply(projectResolver.getProjectId());
     }
 
     @Override
@@ -192,6 +199,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                 // We don't want to check privileges for a dummy (placeholder) index and the placeholder is inserted as config.dest.index
                 // early in the REST action so the only possibility we have here is string comparison.
                 DUMMY_DEST_INDEX_FOR_PREVIEW.equals(config.getDestination().getIndex()) == false,
+                hasLinkedProjects.getAsBoolean(),
                 checkPrivilegesListener
             );
         } else { // No security enabled, just move on

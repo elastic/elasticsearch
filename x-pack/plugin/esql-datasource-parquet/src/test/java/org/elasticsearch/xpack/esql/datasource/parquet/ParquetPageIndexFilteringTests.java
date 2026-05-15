@@ -22,18 +22,28 @@ import org.apache.parquet.schema.Types;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT32;
@@ -112,6 +122,156 @@ public class ParquetPageIndexFilteringTests extends ESTestCase {
         );
     }
 
+    /**
+     * Optimized reader with PushedExpressions (our RowRanges path): an equality filter on sorted
+     * data should skip pages AND return the same data as the baseline reader.
+     */
+    public void testOptimizedReaderPageSkippingWithPushedExpressions() throws IOException {
+        byte[] parquetData = createSortedParquetFile();
+
+        Expression esqlFilter = new Equals(
+            Source.EMPTY,
+            new ReferenceAttribute(Source.EMPTY, "id", DataType.INTEGER),
+            new Literal(Source.EMPTY, 500, DataType.INTEGER),
+            null
+        );
+        FilterPredicate parquetFilter = FilterApi.eq(FilterApi.intColumn("id"), 500);
+
+        List<Integer> baselineIds = readIdsWithBaselineFilter(parquetData, parquetFilter);
+        List<Integer> optimizedIds = readIdsWithPushedExpressions(parquetData, esqlFilter);
+
+        assertTrue("Expected some rows from evaluating id == 500", optimizedIds.size() > 0);
+        assertTrue(
+            "Expected RowRanges + late-mat to skip most rows (got " + optimizedIds.size() + " of " + TOTAL_ROWS + ")",
+            optimizedIds.size() < TOTAL_ROWS / 2
+        );
+        // Late-mat evaluates the pushed expression exactly, producing precise results that are
+        // a subset of the baseline's page-level approximate filtering.
+        assertTrue("Optimized result must be a subset of baseline", baselineIds.containsAll(optimizedIds));
+        assertTrue("Optimized result must contain the exact match id=500", optimizedIds.contains(500));
+    }
+
+    /**
+     * Optimized reader with PushedExpressions (our RowRanges path): a range filter on sorted
+     * data should return the same data as the baseline reader.
+     */
+    public void testOptimizedReaderRangeFilterWithPushedExpressions() throws IOException {
+        byte[] parquetData = createSortedParquetFile();
+
+        Expression esqlFilter = new org.elasticsearch.xpack.esql.expression.predicate.logical.And(
+            Source.EMPTY,
+            new GreaterThanOrEqual(
+                Source.EMPTY,
+                new ReferenceAttribute(Source.EMPTY, "id", DataType.INTEGER),
+                new Literal(Source.EMPTY, 100, DataType.INTEGER),
+                null
+            ),
+            new LessThan(
+                Source.EMPTY,
+                new ReferenceAttribute(Source.EMPTY, "id", DataType.INTEGER),
+                new Literal(Source.EMPTY, 200, DataType.INTEGER),
+                null
+            )
+        );
+        FilterPredicate parquetFilter = FilterApi.and(
+            FilterApi.gtEq(FilterApi.intColumn("id"), 100),
+            FilterApi.lt(FilterApi.intColumn("id"), 200)
+        );
+
+        List<Integer> baselineIds = readIdsWithBaselineFilter(parquetData, parquetFilter);
+        List<Integer> optimizedIds = readIdsWithPushedExpressions(parquetData, esqlFilter);
+
+        assertTrue("Expected rows in the [100, 200) range", optimizedIds.size() > 0);
+        assertTrue(
+            "Expected RowRanges to skip most pages (got " + optimizedIds.size() + " of " + TOTAL_ROWS + ")",
+            optimizedIds.size() < TOTAL_ROWS / 2
+        );
+        assertTrue(
+            "Optimized result must be a superset of baseline (baseline size=" + baselineIds.size() + ")",
+            optimizedIds.containsAll(baselineIds)
+        );
+    }
+
+    /**
+     * Multiple row groups with PushedExpressions: tests row-group skip + page-level filter,
+     * and verifies data parity against the baseline reader.
+     */
+    public void testMultiRowGroupWithRowGroupSkipAndPageFiltering() throws IOException {
+        byte[] parquetData = createMultiRowGroupFile();
+
+        Expression esqlFilter = new Equals(
+            Source.EMPTY,
+            new ReferenceAttribute(Source.EMPTY, "id", DataType.INTEGER),
+            new Literal(Source.EMPTY, 1500, DataType.INTEGER),
+            null
+        );
+        FilterPredicate parquetFilter = FilterApi.eq(FilterApi.intColumn("id"), 1500);
+
+        List<Integer> baselineIds = readIdsWithBaselineFilter(parquetData, parquetFilter);
+        List<Integer> optimizedIds = readIdsWithPushedExpressions(parquetData, esqlFilter);
+
+        assertTrue("Expected id=1500 from evaluating the filter", optimizedIds.contains(1500));
+        assertTrue(
+            "Row group + page filtering + late-mat must skip most rows (got " + optimizedIds.size() + " of 2000)",
+            optimizedIds.size() < 2000 / 4
+        );
+        assertTrue("Optimized result (exact) must be a subset of baseline (page-level approximate)", baselineIds.containsAll(optimizedIds));
+    }
+
+    /**
+     * The baseline path does page-level filtering (page-aligned superset). The optimized path
+     * now also evaluates the pushed expression via late-materialization, producing exact results
+     * that are a subset of the baseline's page-aligned output.
+     */
+    public void testOptimizedAndBaselinePagesetsAreIdentical() throws IOException {
+        byte[] parquetData = createSortedParquetFile();
+
+        // eq(id, 500) — sparse match (single matching page)
+        {
+            Expression esqlFilter = new Equals(
+                Source.EMPTY,
+                new ReferenceAttribute(Source.EMPTY, "id", DataType.INTEGER),
+                new Literal(Source.EMPTY, 500, DataType.INTEGER),
+                null
+            );
+            FilterPredicate parquetFilter = FilterApi.eq(FilterApi.intColumn("id"), 500);
+            List<Integer> baselineIds = readIdsWithBaselineFilter(parquetData, parquetFilter);
+            List<Integer> optimizedIds = readIdsWithPushedExpressions(parquetData, esqlFilter);
+            assertTrue("baseline must contain matching id", baselineIds.contains(500));
+            assertTrue("optimized must contain matching id", optimizedIds.contains(500));
+            assertTrue("optimized (exact) must be subset of baseline (page-level)", baselineIds.containsAll(optimizedIds));
+        }
+
+        // [100, 200) — dense match (multiple pages)
+        {
+            Expression esqlFilter = new org.elasticsearch.xpack.esql.expression.predicate.logical.And(
+                Source.EMPTY,
+                new GreaterThanOrEqual(
+                    Source.EMPTY,
+                    new ReferenceAttribute(Source.EMPTY, "id", DataType.INTEGER),
+                    new Literal(Source.EMPTY, 100, DataType.INTEGER),
+                    null
+                ),
+                new LessThan(
+                    Source.EMPTY,
+                    new ReferenceAttribute(Source.EMPTY, "id", DataType.INTEGER),
+                    new Literal(Source.EMPTY, 200, DataType.INTEGER),
+                    null
+                )
+            );
+            FilterPredicate parquetFilter = FilterApi.and(
+                FilterApi.gtEq(FilterApi.intColumn("id"), 100),
+                FilterApi.lt(FilterApi.intColumn("id"), 200)
+            );
+            List<Integer> baselineIds = readIdsWithBaselineFilter(parquetData, parquetFilter);
+            List<Integer> optimizedIds = readIdsWithPushedExpressions(parquetData, esqlFilter);
+            List<Integer> expectedExact = java.util.stream.IntStream.range(100, 200).boxed().toList();
+            assertTrue("baseline must contain all matching ids", baselineIds.containsAll(expectedExact));
+            assertTrue("optimized must contain all matching ids", optimizedIds.containsAll(expectedExact));
+            assertTrue("optimized (exact) must be subset of baseline (page-level)", baselineIds.containsAll(optimizedIds));
+        }
+    }
+
     // --- helpers ---
 
     /**
@@ -125,6 +285,8 @@ public class ParquetPageIndexFilteringTests extends ESTestCase {
 
         try (
             ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new org.apache.parquet.conf.PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
                 .withType(SCHEMA)
                 .withRowGroupSize(10 * 1024 * 1024) // 10 MB — keep everything in one row group
                 .withPageSize(64) // Very small pages to force many pages per row group
@@ -153,6 +315,72 @@ public class ParquetPageIndexFilteringTests extends ESTestCase {
             }
         }
         return totalRows;
+    }
+
+    /**
+     * Reads using the baseline (non-optimized) reader with a FilterCompat filter.
+     * This is the ground truth — parquet-mr handles all filtering.
+     */
+    private List<Integer> readIdsWithBaselineFilter(byte[] parquetData, FilterPredicate filter) throws IOException {
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, false);
+        if (filter != null) {
+            reader = reader.withPushedFilter(FilterCompat.get(filter));
+        }
+        return collectIds(reader, createStorageObject(parquetData));
+    }
+
+    /**
+     * Reads using the optimized reader with PushedExpressions, exercising the full
+     * RowRanges code path (ColumnIndexRowRangesComputer → PageColumnReader page skipping).
+     */
+    private List<Integer> readIdsWithPushedExpressions(byte[] parquetData, Expression filter) throws IOException {
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true);
+        if (filter != null) {
+            reader = reader.withPushedFilter(new ParquetPushedExpressions(List.of(filter)));
+        }
+        return collectIds(reader, createStorageObject(parquetData));
+    }
+
+    private List<Integer> collectIds(ParquetFormatReader reader, StorageObject storageObject) throws IOException {
+        List<Integer> ids = new ArrayList<>();
+        try (CloseableIterator<Page> iter = reader.read(storageObject, FormatReadContext.of(List.of("id"), 1000))) {
+            while (iter.hasNext()) {
+                Page page = iter.next();
+                IntBlock block = page.getBlock(0);
+                for (int pos = 0; pos < block.getPositionCount(); pos++) {
+                    if (block.isNull(pos) == false) {
+                        ids.add(block.getInt(block.getFirstValueIndex(pos)));
+                    }
+                }
+            }
+        }
+        return ids;
+    }
+
+    /**
+     * Creates a file with 2 row groups: first contains ids 0-999, second contains 1000-1999.
+     * Small row group size forces the split; sorted data within each group enables page filtering.
+     */
+    private byte[] createMultiRowGroupFile() throws IOException {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        OutputFile outputFile = createOutputFile(outputStream);
+        SimpleGroupFactory factory = new SimpleGroupFactory(SCHEMA);
+
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new org.apache.parquet.conf.PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(SCHEMA)
+                .withRowGroupSize(4 * 1024)
+                .withPageSize(64)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (int i = 0; i < 2000; i++) {
+                writer.write(factory.newGroup().append("id", i));
+            }
+        }
+        return outputStream.toByteArray();
     }
 
     private StorageObject createStorageObject(byte[] data) {

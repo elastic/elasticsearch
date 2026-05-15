@@ -19,8 +19,7 @@ import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -33,7 +32,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -44,6 +42,7 @@ import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceE
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.huggingface.request.completion.HuggingFaceUnifiedChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankModel;
 import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -55,6 +54,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs.fromRerankRequest;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 
@@ -104,32 +104,6 @@ public class HuggingFaceService extends HuggingFaceBaseService implements Rerank
     }
 
     @Override
-    protected HuggingFaceModel createModel(HuggingFaceModelParameters params) {
-        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, params.inferenceEntityId(), params.taskType(), NAME, params.context())
-            .createFromMaps(
-                params.inferenceEntityId(),
-                params.taskType(),
-                NAME,
-                params.serviceSettings(),
-                params.taskSettings(),
-                params.chunkingSettings(),
-                params.secretSettings(),
-                params.context()
-            );
-    }
-
-    @Override
-    public HuggingFaceModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return retrieveModelCreatorFromMapOrThrow(
-            MODEL_CREATORS,
-            config.getInferenceEntityId(),
-            config.getTaskType(),
-            config.getService(),
-            ConfigurationParseContext.PERSISTENT
-        ).createFromModelConfigurationsAndSecrets(config, secrets);
-    }
-
-    @Override
     public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
         if (model instanceof HuggingFaceEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
@@ -148,6 +122,23 @@ public class HuggingFaceService extends HuggingFaceBaseService implements Rerank
         } else {
             throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
         }
+    }
+
+    @Override
+    protected void doRerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        if (!(model instanceof HuggingFaceRerankModel huggingFaceRerankModel)) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+        var actionCreator = new HuggingFaceActionCreator(getSender(), getServiceComponents());
+
+        var action = huggingFaceRerankModel.accept(actionCreator);
+        action.execute(fromRerankRequest(request), timeout, listener);
+    }
+
+    @Override
+    public boolean supportsNewRerankCodePath() {
+        return true;
     }
 
     @Override

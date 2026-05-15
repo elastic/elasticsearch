@@ -84,7 +84,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
     /**
      * Test that chunked fetch is used when all conditions are met:
      * - fetchPhaseChunked is true
-     * - data node supports CHUNKED_FETCH_PHASE
+     * - data node supports CHUNKED_FETCH_DOC_ID_ORDER
      * - not a CCS query (no cluster alias)
      * - not a scroll or reindex query
      */
@@ -129,8 +129,8 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                             int docId = request.getShardFetchRequest().contextId().equals(ctx1) ? 42 : 43;
 
                             fetchResult.setSearchShardTarget(target);
-                            SearchHits hits = SearchHits.unpooled(
-                                new SearchHit[] { SearchHit.unpooled(docId) },
+                            SearchHits hits = new SearchHits(
+                                new SearchHit[] { new SearchHit(docId) },
                                 new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                 1.0F
                             );
@@ -212,8 +212,8 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                                 : shardTarget2;
                             int docId = request.getShardFetchRequest().contextId().equals(ctx1) ? 42 : 43;
                             fetchResult.setSearchShardTarget(target);
-                            SearchHits hits = SearchHits.unpooled(
-                                new SearchHit[] { SearchHit.unpooled(docId) },
+                            SearchHits hits = new SearchHits(
+                                new SearchHit[] { new SearchHit(docId) },
                                 new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                 1.0F
                             );
@@ -299,8 +299,8 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                         FetchSearchResult fetchResult = new FetchSearchResult();
                         try {
                             fetchResult.setSearchShardTarget(shardTarget1);
-                            SearchHits hits = SearchHits.unpooled(
-                                new SearchHit[] { SearchHit.unpooled(42) },
+                            SearchHits hits = new SearchHits(
+                                new SearchHit[] { new SearchHit(42) },
                                 new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                 1.0F
                             );
@@ -381,8 +381,8 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                         FetchSearchResult fetchResult = new FetchSearchResult();
                         try {
                             fetchResult.setSearchShardTarget(shardTarget1);
-                            SearchHits hits = SearchHits.unpooled(
-                                new SearchHit[] { SearchHit.unpooled(42) },
+                            SearchHits hits = new SearchHits(
+                                new SearchHit[] { new SearchHit(42) },
                                 new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                 1.0F
                             );
@@ -657,7 +657,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
         MockTransportService transportService = MockTransportService.createNewService(
             Settings.EMPTY,
             VersionInformation.CURRENT,
-            TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE,
+            TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_DOC_ID_ORDER,
             threadPool
         );
 
@@ -701,7 +701,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
 
             Transport.Connection delegateConnection = transportService.getConnection(transportService.getLocalNode());
             TransportVersion unsupportedVersion = TransportVersion.fromId(
-                TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE.id() - 1
+                TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_DOC_ID_ORDER.id() - 1
             );
             Transport.Connection oldVersionConnection = withTransportVersion(delegateConnection, unsupportedVersion);
 
@@ -826,8 +826,8 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                     int docId = request.contextId().equals(ctx1) ? 42 : 43;
 
                     fetchResult.setSearchShardTarget(target);
-                    SearchHits hits = SearchHits.unpooled(
-                        new SearchHit[] { SearchHit.unpooled(docId) },
+                    SearchHits hits = new SearchHits(
+                        new SearchHit[] { new SearchHit(docId) },
                         new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                         1.0F
                     );
@@ -915,7 +915,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
     private FetchSearchResult createFetchSearchResult() {
         ShardSearchContextId contextId = new ShardSearchContextId("test", randomLong());
         FetchSearchResult result = new FetchSearchResult(contextId, new SearchShardTarget("node", new ShardId("test", "na", 0), null));
-        result.shardResult(SearchHits.unpooled(new SearchHit[0], null, Float.NaN), null);
+        result.shardResult(SearchHits.empty(null, Float.NaN), null);
         return result;
     }
 

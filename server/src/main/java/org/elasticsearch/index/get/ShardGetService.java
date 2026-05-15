@@ -252,7 +252,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 // see currentSummary above
                 final var docShard = realtime ? indexRouting.updateShard(id, routing) : indexRouting.getShard(id, routing);
                 if (docShard != shardId().getId()) {
-                    throw new StaleRequestException("stale get request for document [{}]", id);
+                    throw new StaleRequestException(shardId(), splitShardCountSummary);
                 } else {
                     return getResult;
                 }

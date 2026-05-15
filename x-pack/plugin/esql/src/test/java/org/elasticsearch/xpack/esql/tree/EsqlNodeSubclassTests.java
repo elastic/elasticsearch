@@ -39,7 +39,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedAttributeTests;
@@ -48,6 +50,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.predicate.fulltext.FullTextPredicate;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunctionDefinitions;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -61,6 +65,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
+import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
@@ -175,7 +180,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     );
 
     // List of classes that are "unresolved" NamedExpression subclasses, therefore not suitable for use with logical/physical plan nodes.
-    private static final List<Class<?>> UNRESOLVED_CLASSES = List.of(
+    private static final List<Class<?>> UNRESOLVED_EXPRESSIONS = List.of(
         UnresolvedAttribute.class,
         UnresolvedException.class,
         UnresolvedFunction.class,
@@ -465,6 +470,12 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == FileList.class) {
             // FileList implementations are package-private; use coordinator sentinel.
             return FileList.UNRESOLVED;
+        } else if (argClass == StoragePath.class) {
+            // StoragePath has no public no-arg ctor and is final; provide a deterministic instance.
+            return StoragePath.of("s3://bucket/" + randomAlphaOfLength(8));
+        } else if (argClass == SchemaReconciliation.FileSchemaInfo.class) {
+            // Record with unmockable list-of-attribute parts; build a trivial instance for tree tests.
+            return new SchemaReconciliation.FileSchemaInfo(List.of(), null, null);
         } else if (argClass == MatchConfig.class) {
             // MatchConfig is final, cannot be mocked
             return new MatchConfig(randomAlphaOfLength(5), randomInt(10), randomFrom(DataType.types()));
@@ -567,6 +578,10 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return Rounding.builder(TimeValue.timeValueHours(1)).build().prepareForUnknown();
         }
 
+        if (argClass == PromqlFunctionDefinition.class) {
+            return PromqlBuiltinFunctionDefinitions.VECTOR;
+        }
+
         try {
             return mock(argClass);
         } catch (MockitoException e) {
@@ -650,8 +665,22 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     }
 
     public static <T extends Node<?>> T makeNode(Class<? extends T> nodeClass) throws Exception {
+        if (nodeClass.equals(UnresolvedPromqlFunction.class)) {
+            /*
+             * Promql's functions turn into WithinSeriesAggregate or AcrossSeriesAggregate or something.
+             * It's like an unresolved expression. Building it from makeNode will make invalid trees.
+             */
+            throw new IllegalArgumentException("can't make an UnresolvedPromqlFunction");
+        }
         if (Modifier.isAbstract(nodeClass.getModifiers())) {
-            nodeClass = randomFrom(innerSubclassesOf(nodeClass));
+            var subclasses = innerSubclassesOf(nodeClass);
+            /*
+             * Promql's functions turn into WithinSeriesAggregate or AcrossSeriesAggregate or something.
+             * It's like an unresolved expression. Building it from makeNode will make invalid trees.
+             */
+            subclasses.remove(UnresolvedPromqlFunction.class);
+            // It *is* safe to build an UnresoledRelation here because it is a leaf node.
+            nodeClass = randomFrom(subclasses);
         }
         Class<?> testSubclassFor = testClassFor(nodeClass);
         if (testSubclassFor != null) {
@@ -760,7 +789,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         if (Modifier.isAbstract(argClass.getModifiers())) {
             while (true) {
                 var candidate = randomFrom(subclassesOf(asNodeSubclass, CLASSNAME_FILTER));
-                if (UNRESOLVED_CLASSES.stream().allMatch(unresolved -> unresolved.isAssignableFrom(candidate) == false)) {
+                if (UNRESOLVED_EXPRESSIONS.stream().allMatch(unresolved -> unresolved.isAssignableFrom(candidate) == false)) {
                     asNodeSubclass = candidate;
                     break;
                 }
@@ -805,7 +834,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         return new EsRelation(
             SourceTests.randomSource(),
             randomIdentifier(),
-            randomFrom(IndexMode.values()),
+            randomFrom(IndexMode.availableModes()),
             randomRemotesWithIndices(),
             randomRemotesWithIndices(),
             randomIndexNameWithModes(),

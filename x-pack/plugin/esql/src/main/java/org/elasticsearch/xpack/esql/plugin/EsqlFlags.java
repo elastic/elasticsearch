@@ -84,6 +84,11 @@ public class EsqlFlags {
         this.roundToPushdownThreshold = settings.get(ESQL_ROUNDTO_PUSHDOWN_THRESHOLD);
     }
 
+    /**
+     * Controls whether {@code WHERE _index LIKE pattern} is consistent with the compute engine
+     * when pushed down to Lucene or uses legacy behavior that was not consistent.
+     * See https://github.com/elastic/elasticsearch/issues/129511.
+     */
     public boolean stringLikeOnIndex() {
         return stringLikeOnIndex;
     }

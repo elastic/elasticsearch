@@ -1,9 +1,13 @@
 ```yaml {applies_to}
-serverless: preview
-stack: preview 9.1.0
+serverless: ga
+stack: preview 9.1-9.4, ga 9.5+
 ```
 
 The `SAMPLE` command samples a fraction of the table rows.
+
+::::{note}
+For automatic sampling with extrapolation and confidence intervals, see [Approximate `STATS` queries](/reference/query-languages/esql/esql-query-approximation.md).
+::::
 
 ## Syntax
 

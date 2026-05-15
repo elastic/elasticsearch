@@ -61,7 +61,7 @@ public class TransportFetchPhaseResponseChunkActionTests extends ESTestCase {
         transportService = MockTransportService.createNewService(
             Settings.EMPTY,
             VersionInformation.CURRENT,
-            TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE,
+            TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_DOC_ID_ORDER,
             threadPool
         );
         transportService.start();
@@ -256,7 +256,10 @@ public class TransportFetchPhaseResponseChunkActionTests extends ESTestCase {
             originalHit.decRef();
         }
 
-        assertThat("breaker bytes should be released when stream is closed", breaker.getUsed(), equalTo(0L));
+        // processChunk.finally (responseStream.decRef) may still be pending on a transport thread
+        // when the test's own stream.decRef runs. assertBusy waits until closeInternal fires
+        // (observable via breaker bytes = 0) before returning, preventing tearDown from racing it.
+        assertBusy(() -> assertThat("breaker bytes should be released when stream is closed", breaker.getUsed(), equalTo(0L)));
     }
 
     private SearchHit createHit(int id) {
@@ -278,8 +281,9 @@ public class TransportFetchPhaseResponseChunkActionTests extends ESTestCase {
 
     private BytesReference serializeHits(SearchHit... hits) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            for (SearchHit hit : hits) {
-                hit.writeTo(out);
+            for (int i = 0; i < hits.length; i++) {
+                out.writeVInt(i);
+                hits[i].writeTo(out);
             }
             return out.bytes();
         }

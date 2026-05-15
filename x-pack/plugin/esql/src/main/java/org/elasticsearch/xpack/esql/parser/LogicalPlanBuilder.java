@@ -15,6 +15,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -116,18 +118,22 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.BUCKETS;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEFAULT_PROMQL_BUCKETS;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEFAULT_PROMQL_INDEX_PATTERN;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.END;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.INDEX;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.PROMQL_ALLOWED_PARAMS;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.SCRAPE_INTERVAL;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.START;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.STEP;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.TIME;
 
 /**
  * Translates what we get back from Antlr into the data structures the rest of the planner steps will act on.  Generally speaking, things
  * which change the grammar will need to make changes here as well.
  */
 public class LogicalPlanBuilder extends ExpressionBuilder {
-
-    private static final String TIME = "time", START = "start", END = "end", STEP = "step", BUCKETS = "buckets", SCRAPE_INTERVAL =
-        "scrape_interval", INDEX = "index";
-    private static final int DEFAULT_PROMQL_BUCKETS = 100;
-    private static final Set<String> PROMQL_ALLOWED_PARAMS = Set.of(TIME, START, END, STEP, BUCKETS, SCRAPE_INTERVAL, INDEX);
-
     /**
      * Maximum number of commands allowed per query
      */
@@ -426,6 +432,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             plan = processingCommand.apply(plan);
         }
         return plan;
+    }
+
+    @Override
+    public Expression visitLogicalInSubquery(EsqlBaseParser.LogicalInSubqueryContext ctx) {
+        Expression value = expression(ctx.valueExpression());
+        LogicalPlan subqueryPlan = visitSubquery(ctx.subquery());
+        Source source = source(ctx);
+        // InSubquery is a special expression, it has a LogicalPlan as an attribute.
+        Expression e = new InSubquery(source, value, subqueryPlan);
+        return ctx.NOT() == null ? e : new Not(source, e);
     }
 
     @Override
@@ -794,72 +810,33 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx) {
         Source src = source(ctx);
         Attribute value = visitQualifiedName(ctx.value);
-        Attribute key = visitChangePointOn(ctx.changePointConfiguration(), src);
+        Attribute key = ctx.key == null ? new UnresolvedAttribute(src, "@timestamp") : visitQualifiedName(ctx.key);
 
-        Tuple<Attribute, Attribute> asAttributes = visitChangePointAs(ctx.changePointConfiguration(), src);
-        Attribute targetType = asAttributes.v1();
-        Attribute targetPvalue = asAttributes.v2();
+        UnresolvedAttribute parsedTargetTypeColumn = visitQualifiedName(ctx.targetType);
+        UnresolvedAttribute parsedTargetPvalueColumn = visitQualifiedName(ctx.targetPvalue);
 
-        return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
-    }
-
-    private Attribute visitChangePointOn(List<EsqlBaseParser.ChangePointConfigurationContext> changePointOptionsContexts, Source src) {
-        Attribute key = null;
-        for (EsqlBaseParser.ChangePointConfigurationContext changePointContext : changePointOptionsContexts) {
-            if (changePointContext.key != null) {
-                if (key != null) {
-                    throw new ParsingException(source(changePointContext), "CHANGE_POINT supports only one ON clause");
-                }
-                key = visitQualifiedName(changePointContext.key);
-            }
+        if (parsedTargetTypeColumn != null && parsedTargetTypeColumn.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(parsedTargetTypeColumn.source(), ctx.targetType.getText());
         }
-        return key == null ? new UnresolvedAttribute(src, "@timestamp") : key;
-    }
 
-    private Tuple<Attribute, Attribute> visitChangePointAs(
-        List<EsqlBaseParser.ChangePointConfigurationContext> changePointOptionsContexts,
-        Source src
-    ) {
-        UnresolvedAttribute unresolvedTargetValue = null;
-        UnresolvedAttribute unresolvedTargetPvalue = null;
-        boolean optionResolved = false;
-        for (EsqlBaseParser.ChangePointConfigurationContext changePointContext : changePointOptionsContexts) {
-            if (changePointContext.targetType != null) {
-                if (optionResolved) {
-                    throw new ParsingException(source(changePointContext), "CHANGE_POINT supports only one AS clause");
-                }
-                optionResolved = true;
-
-                unresolvedTargetValue = visitQualifiedName(changePointContext.targetType);
-                unresolvedTargetPvalue = visitQualifiedName(changePointContext.targetPvalue);
-
-                if (unresolvedTargetValue != null && unresolvedTargetValue.qualifier() != null) {
-                    throw qualifiersUnsupportedInFieldDefinitions(unresolvedTargetValue.source(), changePointContext.targetType.getText());
-                }
-                if (unresolvedTargetPvalue != null && unresolvedTargetPvalue.qualifier() != null) {
-                    throw qualifiersUnsupportedInFieldDefinitions(
-                        unresolvedTargetPvalue.source(),
-                        changePointContext.targetPvalue.getText()
-                    );
-                }
-
-            }
+        if (parsedTargetPvalueColumn != null && parsedTargetPvalueColumn.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(parsedTargetPvalueColumn.source(), ctx.targetPvalue.getText());
         }
 
         Attribute targetType = new ReferenceAttribute(
             src,
             null,
-            unresolvedTargetValue == null ? "type" : unresolvedTargetValue.name(),
+            parsedTargetTypeColumn == null ? "type" : parsedTargetTypeColumn.name(),
             DataType.KEYWORD
         );
         Attribute targetPvalue = new ReferenceAttribute(
             src,
             null,
-            unresolvedTargetPvalue == null ? "pvalue" : unresolvedTargetPvalue.name(),
+            parsedTargetPvalueColumn == null ? "pvalue" : parsedTargetPvalueColumn.name(),
             DataType.DOUBLE
         );
-
-        return new Tuple<>(targetType, targetPvalue);
+        List<Expression> groupings = visitList(this, ctx.groupings, Expression.class);
+        return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue, groupings);
     }
 
     private Tuple<Mode, String> parsePolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx) {
@@ -907,9 +884,48 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Expression tablePath = expression(ctx.stringOrParameter());
 
         MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
-        Map<String, Expression> params = options != null ? options.keyFoldedMap() : Map.of();
+        Map<String, Object> config = options != null ? foldOptionLiterals(options.keyFoldedMap()) : Map.of();
 
-        return new UnresolvedExternalRelation(source, tablePath, params);
+        return new UnresolvedExternalRelation(source, tablePath, config);
+    }
+
+    /**
+     * Folds {@link MapExpression} entries to plain values for the {@code EXTERNAL} options carrier.
+     * Every option value must be a {@link Literal} after parameter substitution; non-literal entries
+     * (or {@code Literal(null)}) throw {@link ParsingException} at the offending entry's source.
+     * {@link BytesRef} normalizes to {@link String} so the carrier matches the dataset path's shape.
+     */
+    private static Map<String, Object> foldOptionLiterals(Map<String, Expression> entries) {
+        if (entries.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> folded = new LinkedHashMap<>(entries.size());
+        for (Map.Entry<String, Expression> entry : entries.entrySet()) {
+            Expression value = entry.getValue();
+            if (value instanceof Literal literal) {
+                Object literalValue = literal.value();
+                if (literalValue == null) {
+                    throw new ParsingException(
+                        value.source(),
+                        "EXTERNAL option [{}] has null value; null is not a valid option value",
+                        entry.getKey()
+                    );
+                }
+                if (literalValue instanceof BytesRef bytesRef) {
+                    folded.put(entry.getKey(), BytesRefs.toString(bytesRef));
+                } else {
+                    folded.put(entry.getKey(), literalValue);
+                }
+            } else {
+                throw new ParsingException(
+                    value.source(),
+                    "EXTERNAL options must be literal values; option [{}] has expression [{}]",
+                    entry.getKey(),
+                    value.sourceText()
+                );
+            }
+        }
+        return folded;
     }
 
     @Override
@@ -1290,6 +1306,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             rerank = applyInferenceId(rerank, inferenceId);
         }
 
+        Expression timeoutExpr = optionsMap.remove(Rerank.TIMEOUT_OPTION_NAME);
+        if (timeoutExpr != null) {
+            rerank = rerank.withTimeout(parseTimeoutOption(timeoutExpr, Rerank.TIMEOUT_OPTION_NAME, "RERANK"));
+        }
+
         if (optionsMap.isEmpty() == false) {
             throw new ParsingException(
                 source(ctx),
@@ -1355,6 +1376,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             completion = completion.withTaskSettings((MapExpression) taskSettings);
         }
 
+        Expression timeoutExpr = optionsMap.remove(Completion.TIMEOUT_OPTION_NAME);
+        if (timeoutExpr != null) {
+            completion = completion.withTimeout(parseTimeoutOption(timeoutExpr, Completion.TIMEOUT_OPTION_NAME, "COMPLETION"));
+        }
+
         if (optionsMap.isEmpty() == false) {
             throw new ParsingException(
                 source(ctx),
@@ -1365,6 +1391,31 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         return completion;
+    }
+
+    private TimeValue parseTimeoutOption(Expression timeoutExpr, String optionName, String commandName) {
+        if (timeoutExpr instanceof Literal == false || DataType.isString(timeoutExpr.dataType()) == false) {
+            throw new ParsingException(
+                timeoutExpr.source(),
+                "Option [{}] in {} must be a string literal (e.g. \"30s\"), found [{}]",
+                optionName,
+                commandName,
+                timeoutExpr.source().text()
+            );
+        }
+        String timeoutStr = BytesRefs.toString(((Literal) timeoutExpr).value());
+        try {
+            return TimeValue.parseTimeValue(timeoutStr, optionName);
+        } catch (IllegalArgumentException e) {
+            throw new ParsingException(
+                timeoutExpr.source(),
+                "Invalid timeout value [{}] for option [{}] in {}: [{}]",
+                timeoutStr,
+                optionName,
+                commandName,
+                e.getMessage()
+            );
+        }
     }
 
     private <InferencePlanType extends InferencePlan<InferencePlanType>> InferencePlanType applyInferenceId(
@@ -1535,7 +1586,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Duration step = null;
         Integer buckets = null;
         Duration scrapeInterval = Duration.ofMinutes(1);
-        IndexPattern indexPattern = new IndexPattern(source, "*");
+        IndexPattern indexPattern = new IndexPattern(source, DEFAULT_PROMQL_INDEX_PATTERN);
 
         Set<String> paramsSeen = new HashSet<>();
         for (EsqlBaseParser.PromqlParamContext paramCtx : ctx.promqlParam()) {
@@ -1671,8 +1722,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
             throw new ParsingException(source(ctx), "Parameter [{}] for index must be a string", ctx.NAMED_OR_POSITIONAL_PARAM().getText());
         } else if (ctx.promqlIndexPattern().isEmpty()) {
-            // Default to all indices if no index pattern is provided
-            return new IndexPattern(source(ctx), "*");
+            return new IndexPattern(source(ctx), DEFAULT_PROMQL_INDEX_PATTERN);
         } else {
             return new IndexPattern(source(ctx), visitPromqlIndexPattern(ctx.promqlIndexPattern()));
         }

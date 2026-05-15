@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
-import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -53,7 +53,6 @@ public final class DataSourceModule implements Closeable {
     private final Map<String, ExternalSourceFactory> sourceFactories;
     // TODO(#142815): backward-compat bridge — remove once table functions land.
     private final Map<String, SourceOperatorFactoryProvider> pluginFactories;
-    private final FilterPushdownRegistry filterPushdownRegistry;
     private final List<Closeable> managedCloseables;
     private final DataSourceCapabilities capabilities;
 
@@ -69,7 +68,7 @@ public final class DataSourceModule implements Closeable {
 
         DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
         for (DataSourcePlugin plugin : dataSourcePlugins) {
-            for (DecompressionCodec codec : plugin.decompressionCodecs(settings)) {
+            for (DecompressionCodec codec : plugin.decompressionCodecs(settings, executor)) {
                 codecRegistry.register(codec);
             }
         }
@@ -77,7 +76,6 @@ public final class DataSourceModule implements Closeable {
 
         Map<String, ExternalSourceFactory> sourceFactoryMap = new LinkedHashMap<>();
         Map<String, SourceOperatorFactoryProvider> operatorFactoryProviders = new HashMap<>();
-        Map<String, FilterPushdownSupport> pluginFilterPushdownProviders = new HashMap<>();
         List<Closeable> closeables = new ArrayList<>();
         Map<String, String> registeredSchemes = new HashMap<>();
 
@@ -108,7 +106,7 @@ public final class DataSourceModule implements Closeable {
                     }
 
                     @Override
-                    public StorageProvider create(Settings s, Map<String, Object> config) {
+                    public Configured<StorageProvider> createTrackingConsumedKeys(Settings s, Map<String, Object> config) {
                         Map<String, StorageProviderFactory> factories = state.storageFactories();
                         StorageProviderFactory real = factories.get(scheme);
                         if (real == null) {
@@ -120,7 +118,7 @@ public final class DataSourceModule implements Closeable {
                                     + "] but storageProviders() did not return it"
                             );
                         }
-                        return real.create(s, config);
+                        return real.createTrackingConsumedKeys(s, config);
                     }
                 };
                 storageProviderRegistry.registerFactory(scheme, delegating);
@@ -179,16 +177,17 @@ public final class DataSourceModule implements Closeable {
                 }
             }
 
-            // Collect plugin-level filter pushdown support (keyed by format name, e.g. "orc")
-            Map<String, FilterPushdownSupport> pluginFps = plugin.filterPushdownSupport(settings);
-            if (pluginFps.isEmpty() == false) {
-                pluginFilterPushdownProviders.putAll(pluginFps);
-            }
         }
 
         // Register the framework-internal FileSourceFactory as a catch-all fallback.
         // It must be last so that plugin-provided factories (Iceberg, Flight) get priority.
-        FileSourceFactory fileFallback = new FileSourceFactory(storageProviderRegistry, formatReaderRegistry, codecRegistry, settings);
+        FileSourceFactory fileFallback = new FileSourceFactory(
+            storageProviderRegistry,
+            formatReaderRegistry,
+            codecRegistry,
+            settings,
+            executor
+        );
         sourceFactoryMap.put("file", fileFallback);
         // Also register under each format name so OperatorFactoryRegistry can look up
         // by the sourceType returned from FormatReader.formatName() (e.g. "parquet", "csv").
@@ -199,26 +198,6 @@ public final class DataSourceModule implements Closeable {
         this.sourceFactories = Map.copyOf(sourceFactoryMap);
         this.pluginFactories = Map.copyOf(operatorFactoryProviders);
         this.managedCloseables = closeables;
-
-        // Build FilterPushdownRegistry from two sources:
-        // 1. ExternalSourceFactory.filterPushdownSupport() — for catalog/connector factories (Iceberg, Flight)
-        // 2. DataSourcePlugin.filterPushdownSupport() — for format-level pushdown (ORC, Parquet)
-        Map<String, FilterPushdownSupport> filterPushdownProviders = new HashMap<>();
-        // First: collect from ExternalSourceFactory instances (non-lazy only)
-        for (Map.Entry<String, ExternalSourceFactory> entry : this.sourceFactories.entrySet()) {
-            ExternalSourceFactory factory = entry.getValue();
-            // Skip lazy wrappers to avoid triggering classloading
-            if (factory instanceof LazyConnectorFactory || factory instanceof LazyTableCatalogWrapper) {
-                continue;
-            }
-            FilterPushdownSupport fps = factory.filterPushdownSupport();
-            if (fps != null) {
-                filterPushdownProviders.put(entry.getKey(), fps);
-            }
-        }
-        // Second: merge plugin-level registrations (keyed by format name, e.g. "orc")
-        filterPushdownProviders.putAll(pluginFilterPushdownProviders);
-        this.filterPushdownRegistry = new FilterPushdownRegistry(filterPushdownProviders);
     }
 
     @Override
@@ -245,12 +224,12 @@ public final class DataSourceModule implements Closeable {
         return sourceFactories;
     }
 
-    public FilterPushdownRegistry filterPushdownRegistry() {
-        return filterPushdownRegistry;
+    public OperatorFactoryRegistry createOperatorFactoryRegistry(Executor executor) {
+        return createOperatorFactoryRegistry(executor, executor);
     }
 
-    public OperatorFactoryRegistry createOperatorFactoryRegistry(Executor executor) {
-        return new OperatorFactoryRegistry(sourceFactories, pluginFactories, executor);
+    public OperatorFactoryRegistry createOperatorFactoryRegistry(Executor executor, Executor fileReadExecutor) {
+        return new OperatorFactoryRegistry(sourceFactories, pluginFactories, executor, fileReadExecutor);
     }
 
     /**
@@ -356,16 +335,13 @@ public final class DataSourceModule implements Closeable {
         }
 
         @Override
-        public Connector open(Map<String, Object> config) {
-            return resolveDelegate().open(config);
+        public void validateConfig(String location, Map<String, Object> config) {
+            resolveDelegate().validateConfig(location, config);
         }
 
         @Override
-        public FilterPushdownSupport filterPushdownSupport() {
-            if (delegate == null) {
-                return null;
-            }
-            return delegate.filterPushdownSupport();
+        public Connector open(Map<String, Object> config) {
+            return resolveDelegate().open(config);
         }
 
         @Override
@@ -459,11 +435,8 @@ public final class DataSourceModule implements Closeable {
         }
 
         @Override
-        public FilterPushdownSupport filterPushdownSupport() {
-            if (delegate == null) {
-                return null;
-            }
-            return delegate.filterPushdownSupport();
+        public void validateConfig(String location, Map<String, Object> config) {
+            resolveDelegate().validateConfig(location, config);
         }
 
         @Override

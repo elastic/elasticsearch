@@ -652,16 +652,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#changePointConfiguration}.
-   * @param ctx the parse tree
-   */
-  void enterChangePointConfiguration(EsqlBaseParser.ChangePointConfigurationContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#changePointConfiguration}.
-   * @param ctx the parse tree
-   */
-  void exitChangePointConfiguration(EsqlBaseParser.ChangePointConfigurationContext ctx);
-  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#forkCommand}.
    * @param ctx the parse tree
    */
@@ -957,6 +947,18 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitIsNull(EsqlBaseParser.IsNullContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code logicalInSubquery}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   */
+  void enterLogicalInSubquery(EsqlBaseParser.LogicalInSubqueryContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code logicalInSubquery}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   */
+  void exitLogicalInSubquery(EsqlBaseParser.LogicalInSubqueryContext ctx);
   /**
    * Enter a parse tree produced by the {@code regexExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.

@@ -25,10 +25,13 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
 
     /**
      * Retrieves the boolean value stored at the given value index.
-     *
-     * <p> Values for a given position are between getFirstValueIndex(position) (inclusive) and
-     * getFirstValueIndex(position) + getValueCount(position) (exclusive).
-     *
+     * <p>
+     *    The {@code valueIndex} for a position is between.
+     * </p>
+     * {@snippet :
+     *    int start = getFirstValueIndex(position);  // @highlight
+     *    int end = start + getValueCount(position);  // @highlight
+     * }
      * @param valueIndex the value index
      * @return the data value (as a boolean)
      */
@@ -98,6 +101,12 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
 
     @Override
     BooleanBlock expand();
+
+    /**
+     * The maximum size in bytes of any single value stored in this block, or {@code 0} if there are no values.
+     * Always {@code Byte.BYTES} since all boolean values encode to the same number of bytes.
+     */
+    int valueMaxByteSize();
 
     static BooleanBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();

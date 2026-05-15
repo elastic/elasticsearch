@@ -441,10 +441,14 @@ tests:
   method: testBytesRefVector
   issue: https://github.com/elastic/elasticsearch/issues/148481
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
+  methods:
+    - test {feature:BASELINE}
+    - test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/148339
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
+  methods:
+    - test {feature:BASELINE}
+    - test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/148339
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
   method: test

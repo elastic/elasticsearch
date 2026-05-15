@@ -548,3 +548,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148190
+- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
+  method: testSearchShardShouldRecoverWhenWarmingFailsOnGetConnection
+  issue: https://github.com/elastic/elasticsearch/issues/149195

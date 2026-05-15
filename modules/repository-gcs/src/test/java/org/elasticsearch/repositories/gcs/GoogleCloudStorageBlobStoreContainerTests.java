@@ -81,6 +81,10 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
         when(storageService.client(eq(ProjectId.DEFAULT), any(String.class), any(String.class), any(GcsRepositoryStatsCollector.class)))
             .thenReturn(meteredStorage);
 
+        GoogleCloudStorageClientSettings mockClientSettings = mock(GoogleCloudStorageClientSettings.class);
+        when(mockClientSettings.getTenaciousRetriesEnabled()).thenReturn(randomBoolean());
+        when(storageService.clientSettings(any(), any())).thenReturn(mockClientSettings);
+
         try (
             BlobStore store = new GoogleCloudStorageBlobStore(
                 ProjectId.DEFAULT,

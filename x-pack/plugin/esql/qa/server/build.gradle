@@ -81,6 +81,9 @@ dependencies {
   parquetFixtureGenerator("org.apache.hadoop:hadoop-client-api:${versions.hadoop}") { exclude group: 'org.apache.logging.log4j' }
   parquetFixtureGenerator("org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}") { exclude group: 'org.apache.logging.log4j' }
   parquetFixtureGenerator "org.slf4j:slf4j-api:${versions.slf4j}"
+  parquetFixtureGenerator "org.xerial.snappy:snappy-java:${versions.snappyJava}"
+  parquetFixtureGenerator "com.github.luben:zstd-jni:${versions.zstdJni}"
+  parquetFixtureGenerator "io.airlift:aircompressor:${versions.aircompressor}"
   parquetFixtureGenerator project(':libs:core')
   parquetFixtureGenerator project(xpackModule('esql-datasource-csv'))
 

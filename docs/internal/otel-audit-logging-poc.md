@@ -23,6 +23,7 @@ References for the requirements below:
 - **ES-14356**: parent epic for the ES-side delivery work. [Jira](https://elasticco.atlassian.net/browse/ES-14356).
 - **ES-13255**: broader "ES logs over OTel". [Jira](https://elasticco.atlassian.net/browse/ES-13255). Tracks any non-audit ES log streams; out of scope here.
 - **elasticsearch-team#2170**: tracking issue for audit-in-serverless work; the issue body itself is a one-line pointer to the `#log-delivery-project-team` Slack channel where the work is being discussed. [GitHub](https://github.com/elastic/elasticsearch-team/issues/2170).
+- **Customer-facing audit log configuration TDD**: *TDD — Customer-facing audit log configuration in Serverless* (Julio Camarero). [Google Doc](https://docs.google.com/document/d/1M9Uzq6M8s3R6cfKMdJcoIkgswbADQbbANnS40anbb3E/edit). Covers how customers configure audit logging (and other log streams) in serverless: Project API shape, cross-app consistency between ES and Kibana, and the structural relationship between per-setting plumbing and a framework-level solution. See also [§4.15](#sec-4-15) and [§5.5](#sec-5-5).
 
 Each requirement below has a status of *Satisfied*, *Partially satisfied*, or *Gap*. The status line points to [§3](#sec-3) evidence or [§4](#sec-4) gap analysis.
 
@@ -78,11 +79,9 @@ Sources: Gateway TDD §"How services emit (audit) log records": *"Must emit logs
 
 ### <a id="sec-2-6"></a>2.6 R6: Strip cluster identity fields on serverless
 
-*Gap ([§4.6](#sec-4-6)); the existing per-field `emit_*` settings make this small.*
+*Gap ([§4.6](#sec-4-6)); implementation is a serverless-config change with no ES code change.*
 
-On serverless, audit records must not carry `cluster.name`, `cluster.uuid`, `node.name`, or `node.id`. These expose platform internals customers shouldn't see. The Audit TDD §"Requirement 2" frames this as a `log4j2.serverless.properties` change (remove the four `%map{...}` PatternLayout entries from the file appender). That alone doesn't cover the OTel path: the fields aren't only in the PatternLayout, they're also in the audit `StringMapMessage` itself (populated by `LoggingAuditTrail.EntryCommonFields`), and with `setCaptureMapMessageAttributes(true)` on the `OpenTelemetryAppender` every OTel record picks them up too.
-
-Fortunately, `LoggingAuditTrail` already gates each of these fields on a per-field `Property.Dynamic` setting: `xpack.security.audit.logfile.emit_node_name` (default `false`), `emit_node_id` (default `true`), `emit_cluster_name` (default `false`), `emit_cluster_uuid` (default `true`). Setting the two true-by-default ones to `false` on serverless suppresses the fields at the `StringMapMessage` source, so both the file appender and the OTel appender see them stripped. See [§4.6](#sec-4-6).
+On serverless, audit records must not carry `cluster.name`, `cluster.uuid`, `node.name`, or `node.id`. These expose platform internals customers shouldn't see. See [§4.6](#sec-4-6).
 
 Source: Audit TDD §"Requirement 2".
 
@@ -174,7 +173,7 @@ The test boots a security-enabled `ElasticsearchCluster` with `xpack.security.au
 
 **Pipeline construction:**
 
-- `OtelSdkExportLogsSupplier.install()` builds the OTel SDK (`SdkLoggerProvider` + `OtlpHttpLogRecordExporter` + `BatchLogRecordProcessor`), constructs an `OpenTelemetryAppender` programmatically, and attaches it to the audit logger's `LoggerConfig`. This must happen programmatically; see [Appendix A.2](#sec-a-2) for why declaring the appender in `log4j2.properties` doesn't work.
+- `OtelSdkExportLogsSupplier.install()` builds the OTel SDK (`SdkLoggerProvider` + `OtlpGrpcLogRecordExporter` + `BatchLogRecordProcessor`), constructs an `OpenTelemetryAppender` programmatically, and attaches it to the audit logger's `LoggerConfig`. This must happen programmatically; see [Appendix A.2](#sec-a-2) for why declaring the appender in `log4j2.properties` doesn't work.
 - `APM.createComponents()` wires the supplier into the plugin lifecycle and exposes it via `APMTelemetryProvider`.
 - Settings `telemetry.otel.logs.enabled` and `telemetry.otel.logs.endpoint` registered in `OtelSdkSettings` and added to the plugin's setting list.
 - `attemptFlushLogs()` plumbed through `TelemetryProvider` and `APMTelemetryProvider` so tests and graceful shutdown can force-flush the `BatchLogRecordProcessor`.
@@ -187,7 +186,7 @@ The OTel SDK is used unmodified, and its publication path provably does not bloc
 2. `OpenTelemetryAppender.append` does only the log4j → OTel record translation (CPU only) and calls `LogRecordBuilder.emit()`.
 3. `SdkLogRecordBuilder.emit()` invokes `getLogRecordProcessor().onEmit(...)`, which resolves to `BatchLogRecordProcessor.onEmit`.
 4. `BatchLogRecordProcessor.onEmit` calls `worker.addLogRecord(...)`, which `offer`s the record onto a bounded `ArrayBlockingQueue` (default capacity 2048). On full, `offer` returns false and the record is **dropped**, not held.
-5. The actual OTLP HTTP POST runs on a worker thread the `BatchLogRecordProcessor` owns, never on the caller.
+5. The actual OTLP gRPC call runs on a worker thread the `BatchLogRecordProcessor` owns, never on the caller.
 
 Consequences:
 
@@ -285,19 +284,13 @@ Caveat on the origin side: our local IT had no platform ingress, so origin event
 
 ### <a id="sec-4-5"></a>4.5 R4: mTLS to the gateway
 
-The PoC uses HTTP without TLS. In production, the client certificate is distributed by Control-Plane (Vault → cert-manager → secret mount). We can reuse the existing pattern of `SSLService` + `PemKeyConfig` + `SSLConfigurationReloader` (used today by the monitoring HTTP exporter and Watcher's HTTP client). One open question is whether `OtlpHttpLogRecordExporterBuilder` in our OTel-Java version exposes client TLS config directly, or whether we have to wrap the underlying HTTP client.
+The PoC uses plain gRPC without TLS. In production, the client certificate is distributed by Control-Plane (Vault → cert-manager → secret mount). We can reuse the existing pattern of `SSLService` + `PemKeyConfig` + `SSLConfigurationReloader` (used today by the monitoring HTTP exporter and Watcher's HTTP client). One open question is whether the okhttp-based gRPC sender exposes client TLS config at the builder level or whether we have to configure it at the `OkHttpClient` level.
 
 ### <a id="sec-4-6"></a>4.6 R6: Strip cluster/node fields on serverless
 
-`LoggingAuditTrail.EntryCommonFields` populates `cluster.name`, `cluster.uuid`, `node.name`, and `node.id` into the audit `StringMapMessage`, but only when the corresponding `EMIT_*` setting is `true`. The defaults are `node.id=true`, `cluster.uuid=true`, `node.name=false`, `cluster.name=false`. With `setCaptureMapMessageAttributes(true)` on the `OpenTelemetryAppender`, whatever ends up in the `StringMapMessage` flows out via OTel.
+`LoggingAuditTrail.EntryCommonFields` populates `cluster.name`, `cluster.uuid`, `node.name`, and `node.id` into the audit `StringMapMessage` based on the corresponding `xpack.security.audit.logfile.emit_*` settings. With `setCaptureMapMessageAttributes(true)` on the `OpenTelemetryAppender`, whatever ends up in the `StringMapMessage` flows out via OTel, so setting these to `false` suppresses the fields from both the file appender and the OTel appender at the source.
 
-Three implementation options:
-
-- (a) Set the existing per-field `xpack.security.audit.logfile.emit_*` settings to `false` on serverless (the two relevant defaults are `emit_node_id=true` and `emit_cluster_uuid=true`). The settings already gate the `commonFields` puts at the source; this suppresses the fields for both the file appender and the OTel appender. They're already `Property.Dynamic`, so there's no restart concern.
-- (b) Branch in `LoggingAuditTrail` to skip the `commonFields.put(...)` calls for these fields when running serverless. More invasive than (a), but localizes the policy to ES code rather than serverless config.
-- (c) Apply an attribute filter that drops these keys on the OTel emit path, implemented either as a custom `LogRecordProcessor` or as part of the [§5.1](#sec-5-1) custom appender. The file appender continues to see the full set on hosted/self-hosted.
-
-Option (a) is the lightest. The existing settings exist precisely for this purpose, and the serverless config can already override them.
+The two settings that default to `true` (`emit_node_id`, `emit_cluster_uuid`) must be set to `false` in `serverless-default-settings.yml`. The settings are already `Property.Dynamic`, so no restart is needed. No ES code change required.
 
 ### <a id="sec-4-7"></a>4.7 R7: Stdout fallback on exhausted retries
 
@@ -368,27 +361,17 @@ Audit logging in ES already has the relevant knobs: `xpack.security.audit.enable
 
 This is significant structural work relative to the apparent ask ("let the customer turn audit logging on or off per project"). R8 ([§4.8](#sec-4-8)) and R12 ([§4.9](#sec-4-9)) both inherit this cost. Worth surfacing to stakeholders before the work starts so they can weigh it against alternatives: e.g., cluster-wide audit configuration in serverless (which constrains the UX but avoids the per-project plumbing entirely), or scoping R8 narrowly to delivery-side filtering (drop on emit based on `project.id`) without exposing customer-facing per-project toggles in this round.
 
+The customer-facing configuration flow: customers configure audit logging via the Project API's public `PATCH /api/v1/serverless/projects/<type>/{id}` endpoint, already used today to enable audit logging at the project level. The API persists configuration in CosmosDB and propagates it via `elasticsearchappconfig` / `kibanaappconfig` Kubernetes resources to the regional `elasticsearch-controller` / `kibana-controller`, which renders per-project file settings into the cluster. ES reads via reserved-state handlers. The Customer-facing audit log configuration TDD ([§2](#sec-2) references) covers the full Project API shape design, cross-app consistency between ES, Kibana, and Fleet. A design-discussion meeting is scheduled (Mark, Patrick, Ankit Sethi, Valentin, Ryan, Julio Camarero).
+
+The customer-controllable settings inventory covers at least: five `xpack.security.audit.logfile.events.ignore_filters.*`, plus `events.include` and `events.exclude`. Valentin Crettaz is compiling a full mapping covering ES audit logs, Kibana audit logs, ES query logs, and Kibana user activity logs.
+
+Two constraints bound the solution space:
+- **`_cluster/settings` and any new in-app settings endpoint are off the table.** The cluster-settings endpoint is `@ServerlessScope(Scope.INTERNAL)`. Adding a new endpoint (e.g. `_security/audit/settings`) would split configuration between cloud UI and in-app, which is the thing the serverless architecture deliberately avoids (Tim Vernum, [#log-delivery-project-team, 2026-05-13](https://elastic.slack.com/archives/C09PANY7FFS/p1778666710166199)). The only customer path is the Project API.
+- **The Project API has no arbitrary-cluster-settings facility.** Each exposed setting requires explicit Project API extension — it cannot be delegated to ES wholesale.
+
 ### <a id="sec-4-16"></a>4.16 Switch transport from HTTP-protobuf to gRPC
 
 **Implemented.** See [§3.5](#sec-3-5).
-
-The PoC's `OtelSdkExportLogsSupplier` now uses `OtlpGrpcLogRecordExporter` backed by the okhttp-based gRPC sender. Production requires **gRPC** for the ES → gateway hop, per Julio Camarero ([#log-delivery-project-team, 2026-05-13](https://elastic.slack.com/archives/C09PANY7FFS/p1778657565867949)): the gateway sits behind a Kubernetes service, and HTTP clients reuse long-lived connections, so even after the gateway scales horizontally all HTTP clients keep hitting the first replica. This is the upstream [opentelemetry-collector#9211](https://github.com/open-telemetry/opentelemetry-collector/issues/9211); the gateway-side fix is captured in [otel-delivery-gateway#133](https://github.com/elastic/otel-delivery-gateway/pull/133). So gRPC is required for load-balancing correctness, not protocol-feature preference.
-
-The two open considerations from the design phase are resolved:
-
-- **Recording-server testing question.** We chose to make `RecordingApmServer` dual-protocol: the existing HTTP server (port) continues to receive metrics/traces/intake; a new gRPC server (separate ephemeral port) receives log records via `LogsServiceGrpc.LogsServiceImplBase`. Both feed the same `received` queue. The test-server gRPC path uses `io.grpc:grpc-netty` (server-side only, in `javaRestTestRuntimeOnly`); the production export path uses `opentelemetry-exporter-sender-okhttp` with no `io.grpc` dependency.
-- **Dependencies and entitlements.** Resolved in [§3.5](#sec-3-5): okhttp/okio entitlements added; no `io.grpc` on the production path.
-
-**Customer-facing chain** (confirmed in [#log-delivery-project-team thread 2026-05-12](https://elastic.slack.com/archives/C8UUBNASY/p1778614283945929) and [its sub-thread](https://elastic.slack.com/archives/C8UUBNASY/p1778614459655819)): the customer's entry point is the Control Plane's Project API — specifically the public `PATCH /api/v1/serverless/projects/<type>/{id}` endpoint, already used today to enable audit logging at the project level. The API persists configuration in CosmosDB and propagates it via `elasticsearchappconfig` / `kibanaappconfig` Kubernetes resources to the regional `elasticsearch-controller` / `kibana-controller`, which renders per-project file settings into the cluster. ES reads via reserved-state handlers.
-
-**Two important constraints from that thread:**
-
-- **`_cluster/settings` is permanently off the table in serverless.** Ryan Ernst: doesn't make sense in MP, and won't change. Mark Vieira confirmed. So the only customer path for adjusting any ES setting in serverless is the Project API.
-- **The Project API has no arbitrary-cluster-settings facility.** Mark Vieira: there are "setting-like things" in the API but "we'd have to introduce these as explicit settings" — each one requires explicit Project API extension. This is what makes the per-setting tax above unavoidable under today's architecture.
-
-**Concrete customer-controllable settings inventory (audit logs alone):** five `xpack.security.audit.logfile.events.ignore_filters.*`, plus `events.include` and `events.exclude`, plus likely more. Cost-impacting, customers will want control. Valentin Crettaz has committed to producing a mapping document covering ES audit logs, Kibana audit logs, ES query logs, and Kibana user activity logs.
-
-**Principle from the same thread (3 `:100:` reactions on Mark Vieira's framing):** *"I'd be remiss to just default to 'let's just handle it entirely in ES' because we feel it's less friction."* The right architectural answer is to go through the Project API even though it's higher-friction than wiring directly in ES. A design-discussion meeting is scheduled (Mark, Patrick, Ankit Sethi, Valentin, Ryan, Julio Camarero) to nail down the convention going forward. See [§5.5](#sec-5-5) for the structural alternative ([`ProjectScope`](#sec-5-5)).
 
 ## <a id="sec-5"></a>5. Decision points
 
@@ -408,6 +391,8 @@ The upstream `OpenTelemetryAppender` library hardcodes a `log4j.map_message.` pr
 ### <a id="sec-5-2"></a>5.2 Field mapping shape: semconv vs ECS vs custom
 
 The Gateway TDD asks emitting services to use OTel semconv where it exists, ECS where it doesn't, custom names as last resort. Most ES audit fields have a clean answer; some are genuinely ambiguous. The decision affects how downstream consumers query and join audit data.
+
+ES and Kibana audit records must use consistent field names — customers configure audit logging as a unified journey across both products, not per-product. The Kibana team must be part of the naming decisions on the hard rows.
 
 | Field group | Status |
 |---|---|
@@ -455,7 +440,7 @@ Two options:
 | **Plan A: per-setting plumbing.** Each setting we expose gets its own field in the Project API, its own field in a `ProjectCustom`, and its own consumer refactor. | Smallest delta for the specific audit settings we need now. No new framework. | Repeats the four-step ritual for every future per-project setting (potentially hundreds). Drift risk between `Setting<T>` and `ProjectCustom` representations. |
 | **Plan B: `ProjectScope` setting type.** Build the framework once; every `ProjectScope` setting routes correctly without per-callsite work. | Amortizes cost across hundreds of settings beyond audit. Cleaner ergonomics; one `Setting<T>` per concept rather than parallel representations. Mark indicated this aligns with how Core/Infra would want per-project settings to work. | Larger upfront investment (framework + listener semantics + thread-context plumbing for `ProjectLocal`). Crosses into Tim Vernum / Yang Wang's design territory. |
 
-This decision is broader than the audit PoC and likely needs to happen in the design-discussion meeting referenced in [§4.15](#sec-4-15). Tim Vernum is the obvious person to involve (he wrote the canonical project-id-resolution pattern; see [§4.14](#sec-4-14)); Yang Wang likely as well.
+This decision is broader than the audit PoC and likely needs to happen in the design-discussion meeting referenced in [§4.15](#sec-4-15). Tim Vernum is the obvious person to involve (he wrote the canonical project-id-resolution pattern; see [§4.14](#sec-4-14)); Yang Wang likely as well. See also the Customer-facing audit log configuration TDD ([§2](#sec-2) references). An in-app settings endpoint is not an option; see [§4.15](#sec-4-15).
 
 ## <a id="sec-6"></a>6. Next steps
 
@@ -464,22 +449,20 @@ Pulled from [§4](#sec-4) and [§5](#sec-5). **What's implemented:** R1 (OTLP de
 ### <a id="sec-6-1"></a>6.1 Decisions needed
 
 1. <a id="sec-6-1-1"></a>**Attribute-key shape ([§5.1](#sec-5-1)).** Choose among the four options in §5.1. *[Core/Infra. Gates [6.2.8](#sec-6-2-8), [6.2.9](#sec-6-2-9).]*
-2. <a id="sec-6-1-2"></a>**Per-field semconv/ECS/custom mapping ([§5.2](#sec-5-2)).** Resolve the hard rows: `apikey.*` namespace, `indices` array, `security_config_change` nested blobs. *[Core/Infra + Ankit Sethi. Gates [6.2.9](#sec-6-2-9).]*
+2. <a id="sec-6-1-2"></a>**Per-field semconv/ECS/custom mapping ([§5.2](#sec-5-2)).** Resolve the hard rows: `apikey.*` namespace, `indices` array, `security_config_change` nested blobs. ES and Kibana audit records must use consistent names; Kibana team input required. *[Core/Infra + Ankit Sethi + Kibana team. Gates [6.2.9](#sec-6-2-9).]*
 3. <a id="sec-6-1-3"></a>**CPS routing direction ([§4.4](#sec-4-4)).** Originator project or data-owner project? **Gated on [6.1.9](#sec-6-1-9) and [6.1.10](#sec-6-1-10)** — the linked side has no `project.id` to route on today. *[otel-delivery-gateway team.]*
-4. <a id="sec-6-1-4"></a>**R6 strip-fields placement ([§4.6](#sec-4-6)).** Ratify the existing `emit_*`-settings approach or pick an alternative. *[Core/Infra + serverless platform.]*
-5. <a id="sec-6-1-5"></a>**SDK module placement ([§5.3](#sec-5-3)).** Keep in `modules/apm/` or new `modules/customer-telemetry/`. *[Core/Infra.]*
+4. <a id="sec-6-1-4"></a>**SDK module placement ([§5.3](#sec-5-3)).** Keep in `modules/apm/` or new `modules/customer-telemetry/`. *[Core/Infra.]*
 6. <a id="sec-6-1-6"></a>**`request.body` PII story ([§4.11](#sec-4-11)).** Default-off vs redaction vs sampling; requires security review before the field can leave the cluster. *[ES Security.]*
-7. <a id="sec-6-1-7"></a>~~**gRPC vs HTTP.**~~ Resolved and implemented ([§3.5](#sec-3-5)).
 8. <a id="sec-6-1-8"></a>**`LoggingAuditTrail` constructor ([§5.4](#sec-5-4)).** `CustomAuditLoggingMetadataProvider` vs inject `ProjectResolver` vs keep direct `ThreadContext` read. Doc recommends the extension point: it resolves [§4.14](#sec-4-14), [§4.4](#sec-4-4), and [§4.13](#sec-4-13) in one place; effectively merges with [6.1.10](#sec-6-1-10) if chosen. *[Core/Infra + Ankit Sethi. Gates [6.1.10](#sec-6-1-10), [6.2.11](#sec-6-2-11), [6.2.12](#sec-6-2-12).]*
 9. <a id="sec-6-1-9"></a>**Cloud API key audit shape ([§4.13](#sec-4-13)).** What `api_key.*` holds for UIAM-authenticated events. *[UIAM team (Slobodan Adamović). Gates [6.2.12](#sec-6-2-12), [6.1.3](#sec-6-1-3).]*
 10. <a id="sec-6-1-10"></a>**Linked-side `project.id` mechanism ([§4.4](#sec-4-4)).** Cluster-config-derived, cross-cluster transport propagation, or via `CustomAuditLoggingMetadataProvider`. Resolving [6.1.8](#sec-6-1-8) in favor of the extension point collapses this into "implement the linked-side provider." *[CPS team. Gates [6.2.11](#sec-6-2-11), [6.1.3](#sec-6-1-3).]*
-11. <a id="sec-6-1-11"></a>**Per-project settings: Plan A vs Plan B ([§5.5](#sec-5-5)).** Per-setting plumbing vs. `ProjectScope` setting type amortized across hundreds of future settings. Friday design meeting. *[Core/Infra + Tim Vernum + Yang Wang + Julio Camarero. Gates [6.2.5](#sec-6-2-5), [6.2.6](#sec-6-2-6).]*
+11. <a id="sec-6-1-11"></a>**Per-project settings: Plan A vs Plan B ([§5.5](#sec-5-5)).** Per-setting plumbing vs. `ProjectScope` setting type amortized across hundreds of future settings. See also the Customer-facing audit log configuration TDD ([§4.15](#sec-4-15)). Friday design meeting. *[Core/Infra + Tim Vernum + Yang Wang + Julio Camarero. Gates [6.2.5](#sec-6-2-5), [6.2.6](#sec-6-2-6).]*
 
 ### <a id="sec-6-2"></a>6.2 Implementation work
 
 1. <a id="sec-6-2-1"></a>**R3: `security_config_change` chokepoint ([§4.3](#sec-4-3)).** Confirm with Ankit that the missing `withThreadContext` call is a bug; fix it and make it implicit in `build()`. Most of the cost is the alignment conversation.
 2. <a id="sec-6-2-2"></a>**R4: mTLS to gateway ([§4.5](#sec-4-5)).** Needs cert-identity alignment with the gateway team, cert-distribution alignment with Control-Plane, and an open question on whether the gRPC exporter exposes client TLS directly.
-3. <a id="sec-6-2-3"></a>**R6: strip cluster/node fields ([§4.6](#sec-4-6)).** Follows [6.1.4](#sec-6-1-4); if option (a), this is a serverless-config change with no ES code change.
+3. <a id="sec-6-2-3"></a>**R6: strip cluster/node fields ([§4.6](#sec-4-6)).** Set `emit_node_id` and `emit_cluster_uuid` to `false` in `serverless-default-settings.yml`. No ES code change.
 4. <a id="sec-6-2-4"></a>**R7: stdout fallback on exhausted retries ([§4.7](#sec-4-7)).** Format and replay-ingestion contract need alignment with the gateway and replay-service teams.
 5. <a id="sec-6-2-5"></a>**R8: per-project filter ([§4.8](#sec-4-8)).** Appender-path filter keyed on `project.id`, fed by per-project file settings from `elasticsearch-controller`. Config-rendering contract needs alignment. Coupled to [6.2.6](#sec-6-2-6). *Gated on [6.1.11](#sec-6-1-11).*
 6. <a id="sec-6-2-6"></a>**R12: dynamic config ([§4.9](#sec-4-9)).** Settings listener for `telemetry.otel.logs.enabled` and the per-project state from [6.2.5](#sec-6-2-5). *Gated on [6.2.5](#sec-6-2-5).*
@@ -489,7 +472,6 @@ Pulled from [§4](#sec-4) and [§5](#sec-5). **What's implemented:** R1 (OTLP de
 10. <a id="sec-6-2-10"></a>**Real-gateway integration test ([§4.12](#sec-4-12)).** Add alongside (not replacing) the existing in-process IT; test shape and ownership need alignment with the gateway team.
 11. <a id="sec-6-2-11"></a>**Linked-cluster `project.id` ([§4.4](#sec-4-4)).** Follows [6.1.10](#sec-6-1-10); gates [6.1.3](#sec-6-1-3).
 12. <a id="sec-6-2-12"></a>**Decouple R3 from platform ingress; Cloud API key shape ([§4.13](#sec-4-13)).** Source `project.id` from UIAM auth context or node config; populate `api_key.*`; remove the structural assert. Follows [6.1.9](#sec-6-1-9).
-13. <a id="sec-6-2-13"></a>~~**Switch to gRPC.**~~ Done ([§3.5](#sec-3-5)).
 
 ### <a id="sec-6-3"></a>6.3 Questions by audience
 
@@ -497,19 +479,18 @@ Routing view of [§6.1](#sec-6-1) and [§6.2](#sec-6-2).
 
 #### `otel-delivery-gateway` team (`#log-delivery-project-team`)
 
-1. ~~**gRPC vs HTTP.**~~ Resolved and implemented.
-2. **mTLS contract.** Cert identity; whether gRPC exporter exposes client TLS directly. ([§4.5](#sec-4-5), [§6.2.2](#sec-6-2-2))
-3. **Stdout fallback format.** ([§4.7](#sec-4-7), [§6.2.4](#sec-6-2-4))
-4. **Retry/buffer targets.** Confirm ~2 min retry / ~30–50 MB buffer. ([§4.10](#sec-4-10), [§6.2.7](#sec-6-2-7))
-5. **Real-gateway IT.** Test-environment shape, ownership. ([§4.12](#sec-4-12), [§6.2.10](#sec-6-2-10))
-6. **CPS routing direction.** Gated on [§6.1.9](#sec-6-1-9) + [§6.1.10](#sec-6-1-10) first. ([§4.4](#sec-4-4), [§6.1.3](#sec-6-1-3))
-7. **`request.body` PII handling.** Consulted; ES Security owns. ([§4.11](#sec-4-11), [§6.1.6](#sec-6-1-6))
+1. **mTLS contract.** Cert identity; whether gRPC exporter exposes client TLS directly. ([§4.5](#sec-4-5), [§6.2.2](#sec-6-2-2))
+2. **Stdout fallback format.** ([§4.7](#sec-4-7), [§6.2.4](#sec-6-2-4))
+3. **Retry/buffer targets.** Confirm ~2 min retry / ~30–50 MB buffer. ([§4.10](#sec-4-10), [§6.2.7](#sec-6-2-7))
+4. **Real-gateway IT.** Test-environment shape, ownership. ([§4.12](#sec-4-12), [§6.2.10](#sec-6-2-10))
+5. **CPS routing direction.** Gated on [§6.1.9](#sec-6-1-9) + [§6.1.10](#sec-6-1-10) first. ([§4.4](#sec-4-4), [§6.1.3](#sec-6-1-3))
+6. **`request.body` PII handling.** Consulted; ES Security owns. ([§4.11](#sec-4-11), [§6.1.6](#sec-6-1-6))
 
 #### Audit TDD owner (Ankit Sethi)
 
 1. **Is `security_config_change` missing `withThreadContext` a bug?** ([§4.3](#sec-4-3), [§6.2.1](#sec-6-2-1))
 2. **`CustomAuditLoggingMetadataProvider` contract** (Req 7 of his TDD). ([§5.4](#sec-5-4), [§6.1.8](#sec-6-1-8), [§6.1.10](#sec-6-1-10))
-3. **Hard rows in the field-mapping table.** `apikey.*`, `indices`, nested `security_config_change` blobs. ([§5.2](#sec-5-2), [§6.1.2](#sec-6-1-2))
+3. **Hard rows in the field-mapping table.** `apikey.*`, `indices`, nested `security_config_change` blobs. Needs Kibana team input for cross-product naming consistency. ([§5.2](#sec-5-2), [§6.1.2](#sec-6-1-2))
 
 #### CPS team
 
@@ -543,7 +524,7 @@ Routing view of [§6.1](#sec-6-1) and [§6.2](#sec-6-2).
 
 #### Serverless platform team
 
-1. **R6 strip-fields approach.** Ratify `emit_*` settings via `serverless-default-settings.yml`. ([§4.6](#sec-4-6), [§6.1.4](#sec-6-1-4))
+1. **R6 strip-fields.** Set `emit_node_id` and `emit_cluster_uuid` to `false` in `serverless-default-settings.yml`. ([§4.6](#sec-4-6), [§6.2.3](#sec-6-2-3))
 
 ## <a id="sec-appendix-a"></a>Appendix A: Options considered and rejected
 

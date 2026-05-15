@@ -26,14 +26,6 @@ public abstract class SortedNumericLongValues {
     private final DocIdSetIterator docIdSetIterator;
     private LongValues longValues;
 
-    protected SortedNumericLongValues() {
-        this(false, null);
-    }
-
-    protected SortedNumericLongValues(boolean isSingleton) {
-        this(isSingleton, null);
-    }
-
     protected SortedNumericLongValues(DocIdSetIterator docIdSetIterator) {
         this(false, docIdSetIterator);
     }
@@ -46,7 +38,7 @@ public abstract class SortedNumericLongValues {
     /**
      * A {@link SortedNumericLongValues} instance that does not have a value for any document
      */
-    public static SortedNumericLongValues EMPTY = new SortedNumericLongValues() {
+    public static SortedNumericLongValues EMPTY = new SortedNumericLongValues(null) {
         @Override
         public boolean advanceExact(int target) {
             return false;
@@ -126,7 +118,7 @@ public abstract class SortedNumericLongValues {
      * Converts a {@link LongValues} to a {@link SortedNumericLongValues}
      */
     public static SortedNumericLongValues singleton(LongValues values) {
-        return new SortedNumericLongValues(true) {
+        return new SortedNumericLongValues(true, null) {
             @Override
             public boolean advanceExact(int target) throws IOException {
                 return values.advanceExact(target);

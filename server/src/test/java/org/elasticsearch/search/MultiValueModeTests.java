@@ -110,7 +110,7 @@ public class MultiValueModeTests extends ESTestCase {
             Arrays.sort(values);
             array[i] = values;
         }
-        final Supplier<SortedNumericLongValues> multiValues = () -> new SortedNumericLongValues() {
+        final Supplier<SortedNumericLongValues> multiValues = () -> new SortedNumericLongValues(null) {
             int doc;
             int i;
 

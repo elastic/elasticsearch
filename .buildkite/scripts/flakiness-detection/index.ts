@@ -5,12 +5,7 @@ import {
   DEFAULT_BATCHING_CONFIG,
   ClassifiedTest,
 } from "./domain";
-import {
-  buildCommands,
-  collapseYamlSuites,
-  dedupeTests,
-  deduplicateYamlRunners,
-} from "./commands";
+import { buildCommands, dedupeTests } from "./commands";
 import { classifyChangedFiles } from "./detectors/changed-files";
 import { detectUnmutedTests } from "./detectors/unmutes";
 import { toBuildkitePipeline, uploadBuildkitePipeline } from "./runners/buildkite";
@@ -101,7 +96,7 @@ function main() {
     }
   }
 
-  let tests = dedupeTests([...changedTests, ...unmuted.located]);
+  const tests = dedupeTests([...changedTests, ...unmuted.located]);
   console.log(`Total tests to run: ${tests.length} (${changedTests.length} changed, ${unmuted.located.length} unmuted)`);
 
   if (tests.length === 0) {
@@ -132,9 +127,6 @@ function main() {
       }
     }
   }
-
-  tests = collapseYamlSuites(tests);
-  tests = deduplicateYamlRunners(tests);
 
   uploadBuildkitePipeline(
     buildCommands(tests, DEFAULT_BATCHING_CONFIG),

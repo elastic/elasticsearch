@@ -1,7 +1,10 @@
 import { execSync } from "child_process";
+import { resolve } from "path";
 import { stringify } from "yaml";
 
 import { AgentConfig, RunnableCommand } from "../domain";
+
+const PROJECT_ROOT = resolve(`${import.meta.dir}/../../../..`);
 
 interface PipelineStep {
   label: string;
@@ -72,7 +75,8 @@ export function toBuildkitePipeline(
  */
 export function uploadBuildkitePipeline(
   commands: RunnableCommand[],
-  cfg: AgentConfig
+  cfg: AgentConfig,
+  cwd: string = PROJECT_ROOT
 ): void {
   const yaml = stringify(toBuildkitePipeline(commands, cfg));
   console.log("--- Generated pipeline");
@@ -83,6 +87,7 @@ export function uploadBuildkitePipeline(
     execSync(`buildkite-agent pipeline upload`, {
       input: yaml,
       stdio: ["pipe", "inherit", "inherit"],
+      cwd,
     });
   }
 }

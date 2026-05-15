@@ -427,10 +427,9 @@ FROM flattened_otel_logs
 ;
 
 // != on a literal flat key pushes to a NotQuery wrapping a TermQuery against the keyed
-// sub-field. Multi-valued sub-keys are excluded by the SingleValueQuery wrapper, matching the
-// per-row evaluator's "multi-value compares to null" semantics. host.ip is multi-valued in every
-// doc that has it, so a doc only stays in the result if its host.ip key is absent or
-// single-valued and not equal to the literal.
+// sub-field, wrapped in SingleValueQuery so the result matches the per-row evaluator's
+// "multi-value compares to null" semantics. A doc only contributes to the count if its
+// host.name key is present, single-valued, and not equal to the literal.
 notEqualsPushedToKeyedSubfield
 required_capability: fn_field_extract
 required_capability: flattened_datatype
@@ -441,7 +440,7 @@ FROM flattened_otel_logs
 ;
 
 c:long
-8
+9
 ;
 
 // IN on a literal flat key pushes to a TermsQuery against the keyed sub-field, again

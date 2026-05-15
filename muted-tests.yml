@@ -503,9 +503,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotIT
   method: testSnapshotFailsCleanlyWhenShardClosesDuringDisconnect
   issue: https://github.com/elastic/elasticsearch/issues/149032
-- class: org.elasticsearch.xpack.stateless.objectstore.S3ObjectStoreTests
-  method: testUploadIndicesDataWithRetries
-  issue: https://github.com/elastic/elasticsearch/issues/149037
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
   method: testConcurrentRolloverDuringTransition
   issue: https://github.com/elastic/elasticsearch/issues/149039
@@ -551,3 +548,9 @@ tests:
   # TODO: exclude replicas that have not acked cluster state from async await
 - class: org.elasticsearch.cluster.coordination.RareClusterStateIT
   issue: https://github.com/elastic/elasticsearch/pull/145363
+- class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
+  method: testGetVirtualBatchedCompoundCommitShouldNotStuckForConcurrentShardClose
+  issue: https://github.com/elastic/elasticsearch/issues/149188
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/148190

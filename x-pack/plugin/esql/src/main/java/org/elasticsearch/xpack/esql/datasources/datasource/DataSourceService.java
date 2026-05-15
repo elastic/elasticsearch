@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SequentialAckingBatchedTaskExecutor;
 import org.elasticsearch.cluster.metadata.DataSource;
 import org.elasticsearch.cluster.metadata.DataSourceMetadata;
+import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -26,16 +27,23 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.crypto.EncryptedData;
+import org.elasticsearch.xpack.core.crypto.EncryptionService;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Orchestrates create / replace / delete of data sources in cluster state. */
 public class DataSourceService {
@@ -54,6 +62,9 @@ public class DataSourceService {
     protected final ClusterService clusterService;
     private final Map<String, DataSourceValidator> validatorsByType;
     private final MasterServiceTaskQueue<AckedClusterStateUpdateTask> taskQueue;
+
+    /** Logged once per cluster lifetime when a PUT lands during a mixed-version window and skips encryption. */
+    private final AtomicBoolean mixedVersionDeferralLogged = new AtomicBoolean(false);
 
     private volatile int maxDataSourcesCount;
 
@@ -94,8 +105,24 @@ public class DataSourceService {
     /**
      * Create or replace a data source. Validation is expected to have run on the coordinator (via
      * {@link #validatePutDataSource}); the task re-validates under CAS for consistency.
+     *
+     * <p>Secret settings are encrypted master-side via {@code encryptionService} before the cluster-state
+     * task lands, but only when every node in the cluster advertises the data-source-encryption
+     * {@link org.elasticsearch.features.NodeFeature}. In a mixed-version cluster the encrypt step is
+     * skipped and the settings stay plaintext on disk; a one-time INFO log per cluster lifetime announces
+     * the deferral. The next PUT after the cluster crosses the adoption boundary will encrypt.
+     *
+     * <p>If the PEK is not yet installed when the encrypt step runs, {@code EncryptionService.encrypt}
+     * throws {@code EncryptionKeyNotYetAvailableException}, which surfaces as HTTP 503 via its own
+     * {@code status()} override — the request will simply be retried after PEK is available.
      */
-    public void putDataSource(ProjectId projectId, PutDataSourceAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+    public void putDataSource(
+        ProjectId projectId,
+        PutDataSourceAction.Request request,
+        EncryptionService encryptionService,
+        FeatureService featureService,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         logger.debug("submitting put data source [{}] of type [{}]", request.name(), request.type());
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, listener) {
             @Override
@@ -110,13 +137,20 @@ public class DataSourceService {
                         "cannot add data source, the maximum number of data sources is reached: " + maxDataSourcesCount
                     );
                 }
+                final boolean encryptionFeatureSupported = featureService.clusterHasFeature(
+                    currentState,
+                    EsqlFeatures.DATA_SOURCE_ENCRYPTION_FEATURE
+                );
+                final Map<String, DataSourceSetting> finalSettings = encryptionFeatureSupported
+                    ? encryptSecrets(validated.settings(), encryptionService)
+                    : announceDeferral(validated.settings());
                 // Preserve UUID on update; assign fresh on create or legacy (pre-UUID) migration.
                 final String uuid = (current != null && current.uuid() != null) ? current.uuid() : UUIDs.randomBase64UUID();
                 final DataSource dataSource = new DataSource(
                     validated.name(),
                     validated.type(),
                     validated.description(),
-                    validated.settings(),
+                    finalSettings,
                     uuid
                 );
                 final Map<String, DataSource> updated = new HashMap<>(metadata.dataSources());
@@ -129,6 +163,56 @@ public class DataSourceService {
             }
         };
         taskQueue.submitTask("update-esql-data-source-metadata-[" + request.name() + "]", task, task.timeout());
+    }
+
+    /**
+     * Walk the validated settings map; for every secret-classified entry whose value is plaintext String,
+     * replace it with an {@link EncryptedData} wrapping the AES-GCM ciphertext under the active PEK.
+     * Non-secret entries and already-encrypted entries pass through untouched.
+     */
+    private static Map<String, DataSourceSetting> encryptSecrets(
+        Map<String, DataSourceSetting> settings,
+        EncryptionService encryptionService
+    ) {
+        Map<String, DataSourceSetting> result = new HashMap<>(settings.size());
+        for (var entry : settings.entrySet()) {
+            DataSourceSetting setting = entry.getValue();
+            if (setting.secret() == false) {
+                result.put(entry.getKey(), setting);
+                continue;
+            }
+            Object raw = setting.encryptedSecret();
+            if (raw instanceof String plaintext) {
+                byte[] bytes = plaintext.getBytes(StandardCharsets.UTF_8);
+                try {
+                    EncryptedData encrypted = encryptionService.encrypt(bytes);
+                    result.put(entry.getKey(), new DataSourceSetting(encrypted, true));
+                } finally {
+                    // Best-effort wipe of the intermediate plaintext byte[]. The originating Java String
+                    // is immutable and remains on heap until GC — out-of-scope-here irreducible window.
+                    Arrays.fill(bytes, (byte) 0);
+                }
+            } else {
+                // Already an encrypted carrier (e.g. Map from legacy XContent or EncryptedData from a re-PUT) — pass through.
+                result.put(entry.getKey(), setting);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Pass-through for mixed-version PUTs: settings stay plaintext-typed. Logs the deferral once per
+     * cluster lifetime so the situation is visible without log-spamming under sustained mixed-version PUT.
+     */
+    private Map<String, DataSourceSetting> announceDeferral(Map<String, DataSourceSetting> settings) {
+        if (mixedVersionDeferralLogged.compareAndSet(false, true)) {
+            logger.info(
+                "data-source secret encryption deferred: mixed-version cluster detected; "
+                    + "future PUTs will encrypt once every node advertises the [{}] feature",
+                EsqlFeatures.DATA_SOURCE_ENCRYPTION_FEATURE.id()
+            );
+        }
+        return settings;
     }
 
     /** Delete data sources by name. Fails with 409 if any dataset references one; 404 if a name doesn't exist. */

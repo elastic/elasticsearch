@@ -16,13 +16,17 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.crypto.EncryptionService;
 
 public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNodeProjectAction<PutDataSourceAction.Request> {
     private final DataSourceService dataSourceService;
+    private final EncryptionService encryptionService;
+    private final FeatureService featureService;
 
     @Inject
     public TransportPutDataSourceAction(
@@ -31,6 +35,8 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
         ThreadPool threadPool,
         ActionFilters actionFilters,
         DataSourceService dataSourceService,
+        EncryptionService encryptionService,
+        FeatureService featureService,
         ProjectResolver projectResolver
     ) {
         super(
@@ -44,6 +50,10 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.dataSourceService = dataSourceService;
+        // EncryptionService is bound by the security plugin via PluginComponentBinding; PluginServices does not
+        // expose it, so Guice constructor injection on this Transport action is the supported reach.
+        this.encryptionService = encryptionService;
+        this.featureService = featureService;
     }
 
     @Override
@@ -66,7 +76,7 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
         ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        dataSourceService.putDataSource(state.projectId(), request, listener);
+        dataSourceService.putDataSource(state.projectId(), request, encryptionService, featureService, listener);
     }
 
     @Override

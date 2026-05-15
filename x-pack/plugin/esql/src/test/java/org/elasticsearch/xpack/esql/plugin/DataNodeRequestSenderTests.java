@@ -28,12 +28,14 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
-import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.NodeListener;
 import org.junit.After;
@@ -73,9 +75,8 @@ import static org.hamcrest.Matchers.not;
 
 public class DataNodeRequestSenderTests extends ComputeTestCase {
 
-    private TestThreadPool threadPool;
+    private ThreadPool threadPool;
     private Executor executor = null;
-    private static final String ESQL_TEST_EXECUTOR = "esql_test_executor";
 
     private final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node-1").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
     private final DiscoveryNode node2 = DiscoveryNodeUtils.builder("node-2").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
@@ -91,11 +92,13 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     @Before
     public void setThreadPool() {
         int numThreads = randomBoolean() ? 1 : between(2, 16);
-        threadPool = new TestThreadPool(
-            "test",
-            new FixedExecutorBuilder(Settings.EMPTY, ESQL_TEST_EXECUTOR, numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
+        threadPool = new ThreadPool(
+            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "TransportActionTests").build(),
+            MeterRegistry.NOOP,
+            (settings, allocatedProcessors) -> Map.of(),
+            new FixedExecutorBuilder(Settings.EMPTY, ThreadPool.Names.SEARCH, numThreads, 1024, "", EsExecutors.TaskTrackingConfig.DEFAULT)
         );
-        executor = threadPool.executor(ESQL_TEST_EXECUTOR);
+        executor = threadPool.executor(ThreadPool.Names.SEARCH);
     }
 
     @After

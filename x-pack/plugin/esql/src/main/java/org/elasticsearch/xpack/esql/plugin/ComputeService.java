@@ -66,6 +66,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -96,6 +97,7 @@ public class ComputeService {
     private final ClusterComputeHandler clusterComputeHandler;
     private final ExchangeService exchangeService;
     private final PhysicalSettings physicalSettings;
+    private final Executor searchExecutor;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -111,8 +113,8 @@ public class ComputeService {
         this.exchangeService = transportActionServices.exchangeService();
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.blockFactory = blockFactory;
-        var esqlExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
-        this.driverRunner = new DriverTaskRunner(transportService, esqlExecutor);
+        this.searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
+        this.driverRunner = new DriverTaskRunner(transportService, searchExecutor);
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceRunner = transportActionServices.inferenceRunner();
@@ -123,13 +125,13 @@ public class ComputeService {
             searchService,
             transportService,
             exchangeService,
-            esqlExecutor
+            searchExecutor
         );
         this.clusterComputeHandler = new ClusterComputeHandler(
             this,
             exchangeService,
             transportService,
-            esqlExecutor,
+            searchExecutor,
             dataNodeComputeHandler
         );
         this.physicalSettings = new PhysicalSettings(clusterService);
@@ -221,10 +223,7 @@ public class ComputeService {
          * entire plan.
          */
         List<Attribute> outputAttributes = physicalPlan.output();
-        var exchangeSource = new ExchangeSourceHandler(
-            queryPragmas.exchangeBufferSize(),
-            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
-        );
+        var exchangeSource = new ExchangeSourceHandler(queryPragmas.exchangeBufferSize(), searchExecutor);
         listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
         exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
         try (

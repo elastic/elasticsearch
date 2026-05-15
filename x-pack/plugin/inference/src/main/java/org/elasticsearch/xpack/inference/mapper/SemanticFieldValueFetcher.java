@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -117,6 +118,40 @@ class SemanticFieldValueFetcher implements ValueFetcher {
     @Override
     public StoredFieldsSpec storedFieldsSpec() {
         return StoredFieldsSpec.NO_REQUIREMENTS;
+    }
+
+    public SemanticFieldContent fetchSemanticFieldContent(Source source, String sourceField) {
+        List<String> textValues = new ArrayList<>();
+        Map<Integer, InferenceString> inferenceStringValues = new HashMap<>();
+
+        Object valueObj = XContentMapValues.extractValue(sourceField, source.source(), null);
+        if (valueObj == null) {
+            return new SemanticFieldContent(textValues, inferenceStringValues);
+        }
+
+        int valueIndex = 0;
+        List<Object> parsedValues = SemanticTextUtils.nodeObjectValues(sourceField, valueObj);
+        for (Object parsedValue : parsedValues) {
+            if (parsedValue instanceof InferenceString inferenceString) {
+                inferenceStringValues.put(valueIndex, inferenceString);
+            } else if (parsedValue instanceof String s) {
+                textValues.add(s);
+            } else {
+                throw new IllegalStateException(
+                    "Unexpected value type ["
+                        + parsedValue.getClass().getSimpleName()
+                        + "] for field ["
+                        + sourceField
+                        + "] at index ["
+                        + valueIndex
+                        + "]"
+                );
+            }
+
+            valueIndex++;
+        }
+
+        return new SemanticFieldContent(textValues, inferenceStringValues);
     }
 
     private List<Object> fetchTextChunks(Source source, int doc, DocIdSetIterator it) throws IOException {

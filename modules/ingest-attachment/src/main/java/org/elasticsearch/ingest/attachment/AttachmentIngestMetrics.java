@@ -12,8 +12,6 @@ package org.elasticsearch.ingest.attachment;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
-import java.util.Map;
-
 /**
  * Telemetry for the ingest attachment processor.
  */
@@ -46,11 +44,11 @@ public final class AttachmentIngestMetrics {
     }
 
     public void recordRawBytesReceived(long rawBytes) {
-        rawBytesReceived.record(rawBytes, Map.of());
+        rawBytesReceived.record(rawBytes);
     }
 
     public void recordRawBytesProcessed(long rawBytes) {
-        rawBytesProcessed.record(rawBytes, Map.of());
+        rawBytesProcessed.record(rawBytes);
     }
 
 }

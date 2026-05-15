@@ -4,6 +4,6 @@ steps:
       - label: "detect changed tests"
         command: |
           npm install -g bun@1.0.4
-          bun .buildkite/scripts/flakiness-detection/index.ts
+          bun .buildkite/scripts/flakiness-detection/entrypoints/pr.ts
         timeout_in_minutes: 10
         soft_fail: true

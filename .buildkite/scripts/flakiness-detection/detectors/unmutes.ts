@@ -1,7 +1,4 @@
 import { parse } from "yaml";
-import { execSync } from "child_process";
-import { readFileSync } from "fs";
-import { resolve } from "path";
 
 import {
   ClassifiedTest,
@@ -142,34 +139,4 @@ export function findUnmutedTests(
     }
   }
   return { located, unlocated };
-}
-
-export function detectUnmutedTests(mergeBase: string, projectRoot: string): UnmuteDetectionResult {
-  let oldYaml = "";
-  try {
-    oldYaml = execSync(`git show ${mergeBase}:muted-tests.yml`, {
-      cwd: projectRoot,
-      stdio: ["ignore", "pipe", "ignore"],
-    }).toString();
-  } catch {
-    // File didn't exist at merge base; treat as empty.
-  }
-
-  let newYaml = "";
-  try {
-    newYaml = readFileSync(resolve(projectRoot, "muted-tests.yml"), "utf8");
-  } catch {
-    // File was deleted in the PR; treat as empty.
-  }
-
-  const repoFilesOutput = execSync("git ls-files", {
-    cwd: projectRoot,
-    maxBuffer: 256 * 1024 * 1024,
-  }).toString();
-  const repoFiles = repoFilesOutput
-    .split("\n")
-    .map((f) => f.trim())
-    .filter((f) => f !== "");
-
-  return findUnmutedTests(oldYaml, newYaml, repoFiles);
 }

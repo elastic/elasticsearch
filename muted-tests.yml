@@ -539,6 +539,15 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
   method: testRetainCommitForReadersAfterShardMovedAway
   issue: https://github.com/elastic/elasticsearch/issues/149083
+- class: org.elasticsearch.xpack.stateless.StatelessFieldCapabilitiesIT
+  method: testFieldCapsForHollowShards
+  issue: https://github.com/elastic/elasticsearch/issues/149113
+- class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
+  method: test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [LOCAL]}
+  issue: https://github.com/elastic/elasticsearch/issues/149126
+- class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
+  method: test {csv-spec:csv-union-by-name.multiFileUnionByNameRecipe [LOCAL]}
+  issue: https://github.com/elastic/elasticsearch/issues/149127
   # TODO: exclude replicas that have not acked cluster state from async await
 - class: org.elasticsearch.cluster.coordination.RareClusterStateIT
   issue: https://github.com/elastic/elasticsearch/pull/145363

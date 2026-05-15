@@ -54,7 +54,7 @@ public class FieldDataTests extends ESTestCase {
         LongValues backToLongs = SortedNumericLongValues.unwrapSingleton(FieldData.toSortableLongBits(asMultiDoubles));
         assertSame(values, backToLongs);
 
-        SortedNumericLongValues multiValues = new SortedNumericLongValues(true, null) {
+        SortedNumericLongValues multiValues = new SortedNumericLongValues(null) {
 
             @Override
             public boolean advanceExact(int target) {

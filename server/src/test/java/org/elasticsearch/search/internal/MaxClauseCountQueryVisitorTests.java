@@ -142,7 +142,9 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
         new AccountableTestQuery(randomLongBetween(1L, 10_000L)).visit(visitor);
         assertTrue("precondition: visitor accumulated state", visitor.getNumClauses() > 0 && visitor.getEstimatedBytes() > 0);
+
         visitor.reset();
+
         assertEquals(0, visitor.getNumClauses());
         assertEquals(0L, visitor.getEstimatedBytes());
     }
@@ -152,7 +154,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         MaxClauseCountQueryVisitor inner = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
         long innerBytes = randomLongBetween(100L, 10_000L);
         new AccountableTestQuery(innerBytes).visit(inner);
-        
+
         outer.merge(inner);
 
         assertEquals(inner.getNumClauses(), outer.getNumClauses());
@@ -201,6 +203,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         long preExisting = 900L;
         FakeCircuitBreaker breaker = new FakeCircuitBreaker(limit, preExisting);
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), breaker);
+
         expectThrows(CircuitBreakingException.class, () -> new AccountableTestQuery(200L).visit(visitor));
         assertTrue(breaker.tripped);
     }
@@ -211,7 +214,8 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         MaxClauseCountQueryVisitor outer = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), breaker);
 
         MaxClauseCountQueryVisitor inner = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
-        new AccountableTestQuery(2_000L).visit(inner);.
+        new AccountableTestQuery(2_000L).visit(inner);
+        
         expectThrows(CircuitBreakingException.class, () -> outer.merge(inner));
         assertTrue("merge must trip the breaker once projected total exceeds the limit", breaker.tripped);
     }

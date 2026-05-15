@@ -177,8 +177,9 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         }
         RangeAggregator.Range[] ranges = ranges(hardBounds, fixedRoundingPoints);
         if (ranges.length == 0) {
-            // hard_bounds excludes every fixed rounding point; fall back to the regular aggregator,
-            // which will produce an empty histogram instead of tripping RangeAggregator.hasOverlap on an empty array.
+            // hard_bounds excludes every fixed rounding point; fall back to the regular aggregator
+            // rather than adapting into a RangeAggregator with zero ranges, preserving the
+            // expected date_histogram behavior of producing an empty histogram.
             logger.trace("couldn't adapt [{}], hard_bounds excludes all fixed rounding points", name);
             return null;
         }

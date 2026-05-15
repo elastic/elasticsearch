@@ -32,6 +32,7 @@ import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_LO
 import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_REMOTE;
 import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_COMPLETION_COUNTER;
 import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_RELOCATION_COUNTER;
+import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_RELOCATION_STARTED_COUNTER;
 import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_TIME_HISTOGRAM;
 import static org.elasticsearch.reindex.ReindexMetrics.SlicingMode;
 
@@ -155,6 +156,26 @@ public class ReindexMetricsTests extends ESTestCase {
         assertNull(measurements.getFirst().attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
         assertEquals(1, measurements.get(1).getLong());
         assertEquals("java.io.IOException", measurements.get(1).attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
+    }
+
+    public void testRecordRelocationStarted() {
+        metrics.recordRelocationStarted();
+
+        List<Measurement> measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_RELOCATION_STARTED_COUNTER);
+        assertEquals(1, measurements.size());
+        assertEquals(1, measurements.getFirst().getLong());
+        assertNull(measurements.getFirst().attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
+
+        assertEquals(0, registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_RELOCATION_COUNTER).size());
+
+        metrics.recordRelocationStarted();
+
+        measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_RELOCATION_STARTED_COUNTER);
+        assertEquals(2, measurements.size());
+        assertEquals(1, measurements.get(1).getLong());
+        assertNull(measurements.get(1).attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
+
+        assertEquals(0, registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_RELOCATION_COUNTER).size());
     }
 
     public void testResolveSlicingModeNone() {

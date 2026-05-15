@@ -23,6 +23,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
+import org.elasticsearch.xpack.inference.common.DiagnosticsCache;
 import org.elasticsearch.xpack.inference.common.InferenceIdAndProject;
 
 import java.util.Collection;
@@ -34,7 +35,7 @@ import java.util.List;
  * The cache is invalidated via the {@link ClearInferenceEndpointCacheAction} so that every node gets the invalidation
  * message.
  */
-public class InferenceEndpointRegistry {
+public class InferenceEndpointRegistry implements DiagnosticsCache {
 
     private static final Setting<Boolean> INFERENCE_ENDPOINT_CACHE_ENABLED = Setting.boolSetting(
         "xpack.inference.endpoint.cache.enabled",

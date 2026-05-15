@@ -98,6 +98,8 @@ import org.elasticsearch.xpack.inference.action.TransportUnifiedCompletionInfere
 import org.elasticsearch.xpack.inference.action.TransportUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter;
 import org.elasticsearch.xpack.inference.common.Truncator;
+import org.elasticsearch.xpack.inference.common.oauth2.ClearOAuth2TokenCacheAction;
+import org.elasticsearch.xpack.inference.common.oauth2.OAuth2TokenCache;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
@@ -302,6 +304,7 @@ public class InferencePlugin extends Plugin
             new ActionHandler(PutCCMConfigurationAction.INSTANCE, TransportPutCCMConfigurationAction.class),
             new ActionHandler(DeleteCCMConfigurationAction.INSTANCE, TransportDeleteCCMConfigurationAction.class),
             new ActionHandler(CCMCache.ClearCCMCacheAction.INSTANCE, CCMCache.ClearCCMCacheAction.class),
+            new ActionHandler(ClearOAuth2TokenCacheAction.INSTANCE, ClearOAuth2TokenCacheAction.class),
             new ActionHandler(AuthorizationTaskExecutor.Action.INSTANCE, AuthorizationTaskExecutor.Action.class),
             new ActionHandler(GetInferenceFieldsInternalAction.INSTANCE, TransportGetInferenceFieldsInternalAction.class),
             new ActionHandler(EmbeddingAction.INSTANCE, TransportEmbeddingAction.class),
@@ -449,6 +452,15 @@ public class InferencePlugin extends Plugin
                 serviceRegistry,
                 services.projectResolver(),
                 services.featureService()
+            )
+        );
+        components.add(
+            new OAuth2TokenCache(
+                services.clusterService(),
+                settings,
+                services.featureService(),
+                services.projectResolver(),
+                services.client()
             )
         );
         components.add(new PluginComponentBinding<>(ElasticInferenceServiceSettings.class, inferenceServiceSettings));
@@ -768,6 +780,7 @@ public class InferencePlugin extends Plugin
         settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());
         settings.addAll(CCMSettings.getSettingsDefinitions());
         settings.addAll(CCMCache.getSettingsDefinitions());
+        settings.addAll(OAuth2TokenCache.getSettingsDefinitions());
         return Collections.unmodifiableSet(settings);
     }
 

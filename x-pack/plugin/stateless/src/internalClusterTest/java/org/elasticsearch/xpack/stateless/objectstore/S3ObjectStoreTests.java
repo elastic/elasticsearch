@@ -16,6 +16,7 @@ import com.sun.net.httpserver.HttpHandler;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -150,6 +151,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             .put(ObjectStoreService.BUCKET_SETTING.getKey(), "bucket")
             .put(ObjectStoreService.CLIENT_SETTING.getKey(), "test")
             .put("s3.client.test.max_retries", maxRetries)
+            .put("s3.client.test.region", "us-east-1")
             .setSecureSettings(mockSecureSettings);
     }
 
@@ -509,7 +511,11 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             }
         });
 
-        final Settings nodeSettings = disableIndexingDiskAndMemoryControllersNodeSettings();
+        final Settings nodeSettings = Settings.builder()
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(10))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(5))
+            .build();
         final String masterAndIndexNode = startMasterAndIndexNode(nodeSettings);
         final String searchNode = startSearchNode(nodeSettings);
 

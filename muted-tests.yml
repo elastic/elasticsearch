@@ -518,9 +518,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testCommitsNotDeletedWhileAnUnpromotableIsRecovering
   issue: https://github.com/elastic/elasticsearch/issues/149036
-- class: org.elasticsearch.xpack.stateless.objectstore.S3ObjectStoreTests
-  method: testUploadIndicesDataWithRetries
-  issue: https://github.com/elastic/elasticsearch/issues/149037
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
   method: testConcurrentRolloverDuringTransition
   issue: https://github.com/elastic/elasticsearch/issues/149039

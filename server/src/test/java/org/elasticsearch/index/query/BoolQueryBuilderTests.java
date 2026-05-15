@@ -532,8 +532,8 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         }
     }
 
-    public void testBoolDedupPathTripsBreakerMidWalkBeforeMerge() {n.
-        assertCircuitBreakerTripsOnQueryConstruction("500kb", () -> {
+    public void testBoolDedupPathTripsBreakerMidWalkBeforeMerge() {
+        n.assertCircuitBreakerTripsOnQueryConstruction("500kb", () -> {
             BoolQueryBuilder boolQuery = new BoolQueryBuilder();
             IntStream.range(0, 50)
                 .forEach(

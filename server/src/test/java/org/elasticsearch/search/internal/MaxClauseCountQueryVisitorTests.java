@@ -215,7 +215,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
 
         MaxClauseCountQueryVisitor inner = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
         new AccountableTestQuery(2_000L).visit(inner);
-        
+
         expectThrows(CircuitBreakingException.class, () -> outer.merge(inner));
         assertTrue("merge must trip the breaker once projected total exceeds the limit", breaker.tripped);
     }

@@ -511,11 +511,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             }
         });
 
-        final Settings nodeSettings = Settings.builder()
-            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
-            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(10))
-            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(5))
-            .build();
+        final Settings nodeSettings = disableIndexingDiskAndMemoryControllersNodeSettings();
         final String masterAndIndexNode = startMasterAndIndexNode(nodeSettings);
         final String searchNode = startSearchNode(nodeSettings);
 
@@ -536,7 +532,8 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
             setReplicaCount(1, indexName);
             ensureGreen(indexName);
-            assertHitCount(prepareSearch(indexName), numDocs);
+            // we are setting setSize(0) because we don't want to retrieve the documents (which are heavy in this test case)
+            assertHitCount(prepareSearch(indexName).setSize(0), numDocs);
         } finally {
             // Stop the node otherwise the test can fail because node tries to publish cluster state to a closed HTTP handler
             internalCluster().stopNode(searchNode);

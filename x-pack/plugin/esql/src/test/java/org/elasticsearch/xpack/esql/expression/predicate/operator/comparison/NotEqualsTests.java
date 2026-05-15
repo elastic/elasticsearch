@@ -92,7 +92,7 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
         );
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                "NotEqualsKeywordsEvaluator",
+                "NotEqualsBytesRefEvaluator",
                 "lhs",
                 "rhs",
                 (l, r) -> false == l.equals(r),
@@ -105,7 +105,7 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
         );
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                "NotEqualsKeywordsEvaluator",
+                "NotEqualsBytesRefEvaluator",
                 "lhs",
                 "rhs",
                 (l, r) -> false == l.equals(r),
@@ -177,7 +177,7 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
         suppliers.addAll(
             TestCaseSupplier.stringCases(
                 (l, r) -> false == l.equals(r),
-                (lhsType, rhsType) -> "NotEqualsKeywordsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                (lhsType, rhsType) -> "NotEqualsBytesRefEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 List.of(),
                 DataType.BOOLEAN
             )
@@ -245,6 +245,23 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
                     DataType.BOOLEAN,
                     TestCaseSupplier.geoGridCases(gridType),
                     TestCaseSupplier.geoGridCases(gridType),
+                    List.of(),
+                    false
+                )
+            );
+        }
+
+        // Flattened cases
+        if (DataType.FLATTENED.supportedVersion().supportedLocally()) {
+            suppliers.addAll(
+                TestCaseSupplier.forBinaryNotCasting(
+                    "NotEqualsBytesRefEvaluator",
+                    "lhs",
+                    "rhs",
+                    (l, r) -> false == l.equals(r),
+                    DataType.BOOLEAN,
+                    TestCaseSupplier.flattenedCases(),
+                    TestCaseSupplier.flattenedCases(),
                     List.of(),
                     false
                 )

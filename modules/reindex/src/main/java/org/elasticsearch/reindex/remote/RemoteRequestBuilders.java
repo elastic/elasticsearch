@@ -336,6 +336,11 @@ final class RemoteRequestBuilders {
                 entity.array("search_after", searchAfter);
             }
 
+            Integer trackTotalHitsUpTo = searchRequest.source().trackTotalHitsUpTo();
+            if (trackTotalHitsUpTo != null) {
+                entity.field("track_total_hits", trackTotalHitsUpTo.intValue());
+            }
+
             entity.endObject();
             request.setJsonEntity(Strings.toString(entity));
         } catch (IOException e) {

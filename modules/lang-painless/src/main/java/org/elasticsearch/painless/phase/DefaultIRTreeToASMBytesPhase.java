@@ -99,6 +99,7 @@ import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCAllEscape;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCCancellationCheck;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCCaptureBox;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCContinuous;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInitialize;
@@ -317,19 +318,101 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         methodWriter.visitCode();
 
-        if (irFunctionNode.getDecorationValue(IRDMaxLoopCounter.class) > 0) {
-            // if there is infinite loop protection, we do this once:
-            // int #loop = settings.getMaxLoopCounter()
+        // Initialize the loop-guard locals once. The runtime branch in writeBranchedLoopGuard
+        // picks between cancellation and legacy at each backedge based on the cancelRunnable
+        // value, which can change per execution via _setCancellationCheck.
+        boolean cancellation = irFunctionNode.hasCondition(IRCCancellationCheck.class);
+        int maxLoopCounter = irFunctionNode.getDecorationValue(IRDMaxLoopCounter.class);
 
+        if (cancellation) {
+            Variable cancelRunnable = writeScope.defineInternalVariable(Runnable.class, "cancelRunnable");
+            Variable poll = writeScope.defineInternalVariable(int.class, "poll");
+
+            methodWriter.loadThis();
+            methodWriter.invokeInterface(WriterConstants.BASE_INTERFACE_TYPE, WriterConstants.GET_CANCELLATION_CHECK);
+            methodWriter.visitVarInsn(Opcodes.ASTORE, cancelRunnable.getSlot());
+
+            methodWriter.push(WriterConstants.CANCELLATION_POLL_INTERVAL);
+            methodWriter.visitVarInsn(Opcodes.ISTORE, poll.getSlot());
+        }
+
+        if (maxLoopCounter > 0) {
             Variable loop = writeScope.defineInternalVariable(int.class, "loop");
-
-            methodWriter.push(irFunctionNode.getDecorationValue(IRDMaxLoopCounter.class));
+            methodWriter.push(maxLoopCounter);
             methodWriter.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
         }
 
         visit(irFunctionNode.getBlockNode(), writeScope.newBlockScope());
 
         methodWriter.endMethod();
+    }
+
+    /** Per-iteration guard for for/while/do-while. See {@link #writeBranchedLoopGuard}. */
+    private static void writeLoopGuard(WriteScope writeScope, MethodWriter methodWriter, Location location) {
+        writeBranchedLoopGuard(writeScope, methodWriter, location, true);
+    }
+
+    /**
+     * Per-iteration guard for for-each. Same as {@link #writeLoopGuard} for opted-in functions;
+     * emits nothing for non-opted-in (preserves historical for-each-uncovered behavior so
+     * existing filter/ingest/etc. scripts iterating large collections aren't broken).
+     */
+    private static void writeForEachLoopGuard(WriteScope writeScope, MethodWriter methodWriter, Location location) {
+        writeBranchedLoopGuard(writeScope, methodWriter, location, false);
+    }
+
+    /**
+     * Shared loop-guard emission. Opted-in functions emit
+     * {@code if (cancelRunnable != null) writeCancellationCheck else writeLoopCounter} so the
+     * inactive counter pays no per-iteration cost (important: an int counter pre-set to
+     * {@link Integer#MAX_VALUE} still trips after ~2 s of tight looping). Non-opted-in
+     * functions emit only the legacy counter (or nothing, when {@code legacyForNonOptedIn} is
+     * false — used by for-each).
+     */
+    private static void writeBranchedLoopGuard(
+        WriteScope writeScope,
+        MethodWriter methodWriter,
+        Location location,
+        boolean legacyForNonOptedIn
+    ) {
+        Variable cancelRunnable = writeScope.getInternalVariable("cancelRunnable");
+        Variable loop = writeScope.getInternalVariable("loop");
+
+        if (cancelRunnable == null) {
+            if (legacyForNonOptedIn && loop != null) {
+                methodWriter.writeLoopCounter(loop.getSlot(), location);
+            }
+            return;
+        }
+
+        Variable poll = writeScope.getInternalVariable("poll");
+
+        if (loop == null) {
+            // No legacy fallback to choose between — just skip the cancellation check when
+            // the runnable is null.
+            Label skip = new Label();
+            methodWriter.visitVarInsn(Opcodes.ALOAD, cancelRunnable.getSlot());
+            methodWriter.ifNull(skip);
+            methodWriter.writeCancellationCheck(
+                cancelRunnable.getSlot(),
+                poll.getSlot(),
+                WriterConstants.CANCELLATION_POLL_INTERVAL,
+                location
+            );
+            methodWriter.mark(skip);
+            return;
+        }
+
+        Label legacyPath = new Label();
+        Label end = new Label();
+
+        methodWriter.visitVarInsn(Opcodes.ALOAD, cancelRunnable.getSlot());
+        methodWriter.ifNull(legacyPath);
+        methodWriter.writeCancellationCheck(cancelRunnable.getSlot(), poll.getSlot(), WriterConstants.CANCELLATION_POLL_INTERVAL, location);
+        methodWriter.goTo(end);
+        methodWriter.mark(legacyPath);
+        methodWriter.writeLoopCounter(loop.getSlot(), location);
+        methodWriter.mark(end);
     }
 
     @Override
@@ -400,11 +483,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.ifZCmp(Opcodes.IFEQ, end);
         }
 
-        Variable loop = writeScope.getInternalVariable("loop");
-
-        if (loop != null) {
-            methodWriter.writeLoopCounter(loop.getSlot(), irWhileLoopNode.getLocation());
-        }
+        writeLoopGuard(writeScope, methodWriter, irWhileLoopNode.getLocation());
 
         BlockNode irBlockNode = irWhileLoopNode.getBlockNode();
 
@@ -439,11 +518,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.ifZCmp(Opcodes.IFEQ, end);
         }
 
-        Variable loop = writeScope.getInternalVariable("loop");
-
-        if (loop != null) {
-            methodWriter.writeLoopCounter(loop.getSlot(), irDoWhileLoopNode.getLocation());
-        }
+        writeLoopGuard(writeScope, methodWriter, irDoWhileLoopNode.getLocation());
 
         methodWriter.goTo(start);
         methodWriter.mark(end);
@@ -480,11 +555,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.ifZCmp(Opcodes.IFEQ, end);
         }
 
-        Variable loop = writeScope.getInternalVariable("loop");
-
-        if (loop != null) {
-            methodWriter.writeLoopCounter(loop.getSlot(), irForLoopNode.getLocation());
-        }
+        writeLoopGuard(writeScope, methodWriter, irForLoopNode.getLocation());
 
         boolean allEscape = false;
 
@@ -545,6 +616,8 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.arrayLength();
         methodWriter.ifICmp(MethodWriter.GE, end);
 
+        writeForEachLoopGuard(writeScope, methodWriter, irForEachSubArrayNode.getLocation());
+
         methodWriter.visitVarInsn(array.getAsmType().getOpcode(Opcodes.ILOAD), array.getSlot());
         methodWriter.visitVarInsn(index.getAsmType().getOpcode(Opcodes.ILOAD), index.getSlot());
         methodWriter.arrayLoad(MethodWriter.getType(irForEachSubArrayNode.getDecorationValue(IRDIndexedType.class)));
@@ -592,6 +665,8 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.visitVarInsn(iterator.getAsmType().getOpcode(Opcodes.ILOAD), iterator.getSlot());
         methodWriter.invokeInterface(ITERATOR_TYPE, ITERATOR_HASNEXT);
         methodWriter.ifZCmp(MethodWriter.EQ, end);
+
+        writeForEachLoopGuard(writeScope, methodWriter, irForEachSubIterableNode.getLocation());
 
         methodWriter.visitVarInsn(iterator.getAsmType().getOpcode(Opcodes.ILOAD), iterator.getSlot());
         if (painlessMethod != null || variable.getType().isPrimitive() == false) {

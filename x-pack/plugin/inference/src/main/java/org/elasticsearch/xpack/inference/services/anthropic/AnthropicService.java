@@ -160,7 +160,7 @@ public class AnthropicService extends SenderService<AnthropicModel> {
     }
 
     @Override
-    protected boolean supportsChunkedInfer() {
+    public boolean supportsChunkedInfer() {
         return false;
     }
 

@@ -23,6 +23,7 @@ true                    | two         | 2024-05-10T00:22:00.000Z
 present_over_time_events_received_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket
+required_capability: fix_tstep_bucket_rounding
 
 PROMQL index=k8s step=2m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:22:00.000Z" events_received=(max by (pod) (present_over_time(events_received{cluster="prod",pod="two"}[2m])))
 | SORT step;
@@ -591,6 +592,7 @@ events_received:integer | pod:keyword | time_bucket:datetime
 present_over_time_events_received_as_integer_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket
+required_capability: fix_tstep_bucket_rounding
 
 PROMQL index=k8s step=2m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:22:00.000Z" events_received=(max by (pod) (present_over_time(events_received{cluster="prod",pod="two"}[2m])))
 | SORT step;

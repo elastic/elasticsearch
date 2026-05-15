@@ -11,6 +11,10 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
@@ -18,9 +22,13 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction.GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV;
+import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction.GET_INFERENCE_FIELDS_EMBEDDING_INPUT_TV;
+import static org.elasticsearch.xpack.inference.Utils.randomInferenceStringGroup;
+import static org.hamcrest.Matchers.containsString;
 
 public class GetInferenceFieldsInternalActionRequestTests extends AbstractBWCWireSerializationTestCase<
     GetInferenceFieldsInternalAction.Request> {
@@ -29,6 +37,11 @@ public class GetInferenceFieldsInternalActionRequestTests extends AbstractBWCWir
         return GetInferenceFieldsInternalAction.Request::new;
     }
 
+    /**
+     * Generates a text-only (or null) input compatible with all BWC versions, since older versions cannot carry non-text inputs
+     * over the wire. Tests for non-text inputs are covered by {@code testWriteToThrowsForNonTextInputOnOldTransportVersion()} and
+     * the current-version serialization path in {@code mutateInstance()}.
+     */
     @Override
     protected GetInferenceFieldsInternalAction.Request createTestInstance() {
         return new GetInferenceFieldsInternalAction.Request(
@@ -36,7 +49,7 @@ public class GetInferenceFieldsInternalActionRequestTests extends AbstractBWCWir
             randomFields(),
             randomBoolean(),
             randomBoolean(),
-            randomQuery(),
+            randomTextInput(),
             randomIndicesOptions()
         );
     }
@@ -50,7 +63,7 @@ public class GetInferenceFieldsInternalActionRequestTests extends AbstractBWCWir
                 instance.fields(),
                 instance.resolveWildcards(),
                 instance.useDefaultFields(),
-                instance.query(),
+                instance.input(),
                 instance.indicesOptions()
             );
             case 1 -> new GetInferenceFieldsInternalAction.Request(
@@ -58,7 +71,7 @@ public class GetInferenceFieldsInternalActionRequestTests extends AbstractBWCWir
                 randomValueOtherThan(instance.fields(), GetInferenceFieldsInternalActionRequestTests::randomFields),
                 instance.resolveWildcards(),
                 instance.useDefaultFields(),
-                instance.query(),
+                instance.input(),
                 instance.indicesOptions()
             );
             case 2 -> new GetInferenceFieldsInternalAction.Request(
@@ -66,7 +79,7 @@ public class GetInferenceFieldsInternalActionRequestTests extends AbstractBWCWir
                 instance.fields(),
                 randomValueOtherThan(instance.resolveWildcards(), ESTestCase::randomBoolean),
                 instance.useDefaultFields(),
-                instance.query(),
+                instance.input(),
                 instance.indicesOptions()
             );
             case 3 -> new GetInferenceFieldsInternalAction.Request(
@@ -74,15 +87,17 @@ public class GetInferenceFieldsInternalActionRequestTests extends AbstractBWCWir
                 instance.fields(),
                 instance.resolveWildcards(),
                 randomValueOtherThan(instance.useDefaultFields(), ESTestCase::randomBoolean),
-                instance.query(),
+                instance.input(),
                 instance.indicesOptions()
             );
+            // Mutate the input field using the full randomInput() which may return non-text inputs. This case is only exercised at
+            // TransportVersion.current() by the serialization test, so non-text inputs are valid here.
             case 4 -> new GetInferenceFieldsInternalAction.Request(
                 instance.indices(),
                 instance.fields(),
                 instance.resolveWildcards(),
                 instance.useDefaultFields(),
-                randomValueOtherThan(instance.query(), GetInferenceFieldsInternalActionRequestTests::randomQuery),
+                randomValueOtherThan(instance.input(), () -> randomBoolean() ? null : randomInferenceStringGroup()),
                 instance.indicesOptions()
             );
             case 5 -> new GetInferenceFieldsInternalAction.Request(
@@ -90,7 +105,7 @@ public class GetInferenceFieldsInternalActionRequestTests extends AbstractBWCWir
                 instance.fields(),
                 instance.resolveWildcards(),
                 instance.useDefaultFields(),
-                instance.query(),
+                instance.input(),
                 randomValueOtherThan(instance.indicesOptions(), () -> {
                     IndicesOptions newOptions = randomIndicesOptions();
                     while (instance.indicesOptions() == IndicesOptions.DEFAULT && newOptions == null) {
@@ -120,6 +135,48 @@ public class GetInferenceFieldsInternalActionRequestTests extends AbstractBWCWir
         return instance;
     }
 
+    public void testWriteToThrowsForNonTextInputOnOldTransportVersion() {
+        InferenceStringGroup imageInput = new InferenceStringGroup(
+            new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64,aGVsbG8=")
+        );
+        GetInferenceFieldsInternalAction.Request request = new GetInferenceFieldsInternalAction.Request(
+            randomIndices(),
+            randomFields(),
+            randomBoolean(),
+            randomBoolean(),
+            imageInput,
+            randomIndicesOptions()
+        );
+
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(GET_INFERENCE_FIELDS_EMBEDDING_INPUT_TV);
+        IllegalArgumentException e = assertThrows(
+            IllegalArgumentException.class,
+            () -> copyWriteable(request, getNamedWriteableRegistry(), instanceReader(), oldVersion)
+        );
+        assertThat(e.getMessage(), containsString("Cannot send non-text or multiple inputs to a node that does not support it"));
+    }
+
+    public void testWriteToThrowsForMultipleTextInputsOnOldTransportVersion() {
+        InferenceStringGroup multipleInputs = new InferenceStringGroup(
+            List.of(new InferenceString(DataType.TEXT, "first"), new InferenceString(DataType.TEXT, "second"))
+        );
+        GetInferenceFieldsInternalAction.Request request = new GetInferenceFieldsInternalAction.Request(
+            randomIndices(),
+            randomFields(),
+            randomBoolean(),
+            randomBoolean(),
+            multipleInputs,
+            randomIndicesOptions()
+        );
+
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(GET_INFERENCE_FIELDS_EMBEDDING_INPUT_TV);
+        IllegalArgumentException e = assertThrows(
+            IllegalArgumentException.class,
+            () -> copyWriteable(request, getNamedWriteableRegistry(), instanceReader(), oldVersion)
+        );
+        assertThat(e.getMessage(), containsString("Cannot send non-text or multiple inputs to a node that does not support it"));
+    }
+
     private static String[] randomIndices() {
         return randomArray(0, 5, String[]::new, ESTestCase::randomIdentifier);
     }
@@ -128,8 +185,8 @@ public class GetInferenceFieldsInternalActionRequestTests extends AbstractBWCWir
         return randomMap(0, 5, () -> Tuple.tuple(randomIdentifier(), randomFloat()));
     }
 
-    private static String randomQuery() {
-        return randomBoolean() ? randomAlphaOfLengthBetween(5, 10) : null;
+    private static InferenceStringGroup randomTextInput() {
+        return randomBoolean() ? null : new InferenceStringGroup(randomAlphaOfLengthBetween(5, 10));
     }
 
     private static IndicesOptions randomIndicesOptions() {

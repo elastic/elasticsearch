@@ -35,7 +35,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.ShutdownPrepareService;
@@ -818,7 +818,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         assertThat(taskInfo.cancelled(), equalTo(false));
         assertThat(taskInfo.cancellable(), equalTo(true));
 
-        final BulkByScrollTask.Status taskStatus = ((BulkByScrollTask.Status) taskInfo.status());
+        final BulkByPaginatedSearchTask.Status taskStatus = ((BulkByPaginatedSearchTask.Status) taskInfo.status());
         // lessThan because the initial running reindex might have "uninitialized" 0
         assertThat(taskStatus.getTotal(), lessThanOrEqualTo((long) numberOfDocumentsThatTakes60SecondsToIngest));
         assertThat(taskStatus.getUpdated(), is(0L));
@@ -836,7 +836,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
 
         if (isSliced(slices, shards)) {
             final int expectedSlices = getExpectedSlices(slices, shards);
-            final List<BulkByScrollTask.StatusOrException> expectedStatuses = Collections.nCopies(expectedSlices, null);
+            final List<BulkByPaginatedSearchTask.StatusOrException> expectedStatuses = Collections.nCopies(expectedSlices, null);
             assertThat("running slices statuses are null", taskStatus.getSliceStatuses(), equalTo(expectedStatuses));
         } else {
             assertThat(taskStatus.getSliceStatuses().isEmpty(), is(true));

@@ -23,14 +23,15 @@ import java.util.stream.Stream;
 public final class PanamaVectorConstants {
 
     /** Preferred width in bits for vectors. */
-    static final int PREFERRED_VECTOR_BITSIZE;
+    public static final int PREFERRED_VECTOR_BITSIZE;
 
     /** Whether integer vectors can be trusted to actually be fast. */
-    static final boolean ENABLE_INTEGER_VECTORS;
+    public static final boolean ENABLE_INTEGER_VECTORS;
 
     static final VectorSpecies<Byte> PREFERRED_BYTE_SPECIES;
     static final VectorSpecies<Integer> PREFERRED_INTEGER_SPECIES;
     static final VectorSpecies<Float> PREFERRED_FLOAT_SPECIES;
+    static final VectorSpecies<Long> PREFERRED_LONG_SPECIES;
 
     static {
         var vs = OptionalInt.empty();
@@ -51,6 +52,7 @@ public final class PanamaVectorConstants {
         PREFERRED_BYTE_SPECIES = VectorSpecies.of(byte.class, VectorShape.forBitSize(PREFERRED_VECTOR_BITSIZE));
         PREFERRED_INTEGER_SPECIES = VectorSpecies.of(int.class, VectorShape.forBitSize(PREFERRED_VECTOR_BITSIZE));
         PREFERRED_FLOAT_SPECIES = VectorSpecies.of(float.class, VectorShape.forBitSize(PREFERRED_VECTOR_BITSIZE));
+        PREFERRED_LONG_SPECIES = VectorSpecies.of(long.class, VectorShape.forBitSize(PREFERRED_VECTOR_BITSIZE));
 
         // hotspot misses some SSE intrinsics, workaround it
         // to be fair, they do document this thing only works well with AVX2/AVX3 and Neon

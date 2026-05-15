@@ -36,6 +36,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -131,11 +132,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
@@ -393,7 +392,9 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             builder.put(HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL.getKey(), TimeValue.ZERO);
             builder.put(HollowShardsService.SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.ZERO);
         }
-        builder.put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), randomBoolean());
+        if (randomBoolean()) {
+            builder.put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), randomBoolean());
+        }
         builder.put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), randomBoolean());
         return builder;
     }
@@ -1121,11 +1122,19 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         }
     }
 
+    /**
+     * List all finalized blobs in the blob container, exclude any temporary blobs present for in-progress
+     * atomic writes.
+     *
+     * @param blobContainer An BlobContainer that extends or delegates to a {@link FsBlobContainer}
+     * @return The list of finalized blobs in that container
+     */
     protected Set<String> listBlobsWithAbsolutePath(BlobContainer blobContainer) throws IOException {
         var blobContainerPath = blobContainer.path().buildAsString();
         return blobContainer.listBlobs(operationPurpose)
             .keySet()
             .stream()
+            .filter(blob -> FsBlobContainer.isTempBlobName(blob.substring(blob.lastIndexOf('/') + 1)) == false)
             .map(blob -> blobContainerPath + blob)
             .collect(Collectors.toSet());
     }
@@ -1282,11 +1291,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
 
         logger.debug("--> relocating {} hollowable shards from {} to {}", numberOfShards, indexNodeA, indexNodeB);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
-        assertBusy(() -> {
-            var nodes = internalCluster().nodesInclude(indexName);
-            assertThat(nodes, not(hasItem(indexNodeA)));
-            assertThat(nodes, hasItem(indexNodeB));
-        });
+        internalCluster().awaitNodesInclude(indexName, nodes -> nodes.contains(indexNodeA) == false && nodes.contains(indexNodeB));
         ensureGreen(indexName);
 
         var hollowShardsServiceB = internalCluster().getInstance(HollowShardsService.class, indexNodeB);

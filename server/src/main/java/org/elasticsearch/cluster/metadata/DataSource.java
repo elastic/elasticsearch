@@ -146,6 +146,28 @@ public final class DataSource implements Writeable, ToXContentObject {
         return uuid;
     }
 
+    /**
+     * Encryption state for the data source's secret settings, surfaced on the GET response so operators
+     * can verify migration progress. Two values:
+     * <ul>
+     *   <li>{@code "encrypted"} — every secret setting holds a ciphertext carrier ({@code EncryptedData}
+     *       or its parsed-from-XContent {@code Map} equivalent); or the data source has no secret settings.</li>
+     *   <li>{@code "plaintext_legacy"} — at least one secret setting still holds a plaintext String.
+     *       Next PUT migrates the entry to encrypted form (passive migration); the future
+     *       {@code _force_migrate} admin endpoint will also encrypt in place.</li>
+     * </ul>
+     * Master-side encryption is atomic per data source — a {@code DataSource} is wholly one state or the
+     * other, never partial.
+     */
+    public String encryptionState() {
+        for (DataSourceSetting setting : settings.values()) {
+            if (setting.secret() && setting.encryptedSecret() instanceof String) {
+                return "plaintext_legacy";
+            }
+        }
+        return "encrypted";
+    }
+
     /** Settings with secrets masked. Safe for REST responses. */
     public Map<String, Object> toPresentationMap() {
         Map<String, Object> result = new HashMap<>();

@@ -46,14 +46,24 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
  * that partial matching queries such as prefix, wildcard and fuzzy queries
  * can be implemented.
  *
- * <p>Circuit breaker accounting for automaton-based queries (prefix, wildcard, regexp, range)
- * is performed here, at the point each individual Lucene query is created, rather than solely
- * in {@link SearchExecutionContext#toQuery} after the full query tree is assembled. This is
- * intentional: compound queries such as a {@code bool} with many wildcard clauses build each
- * clause sequentially, so by the time the complete tree is available for a post-hoc walk every
- * automaton has already been allocated. Accounting per-clause lets the circuit breaker trip as
- * soon as cumulative memory crosses the threshold, preventing the remaining clauses from being
- * constructed and avoiding a potential OOM.
+ * <p>Circuit breaker accounting for automaton-based queries is split into two phases:
+ * <ul>
+ *   <li><b>Pre-flight reservation, per clause (here):</b> wildcard and regexp queries reserve an
+ *   estimate of {@code CompiledAutomaton}'s construction peak (UTF-8 expansion + second
+ *   determinize + {@code ByteRunAutomaton}) on the breaker <em>before</em> invoking the
+ *   {@link AutomatonQuery} constructor, then refund the reservation as soon as construction
+ *   returns. This bounds the unguarded construction window — by the time the full query tree is
+ *   available for a post-hoc walk every automaton has already been allocated, so the construction
+ *   peak cannot be observed otherwise. If construction throws, the reservation remains on
+ *   {@link SearchExecutionContext}'s query-construction counter and is refunded at request end.</li>
+ *   <li><b>Retained-size charge, once per phase:</b> after the produced query tree is assembled,
+ *   {@link org.elasticsearch.index.query.AbstractQueryBuilder#toQuery(SearchExecutionContext)}
+ *   walks it with the request's {@code MaxClauseCountQueryVisitor} and charges the sum of
+ *   {@code ramBytesUsed()} for every {@code Accountable} leaf in a single breaker operation,
+ *   with mid-walk peeks so pathological fan-outs trip before the full tree is materialised. The
+ *   per-clause refunds above prevent the construction-window reservation from double-counting
+ *   against this retained-size charge.</li>
+ * </ul>
  */
 public abstract class StringFieldType extends TermBasedFieldType {
 
@@ -115,7 +125,6 @@ public abstract class StringFieldType extends TermBasedFieldType {
         } else {
             query = method == null ? new PrefixQuery(prefix) : new PrefixQuery(prefix, method);
         }
-        context.addCircuitBreakerMemory(query.ramBytesUsed(), "prefix:" + name());
         return query;
     }
 
@@ -202,6 +211,10 @@ public abstract class StringFieldType extends TermBasedFieldType {
                     ? new AutomatonQueryWithDescription(term, dfa, term.text())
                     : new AutomatonQuery(term, dfa, false, method);
             }
+            // Construction succeeded; refund the pre-flight reservation. The retained
+            // ramBytesUsed() of the produced query is charged once per phase by the
+            // visitor walk in AbstractQueryBuilder#toQuery.
+            context.addCircuitBreakerMemory(0L, reservation, "wildcard-compiled:" + name());
         } else {
             if (caseInsensitive) {
                 query = method == null ? new CaseInsensitiveWildcardQuery(term) : new CaseInsensitiveWildcardQuery(term, false, method);
@@ -211,7 +224,6 @@ public abstract class StringFieldType extends TermBasedFieldType {
                     : new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
             }
         }
-        context.addCircuitBreakerMemory(query.ramBytesUsed(), reservation, "wildcard:" + name());
         return query;
     }
 
@@ -243,12 +255,15 @@ public abstract class StringFieldType extends TermBasedFieldType {
             query = method == null
                 ? new AutomatonQueryWithDescription(term, dfa, "/" + term.text() + "/")
                 : new AutomatonQuery(term, dfa, false, method);
+            // Construction succeeded; refund the pre-flight reservation. The retained
+            // ramBytesUsed() of the produced query is charged once per phase by the
+            // visitor walk in AbstractQueryBuilder#toQuery.
+            context.addCircuitBreakerMemory(0L, reservation, "regexp-compiled:" + name());
         } else {
             query = method == null
                 ? new RegexpQuery(new Term(name(), indexedValueForSearch(value)), syntaxFlags, matchFlags, maxDeterminizedStates)
                 : new RegexpQuery(term, syntaxFlags, matchFlags, RegexpQuery.DEFAULT_PROVIDER, maxDeterminizedStates, method);
         }
-        context.addCircuitBreakerMemory(query.ramBytesUsed(), reservation, "regexp:" + name());
         return query;
     }
 
@@ -275,7 +290,6 @@ public abstract class StringFieldType extends TermBasedFieldType {
             includeLower,
             includeUpper
         );
-        context.addCircuitBreakerMemory(query.ramBytesUsed(), "range:" + name());
         return query;
     }
 }

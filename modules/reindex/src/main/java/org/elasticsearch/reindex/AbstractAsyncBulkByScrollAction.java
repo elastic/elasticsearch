@@ -619,7 +619,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         final AtomicLong reservedBytes = new AtomicLong(0);
         final Releasable releaseBatchHits = Releasables.releaseOnce(() -> releaseHits(hits));
         final Releasable cleanup = Releasables.wrap(releaseBatchHits, () -> {
-            long r = reservedBytes.get();
+            long r = reservedBytes.getAndSet(0);
             if (r > 0) circuitBreaker.addWithoutBreaking(-r);
         });
         boolean cleanupHandedOff = false;

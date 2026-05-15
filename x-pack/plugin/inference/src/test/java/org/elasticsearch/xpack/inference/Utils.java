@@ -120,7 +120,23 @@ public final class Utils {
     ) throws Exception {
         Model model = new TestDenseInferenceServiceExtension.TestDenseModel(
             inferenceId,
+            TaskType.TEXT_EMBEDDING,
             new TestDenseInferenceServiceExtension.TestServiceSettings("dense_model", dimensions, similarityMeasure, elementType)
+        );
+        storeModel(modelRegistry, model);
+    }
+
+    public static void storeEmbeddingModel(
+        String inferenceId,
+        ModelRegistry modelRegistry,
+        int dimensions,
+        SimilarityMeasure similarityMeasure,
+        DenseVectorFieldMapper.ElementType elementType
+    ) throws Exception {
+        Model model = new TestDenseInferenceServiceExtension.TestDenseModel(
+            inferenceId,
+            TaskType.EMBEDDING,
+            new TestDenseInferenceServiceExtension.TestServiceSettings("embedding_model", dimensions, similarityMeasure, elementType)
         );
         storeModel(modelRegistry, model);
     }

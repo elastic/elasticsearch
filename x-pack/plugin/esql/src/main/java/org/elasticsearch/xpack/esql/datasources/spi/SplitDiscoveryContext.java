@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
+import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 
 import java.util.List;
 import java.util.Map;
@@ -26,6 +27,7 @@ import java.util.Set;
 public record SplitDiscoveryContext(
     SourceMetadata metadata,
     FileList fileList,
+    Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
     Map<String, Object> config,
     PartitionMetadata partitionInfo,
     List<Expression> filterHints,
@@ -38,13 +40,25 @@ public record SplitDiscoveryContext(
         PartitionMetadata partitionInfo,
         List<Expression> filterHints
     ) {
-        this(metadata, fileList, config, partitionInfo, filterHints, Set.of());
+        this(metadata, fileList, Map.of(), config, partitionInfo, filterHints, Set.of());
+    }
+
+    public SplitDiscoveryContext(
+        SourceMetadata metadata,
+        FileList fileList,
+        Map<String, Object> config,
+        PartitionMetadata partitionInfo,
+        List<Expression> filterHints,
+        Set<String> projectedDataColumns
+    ) {
+        this(metadata, fileList, Map.of(), config, partitionInfo, filterHints, projectedDataColumns);
     }
 
     public SplitDiscoveryContext {
         if (fileList == null) {
             throw new IllegalArgumentException("fileList cannot be null");
         }
+        schemaMap = schemaMap != null ? schemaMap : Map.of();
         config = config != null ? Map.copyOf(config) : Map.of();
         filterHints = filterHints != null ? List.copyOf(filterHints) : List.of();
         projectedDataColumns = projectedDataColumns != null ? Set.copyOf(projectedDataColumns) : Set.of();

@@ -130,7 +130,7 @@ class SemanticFieldValueFetcher implements ValueFetcher {
             }
             var rawValue = originalValueMap.computeIfAbsent(offset.field(), k -> {
                 var valueObj = XContentMapValues.extractValue(offset.field(), source.source(), null);
-                var values = SemanticTextUtils.nodeStringValues(offset.field(), valueObj).stream().toList();
+                var values = SemanticTextUtils.nodeStringValues(offset.field(), valueObj);
                 return Strings.collectionToDelimitedString(values, String.valueOf(MULTIVAL_SEP_CHAR));
             });
 

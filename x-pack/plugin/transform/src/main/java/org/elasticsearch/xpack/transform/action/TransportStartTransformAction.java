@@ -143,7 +143,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         ActionListener<StartTransformAction.Response> listener
     ) {
         TransformNodes.warnIfNoTransformNodes(state);
-        if (TransformMetadata.upgradeMode(state)) {
+        if (TransformMetadata.isUpgradeMode(state)) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Cannot start any Transform while the Transform feature is upgrading.",

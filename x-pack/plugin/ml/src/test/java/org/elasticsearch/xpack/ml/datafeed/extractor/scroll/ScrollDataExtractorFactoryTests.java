@@ -65,7 +65,10 @@ public class ScrollDataExtractorFactoryTests extends ESTestCase {
             timeField,
             Arrays.asList(timeField, new DocValueField("field_1", Collections.singleton("keyword")))
         );
-        timingStatsReporter = new DatafeedTimingStatsReporter(new DatafeedTimingStats(job.getId()), mock(DatafeedTimingStatsPersister.class));
+        timingStatsReporter = new DatafeedTimingStatsReporter(
+            new DatafeedTimingStats(job.getId()),
+            mock(DatafeedTimingStatsPersister.class)
+        );
     }
 
     private ScrollDataExtractorFactory newFactory() {
@@ -98,10 +101,7 @@ public class ScrollDataExtractorFactoryTests extends ESTestCase {
         factory.retryClearOrphanedScrollIds();
 
         verify(client, never()).execute(same(TransportClearScrollAction.TYPE), any(ClearScrollRequest.class));
-        assertThat(
-            factory.orphanedScrolls.stream().anyMatch(o -> o.scrollId().equals("scroll-id-old")),
-            is(false)
-        );
+        assertThat(factory.orphanedScrolls.stream().anyMatch(o -> o.scrollId().equals("scroll-id-old")), is(false));
     }
 
     @SuppressWarnings("unchecked")
@@ -122,10 +122,7 @@ public class ScrollDataExtractorFactoryTests extends ESTestCase {
         factory.retryClearOrphanedScrollIds();
 
         verify(client, never()).execute(same(TransportClearScrollAction.TYPE), any(ClearScrollRequest.class));
-        assertThat(
-            factory.orphanedScrolls.stream().anyMatch(o -> o.scrollId().equals("scroll-too-many-retries")),
-            is(false)
-        );
+        assertThat(factory.orphanedScrolls.stream().anyMatch(o -> o.scrollId().equals("scroll-too-many-retries")), is(false));
     }
 
     public void testOrphanQueueOverflowDropsEldest() {

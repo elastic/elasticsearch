@@ -326,28 +326,17 @@ class ScrollDataExtractor implements DataExtractor {
             if (succeeded == false) {
                 boolean isCcsScroll = lastLinkedClusterStates.isEmpty() == false;
                 if (isCcsScroll) {
-                    logger.info(
-                        "[{}] CCS scroll context could not be cleared, will retry [{}]",
-                        context.jobId,
-                        scrollId
-                    );
+                    logger.info("[{}] CCS scroll context could not be cleared, will retry [{}]", context.jobId, scrollId);
                     failedClearScrollIds.add(scrollId);
                 } else {
-                    logger.debug(
-                        "[{}] Transient scroll clear failure, context will expire on its own [{}]",
-                        context.jobId,
-                        scrollId
-                    );
+                    logger.debug("[{}] Transient scroll clear failure, context will expire on its own [{}]", context.jobId, scrollId);
                 }
             }
         } catch (Exception e) {
             // Transport exception during clear (e.g. NodeNotConnectedException)
             boolean isCcsScroll = lastLinkedClusterStates.isEmpty() == false;
             if (isCcsScroll) {
-                logger.info(
-                    () -> "[" + context.jobId + "] CCS scroll context could not be cleared, will retry [" + scrollId + "]",
-                    e
-                );
+                logger.info(() -> "[" + context.jobId + "] CCS scroll context could not be cleared, will retry [" + scrollId + "]", e);
                 failedClearScrollIds.add(scrollId);
             } else {
                 logger.debug(

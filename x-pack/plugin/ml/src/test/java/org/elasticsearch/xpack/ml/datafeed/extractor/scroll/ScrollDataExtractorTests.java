@@ -40,8 +40,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
@@ -576,7 +576,11 @@ public class ScrollDataExtractorTests extends ESTestCase {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
 
         // Get a scroll ID by fetching the first page (CCS metadata so failed clears are retried via factory)
-        SearchResponse response1 = createCcsSearchResponse(Arrays.asList(1100L, 1200L), Arrays.asList("a1", "a2"), Arrays.asList("b1", "b2"));
+        SearchResponse response1 = createCcsSearchResponse(
+            Arrays.asList(1100L, 1200L),
+            Arrays.asList("a1", "a2"),
+            Arrays.asList("b1", "b2")
+        );
         extractor.setNextResponse(response1);
         extractor.next();
 

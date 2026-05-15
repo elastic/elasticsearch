@@ -38,8 +38,8 @@ export function run(): void {
     ? {
         ...DEFAULT_BATCHING_CONFIG,
         itersByKind: {
-          ...DEFAULT_BATCHING_CONFIG.itersByKind,
           test: itersOverride,
+          internalClusterTest: itersOverride,
         },
       }
     : DEFAULT_BATCHING_CONFIG;

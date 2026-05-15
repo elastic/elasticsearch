@@ -1,3 +1,15 @@
+# Manually-triggered flakiness check.
+#
+# Required build env vars:
+#   FLAKINESS_CLASSES — newline- or comma-separated list of fully-qualified Java
+#                       class names (optionally Class.method or Class."test {yaml=...}")
+#                       to run with flakiness detection.
+#
+# Optional build env vars:
+#   FLAKINESS_ITERS   — positive integer overriding -Dtests.iters for unit tests
+#                       and internalClusterTest batches.
+#
+# See .buildkite/scripts/flakiness-detection/entrypoints/manual.ts for behavior.
 steps:
   - label: "detect tests from FLAKINESS_CLASSES"
     command: |

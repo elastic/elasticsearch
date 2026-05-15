@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVector
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitsRewriteContext;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.NestedFieldFilterQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -603,6 +604,35 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         assertEquals(queryBuilder.boost(), queryBoost, 0.0001f);
         assertEquals(queryBuilder.queryName(), queryName);
         assertEquals(queryBuilder.getVectorSimilarity(), exactKnnQueryBuilder.vectorSimilarity());
+    }
+
+    public void testRewriteForInnerHitsWithMustNot() throws IOException {
+        SearchExecutionContext context = createSearchExecutionContext();
+        InnerHitsRewriteContext innerHitsRewriteContext = new InnerHitsRewriteContext(context.getParserConfig(), System::currentTimeMillis);
+
+        BoolQueryBuilder mustNotFilter = new BoolQueryBuilder().mustNot(QueryBuilders.termQuery(KEYWORD_FIELD_NAME, "excluded"));
+        KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(
+            VECTOR_FIELD,
+            VectorData.fromFloats(new float[] { 1.0f }),
+            10,
+            10,
+            null,
+            null,
+            null
+        );
+        queryBuilder.addFilterQuery(mustNotFilter);
+
+        QueryBuilder rewritten = queryBuilder.rewrite(innerHitsRewriteContext);
+
+        assertTrue(rewritten instanceof BoolQueryBuilder);
+        BoolQueryBuilder boolQuery = (BoolQueryBuilder) rewritten;
+        assertEquals(1, boolQuery.must().size());
+        assertTrue(boolQuery.must().get(0) instanceof ExactKnnQueryBuilder);
+        assertEquals(1, boolQuery.filter().size());
+        assertTrue(
+            "Filter should be wrapped in NestedFieldFilterQueryBuilder",
+            boolQuery.filter().get(0) instanceof NestedFieldFilterQueryBuilder
+        );
     }
 
     public void testRewriteWithQueryVectorBuilder() throws Exception {

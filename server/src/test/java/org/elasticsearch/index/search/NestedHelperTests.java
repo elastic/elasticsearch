@@ -12,6 +12,7 @@ package org.elasticsearch.index.search;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.ScoreMode;
@@ -368,5 +369,104 @@ public class NestedHelperTests extends MapperServiceTestCase {
         assertTrue(NestedHelper.mightMatchNonNestedDocs(query, "nested2", searchExecutionContext));
         assertTrue(NestedHelper.mightMatchNonNestedDocs(query, "nested3", searchExecutionContext));
         assertTrue(NestedHelper.mightMatchNonNestedDocs(query, "nested_missing", searchExecutionContext));
+    }
+
+    public void testDecomposeFilterPureMustNotOnParent() {
+        // A pure must_not on a parent field: +MatchAllDocsQuery -foo:value
+        // All clauses target the same level (parent), so decomposition returns null
+        BooleanQuery query = new BooleanQuery.Builder().add(Queries.ALL_DOCS_INSTANCE, Occur.FILTER)
+            .add(new TermQuery(new Term("foo", "value")), Occur.MUST_NOT)
+            .build();
+        NestedHelper.DecomposedFilter result = NestedHelper.decomposeFilter(query, "nested1", searchExecutionContext);
+        assertNull(result);
+    }
+
+    public void testDecomposeFilterMixedMustParentMustNotNested() {
+        // Mixed: must (parent field) + must_not (nested field)
+        // Should decompose into parent clauses and child clauses
+        BooleanQuery query = new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.FILTER)
+            .add(new TermQuery(new Term("nested1.foo", "value")), Occur.MUST_NOT)
+            .build();
+        NestedHelper.DecomposedFilter result = NestedHelper.decomposeFilter(query, "nested1", searchExecutionContext);
+        assertNotNull(result);
+        assertTrue(result.hasBothLevels());
+        assertEquals(1, result.parentClauses().size());
+        assertEquals(Occur.FILTER, result.parentClauses().get(0).occur());
+        assertEquals(new TermQuery(new Term("foo", "bar")), result.parentClauses().get(0).query());
+        // Child clauses should include the MUST_NOT plus a synthetic MatchAllDocsQuery
+        // to prevent a pure-negative BooleanQuery (which would match nothing in Lucene)
+        assertEquals(2, result.childClauses().size());
+        assertEquals(Occur.MUST_NOT, result.childClauses().get(0).occur());
+        assertEquals(new TermQuery(new Term("nested1.foo", "value")), result.childClauses().get(0).query());
+        assertEquals(Occur.FILTER, result.childClauses().get(1).occur());
+        assertTrue(result.childClauses().get(1).query() instanceof MatchAllDocsQuery);
+    }
+
+    public void testDecomposeFilterNonBooleanQuery() {
+        // Non-BooleanQuery should return null
+        TermQuery query = new TermQuery(new Term("foo", "value"));
+        NestedHelper.DecomposedFilter result = NestedHelper.decomposeFilter(query, "nested1", searchExecutionContext);
+        assertNull(result);
+    }
+
+    public void testDecomposeFilterAllParent() {
+        // All clauses target parent fields — no decomposition needed
+        BooleanQuery query = new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.FILTER)
+            .add(new TermQuery(new Term("foo2", "42")), Occur.MUST_NOT)
+            .build();
+        NestedHelper.DecomposedFilter result = NestedHelper.decomposeFilter(query, "nested1", searchExecutionContext);
+        assertNull(result);
+    }
+
+    public void testDecomposeFilterAllNested() {
+        // All clauses target nested fields — no decomposition needed
+        BooleanQuery query = new BooleanQuery.Builder().add(new TermQuery(new Term("nested1.foo", "bar")), Occur.FILTER)
+            .add(new TermQuery(new Term("nested1.foo2", "42")), Occur.MUST_NOT)
+            .build();
+        NestedHelper.DecomposedFilter result = NestedHelper.decomposeFilter(query, "nested1", searchExecutionContext);
+        assertNull(result);
+    }
+
+    public void testDecomposeFilterSyntheticMatchAllWithChildMustNot() {
+        // Pure negative on nested field with synthetic MatchAllDocsQuery (from fixNegativeQueryIfNeeded).
+        // The MatchAllDocsQuery should stay with the child MUST_NOT clauses, and decomposition
+        // returns a result with empty parentClauses.
+        BooleanQuery query = new BooleanQuery.Builder().add(Queries.ALL_DOCS_INSTANCE, Occur.FILTER)
+            .add(new TermQuery(new Term("nested1.foo", "value")), Occur.MUST_NOT)
+            .build();
+        NestedHelper.DecomposedFilter result = NestedHelper.decomposeFilter(query, "nested1", searchExecutionContext);
+        assertNotNull(result);
+        assertTrue(result.parentClauses().isEmpty());
+        assertEquals(2, result.childClauses().size());
+        assertTrue(result.childClauses().stream().anyMatch(c -> c.query() instanceof MatchAllDocsQuery));
+        assertTrue(
+            result.childClauses()
+                .stream()
+                .anyMatch(c -> c.occur() == Occur.MUST_NOT && c.query().equals(new TermQuery(new Term("nested1.foo", "value"))))
+        );
+    }
+
+    public void testDecomposeFilterMixedWithSyntheticMatchAll() {
+        // Mixed case: parent filter clause + MatchAllDocsQuery + nested MUST_NOT
+        // The MatchAllDocsQuery should stay with the child MUST_NOT clauses to form a valid
+        // BooleanQuery (MUST_NOT alone is invalid without an anchor)
+        BooleanQuery query = new BooleanQuery.Builder().add(Queries.ALL_DOCS_INSTANCE, Occur.FILTER)
+            .add(new TermQuery(new Term("foo", "bar")), Occur.FILTER)
+            .add(new TermQuery(new Term("nested1.foo", "value")), Occur.MUST_NOT)
+            .build();
+        NestedHelper.DecomposedFilter result = NestedHelper.decomposeFilter(query, "nested1", searchExecutionContext);
+        assertNotNull(result);
+        assertTrue(result.hasBothLevels());
+        // Parent clauses: foo:bar
+        assertEquals(1, result.parentClauses().size());
+        assertEquals(new TermQuery(new Term("foo", "bar")), result.parentClauses().get(0).query());
+        // Child clauses: MatchAllDocsQuery (anchor) + MUST_NOT on nested1.foo
+        assertEquals(2, result.childClauses().size());
+        assertTrue(result.childClauses().stream().anyMatch(c -> c.query() instanceof MatchAllDocsQuery));
+        assertTrue(
+            result.childClauses()
+                .stream()
+                .anyMatch(c -> c.occur() == Occur.MUST_NOT && c.query().equals(new TermQuery(new Term("nested1.foo", "value"))))
+        );
     }
 }

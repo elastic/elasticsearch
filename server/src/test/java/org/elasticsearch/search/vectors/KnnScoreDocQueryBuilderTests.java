@@ -27,6 +27,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitsRewriteContext;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.NestedFieldFilterQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -219,6 +220,60 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
         assertEquals(queryBuilder.boost(), queryBoost, 0.0001f);
         assertEquals(queryBuilder.queryName(), queryName);
         assertEquals(queryBuilder.vectorSimilarity(), exactKnnQueryBuilder.vectorSimilarity());
+    }
+
+    public void testRewriteForInnerHitsWithMustNot() throws IOException {
+        SearchExecutionContext context = createSearchExecutionContext();
+        InnerHitsRewriteContext innerHitsRewriteContext = new InnerHitsRewriteContext(context.getParserConfig(), System::currentTimeMillis);
+
+        // Create a filter with must_not clause (the scenario that was previously broken)
+        BoolQueryBuilder mustNotFilter = new BoolQueryBuilder().mustNot(QueryBuilders.termQuery(KEYWORD_FIELD_NAME, "excluded"));
+        List<QueryBuilder> filters = List.of(mustNotFilter);
+
+        KnnScoreDocQueryBuilder queryBuilder = new KnnScoreDocQueryBuilder(
+            new ScoreDoc[] { new ScoreDoc(0, 4.25f), new ScoreDoc(5, 1.6f) },
+            randomAlphaOfLength(10),
+            VectorData.fromFloats(randomVector(10)),
+            null,
+            filters
+        );
+        QueryBuilder rewritten = queryBuilder.rewrite(innerHitsRewriteContext);
+
+        // Should rewrite to a BoolQueryBuilder with must(ExactKnnQuery) + filter(NestedFieldFilterQueryBuilder)
+        assertThat(rewritten, is(notNullValue()));
+        assertTrue(rewritten instanceof BoolQueryBuilder);
+        BoolQueryBuilder boolQuery = (BoolQueryBuilder) rewritten;
+        assertEquals(1, boolQuery.must().size());
+        assertTrue(boolQuery.must().get(0) instanceof ExactKnnQueryBuilder);
+        assertEquals(1, boolQuery.filter().size());
+        assertTrue(boolQuery.filter().get(0) instanceof NestedFieldFilterQueryBuilder);
+    }
+
+    public void testRewriteForInnerHitsWrapsAllFiltersWithNestedFieldFilter() throws IOException {
+        SearchExecutionContext context = createSearchExecutionContext();
+        InnerHitsRewriteContext innerHitsRewriteContext = new InnerHitsRewriteContext(context.getParserConfig(), System::currentTimeMillis);
+
+        // Mix of simple term filter and must_not filter — both should be wrapped in NestedFieldFilterQueryBuilder
+        List<QueryBuilder> filters = List.of(
+            QueryBuilders.termQuery(KEYWORD_FIELD_NAME, "value"),
+            new BoolQueryBuilder().mustNot(QueryBuilders.termQuery(TEXT_FIELD_NAME, "excluded"))
+        );
+
+        KnnScoreDocQueryBuilder queryBuilder = new KnnScoreDocQueryBuilder(
+            new ScoreDoc[] { new ScoreDoc(0, 4.25f) },
+            randomAlphaOfLength(10),
+            VectorData.fromFloats(randomVector(10)),
+            null,
+            filters
+        );
+        QueryBuilder rewritten = queryBuilder.rewrite(innerHitsRewriteContext);
+
+        assertTrue(rewritten instanceof BoolQueryBuilder);
+        BoolQueryBuilder boolQuery = (BoolQueryBuilder) rewritten;
+        assertEquals(2, boolQuery.filter().size());
+        for (QueryBuilder filter : boolQuery.filter()) {
+            assertTrue("All filters should be wrapped in NestedFieldFilterQueryBuilder", filter instanceof NestedFieldFilterQueryBuilder);
+        }
     }
 
     @Override

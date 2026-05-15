@@ -492,6 +492,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         IndexSettings.WEIGHT_MATCHES_MODE_ENABLED_SETTING,
         IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING,
         IndexSettings.MAX_TOKEN_COUNT_SETTING,
+        IndexSettings.MAX_INDEX_TOKEN_COUNT_SETTING,
         IndexSettings.MAX_SLICES_PER_SCROLL,
         IndexSettings.DEFAULT_PIPELINE,
         IndexSettings.FINAL_PIPELINE,

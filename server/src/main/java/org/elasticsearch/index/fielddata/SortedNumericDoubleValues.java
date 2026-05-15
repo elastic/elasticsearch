@@ -152,5 +152,10 @@ public abstract class SortedNumericDoubleValues {
         public int docValueCount() {
             return longValues.docValueCount();
         }
+
+        /** Return the wrapped values. */
+        public SortedNumericLongValues getLongValues() {
+            return longValues;
+        }
     }
 }

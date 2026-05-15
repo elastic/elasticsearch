@@ -19,6 +19,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.telemetry.InferenceProductContext;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -84,6 +85,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         super.setUp();
         ActionFilters actionFilters = mock();
         threadPool = mock();
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         transportService = mock();
         licenseState = mock();
         inferenceEndpointRegistry = mock();
@@ -144,6 +146,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         when(request.getInferenceEntityId()).thenReturn(inferenceId);
         when(request.getTaskType()).thenReturn(taskType);
         when(request.isStreaming()).thenReturn(stream);
+        when(request.getContext()).thenReturn(InferenceContext.EMPTY_INSTANCE);
         ActionListener<InferenceAction.Response> listener = spy(new ActionListener<>() {
             @Override
             public void onResponse(InferenceAction.Response o) {}
@@ -374,7 +377,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         action.doExecute(mock(), request, listener);
 
         // Verify the product use case header was set in the thread context
-        assertThat(threadContext.getHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER), is(productUseCase));
+        assertThat(threadContext.getHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER), is(productUseCase));
     }
 
     protected Flow.Publisher<InferenceServiceResults.Result> mockStreamResponse(Consumer<Flow.Subscriber<?>> action) {

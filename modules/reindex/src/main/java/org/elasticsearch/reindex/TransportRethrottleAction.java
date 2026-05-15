@@ -23,7 +23,7 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.LeaderBulkByScrollTaskState;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
@@ -39,7 +39,11 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 
-public class TransportRethrottleAction extends TransportTasksAction<BulkByScrollTask, RethrottleRequest, ListTasksResponse, TaskInfo> {
+public class TransportRethrottleAction extends TransportTasksAction<
+    BulkByPaginatedSearchTask,
+    RethrottleRequest,
+    ListTasksResponse,
+    TaskInfo> {
     private final Client client;
     private final Client tasksClient;
 
@@ -129,7 +133,7 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
     protected void taskOperation(
         CancellableTask actionTask,
         RethrottleRequest request,
-        BulkByScrollTask task,
+        BulkByPaginatedSearchTask task,
         ActionListener<TaskInfo> listener
     ) {
         rethrottle(logger, clusterService.localNode().getId(), client, task, request.getRequestsPerSecond(), listener);
@@ -139,7 +143,7 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
         Logger logger,
         String localNodeId,
         Client client,
-        BulkByScrollTask task,
+        BulkByPaginatedSearchTask task,
         float newRequestsPerSecond,
         ActionListener<TaskInfo> listener
     ) {
@@ -163,7 +167,7 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
         Logger logger,
         String localNodeId,
         Client client,
-        BulkByScrollTask task,
+        BulkByPaginatedSearchTask task,
         float newRequestsPerSecond,
         ActionListener<TaskInfo> listener
     ) {
@@ -196,7 +200,7 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
     private static void rethrottleChildTask(
         Logger logger,
         String localNodeId,
-        BulkByScrollTask task,
+        BulkByPaginatedSearchTask task,
         float newRequestsPerSecond,
         ActionListener<TaskInfo> listener
     ) {

@@ -34,12 +34,16 @@ import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 
 public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
 
@@ -227,10 +231,12 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             List.of("the quick brown fox", "jumps over the lazy dog")
         );
 
-        assertEquals(
-            List.of(Map.of("key2", List.of("one", "two"), "key3", "hi")),
-            fetchSourceValue(createDefaultFieldType(3), sourceValue)
-        );
+        List<?> result = fetchSourceValue(createDefaultFieldType(3), sourceValue);
+        assertEquals(1, result.size());
+        Map<?, ?> resultMap = (Map<?, ?>) result.get(0);
+        List<String> actualKeys = new ArrayList<>(resultMap.keySet().stream().map(Object::toString).toList());
+        assertEquals("fields must be returned in alphabetical order", List.of("key2", "key3"), actualKeys);
+        assertMap(resultMap, matchesMap().entry("key2", List.of("one", "two")).entry("key3", "hi"));
     }
 
     public void testFetchSourceValueWithMixedFieldTypes() throws IOException {
@@ -242,10 +248,12 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
     public void testFetchSourceValueWithNonString() throws IOException {
         Map<String, Object> sourceValue = Map.of("key1", List.of(100, 200), "key2", 50L, "key3", new Tuple<>(10, 100));
 
-        assertEquals(
-            List.of(Map.of("key1", List.of(100, 200), "key2", 50L, "key3", new Tuple<>(10, 100))),
-            fetchSourceValue(createDefaultFieldType(3), sourceValue)
-        );
+        List<?> result = fetchSourceValue(createDefaultFieldType(3), sourceValue);
+        assertEquals(1, result.size());
+        Map<?, ?> resultMap = (Map<?, ?>) result.get(0);
+        List<String> actualKeys = new ArrayList<>(resultMap.keySet().stream().map(Object::toString).toList());
+        assertEquals("fields must be returned in alphabetical order", List.of("key1", "key2", "key3"), actualKeys);
+        assertMap(resultMap, matchesMap().entry("key1", List.of(100, 200)).entry("key2", 50L).entry("key3", new Tuple<>(10, 100)));
     }
 
     public void testFetchSourceValueFilterStringsOnly() throws IOException {

@@ -19,14 +19,10 @@ import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -52,21 +48,10 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
         client.prepareIndex("test").setSource("field", "value").get();
         refresh();
 
-        // Before we've gathered stats for all nodes, we should try each node once.
-        Set<String> nodeIds = new HashSet<>();
-        assertResponses(response -> {
-            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
-            nodeIds.add(response.getHits().getAt(0).getShard().getNodeId());
-        },
-            client.prepareSearch().setQuery(matchAllQuery()),
-            client.prepareSearch().setQuery(matchAllQuery()),
-            client.prepareSearch().setQuery(matchAllQuery())
-        );
-        assertEquals(3, nodeIds.size());
-
-        // After more searches, all replicas have computed stats; rankNodes no longer synthesizes ranks for
-        // unknown replicas, so the chosen replica should match the lowest ARS rank from the formula.
-        for (int i = 0; i < 5; i++) {
+        // Run enough searches to build ARS stats on every node holding this shard. Other tests in
+        // this class add data nodes and accumulate stats in the shared cluster, so we cannot rely
+        // on a cold-start assumption here.
+        for (int i = 0; i < 20; i++) {
             client.prepareSearch().setQuery(matchAllQuery()).get().decRef();
         }
 
@@ -78,7 +63,9 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
         NodesStatsResponse statsResponse = client.admin().cluster().prepareNodesStats().setAdaptiveSelection(true).get();
         NodeStats nodeStats = statsResponse.getNodesMap().get(coordinatingNodeId);
         assertNotNull(nodeStats);
-        assertEquals(3, nodeStats.getAdaptiveSelectionStats().getComputedStats().size());
+        // The cluster may have more than 3 data nodes if other tests added nodes, but we always
+        // need stats for at least the 3 nodes holding the "test" shard.
+        assertThat(nodeStats.getAdaptiveSelectionStats().getComputedStats().size(), greaterThanOrEqualTo(3));
 
         assertBusy(() -> {
             NodesStatsResponse freshStatsResponse = client.admin().cluster().prepareNodesStats().setAdaptiveSelection(true).get();
@@ -99,7 +86,7 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
     /**
      * Verifies that when a new node joins a cluster that already has ARS stats, the probe cap
      * bounds how many shards the new node wins within a single search. Uses an index whose shard
-     * count exceeds the cap so that the cap meaningfully constrains: the local snapshotCounts
+     * count exceeds the cap so that the cap meaningfully constrains: the local searchCounts
      * increment per shard win triggers the cap once shard wins on the new node reach the cap,
      * after which the new node sorts last via nullsLast for the remaining shards.
      */
@@ -145,7 +132,7 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
 
         // Send a search requesting hits from every shard and count how many distinct shards were
         // routed to the new node. The new node should win at most probeCap shards within a single
-        // search before the snapshotCounts increment triggers the cap.
+        // search before the searchCounts increment triggers the cap.
         final String targetNodeId = newNodeId;
         assertResponse(client.prepareSearch("probe_test").setQuery(matchAllQuery()).setSize(shardCount * 10), response -> {
             long newNodeShards = java.util.Arrays.stream(response.getHits().getHits())

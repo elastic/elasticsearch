@@ -49,10 +49,13 @@ public class OperationRouting {
      * Bundles the state needed for adaptive replica selection (ARS) routing decisions.
      *
      * @param collector        collects per-node EWMA stats (queue size, response time, service time)
-     * @param snapshotCounts   mutable snapshot of in-flight counts, used by the ARS formula and
-     *                         incremented locally for multi-shard spreading within a single search
-     * @param liveCounts       read-only live view of in-flight counts, used by the probe cap to
-     *                         see real concurrent load across searches
+     * @param searchCounts     mutable per-search snapshot of in-flight counts used by the ARS
+     *                         formula and incremented locally for multi-shard spreading within a
+     *                         single search; each search receives an independent copy, so
+     *                         routing-time increments from concurrent searches are invisible to
+     *                         each other
+     * @param globalCounts     live in-flight counts shared across all searches; used by the probe
+     *                         cap to see real concurrent load across searches
      * @param probeEnabled     whether ARS probing of stat-less and warming-up nodes is active;
      *                         when {@code false} the original ARS behavior is preserved
      * @param probeInflightCap per-coordinator cap on in-flight requests to a stat-less or warming-up
@@ -64,8 +67,8 @@ public class OperationRouting {
      */
     public record ArsContext(
         ResponseCollectorService collector,
-        Map<String, Long> snapshotCounts,
-        Map<String, Long> liveCounts,
+        Map<String, Long> searchCounts,
+        Map<String, Long> globalCounts,
         boolean probeEnabled,
         long probeInflightCap,
         int warmupSamples

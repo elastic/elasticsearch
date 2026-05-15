@@ -295,9 +295,9 @@ public class IndexShardRoutingTable {
      * on standard C3 terms.
      *
      * @param nodeStats        per-node EWMA stats; {@code Optional.empty()} for nodes without stats
-     * @param snapshotCounts   mutable snapshot of in-flight counts used by the ARS formula and
-     *                         local multi-shard spreading
-     * @param liveCounts       live (real-time) in-flight counts for the probe cap check
+     * @param searchCounts     mutable per-search snapshot of in-flight counts used by the ARS
+     *                         formula and local multi-shard spreading
+     * @param globalCounts     live (real-time) in-flight counts for the probe cap check
      * @param probeInflightCap maximum number of concurrent in-flight requests to a stat-less or
      *                         warming-up node before the in-flight gate kicks in
      * @param warmupSamples    minimum observation count for a peer to be considered warm; {@code 0}
@@ -307,8 +307,8 @@ public class IndexShardRoutingTable {
      */
     static Map<String, Double> rankNodes(
         final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats,
-        final Map<String, Long> snapshotCounts,
-        final Map<String, Long> liveCounts,
+        final Map<String, Long> searchCounts,
+        final Map<String, Long> globalCounts,
         final long probeInflightCap,
         final int warmupSamples
     ) {
@@ -321,12 +321,12 @@ public class IndexShardRoutingTable {
         for (Map.Entry<String, Optional<ResponseCollectorService.ComputedNodeStats>> entry : nodeStats.entrySet()) {
             final String nodeId = entry.getKey();
             final Optional<ResponseCollectorService.ComputedNodeStats> maybeStats = entry.getValue();
-            final long snapshotCount = snapshotCounts.getOrDefault(nodeId, 0L);
+            final long searchCount = searchCounts.getOrDefault(nodeId, 0L);
 
             if (maybeStats.isEmpty()) {
                 // Stat-less: probe ahead of measured peers if below the cap, otherwise skip and
                 // sort last via nullsLast.
-                if (snapshotCount < probeInflightCap && liveCounts.getOrDefault(nodeId, 0L) < probeInflightCap) {
+                if (searchCount < probeInflightCap && globalCounts.getOrDefault(nodeId, 0L) < probeInflightCap) {
                     if (probeCandidates == null) {
                         probeCandidates = new ArrayList<>();
                     }
@@ -343,7 +343,7 @@ public class IndexShardRoutingTable {
             // a sparsely measured node can absorb before it has graduated to warm.
             if (warmingUp) {
                 if (probeInflightCap > 0
-                    && (snapshotCount >= probeInflightCap || liveCounts.getOrDefault(nodeId, 0L) >= probeInflightCap)) {
+                    && (searchCount >= probeInflightCap || globalCounts.getOrDefault(nodeId, 0L) >= probeInflightCap)) {
                     continue;
                 }
                 if (warmingUpRanked == null) {
@@ -352,7 +352,7 @@ public class IndexShardRoutingTable {
                 warmingUpRanked.add(nodeId);
             }
 
-            final double bare = stats.rank(snapshotCount);
+            final double bare = stats.rank(searchCount);
             nodeRanks.put(nodeId, bare);
 
             // bestPeerRank tracks the lowest bare rank across all peers; bestWarmRank tracks the
@@ -426,9 +426,9 @@ public class IndexShardRoutingTable {
 
     private static List<ShardRouting> rankShardsAndUpdateStats(List<ShardRouting> shards, final OperationRouting.ArsContext arsContext) {
         final ResponseCollectorService collector = arsContext.collector();
-        final Map<String, Long> snapshotCounts = arsContext.snapshotCounts();
-        final Map<String, Long> liveCounts = arsContext.liveCounts();
-        if (collector == null || snapshotCounts == null || shards.size() <= 1) {
+        final Map<String, Long> searchCounts = arsContext.searchCounts();
+        final Map<String, Long> globalCounts = arsContext.globalCounts();
+        if (collector == null || searchCounts == null || shards.size() <= 1) {
             return shards;
         }
 
@@ -444,7 +444,7 @@ public class IndexShardRoutingTable {
         ArrayList<ShardRouting> sortedShards = new ArrayList<>(shards);
         sortedShards.sort(
             new NodeRankComparator(
-                rankNodes(nodeStats, snapshotCounts, liveCounts, probeInflightCap, warmupSamples),
+                rankNodes(nodeStats, searchCounts, globalCounts, probeInflightCap, warmupSamples),
                 arsContext.probeEnabled()
             )
         );
@@ -462,7 +462,7 @@ public class IndexShardRoutingTable {
             // one search for multi-shard spreading. This must happen outside the
             // stats check so that stat-less probe winners also increment the count,
             // making the probe cap effective for multi-shard indices.
-            snapshotCounts.compute(minNodeId, (id, conns) -> conns == null ? 1 : conns + 1);
+            searchCounts.compute(minNodeId, (id, conns) -> conns == null ? 1 : conns + 1);
             Optional<ResponseCollectorService.ComputedNodeStats> maybeMinStats = nodeStats.get(minNodeId);
             maybeMinStats.ifPresent(computedNodeStats -> adjustStats(collector, nodeStats, minNodeId, computedNodeStats));
         }

@@ -919,14 +919,14 @@ public class SearchTransportService {
         // Decrement the number of connections or remove it entirely if there are no more connections
         // We need to remove the entry here so we don't leak when nodes go away forever
         private void decConnectionCount() {
-            assert assertNodePresent();
+            assert assertConnectionCountValid();
             clientConnections.computeIfPresent(nodeId, (id, conns) -> conns == 1 ? null : conns - 1);
         }
 
-        private boolean assertNodePresent() {
+        private boolean assertConnectionCountValid() {
             var conns = clientConnections.get(nodeId);
-            assert conns != null : "number of connections for " + nodeId + " is null, but should be an integer";
-            assert conns >= 1 : "number of connections for " + nodeId + " should be >= 1 but was " + conns;
+            // null is possible if a concurrent decrement already removed the entry
+            assert conns == null || conns >= 1 : "number of connections for " + nodeId + " should be >= 1 but was " + conns;
             // Always return true, there is additional asserting here, the boolean is just so this
             // can be skipped when assertions are not enabled
             return true;

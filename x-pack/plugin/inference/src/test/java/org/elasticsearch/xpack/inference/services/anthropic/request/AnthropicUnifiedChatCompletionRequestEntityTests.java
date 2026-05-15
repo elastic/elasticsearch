@@ -94,7 +94,7 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
     }
 
     public void testSerializationWithToolDefinitionsEmitsAnthropicShape() throws IOException {
-        var tool = new Tool("function", new Tool.FunctionField("Get the price of an item", "get_price", Map.of("type", "object"), false));
+        var tool = new Tool("function", new Tool.FunctionField("Get the price of an item", "get_price", Map.of("type", "object"), null));
         testSerialization(true, null, null, null, List.of(tool), taskSettings(1024, null, null, null), Strings.format("""
             {
                 "model": "%s",
@@ -106,21 +106,19 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
             """, MODEL_ID, INPUT_VALUE, ROLE_VALUE));
     }
 
-    public void testSerializationWithToolChoiceObjectEmitsAnthropicShape() throws IOException {
-        var toolChoice = new ToolChoice.ToolChoiceObject("any", new ToolChoice.ToolChoiceObject.FunctionField("get_price"));
-        testSerialization(true, null, null, null, List.of(), toolChoice, taskSettings(1024, null, null, null), Strings.format("""
-            {
-                "model": "%s",
-                "messages": [{"content": "%s", "role": "%s"}],
-                "tool_choice": {"type": "any"},
-                "stream": true,
-                "max_tokens": 1024
+    public void testSerializationWithToolStrictFieldRejected() {
+        var tool = new Tool("function", new Tool.FunctionField("Get the price of an item", "get_price", Map.of("type", "object"), true));
+        var entity = entity(true, null, null, null, List.of(tool), null, taskSettings(1024, null, null, null));
+        expectThrows(org.elasticsearch.ElasticsearchStatusException.class, () -> {
+            try (var builder = JsonXContent.contentBuilder()) {
+                entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
             }
-            """, MODEL_ID, INPUT_VALUE, ROLE_VALUE));
+        });
     }
 
-    public void testSerializationWithToolChoiceObjectToolTypeEmitsName() throws IOException {
-        var toolChoice = new ToolChoice.ToolChoiceObject("tool", new ToolChoice.ToolChoiceObject.FunctionField("get_price"));
+    public void testSerializationWithToolChoiceObjectEmitsAnthropicShape() throws IOException {
+        // OpenAI ToolChoiceObject uses type "function"; the entity translates it to Anthropic's {"type":"tool","name":"..."}.
+        var toolChoice = new ToolChoice.ToolChoiceObject("function", new ToolChoice.ToolChoiceObject.FunctionField("get_price"));
         testSerialization(true, null, null, null, List.of(), toolChoice, taskSettings(1024, null, null, null), Strings.format("""
             {
                 "model": "%s",
@@ -132,8 +130,47 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
             """, MODEL_ID, INPUT_VALUE, ROLE_VALUE));
     }
 
-    public void testSerializationWithToolChoiceStringRejected() {
+    public void testSerializationWithToolChoiceStringNoneTranslatesToAnthropicNone() throws IOException {
+        var toolChoice = new ToolChoice.ToolChoiceString("none");
+        testSerialization(true, null, null, null, List.of(), toolChoice, taskSettings(1024, null, null, null), Strings.format("""
+            {
+                "model": "%s",
+                "messages": [{"content": "%s", "role": "%s"}],
+                "tool_choice": {"type": "none"},
+                "stream": true,
+                "max_tokens": 1024
+            }
+            """, MODEL_ID, INPUT_VALUE, ROLE_VALUE));
+    }
+
+    public void testSerializationWithToolChoiceStringAutoTranslatesToAnthropicAuto() throws IOException {
         var toolChoice = new ToolChoice.ToolChoiceString("auto");
+        testSerialization(true, null, null, null, List.of(), toolChoice, taskSettings(1024, null, null, null), Strings.format("""
+            {
+                "model": "%s",
+                "messages": [{"content": "%s", "role": "%s"}],
+                "tool_choice": {"type": "auto"},
+                "stream": true,
+                "max_tokens": 1024
+            }
+            """, MODEL_ID, INPUT_VALUE, ROLE_VALUE));
+    }
+
+    public void testSerializationWithToolChoiceStringRequiredTranslatesToAnthropicAny() throws IOException {
+        var toolChoice = new ToolChoice.ToolChoiceString("required");
+        testSerialization(true, null, null, null, List.of(), toolChoice, taskSettings(1024, null, null, null), Strings.format("""
+            {
+                "model": "%s",
+                "messages": [{"content": "%s", "role": "%s"}],
+                "tool_choice": {"type": "any"},
+                "stream": true,
+                "max_tokens": 1024
+            }
+            """, MODEL_ID, INPUT_VALUE, ROLE_VALUE));
+    }
+
+    public void testSerializationWithToolChoiceStringUnknownValueRejected() {
+        var toolChoice = new ToolChoice.ToolChoiceString("unsupported_value");
         var entity = entity(true, null, null, null, List.of(), toolChoice, taskSettings(1024, null, null, null));
         expectThrows(org.elasticsearch.ElasticsearchStatusException.class, () -> {
             try (var builder = JsonXContent.contentBuilder()) {

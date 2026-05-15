@@ -81,7 +81,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         // without this safe default, adding relocations to update-by-query without updating this might open it up to race conditions.
         this.taskShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
         this.reindexSettings = Objects.requireNonNull(reindexSettings);
-        this.reindexBreaker = Objects.requireNonNull(circuitBreakerService.getBreaker(ReindexPlugin.CIRCUIT_BREAKER_NAME));
+        CircuitBreaker namedBreaker = circuitBreakerService.getBreaker(ReindexPlugin.CIRCUIT_BREAKER_NAME);
+        this.reindexBreaker = namedBreaker != null ? namedBreaker : circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
     }
 
     @Override

@@ -181,7 +181,8 @@ public class Reindexer {
         this.featureService = featureService;
         this.taskResultsService = Objects.requireNonNull(taskResultsService);
         this.reindexShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
-        this.reindexBreaker = Objects.requireNonNull(circuitBreakerService.getBreaker(ReindexPlugin.CIRCUIT_BREAKER_NAME));
+        CircuitBreaker namedBreaker = circuitBreakerService.getBreaker(ReindexPlugin.CIRCUIT_BREAKER_NAME);
+        this.reindexBreaker = namedBreaker != null ? namedBreaker : circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
     }
 
     public void initTask(BulkByPaginatedSearchTask task, ReindexRequest request, ActionListener<Void> listener) {

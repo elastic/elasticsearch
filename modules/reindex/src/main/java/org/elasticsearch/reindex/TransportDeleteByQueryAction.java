@@ -72,10 +72,8 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         this.taskShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
         this.reindexSettings = Objects.requireNonNull(reindexSettings);
         Objects.requireNonNull(circuitBreakerService, "circuitBreakerService must not be null");
-        this.reindexBreaker = Objects.requireNonNull(
-            circuitBreakerService.getBreaker(ReindexPlugin.CIRCUIT_BREAKER_NAME),
-            "reindex circuit breaker must be available — delete-by-query relies on it for per-batch heap reservations"
-        );
+        CircuitBreaker namedBreaker = circuitBreakerService.getBreaker(ReindexPlugin.CIRCUIT_BREAKER_NAME);
+        this.reindexBreaker = namedBreaker != null ? namedBreaker : circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
     }
 
     @Override

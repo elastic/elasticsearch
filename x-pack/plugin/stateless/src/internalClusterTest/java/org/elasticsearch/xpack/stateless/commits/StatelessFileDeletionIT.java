@@ -1318,6 +1318,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
             indexDocs(indexName, randomIntBetween(1, 100));
             refresh(indexName);
         }
+        // flush so they make it to the blob-store
+        flush(indexName);
 
         final long recoveryGeneration = initialGeneration + commits;
         logger.debug("--> search shard 2 will recover from generation {}", recoveryGeneration);
@@ -1399,6 +1401,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2), indexName);
         safeAwait(commitRegistrationStarted);
         var blobsBeforeMerge = Sets.difference(listBlobsWithAbsolutePath(shardCommitsContainer), initialBlobs);
+        // We're testing that these don't get deleted, so there should be some
+        assertThat(blobsBeforeMerge, not(empty()));
 
         // While search shard is recovering, create a new merged commit
         logger.debug("--> force merging");

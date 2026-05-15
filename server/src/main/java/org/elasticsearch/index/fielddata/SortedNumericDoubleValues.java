@@ -22,9 +22,18 @@ import java.io.IOException;
  */
 public abstract class SortedNumericDoubleValues {
 
+    private final boolean isSingleton;
+    private DoubleValues doubleValues;
+
     /** Sole constructor. (For invocation by subclass
      * constructors, typically implicit.) */
-    protected SortedNumericDoubleValues() {}
+    protected SortedNumericDoubleValues() {
+        this(false);
+    }
+
+    protected SortedNumericDoubleValues(boolean isSingleton) {
+        this.isSingleton = isSingleton;
+    }
 
     /** Advance the iterator to exactly {@code target} and return whether
      *  {@code target} has a value.
@@ -47,46 +56,65 @@ public abstract class SortedNumericDoubleValues {
      */
     public abstract int docValueCount();
 
+    public boolean isSingleton() {
+        return isSingleton;
+    }
+
+    /**
+     * Converts a {@link SortedNumericDoubleValues} values to a singly valued {@link DoubleValues}
+     * if possible
+     */
+    public DoubleValues asDoubleValues() {
+        if (isSingleton && doubleValues == null) {
+            var singleton = this;
+            doubleValues = new DoubleValues() {
+                @Override
+                public double doubleValue() throws IOException {
+                    return singleton.nextValue();
+                }
+
+                @Override
+                public boolean advanceExact(int doc) throws IOException {
+                    return singleton.advanceExact(doc);
+                }
+            };
+        }
+        return doubleValues;
+    }
+
     /**
      * Converts a {@link SortedNumericDoubleValues} values to a singly valued {@link DoubleValues}
      * if possible
      */
     public static DoubleValues unwrapSingleton(SortedNumericDoubleValues values) {
-        if (values instanceof SortedNumericDoubleValues.SingletonSortedNumericDoubleValues sv) {
-            return sv.values;
-        }
-        return null;
+        return values != null ? values.asDoubleValues() : null;
     }
 
     /**
      * Converts a {@link DoubleValues} to a {@link SortedNumericDoubleValues}
      */
     public static SortedNumericDoubleValues singleton(DoubleValues values) {
-        return new SortedNumericDoubleValues.SingletonSortedNumericDoubleValues(values);
-    }
+        return new SortedNumericDoubleValues(true) {
+            @Override
+            public boolean advanceExact(int target) throws IOException {
+                return values.advanceExact(target);
+            }
 
-    private static class SingletonSortedNumericDoubleValues extends SortedNumericDoubleValues {
+            @Override
+            public double nextValue() throws IOException {
+                return values.doubleValue();
+            }
 
-        private final DoubleValues values;
+            @Override
+            public int docValueCount() {
+                return 1;
+            }
 
-        private SingletonSortedNumericDoubleValues(DoubleValues values) {
-            this.values = values;
-        }
-
-        @Override
-        public boolean advanceExact(int target) throws IOException {
-            return values.advanceExact(target);
-        }
-
-        @Override
-        public double nextValue() throws IOException {
-            return values.doubleValue();
-        }
-
-        @Override
-        public int docValueCount() {
-            return 1;
-        }
+            @Override
+            public DoubleValues asDoubleValues() {
+                return values;
+            }
+        };
     }
 
     /**
@@ -98,20 +126,7 @@ public abstract class SortedNumericDoubleValues {
      */
     public static SortedNumericDoubleValues wrap(SortedNumericDocValues values) {
         NumericDocValues singleton = DocValues.unwrapSingleton(values);
-        if (singleton != null) {
-            return new SortedNumericDoubleValues.SingletonSortedNumericDoubleValues(new DoubleValues() {
-                @Override
-                public double doubleValue() throws IOException {
-                    return NumericUtils.sortableLongToDouble(singleton.longValue());
-                }
-
-                @Override
-                public boolean advanceExact(int doc) throws IOException {
-                    return singleton.advanceExact(doc);
-                }
-            });
-        }
-        return new SortedNumericDoubleValues() {
+        return new SortedNumericDoubleValues(singleton != null) {
             @Override
             public boolean advanceExact(int target) throws IOException {
                 return values.advanceExact(target);
@@ -124,8 +139,32 @@ public abstract class SortedNumericDoubleValues {
 
             @Override
             public int docValueCount() {
-                return values.docValueCount();
+                return singleton != null ? 1 : values.docValueCount();
             }
         };
+    }
+
+    public abstract static class SortedNumericLongWrapper extends SortedNumericDoubleValues {
+        private final SortedNumericLongValues longValues;
+
+        protected SortedNumericLongWrapper(SortedNumericLongValues longValues) {
+            super(longValues.isSingleton());
+            this.longValues = longValues;
+        }
+
+        @Override
+        public boolean advanceExact(int target) throws IOException {
+            return longValues.advanceExact(target);
+        }
+
+        @Override
+        public int docValueCount() {
+            return longValues.docValueCount();
+        }
+
+        /** Return the wrapped values. */
+        public SortedNumericLongValues getLongValues() {
+            return longValues;
+        }
     }
 }

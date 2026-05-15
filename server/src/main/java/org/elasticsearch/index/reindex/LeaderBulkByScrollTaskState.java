@@ -31,11 +31,11 @@ import java.util.function.Supplier;
 import static java.util.Collections.unmodifiableList;
 
 /**
- * Tracks the state of sliced subtasks and provides unified status information for a sliced BulkByScrollRequest.
+ * Tracks the state of sliced subtasks and provides unified status information for a sliced BulkByPaginatedSearchRequest.
  */
 public class LeaderBulkByScrollTaskState {
 
-    private final BulkByScrollTask task;
+    private final BulkByPaginatedSearchTask task;
 
     private final int slices;
     /**
@@ -59,7 +59,7 @@ public class LeaderBulkByScrollTaskState {
     private volatile float relocationRequestsPerSecond;
     private boolean capturedRpsForRelocation = false;
 
-    public LeaderBulkByScrollTaskState(BulkByScrollTask task, int slices, float requestsPerSecond) {
+    public LeaderBulkByScrollTaskState(BulkByPaginatedSearchTask task, int slices, float requestsPerSecond) {
         this.task = task;
         this.slices = slices;
         results = new AtomicArray<>(slices);
@@ -80,20 +80,20 @@ public class LeaderBulkByScrollTaskState {
      * Uses the leader's stored source-of-truth RPS rather than summing children, which can be stale after rethrottle
      * with completed slices.
      */
-    public BulkByScrollTask.Status getStatus(List<BulkByScrollTask.StatusOrException> statuses) {
+    public BulkByPaginatedSearchTask.Status getStatus(List<BulkByPaginatedSearchTask.StatusOrException> statuses) {
         // We only have access to the statuses of requests that have finished so we return them
         if (statuses.size() != results.length()) {
             throw new IllegalArgumentException("Given number of statuses does not match amount of expected results");
         }
         addResultsToList(statuses);
-        return new BulkByScrollTask.Status(unmodifiableList(statuses), task.getReasonCancelled(), relocationRequestsPerSecond);
+        return new BulkByPaginatedSearchTask.Status(unmodifiableList(statuses), task.getReasonCancelled(), relocationRequestsPerSecond);
     }
 
     /**
      * Get the combined statuses of sliced subtasks
      */
-    public BulkByScrollTask.Status getStatus() {
-        return getStatus(Arrays.asList(new BulkByScrollTask.StatusOrException[results.length()]));
+    public BulkByPaginatedSearchTask.Status getStatus() {
+        return getStatus(Arrays.asList(new BulkByPaginatedSearchTask.StatusOrException[results.length()]));
     }
 
     /**
@@ -103,12 +103,12 @@ public class LeaderBulkByScrollTaskState {
         return runningSubtasks.get();
     }
 
-    private void addResultsToList(List<BulkByScrollTask.StatusOrException> sliceStatuses) {
+    private void addResultsToList(List<BulkByPaginatedSearchTask.StatusOrException> sliceStatuses) {
         for (Result t : results.asList()) {
             if (t.response != null) {
-                sliceStatuses.set(t.sliceId, new BulkByScrollTask.StatusOrException(t.response.getStatus()));
+                sliceStatuses.set(t.sliceId, new BulkByPaginatedSearchTask.StatusOrException(t.response.getStatus()));
             } else {
-                sliceStatuses.set(t.sliceId, new BulkByScrollTask.StatusOrException(t.failure));
+                sliceStatuses.set(t.sliceId, new BulkByPaginatedSearchTask.StatusOrException(t.failure));
             }
         }
     }
@@ -223,7 +223,7 @@ public class LeaderBulkByScrollTaskState {
         return Optional.of(
             new BulkByScrollResponse(
                 TimeValue.MINUS_ONE,
-                new BulkByScrollTask.Status(List.of(), null, 0f),
+                new BulkByPaginatedSearchTask.Status(List.of(), null, 0f),
                 List.of(),
                 List.of(),
                 false,

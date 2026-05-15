@@ -57,7 +57,7 @@ public abstract class ApproximationTestCase extends ESTestCase {
 
     static Result newCountResult(long count) {
         LongBlock block = blockFactory.newConstantLongBlockWith(count, 1);
-        return new Result(null, List.of(new Page(block)), null, null, null);
+        return new Result(null, List.of(new Page(block)), null, null, null, null);
     }
 
     static Predicate<? super Aggregate> withAggs(Class<?>... aggs) {

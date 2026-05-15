@@ -14,6 +14,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -128,6 +129,39 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
         extraInKeys.removeAll(fromConstants);
         assertTrue("CsvFormatReader CONFIG_* constants missing from RECOGNIZED_KEYS: " + missingFromKeys, missingFromKeys.isEmpty());
         assertTrue("CsvFormatReader RECOGNIZED_KEYS entries with no backing CONFIG_* constant: " + extraInKeys, extraInKeys.isEmpty());
+    }
+
+    /**
+     * Verifies that the config keys declared in {@link CsvDataSourcePlugin#FORMAT_CONFIG_KEYS}
+     * (used for CRUD-time validation via {@link FormatSpec#configKeys()}) match the reader's
+     * runtime {@link CsvFormatReader#RECOGNIZED_KEYS} exactly.
+     */
+    public void testFormatSpecConfigKeysMatchRecognizedKeys() {
+        Set<String> specKeys = new TreeSet<>(CsvDataSourcePlugin.FORMAT_CONFIG_KEYS);
+        Set<String> readerKeys = new TreeSet<>(CsvFormatReader.RECOGNIZED_KEYS);
+        Set<String> missingFromSpec = new TreeSet<>(readerKeys);
+        missingFromSpec.removeAll(specKeys);
+        Set<String> extraInSpec = new TreeSet<>(specKeys);
+        extraInSpec.removeAll(readerKeys);
+        assertTrue(
+            "CsvFormatReader.RECOGNIZED_KEYS has keys missing from FormatSpec.configKeys: " + missingFromSpec,
+            missingFromSpec.isEmpty()
+        );
+        assertTrue("FormatSpec.configKeys has keys not in CsvFormatReader.RECOGNIZED_KEYS: " + extraInSpec, extraInSpec.isEmpty());
+    }
+
+    /**
+     * Verifies that every FormatSpec declared by the plugin carries the config keys.
+     */
+    public void testAllFormatSpecsDeclareConfigKeys() {
+        CsvDataSourcePlugin plugin = new CsvDataSourcePlugin();
+        for (FormatSpec spec : plugin.formatSpecs()) {
+            assertEquals(
+                "FormatSpec for [" + spec.format() + "] must declare FORMAT_CONFIG_KEYS",
+                CsvDataSourcePlugin.FORMAT_CONFIG_KEYS,
+                spec.configKeys()
+            );
+        }
     }
 
     private static Object sampleValueFor(String key) {

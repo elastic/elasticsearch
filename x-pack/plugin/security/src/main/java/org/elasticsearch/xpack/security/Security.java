@@ -1281,10 +1281,22 @@ public class Security extends Plugin
         cacheInvalidatorRegistry.validate();
 
         if (PrimaryEncryptionKeyService.PRIMARY_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()) {
-            PrimaryEncryptionKeyService pekService = PrimaryEncryptionKeyService.create(clusterService, projectResolver, featureService);
-            components.add(new PluginComponentBinding<>(EncryptionService.class, new AesGcmEncryptionService(pekService)));
+            PrimaryEncryptionKeyService pekService = PrimaryEncryptionKeyService.create(clusterService, projectResolver);
+            KeyRotationCoordinator coordinator = KeyRotationCoordinator.create(
+                clusterService,
+                threadPool,
+                projectResolver,
+                featureService,
+                settings
+            );
+            components.add(
+                new PluginComponentBinding<>(
+                    EncryptionService.class,
+                    new AesGcmEncryptionService(pekService, coordinator::registerKeyRotationHandler)
+                )
+            );
             components.add(pekService);
-            components.add(KeyRotationCoordinator.create(clusterService, threadPool, pekService, settings));
+            components.add(coordinator);
         }
 
         setClosableAndReloadableComponents(components);

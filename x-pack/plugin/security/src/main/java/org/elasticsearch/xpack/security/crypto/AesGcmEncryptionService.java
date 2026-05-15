@@ -17,6 +17,7 @@ import java.nio.ByteBuffer;
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
@@ -46,8 +47,7 @@ public class AesGcmEncryptionService implements EncryptionService {
     }
 
     /**
-     * Provides encryption keys to {@link AesGcmEncryptionService}, and accepts rotation handler
-     * registrations on behalf of the encryption service.
+     * Provides encryption keys to {@link AesGcmEncryptionService}.
      */
     public interface KeyProvider {
         @Nullable
@@ -55,8 +55,6 @@ public class AesGcmEncryptionService implements EncryptionService {
 
         @Nullable
         SecretKey getKey(String keyId);
-
-        void registerKeyRotationHandler(KeyRotationHandler handler);
     }
 
     private static final byte SERIALIZATION_FORMAT_VERSION = 1;
@@ -69,10 +67,12 @@ public class AesGcmEncryptionService implements EncryptionService {
     private static final int MIN_PAYLOAD_LENGTH = 1 + IV_LENGTH_BYTES + GCM_TAG_LENGTH_BITS / 8;
 
     private final KeyProvider keyProvider;
+    private final Consumer<KeyRotationHandler> handlerRegistrar;
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public AesGcmEncryptionService(KeyProvider keyProvider) {
+    public AesGcmEncryptionService(KeyProvider keyProvider, Consumer<KeyRotationHandler> handlerRegistrar) {
         this.keyProvider = keyProvider;
+        this.handlerRegistrar = handlerRegistrar;
     }
 
     @Override
@@ -133,6 +133,6 @@ public class AesGcmEncryptionService implements EncryptionService {
 
     @Override
     public void registerKeyRotationHandler(KeyRotationHandler handler) {
-        keyProvider.registerKeyRotationHandler(handler);
+        handlerRegistrar.accept(handler);
     }
 }

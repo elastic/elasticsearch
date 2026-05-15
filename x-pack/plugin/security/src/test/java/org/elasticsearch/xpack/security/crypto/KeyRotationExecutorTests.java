@@ -28,7 +28,7 @@ public class KeyRotationExecutorTests extends ESTestCase {
 
     private static final ClusterName CLUSTER_NAME = new ClusterName("test");
     private final ThreadPool threadPool = mockThreadPool();
-    private final PrimaryEncryptionKeyService.KeyRotationExecutor executor = new PrimaryEncryptionKeyService.KeyRotationExecutor(
+    private final KeyRotationCoordinator.KeyRotationExecutor executor = new KeyRotationCoordinator.KeyRotationExecutor(
         DefaultProjectResolver.INSTANCE,
         threadPool
     );
@@ -63,7 +63,7 @@ public class KeyRotationExecutorTests extends ESTestCase {
 
     public void testInstallInitialKeyOnEmptyState() {
         ClusterState state = stateWith(null);
-        Tuple<ClusterState, Void> result = executor.executeTask(new PrimaryEncryptionKeyService.InstallKeyTask(), state);
+        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.InstallKeyTask(), state);
 
         PrimaryEncryptionKeyMetadata metadata = metadataOf(result.v1());
         assertNotNull(metadata);
@@ -76,7 +76,7 @@ public class KeyRotationExecutorTests extends ESTestCase {
     public void testInstallInitialKeyIsNoopWhenKeyExists() {
         PrimaryEncryptionKeyMetadata existing = new PrimaryEncryptionKeyMetadata(Map.of("k1", entry(42L)), "k1");
         ClusterState state = stateWith(existing);
-        Tuple<ClusterState, Void> result = executor.executeTask(new PrimaryEncryptionKeyService.InstallKeyTask(), state);
+        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.InstallKeyTask(), state);
         assertSame(state, result.v1());
     }
 
@@ -84,7 +84,7 @@ public class KeyRotationExecutorTests extends ESTestCase {
         long activeBornAt = System.currentTimeMillis() - 60_000L;
         PrimaryEncryptionKeyMetadata existing = new PrimaryEncryptionKeyMetadata(Map.of("k1", entry(activeBornAt)), "k1");
         ClusterState state = stateWith(existing);
-        Tuple<ClusterState, Void> result = executor.executeTask(new PrimaryEncryptionKeyService.BeginRotationTask(), state);
+        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.BeginRotationTask(), state);
 
         PrimaryEncryptionKeyMetadata metadata = metadataOf(result.v1());
         assertEquals(2, metadata.getKeys().size());
@@ -96,7 +96,7 @@ public class KeyRotationExecutorTests extends ESTestCase {
 
     public void testBeginRotationIsNoopWhenNoMetadata() {
         ClusterState state = stateWith(null);
-        Tuple<ClusterState, Void> result = executor.executeTask(new PrimaryEncryptionKeyService.BeginRotationTask(), state);
+        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.BeginRotationTask(), state);
         assertSame(state, result.v1());
     }
 
@@ -109,7 +109,7 @@ public class KeyRotationExecutorTests extends ESTestCase {
         PrimaryEncryptionKeyMetadata existing = new PrimaryEncryptionKeyMetadata(entries, "active");
         ClusterState state = stateWith(existing);
 
-        Tuple<ClusterState, Void> result = executor.executeTask(new PrimaryEncryptionKeyService.RetireKeysTask(450L), state);
+        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.RetireKeysTask(450L), state);
 
         PrimaryEncryptionKeyMetadata metadata = metadataOf(result.v1());
         assertEquals("only 'old' should have been retired", Set.of("active", "recent"), metadata.getKeys().keySet());
@@ -125,7 +125,7 @@ public class KeyRotationExecutorTests extends ESTestCase {
         ClusterState state = stateWith(existing);
 
         long cutoff = 200L;
-        Tuple<ClusterState, Void> result = executor.executeTask(new PrimaryEncryptionKeyService.RetireKeysTask(cutoff), state);
+        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.RetireKeysTask(cutoff), state);
 
         PrimaryEncryptionKeyMetadata metadata = metadataOf(result.v1());
         assertEquals(Set.of("active"), metadata.getKeys().keySet());
@@ -136,13 +136,13 @@ public class KeyRotationExecutorTests extends ESTestCase {
         PrimaryEncryptionKeyMetadata existing = new PrimaryEncryptionKeyMetadata(Map.of("active", entry(1000L)), "active");
         ClusterState state = stateWith(existing);
 
-        Tuple<ClusterState, Void> result = executor.executeTask(new PrimaryEncryptionKeyService.RetireKeysTask(500L), state);
+        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.RetireKeysTask(500L), state);
         assertSame(state, result.v1());
     }
 
     public void testRetireKeysIsNoopWhenNoMetadata() {
         ClusterState state = stateWith(null);
-        Tuple<ClusterState, Void> result = executor.executeTask(new PrimaryEncryptionKeyService.RetireKeysTask(100L), state);
+        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.RetireKeysTask(100L), state);
         assertSame(state, result.v1());
     }
 }

@@ -15,7 +15,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
-import static org.elasticsearch.common.settings.Setting.Property.OperatorDynamic;
 
 /**
  * Node settings for the OpenTelemetry SDK metrics ({@link OtelSdkExportMeterSupplier}) and traces

@@ -42,17 +42,11 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Attributes the speedups in {@code findLastRecordBoundary} on the QuotedFieldsOnly path.
- *
- * <p>Three TSV-configured measurements against the same 2.5 MiB buffer:
+ * Three measurements of "find the last record terminator in a 2.5 MiB TSV buffer":
  * <ul>
- *   <li>{@code tsv} — production. Layer 1 single-pass override; both fixes applied.</li>
- *   <li>{@code tsvLayer1Disabled} — drives the production {@code findNextRecordBoundary}
- *       (post-Layer-2 scanner) through the SPI default's loop body, bypassing the Layer 1
- *       override. Delta vs {@code tsv} attributes Layer 1.</li>
- *   <li>{@code tsvBothLayersDisabled} — drives a subclass that overrides
- *       {@code findNextRecordBoundary} with the pre-Layer-2 {@code byte[8192]} bulk-read
- *       scanner. Delta vs {@code tsvLayer1Disabled} attributes Layer 2.</li>
+ *   <li>{@link #originalBefore} — original CSV reader, before Layer 2 was applied.</li>
+ *   <li>{@link #originalAfter} — original CSV reader (no Layer 1 override), after Layer 2.</li>
+ *   <li>{@link #tsvAfter} — current TSV reader, both fixes applied.</li>
  * </ul>
  */
 @Fork(1)
@@ -70,8 +64,8 @@ public class CsvBoundaryScanBenchmark {
     int approxRowBytes;
 
     private CsvFormatReader tsvReader;
-    private SegmentableFormatReader tsvLayer1Disabled;
-    private SegmentableFormatReader tsvBothLayersDisabled;
+    private SegmentableFormatReader originalReaderAfter;
+    private SegmentableFormatReader originalReaderBefore;
     private byte[] buf;
     private int length;
 
@@ -80,36 +74,49 @@ public class CsvBoundaryScanBenchmark {
         Utils.configureBenchmarkLogging();
         BlockFactory bf = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("bench")).build();
         List<String> exts = List.of(".csv", ".tsv");
+
+        // Current TSV reader. Both Layer 1 and Layer 2 applied.
         tsvReader = new CsvFormatReader(bf, CsvFormatOptions.TSV, "csv", exts);
-        tsvLayer1Disabled = new SpiDefaultDriver(tsvReader);
-        tsvBothLayersDisabled = new SpiDefaultDriver(new PreLayer2Scanner(bf, CsvFormatOptions.TSV, "csv", exts));
+
+        // Original CSV reader (no Layer 1 override) after Layer 2 was applied: implements
+        // SegmentableFormatReader directly so findLastRecordBoundary comes from the SPI
+        // default. The per-record scanner is the production (post-Layer-2) findNextRecordBoundary.
+        originalReaderAfter = new CsvReaderInheritingDefault(tsvReader);
+
+        // Original CSV reader before either fix: same shape as above, but the per-record
+        // scanner is the pre-Layer-2 byte[8192] version.
+        originalReaderBefore = new CsvReaderInheritingDefault(new CsvReaderWithOriginalScanner(bf, CsvFormatOptions.TSV, "csv", exts));
+
         buf = generateTsv(bufferBytes, approxRowBytes);
         length = buf.length;
     }
 
+    /** Original CSV reader before either fix. */
     @Benchmark
-    public int tsv() throws IOException {
+    public int originalBefore() throws IOException {
+        return originalReaderBefore.findLastRecordBoundary(buf, length);
+    }
+
+    /** Original CSV reader after Layer 2 was applied, before Layer 1. */
+    @Benchmark
+    public int originalAfter() throws IOException {
+        return originalReaderAfter.findLastRecordBoundary(buf, length);
+    }
+
+    /** Current TSV reader — both fixes applied. */
+    @Benchmark
+    public int tsvAfter() throws IOException {
         return tsvReader.findLastRecordBoundary(buf, length);
     }
 
-    @Benchmark
-    public int tsvLayer1Disabled() throws IOException {
-        return tsvLayer1Disabled.findLastRecordBoundary(buf, length);
-    }
-
-    @Benchmark
-    public int tsvBothLayersDisabled() throws IOException {
-        return tsvBothLayersDisabled.findLastRecordBoundary(buf, length);
-    }
-
     /**
-     * Thin wrapper that exposes the inherited SPI default {@code findLastRecordBoundary}.
-     * Delegates the abstract surface to a wrapped {@link CsvFormatReader}; no body cloned.
+     * Implements SegmentableFormatReader directly so it inherits the SPI default
+     * findLastRecordBoundary. Delegates the rest of the contract to a wrapped CsvFormatReader.
      */
-    private static final class SpiDefaultDriver implements SegmentableFormatReader {
+    private static final class CsvReaderInheritingDefault implements SegmentableFormatReader {
         private final CsvFormatReader wrapped;
 
-        SpiDefaultDriver(CsvFormatReader wrapped) {
+        CsvReaderInheritingDefault(CsvFormatReader wrapped) {
             this.wrapped = wrapped;
         }
 
@@ -150,11 +157,11 @@ public class CsvBoundaryScanBenchmark {
     }
 
     /**
-     * Subclass that replaces {@code findNextRecordBoundary} with the pre-Layer-2 byte[8192]
-     * bulk-read scanner — the version that lived in production before this PR.
+     * Subclass that replaces findNextRecordBoundary with the pre-Layer-2 byte[8192] bulk-read
+     * scanner — the version that lived in production before this PR.
      */
-    private static class PreLayer2Scanner extends CsvFormatReader {
-        PreLayer2Scanner(BlockFactory bf, CsvFormatOptions opts, String format, List<String> extensions) {
+    private static class CsvReaderWithOriginalScanner extends CsvFormatReader {
+        CsvReaderWithOriginalScanner(BlockFactory bf, CsvFormatOptions opts, String format, List<String> extensions) {
             super(bf, opts, format, extensions);
         }
 

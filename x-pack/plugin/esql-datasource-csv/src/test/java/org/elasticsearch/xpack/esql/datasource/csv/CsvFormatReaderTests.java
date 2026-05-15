@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.hamcrest.Matchers;
 import org.junit.After;
 
+import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -2856,6 +2857,256 @@ public class CsvFormatReaderTests extends ESTestCase {
             lastBoundary = cumulative - 1;
         }
         return lastBoundary;
+    }
+
+    // --- Branch coverage for findNextRecordBoundaryQuotedFieldsOnly ---
+
+    public void testFindNextBoundaryQfoEmptyStream() throws IOException {
+        CsvFormatReader reader = tsvReader(blockFactory);
+        assertEquals(-1, reader.findNextRecordBoundary(new ByteArrayInputStream(new byte[0])));
+    }
+
+    public void testFindNextBoundaryQfoNoTerminator() throws IOException {
+        CsvFormatReader reader = tsvReader(blockFactory);
+        byte[] data = "abc\tdef\tghi".getBytes(StandardCharsets.UTF_8);
+        assertEquals(-1, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+    }
+
+    public void testFindNextBoundaryQfoLeadingNewline() throws IOException {
+        CsvFormatReader reader = tsvReader(blockFactory);
+        byte[] data = "\nrest".getBytes(StandardCharsets.UTF_8);
+        assertEquals(1, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+    }
+
+    public void testFindNextBoundaryQfoSimpleRecord() throws IOException {
+        CsvFormatReader reader = tsvReader(blockFactory);
+        byte[] data = "a\tb\tc\nrest".getBytes(StandardCharsets.UTF_8);
+        assertEquals("a\tb\tc\n".length(), reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+    }
+
+    public void testFindNextBoundaryQfoOpenQuoteThenEof() throws IOException {
+        // Unpaired opening quote, stream ends — no boundary.
+        CsvFormatReader reader = noMvcReader(blockFactory);
+        byte[] data = "\"abc".getBytes(StandardCharsets.UTF_8);
+        assertEquals(-1, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+    }
+
+    public void testFindNextBoundaryQfoQuotedFieldThenNewline() throws IOException {
+        CsvFormatReader reader = noMvcReader(blockFactory);
+        byte[] data = "\"abc\"\nrest".getBytes(StandardCharsets.UTF_8);
+        assertEquals("\"abc\"\n".length(), reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+    }
+
+    public void testFindNextBoundaryQfoEmbeddedNewlineInQuotes() throws IOException {
+        // \n inside a quoted field is not a boundary.
+        CsvFormatReader reader = noMvcReader(blockFactory);
+        byte[] data = "\"line1\nline2\"\nrest".getBytes(StandardCharsets.UTF_8);
+        assertEquals("\"line1\nline2\"\n".length(), reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+    }
+
+    public void testFindNextBoundaryQfoDoubledQuoteIsLiteral() throws IOException {
+        CsvFormatReader reader = noMvcReader(blockFactory);
+        byte[] data = "\"a\"\"b\"\nrest".getBytes(StandardCharsets.UTF_8);
+        assertEquals("\"a\"\"b\"\n".length(), reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+    }
+
+    public void testFindNextBoundaryQfoDoubledQuoteThenNewline() throws IOException {
+        // RFC quirk: doubled quote at the very end of a field, then \n.
+        CsvFormatReader reader = noMvcReader(blockFactory);
+        byte[] data = "\"a\"\"\"\nrest".getBytes(StandardCharsets.UTF_8);
+        assertEquals("\"a\"\"\"\n".length(), reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+    }
+
+    public void testFindNextBoundaryQfoCloseQuoteThenOtherByte() throws IOException {
+        // Close-quote followed by non-newline, non-quote byte: exit quotes, keep scanning.
+        CsvFormatReader reader = noMvcReader(blockFactory);
+        byte[] data = "\"a\"x\nrest".getBytes(StandardCharsets.UTF_8);
+        assertEquals("\"a\"x\n".length(), reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+    }
+
+    public void testFindNextBoundaryQfoCloseQuoteThenEof() throws IOException {
+        // Close-quote at the very end of stream — read returns -1 on peek.
+        CsvFormatReader reader = noMvcReader(blockFactory);
+        byte[] data = "\"abc\"".getBytes(StandardCharsets.UTF_8);
+        assertEquals(-1, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+    }
+
+    public void testFindNextBoundaryQfoCrLfReturnsAtLf() throws IOException {
+        // \r is not a terminator; only \n is. CRLF returns at the \n offset.
+        CsvFormatReader reader = tsvReader(blockFactory);
+        byte[] data = "abc\r\nrest".getBytes(StandardCharsets.UTF_8);
+        assertEquals("abc\r\n".length(), reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+    }
+
+    public void testFindNextBoundaryQfoLoneCrIsNotABoundary() throws IOException {
+        CsvFormatReader reader = tsvReader(blockFactory);
+        byte[] data = "abc\rdef".getBytes(StandardCharsets.UTF_8);
+        assertEquals(-1, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+    }
+
+    public void testFindNextBoundaryQfoReusesBufferedInputStream() throws IOException {
+        // If the caller already passed a BufferedInputStream, the method should reuse it
+        // (not wrap it again). Observable via the consumed byte count.
+        CsvFormatReader reader = tsvReader(blockFactory);
+        byte[] data = "a\tb\nc\td\n".getBytes(StandardCharsets.UTF_8);
+        BufferedInputStream bis = new BufferedInputStream(new ByteArrayInputStream(data));
+        long consumed = reader.findNextRecordBoundary(bis);
+        assertEquals("a\tb\n".length(), consumed);
+    }
+
+    public void testFindNextBoundaryQfoMultipleQuotedFields() throws IOException {
+        CsvFormatReader reader = noMvcReader(blockFactory);
+        byte[] data = "\"a\",\"b\",\"c\"\nrest".getBytes(StandardCharsets.UTF_8);
+        assertEquals("\"a\",\"b\",\"c\"\n".length(), reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+    }
+
+    public void testFindNextBoundaryQfoTabInsideQuotedFieldIsLiteral() throws IOException {
+        CsvFormatReader reader = tsvReader(blockFactory);
+        byte[] data = "\"has\ttab\"\nrest".getBytes(StandardCharsets.UTF_8);
+        assertEquals("\"has\ttab\"\n".length(), reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+    }
+
+    // --- Branch coverage for findLastRecordBoundaryQuotedFieldsOnly ---
+
+    public void testFindLastBoundaryQfoEmptyBuffer() throws IOException {
+        CsvFormatReader reader = tsvReader(blockFactory);
+        assertEquals(-1, reader.findLastRecordBoundary(new byte[0], 0));
+    }
+
+    public void testFindLastBoundaryQfoNoNewline() throws IOException {
+        CsvFormatReader reader = tsvReader(blockFactory);
+        byte[] data = "abc\tdef\tghi".getBytes(StandardCharsets.UTF_8);
+        assertEquals(-1, reader.findLastRecordBoundary(data, data.length));
+    }
+
+    public void testFindLastBoundaryQfoSingleNewlineAtStart() throws IOException {
+        CsvFormatReader reader = tsvReader(blockFactory);
+        byte[] data = "\n".getBytes(StandardCharsets.UTF_8);
+        assertEquals(0, reader.findLastRecordBoundary(data, data.length));
+    }
+
+    public void testFindLastBoundaryQfoSingleNewlineAtEnd() throws IOException {
+        CsvFormatReader reader = tsvReader(blockFactory);
+        byte[] data = "abc\n".getBytes(StandardCharsets.UTF_8);
+        assertEquals(3, reader.findLastRecordBoundary(data, data.length));
+    }
+
+    public void testFindLastBoundaryQfoMultipleNewlinesReturnsLast() throws IOException {
+        CsvFormatReader reader = tsvReader(blockFactory);
+        byte[] data = "a\nb\nc\n".getBytes(StandardCharsets.UTF_8);
+        assertEquals(data.length - 1, reader.findLastRecordBoundary(data, data.length));
+    }
+
+    public void testFindLastBoundaryQfoUnclosedQuoteSkipsLaterNewlines() throws IOException {
+        CsvFormatReader reader = noMvcReader(blockFactory);
+        // Two newlines outside quotes, then an open quote, then a newline inside the open region.
+        byte[] data = "row1\nrow2\n\"open\nstill".getBytes(StandardCharsets.UTF_8);
+        // The newline after the open quote is inside an unterminated region and must be ignored.
+        assertEquals("row1\nrow2\n".length() - 1, reader.findLastRecordBoundary(data, data.length));
+    }
+
+    public void testFindLastBoundaryQfoQuoteOpenAndClosedSkipsEmbeddedNewline() throws IOException {
+        CsvFormatReader reader = noMvcReader(blockFactory);
+        byte[] data = "\"a\nb\",c\nrow2,x\n".getBytes(StandardCharsets.UTF_8);
+        assertEquals(data.length - 1, reader.findLastRecordBoundary(data, data.length));
+    }
+
+    public void testFindLastBoundaryQfoDoubledQuoteIsLiteral() throws IOException {
+        CsvFormatReader reader = noMvcReader(blockFactory);
+        byte[] data = "\"a\"\"b\"\nrow2\n".getBytes(StandardCharsets.UTF_8);
+        assertEquals(data.length - 1, reader.findLastRecordBoundary(data, data.length));
+    }
+
+    public void testFindLastBoundaryQfoDoubledQuoteContainsNewline() throws IOException {
+        // "" inside a quoted field is literal — the field is still quoted, so \n is skipped.
+        CsvFormatReader reader = noMvcReader(blockFactory);
+        byte[] data = "\"a\"\"\nb\"\nrow2\n".getBytes(StandardCharsets.UTF_8);
+        assertEquals(data.length - 1, reader.findLastRecordBoundary(data, data.length));
+    }
+
+    public void testFindLastBoundaryQfoQuoteAtVeryLastByte() throws IOException {
+        // The quote-char is the last byte; no peek possible. Treated as closing if currently in
+        // quotes (any trailing \n is impossible anyway since the buffer ends here).
+        CsvFormatReader reader = noMvcReader(blockFactory);
+        byte[] data = "row1\n\"abc\"".getBytes(StandardCharsets.UTF_8);
+        assertEquals(4, reader.findLastRecordBoundary(data, data.length));
+    }
+
+    public void testFindLastBoundaryQfoCrLfReturnsAtLfIndex() throws IOException {
+        CsvFormatReader reader = tsvReader(blockFactory);
+        byte[] data = "a\r\nb\r\n".getBytes(StandardCharsets.UTF_8);
+        assertEquals(data.length - 1, reader.findLastRecordBoundary(data, data.length));
+        assertEquals('\n', data[data.length - 1]);
+    }
+
+    public void testFindLastBoundaryQfoLoneCrNotABoundary() throws IOException {
+        CsvFormatReader reader = tsvReader(blockFactory);
+        byte[] data = "a\rb\rc".getBytes(StandardCharsets.UTF_8);
+        assertEquals(-1, reader.findLastRecordBoundary(data, data.length));
+    }
+
+    public void testFindLastBoundaryQfoLengthLessThanBuffer() throws IOException {
+        CsvFormatReader reader = tsvReader(blockFactory);
+        byte[] body = "a\nb\n".getBytes(StandardCharsets.UTF_8);
+        byte[] padded = new byte[body.length + 10];
+        System.arraycopy(body, 0, padded, 0, body.length);
+        Arrays.fill(padded, body.length, padded.length, (byte) '\n');
+        // Use only the first body.length bytes — trailing \n bytes in the padded region must
+        // not be visited.
+        assertEquals(body.length - 1, reader.findLastRecordBoundary(padded, body.length));
+    }
+
+    public void testFindLastBoundaryQfoNewlineInsideUnclosedQuotedFieldAtStart() throws IOException {
+        CsvFormatReader reader = noMvcReader(blockFactory);
+        byte[] data = "\"abc\ndef".getBytes(StandardCharsets.UTF_8);
+        assertEquals(-1, reader.findLastRecordBoundary(data, data.length));
+    }
+
+    public void testFindLastBoundaryQfoNoQuotesPlainNewlines() throws IOException {
+        CsvFormatReader reader = tsvReader(blockFactory);
+        byte[] data = "abc\ndef\nghi\n".getBytes(StandardCharsets.UTF_8);
+        assertEquals(data.length - 1, reader.findLastRecordBoundary(data, data.length));
+    }
+
+    public void testFindLastBoundaryQfoQuotedNewlineThenPlainRow() throws IOException {
+        // Embedded \n inside quotes then real terminator then another row.
+        CsvFormatReader reader = noMvcReader(blockFactory);
+        byte[] data = "\"a\nb\",c\nx,y\nz,w".getBytes(StandardCharsets.UTF_8);
+        assertEquals("\"a\nb\",c\nx,y\n".length() - 1, reader.findLastRecordBoundary(data, data.length));
+    }
+
+    public void testFindLastBoundaryQfoZeroLength() throws IOException {
+        CsvFormatReader reader = tsvReader(blockFactory);
+        byte[] data = "anything\n".getBytes(StandardCharsets.UTF_8);
+        assertEquals(-1, reader.findLastRecordBoundary(data, 0));
+    }
+
+    public void testFindLastBoundaryQfoNegativeLength() throws IOException {
+        CsvFormatReader reader = tsvReader(blockFactory);
+        assertEquals(-1, reader.findLastRecordBoundary(new byte[0], -1));
+    }
+
+    // --- Cross-method equivalence on hand-picked inputs ---
+
+    public void testQfoFindNextAndFindLastAgreeOnSimpleInputs() throws IOException {
+        CsvFormatReader reader = noMvcReader(blockFactory);
+        String[] inputs = {
+            "",
+            "\n",
+            "row1\n",
+            "row1\nrow2\n",
+            "\"a\nb\",c\n",
+            "\"a\"\"b\"\nrest\n",
+            "\"unclosed",
+            "row1\n\"unclosed",
+            "a\r\nb\r\n",
+            "\"a\"\nrest\n", };
+        for (String s : inputs) {
+            byte[] data = s.getBytes(StandardCharsets.UTF_8);
+            int override = reader.findLastRecordBoundary(data, data.length);
+            int oracle = referenceDefaultDriver(reader, data, data.length);
+            assertEquals("input=" + s, oracle, override);
+        }
     }
 
     public void testBracketAwareLeadingWhitespaceBeforeBracketOpensMvc() throws IOException {

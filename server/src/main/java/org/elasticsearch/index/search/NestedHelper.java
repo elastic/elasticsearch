@@ -271,6 +271,13 @@ public final class NestedHelper {
             parentClauses.addAll(matchAllFilterClauses);
         }
 
+        // If child clauses contain only MUST_NOT with no positive clause (e.g., from a mixed bool
+        // where the positive clauses were all parent-level), add a synthetic MatchAllDocsQuery so
+        // the resulting BooleanQuery is not pure-negative (which would match nothing in Lucene).
+        if (hasChildMustNot && childClauses.stream().noneMatch(BooleanClause::isRequired)) {
+            childClauses.add(new BooleanClause(new MatchAllDocsQuery(), Occur.FILTER));
+        }
+
         if (childClauses.isEmpty()) {
             return null;
         }

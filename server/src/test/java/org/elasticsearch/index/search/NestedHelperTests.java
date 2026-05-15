@@ -393,9 +393,13 @@ public class NestedHelperTests extends MapperServiceTestCase {
         assertEquals(1, result.parentClauses().size());
         assertEquals(Occur.FILTER, result.parentClauses().get(0).occur());
         assertEquals(new TermQuery(new Term("foo", "bar")), result.parentClauses().get(0).query());
-        assertEquals(1, result.childClauses().size());
+        // Child clauses should include the MUST_NOT plus a synthetic MatchAllDocsQuery
+        // to prevent a pure-negative BooleanQuery (which would match nothing in Lucene)
+        assertEquals(2, result.childClauses().size());
         assertEquals(Occur.MUST_NOT, result.childClauses().get(0).occur());
         assertEquals(new TermQuery(new Term("nested1.foo", "value")), result.childClauses().get(0).query());
+        assertEquals(Occur.FILTER, result.childClauses().get(1).occur());
+        assertTrue(result.childClauses().get(1).query() instanceof MatchAllDocsQuery);
     }
 
     public void testDecomposeFilterNonBooleanQuery() {

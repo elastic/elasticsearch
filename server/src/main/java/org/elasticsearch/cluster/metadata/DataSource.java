@@ -29,21 +29,10 @@ import java.util.Objects;
 /**
  * Represents a data source definition stored in cluster state. A data source holds
  * connection settings (credentials, endpoints, auth) for an external data provider.
- *
- * <p>The {@code uuid} field is a rename-stable, immutable identifier populated at PUT creation time
- * (via {@code UUIDs.randomBase64UUID()} on the master-side validator). It is reserved for use by
- * per-data-source key derivation when the security infrastructure grows that capability; today it
- * is persisted but not otherwise consumed. Legacy entries that predate the field parse with
- * {@code uuid == null}; the next PUT for such an entry populates it.
  */
 public final class DataSource implements Writeable, ToXContentObject {
 
-    /**
-     * Transport-version gate for the {@code uuid} field on {@link DataSource}. Pre-version peers
-     * neither read nor write the field; reads return {@code null} on the recipient side.
-     * Shares the {@code data_source_encryption} name with the encryption wire-format gate since
-     * both ship together in the same wire-format evolution.
-     */
+    /** Transport-version gate for the {@code uuid} field — shares the encryption wire-format gate. */
     public static final TransportVersion DATA_SOURCE_ADD_UUID_FIELD = TransportVersion.fromName("data_source_encryption");
 
     private static final ParseField NAME = new ParseField("name");
@@ -104,9 +93,7 @@ public final class DataSource implements Writeable, ToXContentObject {
         this.name = in.readString();
         this.type = in.readString();
         this.description = in.readOptionalString();
-        // readMap returns a mutable HashMap when non-empty; wrap to preserve the class invariant that settings is unmodifiable
         this.settings = Collections.unmodifiableMap(in.readMap(DataSourceSetting::new));
-        // uuid is gated: pre-version peers don't write it, so reads default to null
         this.uuid = in.getTransportVersion().supports(DATA_SOURCE_ADD_UUID_FIELD) ? in.readOptionalString() : null;
     }
 
@@ -137,27 +124,15 @@ public final class DataSource implements Writeable, ToXContentObject {
         return settings;
     }
 
-    /**
-     * The data source's rename-stable identifier. {@code null} for legacy entries that predate the field;
-     * non-null for every entry created or re-PUT-ed after the field shipped.
-     */
+    /** Rename-stable identifier; null for legacy entries pre-dating the field. */
     @Nullable
     public String uuid() {
         return uuid;
     }
 
     /**
-     * Encryption state for the data source's secret settings, surfaced on the GET response so operators
-     * can verify migration progress. Two values:
-     * <ul>
-     *   <li>{@code "encrypted"} — every secret setting holds a ciphertext carrier ({@code EncryptedData}
-     *       or its parsed-from-XContent {@code Map} equivalent); or the data source has no secret settings.</li>
-     *   <li>{@code "plaintext_legacy"} — at least one secret setting still holds a plaintext String.
-     *       Next PUT migrates the entry to encrypted form (passive migration); the future
-     *       {@code _force_migrate} admin endpoint will also encrypt in place.</li>
-     * </ul>
-     * Master-side encryption is atomic per data source — a {@code DataSource} is wholly one state or the
-     * other, never partial.
+     * {@code "encrypted"} if every secret setting holds a ciphertext carrier (or there are no secrets);
+     * {@code "plaintext_legacy"} if any secret is still plaintext String. Atomic per data source.
      */
     public String encryptionState() {
         for (DataSourceSetting setting : settings.values()) {

@@ -235,11 +235,9 @@ public final class DatasetRewriter {
     }
 
     /**
-     * Parent settings overlaid by dataset settings. Secrets are forwarded as their raw encrypted-carrier
-     * shape (whatever {@link DataSourceSetting#encryptedSecret()} returns — String for legacy plaintext,
-     * an {@code EncryptedData} {@link org.elasticsearch.common.io.stream.GenericNamedWriteable} for
-     * encrypted entries, or a {@code Map<String, Object>} parsed from encrypted XContent). The connector
-     * decrypts at its entry via the data-node decrypt helper; the coordinator never sees plaintext.
+     * Parent settings overlaid by dataset settings. Secrets are forwarded as their raw
+     * {@link DataSourceSetting#encryptedSecret()} carrier; the data-node decrypt helper materializes
+     * plaintext at the connector boundary.
      */
     private static Map<String, Object> mergeSettings(DataSource parent, Dataset dataset) {
         Map<String, Object> merged = new HashMap<>();

@@ -24,23 +24,15 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * Holds the result of an encryption operation: the key ID that was used and the encrypted payload.
- *
- * <p>Implements {@link GenericNamedWriteable} so encrypted payloads can travel as map values inside
- * {@code Map<String, Object>} carriers serialized via {@link StreamOutput#writeGenericValue}. The
- * minimum supported transport version is the one introduced by the data-source-encryption work;
- * earlier peers reject the type via the standard {@code GenericNamedWriteable} version-tolerant
- * dispatch.
+ * Holds the result of an encryption operation: the key ID and the encrypted payload.
+ * Implements {@link GenericNamedWriteable} so it can travel inside {@code Map<String, Object>}
+ * carriers serialized via {@link StreamOutput#writeGenericValue}.
  */
 public final class EncryptedData implements GenericNamedWriteable, ToXContentObject {
 
-    /** Stable transport-name for {@link GenericNamedWriteable} dispatch. Renaming is a wire-format break. */
+    /** Stable transport-name for {@link GenericNamedWriteable} dispatch; renaming is a wire-format break. */
     public static final String NAMED_WRITEABLE_NAME = "encrypted_data";
 
-    /**
-     * Transport-version gate for {@link EncryptedData} on the {@link GenericNamedWriteable} path.
-     * Pre-version peers do not see encrypted payloads on the wire.
-     */
     public static final TransportVersion DATA_SOURCE_ENCRYPTION = TransportVersion.fromName("data_source_encryption");
 
     private static final ParseField KEY_ID_FIELD = new ParseField("key_id");

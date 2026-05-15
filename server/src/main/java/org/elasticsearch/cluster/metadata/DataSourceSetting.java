@@ -26,45 +26,19 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * A validated data source setting value paired with its sensitivity classification.
- * Stored in cluster state as part of data source metadata.
+ * A validated data source setting value paired with its sensitivity classification, stored in
+ * cluster state as part of data source metadata.
  *
- * <p>Secret settings can hold one of three in-memory shapes:
- * <ul>
- *   <li>{@code String} or {@code null} — plaintext, the legacy and transient post-validator-pre-encrypt form.</li>
- *   <li>{@link GenericNamedWriteable} — a ciphertext carrier (e.g. {@code EncryptedData}) deposited by the
- *       master-side encrypt step. Travels on the wire via the byte-tag-30 dispatch in
- *       {@link StreamOutput#writeGenericValue} and {@link StreamInput#readGenericValue}.</li>
- *   <li>{@code Map<String, Object>} — the parsed-from-XContent form of an encrypted ciphertext object.
- *       Equivalent semantically to the {@link GenericNamedWriteable} form; the consumer-side decrypt
- *       helper handles either shape.</li>
- * </ul>
- * Non-secret settings may carry any value that round-trips through {@link StreamOutput#writeGenericValue}
- * and the XContent writer (in practice: String, Integer, Long, Double, Boolean, null, and nested maps or lists).
- *
- * <p>Read accessors are split by secret classification so that access to plaintext secrets is always
- * explicit at the call site. There is no generic {@code value()} accessor.
- * <ul>
- *   <li>{@link #nonSecretValue()} — returns the {@code Object} for a non-secret setting; throws if the setting is a secret.</li>
- *   <li>{@link #encryptedSecret()} — returns the raw ciphertext carrier or legacy plaintext {@code String} for a
- *       secret setting; the consumer-side decrypt helper handles the type-switch. Throws if not a secret.</li>
- *   <li>{@link #secretValue()} — legacy accessor that returns a {@link SecureString} when the secret is plaintext
- *       (pre-encryption); throws when the secret is encrypted. New code should prefer {@link #encryptedSecret()}.</li>
- *   <li>{@link #presentationValue()} — masks if secret, else returns the plaintext; safe for REST responses.</li>
- *   <li>{@link #toString()} — masks secret values.</li>
- * </ul>
- *
- * <p><b>Encryption contract.</b> The four serialization touch points — {@link #writeTo}, {@link #toXContent},
- * the {@link #DataSourceSetting(StreamInput) StreamInput constructor}, and {@link #fromXContent} — carry
- * whichever in-memory shape is currently held in {@code value}. The encryption layer wraps secrets into
- * a {@link GenericNamedWriteable} on PUT (master-side encrypt step); decrypt happens at the consumer call site.
+ * <p>Secret values may be a plaintext {@code String} (legacy / pre-encrypt), a ciphertext
+ * {@link GenericNamedWriteable} carrier ({@code EncryptedData}) deposited by the master-side
+ * encrypt step, or a {@code Map<String, Object>} parsed from encrypted XContent. Non-secret values
+ * may carry any type that round-trips through {@link StreamOutput#writeGenericValue}. Access plaintext
+ * secrets via {@link #encryptedSecret()} (returns the raw carrier; consumer decrypts) or the legacy
+ * {@link #secretValue()} (throws on encrypted carriers).
  */
 public final class DataSourceSetting implements Writeable, ToXContentObject {
 
     static final String MASK_SENTINEL = "::es_redacted::";
-
-    /** Cap on encrypted-payload size when parsed from XContent — credentials are short; rejects hostile bloat early. */
-    static final int MAX_ENCRYPTED_PAYLOAD_BYTES = 4096;
 
     private static final ParseField VALUE = new ParseField("value");
     private static final ParseField SECRET = new ParseField("secret");
@@ -76,7 +50,7 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
     );
 
     static {
-        // Dual-format read: a scalar (legacy plaintext) OR a START_OBJECT (encrypted-data carrier as a Map).
+        // Accept either a scalar (legacy plaintext) or START_OBJECT (encrypted-data as a map).
         PARSER.declareField(ConstructingObjectParser.constructorArg(), (p, c) -> {
             if (p.currentToken() == XContentParser.Token.START_OBJECT) {
                 return p.map();
@@ -91,8 +65,6 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
 
     public DataSourceSetting(Object value, boolean secret) {
         if (secret && value != null) {
-            // Permissible: plaintext String, ciphertext carrier (GenericNamedWriteable like EncryptedData),
-            // or parsed-from-XContent Map (the encrypted-object shape).
             if ((value instanceof String || value instanceof GenericNamedWriteable || value instanceof Map<?, ?>) == false) {
                 throw new IllegalArgumentException(
                     "secret data source settings must be String, an encrypted carrier, or a parsed map; got ["
@@ -106,15 +78,11 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
     }
 
     public DataSourceSetting(StreamInput in) throws IOException {
-        // writeGenericValue and readGenericValue dispatch by byte tag; the EncryptedData GenericNamedWriteable
-        // (tag 30) round-trips transparently. Legacy plaintext String round-trips as the String tag.
         this(in.readGenericValue(), in.readBoolean());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // value's runtime type determines the byte tag: String, byte-tag-30 GenericNamedWriteable for
-        // EncryptedData, or the Map tag for the XContent-parsed encrypted-object shape.
         out.writeGenericValue(value);
         out.writeBoolean(secret);
     }
@@ -123,11 +91,7 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
         return secret;
     }
 
-    /**
-     * In-memory value for a non-secret setting. Throws if this setting is a secret — secret values must go
-     * through {@link #encryptedSecret()} (or {@link #secretValue()} for the legacy plaintext path) so that
-     * access to ciphertext or plaintext is explicit at every call site.
-     */
+    /** Returns the value of a non-secret setting; throws if secret. */
     public Object nonSecretValue() {
         if (secret) {
             throw new IllegalStateException("secret setting — use encryptedSecret() or secretValue()");
@@ -135,13 +99,7 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
         return value;
     }
 
-    /**
-     * The raw secret carrier, regardless of whether it is plaintext (legacy {@code String}), a ciphertext
-     * {@link GenericNamedWriteable} (e.g. {@code EncryptedData}), or a {@code Map<String, Object>} parsed from
-     * encrypted XContent. The consumer-side decrypt helper inspects the type and acts accordingly.
-     *
-     * <p>Throws if this setting is not classified as a secret.
-     */
+    /** Returns the raw secret carrier (String, GenericNamedWriteable, or Map); throws if not secret. */
     public Object encryptedSecret() {
         if (secret == false) {
             throw new IllegalStateException("not a secret setting — use nonSecretValue()");
@@ -150,16 +108,9 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
     }
 
     /**
-     * Legacy plaintext-only secret accessor returning a {@link SecureString}. Works only when the in-memory
-     * value is a plaintext {@code String} (pre-encryption or never-encrypted). Throws on the encrypted carriers;
-     * those callers should switch to {@link #encryptedSecret()} and run the value through the decrypt helper.
-     *
-     * <p>Caller should use try-with-resources to clear the chars.
-     *
-     * <p>Memory-hygiene caveat: the underlying {@code value} is stored as a Java {@code String}, so zeroing
-     * the returned {@code SecureString} chars does not zero the originating backing string. The {@link SecureString}
-     * wrapper is primarily a warning-typed API; true memory hygiene requires the consumer-side decrypt path
-     * (which materializes from {@code byte[]} via {@code char[]} without an intermediate immutable {@code String}).
+     * Legacy plaintext-only secret accessor returning a {@link SecureString}. Throws on encrypted
+     * carriers — callers should switch to {@link #encryptedSecret()} and run the value through the
+     * consumer-side decrypt helper.
      */
     public SecureString secretValue() {
         if (secret == false) {
@@ -188,9 +139,6 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        // For ciphertext-carrier shapes (e.g. EncryptedData), delegate to ToXContentObject so the emitted
-        // structure matches the carrier's canonical shape. For Map values (parsed-from-XContent), emit as
-        // an object. Scalar values are emitted directly.
         if (value instanceof ToXContentObject toX) {
             builder.field(VALUE.getPreferredName());
             toX.toXContent(builder, params);

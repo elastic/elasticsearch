@@ -1632,10 +1632,6 @@ public class Security extends Plugin
 
     @Override
     public List<SearchPlugin.GenericNamedWriteableSpec> getGenericNamedWriteables() {
-        // Registers EncryptedData so it can travel inside Map<String, Object> carriers via
-        // StreamOutput#writeGenericValue — the byte-tag-30 GenericNamedWriteable dispatch.
-        // Required for the ES|QL data-source encryption work that puts EncryptedData into
-        // physical-plan config maps on the coord-to-data-node hop.
         return List.of(new SearchPlugin.GenericNamedWriteableSpec(EncryptedData.NAMED_WRITEABLE_NAME, EncryptedData::new));
     }
 

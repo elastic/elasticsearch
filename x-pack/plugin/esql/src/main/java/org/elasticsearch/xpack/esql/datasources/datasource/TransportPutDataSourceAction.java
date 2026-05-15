@@ -28,16 +28,8 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
     private final DataSourceService dataSourceService;
     private final FeatureService featureService;
 
-    /**
-     * Wired by an optional Guice setter ({@link #setEncryptionService}) — the security plugin binds
-     * {@link EncryptionService} only when the primary-encryption-key feature flag is on. When off
-     * (or when the security plugin is absent in test environments), the setter is never called and
-     * this field stays null; the put path then skips encryption — equivalent to the mixed-version
-     * fallback documented on {@link DataSourceService#putDataSource}.
-     *
-     * <p>This Guice fork supports {@code @Inject(optional = true)} only on methods and constructors,
-     * not fields — hence the setter rather than a direct field annotation.
-     */
+    // Optional Guice injection via {@link #setEncryptionService}; null when the security plugin's
+    // PEK feature flag is off (encryption skipped — same fallback as the mixed-version path).
     private volatile EncryptionService encryptionService;
 
     @Inject(optional = true)
@@ -71,8 +63,7 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
 
     @Override
     protected void doExecute(Task task, PutDataSourceAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        // Coord-side pre-check: validator dispatch. Fails fast without a master round-trip
-        // on unknown type or validation failure. The task body re-validates under CAS.
+        // Coord-side pre-check; the task body re-validates under CAS.
         try {
             dataSourceService.validatePutDataSource(request);
         } catch (Exception e) {
@@ -89,8 +80,6 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
         ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        // Plant the service into the data-node decrypt seam idempotently — runs on every PUT but is
-        // a no-op after the first call, and a no-op forever if EncryptionService is unbound.
         if (encryptionService != null) {
             DataSourceCredentials.initialize(encryptionService);
         }

@@ -331,7 +331,6 @@ public final class DataSourceModule implements Closeable {
 
         @Override
         public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
-            // Decrypt at the connector-factory invocation seam — see DataSourceCredentials for the contract.
             return resolveDelegate().resolveMetadata(location, DataSourceCredentials.decryptInPlace(config));
         }
 
@@ -432,7 +431,6 @@ public final class DataSourceModule implements Closeable {
 
         @Override
         public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
-            // Decrypt at the catalog-invocation seam — see DataSourceCredentials for the contract.
             return resolveDelegate().resolveMetadata(location, DataSourceCredentials.decryptInPlace(config));
         }
 

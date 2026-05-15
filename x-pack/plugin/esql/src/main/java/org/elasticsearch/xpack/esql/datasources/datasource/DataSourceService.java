@@ -64,7 +64,6 @@ public class DataSourceService {
     private final Map<String, DataSourceValidator> validatorsByType;
     private final MasterServiceTaskQueue<AckedClusterStateUpdateTask> taskQueue;
 
-    /** Logged once per cluster lifetime when a PUT lands during a mixed-version window and skips encryption. */
     private final AtomicBoolean mixedVersionDeferralLogged = new AtomicBoolean(false);
 
     private volatile int maxDataSourcesCount;
@@ -85,12 +84,10 @@ public class DataSourceService {
     }
 
     /**
-     * Validate the put-data-source request: look up the validator by type, run it, and build the
-     * domain {@link DataSource}. Callable from the coordinator (pre-check) and from inside the CAS
-     * task (authoritative re-validate). Throws on unknown type or validation failure.
-     *
-     * <p>The returned {@link DataSource} carries {@code uuid == null}; the master-side put step
-     * preserves the existing UUID on update or assigns a fresh one on create / legacy migration.
+     * Validate the put-data-source request and build the domain {@link DataSource}. Callable from the
+     * coordinator (pre-check) and from inside the CAS task (authoritative re-validate). The returned
+     * {@link DataSource} carries {@code uuid == null}; the master-side put step preserves the existing
+     * UUID on update or assigns a fresh one on create / legacy migration.
      */
     public DataSource validatePutDataSource(PutDataSourceAction.Request request) {
         DataSourceValidator validator = validatorsByType.get(request.type());
@@ -104,18 +101,10 @@ public class DataSourceService {
     }
 
     /**
-     * Create or replace a data source. Validation is expected to have run on the coordinator (via
-     * {@link #validatePutDataSource}); the task re-validates under CAS for consistency.
-     *
-     * <p>Secret settings are encrypted master-side via {@code encryptionService} before the cluster-state
-     * task lands, but only when every node in the cluster advertises the data-source-encryption
-     * {@link org.elasticsearch.features.NodeFeature}. In a mixed-version cluster the encrypt step is
-     * skipped and the settings stay plaintext on disk; a one-time INFO log per cluster lifetime announces
-     * the deferral. The next PUT after the cluster crosses the adoption boundary will encrypt.
-     *
-     * <p>If the PEK is not yet installed when the encrypt step runs, {@code EncryptionService.encrypt}
-     * throws {@code EncryptionKeyNotYetAvailableException}, which surfaces as HTTP 503 via its own
-     * {@code status()} override — the request will simply be retried after PEK is available.
+     * Create or replace a data source. Validates under CAS, encrypts secret settings master-side
+     * (only when {@code encryptionService != null} and the cluster advertises
+     * {@link EsqlFeatures#DATA_SOURCE_ENCRYPTION_FEATURE}; otherwise plaintext, one-time INFO log).
+     * A missing PEK surfaces as 503 via {@code EncryptionKeyNotYetAvailableException.status()}.
      */
     public void putDataSource(
         ProjectId projectId,
@@ -167,11 +156,6 @@ public class DataSourceService {
         taskQueue.submitTask("update-esql-data-source-metadata-[" + request.name() + "]", task, task.timeout());
     }
 
-    /**
-     * Walk the validated settings map; for every secret-classified entry whose value is plaintext String,
-     * replace it with an {@link EncryptedData} wrapping the AES-GCM ciphertext under the active PEK.
-     * Non-secret entries and already-encrypted entries pass through untouched.
-     */
     private static Map<String, DataSourceSetting> encryptSecrets(
         Map<String, DataSourceSetting> settings,
         EncryptionService encryptionService
@@ -190,22 +174,15 @@ public class DataSourceService {
                     EncryptedData encrypted = encryptionService.encrypt(bytes);
                     result.put(entry.getKey(), new DataSourceSetting(encrypted, true));
                 } finally {
-                    // Best-effort wipe of the intermediate plaintext byte[]. The originating Java String
-                    // is immutable and remains on heap until GC — out-of-scope-here irreducible window.
                     Arrays.fill(bytes, (byte) 0);
                 }
             } else {
-                // Already an encrypted carrier (e.g. Map from legacy XContent or EncryptedData from a re-PUT) — pass through.
                 result.put(entry.getKey(), setting);
             }
         }
         return result;
     }
 
-    /**
-     * Pass-through for mixed-version PUTs: settings stay plaintext-typed. Logs the deferral once per
-     * cluster lifetime so the situation is visible without log-spamming under sustained mixed-version PUT.
-     */
     private Map<String, DataSourceSetting> announceDeferral(Map<String, DataSourceSetting> settings) {
         if (mixedVersionDeferralLogged.compareAndSet(false, true)) {
             logger.info(

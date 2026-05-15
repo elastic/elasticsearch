@@ -58,10 +58,9 @@ tasks.named('forbiddenApisMain').configure {
 
 tasks.named('forbiddenApisTest').configure {
   //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
-  modifyBundledSignatures { bundledSignatures ->
-    bundledSignatures -= 'jdk-non-portable'
-    bundledSignatures += 'jdk-internal'
-    bundledSignatures
+  configureBundledSignaturesFromDefaults {
+    remove 'jdk-non-portable'
+    add 'jdk-internal'
   }
 
   //client does not depend on server, so only jdk signatures should be checked

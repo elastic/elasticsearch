@@ -20,7 +20,7 @@ import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 
 import java.io.File;
-import java.util.Set;
+import java.util.List;
 
 import static de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME;
 import static org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask.BUNDLED_SIGNATURE_DEFAULTS;
@@ -58,7 +58,7 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
                 t.dependsOn(resourcesTask);
                 t.setClasspath(sourceSet.getRuntimeClasspath().plus(sourceSet.getCompileClasspath()));
                 t.setTargetCompatibility(buildParams.getMinimumRuntimeVersion().getMajorVersion());
-                t.getBundledSignatures().set(BUNDLED_SIGNATURE_DEFAULTS);
+                t.setBundledSignatures(BUNDLED_SIGNATURE_DEFAULTS);
                 t.setSignaturesFiles(
                     project.files(
                         resourcesDir.toPath().resolve("forbidden/jdk-signatures.txt"),
@@ -66,7 +66,7 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
                         resourcesDir.toPath().resolve("forbidden/jdk-deprecated.txt")
                     )
                 );
-                t.getSuppressAnnotations().set(Set.of("**.SuppressForbidden"));
+                t.setSuppressAnnotations(List.of("**.SuppressForbidden"));
                 if (t.getName().endsWith("Test")) {
                     t.setSignaturesFiles(
                         t.getSignaturesFiles()

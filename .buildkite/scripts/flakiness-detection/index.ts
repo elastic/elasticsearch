@@ -7,6 +7,7 @@ import {
   DEFAULT_BATCHING_CONFIG,
   KIND_LABELS,
   KIND_KEYS,
+  KIND_ORDER,
   TestKind,
   ClassifiedTest,
 } from "./domain";
@@ -15,7 +16,6 @@ import {
   dedupeTests,
   deduplicateYamlRunners,
   generateBatchCommand,
-  KIND_ORDER,
 } from "./commands";
 import { classifyChangedFiles } from "./detectors/changed-files";
 import { detectUnmutedTests } from "./detectors/unmutes";

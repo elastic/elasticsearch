@@ -74,6 +74,15 @@ export function toFqcn(javaPath: string): string {
   return javaPath.replace(/\//g, ".");
 }
 
+export const KIND_ORDER: TestKind[] = [
+  "test",
+  "internalClusterTest",
+  "javaRestTest",
+  "yamlRestTestRunner",
+  "yamlRestTestSuite",
+  "yamlRestTestCase",
+];
+
 export const KIND_LABELS: Record<TestKind, string> = {
   test: "unit tests",
   internalClusterTest: "integ tests",
@@ -101,7 +110,7 @@ export interface RunnableCommand {
 
 export interface BatchingConfig {
   capByKind: Record<TestKind, number>;
-  itersByKind: Partial<Record<TestKind, number>>;
+  itersByKind: Record<"test" | "internalClusterTest", number>;
   suiteTimeoutMs: number;
 }
 

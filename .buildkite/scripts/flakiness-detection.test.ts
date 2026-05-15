@@ -1178,7 +1178,7 @@ describe("buildCommands", () => {
     ];
     const cmds = buildCommands(tests, {
       ...DEFAULT_BATCHING_CONFIG,
-      itersByKind: { test: 5 },
+      itersByKind: { test: 5, internalClusterTest: 20 },
     });
     expect(cmds[0].command).toContain("-Dtests.iters=5");
   });
@@ -1192,5 +1192,54 @@ describe("buildCommands", () => {
       suiteTimeoutMs: 60_000,
     });
     expect(cmds[0].command).toContain("-Dtests.timeoutSuite=60000!");
+  });
+
+  test("populates the RunnableCommand.label from KIND_LABELS", () => {
+    const tests: ClassifiedTest[] = [
+      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "A" },
+      { gradleProject: ":server", kind: "internalClusterTest", sourceSet: "internalClusterTest", fqcn: "B" },
+    ];
+    const cmds = buildCommands(tests, DEFAULT_BATCHING_CONFIG);
+    // Labels come from KIND_LABELS in domain.ts; assert the contract field is populated.
+    expect(cmds.find((c) => c.kind === "test")?.label).toBe("unit tests");
+    expect(cmds.find((c) => c.kind === "internalClusterTest")?.label).toBe("integ tests");
+  });
+
+  test("dedupes identical ClassifiedTests before batching", () => {
+    // Two identical entries should collapse to one --tests filter, not two.
+    const tests: ClassifiedTest[] = [
+      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "Same" },
+      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "Same" },
+    ];
+    const cmds = buildCommands(tests, DEFAULT_BATCHING_CONFIG);
+    expect(cmds).toHaveLength(1);
+    // The literal "--tests Same" should appear exactly once.
+    const occurrences = cmds[0].command.split("--tests Same").length - 1;
+    expect(occurrences).toBe(1);
+  });
+
+  test("collapses multiple yaml suites in same directory to one --tests entry", () => {
+    // Two yamlRestTestSuite paths in the same dir should collapse to a directory-level target.
+    const tests: ClassifiedTest[] = [
+      { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestSuite", sourceSet: "yamlRestTest", suitePath: "ml/foo/a" },
+      { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestSuite", sourceSet: "yamlRestTest", suitePath: "ml/foo/b" },
+    ];
+    const cmds = buildCommands(tests, DEFAULT_BATCHING_CONFIG);
+    // The collapsed command should reference the parent directory "ml/foo", not both individual paths.
+    expect(cmds[0].command).toContain("ml/foo");
+    expect(cmds[0].command).not.toContain("ml/foo/a");
+    expect(cmds[0].command).not.toContain("ml/foo/b");
+  });
+
+  test("dedupes yaml runners per project", () => {
+    // Two yamlRestTestRunner entries for the same project should collapse to a single batch
+    // (the runner runs the whole source set anyway).
+    const tests: ClassifiedTest[] = [
+      { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestRunner", sourceSet: "yamlRestTest" },
+      { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestRunner", sourceSet: "yamlRestTest" },
+    ];
+    const cmds = buildCommands(tests, DEFAULT_BATCHING_CONFIG);
+    const runners = cmds.filter((c) => c.kind === "yamlRestTestRunner");
+    expect(runners).toHaveLength(1);
   });
 });

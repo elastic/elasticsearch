@@ -5,18 +5,10 @@ import {
   ClassifiedTest,
   KIND_KEYS,
   KIND_LABELS,
+  KIND_ORDER,
   RunnableCommand,
   TestKind,
 } from "./domain";
-
-export const KIND_ORDER: TestKind[] = [
-  "test",
-  "internalClusterTest",
-  "javaRestTest",
-  "yamlRestTestRunner",
-  "yamlRestTestSuite",
-  "yamlRestTestCase",
-];
 
 export function dedupeTests(tests: ClassifiedTest[]): ClassifiedTest[] {
   const seen = new Set<string>();
@@ -122,11 +114,11 @@ export function generateBatchCommand(batch: ClassifiedTest[], cfg: BatchingConfi
   switch (kind) {
     case "test": {
       const tasks = tasksWithFilters(batch, "test", (t) => `--tests ${t.fqcn}`);
-      return `.ci/scripts/run-gradle.sh -Dtests.iters=${cfg.itersByKind.test ?? 100} -Dtests.timeoutSuite=${cfg.suiteTimeoutMs}! ${tasks}`;
+      return `.ci/scripts/run-gradle.sh -Dtests.iters=${cfg.itersByKind.test} -Dtests.timeoutSuite=${cfg.suiteTimeoutMs}! ${tasks}`;
     }
     case "internalClusterTest": {
       const tasks = tasksWithFilters(batch, "internalClusterTest", (t) => `--tests ${t.fqcn}`);
-      return `.ci/scripts/run-gradle.sh -Dtests.iters=${cfg.itersByKind.internalClusterTest ?? 20} -Dtests.timeoutSuite=${cfg.suiteTimeoutMs}! ${tasks}`;
+      return `.ci/scripts/run-gradle.sh -Dtests.iters=${cfg.itersByKind.internalClusterTest} -Dtests.timeoutSuite=${cfg.suiteTimeoutMs}! ${tasks}`;
     }
     case "javaRestTest": {
       const tasks = tasksWithFilters(batch, "javaRestTest", (t) => `--tests ${t.fqcn}`, "--rerun");

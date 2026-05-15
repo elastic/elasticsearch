@@ -132,17 +132,13 @@ public class SkippedClusterStateIT extends ESIntegTestCase {
     }
 
     /// Regression test for the "term is only increased as part of primary promotion" assertion
-    /// failure at [org.elasticsearch.index.shard.IndexShard#updateShardState] when a node misses the
+    /// failure at [org.elasticsearch.index.shard.IndexShard#updateShardState] when a node batches
     /// intermediate `STARTED` and `UNASSIGNED` states for one of its primary shards.
     public void testInitializingPrimaryTermBump() throws Exception {
         final var masterNodeName = internalCluster().startMasterOnlyNode();
         final var primaryNodeName = internalCluster().startDataOnlyNode();
 
-        // Install the COMMIT_STATE interceptor before the index exists so we catch V_init, then
-        // count INITIALIZING commits to identify the V_init → V_reinit window.
-        // While inside that window (exactly 1 INITIALIZING seen) drop every STARTED/UNASSIGNED
-        // commit so the data node stays at V_init locally; outside the window let everything
-        // through so the cluster can finish recovering on V_reinit's STARTED.
+        // After exactly 1 INITIALIZING seen, drop every STARTED/UNASSIGNED commit so the data node stays at INITIALIZING locally.
         final var initializingCount = new AtomicInteger(0);
         final var dataTransport = setupCommitStateHandler(primaryNodeName, primary -> {
             if (primary.initializing()) {
@@ -215,10 +211,9 @@ public class SkippedClusterStateIT extends ESIntegTestCase {
             final var primary = indexRouting == null ? null : indexRouting.shard(SHARD_ID).primaryShard();
             if (primary != null && dropDecider.test(primary)) {
                 logger.info("---> COMMIT intercepted and dropped on {}: primary={}", dataNodeName, primary);
-                // We respond with an empty success response rather than an error or no response,
-                // which is somewhat artificial. This is meant to avoid test instability. A network
-                // error would eject the data node from the cluster, and lowering the timeout could
-                // cause master failures. In the "real" production path for this bug, the node would
+                // We respond with an empty success response rather than an error or no response, which is somewhat artificial.
+                // This is meant to avoid test instability. A network error would eject the data node from the cluster, and
+                // lowering the timeout could cause master failures. In the "real" production path for this bug, the node would
                 // not respond and the master would move on after timeout.
                 channel.sendResponse(ActionResponse.Empty.INSTANCE);
             } else {

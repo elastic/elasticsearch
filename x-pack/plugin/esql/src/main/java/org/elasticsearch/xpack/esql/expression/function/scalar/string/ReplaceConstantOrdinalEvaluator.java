@@ -171,7 +171,11 @@ final class ReplaceConstantOrdinalEvaluator implements ExpressionEvaluator {
 
     @Override
     public long baseRamBytesUsed() {
-        return BASE_RAM_BYTES_USED + str.baseRamBytesUsed();
+        // Track the constant byte arrays we hold; the regex Pattern itself is not accounted (matching the
+        // convention of the generated ReplaceConstantEvaluator, which also doesn't include the Pattern).
+        return BASE_RAM_BYTES_USED + str.baseRamBytesUsed() + RamUsageEstimator.sizeOf(literalPrefix) + RamUsageEstimator.sizeOf(
+            newStr.bytes
+        );
     }
 
     @Override

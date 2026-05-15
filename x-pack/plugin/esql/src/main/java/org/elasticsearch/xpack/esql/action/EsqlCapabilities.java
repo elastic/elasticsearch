@@ -430,6 +430,15 @@ public class EsqlCapabilities {
         FIELD_EXTRACT_FUNCTION(Build.current().isSnapshot()),
 
         /**
+         * Pushdown optimizations for {@code field_extract(<flattened root>, "<literal key>")}: block-loader
+         * fusion that reads the keyed sub-field's doc values directly, and Lucene query pushdown for
+         * {@code ==}, {@code !=}, and {@code IN} against the same shape. Tests that depend on the fused
+         * multi-value output or on the {@code SingleValueQuery} warning text must require this capability
+         * so they skip on mixed clusters where any data node still runs the per-row evaluator.
+         */
+        FIELD_EXTRACT_FLATTENED_PUSHDOWN(Build.current().isSnapshot()),
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,

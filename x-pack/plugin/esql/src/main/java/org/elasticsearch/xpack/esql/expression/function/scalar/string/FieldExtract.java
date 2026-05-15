@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -279,6 +280,9 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
         // Pushdown requires a real flattened field reference and a constant literal key. The
         // path argument is already the flat storage key (verifier rejects brackets and indices),
         // so we hand it to the keyed sub-field loader as is.
+        if (EsqlCapabilities.Cap.FIELD_EXTRACT_FLATTENED_PUSHDOWN.isEnabled() == false) {
+            return null;
+        }
         return foldedKeyForFlattenedRoot().map(
             keyForRoot -> new PushedBlockLoaderExpression(keyForRoot.root(), new ExtractFlattenedSubfieldConfig(keyForRoot.key()))
         ).orElse(null);
@@ -293,6 +297,9 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
      * in a {@code SingleValueQuery} to preserve ES|QL's single-value comparison semantics.
      */
     public Optional<String> tryAsKeyedSubfieldName(LucenePushdownPredicates pushdownPredicates) {
+        if (EsqlCapabilities.Cap.FIELD_EXTRACT_FLATTENED_PUSHDOWN.isEnabled() == false) {
+            return Optional.empty();
+        }
         return foldedKeyForFlattenedRoot().filter(k -> pushdownPredicates.isIndexedAndHasDocValues(k.root()))
             .map(k -> k.root().name() + "." + k.key());
     }

@@ -233,9 +233,12 @@ FROM flattened_otel_logs
 // host.ip stores multiple values for this @timestamp. The block-loader fusion reads them
 // directly out of the keyed sub-field doc values, so the result is a real multi-value
 // keyword block and MV_COUNT reports the number of values rather than a single value.
+// Gated on field_extract_flattened_pushdown because the per-row evaluator cannot produce
+// multi-valued output and would throw on the embedded JSON array.
 multiValuedSubkeyAsMultiValue
 required_capability: fn_field_extract
 required_capability: flattened_datatype
+required_capability: field_extract_flattened_pushdown
 
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:07:43.000Z"
@@ -466,9 +469,12 @@ FROM flattened_otel_logs
 // returns zero matches even when that ip is in the array. The pushed-down
 // SingleValueQuery emits the same multi-value warning that any scalar
 // comparison emits when it encounters a multi-valued field at the source.
+// Gated on field_extract_flattened_pushdown because the per-row evaluator raises a
+// different (JSON-array parse) failure on host.ip and would not match this warning text.
 multiValuedSubkeyDoesNotMatchScalarEquality
 required_capability: fn_field_extract
 required_capability: flattened_datatype
+required_capability: field_extract_flattened_pushdown
 
 FROM flattened_otel_logs
 | WHERE field_extract(resource.attributes, "host.ip") == "10.224.0.170"

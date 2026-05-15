@@ -14,8 +14,10 @@ import {
   ClassifiedTest,
   MutedEntry,
 } from "./domain";
+import { classifyChangedFiles } from "./detectors/changed-files";
 
 export * from "./domain";
+export { classifyChangedFiles } from "./detectors/changed-files";
 
 const PROJECT_ROOT = resolve(`${import.meta.dir}/../..`);
 
@@ -215,34 +217,6 @@ function detectUnmutedTests(mergeBase: string, projectRoot: string): UnmuteDetec
     .filter((f) => f !== "");
 
   return findUnmutedTests(oldYaml, newYaml, repoFiles);
-}
-
-export function classifyChangedFiles(files: string[]): ClassifiedTest[] {
-  const tests: ClassifiedTest[] = [];
-
-  for (const file of files) {
-    for (const pattern of SOURCE_SET_PATTERNS) {
-      const match = file.match(pattern.regex);
-      if (match) {
-        const test: ClassifiedTest = {
-          gradleProject: toGradleProject(match[1]),
-          kind: pattern.kind,
-          sourceSet: pattern.sourceSet,
-        };
-
-        if (pattern.kind === "yamlRestTestSuite") {
-          test.suitePath = match[2];
-        } else if (pattern.kind !== "yamlRestTestRunner") {
-          test.fqcn = toFqcn(match[2]);
-        }
-
-        tests.push(test);
-        break;
-      }
-    }
-  }
-
-  return tests;
 }
 
 export function collapseYamlSuites(tests: ClassifiedTest[]): ClassifiedTest[] {

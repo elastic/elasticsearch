@@ -29,7 +29,7 @@ export const SOURCE_SET_PATTERNS = [
 // yamlRestTestCase is synthesised from muted-tests.yml unmutes and does not
 // correspond to a file pattern; the rest of the kinds are derived from files
 // matched by SOURCE_SET_PATTERNS.
-export type PatternKind = (typeof SOURCE_SET_PATTERNS)[number]["kind"];
+type PatternKind = (typeof SOURCE_SET_PATTERNS)[number]["kind"];
 export type TestKind = PatternKind | "yamlRestTestCase";
 
 export const BATCH_CAPS: Record<TestKind, number> = {

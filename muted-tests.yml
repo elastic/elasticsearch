@@ -548,6 +548,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
   method: test {csv-spec:csv-union-by-name.multiFileUnionByNameRecipe [LOCAL]}
   issue: https://github.com/elastic/elasticsearch/issues/149127
+- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
+  method: testMultipleInferencesTriggeringDownloadAndDeploy
+  issue: https://github.com/elastic/elasticsearch/issues/149130
   # TODO: exclude replicas that have not acked cluster state from async await
 - class: org.elasticsearch.cluster.coordination.RareClusterStateIT
   issue: https://github.com/elastic/elasticsearch/pull/145363

@@ -299,7 +299,7 @@ abstract class KMeansLocal {
         }
 
         // TODO eventually, we should get rid of this allocation by overhauling how centroids
-        //  are stored and handled in KMeansResult
+        // are stored and handled in KMeansResult
         final float[][] newCentroids = new float[effectiveK][centroids[0].length];
         final int[] newClusterCounts = new int[effectiveK];
         final int[] centroidIndexMap = new int[centroids.length];

@@ -35,6 +35,13 @@ import static org.hamcrest.Matchers.not;
 @ESTestCase.WithoutEntitlements // commands don't run with entitlements enforced
 public class RemoveIndexSettingsCommandIT extends ESIntegTestCase {
 
+    @Override
+    protected boolean verifyAsyncApplier() {
+        // CLI command tests: nodes are started briefly, may not fully recover, then stopped
+        // for offline cluster metadata manipulation.
+        return false;
+    }
+
     static final Setting<Integer> FOO = Setting.intSetting("index.foo", 1, Setting.Property.IndexScope, Setting.Property.Dynamic);
     static final Setting<Integer> BAR = Setting.intSetting("index.bar", 2, Setting.Property.IndexScope, Setting.Property.Final);
 

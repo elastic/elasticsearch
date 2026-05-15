@@ -31,6 +31,13 @@ import static org.hamcrest.Matchers.not;
 @ESTestCase.WithoutEntitlements // commands don't run with entitlements enforced
 public class RemoveSettingsCommandIT extends ESIntegTestCase {
 
+    @Override
+    protected boolean verifyAsyncApplier() {
+        // CLI command tests: nodes are started briefly, may not fully recover, then stopped
+        // for offline cluster metadata manipulation.
+        return false;
+    }
+
     public void testRemoveSettingsAbortedByUser() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         String node = internalCluster().startNode();

@@ -20,15 +20,15 @@ import org.junit.Before;
 import java.util.Collections;
 
 public abstract class AbstractAsyncBulkByScrollActionTestCase<
-    Request extends AbstractBulkByScrollRequest<Request>,
+    Request extends AbstractBulkByPaginatedSearchRequest<Request>,
     Response extends BulkByScrollResponse> extends ESTestCase {
     protected ThreadPool threadPool;
-    protected BulkByScrollTask task;
+    protected BulkByPaginatedSearchTask task;
 
     @Before
     public void setupForTest() {
         threadPool = new TestThreadPool(getTestName());
-        task = new BulkByScrollTask(
+        task = new BulkByPaginatedSearchTask(
             new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             "test",
             "test",

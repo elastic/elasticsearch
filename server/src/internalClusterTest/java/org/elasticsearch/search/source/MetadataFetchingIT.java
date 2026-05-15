@@ -10,6 +10,7 @@ package org.elasticsearch.search.source;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.SliceIndexing;
@@ -195,10 +196,13 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.slice.enabled", true)));
         ensureGreen();
 
-        prepareIndex("test").setId("1").setRouting("s1").setSource("field", "value").get();
+        var indexRequest = new IndexRequest("test").id("1").routing("s1").setRoutingFromSlice(true).source("field", "value");
+        client().index(indexRequest).actionGet();
         refresh();
 
-        assertResponse(prepareSearch("test").addFetchField("_slice"), response -> {
+        var searchRequestBuilder = prepareSearch("test").addFetchField("_slice");
+        searchRequestBuilder.request().searchSlice(SliceIndexing.SLICE_ALL);
+        assertResponse(searchRequestBuilder, response -> {
             assertEquals(1, response.getHits().getHits().length);
             assertThat(response.getHits().getAt(0).field("_slice"), notNullValue());
             assertEquals("s1", response.getHits().getAt(0).field("_slice").getValue());

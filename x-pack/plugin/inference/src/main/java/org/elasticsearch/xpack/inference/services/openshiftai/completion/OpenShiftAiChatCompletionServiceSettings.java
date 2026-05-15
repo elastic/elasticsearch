@@ -11,7 +11,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiService;
 import org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -89,7 +88,6 @@ public class OpenShiftAiChatCompletionServiceSettings extends OpenShiftAiService
             serviceSettings,
             this.rateLimitSettings,
             validationException,
-            OpenShiftAiService.NAME,
             ConfigurationParseContext.REQUEST
         );
 

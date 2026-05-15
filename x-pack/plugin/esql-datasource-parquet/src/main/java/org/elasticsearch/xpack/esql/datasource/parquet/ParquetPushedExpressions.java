@@ -8,6 +8,10 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.apache.parquet.filter2.predicate.FilterApi;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
 import org.apache.parquet.filter2.predicate.Operators;
@@ -18,14 +22,23 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.pushdown.ByteMatchers;
 import org.elasticsearch.xpack.esql.datasources.pushdown.StringPrefixUtils;
+import org.elasticsearch.xpack.esql.datasources.pushdown.WildcardLikeShape;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -43,11 +56,15 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
@@ -66,9 +83,86 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
  * Using ESQL's epoch millis directly against non-millis statistics would cause incorrect
  * row group skipping — a correctness issue, not just suboptimal performance.
  */
-record ParquetPushedExpressions(List<Expression> expressions) {
+final class ParquetPushedExpressions {
+
+    private static final Logger logger = LogManager.getLogger(ParquetPushedExpressions.class);
 
     static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
+
+    private final List<Expression> expressions;
+    /**
+     * Cache of compiled {@link CompiledWildcard} forms per {@link WildcardLike} expression.
+     * Building a {@link ByteRunAutomaton} from a wildcard pattern (in particular the determinize
+     * step in {@link org.apache.lucene.util.automaton.Operations#determinize}) is non-trivial —
+     * well into tens of microseconds for moderately complex patterns — and the same expression
+     * instance is reused across every batch of every row group. {@link IdentityHashMap} is
+     * intentional: ESQL shares expression nodes by reference, so identity is the correct equality.
+     * The {@link CompiledWildcard#FAILED} sentinel marks expressions that could not be compiled
+     * (e.g. too complex to determinize) so we do not retry on every batch.
+     *
+     * <p>Synchronized via the cache field as the lock object. The same
+     * {@link ParquetPushedExpressions} instance is shared by every iterator created from a
+     * {@link ParquetFormatReader}, and iterators for different files may run on different driver
+     * threads. The lock is held only across the cache lookup and (on miss) the automaton build —
+     * one build per pattern per query — so contention is negligible compared to the per-batch
+     * automaton run, which executes outside the lock against the immutable {@link ByteRunAutomaton}.
+     */
+    private final IdentityHashMap<WildcardLike, CompiledWildcard> automatonCache = new IdentityHashMap<>();
+
+    /**
+     * Compiled form of a {@link WildcardLike}: the runnable matcher, a flag indicating that the
+     * source automaton accepts every input, and an optional shape decomposition extracted from
+     * case-sensitive patterns of the affix-contains family (see {@link WildcardLikeShape}). The
+     * {@link #matchesAll} flag is computed against the case-aware automaton (the same one passed
+     * to {@link ByteRunAutomaton}), so the fast path in {@link #evaluateWildcardLike} is
+     * consistent with the runtime case-sensitivity setting — it does not silently fall through
+     * to the per-row loop just because the pattern's internal case-insensitive cache disagrees
+     * with the requested flag.
+     *
+     * <p>{@code matcher} is {@code null} when the pattern failed to determinize; the caller treats
+     * that as "fall back to FilterExec" (return {@code null} from evaluateWildcardLike).
+     *
+     * <p>{@code shape} is non-null only for case-sensitive patterns of the form
+     * {@code prefix*literal*suffix} (and all degenerate forms — {@code prefix*}, {@code *suffix},
+     * {@code *literal*}, {@code prefix*suffix}, {@code prefix*literal*}, {@code *literal*suffix}).
+     * When present, {@link #evaluateWildcardLike} dispatches to
+     * {@link ByteMatchers#affixContains} instead of the per-byte automaton: short JDK-intrinsified
+     * affix equality checks reject the bulk of non-matching values cheaply, and the SIMD-backed
+     * substring scan handles the literal middle. Byte-substring against UTF-8 is codepoint-correct
+     * because UTF-8 is self-synchronizing on valid inputs (the KEYWORD contract).
+     */
+    private record CompiledWildcard(ByteRunAutomaton matcher, boolean matchesAll, @Nullable WildcardLikeShape shape) {
+        static final CompiledWildcard FAILED = new CompiledWildcard(null, false, null);
+    }
+
+    ParquetPushedExpressions(List<Expression> expressions) {
+        this.expressions = expressions;
+    }
+
+    List<Expression> expressions() {
+        return expressions;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o instanceof ParquetPushedExpressions other) {
+            return Objects.equals(expressions, other.expressions);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(expressions);
+    }
+
+    @Override
+    public String toString() {
+        return "ParquetPushedExpressions[expressions=" + expressions + "]";
+    }
 
     /**
      * Translates the held expressions to a combined Parquet {@link FilterPredicate} using
@@ -93,6 +187,87 @@ record ParquetPushedExpressions(List<Expression> expressions) {
             combined = FilterApi.and(combined, translated.get(i));
         }
         return combined;
+    }
+
+    /**
+     * Returns {@code true} when at least one held conjunct is YES-eligible per
+     * {@link ParquetFilterPushdownSupport#isFullyEvaluable(Expression)} (so {@code FilterExec}
+     * has been dropped for it) AND its translation to a Parquet
+     * {@link FilterPredicate} for {@code schema} is {@code null} (so it is not represented in
+     * the {@link #toFilterPredicate} output).
+     *
+     * <p>Consumers of {@link #toFilterPredicate} that bypass {@link #evaluateFilter} on the basis
+     * of stats reasoning over the predicate (e.g. the trivially-passes shortcut in
+     * {@code OptimizedParquetColumnIterator}) MUST disable that shortcut when this method returns
+     * {@code true}: the YES conjunct is silently absent from the predicate they reasoned about
+     * and would otherwise leak rows it does not match. RECHECK conjuncts that fail to translate
+     * are excluded from this check on purpose — their downstream {@code FilterExec} still
+     * re-applies them, masking the shortcut's over-inclusion.
+     *
+     * <p>Today the only canConvert-but-not-translatable expression is {@link WildcardLike}
+     * (and {@code Not(WildcardLike)}), which is also the only YES-eligible non-comparator
+     * expression — so in practice this method returns {@code true} exactly when a {@code LIKE}
+     * conjunct is present alongside other translatable conjuncts.
+     *
+     * <p>YES is determined here by {@link ParquetFilterPushdownSupport#isFullyEvaluable(Expression)}
+     * rather than the full {@code canPush} check. The full check additionally probes
+     * {@code canCompileAllPatterns}; a pattern that fails that probe at plan time is downgraded
+     * to RECHECK and stays in {@code FilterExec}, so it would not be a YES conjunct at runtime.
+     * Using only {@code isFullyEvaluable} here is therefore conservative — it may flag an
+     * expression as YES that the planner already downgraded, suppressing the shortcut for that
+     * file. The wasted work is bounded: at most one extra {@code evaluateFilter} pass per
+     * trivially-passing row group, which is exactly the cost the shortcut was saving.
+     *
+     * <p><b>Do not weaken this method.</b> Returning {@code false} when it should return
+     * {@code true} causes silent wrong-results: rows that do not match a YES conjunct (today:
+     * a {@code LIKE} pattern) are emitted as if they did, because the trivially-passes shortcut
+     * routes them around the late-mat evaluator and there is no downstream {@code FilterExec}
+     * to catch the over-inclusion. The contract is exercised by
+     * {@code ParquetPushedExpressionsTests#testHasYesConjunctOutsideFilterPredicate*} and the
+     * integration regression test
+     * {@code OptimizedFilteredReaderTests#testPushedExpressionsLikeWithStatsTrivialEqDoesNotLeak}.
+     */
+    boolean hasYesConjunctOutsideFilterPredicate(MessageType schema) {
+        for (Expression expr : expressions) {
+            if (ParquetFilterPushdownSupport.isFullyEvaluable(expr) && translateExpression(expr, schema) == null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Returns {@code true} when {@code expr} translates to a Parquet {@link FilterPredicate}
+     * with no silent-drop branch — i.e. the resulting predicate has the same matching set as
+     * {@code expr} (modulo TVL on nulls, which apache-mr handles compatibly for the basic
+     * comparators below). Used by {@link #translateExpression}'s {@code Not} branch to
+     * refuse pushing a negation over an expression that would silently drop a sub-arm:
+     * negation flips a looser-than-truth predicate into a STRICTER-than-truth one, which
+     * leaks rows during stats-based pruning.
+     *
+     * <p>Today this whitelist mirrors the leaf cases handled directly in
+     * {@link #translateExpression} (no recursion into {@code And}/{@code Or}/{@code Not}).
+     * That keeps the rule simple and obviously correct; it can be relaxed later (e.g. allow
+     * {@code Not(And(translatable, translatable))}) once we have explicit test coverage for
+     * the additional shapes.
+     */
+    private static boolean isExactlyTranslatable(Expression expr) {
+        if (expr instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression && bc.right().foldable()) {
+            return true;
+        }
+        if (expr instanceof In in && in.value() instanceof NamedExpression) {
+            return true;
+        }
+        if (expr instanceof IsNull isNull && isNull.field() instanceof NamedExpression) {
+            return true;
+        }
+        if (expr instanceof IsNotNull isNotNull && isNotNull.field() instanceof NamedExpression) {
+            return true;
+        }
+        if (expr instanceof Range range && range.value() instanceof NamedExpression) {
+            return true;
+        }
+        return false;
     }
 
     private FilterPredicate translateExpression(Expression expr, MessageType schema) {
@@ -128,22 +303,21 @@ record ParquetPushedExpressions(List<Expression> expressions) {
             return translateRange(ne.name(), ne.dataType(), range, schema);
         }
         if (expr instanceof And and) {
-            boolean leftConvertible = ParquetFilterPushdownSupport.canConvert(and.left());
-            boolean rightConvertible = ParquetFilterPushdownSupport.canConvert(and.right());
-            if (leftConvertible && rightConvertible) {
-                FilterPredicate leftPred = translateExpression(and.left(), schema);
-                FilterPredicate rightPred = translateExpression(and.right(), schema);
-                if (leftPred != null && rightPred != null) {
-                    return FilterApi.and(leftPred, rightPred);
-                }
-                return leftPred != null ? leftPred : rightPred;
-            } else if (leftConvertible) {
-                return translateExpression(and.left(), schema);
-            } else {
-                return translateExpression(and.right(), schema);
+            // For AND, dropping an arm produces a LOOSER predicate (one that admits at least
+            // as many rows). That is safe for stats pruning, RowRanges, and the
+            // trivially-passes shortcut, all of which require a SUPERSET of the truth.
+            FilterPredicate leftPred = translateExpression(and.left(), schema);
+            FilterPredicate rightPred = translateExpression(and.right(), schema);
+            if (leftPred != null && rightPred != null) {
+                return FilterApi.and(leftPred, rightPred);
             }
+            return leftPred != null ? leftPred : rightPred;
         }
         if (expr instanceof Or or) {
+            // For OR, BOTH arms must translate or the predicate is unsafe. Dropping one OR
+            // arm yields a STRICTER predicate (the surviving arm alone), which would prune
+            // rows the original would have matched via the dropped arm. Return null so the
+            // shortcut/RowRanges path skips this expression entirely.
             FilterPredicate leftPred = translateExpression(or.left(), schema);
             FilterPredicate rightPred = translateExpression(or.right(), schema);
             if (leftPred != null && rightPred != null) {
@@ -152,6 +326,27 @@ record ParquetPushedExpressions(List<Expression> expressions) {
             return null;
         }
         if (expr instanceof Not not) {
+            // Negation flips the looser/stricter polarity of any silent drop in the inner
+            // expression: an inner AND that silently dropped an untranslatable arm produces a
+            // looser inner predicate; NOT of looser is STRICTER, which prunes rows the
+            // original would have matched (e.g. NOT(AND(LIKE, id<N)) becomes NOT(id<N), which
+            // wrongly drops rows where LIKE doesn't match and id<N). To stay safe we require
+            // the inner translation to be EXACT — i.e. it must contain no untranslatable
+            // sub-expression at all. Practically this means the inner must be a leaf
+            // comparator/range/equality that the translator handles directly. Anything more
+            // complex returns null so the predicate is not pushed, leaving the row to the
+            // late-mat evaluator (which evaluates the original ESQL expression, including
+            // the conjuncts under the inner AND, with TVL-correct semantics).
+            //
+            // DO NOT REMOVE the isExactlyTranslatable guard — without it, NOT over a
+            // silent-drop AND produces a stricter-than-truth predicate that silently loses
+            // rows during stats-based row-group / page pruning. There is no FilterExec safety
+            // net at the row-group/page level (FilterExec runs per-row on what survives).
+            // Regression tests live in {@code ParquetReaderFilterDifferentialTests} (see the
+            // randomized {@code NOT(AND(LIKE, ...))} cases that surfaced this bug).
+            if (isExactlyTranslatable(not.field()) == false) {
+                return null;
+            }
             FilterPredicate inner = translateExpression(not.field(), schema);
             return inner != null ? FilterApi.not(inner) : null;
         }
@@ -169,6 +364,10 @@ record ParquetPushedExpressions(List<Expression> expressions) {
             }
             return lower;
         }
+        // WildcardLike has no native Parquet FilterPredicate translation: Parquet only supports
+        // ordered comparisons, equality, and IN. The pattern is evaluated during late materialization
+        // by evaluateWildcardLike. A future enhancement could derive a prefix range from
+        // WildcardPattern#extractPrefix to enable row-group skipping for patterns like "https*google*".
         return null;
     }
 
@@ -388,6 +587,16 @@ record ParquetPushedExpressions(List<Expression> expressions) {
         return names;
     }
 
+    /**
+     * Returns the set of column names referenced by a single expression.
+     * Used by multi-stage Phase 1 to group expressions into per-column stages.
+     */
+    static Set<String> columnNamesOf(Expression expr) {
+        Set<String> names = new HashSet<>();
+        collectColumnNames(expr, names);
+        return names;
+    }
+
     private static void collectColumnNames(Expression expr, Set<String> names) {
         if (expr instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression ne) {
             names.add(ne.name());
@@ -409,34 +618,136 @@ record ParquetPushedExpressions(List<Expression> expressions) {
             collectColumnNames(not.field(), names);
         } else if (expr instanceof StartsWith sw && sw.singleValueField() instanceof NamedExpression ne) {
             names.add(ne.name());
+        } else if (expr instanceof WildcardLike wl && wl.field() instanceof NamedExpression ne) {
+            names.add(ne.name());
         }
     }
 
     /**
-     * Evaluates all held filter expressions against the given predicate blocks and returns
-     * a survivor mask indicating which rows pass all predicates. Returns {@code null} if
-     * all rows survive (no filtering needed), signaling that compaction can be skipped.
+     * Evaluates a single expression against blocks decoded from specific columns. Used by
+     * multi-stage Phase 1 where each stage evaluates one expression at a time. Dictionary
+     * memoization is intentionally not threaded here: this path does not own a row-group
+     * lifecycle compatible with the cache's invalidation contract, so the underlying
+     * {@code evaluateExpression} call receives a {@code null} cache and dictionary bitmaps
+     * are recomputed per batch. The full-filter path through {@link #evaluateFilter} is
+     * what carries the memoization map across batches.
      *
-     * @param predicateBlocks map of column name to decoded Block for predicate columns
-     * @param rowCount        the number of rows in the current batch
-     * @param reusable        a reusable WordMask instance to avoid allocation
-     * @return the survivor mask with bits set for passing rows, or null if all rows survive
+     * @param expr             the expression to evaluate
+     * @param blocks           decoded blocks indexed by column position (may have nulls for non-stage columns)
+     * @param attributes       the projected attribute list for column name resolution
+     * @param rowCount         the number of rows in the batch
+     * @param intermediateMask optional cumulative mask from prior stages (for mask short-circuit)
+     * @return survivor mask, or null if all rows survive
      */
-    WordMask evaluateFilter(Map<String, Block> predicateBlocks, int rowCount, WordMask reusable) {
-        reusable.setAll(rowCount);
-        for (Expression expr : expressions) {
-            WordMask exprResult = evaluateExpression(expr, predicateBlocks, rowCount);
-            if (exprResult != null) {
-                reusable.and(exprResult);
+    WordMask evaluateSingleExpression(
+        Expression expr,
+        Block[] blocks,
+        List<Attribute> attributes,
+        int rowCount,
+        @Nullable WordMask intermediateMask
+    ) {
+        Map<String, Block> blockMap = new HashMap<>();
+        for (int i = 0; i < blocks.length; i++) {
+            if (blocks[i] != null && i < attributes.size()) {
+                blockMap.put(attributes.get(i).name(), blocks[i]);
             }
         }
+        return evaluateExpression(expr, blockMap, rowCount, intermediateMask, null);
+    }
+
+    /**
+     * Evaluates the held filter expressions against {@code predicateBlocks} and returns a
+     * survivor mask. Returns {@code null} when every row survives (the caller can then skip
+     * compaction entirely); otherwise returns {@code reusable} populated with the surviving
+     * positions. Equivalent to calling the four-argument overload with a {@code null}
+     * dictionary cache — no cross-batch memoization, dictionary bitmaps are recomputed on
+     * every call. Used by tests and by call sites that have no row-group lifecycle to hand
+     * a cache to.
+     */
+    WordMask evaluateFilter(Map<String, Block> predicateBlocks, int rowCount, WordMask reusable) {
+        return evaluateFilter(predicateBlocks, rowCount, reusable, null);
+    }
+
+    /**
+     * Same as {@link #evaluateFilter(Map, int, WordMask)} but reuses dictionary-match bitmaps
+     * across batches via {@code dictCache}, a map keyed by leaf {@link Expression} identity
+     * holding one {@code boolean[]} per pushed predicate. The caller (typically
+     * {@link OptimizedParquetColumnIterator#dictionaryBitmapsForCurrentRowGroup}) is
+     * responsible for handing in a map scoped to the current row group — within a row group
+     * the dictionary content is fixed so memoized results remain valid for every batch.
+     *
+     * <p>A {@code null} cache is permitted and preserves the original per-batch behavior;
+     * this matters for callers that do not know the row-group lifecycle (e.g. unit tests
+     * and the multi-stage single-expression path).
+     */
+    WordMask evaluateFilter(
+        Map<String, Block> predicateBlocks,
+        int rowCount,
+        WordMask reusable,
+        @Nullable Map<Expression, boolean[]> dictCache
+    ) {
+        reusable.setAll(rowCount);
+        lastEvaluateExpressionCalls = 0;
+        int evaluated = 0;
+        for (Expression expr : expressions) {
+            WordMask exprResult = evaluateExpression(expr, predicateBlocks, rowCount, reusable, dictCache);
+            evaluated++;
+            if (exprResult != null) {
+                reusable.and(exprResult);
+                // Early exit when no rows survive the conjunction so far. Subsequent expressions
+                // would only AND further (the result can never grow); their evaluation cost —
+                // notably the per-batch dictionary scan that does not consult the intermediate
+                // mask — is therefore pure waste. WordMask#isEmpty is a 128-word scan for an
+                // 8192-row batch, trivially cheap next to a dictionary scan of thousands of
+                // entries plus an ordinal-to-boolean per-row mapping. Plan-time ordering by
+                // FilterEvaluationOrderEstimator places selective predicates first, which is
+                // what makes this short-circuit effective in practice (the discriminating
+                // predicate runs first, then we skip the rest when its batch has no survivors).
+                if (reusable.isEmpty()) {
+                    lastExpressionsEvaluated = evaluated;
+                    return reusable;
+                }
+            }
+        }
+        lastExpressionsEvaluated = evaluated;
         if (reusable.isAll()) {
             return null;
         }
         return reusable;
     }
 
-    private WordMask evaluateExpression(Expression expr, Map<String, Block> blocks, int rowCount) {
+    // Test-only observability. {@code lastExpressionsEvaluated} counts the number of
+    // top-level conjuncts the most recent evaluateFilter actually walked before either
+    // short-circuiting on an empty mask or running to completion.
+    // {@code lastEvaluateExpressionCalls} counts every entry to {@code evaluateExpression}
+    // — including recursive descents into nested And/Or — and resets at the start of each
+    // evaluateFilter. The pair lets tests distinguish the top-level loop's early exit from
+    // the nested-And short-circuit. Production code does not read these fields.
+    private int lastExpressionsEvaluated;
+    private int lastEvaluateExpressionCalls;
+
+    int lastExpressionsEvaluatedForTesting() {
+        return lastExpressionsEvaluated;
+    }
+
+    int lastEvaluateExpressionCallsForTesting() {
+        return lastEvaluateExpressionCalls;
+    }
+
+    // Note: not static — uses the per-instance automaton cache in evaluateWildcardLike.
+    // The intermediateMask is the cumulative AND of all previously evaluated conjuncts;
+    // expensive evaluators (LIKE, StartsWith) use it to skip already-eliminated rows. The
+    // dictCache (optional) memoizes per-batch dictionary-match bitmaps for the lifetime of
+    // one row group; the caller owns the lifecycle (see
+    // OptimizedParquetColumnIterator#dictionaryBitmapsForCurrentRowGroup).
+    private WordMask evaluateExpression(
+        Expression expr,
+        Map<String, Block> blocks,
+        int rowCount,
+        @Nullable WordMask intermediateMask,
+        @Nullable Map<Expression, boolean[]> dictCache
+    ) {
+        lastEvaluateExpressionCalls++;
         if (expr instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression ne && bc.right().foldable()) {
             Block block = blocks.get(ne.name());
             if (block == null) {
@@ -446,14 +757,14 @@ record ParquetPushedExpressions(List<Expression> expressions) {
             if (literal == null) {
                 return null;
             }
-            return evaluateComparison(bc, block, literal, rowCount);
+            return evaluateComparison(bc, block, literal, rowCount, dictCache);
         }
         if (expr instanceof In inExpr && inExpr.value() instanceof NamedExpression ne) {
             Block block = blocks.get(ne.name());
             if (block == null) {
                 return null;
             }
-            return evaluateIn(inExpr, block, rowCount);
+            return evaluateIn(inExpr, block, rowCount, dictCache);
         }
         if (expr instanceof IsNull isNull && isNull.field() instanceof NamedExpression ne) {
             Block block = blocks.get(ne.name());
@@ -461,6 +772,15 @@ record ParquetPushedExpressions(List<Expression> expressions) {
                 return null;
             }
             WordMask mask = new WordMask();
+            // Fast path: the block has no nulls at all -> the survivor set is empty.
+            // mayHaveNulls() is O(1) on every Block implementation; skipping the per-row
+            // scan avoids rowCount calls to isNull() on the (very common) no-null case.
+            // The zeroed mask is the correct result and contributes to the empty-mask
+            // early exit in evaluateFilter for batches where this conjunct fires first.
+            if (block.mayHaveNulls() == false) {
+                mask.reset(rowCount);
+                return mask;
+            }
             mask.reset(rowCount);
             for (int i = 0; i < rowCount; i++) {
                 if (block.isNull(i)) {
@@ -474,25 +794,40 @@ record ParquetPushedExpressions(List<Expression> expressions) {
             if (block == null) {
                 return null;
             }
-            WordMask mask = new WordMask();
-            mask.reset(rowCount);
-            for (int i = 0; i < rowCount; i++) {
-                if (block.isNull(i) == false) {
-                    mask.set(i);
-                }
-            }
-            return mask;
+            // IsNotNull is exactly "the non-null rows", which is the primitive shared by
+            // the LIKE "*" shortcut and the dictionary ALL fast path. The mayHaveNulls()
+            // gate inside maskNonNullRows means a block with no nulls collapses to a
+            // single setAll without scanning rows.
+            return maskNonNullRows(block, rowCount);
         }
         if (expr instanceof Range range && range.value() instanceof NamedExpression ne) {
             Block block = blocks.get(ne.name());
             if (block == null) {
                 return null;
             }
+            // No dictionary cache threaded here: evaluateRange currently only handles numeric
+            // blocks (Int/Long/Double), which are not dictionary-encoded. If ever extended to
+            // BytesRef ranges over OrdinalBytesRefBlock, the cache would need to be wired in
+            // alongside the other dictionary-aware predicate evaluators.
             return evaluateRange(range, block, rowCount);
         }
         if (expr instanceof And and) {
-            WordMask left = evaluateExpression(and.left(), blocks, rowCount);
-            WordMask right = evaluateExpression(and.right(), blocks, rowCount);
+            WordMask left = evaluateExpression(and.left(), blocks, rowCount, intermediateMask, dictCache);
+            // Nested-AND empty-mask short-circuit. Mirrors the top-level early exit in
+            // evaluateFilter: once the left arm has eliminated every row in this batch, no
+            // result from the right arm can rescue a row (AND is monotone over the survivor
+            // set), so evaluating right is pure waste — notably for predicates that do a
+            // per-batch dictionary scan ignoring the intermediateMask. The outer
+            // evaluateFilter loop only short-circuits between top-level conjuncts; this
+            // catches the same waste inside a planner-produced nested And. Note: we do not
+            // additionally tighten the intermediateMask passed to right with left's bits
+            // here, to avoid the per-And allocation; the existing intermediateMask
+            // threaded from the outer loop already carries the cumulative narrowing across
+            // previously evaluated top-level conjuncts.
+            if (left != null && left.isEmpty()) {
+                return left;
+            }
+            WordMask right = evaluateExpression(and.right(), blocks, rowCount, intermediateMask, dictCache);
             if (left != null && right != null) {
                 left.and(right);
                 return left;
@@ -500,8 +835,8 @@ record ParquetPushedExpressions(List<Expression> expressions) {
             return left != null ? left : right;
         }
         if (expr instanceof Or or) {
-            WordMask left = evaluateExpression(or.left(), blocks, rowCount);
-            WordMask right = evaluateExpression(or.right(), blocks, rowCount);
+            WordMask left = evaluateExpression(or.left(), blocks, rowCount, intermediateMask, dictCache);
+            WordMask right = evaluateExpression(or.right(), blocks, rowCount, intermediateMask, dictCache);
             if (left != null && right != null) {
                 left.or(right);
                 return left;
@@ -510,7 +845,26 @@ record ParquetPushedExpressions(List<Expression> expressions) {
             return null;
         }
         if (expr instanceof Not not) {
-            WordMask inner = evaluateExpression(not.field(), blocks, rowCount);
+            // Special case: NOT (col LIKE p) needs SQL three-valued logic so that
+            // NOT (NULL LIKE p) → UNKNOWN → row is filtered out (bit 0), not flipped
+            // to bit 1 by the generic negate. This is a hard requirement for the YES
+            // pushability of WildcardLike (see ParquetFilterPushdownSupport.isFullyEvaluable);
+            // without this branch, dropping FilterExec for NOT (LIKE) would let null rows
+            // survive the predicate, giving wrong results.
+            //
+            // Implementation: build the LIKE mask and the null mask, OR them ("matches OR
+            // null"), then negate to get "non-null AND no-match" — the TVL-correct survivor
+            // set. The mask for the inner WildcardLike already maps null rows to bit 0, so
+            // OR-ing the explicit null mask is what restores the missing TVL bit before
+            // the bitwise complement.
+            if (not.field() instanceof WildcardLike wl && wl.field() instanceof NamedExpression ne) {
+                Block block = blocks.get(ne.name());
+                if (block == null) {
+                    return null;
+                }
+                return evaluateNotWildcardLike(wl, block, rowCount, intermediateMask, dictCache);
+            }
+            WordMask inner = evaluateExpression(not.field(), blocks, rowCount, intermediateMask, dictCache);
             if (inner != null) {
                 inner.negate();
                 return inner;
@@ -522,12 +876,25 @@ record ParquetPushedExpressions(List<Expression> expressions) {
             if (block == null) {
                 return null;
             }
-            return evaluateStartsWith(sw, block, rowCount);
+            return evaluateStartsWith(sw, block, rowCount, intermediateMask, dictCache);
+        }
+        if (expr instanceof WildcardLike wl && wl.field() instanceof NamedExpression ne) {
+            Block block = blocks.get(ne.name());
+            if (block == null) {
+                return null;
+            }
+            return evaluateWildcardLike(wl, block, rowCount, intermediateMask, dictCache);
         }
         return null;
     }
 
-    private static WordMask evaluateComparison(EsqlBinaryComparison bc, Block block, Object literal, int rowCount) {
+    private static WordMask evaluateComparison(
+        EsqlBinaryComparison bc,
+        Block block,
+        Object literal,
+        int rowCount,
+        @Nullable Map<Expression, boolean[]> dictCache
+    ) {
         WordMask mask = new WordMask();
         mask.reset(rowCount);
         if (block instanceof IntBlock ib) {
@@ -555,11 +922,23 @@ record ParquetPushedExpressions(List<Expression> expressions) {
                     mask.set(i);
                 }
             }
+        } else if (block instanceof OrdinalBytesRefBlock obb && shouldShortCircuitOnDictionary(obb)) {
+            // Dictionary short-circuit: evaluate the comparison once per dictionary entry,
+            // then map each row's ordinal to a precomputed boolean. Avoids one string compareTo
+            // per row in favor of one int lookup per row. The dictionary content is fixed
+            // within a row group, so the bitmap is memoized across batches when dictCache is
+            // provided — typically reducing dictSize * batchCount predicate calls to dictSize
+            // per row group.
+            BytesRef val = toByteRef(literal);
+            Predicate<BytesRef> matcher = bytesRefComparisonMatcher(bc, val);
+            boolean[] dictMatches = memoizedDictionaryMatches(dictCache, bc, obb.getDictionaryVector(), matcher);
+            applyDictionaryMatches(obb, dictMatches, mask, rowCount);
         } else if (block instanceof BytesRefBlock bb) {
             BytesRef val = toByteRef(literal);
+            Predicate<BytesRef> matcher = bytesRefComparisonMatcher(bc, val);
             BytesRef scratch = new BytesRef();
             for (int i = 0; i < rowCount; i++) {
-                if (block.isNull(i) == false && compareResult(bb.getBytesRef(i, scratch).compareTo(val), bc)) {
+                if (block.isNull(i) == false && matcher.test(bb.getBytesRef(i, scratch))) {
                     mask.set(i);
                 }
             }
@@ -574,6 +953,25 @@ record ParquetPushedExpressions(List<Expression> expressions) {
             return null;
         }
         return mask;
+    }
+
+    /**
+     * Returns the per-entry predicate for comparing a {@link BytesRef} block value to {@code val}.
+     * For {@link Equals}/{@link NotEquals} this is {@link ByteMatchers#equals}, which routes
+     * through the JDK's vectorized {@code Arrays#equals} intrinsic — the length pre-check rejects
+     * the bulk of non-matching values without touching the byte content. For lexicographic
+     * comparisons (LT, LE, GT, GE) the predicate falls back to {@link BytesRef#compareTo}, which
+     * is the only correct semantic on UTF-8 byte order; the JDK still vectorizes the underlying
+     * mismatch-finding step.
+     */
+    private static Predicate<BytesRef> bytesRefComparisonMatcher(EsqlBinaryComparison bc, BytesRef val) {
+        if (bc instanceof Equals) {
+            return entry -> ByteMatchers.equals(entry, val);
+        }
+        if (bc instanceof NotEquals) {
+            return entry -> ByteMatchers.equals(entry, val) == false;
+        }
+        return entry -> compareResult(entry.compareTo(val), bc);
     }
 
     private static boolean compareResult(int cmp, EsqlBinaryComparison bc) {
@@ -610,7 +1008,7 @@ record ParquetPushedExpressions(List<Expression> expressions) {
         return new BytesRef(literal.toString());
     }
 
-    private static WordMask evaluateIn(In inExpr, Block block, int rowCount) {
+    private static WordMask evaluateIn(In inExpr, Block block, int rowCount, @Nullable Map<Expression, boolean[]> dictCache) {
         List<Object> values = new ArrayList<>();
         for (Expression item : inExpr.list()) {
             Object val = literalValueOf(item);
@@ -653,6 +1051,13 @@ record ParquetPushedExpressions(List<Expression> expressions) {
                     mask.set(i);
                 }
             }
+        } else if (block instanceof OrdinalBytesRefBlock obb && shouldShortCircuitOnDictionary(obb)) {
+            Set<BytesRef> refSet = new HashSet<>();
+            for (Object v : values) {
+                refSet.add(toByteRef(v));
+            }
+            boolean[] dictMatches = memoizedDictionaryMatches(dictCache, inExpr, obb.getDictionaryVector(), refSet::contains);
+            applyDictionaryMatches(obb, dictMatches, mask, rowCount);
         } else if (block instanceof BytesRefBlock bb) {
             Set<BytesRef> refSet = new HashSet<>();
             for (Object v : values) {
@@ -751,20 +1156,45 @@ record ParquetPushedExpressions(List<Expression> expressions) {
         return true;
     }
 
-    private static WordMask evaluateStartsWith(StartsWith sw, Block block, int rowCount) {
+    private static WordMask evaluateStartsWith(
+        StartsWith sw,
+        Block block,
+        int rowCount,
+        @Nullable WordMask intermediateMask,
+        @Nullable Map<Expression, boolean[]> dictCache
+    ) {
         Object prefixValue = literalValueOf(sw.prefix());
         if (prefixValue == null) {
             return null;
         }
         BytesRef prefix = toByteRef(prefixValue);
+        // ByteMatchers#startsWith routes through Arrays#equals, which HotSpot intrinsifies on
+        // x86 (AVX2/AVX-512) and ARM (NEON) with partial-inlining for sizes <= 64 bytes — typical
+        // URL/path prefixes ("https://", "https://www.") fit comfortably in that fast path. The
+        // helper performs the length pre-check internally.
+        if (block instanceof OrdinalBytesRefBlock obb && shouldShortCircuitOnDictionary(obb)) {
+            WordMask mask = new WordMask();
+            mask.reset(rowCount);
+            boolean[] dictMatches = memoizedDictionaryMatches(
+                dictCache,
+                sw,
+                obb.getDictionaryVector(),
+                entry -> ByteMatchers.startsWith(entry, prefix)
+            );
+            applyDictionaryMatches(obb, dictMatches, mask, rowCount);
+            return mask;
+        }
         if (block instanceof BytesRefBlock bb) {
             WordMask mask = new WordMask();
             mask.reset(rowCount);
             BytesRef scratch = new BytesRef();
             for (int i = 0; i < rowCount; i++) {
+                if (intermediateMask != null && intermediateMask.get(i) == false) {
+                    continue;
+                }
                 if (block.isNull(i) == false) {
                     BytesRef val = bb.getBytesRef(i, scratch);
-                    if (val.length >= prefix.length && startsWith(val, prefix)) {
+                    if (ByteMatchers.startsWith(val, prefix)) {
                         mask.set(i);
                     }
                 }
@@ -774,12 +1204,397 @@ record ParquetPushedExpressions(List<Expression> expressions) {
         return null;
     }
 
-    private static boolean startsWith(BytesRef value, BytesRef prefix) {
-        for (int j = 0; j < prefix.length; j++) {
-            if (value.bytes[value.offset + j] != prefix.bytes[prefix.offset + j]) {
-                return false;
+    /**
+     * Evaluates a {@link WildcardLike} predicate against a block of values, returning a survivor mask.
+     *
+     * <p>The implementation follows the same shape as {@link #evaluateStartsWith}: a dictionary
+     * short-circuit for {@link OrdinalBytesRefBlock}s with {@code rowCount >= 2 * dictSize}, and a
+     * scalar per-row fallback for plain {@link BytesRefBlock}s. The big win for high-volume scans
+     * (e.g. {@code URL LIKE "*google*"} on web-traffic logs) comes from the dictionary path, which
+     * collapses {@code O(rowCount)} automaton runs into {@code O(dictionarySize)} runs plus a
+     * per-row int lookup.
+     *
+     * <p><b>Null semantics.</b> The mask is two-valued: a row's bit is set when the value is
+     * non-null and the automaton accepts its bytes. Nulls map to bit {@code 0}, the same convention
+     * as {@link #evaluateStartsWith} and the standard runtime
+     * {@link org.elasticsearch.xpack.esql.expression.function.scalar.string.AutomataMatch#process}
+     * (which returns {@code false} for null input). For a bare {@code col LIKE p}, this is the
+     * SQL three-valued-logic answer ({@code NULL LIKE p} → unknown → not a survivor) and the
+     * predicate can be pushed as
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport.Pushability#YES}.
+     *
+     * <p><b>{@code NOT (col LIKE p)} semantics.</b> A naive {@link WordMask#negate} on this mask
+     * is wrong for nulls: bit {@code 0} for "no match" is correctly flipped to bit {@code 1}, but
+     * bit {@code 0} for "null" is also flipped to bit {@code 1} — and SQL TVL says
+     * {@code NOT (NULL LIKE p)} is unknown and must not survive. The {@code Not(WildcardLike)}
+     * branch in {@link #evaluateExpression} routes through {@link #evaluateNotWildcardLike}, which
+     * OR-s the explicit null mask before negating. <b>YES pushability for {@code NOT (col LIKE p)}
+     * depends on that special case</b>, and on the gating in
+     * {@link ParquetFilterPushdownSupport#isFullyEvaluable}, which only allows {@code YES} for
+     * {@code Not} when its child is a bare {@link WildcardLike}.
+     *
+     * <p>Returns {@code null} when the block is neither an {@link OrdinalBytesRefBlock} on the
+     * dense path nor a {@link BytesRefBlock} (e.g. a constant-null block) — the conservative
+     * "all rows survive" sentinel that {@link #evaluateFilter} treats as a no-op for this
+     * predicate. Returns {@code null} also when the pattern is unusable (failed to determinize).
+     * Both cases are safe under RECHECK because {@code FilterExec} re-checks; under YES they are
+     * prevented at plan time by {@link ParquetFilterPushdownSupport#canPush}, which probes
+     * {@link org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern#createAutomaton}
+     * up front and falls back to RECHECK if it throws. The Parquet KEYWORD reader always produces
+     * one of the two supported block types, so the block-type {@code null} sentinel is unreachable
+     * on the YES path in practice.
+     */
+    private WordMask evaluateWildcardLike(
+        WildcardLike wl,
+        Block block,
+        int rowCount,
+        @Nullable WordMask intermediateMask,
+        @Nullable Map<Expression, boolean[]> dictCache
+    ) {
+        CompiledWildcard compiled = automatonFor(wl);
+        if (compiled.matcher == null) {
+            return null;
+        }
+        if (compiled.matchesAll) {
+            return maskNonNullRows(block, rowCount);
+        }
+        // Use the affix-contains dispatch when the pattern matches that shape; see CompiledWildcard.
+        Predicate<BytesRef> matcher = matcherFor(compiled);
+        if (block instanceof OrdinalBytesRefBlock obb && shouldShortCircuitOnDictionary(obb)) {
+            WordMask mask = new WordMask();
+            mask.reset(rowCount);
+            boolean[] dictMatches = memoizedDictionaryMatches(dictCache, wl, obb.getDictionaryVector(), matcher);
+            applyDictionaryMatches(obb, dictMatches, mask, rowCount);
+            return mask;
+        }
+        if (block instanceof BytesRefBlock bb) {
+            WordMask mask = new WordMask();
+            mask.reset(rowCount);
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < rowCount; i++) {
+                if (intermediateMask != null && intermediateMask.get(i) == false) {
+                    continue;
+                }
+                if (block.isNull(i) == false) {
+                    BytesRef val = bb.getBytesRef(i, scratch);
+                    if (matcher.test(val)) {
+                        mask.set(i);
+                    }
+                }
+            }
+            return mask;
+        }
+        return null;
+    }
+
+    private static Predicate<BytesRef> matcherFor(CompiledWildcard compiled) {
+        WildcardLikeShape shape = compiled.shape();
+        if (shape != null) {
+            BytesRef prefix = shape.prefix();
+            BytesRef literal = shape.literal();
+            BytesRef suffix = shape.suffix();
+            return entry -> ByteMatchers.affixContains(entry, prefix, literal, suffix);
+        }
+        ByteRunAutomaton runner = compiled.matcher;
+        return entry -> runner.run(entry.bytes, entry.offset, entry.length);
+    }
+
+    /**
+     * Evaluates {@code NOT (col LIKE p)} with SQL three-valued logic.
+     *
+     * <p>The straightforward {@code WordMask#negate} flip on the result of
+     * {@link #evaluateWildcardLike} is wrong for null rows: the inner mask sets bit {@code 0}
+     * for both "non-match" and "null", so the complement would mark nulls as survivors. SQL
+     * says {@code NOT (NULL LIKE p)} is unknown and must not survive the predicate.
+     *
+     * <p>This method computes the survivor set "non-null AND no-match" directly:
+     * {@code mask = LIKE(col, p)} (bit {@code 1} on match, bit {@code 0} on null/no-match);
+     * then for every row that is null, set the bit (turning the mask into "match OR null");
+     * then negate. The result has bit {@code 1} only for rows that are non-null and don't
+     * match — TVL-correct.
+     *
+     * <p>Returns {@code null} when {@link #evaluateWildcardLike} returns {@code null}
+     * (block type unsupported or pattern failed to determinize). The caller propagates that
+     * up; {@link #evaluateFilter} treats it as "all rows survive" — the same conservative
+     * sentinel used everywhere in this evaluator. <b>That null-return is only safe when the
+     * predicate is RECHECK'd downstream</b>, but the YES path in
+     * {@link ParquetFilterPushdownSupport} only fires when the block is a
+     * {@link BytesRefBlock}/{@link OrdinalBytesRefBlock} (the Parquet KEYWORD reader's only
+     * output) and the pattern is determinizable (KEYWORD inputs guarantee valid UTF-8 and
+     * {@link org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern}'s
+     * automaton build only throws {@code TooComplexToDeterminize} for pathological patterns
+     * far beyond {@code "*google*"}). If a future change broadens the YES-eligible set, this
+     * contract must be revisited.
+     */
+    private WordMask evaluateNotWildcardLike(
+        WildcardLike wl,
+        Block block,
+        int rowCount,
+        @Nullable WordMask intermediateMask,
+        @Nullable Map<Expression, boolean[]> dictCache
+    ) {
+        WordMask likeMask = evaluateWildcardLike(wl, block, rowCount, intermediateMask, dictCache);
+        if (likeMask == null) {
+            return null;
+        }
+        // Set bit i for null rows so the subsequent negate turns them into 0 (filtered out).
+        // mayHaveNulls() is a cheap pre-check that lets the all-non-nulls common case skip
+        // the per-row scan; matches the WildcardLike scalar path.
+        if (block.mayHaveNulls()) {
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i)) {
+                    likeMask.set(i);
+                }
             }
         }
-        return true;
+        likeMask.negate();
+        return likeMask;
+    }
+
+    /**
+     * Returns a mask with one bit set per non-null position. Used as the {@code matchesAll()}
+     * shortcut in {@link #evaluateWildcardLike} — {@code LIKE "*"} accepts every value but, by
+     * SQL three-valued-logic semantics, still rejects nulls.
+     */
+    private static WordMask maskNonNullRows(Block block, int rowCount) {
+        WordMask mask = new WordMask();
+        maskNonNullRowsInto(block, rowCount, mask);
+        return mask;
+    }
+
+    /**
+     * Populates {@code mask} so that bit {@code i} is set iff {@code block.isNull(i)} is
+     * false. The caller owns the mask; this method does not allocate. Mirrors
+     * {@link #maskNonNullRows} which is the allocating wrapper. Both the {@code IsNotNull}
+     * predicate path and the dictionary fast-path {@code ALL} branch share this primitive
+     * so the {@code mayHaveNulls() == false} shortcut and the null-scan loop are written
+     * exactly once.
+     */
+    private static void maskNonNullRowsInto(Block block, int rowCount, WordMask mask) {
+        if (block.mayHaveNulls() == false) {
+            mask.setAll(rowCount);
+            return;
+        }
+        mask.reset(rowCount);
+        for (int i = 0; i < rowCount; i++) {
+            if (block.isNull(i) == false) {
+                mask.set(i);
+            }
+        }
+    }
+
+    /**
+     * Returns the compiled form of the given {@link WildcardLike}, building it once on first use
+     * and caching it on the per-query {@link #automatonCache}. Returns {@link CompiledWildcard#FAILED}
+     * when the pattern cannot be determinized (logged once at debug); the caller treats that as
+     * "fall back to FilterExec".
+     *
+     * <p>Note on byte-vs-character semantics: {@link
+     * org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern#createAutomaton}
+     * returns a UTF-32 (character-level) automaton on both paths — case-sensitive via
+     * {@link org.apache.lucene.search.WildcardQuery#toAutomaton}, case-insensitive via
+     * {@link org.apache.lucene.util.automaton.RegExp}. Both therefore need the implicit
+     * UTF-32→UTF-8 conversion that the single-argument
+     * {@link ByteRunAutomaton#ByteRunAutomaton(Automaton)} constructor performs internally; the
+     * {@code (Automaton, true)} two-arg form would skip that conversion and silently produce
+     * incorrect matches for any non-ASCII byte. This mirrors
+     * {@code StringScriptFieldWildcardQuery} in {@code org.elasticsearch.search.runtime}, which
+     * uses the same single-arg constructor for the same reason.
+     *
+     * <p>{@code matchesAll} is computed against the case-aware automaton — the same one passed to
+     * {@link ByteRunAutomaton} — so the {@link #evaluateWildcardLike} fast path stays in sync with
+     * {@link WildcardLike#caseInsensitive()}.
+     */
+    private CompiledWildcard automatonFor(WildcardLike wl) {
+        synchronized (automatonCache) {
+            CompiledWildcard cached = automatonCache.get(wl);
+            if (cached != null) {
+                return cached;
+            }
+            CompiledWildcard compiled;
+            try {
+                Automaton automaton = wl.pattern().createAutomaton(wl.caseInsensitive());
+                // Operations.isTotal returns true iff the automaton accepts every code-point sequence
+                // over its alphabet (Unicode 0..0x10FFFF for WildcardPattern's UTF-32 output). After
+                // the implicit UTF-32->UTF-8 conversion in the ByteRunAutomaton ctor, "total" carries
+                // over to "accepts every valid UTF-8 byte sequence". Our inputs come from KEYWORD
+                // columns, which Elasticsearch guarantees to be valid UTF-8, so this is a sound
+                // proxy for "this LIKE accepts every non-null row" — the contract of matchesAll.
+                // (For invalid UTF-8 — outside the KEYWORD contract — the byte-level automaton would
+                // simply reject the malformed prefix, matching the per-row scalar path's behavior.)
+                boolean matchesAll = Operations.isTotal(automaton);
+                // Affix-contains shape detection is opt-in for case-sensitive patterns. Skip the
+                // matchesAll case (already handled by an upstream shortcut) so the shape only
+                // exists on the SIMD-eligible path; this keeps the dispatcher contract trivial.
+                WildcardLikeShape shape = (wl.caseInsensitive() || matchesAll) ? null : WildcardLikeShape.of(wl.pattern().pattern());
+                compiled = new CompiledWildcard(new ByteRunAutomaton(automaton), matchesAll, shape);
+            } catch (IllegalArgumentException | TooComplexToDeterminizeException e) {
+                logger.debug(
+                    "Cannot push WildcardLike pattern [{}] to Parquet late materialization, falling back to FilterExec",
+                    wl.pattern().pattern(),
+                    e
+                );
+                compiled = CompiledWildcard.FAILED;
+            }
+            automatonCache.put(wl, compiled);
+            return compiled;
+        }
+    }
+
+    // Package-private hook so tests can directly assert that automaton compilation is memoized
+    // across batches (there is no public metric for it). Not part of the production contract.
+    int automatonCacheSizeForTesting() {
+        synchronized (automatonCache) {
+            return automatonCache.size();
+        }
+    }
+
+    /**
+     * Returns {@code true} when evaluating the predicate against dictionary entries is expected
+     * to be cheaper than per-row evaluation. For ordinal-encoded blocks, the dictionary path
+     * runs the predicate once per unique value and then scatters results via integer lookups —
+     * always cheaper than running the predicate per row since dictionary size &lt;= row count.
+     * The minimum of 10 positions avoids the boolean[] allocation overhead for tiny blocks.
+     */
+    private static boolean shouldShortCircuitOnDictionary(OrdinalBytesRefBlock block) {
+        return block.getPositionCount() >= 10;
+    }
+
+    /**
+     * Evaluates {@code matcher} against every entry of {@code dictionary} and returns a
+     * boolean array indexed by ordinal — {@code true} at position {@code k} means the entry
+     * at ordinal {@code k} satisfies the predicate. This is the core of the dictionary
+     * short-circuit: we run the predicate once per unique entry rather than once per row.
+     */
+    private static boolean[] matchingDictionaryEntries(BytesRefVector dictionary, Predicate<BytesRef> matcher) {
+        int size = dictionary.getPositionCount();
+        boolean[] matches = new boolean[size];
+        BytesRef scratch = new BytesRef();
+        for (int i = 0; i < size; i++) {
+            matches[i] = matcher.test(dictionary.getBytesRef(i, scratch));
+        }
+        return matches;
+    }
+
+    /**
+     * Returns the dictionary-match bitmap for {@code key}, computing it on first use and
+     * reusing the cached array on every subsequent batch within the row group whose lifecycle
+     * the caller's map represents. A {@code null} cache falls through to a fresh per-call
+     * computation; the cache is null for unit tests and for the multi-stage single-expression
+     * path that does not have a row-group lifecycle.
+     */
+    private static boolean[] memoizedDictionaryMatches(
+        @Nullable Map<Expression, boolean[]> cache,
+        Expression key,
+        BytesRefVector dictionary,
+        Predicate<BytesRef> matcher
+    ) {
+        if (cache == null) {
+            return matchingDictionaryEntries(dictionary, matcher);
+        }
+        boolean[] cached = cache.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        boolean[] fresh = matchingDictionaryEntries(dictionary, matcher);
+        cache.put(key, fresh);
+        return fresh;
+    }
+
+    /**
+     * Sets bits in {@code mask} for rows whose dictionary ordinal is flagged in
+     * {@code dictMatches}, skipping null rows.
+     *
+     * <p>Before walking the per-row ordinal indirection, this method scans the (typically
+     * small) {@code dictMatches} array once to detect two bulk-action shapes that arise
+     * routinely on real-world data:
+     * <ul>
+     *   <li><b>No dictionary entry matches</b> — every non-null row's ordinal points at a
+     *       {@code false}, so every row is filtered out. The pre-zeroed mask is already
+     *       correct; we return immediately and skip the {@code rowCount} ordinal lookups.
+     *       This is the dictionary-level analogue of the empty-mask early exit in
+     *       {@link #evaluateFilter}: the outer loop sees the resulting empty mask and
+     *       short-circuits the remaining expressions for this batch.</li>
+     *   <li><b>Every dictionary entry matches</b> — every non-null row passes. We delegate
+     *       to {@link #maskNonNullRows}, which uses {@link WordMask#setAll} when the block
+     *       has no nulls and a single-pass null scan otherwise. This is the same primitive
+     *       the {@code matchesAll} fast path in {@link #evaluateWildcardLike} already uses,
+     *       so this branch unifies the {@code LIKE "*"} shortcut with predicates that
+     *       happen to accept every entry in the current row group's dictionary (e.g.
+     *       {@code col != ""} on a column whose dictionary holds no empty strings, or
+     *       {@code col IN (...)} on a small column whose dictionary is a subset of the set).
+     *       The win is concrete: a 10K-entry dictionary is scanned in microseconds, while
+     *       an 8K-row ordinal-to-boolean mapping costs tens of microseconds per batch.</li>
+     * </ul>
+     * Plan-time row-group statistics rule out many of these cases, but not all (e.g. they
+     * cannot prove "no empty strings" when {@code numNulls > 0}, and they cannot reason
+     * about {@code LIKE} patterns at all). The dictionary-level check closes those gaps
+     * without compromising correctness — we are looking at the actual per-row-group
+     * dictionary, not at file-level metadata.
+     *
+     * <p>This relies on the ordinals block being <strong>single-valued</strong>: position
+     * {@code i} maps directly to value index {@code i}. The Parquet reader's dictionary
+     * path always satisfies this — see {@code PageColumnReader#buildOrdinalsBlock}, which
+     * constructs the ordinals block with {@code firstValueIndexes == null}. The assertion
+     * below documents and guards the invariant for any future producer.
+     */
+    private static void applyDictionaryMatches(OrdinalBytesRefBlock block, boolean[] dictMatches, WordMask mask, int rowCount) {
+        IntBlock ordinals = block.getOrdinalsBlock();
+        assert rowCount == block.getPositionCount() : "rowCount " + rowCount + " != block positions " + block.getPositionCount();
+        assert ordinals.asVector() != null || ordinals.mayHaveMultivaluedFields() == false
+            : "OrdinalBytesRefBlock with multivalued ordinals is not supported by the dictionary short-circuit";
+        DictionaryMatchShape shape = classifyDictionaryMatches(dictMatches);
+        if (shape == DictionaryMatchShape.NONE) {
+            return; // mask is already zero-initialized via reset(rowCount); no row can pass
+        }
+        if (shape == DictionaryMatchShape.ALL) {
+            // Every non-null row's ordinal points at a true entry, so the survivor set
+            // collapses to "non-null rows" — the same primitive the LIKE "*" shortcut and
+            // IsNotNull already use. Write directly into the caller's mask to avoid the
+            // extra WordMask allocation in this hot path.
+            maskNonNullRowsInto(block, rowCount, mask);
+            return;
+        }
+        for (int i = 0; i < rowCount; i++) {
+            if (block.isNull(i) == false && dictMatches[ordinals.getInt(i)]) {
+                mask.set(i);
+            }
+        }
+    }
+
+    /**
+     * Classifies a {@code dictMatches} bitmap as {@code NONE} (no entry matches), {@code ALL}
+     * (every entry matches), or {@code MIXED}. Empty arrays are treated as {@code NONE} so
+     * the caller's "no row can pass" branch fires — there are no ordinals to look up.
+     *
+     * <p>Single-pass with early exit as soon as both polarities are observed: the worst-case
+     * cost is bounded by the dictionary size, but for the {@code MIXED} case we typically
+     * exit after a handful of comparisons. Compared to the {@code O(rowCount)} per-row loop
+     * the caller would otherwise run, this is a low-cost gate even when it returns
+     * {@code MIXED} and the per-row loop still executes.
+     */
+    enum DictionaryMatchShape {
+        NONE,
+        ALL,
+        MIXED
+    }
+
+    static DictionaryMatchShape classifyDictionaryMatches(boolean[] dictMatches) {
+        boolean sawTrue = false;
+        boolean sawFalse = false;
+        for (boolean m : dictMatches) {
+            if (m) {
+                sawTrue = true;
+            } else {
+                sawFalse = true;
+            }
+            if (sawTrue && sawFalse) {
+                return DictionaryMatchShape.MIXED;
+            }
+        }
+        if (sawTrue) {
+            return DictionaryMatchShape.ALL;
+        }
+        return DictionaryMatchShape.NONE;
     }
 }

@@ -9,10 +9,12 @@
 
 package org.elasticsearch.reindex.management;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -49,6 +51,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -93,8 +96,10 @@ public class GetTaskRelocationIT extends ESIntegTestCase {
         shutdownAndRelocate(setup.reindexNodeName);
         final TaskId relocatedTaskId = readRelocatedTaskId(setup.originalTaskId);
 
-        final long nanosElapsedSinceStart = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis() - setup.originalStartTimeMillis);
-
+        // we have millisecond precision here, so leave space for 1ms because runningTimeInNanos has nanosecond resolution
+        final long minNanosElapsedSinceStart = TimeUnit.MILLISECONDS.toNanos(
+            System.currentTimeMillis() - setup.originalStartTimeMillis - 1
+        );
         final TaskResult runningResult = getTask(setup.originalTaskId, false).getTask();
 
         assertThat("should not be completed (relocated task is still running)", runningResult.isCompleted(), is(false));
@@ -115,7 +120,7 @@ public class GetTaskRelocationIT extends ESIntegTestCase {
         assertThat(
             "running time should cover time since original start",
             runningResult.getTask().runningTimeNanos(),
-            greaterThan(nanosElapsedSinceStart)
+            greaterThanOrEqualTo(minNanosElapsedSinceStart)
         );
         assertThat("status should be present", runningResult.getTask().status(), is(notNullValue()));
         assertThat("no error on running task", runningResult.getError(), is(nullValue()));
@@ -159,6 +164,16 @@ public class GetTaskRelocationIT extends ESIntegTestCase {
         assertThat("completed task should have no error", completedResult.getError(), is(nullValue()));
 
         assertCompletedReindexResponse(completedResult);
+
+        // Delete the relocated task's stored result so the next chain-following lookup hits a missing record. We expect
+        // the failure to be surfaced and to carry metadata identifying which task in the chain we were following from.
+        deleteFromTasksIndex(relocatedTaskId);
+        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> getTask(setup.originalTaskId, false));
+        assertThat(
+            "failure metadata should pinpoint the task we were following relocation from",
+            e.getMetadata("es.following_relocation_from"),
+            equalTo(List.of(setup.originalTaskId.toString()))
+        );
     }
 
     /**
@@ -291,6 +306,12 @@ public class GetTaskRelocationIT extends ESIntegTestCase {
                 new GetTaskRequest().setTaskId(taskId).setWaitForCompletion(waitForCompletion).setTimeout(TimeValue.timeValueSeconds(30))
             )
             .actionGet();
+    }
+
+    private void deleteFromTasksIndex(TaskId taskId) {
+        client().prepareDelete(TaskResultsService.TASK_INDEX, taskId.toString())
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
     }
 
     private void shutdownAndRelocate(String nodeName) throws Exception {

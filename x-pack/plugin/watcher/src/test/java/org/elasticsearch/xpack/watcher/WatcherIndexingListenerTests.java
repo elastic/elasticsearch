@@ -43,8 +43,6 @@ import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.WatcherIndexingListener.Configuration;
-import org.elasticsearch.xpack.watcher.WatcherIndexingListener.ShardAllocationConfiguration;
-import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.junit.Before;
 
@@ -61,7 +59,6 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.stream.Stream;
 
-import static java.util.Arrays.asList;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.xpack.watcher.WatcherIndexingListener.INACTIVE;
@@ -83,7 +80,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     private WatcherIndexingListener listener;
     private WatchParser parser = mock(WatchParser.class);
     private ClockMock clock = new ClockMock();
-    private TriggerService triggerService = mock(TriggerService.class);
+    private WatcherEventConsumer watcherEventConsumer = mock(WatcherEventConsumer.class);
 
     private ShardId shardId = mock(ShardId.class);
     private Engine.IndexResult result = mock(Engine.IndexResult.class);
@@ -95,7 +92,9 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     @Before
     public void setup() throws Exception {
         clock.freeze();
-        listener = new WatcherIndexingListener(parser, clock, triggerService, () -> WatcherState.STARTED);
+        // Wire onWatchActive/onWatchInactive directly to triggerService so the existing verify(triggerService)
+        // assertions still observe what the listener decides to do.
+        listener = new WatcherIndexingListener(parser, clock, watcherEventConsumer, () -> WatcherState.STARTED);
 
         Map<ShardId, ShardAllocationConfiguration> map = new HashMap<>();
         map.put(shardId, new ShardAllocationConfiguration(0, 1, Collections.singletonList("foo")));
@@ -139,15 +138,15 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         if (isNewWatch) {
             if (watchActive) {
-                verify(triggerService).add(eq(watch));
+                verify(watcherEventConsumer).onWatchAdded(eq(watch));
             } else {
-                verify(triggerService).remove(eq("_id"));
+                verify(watcherEventConsumer).onWatchRemoved(eq("_id"));
             }
         }
     }
 
     public void testPostIndexWhenStopped() throws Exception {
-        listener = new WatcherIndexingListener(parser, clock, triggerService, () -> WatcherState.STOPPED);
+        listener = new WatcherIndexingListener(parser, clock, watcherEventConsumer, () -> WatcherState.STOPPED);
         Map<ShardId, ShardAllocationConfiguration> map = new HashMap<>();
         map.put(shardId, new ShardAllocationConfiguration(0, 1, Collections.singletonList("foo")));
         listener.setConfiguration(new Configuration(Watch.INDEX, map));
@@ -166,11 +165,10 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         listener.postIndex(shardId, operation, result);
         ZonedDateTime now = DateUtils.nowWithMillisResolution(clock);
         verify(parser).parseWithSecrets(eq(operation.id()), eq(true), eq(BytesArray.EMPTY), eq(now), any(), anyLong(), anyLong());
-        verifyNoMoreInteractions(triggerService);
+        verifyNoMoreInteractions(watcherEventConsumer);
     }
 
-    // this test emulates an index with 10 shards, and ensures that triggering only happens on a
-    // single shard
+    // this test emulates an index with 10 shards and ensures that triggering only happens on a single shard
     public void testPostIndexWatchGetsOnlyTriggeredOnceAcrossAllShards() throws Exception {
         String id = randomAlphaOfLength(10);
         int totalShardCount = randomIntBetween(1, 10);
@@ -183,8 +181,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(parser.parseWithSecrets(any(), eq(true), any(), any(), any(), anyLong(), anyLong())).thenReturn(watch);
 
         for (int idx = 0; idx < totalShardCount; idx++) {
-            final Map<ShardId, ShardAllocationConfiguration> localShards = new HashMap<>();
-            localShards.put(shardId, new ShardAllocationConfiguration(idx, totalShardCount, Collections.emptyList()));
+            final var localShards = Map.of(shardId, new ShardAllocationConfiguration(idx, totalShardCount, List.of()));
             Configuration configuration = new Configuration(Watch.INDEX, localShards);
             listener.setConfiguration(configuration);
             listener.postIndex(shardId, operation, result);
@@ -193,9 +190,9 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         // no matter how many shards we had, this should have been only called once
         if (isNewWatch) {
             if (watchActive) {
-                verify(triggerService, times(1)).add(eq(watch));
+                verify(watcherEventConsumer, times(1)).onWatchAdded(eq(watch));
             } else {
-                verify(triggerService, times(1)).remove(eq(watch.id()));
+                verify(watcherEventConsumer, times(1)).onWatchRemoved(eq(watch.id()));
             }
         }
     }
@@ -242,7 +239,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
 
         listener.postIndex(shardId, operation, result);
-        verifyNoMoreInteractions(triggerService);
+        verifyNoMoreInteractions(watcherEventConsumer);
     }
 
     public void testPostIndexRemoveTriggerOnDocumentRelatedException_ignoreNonWatcherDocument() throws Exception {
@@ -252,7 +249,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(shardId.getIndexName()).thenReturn(randomAlphaOfLength(4));
 
         listener.postIndex(shardId, operation, result);
-        verifyNoMoreInteractions(triggerService);
+        verifyNoMoreInteractions(watcherEventConsumer);
     }
 
     public void testPostIndexRemoveTriggerOnEngineLevelException() throws Exception {
@@ -260,7 +257,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
 
         listener.postIndex(shardId, operation, new ElasticsearchParseException("whatever"));
-        verifyNoMoreInteractions(triggerService);
+        verifyNoMoreInteractions(watcherEventConsumer);
     }
 
     public void testPostIndexRemoveTriggerOnEngineLevelException_ignoreNonWatcherDocument() throws Exception {
@@ -269,14 +266,14 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
 
         listener.postIndex(shardId, operation, new ElasticsearchParseException("whatever"));
-        verifyNoMoreInteractions(triggerService);
+        verifyNoMoreInteractions(watcherEventConsumer);
     }
 
     public void testPreDeleteCheckActive() throws Exception {
         listener.setConfiguration(INACTIVE);
         listener.preDelete(shardId, delete);
 
-        verifyNoMoreInteractions(triggerService);
+        verifyNoMoreInteractions(watcherEventConsumer);
     }
 
     public void testPreDeleteCheckIndex() throws Exception {
@@ -284,7 +281,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         listener.preDelete(shardId, delete);
 
-        verifyNoMoreInteractions(triggerService);
+        verifyNoMoreInteractions(watcherEventConsumer);
     }
 
     public void testPreDelete() throws Exception {
@@ -293,7 +290,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         listener.preDelete(shardId, delete);
 
-        verify(triggerService).remove(eq("_id"));
+        verify(watcherEventConsumer).onWatchRemoved(eq("_id"));
     }
 
     //
@@ -307,9 +304,8 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     }
 
     public void testClusterChangedNoWatchIndex() throws Exception {
-        Map<ShardId, ShardAllocationConfiguration> map = new HashMap<>();
-        map.put(shardId, new ShardAllocationConfiguration(0, 1, Collections.singletonList("foo")));
-        Configuration randomConfiguration = new Configuration(randomAlphaOfLength(10), map);
+        final var localShards = Map.of(shardId, new ShardAllocationConfiguration(0, 1, List.of("foo")));
+        Configuration randomConfiguration = new Configuration(randomAlphaOfLength(10), localShards);
         listener.setConfiguration(randomConfiguration);
 
         ClusterState clusterState = mockClusterState(null);
@@ -401,14 +397,14 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         );
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index).addShard(shardRouting).build();
 
-        Map<ShardId, ShardAllocationConfiguration> allocationIds = WatcherIndexingListener.getLocalShardAllocationIds(
-            asList(shardRouting),
+        Map<ShardId, ShardAllocationConfiguration> allocationIds = ShardAllocationConfiguration.forLocalShards(
+            List.of(shardRouting),
             indexRoutingTable
         );
 
         assertThat(allocationIds.size(), is(1));
-        assertThat(allocationIds.get(shardId).index, is(0));
-        assertThat(allocationIds.get(shardId).shardCount, is(1));
+        assertThat(allocationIds.get(shardId).index(), is(0));
+        assertThat(allocationIds.get(shardId).shardCount(), is(1));
     }
 
     public void testCheckAllocationIdsWithoutShards() throws Exception {
@@ -417,8 +413,8 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, "other", true, STARTED);
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index).addShard(shardRouting).build();
 
-        Map<ShardId, ShardAllocationConfiguration> allocationIds = WatcherIndexingListener.getLocalShardAllocationIds(
-            Collections.emptyList(),
+        Map<ShardId, ShardAllocationConfiguration> allocationIds = ShardAllocationConfiguration.forLocalShards(
+            List.of(),
             indexRoutingTable
         );
         assertThat(allocationIds.size(), is(0));
@@ -441,7 +437,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
             .addShard(TestShardRouting.newShardRouting(secondShardId, "node2", false, STARTED))
             .build();
 
-        Map<ShardId, ShardAllocationConfiguration> allocationIds = WatcherIndexingListener.getLocalShardAllocationIds(
+        Map<ShardId, ShardAllocationConfiguration> allocationIds = ShardAllocationConfiguration.forLocalShards(
             localShards,
             indexRoutingTable
         );
@@ -460,7 +456,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
             ShardAllocationConfiguration sac = new ShardAllocationConfiguration(currentShardId, numberOfShards, Collections.emptyList());
 
             for (int i = 0; i < numberOfDocuments; i++) {
-                boolean shouldBeTriggered = sac.shouldBeTriggered("watch_" + i);
+                boolean shouldBeTriggered = sac.hostsWatch("watch_" + i);
                 boolean hasAlreadyBeenTriggered = bitSet.get(i);
                 if (shouldBeTriggered) {
                     String message = Strings.format("Watch [%s] has already been " + "triggered", i);

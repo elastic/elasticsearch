@@ -21,6 +21,7 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -275,7 +276,7 @@ public final class NestedHelper {
         // where the positive clauses were all parent-level), add a synthetic MatchAllDocsQuery so
         // the resulting BooleanQuery is not pure-negative (which would match nothing in Lucene).
         if (hasChildMustNot && childClauses.stream().noneMatch(BooleanClause::isRequired)) {
-            childClauses.add(new BooleanClause(new MatchAllDocsQuery(), Occur.FILTER));
+            childClauses.add(new BooleanClause(Queries.ALL_DOCS_INSTANCE, Occur.FILTER));
         }
 
         if (childClauses.isEmpty()) {

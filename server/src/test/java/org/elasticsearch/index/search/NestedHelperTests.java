@@ -374,7 +374,7 @@ public class NestedHelperTests extends MapperServiceTestCase {
     public void testDecomposeFilterPureMustNotOnParent() {
         // A pure must_not on a parent field: +MatchAllDocsQuery -foo:value
         // All clauses target the same level (parent), so decomposition returns null
-        BooleanQuery query = new BooleanQuery.Builder().add(new MatchAllDocsQuery(), Occur.FILTER)
+        BooleanQuery query = new BooleanQuery.Builder().add(Queries.ALL_DOCS_INSTANCE, Occur.FILTER)
             .add(new TermQuery(new Term("foo", "value")), Occur.MUST_NOT)
             .build();
         NestedHelper.DecomposedFilter result = NestedHelper.decomposeFilter(query, "nested1", searchExecutionContext);
@@ -431,7 +431,7 @@ public class NestedHelperTests extends MapperServiceTestCase {
         // Pure negative on nested field with synthetic MatchAllDocsQuery (from fixNegativeQueryIfNeeded).
         // The MatchAllDocsQuery should stay with the child MUST_NOT clauses, and decomposition
         // returns a result with empty parentClauses.
-        BooleanQuery query = new BooleanQuery.Builder().add(new MatchAllDocsQuery(), Occur.FILTER)
+        BooleanQuery query = new BooleanQuery.Builder().add(Queries.ALL_DOCS_INSTANCE, Occur.FILTER)
             .add(new TermQuery(new Term("nested1.foo", "value")), Occur.MUST_NOT)
             .build();
         NestedHelper.DecomposedFilter result = NestedHelper.decomposeFilter(query, "nested1", searchExecutionContext);
@@ -450,7 +450,7 @@ public class NestedHelperTests extends MapperServiceTestCase {
         // Mixed case: parent filter clause + MatchAllDocsQuery + nested MUST_NOT
         // The MatchAllDocsQuery should stay with the child MUST_NOT clauses to form a valid
         // BooleanQuery (MUST_NOT alone is invalid without an anchor)
-        BooleanQuery query = new BooleanQuery.Builder().add(new MatchAllDocsQuery(), Occur.FILTER)
+        BooleanQuery query = new BooleanQuery.Builder().add(Queries.ALL_DOCS_INSTANCE, Occur.FILTER)
             .add(new TermQuery(new Term("foo", "bar")), Occur.FILTER)
             .add(new TermQuery(new Term("nested1.foo", "value")), Occur.MUST_NOT)
             .build();

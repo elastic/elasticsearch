@@ -21,6 +21,12 @@ import java.lang.foreign.MemorySegment;
 
 public final class Native22ESVectorUtilSupport extends Panama22ESVectorUtilSupport {
 
+    /*
+     * This is technically separate to the Panama22 implementation, but there's
+     * only a few things which are native-only, it's easiest to inherit implementations
+     * and override the ones we want, rather than delegating all methods in the interface.
+     */
+
     @Override
     public float dotProduct(float[] a, float[] b) {
         return Similarities.dotProductF32(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length);
@@ -39,6 +45,11 @@ public final class Native22ESVectorUtilSupport extends Panama22ESVectorUtilSuppo
     @Override
     public float dotProduct(byte[] a, byte[] b) {
         return Similarities.dotProductI8(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length);
+    }
+
+    @Override
+    public float squareDistance(byte[] a, byte[] b) {
+        return Similarities.squareDistanceI8(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length);
     }
 
     @Override
@@ -108,11 +119,6 @@ public final class Native22ESVectorUtilSupport extends Panama22ESVectorUtilSuppo
             return sum;
         }
         return super.maxSimDotProduct(source, query, scoresScratch);
-    }
-
-    @Override
-    public float squareDistance(byte[] a, byte[] b) {
-        return Similarities.squareDistanceI8(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length);
     }
 
     private static boolean canUseBulkPath(MultiVectorsSource<?> source) {

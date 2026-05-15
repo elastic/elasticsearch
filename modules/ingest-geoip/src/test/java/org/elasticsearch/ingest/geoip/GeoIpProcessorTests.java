@@ -180,7 +180,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         );
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
-        assertThat(exception.getMessage(), equalTo("field [source_field] is null, cannot extract geoip information."));
+        assertThat(exception.getMessage(), equalTo("field [source_field] is null, cannot extract geoip information"));
     }
 
     public void testNonExistentWithoutIgnoreMissing() {

@@ -1,0 +1,6 @@
+pr: 127520
+summary: Better behavior around `ignore_missing` when databases aren't available
+area: Ingest Node
+type: bug
+issues:
+ - 87345

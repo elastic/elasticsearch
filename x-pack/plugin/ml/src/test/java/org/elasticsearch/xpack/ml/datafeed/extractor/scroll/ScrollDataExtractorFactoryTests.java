@@ -32,7 +32,6 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
@@ -83,7 +82,6 @@ public class ScrollDataExtractorFactoryTests extends ESTestCase {
         );
     }
 
-    @SuppressWarnings("unchecked")
     public void testCcsOrphanPastTtlShouldBeRemovedWithoutClearScrollCall() {
         ScrollDataExtractorFactory factory = newFactory();
         factory.orphanedScrolls.addLast(
@@ -94,17 +92,28 @@ public class ScrollDataExtractorFactoryTests extends ESTestCase {
             )
         );
 
-        ActionFuture<ClearScrollResponse> successFuture = mock(ActionFuture.class);
-        when(successFuture.actionGet()).thenReturn(new ClearScrollResponse(true, 1));
-        when(client.execute(same(TransportClearScrollAction.TYPE), any(ClearScrollRequest.class))).thenReturn((ActionFuture) successFuture);
-
         factory.retryClearOrphanedScrollIds();
 
         verify(client, never()).execute(same(TransportClearScrollAction.TYPE), any(ClearScrollRequest.class));
         assertThat(factory.orphanedScrolls.stream().anyMatch(o -> o.scrollId().equals("scroll-id-old")), is(false));
     }
 
-    @SuppressWarnings("unchecked")
+    public void testCcsOrphanAtRetryLimitShouldBeRemovedWithoutClearScrollCall() {
+        ScrollDataExtractorFactory factory = newFactory();
+        factory.orphanedScrolls.addLast(
+            new ScrollDataExtractorFactory.OrphanedScroll(
+                "scroll-at-retry-limit",
+                System.currentTimeMillis(),
+                ScrollDataExtractorFactory.MAX_ORPHAN_RETRIES  // exactly at the limit: >= triggers eviction
+            )
+        );
+
+        factory.retryClearOrphanedScrollIds();
+
+        verify(client, never()).execute(same(TransportClearScrollAction.TYPE), any(ClearScrollRequest.class));
+        assertThat(factory.orphanedScrolls.stream().anyMatch(o -> o.scrollId().equals("scroll-at-retry-limit")), is(false));
+    }
+
     public void testCcsOrphanOverRetryLimitShouldBeRemovedWithoutClearScrollCall() {
         ScrollDataExtractorFactory factory = newFactory();
         factory.orphanedScrolls.addLast(
@@ -114,10 +123,6 @@ public class ScrollDataExtractorFactoryTests extends ESTestCase {
                 ScrollDataExtractorFactory.MAX_ORPHAN_RETRIES + 1
             )
         );
-
-        ActionFuture<ClearScrollResponse> successFuture = mock(ActionFuture.class);
-        when(successFuture.actionGet()).thenReturn(new ClearScrollResponse(true, 1));
-        when(client.execute(same(TransportClearScrollAction.TYPE), any(ClearScrollRequest.class))).thenReturn((ActionFuture) successFuture);
 
         factory.retryClearOrphanedScrollIds();
 
@@ -130,7 +135,30 @@ public class ScrollDataExtractorFactoryTests extends ESTestCase {
         for (int i = 0; i < ScrollDataExtractorFactory.MAX_ORPHAN_QUEUE_SIZE + 1; i++) {
             factory.addOrphanedScrollIds(List.of("scroll-" + i));
         }
-        assertThat(factory.orphanedScrolls.size(), lessThanOrEqualTo(ScrollDataExtractorFactory.MAX_ORPHAN_QUEUE_SIZE));
+        assertThat(factory.orphanedScrolls.size(), is(ScrollDataExtractorFactory.MAX_ORPHAN_QUEUE_SIZE));
         assertThat(factory.orphanedScrolls.stream().anyMatch(o -> o.scrollId().equals("scroll-0")), is(false));
+        assertThat(
+            factory.orphanedScrolls.stream()
+                .anyMatch(o -> o.scrollId().equals("scroll-" + ScrollDataExtractorFactory.MAX_ORPHAN_QUEUE_SIZE)),
+            is(true)
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testCcsOrphanSuccessfullyClearedShouldBeRemovedFromQueue() {
+        ScrollDataExtractorFactory factory = newFactory();
+        factory.orphanedScrolls.addLast(
+            new ScrollDataExtractorFactory.OrphanedScroll("scroll-recoverable", System.currentTimeMillis(), 0)
+        );
+
+        ActionFuture<ClearScrollResponse> successFuture = mock(ActionFuture.class);
+        when(successFuture.actionGet()).thenReturn(new ClearScrollResponse(true, 1));
+        when(client.execute(same(TransportClearScrollAction.TYPE), any(ClearScrollRequest.class))).thenReturn(
+            (ActionFuture) successFuture
+        );
+
+        factory.retryClearOrphanedScrollIds();
+
+        assertThat(factory.orphanedScrolls.isEmpty(), is(true));
     }
 }

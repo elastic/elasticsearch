@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -124,13 +123,16 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
 
     /**
      * Attempts to clear every queued orphaned scroll ID. Successfully cleared IDs are removed.
+     * Entries that are stale (age exceeds {@link #ORPHAN_TTL_MILLIS}) or have exhausted their
+     * retry budget (>= {@link #MAX_ORPHAN_RETRIES}) are evicted without attempting a clear.
      */
     void retryClearOrphanedScrollIds() {
         long now = System.currentTimeMillis();
-        Iterator<OrphanedScroll> it = orphanedScrolls.iterator();
-        while (it.hasNext()) {
-            OrphanedScroll entry = it.next();
-            // Evict if stale by age or max retries reached
+        for (int remaining = orphanedScrolls.size(); remaining > 0; remaining--) {
+            OrphanedScroll entry = orphanedScrolls.pollFirst();
+            if (entry == null) {
+                break;
+            }
             if (now - entry.createdAtMillis() > ORPHAN_TTL_MILLIS || entry.retryAttempts() >= MAX_ORPHAN_RETRIES) {
                 logger.info(
                     "[{}] Giving up on orphaned CCS scroll context [{}] after {} retries / {}ms — remote scroll may persist until TTL",
@@ -139,7 +141,6 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
                     entry.retryAttempts(),
                     now - entry.createdAtMillis()
                 );
-                it.remove();
                 continue;
             }
             try {
@@ -154,13 +155,10 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
                 if (response.isSucceeded() == false) {
                     throw new ElasticsearchException("Clear scroll returned failure for scroll [{}]", entry.scrollId());
                 }
-                it.remove();
             } catch (Exception e) {
                 int newRetries = entry.retryAttempts() + 1;
                 logger.debug("[{}] Retry {} for orphaned scroll [{}] still failed", job.getId(), newRetries, entry.scrollId());
-                // Replace entry with incremented retry count
-                it.remove();
-                orphanedScrolls.add(new OrphanedScroll(entry.scrollId(), entry.createdAtMillis(), newRetries));
+                orphanedScrolls.addLast(new OrphanedScroll(entry.scrollId(), entry.createdAtMillis(), newRetries));
             }
         }
     }

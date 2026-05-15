@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
@@ -338,11 +339,15 @@ class ScrollDataExtractor implements DataExtractor {
             // Transport exception during clear (e.g. NodeNotConnectedException)
             boolean isCcsScroll = lastLinkedClusterStates.isEmpty() == false;
             if (isCcsScroll) {
-                logger.info(() -> "[" + context.jobId + "] CCS scroll context could not be cleared, will retry [" + scrollId + "]", e);
+                logger.info("[{}] CCS scroll context could not be cleared, will retry [{}]", context.jobId, scrollId, e);
                 failedClearScrollIds.add(scrollId);
             } else {
                 logger.debug(
-                    () -> "[" + context.jobId + "] Transient scroll clear failure, context will expire on its own [" + scrollId + "]",
+                    () -> Strings.format(
+                        "[%s] Transient scroll clear failure, context will expire on its own [%s]",
+                        context.jobId,
+                        scrollId
+                    ),
                     e
                 );
             }

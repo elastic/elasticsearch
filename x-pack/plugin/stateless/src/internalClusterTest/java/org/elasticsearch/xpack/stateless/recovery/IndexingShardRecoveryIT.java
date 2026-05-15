@@ -369,7 +369,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessPluginIntegTestCas
 
             var excludedNode = indexNode;
             updateIndexSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", excludedNode), indexName);
-            assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(excludedNode))));
+            internalCluster().awaitNodeVacated(indexName, excludedNode);
             assertNodeHasNoCurrentRecoveries(newIndexNode);
             internalCluster().stopNode(excludedNode);
             indexNode = newIndexNode;

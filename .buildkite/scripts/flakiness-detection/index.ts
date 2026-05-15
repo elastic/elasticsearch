@@ -22,6 +22,11 @@ export {
   detectUnmutedTests,
   type UnmuteDetectionResult,
 } from "./detectors/unmutes";
+export {
+  classifyExplicitList,
+  type ExplicitListResult,
+  type UnresolvedSpec,
+} from "./detectors/explicit-list";
 
 const PROJECT_ROOT = resolve(`${import.meta.dir}/../..`);
 

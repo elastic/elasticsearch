@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import java.util.function.Supplier;
 
 public class Clusters {
+    public static final int HEAP_SIZE_IN_MB = 512;
 
     static ElasticsearchCluster buildCluster() {
         return baseClusterSpec().build();
@@ -59,7 +60,7 @@ public class Clusters {
             .setting("xpack.license.self_generated.type", "trial")
             .setting("esql.query.allow_partial_results", "false")
             .setting("logger.org.elasticsearch.compute.lucene.read", "DEBUG")
-            .jvmArg("-Xmx512m");
+            .jvmArg("-Xmx" + HEAP_SIZE_IN_MB + "m");
         String javaVersion = JvmInfo.jvmInfo().version();
         if (javaVersion.equals("20") || javaVersion.equals("21")) {
             // see https://github.com/elastic/elasticsearch/issues/99592

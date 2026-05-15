@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -41,6 +42,7 @@ import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -62,6 +64,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
@@ -675,7 +678,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         );
     }
 
-    public void testTypeConflictLongUnmappedNoCast() {
+    public void testTypeConflictLongUnmappedAutoCast() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
@@ -686,8 +689,13 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             List.of()
         );
         var resolutions = indexResolutions(mergedResolution("foo,bar", caps, true));
+        TestAnalyzer analyzer = analyzer();
+        for (var entry : resolutions.entrySet()) {
+            analyzer.addIndex(entry.getKey().indexPattern(), entry.getValue());
+        }
         for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
-            typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar " + suffix), resolutions);
+            var plan = analyzer.statement(setUnmappedLoad("FROM foo, bar " + suffix));
+            assertTwoLeggedPunkResolution(plan, "message", DataType.LONG);
         }
     }
 
@@ -725,7 +733,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         }
     }
 
-    public void testTypeConflictTextUnmappedNoCast() {
+    /**
+     * There is no function that converts to TEXT. The field is therefore not re-written as MultiTypeEsField.
+     */
+    public void testTypeConflictTextUnmappedNoAutoCast() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
@@ -736,8 +747,13 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             List.of()
         );
         var resolutions = indexResolutions(mergedResolution("foo,bar", caps, true));
+        TestAnalyzer analyzer = analyzer();
+        for (var entry : resolutions.entrySet()) {
+            analyzer.addIndex(entry.getKey().indexPattern(), entry.getValue());
+        }
         for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
-            typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar " + suffix), resolutions);
+            var plan = analyzer.statement(setUnmappedLoad("FROM foo, bar " + suffix));
+            assertNoTwoLeggedPunkResolution(plan, "message", DataType.TEXT);
         }
     }
 
@@ -763,7 +779,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(attr.dataType(), is(DataType.LONG));
     }
 
-    public void testSameMappingHashWithUnmappedIndex() {
+    public void testSameMappingHashWithUnmappedIndexAutoCast() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
@@ -779,8 +795,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         for (var entry : resolutions.entrySet()) {
             ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
         }
-        var e = expectThrows(VerificationException.class, () -> ta.statement(setUnmappedLoad("FROM foo, bar, baz | SORT message")));
-        assertThat(e.getMessage(), partiallyUnmappedNonKeywordError("message"));
+
+        var plan = ta.statement(setUnmappedLoad("FROM foo, bar, baz | SORT message"));
+        assertThat(plan, not(nullValue()));
+        assertTwoLeggedPunkResolution(plan, "message", DataType.LONG);
     }
 
     private static final String UNMAPPED_TIMESTAMP_SUFFIX = UnresolvedTimestamp.UNRESOLVED_SUFFIX + Verifier.UNMAPPED_TIMESTAMP_SUFFIX;
@@ -1150,36 +1168,31 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     /**
      * When unmapped_fields=load and an index has a partially mapped field that is not KEYWORD (e.g. LONG),
-     * analysis must fail once that field is used outside {@link EsRelation}.
-     * Covers one offending field; see {@link #testDisallowLoadWithPartiallyMappedNonKeywordReportsAllFields} for multiple.
+     * analysis must autocast to the mapped type if conversion was possible.
      */
-    public void testDisallowLoadWithPartiallyMappedNonKeyword() {
+    public void testLoadWithPartiallyMappedNonKeywordAutoCast() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         var esIndex = partialIndex(Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
-        assertUnmappedLoadError(
-            analyzer().addIndex(esIndex),
-            "FROM idx* | WHERE partial_long > 0",
-            partiallyUnmappedNonKeywordError("partial_long")
-        );
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx* | WHERE partial_long > 0"));
+
+        assertThat(plan, not(nullValue()));
+        assertTwoLeggedPunkResolution(plan, "partial_long", DataType.LONG);
     }
 
-    public void testDisallowLoadWithPartiallyMappedNonKeywordReportsAllFields() {
+    public void testLoadWithPartiallyMappedNonKeywordReportsAllFieldsAutoCast() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         var esIndex = partialIndex(
             Map.of("partial_long", longField("partial_long"), "partial_double", doubleField("partial_double")),
             Set.of("partial_long", "partial_double")
         );
-        assertUnmappedLoadError(
-            analyzer().addIndex(esIndex),
-            "FROM idx* | SORT partial_long, partial_double",
-            allOf(
-                containsString("Found 2 problems"),
-                partiallyUnmappedNonKeywordError("partial_long"),
-                partiallyUnmappedNonKeywordError("partial_double")
-            )
-        );
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx* | SORT partial_long, partial_double"));
+        assertThat(plan, not(nullValue()));
+
+        // assert PUNKs are resolved
+        assertTwoLeggedPunkResolution(plan, "partial_long", DataType.LONG);
+        assertTwoLeggedPunkResolution(plan, "partial_double", DataType.DOUBLE);
     }
 
     /**
@@ -1208,9 +1221,8 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             analyzer().addIndex("idx*", IndexResolution.valid(merged)),
             "FROM idx* | EVAL x = partial_long + 1, y = conflicted + 1",
             allOf(
-                containsString("Found 2 problems"),
-                partiallyUnmappedNonKeywordError("partial_long"),
-                containsString("Cannot use field [conflicted]")
+                containsString("Found 1 problem"),
+                containsString("line 1:72: Cannot use field [conflicted] due to ambiguities being mapped as [2] incompatible types:")
             )
         );
     }
@@ -1262,11 +1274,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             Map.of(),
             Map.of()
         );
-        assertUnmappedLoadError(
-            analyzer().addIndex(pattern, IndexResolution.valid(merged)),
-            "FROM idx_a, idx_b | WHERE partial_long > 0",
-            partiallyUnmappedNonKeywordError("partial_long")
-        );
+
+        var plan = analyzer().addIndex(merged).statement(setUnmappedLoad("FROM idx_a, idx_b | WHERE partial_long > 0"));
+        assertThat(plan, not(nullValue()));
+        assertTwoLeggedPunkResolution(plan, "partial_long", DataType.LONG);
     }
 
     public void testAllowLoadFromOnlyWhenPartialNonKeywordUnused() {
@@ -1277,7 +1288,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(plan, not(nullValue()));
     }
 
-    public void testDisallowLoadWithPartiallyMappedNonKeywordInRename() {
+    public void testLoadWithPartiallyMappedNonKeywordInRenameAutoCast() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         var esIndex = partialIndex(
@@ -1286,32 +1297,30 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         );
         var analyzer = analyzer().addIndex(esIndex);
 
-        assertUnmappedLoadError(analyzer, "FROM idx* | RENAME partial_long AS pl", partiallyUnmappedNonKeywordError("partial_long"));
+        var plan = analyzer.statement(setUnmappedLoad("FROM idx* | RENAME partial_long AS pl"));
+        assertThat(plan, not(nullValue()));
+        assertTwoLeggedPunkResolution(plan, "partial_long", DataType.LONG);
 
-        assertUnmappedLoadError(
-            analyzer,
-            "FROM idx* | RENAME common as c, partial_long AS pl",
-            partiallyUnmappedNonKeywordError("partial_long")
-        );
+        plan = analyzer.statement(setUnmappedLoad("FROM idx* | RENAME common as c, partial_long AS pl"));
+        assertThat(plan, not(nullValue()));
+        assertTwoLeggedPunkResolution(plan, "partial_long", DataType.LONG);
     }
 
-    public void testDisallowLoadWithPartiallyMappedNonKeywordInSort() {
+    public void testLoadWithPartiallyMappedNonKeywordInSortAutoCast() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         var esIndex = partialIndex(Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
-        assertUnmappedLoadError(
-            analyzer().addIndex(esIndex),
-            "FROM idx* | SORT partial_long",
-            partiallyUnmappedNonKeywordError("partial_long")
-        );
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx* | SORT partial_long"));
+        assertThat(plan, not(nullValue()));
+        assertTwoLeggedPunkResolution(plan, "partial_long", DataType.LONG);
     }
 
     /**
-     * Same rule as {@link #testDisallowLoadWithPartiallyMappedNonKeyword} exercised through additional commands
+     * Same rule as {@link #testLoadWithPartiallyMappedNonKeywordAutoCast} exercised through additional commands
      * ({@code CHANGE_POINT} and {@code MV_EXPAND}) to ensure the check is not accidentally tied to a specific command.
      * A regression that bypasses the verifier for one of these commands would cause its test to fail.
      */
-    public void testDisallowLoadWithPartiallyMappedNonKeywordInChangePoint() {
+    public void testLoadWithPartiallyMappedNonKeywordInChangePointAutoCast() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
         assumeTrue("Requires CHANGE_POINT", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
 
@@ -1324,32 +1333,34 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ),
             Set.of("partial_long")
         );
-        assertUnmappedLoadError(
-            analyzer().addIndex(esIndex),
-            "FROM idx* | CHANGE_POINT partial_long ON @timestamp AS type, pvalue",
-            partiallyUnmappedNonKeywordError("partial_long")
-        );
+
+        var plan = analyzer().addIndex(esIndex)
+            .statement(setUnmappedLoad("FROM idx* | CHANGE_POINT partial_long ON @timestamp AS type, pvalue"));
+        assertThat(plan, not(nullValue()));
+        assertTwoLeggedPunkResolution(plan, "partial_long", DataType.LONG);
     }
 
-    /** See {@link #testDisallowLoadWithPartiallyMappedNonKeywordInChangePoint}. */
-    public void testDisallowLoadWithPartiallyMappedNonKeywordInMvExpand() {
+    /** See {@link #testLoadWithPartiallyMappedNonKeywordInChangePointAutoCast}. */
+    public void testAllowLoadWithPartiallyMappedNonKeywordInMvExpand() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         var esIndex = partialIndex(Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
-        assertUnmappedLoadError(
-            analyzer().addIndex(esIndex),
-            "FROM idx* | MV_EXPAND partial_long",
-            partiallyUnmappedNonKeywordError("partial_long")
-        );
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx* | MV_EXPAND partial_long"));
+
+        assertThat(plan, not(nullValue()));
+        assertTwoLeggedPunkResolution(plan, "partial_long", DataType.LONG);
     }
 
-    public void testDisallowLoadWithPartiallyMappedNonKeywordDottedPath() {
+    public void testLoadWithPartiallyMappedNonKeywordDottedPathAutoCast() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         var sub = InvalidMappedField.potentiallyUnmapped("sub", Map.of(DataType.LONG.typeName(), Set.of("idx_mapped")));
         var obj = new EsField("obj", DataType.OBJECT, Map.of("sub", sub), true, EsField.TimeSeriesFieldType.NONE);
         var esIndex = new EsIndex("idx*", Map.of("obj", obj), Map.of("idx_mapped", IndexMode.STANDARD), Map.of(), Map.of());
-        assertUnmappedLoadError(analyzer().addIndex(esIndex), "FROM idx* | SORT `obj.sub`", partiallyUnmappedNonKeywordError("obj.sub"));
+
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx* | SORT `obj.sub`"));
+        assertThat(plan, not(nullValue()));
+        assertTwoLeggedPunkResolution(plan, "obj.sub", DataType.LONG);
     }
 
     /**
@@ -1464,6 +1475,45 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         for (var statement : List.of(setUnmappedNullify(query), setUnmappedLoad(query))) {
             analyzer.statementError(statement, allOf(() -> Iterators.map(Iterators.forArray(failures), Matchers::containsString)));
         }
+    }
+
+    /**
+     * Assert that the plan contains exactly one {@code MultiTypeEsField} of the passed type. This is a proxy to the idea that
+     * the two-legged PUNK was correctly resolved by the analyzer rule.
+     */
+    private void assertTwoLeggedPunkResolution(LogicalPlan plan, String name, DataType type) {
+        Set<MultiTypeEsField> fields = new HashSet<>();
+
+        plan.forEachExpressionDown(FieldAttribute.class, fa -> {
+            if (fa.name().equals(name) && fa.field() instanceof MultiTypeEsField field) {
+                fields.add(field);
+            }
+        });
+
+        String msg = String.format("Expected exactly one %s field [%s] of type [MultiTypeEsField]. Got %s.", name, type, fields.size());
+
+        assertThat(msg, fields, hasSize(1));
+
+        MultiTypeEsField field = fields.iterator().next();
+
+        assertEquals(field.getDataType(), type);
+        assertThat(field.getIndexToConversionExpressions().isEmpty(), is(false));
+        assertThat(field.getPotentiallyUnmappedExpression(), notNullValue());
+    }
+
+    private void assertNoTwoLeggedPunkResolution(LogicalPlan plan, String name, DataType type) {
+        Set<FieldAttribute> fields = new HashSet<>();
+        plan.forEachExpressionDown(FieldAttribute.class, fa -> {
+            if (fa.name().equals(name)) {
+                fields.add(fa);
+            }
+        });
+
+        assertThat("Expected field [" + name + "]", fields, hasSize(1));
+
+        FieldAttribute fa = fields.iterator().next();
+        assertThat(fa.dataType(), equalTo(type));
+        assertThat("Field [" + name + "] should NOT be a MultiTypeEsField", fa.field(), not(instanceOf(MultiTypeEsField.class)));
     }
 
     private static TestAnalyzer test() {

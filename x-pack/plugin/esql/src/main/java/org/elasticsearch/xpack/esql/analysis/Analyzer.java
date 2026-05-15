@@ -2599,6 +2599,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * Return an {@link UnsupportedAttribute} so the verifier can flag illegal use of fields with type conflicts.
          */
         private static Attribute cleanTypeConflicts(FieldAttribute fa) {
+            EsField field = fa.field();
+            if (field instanceof InvalidMappedField imf && imf.isPotentiallyUnmapped() && imf.types().size() == 1) {
+                DataType type = imf.types().iterator().next();
+                var restoredField = new EsField(imf.getName(), type, imf.getProperties(), false, imf.getTimeSeriesFieldType());
+                // TODO: add test where not passing on the parent name fails the test
+                // TODO: add TS tests and tests with different time series field types
+                return new FieldAttribute(
+                    fa.source(),
+                    fa.parentName(),
+                    fa.qualifier(),
+                    fa.name(),
+                    restoredField,
+                    fa.nullable(),
+                    fa.id(),
+                    fa.synthetic()
+                );
+            }
             return fa.flagTypeConflicts();
         }
 

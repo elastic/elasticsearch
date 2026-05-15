@@ -134,6 +134,58 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
                     equalTo(false)
                 );
             }));
+            // Long-literal contains pattern — value and literal both exceed the SIMD activation
+            // threshold inside ESVectorUtil (>= 24 bytes). Ensures the evaluator drives the
+            // vectorized first+last-byte filter, not just the scalar fallback.
+            suppliers.add(new TestCaseSupplier("long-literal contains match with " + type.esType(), List.of(type, DataType.KEYWORD), () -> {
+                String middle = randomAlphaOfLength(32);
+                BytesRef str = new BytesRef(randomAlphaOfLength(16) + middle + randomAlphaOfLength(16));
+                BytesRef pattern = new BytesRef("*" + middle + "*");
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(str, type, "str"),
+                        new TestCaseSupplier.TypedData(pattern, DataType.KEYWORD, "pattern").forceLiteral()
+                    ),
+                    startsWith("WildcardLikeContainsEvaluator[str=Attribute[channel=0], pattern="),
+                    DataType.BOOLEAN,
+                    equalTo(true)
+                );
+            }));
+            // Long-literal miss — same SIMD path, false branch.
+            suppliers.add(
+                new TestCaseSupplier("long-literal contains no-match with " + type.esType(), List.of(type, DataType.KEYWORD), () -> {
+                    String middle = randomAlphaOfLength(40);
+                    String different = randomValueOtherThanMany(s -> s.contains(middle), () -> randomAlphaOfLength(80));
+                    BytesRef str = new BytesRef(different);
+                    BytesRef pattern = new BytesRef("*" + middle + "*");
+                    return new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(str, type, "str"),
+                            new TestCaseSupplier.TypedData(pattern, DataType.KEYWORD, "pattern").forceLiteral()
+                        ),
+                        startsWith("WildcardLikeContainsEvaluator[str=Attribute[channel=0], pattern="),
+                        DataType.BOOLEAN,
+                        equalTo(false)
+                    );
+                })
+            );
+            // Literal-shorter-than-value but value is short — exercises the scalar path below the
+            // SIMD threshold.
+            suppliers.add(
+                new TestCaseSupplier("short-literal contains match with " + type.esType(), List.of(type, DataType.KEYWORD), () -> {
+                    BytesRef str = new BytesRef("axyzbc");
+                    BytesRef pattern = new BytesRef("*xyz*");
+                    return new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(str, type, "str"),
+                            new TestCaseSupplier.TypedData(pattern, DataType.KEYWORD, "pattern").forceLiteral()
+                        ),
+                        startsWith("WildcardLikeContainsEvaluator[str=Attribute[channel=0], pattern="),
+                        DataType.BOOLEAN,
+                        equalTo(true)
+                    );
+                })
+            );
             // Embedded wildcard in the middle (*foo*bar*) — must NOT take the contains fast path;
             // falls through to AutomataMatch.
             suppliers.add(new TestCaseSupplier("multi-wildcard with " + type.esType(), List.of(type, DataType.KEYWORD), () -> {

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.pushdown.ByteMatchers;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -184,42 +185,19 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
     }
 
     /**
-     * Byte-level substring search emulating {@code LIKE "*literal*"}. Naive
-     * scan: at each candidate starting position, compare against the pattern
-     * bytes until a mismatch or full match. Both this path and
+     * Byte-level substring search emulating {@code LIKE "*literal*"}. Delegates
+     * to {@link ByteMatchers#containsLiteral(BytesRef, BytesRef)}, which routes
+     * through the SIMD substring primitive shared with the datasource
+     * pushdown evaluators (Panama Vector API first+last-byte filter for values
+     * &ge; 24 bytes; tight scalar loop below that). Both this path and
      * {@code AutomataMatch} walk UTF-8 input bytes directly (UTF-8 is
-     * self-synchronizing, so a byte-level substring search is correct), so
-     * the fast path's saving comes from replacing the per-byte
-     * {@code RunAutomaton.step} state-machine walk with a JIT-friendly
-     * first-byte filter and tight inner compare.
+     * self-synchronizing, so a byte-level substring search is correct), so the
+     * fast path's saving comes from replacing the per-byte
+     * {@code RunAutomaton.step} state-machine walk with a vectorized search.
      */
     @Evaluator(extraName = "Contains")
     static boolean processContains(BytesRef str, @Fixed BytesRef pattern) {
-        final int pl = pattern.length;
-        if (pl == 0) {
-            return true;
-        }
-        if (str.length < pl) {
-            return false;
-        }
-        final byte[] sb = str.bytes;
-        final byte[] pb = pattern.bytes;
-        final int so = str.offset;
-        final int po = pattern.offset;
-        final int last = so + str.length - pl;
-        final byte first = pb[po];
-        outer: for (int i = so; i <= last; i++) {
-            if (sb[i] != first) {
-                continue;
-            }
-            for (int j = 1; j < pl; j++) {
-                if (sb[i + j] != pb[po + j]) {
-                    continue outer;
-                }
-            }
-            return true;
-        }
-        return false;
+        return ByteMatchers.containsLiteral(str, pattern);
     }
 
     @Override

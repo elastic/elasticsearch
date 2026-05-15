@@ -206,4 +206,62 @@ public class ByteMatchersTests extends ESTestCase {
         BytesRef shortValue = new BytesRef("abc");
         assertFalse(ByteMatchers.affixContains(shortValue, new BytesRef("ab"), new BytesRef("xyz"), new BytesRef("c")));
     }
+
+    public void testContainsLiteralAcrossSimdBoundary() {
+        // ESVectorUtil#contains activates the SIMD first+last-byte filter at value length >= 24.
+        // Walk a representative set of sizes straddling and well past that boundary to catch any
+        // off-by-one between the scalar and vector code paths.
+        for (int size : new int[] { 1, 23, 24, 25, 31, 32, 33, 47, 48, 49, 63, 64, 65, 127, 128, 1024 }) {
+            byte[] buf = new byte[size];
+            for (int i = 0; i < size; i++) {
+                buf[i] = (byte) ('a' + (i % 26));
+            }
+            BytesRef value = new BytesRef(buf);
+            // Literal at the very start.
+            assertTrue("hit at start, size=" + size, ByteMatchers.containsLiteral(value, new BytesRef(new byte[] { buf[0] })));
+            // Literal in the middle (5 bytes wide where the value is long enough).
+            if (size >= 5) {
+                int mid = size / 2 - 2;
+                byte[] lit = new byte[Math.min(5, size)];
+                System.arraycopy(buf, mid, lit, 0, lit.length);
+                assertTrue("hit at middle, size=" + size, ByteMatchers.containsLiteral(value, new BytesRef(lit)));
+            }
+            // Literal at the very end.
+            byte[] tail = new byte[] { buf[size - 1] };
+            assertTrue("hit at end, size=" + size, ByteMatchers.containsLiteral(value, new BytesRef(tail)));
+            // Single-byte literal that is guaranteed absent (any byte in the value buffer is in
+            // [a..z]; '!' is not).
+            assertFalse("miss, size=" + size, ByteMatchers.containsLiteral(value, new BytesRef("!")));
+        }
+    }
+
+    public void testContainsLiteralMultibyteUtf8() {
+        // UTF-8 is self-synchronizing so byte-level contains is codepoint-correct for valid UTF-8.
+        // Pin that contract here.
+        BytesRef value = new BytesRef("voilà café naïve résumé Москва 北京 東京");
+        assertTrue(ByteMatchers.containsLiteral(value, new BytesRef("café")));
+        assertTrue(ByteMatchers.containsLiteral(value, new BytesRef("Москва")));
+        assertTrue(ByteMatchers.containsLiteral(value, new BytesRef("北京")));
+        assertFalse(ByteMatchers.containsLiteral(value, new BytesRef("paris")));
+    }
+
+    public void testContainsLiteralRandomizedAgainstStringIndexOf() {
+        // Cross-check the byte-level SIMD contains against the JDK's String#contains on randomized
+        // inputs. The inputs are restricted to ASCII so the two semantics coincide and we are only
+        // testing the search, not encoding edge cases.
+        for (int iter = 0; iter < 2000; iter++) {
+            int valueLen = randomIntBetween(0, 128);
+            int literalLen = randomIntBetween(0, Math.min(valueLen + 2, 16));
+            String value = randomAlphaOfLength(valueLen);
+            String literal = literalLen == 0 ? "" : randomAlphaOfLength(literalLen);
+            // Bias half the iterations to "hit" cases by splicing the literal into the value.
+            if (literalLen > 0 && literalLen <= valueLen && randomBoolean()) {
+                int insertAt = randomIntBetween(0, valueLen - literalLen);
+                value = value.substring(0, insertAt) + literal + value.substring(insertAt + literalLen);
+            }
+            boolean expected = value.contains(literal);
+            boolean actual = ByteMatchers.containsLiteral(new BytesRef(value), new BytesRef(literal));
+            assertEquals("value=[" + value + "] literal=[" + literal + "]", expected, actual);
+        }
+    }
 }

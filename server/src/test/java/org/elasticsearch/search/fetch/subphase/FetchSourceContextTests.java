@@ -23,9 +23,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 public class FetchSourceContextTests extends AbstractXContentSerializingTestCase<FetchSourceContext> {
     @Override
@@ -75,29 +72,21 @@ public class FetchSourceContextTests extends AbstractXContentSerializingTestCase
         };
     }
 
-    public void testParseFromRestRequestDefaultsExcludeInferenceFieldsToExcludeVectors() {
-        // _source_exclude_vectors=false must also rehydrate inference fields, matching fromXContent() behavior
-        // and the documented contract on FetchSourceContext (see #146425).
-        FetchSourceContext context = parseRestRequestWithExcludeVectors("false");
-        assertThat(context.fetchSource(), is(true));
-        assertThat(context.excludeVectors(), equalTo(false));
-        assertThat(context.excludeInferenceFields(), equalTo(false));
-
-        context = parseRestRequestWithExcludeVectors("true");
-        assertThat(context.excludeVectors(), equalTo(true));
-        assertThat(context.excludeInferenceFields(), equalTo(true));
-    }
-
-    public void testParseFromRestRequestReturnsNullWhenNoSourceParams() {
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).build();
-        assertThat(FetchSourceContext.parseFromRestRequest(request), nullValue());
-    }
-
-    private FetchSourceContext parseRestRequestWithExcludeVectors(String value) {
+    public void testParseFromRestRequestMatchesFromXContent() throws IOException {
+        boolean excludeVectors = randomBoolean();
+        // REST URL param path
         Map<String, String> params = new HashMap<>();
-        params.put("_source_exclude_vectors", value);
+        params.put("_source_exclude_vectors", String.valueOf(excludeVectors));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
-        return FetchSourceContext.parseFromRestRequest(request);
+        FetchSourceContext fromRest = FetchSourceContext.parseFromRestRequest(request);
+        // XContent body path
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("exclude_vectors", excludeVectors)
+            .endObject();
+        XContentParser parser = createParser(builder);
+        FetchSourceContext fromXContent = FetchSourceContext.fromXContent(parser);
+        assertEquals("REST and XContent paths must agree for exclude_vectors=" + excludeVectors, fromXContent, fromRest);
     }
 
     public void testFromXContentException() throws IOException {

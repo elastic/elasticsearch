@@ -19,11 +19,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
@@ -35,7 +32,6 @@ import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata;
 import java.security.SecureRandom;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -64,57 +60,6 @@ public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyP
     // for it). If an old node becomes master, it sees no existing key and generates a new one,
     // orphaning any data encrypted with the original key.
     public static final NodeFeature PRIMARY_ENCRYPTION_KEY_FEATURE = new NodeFeature("security.primary_encryption_key");
-
-    /**
-     * How frequently the primary encryption key is rotated. {@link TimeValue#ZERO} disables rotation.
-     */
-    public static final Setting<TimeValue> ROTATION_INTERVAL_SETTING = Setting.timeSetting(
-        "xpack.security.encryption.key_rotation.interval",
-        TimeValue.timeValueDays(30),
-        TimeValue.ZERO,
-        Property.NodeScope
-    );
-
-    /**
-     * How often the master polls to drive rotation forward (begin a new rotation if due, resume
-     * an in-progress rotation, or retire old keys when handlers have all completed).
-     */
-    public static final Setting<TimeValue> CHECK_INTERVAL_SETTING = Setting.timeSetting(
-        "xpack.security.encryption.key_rotation.check_interval",
-        TimeValue.timeValueHours(1),
-        new Setting.Validator<>() {
-            @Override
-            public void validate(TimeValue value) {
-                if (value.compareTo(TimeValue.timeValueSeconds(1)) < 0) {
-                    throw new IllegalArgumentException(
-                        "[xpack.security.encryption.key_rotation.check_interval] must be at least 1s, got [" + value + "]"
-                    );
-                }
-            }
-
-            @Override
-            public void validate(TimeValue value, Map<Setting<?>, Object> settings) {
-                TimeValue rotationInterval = (TimeValue) settings.get(ROTATION_INTERVAL_SETTING);
-                if (rotationInterval.duration() > 0 && value.compareTo(rotationInterval) > 0) {
-                    throw new IllegalArgumentException(
-                        "[xpack.security.encryption.key_rotation.check_interval] ("
-                            + value
-                            + ") must not be greater than ["
-                            + ROTATION_INTERVAL_SETTING.getKey()
-                            + "] ("
-                            + rotationInterval
-                            + ")"
-                    );
-                }
-            }
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                return List.<Setting<?>>of(ROTATION_INTERVAL_SETTING).iterator();
-            }
-        },
-        Property.NodeScope
-    );
 
     private final MasterServiceTaskQueue<KeyRotationTask> taskQueue;
     private final ProjectResolver projectResolver;

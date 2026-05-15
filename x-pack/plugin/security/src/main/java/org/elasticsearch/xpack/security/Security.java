@@ -1690,8 +1690,8 @@ public class Security extends Plugin
         settingsList.add(Setting.stringListSetting(SecurityField.setting("hide_settings"), Property.NodeScope, Property.Filtered));
 
         if (PrimaryEncryptionKeyService.PRIMARY_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()) {
-            settingsList.add(PrimaryEncryptionKeyService.ROTATION_INTERVAL_SETTING);
-            settingsList.add(PrimaryEncryptionKeyService.CHECK_INTERVAL_SETTING);
+            settingsList.add(KeyRotationCoordinator.ROTATION_INTERVAL_SETTING);
+            settingsList.add(KeyRotationCoordinator.CHECK_INTERVAL_SETTING);
         }
         return settingsList;
     }

@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
@@ -23,6 +24,9 @@ import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata;
 
 import java.io.Closeable;
 import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -41,16 +45,70 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
     // Number of check_intervals a non-active key persists before being retired.
     private static final int GRACE_TICKS = 10;
 
+    /**
+     * How frequently the primary encryption key is rotated. {@link TimeValue#ZERO} disables rotation.
+     */
+    public static final Setting<TimeValue> ROTATION_INTERVAL_SETTING = Setting.timeSetting(
+        "xpack.security.encryption.key_rotation.interval",
+        TimeValue.timeValueDays(30),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * How often the master polls to drive rotation forward (begin a new rotation if due, resume
+     * an in-progress rotation, or retire old keys when handlers have all completed).
+     */
+    public static final Setting<TimeValue> CHECK_INTERVAL_SETTING = Setting.timeSetting(
+        "xpack.security.encryption.key_rotation.check_interval",
+        TimeValue.timeValueHours(1),
+        new Setting.Validator<>() {
+            @Override
+            public void validate(TimeValue value) {
+                if (value.compareTo(TimeValue.timeValueSeconds(1)) < 0) {
+                    throw new IllegalArgumentException(
+                        "[xpack.security.encryption.key_rotation.check_interval] must be at least 1s, got [" + value + "]"
+                    );
+                }
+            }
+
+            @Override
+            public void validate(TimeValue value, Map<Setting<?>, Object> settings) {
+                TimeValue rotationInterval = (TimeValue) settings.get(ROTATION_INTERVAL_SETTING);
+                if (rotationInterval.duration() > 0 && value.compareTo(rotationInterval) > 0) {
+                    throw new IllegalArgumentException(
+                        "[xpack.security.encryption.key_rotation.check_interval] ("
+                            + value
+                            + ") must not be greater than ["
+                            + ROTATION_INTERVAL_SETTING.getKey()
+                            + "] ("
+                            + rotationInterval
+                            + ")"
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(ROTATION_INTERVAL_SETTING).iterator();
+            }
+        },
+        Setting.Property.NodeScope
+    );
+
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final PrimaryEncryptionKeyService pekService;
     private final TimeValue rotationInterval;
     private final TimeValue checkInterval;
 
-    private volatile Scheduler.Cancellable scheduledTask;
+    // Only accessed inside synchronized startSchedule/stopSchedule/close, so plain mutable is fine.
+    private Scheduler.Cancellable scheduledTask;
+    // Read lock-free from tick(); written from synchronized close().
     private volatile boolean closed = false;
+    // CAS'd from rotate() on the scheduler thread; reset from a runAfter callback that may run on a handler's thread.
     private final AtomicBoolean rotating = new AtomicBoolean(false);
-    // Used for logging when a rotation is in progress for an unexpectedly long time.
+    // Used for logging when a rotation is in progress for an unexpectedly long time. Same access pattern as `rotating`.
     private final AtomicLong rotatingSince = new AtomicLong(0L);
 
     public static KeyRotationCoordinator create(
@@ -59,8 +117,8 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
         PrimaryEncryptionKeyService pekService,
         Settings settings
     ) {
-        TimeValue rotationInterval = PrimaryEncryptionKeyService.ROTATION_INTERVAL_SETTING.get(settings);
-        TimeValue checkInterval = PrimaryEncryptionKeyService.CHECK_INTERVAL_SETTING.get(settings);
+        TimeValue rotationInterval = ROTATION_INTERVAL_SETTING.get(settings);
+        TimeValue checkInterval = CHECK_INTERVAL_SETTING.get(settings);
         KeyRotationCoordinator coordinator = new KeyRotationCoordinator(
             clusterService,
             threadPool,

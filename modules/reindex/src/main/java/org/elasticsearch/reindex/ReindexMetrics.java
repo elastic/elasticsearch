@@ -25,7 +25,7 @@ public class ReindexMetrics {
     public static final String REINDEX_TIME_HISTOGRAM = "es.reindex.duration.histogram";
     public static final String REINDEX_COMPLETION_COUNTER = "es.reindex.completion.total";
     public static final String REINDEX_RELOCATION_COUNTER = "es.reindex.relocation.total";
-    public static final String REINDEX_RELOCATION_STARTED_COUNTER = "es.reindex.relocation.started";
+    public static final String REINDEX_RELOCATION_STARTED_COUNTER = "es.reindex.relocation.started.total";
 
     // refers to https://opentelemetry.io/docs/specs/semconv/registry/attributes/error/#error-type
     public static final String ATTRIBUTE_NAME_ERROR_TYPE = "error_type";

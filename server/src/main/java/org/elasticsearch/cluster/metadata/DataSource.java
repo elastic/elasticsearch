@@ -146,28 +146,6 @@ public final class DataSource implements Writeable, ToXContentObject {
         return uuid;
     }
 
-    /**
-     * Flatten settings for the query pipeline. Values are plaintext including secrets. Each setting is accessed
-     * through its classification-specific accessor (non-secret vs secret), so this iteration is explicit about
-     * producing plaintext for both kinds.
-     */
-    public Map<String, Object> toUnencryptedMap() {
-        Map<String, Object> result = new HashMap<>();
-        for (var entry : settings.entrySet()) {
-            DataSourceSetting setting = entry.getValue();
-            Object plaintext;
-            if (setting.secret()) {
-                try (var secure = setting.secretValue()) {
-                    plaintext = secure == null ? null : secure.toString();
-                }
-            } else {
-                plaintext = setting.nonSecretValue();
-            }
-            result.put(entry.getKey(), plaintext);
-        }
-        return Collections.unmodifiableMap(result);
-    }
-
     /** Settings with secrets masked. Safe for REST responses. */
     public Map<String, Object> toPresentationMap() {
         Map<String, Object> result = new HashMap<>();

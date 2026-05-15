@@ -320,13 +320,11 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(out.config().get("format"), equalTo((Object) "parquet"));
     }
 
-    public void testSecretSettingsArrivedAsSecureStringNotPlaintext() {
-        // Secret values arrive in the carrier as SecureString rather than plaintext String — a
-        // hygiene boundary at this layer, not an end-to-end guarantee. DataSourceSetting wraps the
-        // underlying String in a SecureString on every secretValue() call; consumers may close()
-        // after use to bound the carrier-side lifetime. Plugins still call .toString() at the point
-        // of use, which materializes a plaintext copy that the SDK consumes — full secret-handling
-        // protection is out of scope for this layer and is tracked under separate encryption work.
+    public void testSecretSettingsForwardedAsRawCarrier() {
+        // Secret values pass through mergeSettings as their raw encrypted-carrier shape — String for
+        // legacy plaintext entries (this test), EncryptedData for encrypted entries, or a Map for the
+        // parsed-from-XContent encrypted-object form. The connector decrypts at its entry; the
+        // coordinator never materializes plaintext.
         DataSource parent = dataSource("s3_parent", Map.of("access_key", new DataSourceSetting("AKIAEXAMPLE_SECRET_VALUE", true)));
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
@@ -335,9 +333,10 @@ public class DatasetRewriterTests extends ESTestCase {
 
         UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
         Object accessKey = out.config().get("access_key");
-        assertThat(accessKey, instanceOf(org.elasticsearch.common.settings.SecureString.class));
-        // .toString() at the consumer surfaces the plaintext.
-        assertThat(accessKey.toString(), equalTo("AKIAEXAMPLE_SECRET_VALUE"));
+        // Legacy / plaintext-stored entry comes through as the original String; encrypted entries
+        // would arrive as an EncryptedData GenericNamedWriteable instead.
+        assertThat(accessKey, instanceOf(String.class));
+        assertThat(accessKey, equalTo("AKIAEXAMPLE_SECRET_VALUE"));
     }
 
     public void testFastPathSkipsResolverWhenNoPatternCouldMatchDataset() {

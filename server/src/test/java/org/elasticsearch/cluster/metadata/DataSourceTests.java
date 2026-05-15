@@ -123,20 +123,6 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
         assertEquals(2, deserialized.settings().size());
     }
 
-    public void testToUnencryptedMap() {
-        var dataSource = new DataSource(
-            "my-s3",
-            "s3",
-            null,
-            Map.of("access_key", new DataSourceSetting("AKIA123", true), "region", new DataSourceSetting("us-east-1", false)),
-            null
-        );
-
-        Map<String, Object> plain = dataSource.toUnencryptedMap();
-        assertEquals("AKIA123", plain.get("access_key"));
-        assertEquals("us-east-1", plain.get("region"));
-    }
-
     public void testToPresentationMap() {
         var dataSource = new DataSource(
             "my-s3",
@@ -151,27 +137,9 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
         assertEquals("us-east-1", masked.get("region"));
     }
 
-    public void testToUnencryptedMapWithNullValues() {
-        // Settings with value=null must round-trip through the map without NPE. HashMap (+ Collections.unmodifiableMap)
-        // permit null values; Map.copyOf() does not, which is why the implementation uses the former.
-        Map<String, DataSourceSetting> settings = new HashMap<>();
-        settings.put("optional_secret", new DataSourceSetting(null, true));
-        settings.put("optional_region", new DataSourceSetting(null, false));
-        settings.put("present", new DataSourceSetting("us-east-1", false));
-        var dataSource = new DataSource("my-s3", "s3", null, settings, null);
-
-        Map<String, Object> plain = dataSource.toUnencryptedMap();
-        assertTrue(plain.containsKey("optional_secret"));
-        assertNull(plain.get("optional_secret"));
-        assertTrue(plain.containsKey("optional_region"));
-        assertNull(plain.get("optional_region"));
-        assertEquals("us-east-1", plain.get("present"));
-    }
-
     public void testToPresentationMapWithNullValues() {
-        // Same null-safety property as toUnencryptedMap: the secret's masked sentinel applies to its classification,
-        // not its value, so a null secret value still surfaces as null in the presentation map. A null non-secret
-        // value also stays null.
+        // The secret's masked sentinel applies to its classification, not its value, so a null secret value still
+        // surfaces as null in the presentation map. A null non-secret value also stays null.
         Map<String, DataSourceSetting> settings = new HashMap<>();
         settings.put("optional_secret", new DataSourceSetting(null, true));
         settings.put("optional_region", new DataSourceSetting(null, false));

@@ -235,15 +235,16 @@ public final class DatasetRewriter {
     }
 
     /**
-     * Parent settings overlaid by dataset settings. Secrets stay as
-     * {@link org.elasticsearch.common.settings.SecureString}; callers materialize plaintext via
-     * {@link Object#toString()} at use site. Use {@code Objects.toString(config.get(key), null)}
-     * — direct {@code (String)} cast would CCE on non-String values.
+     * Parent settings overlaid by dataset settings. Secrets are forwarded as their raw encrypted-carrier
+     * shape (whatever {@link DataSourceSetting#encryptedSecret()} returns — String for legacy plaintext,
+     * an {@code EncryptedData} {@link org.elasticsearch.common.io.stream.GenericNamedWriteable} for
+     * encrypted entries, or a {@code Map<String, Object>} parsed from encrypted XContent). The connector
+     * decrypts at its entry via the data-node decrypt helper; the coordinator never sees plaintext.
      */
     private static Map<String, Object> mergeSettings(DataSource parent, Dataset dataset) {
         Map<String, Object> merged = new HashMap<>();
         for (Map.Entry<String, DataSourceSetting> e : parent.settings().entrySet()) {
-            merged.put(e.getKey(), e.getValue().secret() ? e.getValue().secretValue() : e.getValue().nonSecretValue());
+            merged.put(e.getKey(), e.getValue().secret() ? e.getValue().encryptedSecret() : e.getValue().nonSecretValue());
         }
         merged.putAll(dataset.settings());
         return merged;

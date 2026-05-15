@@ -45,7 +45,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     private final BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics;
     private final TimeValue taskShutdownGracePeriod;
     private final ReindexSettings reindexSettings;
-    private final CircuitBreaker requestBreaker;
+    private final CircuitBreaker reindexBreaker;
 
     @Inject
     public TransportDeleteByQueryAction(
@@ -72,9 +72,9 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         this.taskShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
         this.reindexSettings = Objects.requireNonNull(reindexSettings);
         Objects.requireNonNull(circuitBreakerService, "circuitBreakerService must not be null");
-        this.requestBreaker = Objects.requireNonNull(
-            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST),
-            "REQUEST circuit breaker must be available — delete-by-query relies on it for per-batch heap reservations"
+        this.reindexBreaker = Objects.requireNonNull(
+            circuitBreakerService.getBreaker(ReindexPlugin.CIRCUIT_BREAKER_NAME),
+            "reindex circuit breaker must be available — delete-by-query relies on it for per-batch heap reservations"
         );
     }
 
@@ -111,7 +111,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
                     bulkByScrollSearchContextMetrics,
                     taskShutdownGracePeriod,
                     reindexSettings,
-                    requestBreaker
+                    reindexBreaker
                 ).start();
             }
         );

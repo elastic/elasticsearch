@@ -55,7 +55,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     private final BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics;
     private final TimeValue taskShutdownGracePeriod;
     private final ReindexSettings reindexSettings;
-    private final CircuitBreaker requestBreaker;
+    private final CircuitBreaker reindexBreaker;
 
     @Inject
     public TransportUpdateByQueryAction(
@@ -81,7 +81,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         // without this safe default, adding relocations to update-by-query without updating this might open it up to race conditions.
         this.taskShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
         this.reindexSettings = Objects.requireNonNull(reindexSettings);
-        this.requestBreaker = Objects.requireNonNull(circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
+        this.reindexBreaker = Objects.requireNonNull(circuitBreakerService.getBreaker(ReindexPlugin.CIRCUIT_BREAKER_NAME));
     }
 
     @Override
@@ -117,7 +117,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                     taskShutdownGracePeriod,
                     bulkByScrollSearchContextMetrics,
                     reindexSettings,
-                    requestBreaker
+                    reindexBreaker
                 ).start();
             }
         );
@@ -139,7 +139,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             TimeValue maxTaskShutdownGracePeriod,
             @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
             ReindexSettings reindexSettings,
-            CircuitBreaker requestBreaker
+            CircuitBreaker reindexBreaker
         ) {
             super(
                 task,
@@ -159,7 +159,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                 false,
                 maxTaskShutdownGracePeriod,
                 reindexSettings,
-                requestBreaker,
+                reindexBreaker,
                 "update_by_query_bulk_batch"
             );
         }

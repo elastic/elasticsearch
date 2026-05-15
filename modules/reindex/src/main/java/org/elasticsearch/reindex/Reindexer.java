@@ -148,7 +148,7 @@ public class Reindexer {
     private final FeatureService featureService;
     private final TaskResultsService taskResultsService;
     private final TimeValue reindexShutdownGracePeriod;
-    private final CircuitBreaker requestBreaker;
+    private final CircuitBreaker reindexBreaker;
 
     Reindexer(
         ClusterService clusterService,
@@ -181,7 +181,7 @@ public class Reindexer {
         this.featureService = featureService;
         this.taskResultsService = Objects.requireNonNull(taskResultsService);
         this.reindexShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
-        this.requestBreaker = Objects.requireNonNull(circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
+        this.reindexBreaker = Objects.requireNonNull(circuitBreakerService.getBreaker(ReindexPlugin.CIRCUIT_BREAKER_NAME));
     }
 
     public void initTask(BulkByPaginatedSearchTask task, ReindexRequest request, ActionListener<Void> listener) {
@@ -312,7 +312,7 @@ public class Reindexer {
                 reindexShutdownGracePeriod,
                 bulkByScrollSearchContextMetrics,
                 reindexSettings,
-                requestBreaker
+                reindexBreaker
             );
             searchAction.start();
         };
@@ -971,7 +971,7 @@ public class Reindexer {
             TimeValue maxTaskShutdownGracePeriod,
             @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
             ReindexSettings reindexSettings,
-            CircuitBreaker requestBreaker
+            CircuitBreaker reindexBreaker
         ) {
             super(
                 task,
@@ -996,7 +996,7 @@ public class Reindexer {
                 request.getRemoteInfo() != null,
                 maxTaskShutdownGracePeriod,
                 reindexSettings,
-                requestBreaker,
+                reindexBreaker,
                 "reindex_bulk_batch"
             );
             this.destinationIndexIdMapper = destinationIndexMode(state).idFieldMapperForReindex();

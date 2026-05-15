@@ -43,7 +43,6 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -3118,7 +3117,7 @@ public class ReindexerTests extends ESTestCase {
 
     private static CircuitBreakerService noopCircuitBreakerService() {
         CircuitBreakerService service = mock(CircuitBreakerService.class);
-        when(service.getBreaker(CircuitBreaker.REQUEST)).thenReturn(new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+        when(service.getBreaker(ReindexPlugin.CIRCUIT_BREAKER_NAME)).thenReturn(new NoopCircuitBreaker(ReindexPlugin.CIRCUIT_BREAKER_NAME));
         return service;
     }
 

@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * End-to-end check that delete-by-query reserves heap against the REQUEST circuit breaker for the {@link
+ * End-to-end check that delete-by-query reserves heap against the dedicated {@code reindex} circuit breaker for the {@link
  * org.elasticsearch.action.bulk.BulkRequest} it is about to send, and surfaces a {@link
  * CircuitBreakingException} to the client when that reservation can't fit.
  *
@@ -55,7 +55,10 @@ public class DeleteByQueryCircuitBreakerTests extends ESSingleNodeTestCase {
             .put(super.nodeSettings())
             // DBQ's BulkRequest for 5 DeleteRequests is ≈ 5 × 50 = 250 bytes (no source bodies). Set the
             // breaker just under that so the reservation in prepareBulkRequest trips.
-            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "200b")
+            .put(
+                BreakerSettings.CIRCUIT_BREAKER_LIMIT_SETTING.getConcreteSettingForNamespace(ReindexPlugin.CIRCUIT_BREAKER_NAME).getKey(),
+                "200b"
+            )
             .build();
     }
 

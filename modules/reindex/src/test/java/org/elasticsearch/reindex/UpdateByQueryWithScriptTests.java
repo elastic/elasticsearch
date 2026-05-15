@@ -61,9 +61,7 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActio
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
 
         CircuitBreakerService circuitBreakerService = mock(CircuitBreakerService.class);
-        when(circuitBreakerService.getBreaker(org.elasticsearch.common.breaker.CircuitBreaker.REQUEST)).thenReturn(
-            new NoopCircuitBreaker("test")
-        );
+        when(circuitBreakerService.getBreaker(ReindexPlugin.CIRCUIT_BREAKER_NAME)).thenReturn(new NoopCircuitBreaker("test"));
         TransportUpdateByQueryAction transportAction = new TransportUpdateByQueryAction(
             threadPool,
             new ActionFilters(Collections.emptySet()),

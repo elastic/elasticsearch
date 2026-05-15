@@ -22,11 +22,11 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link ExpressionEvaluator} implementation for {@link LessThan}.
+ * {@link ExpressionEvaluator} implementation for {@link GreaterThanOrEqual}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class LessThanKeywordsEvaluator implements ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LessThanKeywordsEvaluator.class);
+public final class GreaterThanOrEqualBytesRefEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(GreaterThanOrEqualBytesRefEvaluator.class);
 
   private final Source source;
 
@@ -38,8 +38,8 @@ public final class LessThanKeywordsEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
-  public LessThanKeywordsEvaluator(Source source, ExpressionEvaluator lhs, ExpressionEvaluator rhs,
-      DriverContext driverContext) {
+  public GreaterThanOrEqualBytesRefEvaluator(Source source, ExpressionEvaluator lhs,
+      ExpressionEvaluator rhs, DriverContext driverContext) {
     this.source = source;
     this.lhs = lhs;
     this.rhs = rhs;
@@ -100,7 +100,7 @@ public final class LessThanKeywordsEvaluator implements ExpressionEvaluator {
         }
         BytesRef lhs = lhsBlock.getBytesRef(lhsBlock.getFirstValueIndex(p), lhsScratch);
         BytesRef rhs = rhsBlock.getBytesRef(rhsBlock.getFirstValueIndex(p), rhsScratch);
-        result.appendBoolean(LessThan.processKeywords(lhs, rhs));
+        result.appendBoolean(GreaterThanOrEqual.processBytesRef(lhs, rhs));
       }
       return result.build();
     }
@@ -113,7 +113,7 @@ public final class LessThanKeywordsEvaluator implements ExpressionEvaluator {
       position: for (int p = 0; p < positionCount; p++) {
         BytesRef lhs = lhsVector.getBytesRef(p, lhsScratch);
         BytesRef rhs = rhsVector.getBytesRef(p, rhsScratch);
-        result.appendBoolean(p, LessThan.processKeywords(lhs, rhs));
+        result.appendBoolean(p, GreaterThanOrEqual.processBytesRef(lhs, rhs));
       }
       return result.build();
     }
@@ -121,7 +121,7 @@ public final class LessThanKeywordsEvaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "LessThanKeywordsEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+    return "GreaterThanOrEqualBytesRefEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
   }
 
   @Override
@@ -151,13 +151,13 @@ public final class LessThanKeywordsEvaluator implements ExpressionEvaluator {
     }
 
     @Override
-    public LessThanKeywordsEvaluator get(DriverContext context) {
-      return new LessThanKeywordsEvaluator(source, lhs.get(context), rhs.get(context), context);
+    public GreaterThanOrEqualBytesRefEvaluator get(DriverContext context) {
+      return new GreaterThanOrEqualBytesRefEvaluator(source, lhs.get(context), rhs.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "LessThanKeywordsEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+      return "GreaterThanOrEqualBytesRefEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
     }
   }
 }

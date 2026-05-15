@@ -92,6 +92,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         ByteBuffer buf = result.get();
+        assertTrue("readBytesAsync must return a direct ByteBuffer", buf.isDirect());
         byte[] bytes = new byte[buf.remaining()];
         buf.get(bytes);
         assertArrayEquals(PAYLOAD, bytes);

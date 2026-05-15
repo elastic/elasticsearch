@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.http;
 
 import org.apache.http.HttpStatus;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -15,6 +16,12 @@ import java.io.IOException;
 import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
 import java.net.http.HttpResponse;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
@@ -110,6 +117,36 @@ public class HttpStorageObjectTests extends ESTestCase {
     public void testExistsOnNotFoundReturnsFalse() throws Exception {
         HttpStorageObject object = objectWithNotFoundResponse();
         assertFalse(object.exists());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testReadBytesAsyncReturnsDirectBuffer() throws Exception {
+        byte[] payload = "hello parquet".getBytes(StandardCharsets.UTF_8);
+
+        HttpResponse<byte[]> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(HttpStatus.SC_PARTIAL_CONTENT);
+        when(mockResponse.body()).thenReturn(payload);
+
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(CompletableFuture.completedFuture(mockResponse)).when(mockClient).sendAsync(any(), any());
+
+        StoragePath path = StoragePath.of("https://example.com/data.parquet");
+        HttpStorageObject object = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<ByteBuffer> result = new AtomicReference<>();
+
+        object.readBytesAsync(0, payload.length, Runnable::run, ActionListener.wrap(buf -> {
+            result.set(buf);
+            latch.countDown();
+        }, e -> { throw new AssertionError("unexpected failure", e); }));
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertNotNull(result.get());
+        assertTrue("readBytesAsync must return a direct ByteBuffer", result.get().isDirect());
+        byte[] actual = new byte[result.get().remaining()];
+        result.get().get(actual);
+        assertArrayEquals(payload, actual);
     }
 
     @SuppressWarnings("unchecked")

@@ -375,6 +375,7 @@ public class GcsStorageObjectTests extends ESTestCase {
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertNull(error.get());
         assertNotNull(result.get());
+        assertTrue("readBytesAsync must return a direct ByteBuffer", result.get().isDirect());
         assertEquals(5, result.get().remaining());
         verify(mockReader).seek(10);
         verify(mockReader).limit(15);

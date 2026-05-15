@@ -39,11 +39,17 @@ import java.util.zip.GZIPOutputStream;
  *
  * <p>Each decompressor supports both heap and direct {@link ByteBuffer}s. When both buffers are
  * direct, the JNI fast path is used (zero-copy for Snappy and Zstd). When either buffer is heap,
- * the decompressor falls back to the byte-array path. Parquet-MR's
- * {@code ColumnChunkPageReadStore} calls the {@code ByteBuffer} overload only when the allocator
- * is direct and {@code useOffHeapDecryptBuffer} is enabled; the current read path uses
- * {@code HeapByteBufferAllocator} so the {@code BytesInput} path is the hot path today, but the
- * direct path is ready for when we switch to a direct allocator.
+ * the decompressor falls back to the byte-array path. Two call sites reach these decompressors:
+ * <ul>
+ *   <li>{@code PrefetchedPageReader} explicitly calls the {@code decompress(ByteBuffer, int,
+ *       ByteBuffer, int)} overload with a direct output buffer; when S3-prefetched column chunks
+ *       arrive as direct {@code ByteBuffer}s (the common case), both sides are direct and
+ *       {@code GetPrimitiveArrayCritical} JNI pinning is avoided end-to-end.</li>
+ *   <li>Parquet-MR's {@code ColumnChunkPageReadStore} calls the {@code ByteBuffer} overload only
+ *       when the allocator is direct and {@code useOffHeapDecryptBuffer} is enabled; because we
+ *       use {@code DirectByteBufferAllocator}, this path also takes the direct-to-direct fast
+ *       path.</li>
+ * </ul>
  *
  * <p>This factory is shared across all driver threads of a query, so {@link #getDecompressor} and
  * {@link #getCompressor} must be safe under concurrent access. Thread-safety is achieved without
@@ -171,17 +177,16 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
         @Override
         public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
             byte[] out = UninitializedArrays.newByteArray(decompressedSize);
-            // Fast path: avoid BytesInput.toByteArray() for byte-array- or heap-buffer-backed inputs
-            // (the hot path for S3-prefetched column chunks). The default toByteArray() for those
-            // BytesInput subtypes funnels bytes through a sized ByteArrayOutputStream, adding one
-            // allocation and one System.arraycopy that the JNI Snappy binding does not need.
+            // Fast path: avoid BytesInput.toByteArray() for heap-buffer-backed inputs. The default
+            // toByteArray() for those BytesInput subtypes funnels bytes through a sized
+            // ByteArrayOutputStream, adding one allocation and one System.arraycopy that the JNI
+            // Snappy binding does not need. S3-prefetched column chunks go through
+            // PrefetchedPageReader which calls the ByteBuffer overload directly, so this path
+            // handles the non-prefetch (ColumnChunkPageReadStore) code path.
             ByteBuffer input = bytes.toByteBuffer();
             if (input.hasArray()) {
                 Snappy.uncompress(input.array(), input.arrayOffset() + input.position(), input.remaining(), out, 0);
             } else {
-                // Off-heap inputs (rare on this path) fall back to a single byte[] copy via
-                // toByteArray(). The byte[] overload is preferred over the ByteBuffer overload
-                // because the latter would also need to copy into a direct output buffer.
                 byte[] in = bytes.toByteArray();
                 Snappy.uncompress(in, 0, in.length, out, 0);
             }

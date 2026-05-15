@@ -82,7 +82,9 @@ public interface StorageObject {
         executor.execute(() -> {
             try (InputStream stream = newStream(position, length)) {
                 byte[] bytes = stream.readAllBytes();
-                listener.onResponse(ByteBuffer.wrap(bytes));
+                ByteBuffer direct = ByteBuffer.allocateDirect(bytes.length);
+                direct.put(bytes).flip();
+                listener.onResponse(direct);
             } catch (Exception e) {
                 listener.onFailure(e);
             }

@@ -22,6 +22,7 @@ import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -41,9 +42,11 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executor;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -309,6 +312,22 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
             @Override
             public StoragePath path() {
                 return StoragePath.of("memory://variant-test.parquet");
+            }
+
+            @Override
+            public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+                executor.execute(() -> {
+                    int pos = (int) position;
+                    int len = (int) Math.min(length, data.length - pos);
+                    ByteBuffer direct = ByteBuffer.allocateDirect(len);
+                    direct.put(data, pos, len).flip();
+                    listener.onResponse(direct);
+                });
+            }
+
+            @Override
+            public boolean supportsNativeAsync() {
+                return true;
             }
         };
     }

@@ -17,6 +17,7 @@ import org.elasticsearch.blobcache.CachePopulationSource;
 import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBytes;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Streams;
@@ -44,7 +45,10 @@ import static org.elasticsearch.xpack.stateless.StatelessPlugin.GET_VIRTUAL_BATC
  */
 public class CacheFileReader {
 
+    public static final FeatureFlag OBJECT_STORE_PREFETCH_FEATURE_FLAG = new FeatureFlag("stateless_object_store_prefetch");
+
     private static final Logger logger = LogManager.getLogger(CacheFileReader.class);
+
     private static final Map<String, Object> BLOB_POPULATION_SOURCE_ATTRIBUTES = Map.of(
         CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY,
         CachePopulationSource.BlobStore.name()
@@ -94,9 +98,10 @@ public class CacheFileReader {
     /**
      * Attempts to prefetch byte(s) from the local cache using the fast path.
      *
-     * <p>If the data is not in the cache, schedules an asynchronous download
-     * from the object store so that subsequent reads may find the data already
-     * cached.</p>
+     * <p>If the data is not in the cache and {@link #OBJECT_STORE_PREFETCH_FEATURE_FLAG} is enabled,
+     * schedules an asynchronous download from the object store so that subsequent reads may find the
+     * data already cached. Otherwise this method is best-effort and non-blocking, only succeeding
+     * when the data is already present in the local cache.</p>
      *
      * @param offset the starting offset to prefetch from
      * @param length the number of bytes to prefetch
@@ -105,6 +110,9 @@ public class CacheFileReader {
      * @throws IOException if an I/O error occurs
      */
     public final boolean tryPrefetch(long offset, long length) throws IOException {
+        if (OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled() == false) {
+            return cacheFile.tryPrefetch(offset, length);
+        }
         final long blobLength = cacheFile.getLength();
         // return when there is nothing to prefetch
         if (offset < 0 || offset >= blobLength || length <= 0) {

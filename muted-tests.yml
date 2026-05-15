@@ -542,6 +542,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148339
+  # TODO: exclude replicas that have not acked cluster state from async await
+- class: org.elasticsearch.cluster.coordination.RareClusterStateIT
+  issue: https://github.com/elastic/elasticsearch/pull/145363
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testGetVirtualBatchedCompoundCommitShouldNotStuckForConcurrentShardClose
   issue: https://github.com/elastic/elasticsearch/issues/149188

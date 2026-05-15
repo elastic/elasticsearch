@@ -310,28 +310,25 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
     }
 
     private void handleStartHandoff(StartHandoffRequest request, ActionListener<RelocationHandoffResponse> listener) {
-        var state = clusterService.state();
-        var observer = new ClusterStateObserver(state, clusterService, clusterStateConvergenceTimeout, logger, threadContext);
-        if (state.version() < request.getClusterStateVersion()) {
-            observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                @Override
-                public void onNewClusterState(ClusterState state) {
-                    doHandleStartHandoff(request, listener);
-                }
+        final var observer = new ClusterStateObserver(clusterService, clusterStateConvergenceTimeout, logger, threadContext);
+        observer.waitForState(new ClusterStateObserver.Listener() {
+            @Override
+            public void onNewClusterState(ClusterState state) {
+                // Wait for IndicesClusterStateService to apply the new state before proceeding.
+                clusterService.getClusterApplierService()
+                    .awaitAllAsyncAppliers(ActionListener.wrap(ignored -> doHandleStartHandoff(request, listener), listener::onFailure));
+            }
 
-                @Override
-                public void onClusterServiceClose() {
-                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
-                }
+            @Override
+            public void onClusterServiceClose() {
+                listener.onFailure(new NodeClosedException(clusterService.localNode()));
+            }
 
-                @Override
-                public void onTimeout(TimeValue timeout) {
-                    listener.onFailure(new ElasticsearchException("Cluster state convergence timed out"));
-                }
-            }, clusterState -> clusterState.version() >= request.getClusterStateVersion());
-        } else {
-            doHandleStartHandoff(request, listener);
-        }
+            @Override
+            public void onTimeout(TimeValue timeout) {
+                listener.onFailure(new ElasticsearchException("Cluster state convergence timed out"));
+            }
+        }, clusterState -> clusterState.version() >= request.getClusterStateVersion());
     }
 
     private void doHandleStartHandoff(StartHandoffRequest request, ActionListener<RelocationHandoffResponse> listener) {

@@ -19,6 +19,7 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
@@ -485,17 +486,32 @@ public abstract class TransportReplicationAction<
                 );
             }
 
-            acquirePrimaryOperationPermit(
-                indexShard,
-                primaryRequest.getRequest(),
-                ActionListener.wrap(releasable -> runWithPrimaryShardReference(new PrimaryShardReference(indexShard, releasable)), e -> {
-                    if (e instanceof ShardNotInPrimaryModeException) {
-                        onFailure(new ReplicationOperation.RetryOnPrimaryException(shardId, "shard is not in primary mode", e, false));
-                    } else {
-                        onFailure(e);
-                    }
-                })
+            // IndicesClusterStateService may apply cluster state asynchronously. Locally published
+            // cluster state can move ahead of index-level work (e.g. mapping merges), so wait before
+            // acquiring a primary permit.
+            final SubscribableListener<Void> asyncClusterStateAppliersListener = SubscribableListener.newForked(
+                clusterService.getClusterApplierService()::awaitAllAsyncAppliers
             );
+
+            asyncClusterStateAppliersListener.<Releasable>andThen(
+                executor,
+                threadPool.getThreadContext(),
+                (l, ignored) -> acquirePrimaryOperationPermit(indexShard, primaryRequest.getRequest(), l)
+            )
+                .addListener(
+                    ActionListener.wrap(
+                        releasable -> runWithPrimaryShardReference(new PrimaryShardReference(indexShard, releasable)),
+                        e -> {
+                            if (e instanceof ShardNotInPrimaryModeException) {
+                                onFailure(
+                                    new ReplicationOperation.RetryOnPrimaryException(shardId, "shard is not in primary mode", e, false)
+                                );
+                            } else {
+                                onFailure(e);
+                            }
+                        }
+                    )
+                );
         }
 
         void runWithPrimaryShardReference(final PrimaryShardReference primaryShardReference) {
@@ -828,14 +844,21 @@ public abstract class TransportReplicationAction<
                     actualAllocationId
                 );
             }
-            acquireReplicaOperationPermit(
-                replica,
-                replicaRequest.getRequest(),
-                this,
-                replicaRequest.getPrimaryTerm(),
-                replicaRequest.getGlobalCheckpoint(),
-                replicaRequest.getMaxSeqNoOfUpdatesOrDeletes()
+            final SubscribableListener<Void> asyncClusterStateAppliersListener = SubscribableListener.newForked(
+                clusterService.getClusterApplierService()::awaitAllAsyncAppliers
             );
+            asyncClusterStateAppliersListener.<Releasable>andThen(
+                executor,
+                threadPool.getThreadContext(),
+                (listener, ignored) -> acquireReplicaOperationPermit(
+                    replica,
+                    replicaRequest.getRequest(),
+                    listener,
+                    replicaRequest.getPrimaryTerm(),
+                    replicaRequest.getGlobalCheckpoint(),
+                    replicaRequest.getMaxSeqNoOfUpdatesOrDeletes()
+                )
+            ).addListener(this);
         }
     }
 
@@ -1109,7 +1132,18 @@ public abstract class TransportReplicationAction<
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    run();
+                    clusterService.getClusterApplierService().awaitAllAsyncAppliers(new ActionListener<>() {
+                        @Override
+                        public void onResponse(Void ignored) {
+                            run();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            failure.addSuppressed(e);
+                            finishWithUnexpectedFailure(failure);
+                        }
+                    });
                 }
 
                 @Override

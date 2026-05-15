@@ -318,6 +318,11 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         String nodeWithHigherMatching = randomFrom(internalCluster().nodesInclude(indexName));
         Settings nodeWithHigherMatchingSettings = internalCluster().dataPathSettings(nodeWithHigherMatching);
         internalCluster().stopNode(nodeWithHigherMatching);
+        // Wait for the master to detect the departure and promote the replica to primary,
+        // so that newStateFullyAppliedListener() captures the post-removal cluster state version.
+        ensureYellowAndNoInitializingShards(indexName);
+        // Wait for IndicesClusterStateService to fully apply the post-removal cluster state.
+        safeAwait(newStateFullyAppliedListener());
         if (usually()) {
             indexRandom(
                 randomBoolean(),

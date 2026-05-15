@@ -887,7 +887,12 @@ public class MasterService extends AbstractLifecycleComponent {
                     countDown++;
                 }
             }
-            logger.trace("expecting {} acknowledgements for cluster_state update (version: {})", countDown, clusterStateVersion);
+            logger.trace(
+                "expecting {} acknowledgements for cluster_state update (version: {}), timeout [{}]",
+                countDown,
+                clusterStateVersion,
+                ackTimeout
+            );
             this.countDown = new CountDown(countDown + 1); // we also wait for onCommit to be called
         }
 

@@ -1986,10 +1986,12 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         // Wait for the replica to be promoted to primary and fill the gaps
         ensureYellow(backingIndex);
 
-        // Find the new primary (former replica)
+        // Wait for IndicesClusterStateService to promote the replica to primary before checking its routing entry.
+        safeAwait(newStateFullyAppliedListener());
+
         IndexShard newPrimary = internalCluster().getInstance(IndicesService.class, replicaNodeName).getShardOrNull(shardId);
         assertThat(newPrimary, notNullValue());
-        assertThat(newPrimary.routingEntry().primary(), equalTo(true));
+        assertThat("former replica should be promoted to primary", newPrimary.routingEntry().primary(), equalTo(true));
 
         // The new primary should have filled the gaps with noops
         assertBusy(() -> {

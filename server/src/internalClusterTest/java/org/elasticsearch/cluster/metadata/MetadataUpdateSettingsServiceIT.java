@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
@@ -28,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -62,7 +62,7 @@ public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
             onStaticSetting -> new UpdateSettingsClusterStateUpdateRequest(
                 Metadata.DEFAULT_PROJECT_ID,
                 TEST_REQUEST_TIMEOUT,
-                TimeValue.ZERO,
+                TEST_REQUEST_TIMEOUT,
                 Settings.builder().put("index.codec", "FastDecompressionCompressingStoredFieldsData").build(),
                 UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
                 onStaticSetting,
@@ -94,6 +94,7 @@ public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
             new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    assertTrue(acknowledgedResponse.isAcknowledged());
                     success.set(true);
                 }
 
@@ -144,7 +145,7 @@ public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
             settings -> new UpdateSettingsClusterStateUpdateRequest(
                 Metadata.DEFAULT_PROJECT_ID,
                 TEST_REQUEST_TIMEOUT,
-                TimeValue.ZERO,
+                TEST_REQUEST_TIMEOUT,
                 settings.build(),
                 UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
                 UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REOPEN_INDICES,
@@ -178,6 +179,7 @@ public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
             new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    assertTrue(acknowledgedResponse.isAcknowledged());
                     success.set(true);
                 }
 
@@ -191,7 +193,9 @@ public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
         assertBusy(() -> assertThat(expectedSettingsChangeInClusterState.get(), equalTo(true)));
         assertThat(shardsUnassigned.get(), equalTo(true));
 
-        assertBusy(() -> assertThat(hasUnassignedShards(clusterService.state(), indexName), equalTo(false)));
+        // Shard reallocation after a static index setting change requires a GatewayAllocator async fetch cycle
+        // followed by desired-balance reconciliation; allow extra time for async ICSS application delays.
+        assertBusy(() -> assertThat(hasUnassignedShards(clusterService.state(), indexName), equalTo(false)), 60, TimeUnit.SECONDS);
 
         success.set(false);
         expectedSettingsChangeInClusterState.set(false);
@@ -207,6 +211,7 @@ public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
             new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    assertTrue(acknowledgedResponse.isAcknowledged());
                     success.set(true);
                 }
 

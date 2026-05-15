@@ -18,6 +18,8 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.state.TransportAwaitClusterStateVersionAppliedAction;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -36,6 +38,7 @@ import org.elasticsearch.cluster.routing.RecoverySource.Type;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.AsyncClusterStateApplier;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -131,6 +134,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Boolean> ASYNC_CLUSTER_STATE_APPLIER_ENABLED = Setting.boolSetting(
+        "indices.cluster_state.async_applier.enabled",
+        true,
+        Setting.Property.NodeScope
+    );
+
     final AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>> indicesService;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
@@ -144,7 +153,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     // A list of shards that failed during recovery.
     // We keep track of these shards in order to prevent repeated recovery of these shards on each cluster state update.
     final ConcurrentMap<ShardId, FailedShardCacheEntry> failedShardsCache = ConcurrentCollections.newConcurrentMap();
-    private final Map<ShardId, PendingShardCreation> pendingShardCreations = new HashMap<>();
+    private final ConcurrentMap<ShardId, PendingShardCreation> pendingShardCreations = ConcurrentCollections.newConcurrentMap();
     private final RepositoriesService repositoriesService;
 
     private final FailedShardHandler failedShardHandler = new FailedShardHandler();
@@ -157,6 +166,19 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final TimeValue shardLockRetryTimeout;
 
     private final Executor shardCloseExecutor;
+    private final AsyncClusterStateApplier asyncClusterStateApplier;
+
+    private volatile boolean usingAsyncApplier = false;
+
+    // visible for testing
+    public boolean isUsingAsyncApplier() {
+        return usingAsyncApplier;
+    }
+
+    // visible for testing
+    Settings getSettings() {
+        return settings;
+    }
 
     @Inject
     public IndicesClusterStateService(
@@ -179,6 +201,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             (AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>>) indicesService,
             clusterService,
             threadPool,
+            threadPool.generic(),
             recoveryTargetService,
             shardStateAction,
             repositoriesService,
@@ -192,11 +215,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     // for tests
+    @SuppressWarnings("this-escape")
     IndicesClusterStateService(
         final Settings settings,
         final AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>> indicesService,
         final ClusterService clusterService,
         final ThreadPool threadPool,
+        final Executor applyExecutor,
         final PeerRecoveryTargetService recoveryTargetService,
         final ShardStateAction shardStateAction,
         final RepositoriesService repositoriesService,
@@ -221,20 +246,47 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.shardLockRetryInterval = SHARD_LOCK_RETRY_INTERVAL_SETTING.get(settings);
         this.shardLockRetryTimeout = SHARD_LOCK_RETRY_TIMEOUT_SETTING.get(settings);
         this.shardCloseExecutor = new ShardCloseExecutor(settings, threadPool.generic());
+        this.asyncClusterStateApplier = new AsyncClusterStateApplier(this, applyExecutor);
     }
 
     @Override
     protected void doStart() {
         // Doesn't make sense to manage shards on non-data nodes
         if (DiscoveryNode.canContainData(settings)) {
+            // Switch to async applier once we confirm the cluster supports it
+            logger.info("Starting IndicesClusterStateService in synchronous mode");
             clusterService.addHighPriorityApplier(this);
         }
+    }
+
+    /// Returns `true` if all nodes in the cluster supports async appliers, `false` otherwise.
+    private boolean clusterSupportsAsyncApplier(ClusterState clusterState) {
+        if (usingAsyncApplier) {
+            return true;
+        }
+        if (ASYNC_CLUSTER_STATE_APPLIER_ENABLED.get(settings) == false) {
+            return false;
+        }
+        if (clusterState == null) {
+            return false;
+        }
+        if (clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            return false;
+        }
+        final var minTransportVersion = clusterState.getMinTransportVersion();
+        return minTransportVersion.supports(TransportAwaitClusterStateVersionAppliedAction.AWAIT_CLUSTER_STATE_VERSION_APPLIED_ACTION);
     }
 
     @Override
     protected void doStop() {
         if (DiscoveryNode.canContainData(settings)) {
             clusterService.removeApplier(this);
+            clusterService.removeApplier(asyncClusterStateApplier);
+            final var finalApplyFuture = new PlainActionFuture<Void>();
+            addApplyListener(finalApplyFuture);
+            // hmm blocking, is this ok? maybe use AbstractThrottledTaskRunner.runSyncTasksEagerly so single-threaded tests will complete
+            // the last apply first?
+            finalApplyFuture.actionGet();
         }
     }
 
@@ -258,7 +310,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     // protected for tests
     protected ActionListener<Void> getShardsClosedListener() {
-        assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
+        assert assertApplierThread();
         if (currentClusterStateShardsClosedListeners == null) {
             assert false : "not currently applying cluster state";
             return ActionListener.noop();
@@ -273,13 +325,33 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      *               thread, or on the thread that completed the closing of the last such shard.
      */
     public void onClusterStateShardsClosed(Runnable action) {
-        lastClusterStateShardsClosedListener.andThenAccept(ignored -> action.run());
+        if (usingAsyncApplier) {
+            SubscribableListener.newForked(asyncClusterStateApplier::awaitCurrentStateApplication)
+                .<Void>andThen(l -> lastClusterStateShardsClosedListener.addListener(l))
+                .andThenAccept(ignored -> action.run());
+        } else {
+            // In synchronous mode, cluster state is already applied, so just wait for shards to close
+            lastClusterStateShardsClosedListener.addListener(ActionListener.running(action));
+        }
     }
 
     @Override
     public synchronized void applyClusterState(final ClusterChangedEvent event) {
+        if (usingAsyncApplier == false && clusterSupportsAsyncApplier(event.state())) {
+            logger.info("---> Switching to async applier");
+            usingAsyncApplier = true;
+            clusterService.removeApplier(this);
+            clusterService.addHighPriorityApplier(asyncClusterStateApplier);
+            asyncClusterStateApplier.applyClusterState(event);
+            return;
+        }
+
         final var previousShardsClosedListener = lastClusterStateShardsClosedListener;
         lastClusterStateShardsClosedListener = new SubscribableListener<>();
+        final var newStateVersion = event == null || event.state() == null ? -1L : event.state().version();
+        lastClusterStateShardsClosedListener.addListener(
+            ActionListener.running(() -> logger.info("--> shards closed after state update to version [{}]", newStateVersion))
+        );
         currentClusterStateShardsClosedListeners = new RefCountingListener(lastClusterStateShardsClosedListener);
         try {
             // HACK: chain listeners but avoid too deep of a stack
@@ -390,7 +462,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 final Optional<IndexMetadata> indexMetadata = state.metadata().findIndex(routing.index());
                 if (indexMetadata.isEmpty() || indexMetadata.get().primaryTerm(routing.id()) > cachedTerm) {
                     // Index was deleted, or the master already processed the failure and bumped the primary term.
-                    // Either way, the cache entry is stale and can be discarded.
+                    // Either way, the cache entry is stale and can be discarded. If `createIndicesAndUpdateShards`
+                    // subsequently finds a still-INITIALIZING local IndexShard at the old term, IndexShard.updateShardState
+                    // will throw IllegalIndexShardStateException for the term-bump-on-INITIALIZING case, which the caller
+                    // catches and turns into a clean failAndRemoveShard.
                     iterator.remove();
                 } else if (masterNode != null) { // TODO: remove this? Is resending shard failures the responsibility of shardStateAction?
                     String message = "master " + masterNode + " has not removed previously failed shard. resending shard failure";
@@ -626,6 +701,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 final var indexService = indicesService.indexService(index);
                 if (shardRouting.initializing() == false && (indexService == null || indexService.getShardOrNull(shardId.id()) == null)) {
                     // the master thinks we are active, but we don't have this shard at all, mark it as failed
+                    logger.info(
+                        "--> notifying master: nonexistent active shard ({}) {}",
+                        indexService == null ? "null IndexService" : "IndexService exists",
+                        shardRouting
+                    );
                     sendFailShard(
                         shardRouting,
                         "master marked shard as active, but shard has not been created, mark shard as failed",
@@ -791,10 +871,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             ActionListener.noop() // on the failure path, did not create the shard, so don't need to wait for it to close
                         );
                     }
-                }, () -> {
-                    assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
-                    pendingShardCreations.remove(shardId, pendingShardCreation);
-                })
+                }, () -> pendingShardCreations.remove(shardId, pendingShardCreation))
             );
         } catch (Exception e) {
             assert pendingShardCreations.get(shardId) == null
@@ -804,14 +881,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     private PendingShardCreation createOrRefreshPendingShardCreation(ShardId shardId, String clusterStateUUID) {
-        assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
-        final var currentPendingShardCreation = pendingShardCreations.get(shardId);
-        final var newPendingShardCreation = new PendingShardCreation(
-            clusterStateUUID,
-            currentPendingShardCreation == null ? threadPool.relativeTimeInMillis() : currentPendingShardCreation.startTimeMillis()
+        return pendingShardCreations.compute(
+            shardId,
+            (id, current) -> new PendingShardCreation(
+                clusterStateUUID,
+                current == null ? threadPool.relativeTimeInMillis() : current.startTimeMillis()
+            )
         );
-        pendingShardCreations.put(shardId, newPendingShardCreation);
-        return newPendingShardCreation;
     }
 
     private void createShardWhenLockAvailable(
@@ -867,10 +943,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             threadPool.scheduleUnlessShuttingDown(
                 shardLockRetryInterval,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                // TODO this shouldn't be on the applier thread; does it matter if it runs concurrently to other ICSS actions?
+                // See https://github.com/elastic/elasticsearch/commit/eb82fa24f70a38360c5a2075b44922f1ecefd85d
                 () -> clusterService.getClusterApplierService()
                     .runOnApplierThread("create shard " + shardRouting, Priority.NORMAL, currentState -> {
 
-                        assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
+                        assert assertApplierThread();
                         final var pendingShardCreation = pendingShardCreations.get(shardRouting.shardId());
                         if (pendingShardCreation == null) {
                             listener.onResponse(false);
@@ -938,6 +1016,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    private static boolean assertApplierThread() {
+        return ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME, ThreadPool.Names.GENERIC);
     }
 
     private void updateShard(ShardRouting shardRouting, Shard shard, ClusterState clusterState) {
@@ -1078,6 +1160,20 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             return null;
         }
         return sourceNode;
+    }
+
+    /*
+     * TODO: the following are apparently assumed to be applied by the time the cluster state is acked:
+     * - mapping updates
+     * - setting updates
+     */
+    public void addApplyListener(ActionListener<Void> listener) {
+        if (usingAsyncApplier) {
+            asyncClusterStateApplier.awaitCurrentStateApplication(listener);
+        } else {
+            // In synchronous mode, cluster state application completes before ack, so there's nothing to wait for.
+            listener.onResponse(null);
+        }
     }
 
     private record PendingShardCreation(String clusterStateUUID, long startTimeMillis) {}

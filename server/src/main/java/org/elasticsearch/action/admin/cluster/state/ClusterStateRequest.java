@@ -37,6 +37,7 @@ public class ClusterStateRequest extends LocalClusterStateRequest implements Ind
     private boolean customs = true;
     private Long waitForMetadataVersion;
     private TimeValue waitForTimeout = DEFAULT_WAIT_FOR_NODE_TIMEOUT;
+    private boolean waitForAsyncApplied;
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
     private boolean multiproject = false;
@@ -161,6 +162,15 @@ public class ClusterStateRequest extends LocalClusterStateRequest implements Ind
 
     public Long waitForMetadataVersion() {
         return waitForMetadataVersion;
+    }
+
+    public boolean waitForAsyncApplied() {
+        return waitForAsyncApplied;
+    }
+
+    public ClusterStateRequest waitForAsyncApplied(boolean waitForAsyncApplied) {
+        this.waitForAsyncApplied = waitForAsyncApplied;
+        return this;
     }
 
     public ClusterStateRequest waitForMetadataVersion(long waitForMetadataVersion) {

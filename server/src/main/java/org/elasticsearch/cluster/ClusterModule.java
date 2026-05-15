@@ -11,6 +11,7 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.ComponentTemplateMetadata;
@@ -156,7 +157,8 @@ public class ClusterModule extends AbstractModule {
         SystemIndices systemIndices,
         ProjectResolver projectResolver,
         WriteLoadForecaster writeLoadForecaster,
-        TelemetryProvider telemetryProvider
+        TelemetryProvider telemetryProvider,
+        Client client
     ) {
         this.clusterPlugins = clusterPlugins;
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
@@ -202,7 +204,7 @@ public class ClusterModule extends AbstractModule {
             telemetryProvider.getMeterRegistry()
         );
         this.allocationService.addAllocFailuresResetListenerTo(clusterService);
-        this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);
+        this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService, client);
         this.allocationStatsService = new AllocationStatsService(
             clusterService,
             clusterInfoService,

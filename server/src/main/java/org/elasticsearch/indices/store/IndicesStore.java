@@ -9,6 +9,7 @@
 
 package org.elasticsearch.indices.store;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -66,6 +67,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -132,6 +134,8 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
         }
     }
 
+    private final AtomicReference<ClusterState> stateToApplyHolder = new AtomicReference<>();
+
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.routingTableChanged() == false) {
@@ -142,7 +146,45 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
             return;
         }
 
-        for (var routingTableEntry : event.state().globalRoutingTable().routingTables().entrySet()) {
+        stateToApplyHolder.set(event.state());
+        final var stateToApplyVersion = event.state().version();
+
+        indicesClusterStateService.addApplyListener(new ActionListener<>() {
+            @Override
+            public void onResponse(Void ignored) {
+                checkStateToApply(takeStateToApply());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                final var clusterState = takeStateToApply();
+                logger.log(
+                    clusterState == null ? Level.DEBUG : Level.ERROR,
+                    "unexpected failure of apply listener for state version [" + stateToApplyVersion + "]",
+                    e
+                );
+            }
+
+            private ClusterState takeStateToApply() {
+                final var stateToApply = stateToApplyHolder.get();
+                if (stateToApply != null
+                    && stateToApply.version() == stateToApplyVersion
+                    && stateToApplyHolder.compareAndSet(stateToApply, null)) {
+                    return stateToApply;
+                } else {
+                    logger.debug("skipping handling state version [" + stateToApplyVersion + "]");
+                    return null;
+                }
+            }
+        });
+    }
+
+    private void checkStateToApply(ClusterState clusterState) {
+        if (clusterState == null) {
+            return;
+        }
+
+        for (var routingTableEntry : clusterState.globalRoutingTable().routingTables().entrySet()) {
             RoutingTable routingTable = routingTableEntry.getValue();
             ProjectId projectId = routingTableEntry.getKey();
             // remove entries from cache that don't exist in the routing table anymore (either closed or deleted indices)
@@ -150,8 +192,8 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
             // - closed indices don't need to be removed from the cache but we do it anyway for code simplicity
             folderNotFoundCache.removeIf(shardId -> routingTable.hasIndex(shardId.getIndex()) == false);
             // remove entries from cache which are allocated to this node
-            final String localNodeId = event.state().nodes().getLocalNodeId();
-            RoutingNode localRoutingNode = event.state().getRoutingNodes().node(localNodeId);
+            final String localNodeId = clusterState.nodes().getLocalNodeId();
+            RoutingNode localRoutingNode = clusterState.getRoutingNodes().node(localNodeId);
             if (localRoutingNode != null) {
                 for (ShardRouting routing : localRoutingNode) {
                     folderNotFoundCache.remove(routing.shardId());
@@ -167,8 +209,7 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
                         IndexService indexService = indicesService.indexService(indexRoutingTable.getIndex());
                         final IndexSettings indexSettings;
                         if (indexService == null) {
-                            IndexMetadata indexMetadata = event.state()
-                                .getMetadata()
+                            IndexMetadata indexMetadata = clusterState.getMetadata()
                                 .getProject(projectId)
                                 .getIndexSafe(indexRoutingTable.getIndex());
                             indexSettings = new IndexSettings(indexMetadata, settings);
@@ -179,9 +220,14 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
                             shardId,
                             indexSettings
                         );
+                        logger.info(
+                            "--> indicesService.canDeleteShardContent({}) returned {} at state version {}",
+                            shardId,
+                            shardDeletionCheckResult,
+                            clusterState.version()
+                        );
                         switch (shardDeletionCheckResult) {
                             case FOLDER_FOUND_CAN_DELETE:
-                                var clusterState = event.state();
                                 var clusterName = clusterState.getClusterName();
                                 var nodes = clusterState.nodes();
                                 var clusterStateVersion = clusterState.getVersion();
@@ -236,6 +282,8 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
         long clusterStateVersion,
         IndexShardRoutingTable indexShardRoutingTable
     ) {
+        logger.info("--> deleteShardIfExistElseWhere({})", indexShardRoutingTable.shardId());
+
         if (DiscoveryNode.isStateless(clusterService.getSettings())) {
             deleteShardStoreOnApplierThread(indexShardRoutingTable.shardId(), clusterStateVersion, IndexRemovalReason.NO_LONGER_ASSIGNED);
             return;
@@ -373,66 +421,72 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
 
             // make sure shard is really there before register cluster state observer
             if (indexShard == null) {
-                channel.sendResponse(new ShardActiveResponse(false, clusterService.localNode()));
+                sendResult(false, channel, request);
+            } else if (shardActive(indexShard)) {
+                sendResult(true, channel, request);
             } else {
-                // create observer here. we need to register it here because we need to capture the current cluster state
-                // which will then be compared to the one that is applied when we call waitForNextChange(). if we create it
-                // later we might miss an update and wait forever in case no new cluster state comes in.
-                // in general, using a cluster state observer here is a workaround for the fact that we cannot listen on
-                // shard state changes explicitly. instead we wait for the cluster state changes because we know any
-                // shard state change will trigger or be triggered by a cluster state change.
-                ClusterStateObserver observer = new ClusterStateObserver(
-                    clusterService,
-                    request.timeout,
-                    logger,
-                    threadPool.getThreadContext()
-                );
-                // check if shard is active. if so, all is good
-                boolean shardActive = shardActive(indexShard);
-                if (shardActive) {
-                    channel.sendResponse(new ShardActiveResponse(true, clusterService.localNode()));
-                } else {
-                    // shard is not active, might be POST_RECOVERY so check if cluster state changed inbetween or wait for next change
-                    observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                        @Override
-                        public void onNewClusterState(ClusterState state) {
-                            sendResult(shardActive(getShard(request)));
-                        }
+                // Shard is not yet active (e.g. POST_RECOVERY). IndicesClusterStateService applies cluster states
+                // asynchronously, so the shard may transition to STARTED once the current in-flight state
+                // application finishes, without any new cluster state being published. Wait for async appliers
+                // to complete before deciding whether to block on a new state change.
+                clusterService.getClusterApplierService().awaitAllAsyncAppliers(ActionListener.running(() -> {
+                    final IndexShard currentShard = getShard(request);
+                    if (currentShard == null) {
+                        sendResult(false, channel, request);
+                    } else if (shardActive(currentShard)) {
+                        sendResult(true, channel, request);
+                    } else {
+                        // Still not active after the current state was applied; wait for the next cluster state
+                        // change (and the async appliers behind it) to transition the shard.
+                        waitForShardActive(request, channel, request.timeout);
+                    }
+                }));
+            }
+        }
 
-                        @Override
-                        public void onClusterServiceClose() {
-                            sendResult(false);
-                        }
-
-                        @Override
-                        public void onTimeout(TimeValue timeout) {
-                            sendResult(shardActive(getShard(request)));
-                        }
-
-                        public void sendResult(boolean shardActive) {
-                            try {
-                                channel.sendResponse(new ShardActiveResponse(shardActive, clusterService.localNode()));
-                            } catch (EsRejectedExecutionException e) {
-                                logger.error(
-                                    () -> format(
-                                        "failed send response for shard active while trying to "
-                                            + "delete shard %s - shard will probably not be removed",
-                                        request.shardId
-                                    ),
-                                    e
-                                );
+        /// Waits for the shard referenced by the request to either reach an active state or be removed from this node, then sends
+        /// the corresponding [ShardActiveResponse] back to the caller.
+        private void waitForShardActive(final ShardActiveRequest request, final TransportChannel channel, TimeValue timeout) {
+            new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext()).waitForNextChange(
+                new ClusterStateObserver.Listener() {
+                    @Override
+                    public void onNewClusterState(ClusterState state) {
+                        clusterService.getClusterApplierService().awaitAllAsyncAppliers(ActionListener.running(() -> {
+                            final IndexShard currentShard = getShard(request);
+                            if (currentShard == null) {
+                                sendResult(false, channel, request);
+                            } else if (shardActive(currentShard)) {
+                                sendResult(true, channel, request);
+                            } else {
+                                waitForShardActive(request, channel, timeout);
                             }
-                        }
-                    }, newState -> {
-                        // the shard is not there in which case we want to send back a false (shard is not active),
-                        // so the cluster state listener must be notified or the shard is active in which case we want to
-                        // send back that the shard is active here we could also evaluate the cluster state and get the
-                        // information from there. we don't do it because we would have to write another method for this
-                        // that would have the same effect
-                        IndexShard currentShard = getShard(request);
-                        return currentShard == null || shardActive(currentShard);
-                    });
+                        }));
+                    }
+
+                    @Override
+                    public void onClusterServiceClose() {
+                        sendResult(false, channel, request);
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue t) {
+                        sendResult(shardActive(getShard(request)), channel, request);
+                    }
                 }
+            );
+        }
+
+        private void sendResult(boolean shardActive, TransportChannel channel, ShardActiveRequest request) {
+            try {
+                channel.sendResponse(new ShardActiveResponse(shardActive, clusterService.localNode()));
+            } catch (EsRejectedExecutionException e) {
+                logger.error(
+                    () -> format(
+                        "failed send response for shard active while trying to delete shard %s - shard will probably not be removed",
+                        request.shardId
+                    ),
+                    e
+                );
             }
         }
 

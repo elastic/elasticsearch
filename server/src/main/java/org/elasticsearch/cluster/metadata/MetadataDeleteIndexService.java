@@ -12,7 +12,12 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.state.AwaitClusterStateVersionAppliedRequest;
+import org.elasticsearch.action.admin.cluster.state.AwaitClusterStateVersionAppliedResponse;
+import org.elasticsearch.action.admin.cluster.state.TransportAwaitClusterStateVersionAppliedAction;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
@@ -46,19 +51,31 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 
-/**
- * Deletes indices.
- */
+/// Deletes indices.
+///
+/// [MetadataDeleteIndexService.deleteIndices] waits for data nodes to finish applying the deleted state through
+/// [IndicesClusterStateService] after master publication acks, matching [MetadataMappingService.putMapping] and
+/// [MetadataUpdateSettingsService.updateSettings].
 public class MetadataDeleteIndexService {
 
     private static final Logger logger = LogManager.getLogger(MetadataDeleteIndexService.class);
+
+    private final ClusterService clusterService;
+    private final Client client;
 
     // package private for tests
     final ClusterStateTaskExecutor<DeleteIndicesClusterStateUpdateTask> executor;
     private final MasterServiceTaskQueue<DeleteIndicesClusterStateUpdateTask> taskQueue;
 
     @Inject
-    public MetadataDeleteIndexService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
+    public MetadataDeleteIndexService(
+        Settings settings,
+        ClusterService clusterService,
+        AllocationService allocationService,
+        Client client
+    ) {
+        this.clusterService = clusterService;
+        this.client = client;
         executor = new SimpleBatchedAckListenerTaskExecutor<>() {
             @Override
             public Tuple<ClusterState, ClusterStateAckListener> executeTask(
@@ -83,6 +100,9 @@ public class MetadataDeleteIndexService {
         taskQueue = clusterService.createTaskQueue("delete-index", Priority.URGENT, executor);
     }
 
+    /// Runs the cluster state delete task (publication ack), then waits for
+    /// [TransportAwaitClusterStateVersionAppliedAction] on data nodes so that async shard-level application of that
+    /// state completes before returning an [AcknowledgedResponse]
     public void deleteIndices(
         TimeValue masterNodeTimeout,
         TimeValue ackTimeout,
@@ -92,11 +112,40 @@ public class MetadataDeleteIndexService {
         if (indices == null || indices.isEmpty()) {
             throw new IllegalArgumentException("Indices are required");
         }
-        taskQueue.submitTask(
-            "delete-index " + indices,
-            new DeleteIndicesClusterStateUpdateTask(indices, ackTimeout, listener),
-            masterNodeTimeout
-        );
+        final long startNanos = System.nanoTime();
+        SubscribableListener
+            // Step 1: publish delete and wait for publication acks
+            .<AcknowledgedResponse>newForked(
+                l -> taskQueue.submitTask(
+                    "delete-index " + indices,
+                    new DeleteIndicesClusterStateUpdateTask(indices, ackTimeout, l),
+                    masterNodeTimeout
+                )
+            )
+            // Step 2: wait for IndicesClusterStateService async work
+            .<AcknowledgedResponse>andThen((l, response) -> {
+                // TODO re-use code between here, MetadataMappingService, and MetadataUpdateSettingsService
+                // TODO: skip nodes whose publish failed for the target cluster state version.
+                final var clusterState = clusterService.state();
+                final var nodes = clusterState.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
+                final var remainingTime = TimeValue.timeValueNanos(Math.max(0, ackTimeout.nanos() - (System.nanoTime() - startNanos)));
+                client.execute(
+                    TransportAwaitClusterStateVersionAppliedAction.TYPE,
+                    new AwaitClusterStateVersionAppliedRequest(clusterState.version(), remainingTime, nodes),
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(AwaitClusterStateVersionAppliedResponse awaitResponse) {
+                            l.onResponse(AcknowledgedResponse.of(response.isAcknowledged() && awaitResponse.failures().isEmpty()));
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            l.onResponse(AcknowledgedResponse.FALSE);
+                        }
+                    }
+                );
+            })
+            .addListener(listener);
     }
 
     // package private for tests

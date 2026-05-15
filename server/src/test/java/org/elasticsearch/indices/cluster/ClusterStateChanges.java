@@ -73,6 +73,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.cluster.service.MasterService;
@@ -197,9 +198,13 @@ public class ClusterStateChanges {
             }
         };
         // mocks
-        clusterService = new ClusterService(SETTINGS, clusterSettings, masterService, null);
+        final var applierService = new ClusterApplierService("test", SETTINGS, clusterSettings, threadPool);
+        clusterService = new ClusterService(SETTINGS, clusterSettings, masterService, applierService);
         resetMasterService();
         masterService.start();
+        applierService.setNodeConnectionsService(ClusterServiceUtils.createNoOpNodeConnectionsService());
+        applierService.setInitialState(ClusterState.EMPTY_STATE);
+        applierService.start();
 
         IndicesService indicesService = mock(IndicesService.class);
         // MetadataCreateIndexService uses withTempIndexService to check mappings -> fake it here
@@ -292,14 +297,15 @@ public class ClusterStateChanges {
             client,
             threadPool
         );
-        MetadataDeleteIndexService deleteIndexService = new MetadataDeleteIndexService(SETTINGS, clusterService, allocationService);
+        MetadataDeleteIndexService deleteIndexService = new MetadataDeleteIndexService(SETTINGS, clusterService, allocationService, client);
         MetadataUpdateSettingsService metadataUpdateSettingsService = new MetadataUpdateSettingsService(
             clusterService,
             allocationService,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             indicesService,
             shardLimitValidator,
-            threadPool
+            threadPool,
+            client
         );
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
             SETTINGS,

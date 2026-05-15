@@ -829,7 +829,8 @@ class NodeConstruction {
             systemIndices,
             projectResolver,
             getWriteLoadForecaster(threadPool, settings, clusterService.getClusterSettings(), clusterInfoService),
-            telemetryProvider
+            telemetryProvider,
+            client
         );
         modules.add(clusterModule);
 
@@ -973,7 +974,8 @@ class NodeConstruction {
             settingsModule.getIndexScopedSettings(),
             indicesService,
             shardLimitValidator,
-            threadPool
+            threadPool,
+            client
         );
 
         final DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings = createDataStreamServicesAndGlobalRetentionResolver(

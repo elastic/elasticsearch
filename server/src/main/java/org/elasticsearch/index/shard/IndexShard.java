@@ -49,6 +49,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -631,31 +632,47 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         ensurePeerRecoveryRetentionLeasesExist();
                     }
                 } else {
-                    assert currentRouting.primary() == false : "term is only increased as part of primary promotion";
-                    /* Note that due to cluster state batching an initializing primary shard term can failed and re-assigned
-                     * in one state causing it's term to be incremented. Note that if both current shard state and new
-                     * shard state are initializing, we could replace the current shard and reinitialize it. It is however
-                     * possible that this shard is being started. This can happen if:
-                     * 1) Shard is post recovery and sends shard started to the master
-                     * 2) Node gets disconnected and rejoins
-                     * 3) Master assigns the shard back to the node
-                     * 4) Master processes the shard started and starts the shard
-                     * 5) The node process the cluster state where the shard is both started and primary term is incremented.
+                    if (currentRouting.primary() != false) {
+                        final var message = Strings.format(
+                            """
+                                term is only increased as part of primary promotion, but \
+                                currentRouting=%s pendingPrimaryTerm=%d newRouting=%s newPrimaryTerm=%d""",
+                            currentRouting,
+                            pendingPrimaryTerm,
+                            newRouting,
+                            newPrimaryTerm
+                        );
+                        logger.error("{}", message);
+                        // Async applier batching causes this assertion to no longer hold.
+                        // See: https://github.com/elastic/elasticsearch/pull/148517
+                        // assert false : message;
+                    }
+                    /* Note that due to cluster state batching an initializing primary shard term can fail and be re-assigned
+                     * in one state causing its term to be incremented. With AsyncClusterStateApplier intermediate states
+                     * can also be coalesced (see AsyncClusterStateApplier#applyClusterState), so a still-INITIALIZING
+                     * local shard can observe a term bump without an intervening UNASSIGNED that would have removed it.
                      *
-                     * We could fail the shard in that case, but this will cause it to be removed from the insync allocations list
-                     * potentially preventing re-allocation.
+                     * Running the bumpPrimaryTerm + activatePrimaryMode + primary-replica resync path below on a
+                     * mid-recovery shard races with the in-flight recovery (engine reset, translog generation, gap
+                     * filling) and at best fails the shard with an obscure error, at worst writes inconsistent state.
+                     * Fail the shard cleanly here instead. The caller (IndicesClusterStateService.updateShard) catches
+                     * this, runs failAndRemoveShard, and the master re-allocates the shard with a fresh allocation id.
+                     *
+                     * Replaces:
+                     *   assert newRouting.initializing() == false : "a started primary shard should never update its term; ..."
                      */
-                    assert newRouting.initializing() == false
-                        : "a started primary shard should never update its term; "
-                            + "shard "
-                            + newRouting
-                            + ", "
-                            + "current term ["
-                            + pendingPrimaryTerm
-                            + "], "
-                            + "new term ["
-                            + newPrimaryTerm
-                            + "]";
+                    if (newRouting.initializing()) {
+                        throw new IllegalIndexShardStateException(
+                            shardId,
+                            state,
+                            Strings.format(
+                                "cannot adopt bumped primary term [%d] on a still-initializing shard [%s] (current term [%d])",
+                                newPrimaryTerm,
+                                newRouting,
+                                pendingPrimaryTerm
+                            )
+                        );
+                    }
                     assert newPrimaryTerm > pendingPrimaryTerm
                         : "primary terms can only go up; current term [" + pendingPrimaryTerm + "], new term [" + newPrimaryTerm + "]";
                     /*

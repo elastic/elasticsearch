@@ -167,7 +167,7 @@ public class ClusterStateObserver {
             lastObservedVersion = newState.version();
             listener.onNewClusterState(newState);
         } else {
-            logger.trace("observer: sampled state rejected by predicate ({}). adding listener to ClusterService", newState);
+            logger.trace("observer: sampled state rejected by predicate ({}). adding listener to ClusterService", newState.version());
             final ObservingContext context = new ObservingContext(listener, statePredicate);
             if (observingContext.compareAndSet(null, context) == false) {
                 throw new ElasticsearchException("already waiting for a cluster state change");
@@ -177,6 +177,26 @@ public class ClusterStateObserver {
                 clusterStateListener
             );
         }
+    }
+
+    /// Waits until the applied cluster state satisfies `statePredicate`. If the current state already satisfies the predicate, the
+    /// listener is notified immediately without requiring a higher cluster state [ClusterState#version], unlike
+    /// [#waitForNextChange(Listener, Predicate)] which only completes on the fast path when the sampled version is strictly greater
+    /// than the last observed version.
+    ///
+    /// Otherwise this method delegates to [#waitForNextChange(Listener, Predicate)].
+    public void waitForState(Listener listener, Predicate<ClusterState> statePredicate) {
+        if (observingContext.get() != null) {
+            throw new ElasticsearchException("already waiting for a cluster state change");
+        }
+        final var currentState = clusterApplierService.state();
+        if (statePredicate.test(currentState)) {
+            Listener wrappedListener = new ContextPreservingListener(listener, contextHolder.newRestorableContext(false));
+            lastObservedVersion = currentState.version();
+            wrappedListener.onNewClusterState(currentState);
+            return;
+        }
+        waitForNextChange(listener, statePredicate, null);
     }
 
     /**

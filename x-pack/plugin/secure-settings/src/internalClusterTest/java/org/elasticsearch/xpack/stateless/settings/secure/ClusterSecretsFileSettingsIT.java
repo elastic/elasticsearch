@@ -38,6 +38,12 @@ import static org.hamcrest.Matchers.notNullValue;
 @LuceneTestCase.SuppressFileSystems("*")
 public class ClusterSecretsFileSettingsIT extends ESIntegTestCase {
 
+    @Override
+    protected boolean verifyAsyncApplier() {
+        // Test uses manual node management.
+        return false;
+    }
+
     private final AtomicLong versionCounter = new AtomicLong(1);
 
     private static String secretsJSON(long version, String stringValue, String base64FileValue) {

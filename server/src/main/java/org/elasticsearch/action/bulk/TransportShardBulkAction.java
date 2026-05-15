@@ -23,6 +23,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
@@ -69,6 +70,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.LongSupplier;
@@ -247,10 +249,16 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             assert update != null;
             assert shardId != null;
             mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), update, mappingListener);
-        }, (mappingUpdateListener, initialMappingVersion) -> observer.waitForNextChange(new ClusterStateObserver.Listener() {
+        }, (mappingUpdateListener, initialMappingVersion) -> observer.waitForState(new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
-                mappingUpdateListener.onResponse(null);
+                // The cluster state now contains the new mapping, but ICSS applies mappings asynchronously.
+                // Wait for async appliers to finish so that mapperService reflects the new mapping before retrying.
+                // TODO: why do we need this on top of the wait in updateMappingOnMaster?
+                clusterService.getClusterApplierService()
+                    .awaitAllAsyncAppliers(
+                        ContextPreservingActionListener.wrapPreservingContext(mappingUpdateListener, threadPool.getThreadContext())
+                    );
             }
 
             @Override
@@ -263,8 +271,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 mappingUpdateListener.onFailure(new MapperException("timed out while waiting for a dynamic mapping update"));
             }
         }, clusterState -> {
-            var index = primary.shardId().getIndex();
-            var indexMetadata = clusterState.metadata().lookupProject(index).map(p -> p.index(index)).orElse(null);
+            final var index = primary.shardId().getIndex();
+            final var indexMetadata = clusterState.metadata().lookupProject(index).map(p -> p.index(index)).orElse(null);
             return indexMetadata == null || (indexMetadata.mapping() != null && indexMetadata.getMappingVersion() != initialMappingVersion);
         }), listener, executor(primary), postWriteRefresh, documentParsingProvider, batchContext, startBatchTime);
     }
@@ -521,6 +529,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 request.isRetry()
             );
             if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
+                logger.info("---> mapping update requested for " + Arrays.toString(request.indices()));
                 return handleMappingUpdateRequired(
                     context,
                     mappingUpdater,

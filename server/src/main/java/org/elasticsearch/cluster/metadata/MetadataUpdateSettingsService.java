@@ -13,8 +13,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.state.AwaitClusterStateVersionAppliedRequest;
+import org.elasticsearch.action.admin.cluster.state.AwaitClusterStateVersionAppliedResponse;
+import org.elasticsearch.action.admin.cluster.state.TransportAwaitClusterStateVersionAppliedAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -65,10 +70,12 @@ import static org.elasticsearch.index.IndexSettings.same;
 public class MetadataUpdateSettingsService {
     private static final Logger logger = LogManager.getLogger(MetadataUpdateSettingsService.class);
 
+    private final ClusterService clusterService;
     private final AllocationService allocationService;
     private final IndexScopedSettings indexScopedSettings;
     private final IndicesService indicesService;
     private final ShardLimitValidator shardLimitValidator;
+    private final Client client;
     private final MasterServiceTaskQueue<UpdateSettingsTask> taskQueue;
 
     public MetadataUpdateSettingsService(
@@ -77,12 +84,15 @@ public class MetadataUpdateSettingsService {
         IndexScopedSettings indexScopedSettings,
         IndicesService indicesService,
         ShardLimitValidator shardLimitValidator,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        Client client
     ) {
+        this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.indexScopedSettings = indexScopedSettings;
         this.indicesService = indicesService;
         this.shardLimitValidator = shardLimitValidator;
+        this.client = client;
         this.taskQueue = clusterService.createTaskQueue("update-settings", Priority.URGENT, batchExecutionContext -> {
             var listener = new AllocationActionMultiListener<AcknowledgedResponse>(threadPool.getThreadContext());
             var state = batchExecutionContext.initialState();
@@ -417,11 +427,47 @@ public class MetadataUpdateSettingsService {
     }
 
     public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
-        taskQueue.submitTask(
-            "update-settings " + Arrays.toString(request.indices()),
-            new UpdateSettingsTask(request, listener),
-            request.masterNodeTimeout()
-        );
+        final long startNanos = System.nanoTime();
+        SubscribableListener
+            // Step 1: apply update
+            .<AcknowledgedResponse>newForked(
+                l -> taskQueue.submitTask(
+                    "update-settings " + Arrays.toString(request.indices()),
+                    new UpdateSettingsTask(request, l),
+                    request.masterNodeTimeout()
+                )
+            )
+            // Step 2: await async updates
+            .<AcknowledgedResponse>andThen((l, response) -> {
+                // TODO group (by timeout) the requests in the batch and only await once. Otherwise every batch task
+                // will fan out to all nodes whereas there is a single cluster state update that result from it.
+                // TODO re-use code between here and MetadataMappingService
+                // TODO: skip nodes whose publish failed for the target cluster state version.
+                final var clusterState = clusterService.state();
+                final var nodes = clusterState.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
+                final var remainingTime = TimeValue.timeValueNanos(
+                    Math.max(0, request.ackTimeout().nanos() - (System.nanoTime() - startNanos))
+                );
+                client.execute(
+                    TransportAwaitClusterStateVersionAppliedAction.TYPE,
+                    new AwaitClusterStateVersionAppliedRequest(clusterState.version(), remainingTime, nodes),
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(AwaitClusterStateVersionAppliedResponse awaitResponse) {
+                            logger.info("--> settings update completed apply of state, failures={}", awaitResponse.hasFailures());
+                            l.onResponse(AcknowledgedResponse.of(response.isAcknowledged() && awaitResponse.failures().isEmpty()));
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.info("--> settings update state wait failed", e);
+                            l.onResponse(AcknowledgedResponse.FALSE);
+                        }
+                    }
+                );
+            })
+            // Step 3: complete outer listener
+            .addListener(listener);
     }
 
     public static void updateIndexSettings(

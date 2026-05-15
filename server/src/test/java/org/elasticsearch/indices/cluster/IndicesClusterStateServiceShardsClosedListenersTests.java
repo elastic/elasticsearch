@@ -145,10 +145,11 @@ public class IndicesClusterStateServiceShardsClosedListenersTests extends Abstra
             BiConsumer<IndicesClusterStateService, ClusterChangedEvent> doApplyClusterStateHook
         ) {
             super(
-                Settings.EMPTY,
+                Settings.builder().put(IndicesClusterStateService.ASYNC_CLUSTER_STATE_APPLIER_ENABLED.getKey(), false).build(),
                 new MockIndicesService(),
                 new ClusterService(Settings.EMPTY, ClusterSettings.createBuiltInClusterSettings(), threadPool, null),
                 threadPool,
+                ignored -> fail("should not run async"),
                 mock(PeerRecoveryTargetService.class),
                 mock(ShardStateAction.class),
                 mock(RepositoriesService.class),

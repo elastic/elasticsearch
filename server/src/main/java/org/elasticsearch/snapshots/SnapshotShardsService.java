@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ResultDeduplicator;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -470,6 +471,10 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
 
         final var newSnapshotShards = shardSnapshots.computeIfAbsent(snapshot, s -> new HashMap<>());
 
+        // Enqueue shard snapshot tasks only after the IndexClusterStateService has finished applying the
+        // current cluster state, ensuring shards have transitioned from POST_RECOVERY to STARTED before we try to
+        // acquire index commits for snapshotting.
+        final var icssApplied = new SubscribableListener<Void>();
         for (final Map.Entry<ShardId, ShardGeneration> shardEntry : shardsToStart.entrySet()) {
             final ShardId shardId = shardEntry.getKey();
             final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(
@@ -492,29 +497,33 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 entry.version(),
                 entry.startTime()
             );
-            snapshotStatus.updateStatusDescription("shard snapshot enqueuing to start");
-            startShardSnapshotTaskRunner.enqueueTask(new ActionListener<>() {
-                @Override
-                public void onResponse(Releasable releasable) {
-                    try (releasable) {
-                        shardSnapshotTask.run();
+            icssApplied.addListener(ActionListener.running(() -> {
+                snapshotStatus.updateStatusDescription("shard snapshot enqueuing to start");
+                startShardSnapshotTaskRunner.enqueueTask(new ActionListener<>() {
+                    @Override
+                    public void onResponse(Releasable releasable) {
+                        try (releasable) {
+                            shardSnapshotTask.run();
+                        }
                     }
-                }
 
-                @Override
-                public void onFailure(Exception e) {
-                    final var wrapperException = new IllegalStateException(
-                        "impossible failure starting shard snapshot for " + shardId + " in " + snapshot,
-                        e
-                    );
-                    logger.error(wrapperException.getMessage(), wrapperException);
-                    assert false : wrapperException; // impossible
-                }
-            });
+                    @Override
+                    public void onFailure(Exception e) {
+                        final var wrapperException = new IllegalStateException(
+                            "impossible failure starting shard snapshot for " + shardId + " in " + snapshot,
+                            e
+                        );
+                        logger.error(wrapperException.getMessage(), wrapperException);
+                        assert false : wrapperException; // impossible
+                    }
+                });
+            }));
         }
-
         // apply some backpressure by reserving one SNAPSHOT thread for the startup work
-        startShardSnapshotTaskRunner.runSyncTasksEagerly(threadPool.executor(ThreadPool.Names.SNAPSHOT));
+        icssApplied.addListener(
+            ActionListener.running(() -> startShardSnapshotTaskRunner.runSyncTasksEagerly(threadPool.executor(ThreadPool.Names.SNAPSHOT)))
+        );
+        clusterService.getClusterApplierService().awaitAllAsyncAppliers(icssApplied);
     }
 
     /**

@@ -651,6 +651,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         logger.info("--> move replica shard from: {} to: {}", nodeA, nodeC);
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(INDEX_NAME, 0, nodeA, nodeC));
+        // ICSS on nodeC needs to create the shard and start recovery before getRecoveryStates can see it.
+        safeAwait(newStateFullyAppliedListener());
 
         recoveryStates = getRecoveryStates(INDEX_NAME);
 
@@ -1258,6 +1260,9 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                             .get()
                             .isTimedOut()
                     );
+                    // waitForNodes + waitForEvents only ensures the cluster state is published; with async ICSS the primary's
+                    // ReplicationTracker still tracks the departed replica until ICSS processes the "node left" state.
+                    safeAwait(newStateFullyAppliedListener());
 
                     final PlainActionFuture<ReplicationResponse> future = new PlainActionFuture<>();
                     primary.removeRetentionLease(ReplicationTracker.getPeerRecoveryRetentionLeaseId(replicaShardRouting), future);
@@ -1658,7 +1663,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         for (Thread indexer : indexers) {
             indexer.join();
         }
-        ensureGreen(indexName);
+        // Peer recovery waits for async ICSS application at multiple points; allow extra time.
+        ensureGreen(TimeValue.timeValueMinutes(2), indexName);
     }
 
     public void testCancelRecoveryWithAutoExpandReplicas() throws Exception {

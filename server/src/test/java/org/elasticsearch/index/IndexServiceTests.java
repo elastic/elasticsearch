@@ -26,6 +26,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -228,6 +229,10 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertTrue(refreshTask.isClosed());
     }
 
+    @TestLogging(
+        reason = "do-not-forget-to-remove-this",
+        value = "org.elasticsearch.cluster.service.MasterService:TRACE," + "org.elasticsearch.cluster.action.shard.ShardStateAction:TRACE"
+    )
     public void testFsyncTaskIsRunning() throws Exception {
         Settings settings = Settings.builder()
             .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
@@ -241,8 +246,11 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
 
         // now close the index
         final Index index = indexService.index();
+        logger.info("--> now close the index");
         assertAcked(indicesAdmin().prepareClose(index.getName()));
+        logger.info("--> await post-close index service creation");
         assertBusy(() -> assertTrue("Index not found: " + index.getName(), getInstanceFromNode(IndicesService.class).hasIndex(index)));
+        logger.info("--> post-close index service created");
 
         final IndexService closedIndexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
         assertNotSame(indexService, closedIndexService);
@@ -252,8 +260,11 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertEquals(5000, closedIndexService.getFsyncTask().getInterval().millis());
 
         // now reopen the index
+        logger.info("--> now reopen the index");
         assertAcked(indicesAdmin().prepareOpen(index.getName()));
+        logger.info("--> await post-reopen index service creation");
         assertBusy(() -> assertTrue("Index not found: " + index.getName(), getInstanceFromNode(IndicesService.class).hasIndex(index)));
+        logger.info("--> post-reopen index service created");
         indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
         assertNotSame(closedIndexService, indexService);
         fsyncTask = indexService.getFsyncTask();
@@ -261,7 +272,9 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertTrue(fsyncTask.isScheduled());
         assertFalse(fsyncTask.isClosed());
 
+        logger.info("--> directly closing index service");
         closeIndexService(indexService);
+        logger.info("--> directly closed index service");
         assertFalse(fsyncTask.isScheduled());
         assertTrue(fsyncTask.isClosed());
 

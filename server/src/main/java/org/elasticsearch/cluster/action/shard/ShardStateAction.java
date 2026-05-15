@@ -155,7 +155,7 @@ public class ShardStateAction {
             logger.warn("no master known for action [{}] for shard entry [{}]", actionName, request);
             waitForNewMasterAndRetry(actionName, observer, request, listener);
         } else {
-            logger.debug("sending [{}] to [{}] for shard entry [{}]", actionName, masterNode.getId(), request);
+            logger.info("--> sending [{}] to [{}] for shard entry [{}]", actionName, masterNode.getId(), request);
             transportService.sendRequest(
                 masterNode,
                 actionName,
@@ -614,6 +614,7 @@ public class ShardStateAction {
 
     // TODO: Make this a TransportMasterNodeAction and remove duplication of master failover retrying from upstream code
     private static class ShardStartedTransportHandler implements TransportRequestHandler<StartedShardEntry> {
+
         private final MasterServiceTaskQueue<StartedShardUpdateTask> taskQueue;
 
         ShardStartedTransportHandler(

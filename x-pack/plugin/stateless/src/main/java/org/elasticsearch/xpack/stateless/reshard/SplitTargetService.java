@@ -624,17 +624,38 @@ public class SplitTargetService {
         }
 
         private void waitForShardStarted(ActionListener<Void> listener) {
-            // We don't really need the cluster state as can be seen below,
-            // but we know that if the shard is not currently started one of the cluster state updates will start it.
-            // So we use the observer as a way to deterministically wait for this to happen
-            // (as opposed to f.e. sleeping).
+            // Use the observer as a trigger for ICSS async wait. When the cluster state shows the shard's routing as
+            // active, we know ICSS will (or already has) transition the shard POST_RECOVERY -> STARTED. With async ICSS
+            // that transition happens after the cluster state is published, so we cannot check shard.state() in the
+            // predicate . Instead, we check the routing table, then wait for all async appliers to drain before advancing.
+            ShardId shardId = split.shardId();
+            final String localNodeId = clusterService.localNode().getId();
             Predicate<ClusterState> predicate = state -> {
                 if (cancelled.get()) {
                     return true;
                 }
-
-                // We don't look at CLOSED since it will trigger cancellation flow.
-                return shard.state() == IndexShardState.STARTED;
+                // Fast path: ICSS has already applied the state.
+                if (shard.state() == IndexShardState.STARTED) {
+                    return true;
+                }
+                // Routing-based check: triggers the observer as soon as the cluster state
+                // shows this node's shard routing as active, before ICSS has asynchronously
+                // applied it locally. We check only the local node's entry so that unassigned
+                // replicas elsewhere do not prevent this from firing.
+                final var projectMetadata = state.metadata().lookupProject(shardId.getIndex()).orElse(null);
+                if (projectMetadata == null) {
+                    return false;
+                }
+                final var indexRoutingTable = state.routingTable(projectMetadata.id()).index(shardId.getIndex());
+                if (indexRoutingTable == null) {
+                    return false;
+                }
+                final var shardRoutingTable = indexRoutingTable.shard(shardId.id());
+                if (shardRoutingTable == null) {
+                    return false;
+                }
+                final var primary = shardRoutingTable.primaryShard();
+                return primary != null && localNodeId.equals(primary.currentNodeId()) && primary.active();
             };
 
             ClusterStateObserver.waitForState(
@@ -646,8 +667,15 @@ public class SplitTargetService {
                         if (cancelled.get()) {
                             return;
                         }
-
-                        listener.onResponse(null);
+                        // Drain all async ICSS appliers before advancing.
+                        clusterService.getClusterApplierService().awaitAllAsyncAppliers(ActionListener.running(() -> {
+                            if (cancelled.get()) {
+                                return;
+                            }
+                            assert shard.state() == IndexShardState.STARTED
+                                : shard.shardId() + ": expected shard to be STARTED after async ICSS apply, got " + shard.state();
+                            listener.onResponse(null);
+                        }));
                     }
 
                     @Override

@@ -116,6 +116,8 @@ public class VirtualBatchedCompoundCommitsDisruptionIT extends AbstractStateless
             return primary.currentNodeId().equals(indexNodeBId) && primary.started();
         });
         logger.info("--> relocated primary");
+        // searchNode has BlockClusterStateProcessing active, exclude it from the wait.
+        safeAwait(newStateFullyAppliedListener(internalCluster().getMasterName(), indexNodeA, indexNodeB));
 
         var indexShard = findIndexShard(indexName);
         long indexGenerationAfterRelocation = indexShard.commitStats().getGeneration();
@@ -186,6 +188,8 @@ public class VirtualBatchedCompoundCommitsDisruptionIT extends AbstractStateless
         });
         logger.info("--> search shard is on relocated generation");
 
+        // searchNode has BlockClusterStateProcessing active — exclude it from the await so it cannot block completion.
+        safeAwait(newStateFullyAppliedListener(internalCluster().getMasterName(), indexNodeA, indexNodeB));
         var indexShard = findIndexShard(indexName);
         long indexGenerationAfterRelocation = indexShard.commitStats().getGeneration();
 

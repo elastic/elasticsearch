@@ -229,7 +229,8 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         final MetadataMappingService metadataMappingService = new MetadataMappingService(
             clusterService,
             getInstanceFromNode(IndicesService.class),
-            IndexSettingProviders.EMPTY
+            IndexSettingProviders.EMPTY,
+            client()
         );
 
         // Put updated mapping

@@ -266,15 +266,21 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // Here we want to test that everything goes well if the mappings that are needed for a document are not available on the replica
         // at the time of indexing it
 
-        final var master = internalCluster().startMasterOnlyNode();
+        // The replica intentionally fails publish in this test. The MetadataMappingService await fan-out then waits up to
+        // request.ackTimeout() (30s) for the lagging replica, and we run two such waits back-to-back.
+        // TODO: remove this override once the await fan-out in MetadataMappingService (and siblings) skips nodes whose
+        // publish failed for the target cluster state version. See TODO in MetadataMappingService.putMapping.
+        final var lagTolerantSettings = Settings.builder().put(LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING.getKey(), "5m").build();
+
+        final var master = internalCluster().startMasterOnlyNode(lagTolerantSettings);
         final var masterClusterService = internalCluster().clusterService(master);
 
-        final var primaryNode = internalCluster().startDataOnlyNode();
+        final var primaryNode = internalCluster().startDataOnlyNode(lagTolerantSettings);
         assertAcked(prepareCreate("index").setSettings(indexSettings(1, 0)));
         ensureGreen();
 
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
-        final var replicaNode = internalCluster().startDataOnlyNode();
+        final var replicaNode = internalCluster().startDataOnlyNode(lagTolerantSettings);
         ensureGreen();
 
         // Check routing table to make sure the shard copies are where we need them to be
@@ -327,7 +333,9 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 assertNotNull(mapper.mappers().getMapper("field2"));
             });
 
-            assertBusy(() -> assertTrue(client().prepareGet("index", "2").get().isExists()));
+            // Indexing doc 2 triggers a dynamic mapping update. The bulk action on the primary waits until the new
+            // mapping CS is applied locally (via observer.waitForState + awaitAllAsyncAppliers), then retries the write.
+            assertBusy(() -> assertTrue(client().prepareGet("index", "2").get().isExists()), 45, TimeUnit.SECONDS);
 
             // The mappings have not been propagated to the replica yet so the document shouldn't be indexed there.
             // We wait on purpose to make sure that the document is not indexed because the shard operation is stalled

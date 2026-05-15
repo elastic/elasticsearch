@@ -110,7 +110,10 @@ public class MappingUpdatedAction {
         putMappingRequest.setConcreteIndex(index);
         putMappingRequest.source(mappingUpdate.string(), XContentType.JSON);
         putMappingRequest.masterNodeTimeout(dynamicMappingUpdateTimeout);
-        putMappingRequest.ackTimeout(TimeValue.ZERO);
+        // TODO: This is only in TransportShardBulkAction#performSequentialOnPrimary. We previously had a 0 ackTimeout
+        // and then only waited for the primary to apply the mapping changes. But what guaranteed replicas would not fail?
+        // Keeping this to 0 broke a bunch of tests. I need to investigate this more.
+        putMappingRequest.ackTimeout(dynamicMappingUpdateTimeout);
         putMappingRequest.origin("bulk");
         client.execute(
             TransportAutoPutMappingAction.TYPE,

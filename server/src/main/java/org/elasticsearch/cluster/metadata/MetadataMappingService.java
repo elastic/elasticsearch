@@ -12,8 +12,13 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.state.AwaitClusterStateVersionAppliedRequest;
+import org.elasticsearch.action.admin.cluster.state.AwaitClusterStateVersionAppliedResponse;
+import org.elasticsearch.action.admin.cluster.state.TransportAwaitClusterStateVersionAppliedAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
@@ -69,6 +74,7 @@ public class MetadataMappingService {
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;
+    private final Client client;
 
     private final MasterServiceTaskQueue<PutMappingClusterStateUpdateTask> taskQueue;
     private volatile TimeValue maxMasterNodeTimeout;
@@ -77,10 +83,12 @@ public class MetadataMappingService {
     public MetadataMappingService(
         ClusterService clusterService,
         IndicesService indicesService,
-        IndexSettingProviders indexSettingProviders
+        IndexSettingProviders indexSettingProviders,
+        Client client
     ) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
+        this.client = client;
         this.taskQueue = clusterService.createTaskQueue(
             "put-mapping",
             PUT_MAPPING_PRIORITY_SETTING.get(clusterService.getSettings()),
@@ -144,6 +152,7 @@ public class MetadataMappingService {
 
         @Override
         public ClusterState execute(BatchExecutionContext<PutMappingClusterStateUpdateTask> batchExecutionContext) throws Exception {
+            logger.info("computing put-mapping update starting at clusterState={}", batchExecutionContext.initialState().version());
             Map<Index, MapperService> indexMapperServices = new HashMap<>();
             try {
                 var currentState = batchExecutionContext.initialState();
@@ -166,6 +175,7 @@ public class MetadataMappingService {
                         taskContext.onFailure(e);
                     }
                 }
+                logger.info("put-mapping returns clusterState={}", currentState.version());
                 return currentState;
             } finally {
                 IOUtils.close(indexMapperServices.values());
@@ -267,6 +277,7 @@ public class MetadataMappingService {
             // TODO: instead of considering the whole request as a no-op, we could filter out indices that don't need an update and only
             // apply the update to the remaining ones.
             if (isWholeRequestNoop(request)) {
+                logger.info("---> caught no-op put mapping request [{}]", Strings.arrayToCommaDelimitedString(request.indices()));
                 listener.onResponse(AcknowledgedResponse.TRUE);
                 return;
             }
@@ -276,11 +287,55 @@ public class MetadataMappingService {
             return;
         }
 
-        taskQueue.submitTask(
-            "put-mapping " + Strings.arrayToCommaDelimitedString(request.indices()),
-            new PutMappingClusterStateUpdateTask(request, listener),
-            MasterService.maybeLimitMasterNodeTimeout(request.masterNodeTimeout(), maxMasterNodeTimeout)
-        );
+        final long startNanos = System.nanoTime();
+        SubscribableListener
+            // Step 1: apply update
+            .<AcknowledgedResponse>newForked(
+                l -> taskQueue.submitTask(
+                    "put-mapping " + Strings.arrayToCommaDelimitedString(request.indices()),
+                    new PutMappingClusterStateUpdateTask(request, l),
+                    MasterService.maybeLimitMasterNodeTimeout(request.masterNodeTimeout(), maxMasterNodeTimeout)
+                )
+            )
+            // Step 2: await async updates
+            .<AcknowledgedResponse>andThen((l, response) -> {
+                // TODO group (by timeout) the requests in the batch and only await once
+                // TODO re-use code between here and MetadataUpdateSettingsService
+                // TODO: skip nodes whose publish failed for the target cluster state version.
+                final var clusterState = clusterService.state();
+                final var nodes = clusterState.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
+                logger.info(
+                    "--> mapping update awaiting apply of state version [{}], interim response [{}]",
+                    clusterState.version(),
+                    Strings.toString(response)
+                );
+                final var remainingTime = TimeValue.timeValueNanos(
+                    Math.max(0, request.ackTimeout().nanos() - (System.nanoTime() - startNanos))
+                );
+                client.execute(
+                    TransportAwaitClusterStateVersionAppliedAction.TYPE,
+                    new AwaitClusterStateVersionAppliedRequest(clusterState.version(), remainingTime, nodes),
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(AwaitClusterStateVersionAppliedResponse awaitResponse) {
+                            logger.info(
+                                "--> mapping update completed apply of state {}, failures={}",
+                                clusterState.version(),
+                                awaitResponse.hasFailures()
+                            );
+                            l.onResponse(AcknowledgedResponse.of(response.isAcknowledged() && awaitResponse.failures().isEmpty()));
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.info("--> mapping update state wait failed for state " + clusterState.version(), e);
+                            l.onResponse(AcknowledgedResponse.FALSE);
+                        }
+                    }
+                );
+            })
+            // Step 3: complete outer listener
+            .addListener(listener);
     }
 
     private boolean isWholeRequestNoop(final PutMappingClusterStateUpdateRequest request) throws IOException {

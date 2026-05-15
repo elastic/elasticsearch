@@ -129,6 +129,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.gateway.PersistedClusterStateService;
@@ -164,6 +165,7 @@ import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.ingest.IngestPipelineTestUtils;
 import org.elasticsearch.monitor.jvm.HotThreads;
@@ -616,12 +618,61 @@ public abstract class ESIntegTestCase extends ESTestCase {
         });
     }
 
+    private static void verifyAsyncIndicesClusterStateServiceApplier() {
+        for (TestCluster cluster : clusters.values()) {
+            if (cluster instanceof InternalTestCluster internalCluster) {
+                // Skip if not all nodes are on the same version (mixed-version clusters)
+                if (hasNodesOnDifferentVersions(internalCluster)) {
+                    continue;
+                }
+
+                for (String nodeName : internalCluster.getNodeNames()) {
+                    Settings nodeSettings = internalCluster.getInstance(Settings.class, nodeName);
+
+                    // IndicesClusterStateService doesn't register as applier on non data nodes
+                    if (DiscoveryNode.canContainData(nodeSettings) == false) {
+                        continue;
+                    }
+
+                    IndicesClusterStateService service = internalCluster.getInstance(IndicesClusterStateService.class, nodeName);
+
+                    if (IndicesClusterStateService.ASYNC_CLUSTER_STATE_APPLIER_ENABLED.get(nodeSettings)) {
+                        assertTrue(
+                            "Node ["
+                                + nodeName
+                                + "] IndicesClusterStateService should have switched to async applier by test end when setting is enabled",
+                            service.isUsingAsyncApplier()
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    private static boolean hasNodesOnDifferentVersions(InternalTestCluster cluster) {
+        if (cluster.size() == 0) {
+            return false;
+        }
+
+        Set<BuildVersion> versions = Arrays.stream(cluster.getNodeNames())
+            .map(nodeName -> cluster.getInstance(ClusterService.class, nodeName))
+            .map(ClusterService::state)
+            .filter(Objects::nonNull)
+            .map(state -> state.nodes().get(state.nodes().getLocalNodeId()).getBuildVersion())
+            .collect(Collectors.toSet());
+
+        return versions.size() > 1;
+    }
+
     private void afterInternal(boolean afterClass) throws Exception {
         boolean success = false;
         try {
             final Scope currentClusterScope = getCurrentClusterScope();
             if (isInternalCluster()) {
                 internalCluster().clearDisruptionScheme();
+                if (verifyAsyncApplier()) {
+                    verifyAsyncIndicesClusterStateServiceApplier();
+                }
             }
             try {
                 if (cluster() != null && cluster().size() > 0) {
@@ -658,6 +709,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 // afterTestRule.forceFailure();
             }
         }
+    }
+
+    protected boolean verifyAsyncApplier() {
+        return true;
     }
 
     /**
@@ -1201,6 +1256,16 @@ public abstract class ESIntegTestCase extends ESTestCase {
             clusterHealthResponse.getStatus().value(),
             lessThanOrEqualTo(clusterHealthStatus.value())
         );
+        // Align health with async IndicesClusterStateService application.
+        // TODO: should health report green/yellow if ICSS has not yet finished?
+        // Or should this be moved to the health workflow itself?
+        safeAwait(SubscribableListener.<Void>newForked(listener -> {
+            try (var listeners = new RefCountingListener(listener)) {
+                for (final var cs : internalCluster().getInstances(ClusterService.class)) {
+                    cs.getClusterApplierService().awaitAllAsyncAppliers(listeners.acquire());
+                }
+            }
+        }));
         logger.debug("indices {} are {}", indices.length == 0 ? "[_all]" : indices, color);
         return clusterHealthResponse.getStatus();
     }
@@ -1239,6 +1304,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (status != null) {
             assertThat(actionGet.getStatus(), equalTo(status));
         }
+        // waitForNoRelocatingShards only ensures the cluster state shows the relocation as complete. With async ICSS,
+        // the source node's IndicesService still holds the old shard until its ICSS processes the updated state.
+        safeAwait(SubscribableListener.<Void>newForked(listener -> {
+            try (var listeners = new RefCountingListener(listener)) {
+                for (final var cs : internalCluster().getInstances(ClusterService.class)) {
+                    cs.getClusterApplierService().awaitAllAsyncAppliers(listeners.acquire());
+                }
+            }
+        }));
         return actionGet.getStatus();
     }
 
@@ -1929,14 +2003,21 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     @Nullable
     public static ClusterInfo refreshClusterInfo() {
-        final ClusterInfoService clusterInfoService = internalCluster().getInstance(
-            ClusterInfoService.class,
-            internalCluster().getMasterName()
-        );
-        if (clusterInfoService instanceof InternalClusterInfoService) {
-            return ClusterInfoServiceUtils.refresh(((InternalClusterInfoService) clusterInfoService));
+        final var masterName = internalCluster().getMasterName();
+        final ClusterInfoService clusterInfoService = internalCluster().getInstance(ClusterInfoService.class, masterName);
+        if (clusterInfoService instanceof InternalClusterInfoService == false) {
+            return null;
         }
-        return null;
+        final ClusterInfo result = ClusterInfoServiceUtils.refresh(((InternalClusterInfoService) clusterInfoService));
+        // The refresh synchronously calls listeners such as DiskThresholdMonitor.onNewInfo, which may submit
+        // cluster state updates. Those updates must be fully applied by async ICSS before callers can rely on
+        // the resulting state (e.g. index blocks being present or absent).
+        safeAwait(
+            SubscribableListener.newForked(
+                internalCluster().getInstance(ClusterService.class, masterName).getClusterApplierService()::awaitAllAsyncAppliers
+            )
+        );
+        return result;
     }
 
     /**
@@ -1998,6 +2079,26 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected void ensureFullyConnectedCluster() {
         NetworkDisruption.ensureFullyConnectedCluster(internalCluster());
+    }
+
+    protected static SubscribableListener<Void> newStateFullyAppliedListener() {
+        if (isInternalCluster() == false) {
+            return SubscribableListener.nullSuccess();
+        }
+        return ClusterServiceUtils.newStateFullyAppliedListener(client(), internalCluster().getInstances(ClusterService.class).iterator());
+    }
+
+    /// Waits for async `IndicesClusterStateService` application to complete on the specified nodes only.
+    ///
+    /// Use this overload when some cluster nodes are disrupted or stopped and should be excluded from the wait.
+    protected static SubscribableListener<Void> newStateFullyAppliedListener(String... nodeNames) {
+        if (isInternalCluster() == false) {
+            return SubscribableListener.nullSuccess();
+        }
+        return ClusterServiceUtils.newStateFullyAppliedListener(
+            client(),
+            Arrays.stream(nodeNames).map(n -> internalCluster().getInstance(ClusterService.class, n)).iterator()
+        );
     }
 
     protected static IndexRequestBuilder prepareIndex(String index) {

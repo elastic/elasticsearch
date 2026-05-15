@@ -220,11 +220,11 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
         logger.info("--> index is confirmed read-only, releasing disk space");
 
-        // Move all nodes below the high watermark so that the index is unblocked
-        clusterInfoService.setDiskUsageFunctionAndRefresh((discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100, between(10, 100)));
-
         // Attempt to create a new document until DiskUsageMonitor unblocks the index
         assertBusy(() -> {
+            clusterInfoService.setDiskUsageFunctionAndRefresh(
+                (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100, between(10, 100))
+            );
             try {
                 prepareIndex("test").setId("3").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
             } catch (ClusterBlockException e) {

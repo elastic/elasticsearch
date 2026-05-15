@@ -10,11 +10,13 @@ package org.elasticsearch.xpack.stateless.commits;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -579,6 +581,12 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                 .equals(getNodeId(indexNodeB))
         );
         internalCluster().awaitNodeVacated(indexName, indexNodeA);
+        // Wait for async ICSS on indexNodeA to close the shard.
+        safeAwait(
+            SubscribableListener.newForked(
+                internalCluster().getInstance(ClusterService.class, indexNodeA).getClusterApplierService()::awaitAllAsyncAppliers
+            )
+        );
         logger.info("relocated primary");
 
         CountDownLatch indexNotFoundOnIndexNodeA = new CountDownLatch(1);
@@ -1016,6 +1024,16 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                     .equals(indexNodeBNodeId)
             );
             internalCluster().awaitNodeVacated(indexName, indexNodeA);
+            // nodesInclude checks the master routing table, not the actual IndicesService on each node.
+            // With async ICS the index may still be loaded on indexNodeA even after the routing table
+            // no longer assigns any shards there. Wait until ICS has actually applied the cluster state
+            // (and therefore called IndicesService.removeIndex) before wiring up the assertion handler.
+            safeAwait(
+                (ActionListener<Void> l) -> internalCluster().getInstance(
+                    org.elasticsearch.indices.cluster.IndicesClusterStateService.class,
+                    indexNodeA
+                ).addApplyListener(l)
+            );
             logger.info("--> relocated primary");
             final var indexNodeATransportService = MockTransportService.getInstance(indexNodeA);
             indexNodeATransportService.addRequestHandlingBehavior(

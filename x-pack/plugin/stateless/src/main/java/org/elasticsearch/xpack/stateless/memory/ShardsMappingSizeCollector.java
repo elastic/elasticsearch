@@ -298,8 +298,8 @@ public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEv
         if (isIndexNode == false) {
             return;
         }
-        assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME)
-            : "We assume this is only run on the applier thread";
+        assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME, ThreadPool.Names.GENERIC)
+            : "We assume this is only run on the applier thread or the async ICSS executor";
         recentlyStartedShards.add(indexShard.shardId());
     }
 

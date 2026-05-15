@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -760,6 +761,43 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         assert ThreadPool.assertCurrentThreadPool(CLUSTER_UPDATE_THREAD_NAME);
         if (isApplyingClusterState != null) {
             isApplyingClusterState.remove();
+        }
+    }
+
+    /// Returns the cluster state version that has been fully applied by all [AsyncClusterStateApplier]s.
+    public long asyncAppliedClusterStateVersion() {
+        long min = state().version();
+        for (final var applier : highPriorityStateAppliers) {
+            if (applier instanceof AsyncClusterStateApplier async) {
+                min = Math.min(min, async.appliedStateVersion());
+            }
+        }
+        for (final var applier : normalPriorityStateAppliers) {
+            if (applier instanceof AsyncClusterStateApplier async) {
+                min = Math.min(min, async.appliedStateVersion());
+            }
+        }
+        for (final var applier : lowPriorityStateAppliers) {
+            if (applier instanceof AsyncClusterStateApplier async) {
+                min = Math.min(min, async.appliedStateVersion());
+            }
+        }
+        return min;
+    }
+
+    public void awaitAllAsyncAppliers(ActionListener<Void> listener) {
+        try (var listeners = new RefCountingListener(listener)) {
+            awaitAsyncAppliers(highPriorityStateAppliers, listeners);
+            awaitAsyncAppliers(normalPriorityStateAppliers, listeners);
+            awaitAsyncAppliers(lowPriorityStateAppliers, listeners);
+        }
+    }
+
+    private static void awaitAsyncAppliers(Collection<ClusterStateApplier> clusterStateAppliers, RefCountingListener listeners) {
+        for (final var clusterStateApplier : clusterStateAppliers) {
+            if (clusterStateApplier instanceof AsyncClusterStateApplier asyncClusterStateApplier) {
+                asyncClusterStateApplier.awaitCurrentStateApplication(listeners.acquire());
+            }
         }
     }
 }

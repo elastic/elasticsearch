@@ -12,30 +12,48 @@ package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.common.InstrumentationScopeInfo;
-import io.opentelemetry.sdk.metrics.InstrumentType;
-import io.opentelemetry.sdk.metrics.data.AggregationTemporality;
 import io.opentelemetry.sdk.metrics.data.MetricData;
-import io.opentelemetry.sdk.metrics.export.MetricExporter;
 import io.opentelemetry.sdk.metrics.internal.data.ImmutableGaugeData;
 import io.opentelemetry.sdk.metrics.internal.data.ImmutableLongPointData;
 import io.opentelemetry.sdk.metrics.internal.data.ImmutableMetricData;
 import io.opentelemetry.sdk.resources.Resource;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.apm.RecordingOtelMeter;
+import org.elasticsearch.telemetry.apm.internal.export.otelsdk.serializer.MetricDataSerializer;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
+import org.junit.Before;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.telemetry.InstrumentType.LONG_COUNTER;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 public class BufferingMetricExporterTests extends ESTestCase {
 
+    private RecordingOtelMeter meter;
+    private Path bufferDir;
+    private FakeMetricExporter delegate;
     private BufferingMetricExporter exporter;
+
+    @Before
+    public void setupCommon() throws Exception {
+        meter = new RecordingOtelMeter();
+        bufferDir = createTempDir("telemetry-buffer");
+        delegate = new FakeMetricExporter();
+    }
 
     @After
     public void shutdownExporter() {
@@ -44,116 +62,149 @@ public class BufferingMetricExporterTests extends ESTestCase {
         }
     }
 
-    public void testDiskDropsWhenOverLimit() throws Exception {
-        var bufferDir = createTempDir("telemetry-buffer");
-        var delegate = new FakeMetricExporter();
-        var settings = Settings.builder()
-            .put("telemetry.otel.metrics.disk_buffer_size", "1b")
-            .put("telemetry.otel.metrics.buffer_ttl", "5m")
-            .build();
-        exporter = new BufferingMetricExporter(delegate, settings, () -> bufferDir);
-
-        delegate.shouldFail = true;
-        exporter.export(List.of(metric("m1", 1)));
-        exporter.flush();
-
-        exporter.export(List.of(metric("m2", 2)));
-        exporter.flush();
-
-        assertThat(listBufferFiles(bufferDir), equalTo(1));
-    }
-
-    public void testTtlEviction() throws Exception {
-        var bufferDir = createTempDir("telemetry-buffer");
-        var delegate = new FakeMetricExporter();
-        var settings = Settings.builder()
-            .put("telemetry.otel.metrics.disk_buffer_size", "10mb")
-            .put("telemetry.otel.metrics.buffer_ttl", "1ms")
-            .build();
-        exporter = new BufferingMetricExporter(delegate, settings, () -> bufferDir);
-
-        delegate.shouldFail = true;
-        exporter.export(List.of(metric("old", 1)));
-        exporter.flush();
-        assertThat(listBufferFiles(bufferDir), equalTo(1));
-
-        safeSleep(10);
-
-        // Still failing — drain cannot delete files, only TTL eviction can
-        exporter.export(List.of(metric("new", 2)));
-        exporter.flush();
-
-        // The first file was evicted by TTL; only the second remains
-        assertThat(listBufferFiles(bufferDir), equalTo(1));
-    }
-
-    public void testShutdownDrainsDisk() throws Exception {
-        var bufferDir = createTempDir("telemetry-buffer");
-        var delegate = new FakeMetricExporter();
-        var settings = Settings.builder()
+    private void build(Settings overrides) {
+        Settings merged = Settings.builder()
             .put("telemetry.otel.metrics.disk_buffer_size", "10mb")
             .put("telemetry.otel.metrics.buffer_ttl", "5m")
+            .put(overrides)
             .build();
-        exporter = new BufferingMetricExporter(delegate, settings, () -> bufferDir);
+        exporter = new BufferingMetricExporter(delegate, merged, bufferDir, meter);
+    }
 
-        delegate.shouldFail = true;
-        exporter.export(List.of(metric("m1", 1)));
-        exporter.flush();
+    private CompletableResultCode exportAndWait(String name) {
+        CompletableResultCode r = exporter.export(List.of(metric(name)));
+        r.join(1, TimeUnit.SECONDS);
+        return r;
+    }
 
-        delegate.shouldFail = false;
-        delegate.exported.clear();
+    public void testFailBufferRecoverAndDrain() throws Exception {
+        build(Settings.EMPTY);
+        delegate.setShouldFail(true);
+        assertTrue("buffered batch must report success", exportAndWait("buf").isSuccess());
+        assertThat(listBufferFiles(), equalTo(1));
+        assertThat(counter("writes"), hasSize(1));
+
+        delegate.setShouldFail(false);
+        exportAndWait("trigger");
+
+        assertBusy(() -> assertThat(listBufferFiles(), equalTo(0)));
+        assertThat(delegate.exportedNames(), hasItems("buf", "trigger"));
+        assertThat(counter("replays"), hasSize(1));
+    }
+
+    public void testDiskCapDropsNewBatchesAndReportsFailure() throws Exception {
+        build(Settings.builder().put("telemetry.otel.metrics.disk_buffer_size", "1b").build());
+
+        delegate.setShouldFail(true);
+        assertTrue(exportAndWait("first").isSuccess());
+        assertFalse("dropped batch must report failure", exportAndWait("second").isSuccess());
+        assertThat(listBufferFiles(), equalTo(1));
+        assertThat(counter("drops_full"), hasSize(1));
+    }
+
+    public void testTtlEvictsExpiredFilesInsteadOfReplaying() throws Exception {
+        build(Settings.builder().put("telemetry.otel.metrics.buffer_ttl", "100ms").build());
+
+        delegate.setShouldFail(true);
+        exportAndWait("expires");
+        assertThat(listBufferFiles(), equalTo(1));
+
+        safeSleep(400);
+
+        // Reset the exported list so we can assert the expired batch isn't replayed.
+        delegate.clearExported();
+        delegate.setShouldFail(false);
+        exportAndWait("trigger");
+
+        assertBusy(() -> assertThat(listBufferFiles(), equalTo(0)));
+        assertThat(counter("evictions_ttl"), hasSize(1));
+        assertThat(counter("replays"), empty());
+        assertThat(delegate.exportedNames(), not(hasItem("expires")));
+    }
+
+    public void testPoisonedFileIsDeletedOnFirstDrain() throws Exception {
+        Files.writeString(bufferDir.resolve("metrics-1.bin"), "not valid");
+        build(Settings.EMPTY);
+
+        exportAndWait("trigger");
+
+        assertBusy(() -> assertThat(listBufferFiles(), equalTo(0)));
+    }
+
+    public void testDrainStopsAfterFirstTransientFailure() throws Exception {
+        for (int i = 1; i <= 4; i++) {
+            try (var out = Files.newOutputStream(bufferDir.resolve("metrics-" + i + ".bin"))) {
+                MetricDataSerializer.serialize(List.of(metric("m" + i)), out);
+            }
+        }
+        // Succeeds for the test trigger then fails on every subsequent replay so the drain aborts after the first attempt.
+        delegate = new FakeMetricExporter() {
+            final AtomicInteger calls = new AtomicInteger();
+
+            @Override
+            public CompletableResultCode export(Collection<MetricData> metrics) {
+                return calls.getAndIncrement() == 0 ? CompletableResultCode.ofSuccess() : CompletableResultCode.ofFailure();
+            }
+        };
+        build(Settings.EMPTY);
+
+        exportAndWait("trigger");
+
+        assertBusy(() -> assertThat(listBufferFiles(), equalTo(4)));
+    }
+
+    public void testShutdownDrainsDiskWhileDelegateIsHealthy() throws Exception {
+        build(Settings.EMPTY);
+        delegate.setShouldFail(true);
+        exportAndWait("m1");
+        assertThat(listBufferFiles(), equalTo(1));
+
+        delegate.setShouldFail(false);
+        delegate.clearExported();
         exporter.shutdown();
+        exporter = null;
 
-        boolean found = delegate.exported.stream().anyMatch(m -> "m1".equals(m.getName()));
-        assertTrue("m1 should have been replayed during shutdown", found);
+        assertThat(delegate.exportedNames(), hasItem("m1"));
+        assertThat(listBufferFiles(), equalTo(0));
+        assertThat(counter("replays"), hasSize(1));
     }
 
-    private static MetricData metric(String name, long value) {
+    public void testShutdownLeavesFilesIfDelegateBroken() throws Exception {
+        build(Settings.EMPTY);
+        delegate.setShouldFail(true);
+        exportAndWait("m1");
+        assertThat(listBufferFiles(), equalTo(1));
+
+        exporter.shutdown();
+        exporter = null;
+
+        // Delegate still failing: drain attempt fails and the file persists for next startup.
+        assertThat("buffered file must remain on disk for next startup", listBufferFiles(), equalTo(1));
+    }
+
+    private List<Measurement> counter(String suffix) {
+        return meter.getRecorder().getMeasurements(LONG_COUNTER, "es.apm.metrics.disk_buffer." + suffix);
+    }
+
+    private int listBufferFiles() throws Exception {
+        int n = 0;
+        try (var stream = Files.newDirectoryStream(bufferDir, "metrics-*.bin")) {
+            for (Path ignored : stream) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    private static MetricData metric(String name) {
         return ImmutableMetricData.createLongGauge(
             Resource.getDefault(),
             InstrumentationScopeInfo.create("test"),
             name,
             "test metric",
             "1",
-            ImmutableGaugeData.create(
-                List.of(ImmutableLongPointData.create(System.nanoTime() - 10_000_000_000L, System.nanoTime(), Attributes.empty(), value))
-            )
+            ImmutableGaugeData.create(List.of(ImmutableLongPointData.create(0L, 0L, Attributes.empty(), 1L)))
         );
     }
 
-    private static int listBufferFiles(Path dir) throws Exception {
-        int count = 0;
-        try (var stream = Files.newDirectoryStream(dir, "metrics-*.bin")) {
-            for (Path ignored : stream) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    private static class FakeMetricExporter implements MetricExporter {
-        final List<MetricData> exported = new ArrayList<>();
-        volatile boolean shouldFail = false;
-
-        @Override
-        public CompletableResultCode export(Collection<MetricData> metrics) {
-            exported.addAll(metrics);
-            return shouldFail ? CompletableResultCode.ofFailure() : CompletableResultCode.ofSuccess();
-        }
-
-        @Override
-        public CompletableResultCode flush() {
-            return CompletableResultCode.ofSuccess();
-        }
-
-        @Override
-        public CompletableResultCode shutdown() {
-            return CompletableResultCode.ofSuccess();
-        }
-
-        @Override
-        public AggregationTemporality getAggregationTemporality(InstrumentType instrumentType) {
-            return AggregationTemporality.DELTA;
-        }
-    }
 }

@@ -9,296 +9,349 @@
 
 package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
+import io.opentelemetry.api.metrics.LongCounter;
+import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.sdk.common.CompletableResultCode;
-import io.opentelemetry.sdk.metrics.Aggregation;
-import io.opentelemetry.sdk.metrics.InstrumentType;
-import io.opentelemetry.sdk.metrics.data.AggregationTemporality;
 import io.opentelemetry.sdk.metrics.data.MetricData;
 import io.opentelemetry.sdk.metrics.export.MetricExporter;
 
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.telemetry.apm.internal.export.otelsdk.serializer.MetricDataSerializer;
+import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
+import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Supplier;
 
 /**
- * A {@link MetricExporter} that writes failed export batches directly to disk as JSON
- * files and replays them through the delegate exporter when the endpoint becomes available again.
+ * Persists failed export batches to disk and replays them once the delegate recovers.
  */
-public class BufferingMetricExporter implements MetricExporter {
+public class BufferingMetricExporter extends DelegatingMetricExporter {
 
     private static final Logger logger = LogManager.getLogger(BufferingMetricExporter.class);
 
-    private static final String FILE_PREFIX = "metrics-";
-    private static final String FILE_SUFFIX = ".bin";
-    private static final String TMP_SUFFIX = ".tmp";
+    private static final TimeValue RECONCILE_INTERVAL = TimeValue.timeValueMinutes(15);
 
-    private final MetricExporter delegate;
     private final long maxDiskBytes;
     private final long ttlMillis;
-    private final Supplier<Path> diskBufferPathSupplier;
+    private final Path diskDir;
+    private final AtomicLong totalBytes = new AtomicLong();
+    private final TimeValue exportOperationTimeout;
 
-    private final AtomicLong diskSeqNo = new AtomicLong();
-    private final AtomicBoolean drainInProgress = new AtomicBoolean();
-    private final ExecutorService drainExecutor = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "metrics-buffer-drain");
-        t.setDaemon(true);
-        return t;
-    });
-    private volatile Path resolvedDiskPath;
+    private final Scheduler.SafeScheduledThreadPoolExecutor diskExecutor;
 
-    public BufferingMetricExporter(MetricExporter delegate, Settings settings, Supplier<Path> diskBufferPathSupplier) {
-        this.delegate = delegate;
+    /**
+     * Most recent in-flight export result. {@link #flush()} joins on this so disk-buffer writes
+     * complete before returning. Single-writer field: only assigned by {@link #export(Collection)},
+     * which the OTel {@code PeriodicMetricReader} drives from a single thread.
+     */
+    private volatile CompletableResultCode lastExport;
+
+    private final LongCounter writesCounter;
+    private final LongCounter replaysCounter;
+    private final LongCounter dropsFullCounter;
+    private final LongCounter evictionsTtlCounter;
+
+    public BufferingMetricExporter(MetricExporter delegate, Settings settings, Path bufferPath, Meter meter) {
+        super(delegate, meter, "disk_buffer");
         this.maxDiskBytes = OtelSdkSettings.TELEMETRY_OTEL_METRICS_DISK_BUFFER_SIZE.get(settings).getBytes();
         this.ttlMillis = OtelSdkSettings.TELEMETRY_OTEL_METRICS_BUFFER_TTL.get(settings).millis();
-        this.diskBufferPathSupplier = diskBufferPathSupplier;
+        this.exportOperationTimeout = OtelSdkSettings.computeExportOperationTimeout(settings);
+        this.diskDir = bufferPath;
+        initDiskDir();
+
+        this.writesCounter = counter("writes", "Metric batches written to disk after delegate failure");
+        this.replaysCounter = counter("replays", "Disk-buffered batches successfully replayed to the delegate");
+        this.dropsFullCounter = counter("drops_full", "Failed batches dropped because the disk buffer is at its size cap");
+        this.evictionsTtlCounter = counter(
+            "evictions_ttl",
+            "Disk-buffered batches dropped because they exceeded the buffer TTL before being replayed"
+        );
+        longGauge("files", "Metric batches currently pending replay on disk", "1", () -> BufferFiles.list(diskDir).size());
+        longGauge("bytes", "Total bytes currently used by the on-disk metric buffer", "By", totalBytes::get);
+
+        this.diskExecutor = new Scheduler.SafeScheduledThreadPoolExecutor(
+            1,
+            EsExecutors.daemonThreadFactory(settings, "metrics_buffer_disk"),
+            new EsAbortPolicy()
+        );
+        diskExecutor.scheduleWithFixedDelay(
+            this::reconcileTotalBytes,
+            RECONCILE_INTERVAL.millis(),
+            RECONCILE_INTERVAL.millis(),
+            TimeUnit.MILLISECONDS
+        );
     }
 
-    /**
-     * Lazily resolves the disk buffer directory from the supplier.
-     */
-    private Path diskPath() {
-        if (resolvedDiskPath != null) {
-            return resolvedDiskPath;
-        }
-        Path supplied = diskBufferPathSupplier.get();
-        if (supplied == null) {
-            return null;
-        }
-        try {
-            Files.createDirectories(supplied);
-            cleanupTmpFiles(supplied);
-            resolvedDiskPath = supplied;
-            return supplied;
-        } catch (IOException e) {
-            logger.warn("failed to initialize disk buffer at [{}], disk buffering disabled", supplied, e);
-            return null;
-        }
-    }
-
-    /**
-     * Ensures the sequence counter is advanced past any pre-existing {@code .bin} files
-     * so new writes never collide with files from a previous run.
-     */
-    private void initSeqNoIfNeeded(Path dir) {
-        if (diskSeqNo.get() == 0) {
-            long maxExistingSeq = listDiskFiles(dir).stream().map(BufferingMetricExporter::seqNoFromFileName).reduce(0L, Math::max);
-            diskSeqNo.set(maxExistingSeq + 1);
-        }
-    }
-
-    /**
-     * Non-blocking export that delegates to the underlying exporter and registers an async callback.
-     * On success the callback schedules a background drain of any disk-buffered files.
-     * On failure the current batch is serialized to disk so it can be replayed later.
-     */
     @Override
     public CompletableResultCode export(Collection<MetricData> metrics) {
-        evictExpiredDiskFiles();
-        CompletableResultCode result = delegate.export(metrics);
-        result.whenComplete(() -> {
-            if (result.isSuccess()) {
-                scheduleDrain();
-            } else {
-                writeToDisk(metrics);
-            }
-        });
-        return result;
+        CompletableResultCode bufferedResult = new CompletableResultCode();
+        lastExport = bufferedResult;
+        try {
+            CompletableResultCode otlpResult = delegate.export(metrics);
+            otlpResult.whenComplete(() -> {
+                try {
+                    if (otlpResult.isSuccess()) {
+                        scheduleAsyncDrain();
+                        bufferedResult.succeed();
+                    } else {
+                        // submitWrite completes bufferedResult only after the batch lands on disk.
+                        submitWrite(metrics, bufferedResult);
+                    }
+                } catch (Exception e) {
+                    logger.warn("unexpected failure handling export completion", e);
+                    bufferedResult.fail();
+                }
+            });
+        } catch (Exception e) {
+            logger.warn("unexpected error while exporting metrics; buffering batch to disk", e);
+            submitWrite(metrics, bufferedResult);
+        }
+        return bufferedResult;
     }
 
-    @Override
-    public AggregationTemporality getAggregationTemporality(InstrumentType instrumentType) {
-        return delegate.getAggregationTemporality(instrumentType);
-    }
-
-    @Override
-    public Aggregation getDefaultAggregation(InstrumentType instrumentType) {
-        return delegate.getDefaultAggregation(instrumentType);
-    }
-
-    /**
-     * Best-effort drain of disk-buffered files before flushing the delegate.
-     * <p>
-     * Called by the OTel SDK after an {@code export()} cycle has already completed, so by the
-     * time we reach here the export callback has already fired (writing to disk on failure or
-     * scheduling a drain on success).
-     */
     @Override
     public CompletableResultCode flush() {
-        try {
-            drainExecutor.submit(this::drainDisk).get(10, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            logger.info("Exception while waiting for drain during flush: ", e);
-        }
+        awaitLastExport(exportOperationTimeout.millis());
         return delegate.flush();
     }
 
-    /**
-     * Waits for any in-progress drain to finish, then performs a final
-     * synchronous drain on the calling thread. This last drain catches files written between the
-     * last scheduled drain and shutdown.
-     */
     @Override
     public CompletableResultCode shutdown() {
-        drainExecutor.shutdown();
-        try {
-            if (drainExecutor.awaitTermination(10, TimeUnit.SECONDS) == false) {
-                logger.info("Timeout reached trying to flush metrics from disk before shutdown.");
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-        drainDisk();
+        awaitLastExport(Long.MAX_VALUE);
+        ThreadPool.terminate(diskExecutor, Long.MAX_VALUE, TimeUnit.MILLISECONDS);
+        drainFiles();
         return delegate.shutdown();
     }
 
-    /**
-     * Schedules a drain on the background thread if one is not already running.
-     */
-    private void scheduleDrain() {
-        if (drainInProgress.compareAndSet(false, true)) {
-            drainExecutor.submit(() -> {
-                try {
-                    drainDisk();
-                } finally {
-                    drainInProgress.set(false);
-                }
-            });
+    private void initDiskDir() {
+        try {
+            Files.createDirectories(diskDir);
+            BufferFiles.cleanupOrphanTmp(diskDir);
+            long sum = 0L;
+            for (Path f : BufferFiles.list(diskDir)) {
+                sum += safeFileSize(f);
+            }
+            totalBytes.set(sum);
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to initialize APM telemetry disk buffer at [" + diskDir + "]", e);
         }
     }
 
-    /**
-     * Serializes the metrics batch to a JSON file on disk using atomic rename
-     * (write to {@code .tmp}, then {@code ATOMIC_MOVE} to {@code .bin}) so readers never
-     * see a partially-written file.
-     */
-    private void writeToDisk(Collection<MetricData> metrics) {
-        Path dir = diskPath();
-        if (dir == null) {
-            logger.debug("dropping failed batch (disk buffer path unavailable)");
-            return;
+    private void awaitLastExport(long timeoutMillis) {
+        CompletableResultCode pending = lastExport;
+        if (pending != null) {
+            pending.join(timeoutMillis, TimeUnit.MILLISECONDS);
         }
-        initSeqNoIfNeeded(dir);
-        if (isDiskOverLimit(dir)) {
-            logger.debug("disk buffer full, dropping batch");
-            return;
-        }
+    }
+
+    private void scheduleAsyncDrain() {
         try {
-            long seq = diskSeqNo.getAndIncrement();
-            String fileName = FILE_PREFIX + seq + FILE_SUFFIX;
-            Path tmpFile = dir.resolve(fileName + TMP_SUFFIX);
-            Path finalFile = dir.resolve(fileName);
-            try (OutputStream out = Files.newOutputStream(tmpFile)) {
+            diskExecutor.execute(this::drainFiles);
+        } catch (RejectedExecutionException e) {
+            logger.debug("skipping scheduled drain: disk executor terminated", e);
+        }
+    }
+
+    private void submitWrite(Collection<MetricData> metrics, CompletableResultCode result) {
+        try {
+            diskExecutor.execute(() -> doWrite(metrics, result));
+        } catch (RejectedExecutionException e) {
+            // Post-shutdown: write inline rather than drop. Briefly blocks the OTLP thread; acceptable on shutdown.
+            doWrite(metrics, result);
+        }
+    }
+
+    private void doWrite(Collection<MetricData> metrics, CompletableResultCode result) {
+        try {
+            if (writeToDisk(metrics)) {
+                result.succeed();
+            } else {
+                result.fail();
+            }
+        } catch (Exception e) {
+            logger.warn("unexpected failure while writing metrics to disk", e);
+            result.fail();
+        }
+    }
+
+    private boolean writeToDisk(Collection<MetricData> metrics) {
+        if (totalBytes.get() >= maxDiskBytes) {
+            logger.warn("APM telemetry disk buffer at size cap [{} bytes]; dropping failed batch", maxDiskBytes);
+            dropsFullCounter.add(1);
+            return false;
+        }
+        return serializeBatch(diskDir, metrics);
+    }
+
+    // totalBytes can drift over time due to IOExceptions in reading file size. This reconciles it periodically.
+    private void reconcileTotalBytes() {
+        if (totalBytes.get() == 0L) {
+            return;
+        }
+        long sum = 0L;
+        for (Path f : BufferFiles.list(diskDir)) {
+            sum += safeFileSize(f);
+        }
+        totalBytes.set(sum);
+    }
+
+    private boolean serializeBatch(Path dir, Collection<MetricData> metrics) {
+        String name = BufferFiles.nameFor();
+        Path tmp = dir.resolve(name + BufferFiles.TMP_SUFFIX);
+        Path dst = dir.resolve(name);
+        try {
+            try (OutputStream out = Files.newOutputStream(tmp)) {
                 MetricDataSerializer.serialize(metrics, out);
             }
-            Files.move(tmpFile, finalFile, StandardCopyOption.ATOMIC_MOVE);
+            long size = Files.size(tmp);
+            Files.move(tmp, dst, StandardCopyOption.ATOMIC_MOVE);
+            totalBytes.addAndGet(size);
+            writesCounter.add(1);
+            return true;
         } catch (IOException e) {
             logger.warn("failed to write metrics to disk", e);
+            IOUtils.deleteFilesIgnoringExceptions(tmp);
+            return false;
         }
     }
 
-    /**
-     * Reads disk-buffered files in sequence-number order, deserializes each back to
-     * {@link MetricData} objects, and re-exports through the delegate.
-     * Successfully replayed files are deleted.
-     */
-    private void drainDisk() {
-        Path dir = diskPath();
-        if (dir == null) {
-            return;
-        }
-        List<Path> files = listDiskFiles(dir);
-        for (Path file : files) {
+    private void drainFiles() {
+        for (Path file : BufferFiles.list(diskDir)) {
+            if (Thread.currentThread().isInterrupted()) {
+                return;
+            }
+            if (evictIfExpired(file)) {
+                continue;
+            }
+            long size = safeFileSize(file);
+            List<MetricData> metrics;
             try (var is = Files.newInputStream(file)) {
-                List<MetricData> metrics = MetricDataSerializer.deserialize(is);
-                CompletableResultCode result = delegate.export(metrics);
-                if (result.join(10, TimeUnit.SECONDS).isSuccess()) {
-                    Files.deleteIfExists(file);
+                metrics = MetricDataSerializer.deserialize(is);
+            } catch (NoSuchFileException e) {
+                continue;
+            } catch (ClosedByInterruptException | InterruptedIOException e) {
+                // Interrupt mid-read: leave the file for next startup.
+                Thread.currentThread().interrupt();
+                return;
+            } catch (Exception e) {
+                logger.warn(() -> "dropping unrecoverable disk-buffered metrics file [" + file + "]", e);
+                deleteAndAccount(file, size);
+                continue;
+            }
+            if (metrics.isEmpty()) {
+                // E.g. all points had unsupported types.
+                deleteAndAccount(file, size);
+                continue;
+            }
+            try {
+                CompletableResultCode result = delegate.export(metrics).join(exportOperationTimeout.millis(), TimeUnit.MILLISECONDS);
+                if (result.isSuccess()) {
+                    replaysCounter.add(1);
+                    deleteAndAccount(file, size);
                 } else {
+                    logger.warn("delegate failed replay of disk-buffered metrics [{}]; deferring drain", file);
                     return;
                 }
             } catch (Exception e) {
-                logger.warn("failed to replay disk-buffered metrics from [{}], skipping", file, e);
+                logger.warn(() -> "delegate threw while replaying [" + file + "]; deferring drain", e);
+                return;
             }
         }
     }
 
-    private boolean isDiskOverLimit(Path dir) {
-        long totalBytes = 0;
-        for (Path f : listDiskFiles(dir)) {
-            try {
-                totalBytes += Files.size(f);
-            } catch (IOException e) {
-                // file may have been deleted since listing
-            }
+    private static long safeFileSize(Path file) {
+        try {
+            return Files.size(file);
+        } catch (IOException e) {
+            return 0L;
         }
-        return totalBytes >= maxDiskBytes;
     }
 
-    private void evictExpiredDiskFiles() {
-        Path dir = diskPath();
-        if (dir == null) {
-            return;
+    private void deleteAndAccount(Path file, long size) {
+        try {
+            if (Files.deleteIfExists(file)) {
+                totalBytes.addAndGet(-size);
+            }
+        } catch (IOException e) {
+            logger.warn(() -> "replayed/evicted disk-buffered metrics but failed to delete [" + file + "]", e);
         }
-        long now = System.currentTimeMillis();
-        for (Path file : listDiskFiles(dir)) {
-            try {
-                long fileTime = Files.getLastModifiedTime(file).toMillis();
-                if (now - fileTime > ttlMillis) {
-                    Files.deleteIfExists(file);
+    }
+
+    private boolean evictIfExpired(Path file) {
+        try {
+            long fileTime = Files.getLastModifiedTime(file).toMillis();
+            if (System.currentTimeMillis() - fileTime > ttlMillis) {
+                long size = safeFileSize(file);
+                if (Files.deleteIfExists(file)) {
+                    totalBytes.addAndGet(-size);
+                    evictionsTtlCounter.add(1);
+                    return true;
+                }
+            }
+        } catch (NoSuchFileException e) {
+            // already gone
+        } catch (IOException e) {
+            logger.warn(() -> "failed to check/evict expired disk file [" + file + "]", e);
+        }
+        return false;
+    }
+
+    private static final class BufferFiles {
+        private static final Logger logger = LogManager.getLogger(BufferFiles.class);
+
+        static final String PREFIX = "metrics-";
+        static final String SUFFIX = ".bin";
+        static final String TMP_SUFFIX = ".tmp";
+
+        private BufferFiles() {}
+
+        static String nameFor() {
+            return PREFIX + UUIDs.base64UUID() + SUFFIX;
+        }
+
+        static List<Path> list(Path dir) {
+            List<Path> files = new ArrayList<>();
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, PREFIX + "*" + SUFFIX)) {
+                for (Path p : stream) {
+                    files.add(p);
                 }
             } catch (IOException e) {
-                logger.warn("failed to evict expired disk file [{}]", file, e);
+                logger.warn(() -> "failed to list disk buffer directory [" + dir + "]", e);
+            }
+            return files;
+        }
+
+        static void cleanupOrphanTmp(Path dir) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, "*" + TMP_SUFFIX)) {
+                for (Path tmp : stream) {
+                    Files.deleteIfExists(tmp);
+                }
+            } catch (IOException e) {
+                logger.warn(() -> "failed to delete orphaned tmp files from [" + dir + "]", e);
             }
         }
     }
 
-    private static List<Path> listDiskFiles(Path dir) {
-        List<Path> files = new ArrayList<>();
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, FILE_PREFIX + "*" + FILE_SUFFIX)) {
-            for (Path p : stream) {
-                files.add(p);
-            }
-        } catch (IOException e) {
-            logger.debug("failed to list disk buffer directory [{}]", dir, e);
-        }
-        files.sort(Comparator.comparingLong(BufferingMetricExporter::seqNoFromFileName));
-        return files;
-    }
-
-    private static long seqNoFromFileName(Path file) {
-        String name = file.getFileName().toString();
-        String numStr = name.substring(FILE_PREFIX.length(), name.length() - FILE_SUFFIX.length());
-        try {
-            return Long.parseLong(numStr);
-        } catch (NumberFormatException e) {
-            return 0;
-        }
-    }
-
-    private static void cleanupTmpFiles(Path dir) {
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, "*" + TMP_SUFFIX)) {
-            for (Path tmp : stream) {
-                Files.deleteIfExists(tmp);
-            }
-        } catch (IOException e) {
-            logger.warn("failed to delete orphaned tmp files from [{}]", dir, e);
-        }
-    }
 }

@@ -288,13 +288,17 @@ def upgradeCompatibilityZip = tasks.register("upgradeCompatibilityZip", Zip) {
   from(generateUpgradeCompatibilityFile)
 }
 
+def isCiSplitTask = { String taskName ->
+  taskName.startsWith("checkPart") || taskName.startsWith("releaseTestCheck") || taskName == 'functionalTests'
+}
+
 // TODO: This flag existed as a mechanism to disable bwc tests during a backport. It is no
 // longer used for that purpose, but instead a way to run only functional tests. We should
 // rework the functionalTests task to be more explicit about which tasks it wants to run
 // so that that this flag is no longer needed.
 boolean bwc_tests_enabled = true
-if (project.gradle.startParameter.taskNames.any { it.startsWith("checkPart") || it == 'functionalTests' }) {
-  // Disable BWC tests for checkPart* tasks and platform support tests as it's expected that this will run on it's own check
+if (project.gradle.startParameter.taskNames.any(isCiSplitTask)) {
+  // Disable BWC tests for split CI tasks and platform support tests as it's expected that this will run on its own check.
   bwc_tests_enabled = false
 }
 
@@ -544,7 +548,7 @@ gradle.projectsEvaluated {
 tasks.named("validateChangelogs").configure {
   def triggeredTaskNames = gradle.startParameter.taskNames
   onlyIf {
-    triggeredTaskNames.any { it.startsWith("checkPart") || it == 'functionalTests' } == false
+    triggeredTaskNames.any(isCiSplitTask) == false
   }
 }
 
@@ -556,6 +560,18 @@ tasks.named("precommit") {
 tasks.named("checkPart1").configure {
   dependsOn gradle.includedBuild('build-tools').task(':check')
   dependsOn gradle.includedBuild('build-tools-internal').task(':check')
+}
+
+[
+  'releaseTestCheckEsqlEngine',
+  'releaseTestCheckEsqlQa',
+  'releaseTestCheckEsqlDatasourceCore',
+  'releaseTestCheckEsqlDatasourceQa'
+].each { taskName ->
+  tasks.register(taskName) {
+    group = 'Verification'
+    description = "Runs ${taskName} across subscribed projects."
+  }
 }
 
 tasks.named("assemble").configure {

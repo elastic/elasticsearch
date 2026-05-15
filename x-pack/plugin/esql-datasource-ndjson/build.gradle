@@ -7,6 +7,11 @@
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.esql-release-datasource-core'
+
+subprojects {
+  apply plugin: 'elasticsearch.esql-release-datasource-qa'
+}
 
 esplugin {
   name = 'esql-datasource-ndjson'

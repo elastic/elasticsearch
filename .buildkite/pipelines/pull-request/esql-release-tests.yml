@@ -7,16 +7,16 @@ config:
 steps:
   - group: esql-release-tests
     steps:
-      - label: "{{matrix.TASK_SET}} / release-tests"
-        command: bash .buildkite/scripts/esql-release-tests.sh {{matrix.TASK_SET}}
+      - label: "{{matrix.CHECK_TASK}} / release-tests"
+        command: .buildkite/scripts/release-tests.sh {{matrix.CHECK_TASK}}
         timeout_in_minutes: 120
         matrix:
           setup:
-            TASK_SET:
-              - esql-engine
-              - esql-qa
-              - esql-datasource-core
-              - esql-datasource-qa
+            CHECK_TASK:
+              - releaseTestCheckEsqlEngine
+              - releaseTestCheckEsqlQa
+              - releaseTestCheckEsqlDatasourceCore
+              - releaseTestCheckEsqlDatasourceQa
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404

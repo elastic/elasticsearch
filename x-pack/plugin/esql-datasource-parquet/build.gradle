@@ -7,6 +7,11 @@
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.esql-release-datasource-qa'
+
+subprojects {
+  apply plugin: 'elasticsearch.esql-release-datasource-qa'
+}
 
 versions << [
   'hadoop' : '3.4.3',

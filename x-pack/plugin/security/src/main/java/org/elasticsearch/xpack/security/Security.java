@@ -837,8 +837,8 @@ public class Security extends Plugin
         final RestrictedIndices restrictedIndices = new RestrictedIndices(expressionResolver);
 
         // audit trail service construction
-        final AuditTrail auditTrail = auditTrailFactory.get().create(settings, clusterService, threadPool, coreSystemIndices,
-            projectResolver);
+        final AuditTrail auditTrail = auditTrailFactory.get()
+            .create(settings, clusterService, threadPool, coreSystemIndices, projectResolver);
         final AuditTrailService auditTrailService = new AuditTrailService(auditTrail, getLicenseState(), clusterService);
         components.add(auditTrailService);
         this.auditTrailService.set(auditTrailService);
@@ -997,8 +997,7 @@ public class Security extends Plugin
             samlAuthenticateResponseHandlerFactory.set(new SamlAuthenticateResponseHandler.DefaultFactory());
         }
         if (auditTrailFactory.get() == null) {
-            Supplier<AuditTrailFactory> supp = () -> (settings, cs, tp,
-                                                      systemIndices, pResolver) -> new LoggingAuditTrail(
+            Supplier<AuditTrailFactory> supp = () -> (settings, cs, tp, systemIndices, pResolver) -> new LoggingAuditTrail(
                 settings,
                 cs,
                 tp

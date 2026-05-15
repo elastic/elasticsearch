@@ -664,7 +664,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
             final Scope currentClusterScope = getCurrentClusterScope();
             if (isInternalCluster()) {
                 internalCluster().clearDisruptionScheme();
-                verifyAsyncIndicesClusterStateServiceApplier();
+                if (verifyAsyncApplier()) {
+                    verifyAsyncIndicesClusterStateServiceApplier();
+                }
             }
             try {
                 if (cluster() != null && cluster().size() > 0) {
@@ -701,6 +703,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 // afterTestRule.forceFailure();
             }
         }
+    }
+
+    protected boolean verifyAsyncApplier() {
+        return true;
     }
 
     /**

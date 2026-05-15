@@ -58,6 +58,11 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
         return plugins;
     }
 
+    @Override
+    protected boolean verifyAsyncApplier() {
+        return false;
+    }
+
     public void testRestCancellation() throws Exception {
         assertAcked(
             indicesAdmin().prepareCreate("test").setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date")

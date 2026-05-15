@@ -54,6 +54,8 @@ public class ClusterStateSecretsListener implements ClusterStateListener {
             ClusterStateSecretsMetadata legacyMetadata = state.custom(ClusterStateSecretsMetadata.TYPE);
             if (legacyMetadata != null && requiresCleanup.compareAndSet(true, false)) {
                 removeClusterStateSecretsMetadata();
+            } else if (requiresCleanup.compareAndSet(true, false)) {
+                addClusterStateSecretsMetadata_FOR_TESTING_ONY();
             }
         }
 
@@ -96,6 +98,35 @@ public class ClusterStateSecretsListener implements ClusterStateListener {
             });
         } catch (RuntimeException e) {
             logger.warn("Failed to remove obsolete [file_secure_settings_metadata] from cluster custom state", e);
+            requiresCleanup.set(true);
+        }
+    }
+
+    @SuppressForbidden(reason = "removing ClusterStateSecretsMetadata exactly once")
+    private void addClusterStateSecretsMetadata_FOR_TESTING_ONY() {
+        try {
+            clusterService.submitUnbatchedStateUpdateTask("removeClusterStateSecretsMetadata", new ClusterStateUpdateTask() {
+
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    logger.info("Adding obsolete [file_secure_settings_metadata] for testing");
+                    return ClusterState.builder(currentState).removeCustom(ClusterStateSecretsMetadata.TYPE).build();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn("Failed to add obsolete [file_secure_settings_metadata]", e);
+                    requiresCleanup.set(true);
+                }
+
+                @Override
+                public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                    logger.info("Added obsolete [file_secure_settings_metadata] for testing");
+                    requiresCleanup.set(true);
+                }
+            });
+        } catch (RuntimeException e) {
+            logger.warn("Failed to add obsolete [file_secure_settings_metadata]", e);
             requiresCleanup.set(true);
         }
     }

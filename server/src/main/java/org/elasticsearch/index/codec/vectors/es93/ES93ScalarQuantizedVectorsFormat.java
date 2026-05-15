@@ -32,6 +32,7 @@ import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.Lucene99ScalarQuantizedVectorsWriter;
 import org.elasticsearch.index.codec.vectors.QuantizedAndRawFloatVectorValues;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 
@@ -242,7 +243,7 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
         private ESQuantizedFlatVectorsScorer(FlatVectorsScorer delegate) {
             this.delegate = delegate;
-            factory = VectorScorerFactory.instance().orElse(null);
+            factory = ESVectorizationProvider.getInstance().getVectorScorerFactory();
         }
 
         @Override
@@ -258,16 +259,14 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
                 if (qValues.getScalarQuantizer().getBits() != 7) {
                     return delegate.getRandomVectorScorerSupplier(sim, values);
                 }
-                if (factory != null) {
-                    var scorer = factory.getInt7SQVectorScorerSupplier(
-                        VectorSimilarityType.of(sim),
-                        qValues.getSlice(),
-                        qValues,
-                        qValues.getScalarQuantizer().getConstantMultiplier()
-                    );
-                    if (scorer.isPresent()) {
-                        return scorer.get();
-                    }
+                var scorer = factory.getInt7SQVectorScorerSupplier(
+                    VectorSimilarityType.of(sim),
+                    qValues.getSlice(),
+                    qValues,
+                    qValues.getScalarQuantizer().getConstantMultiplier()
+                );
+                if (scorer.isPresent()) {
+                    return scorer.get();
                 }
             }
             return delegate.getRandomVectorScorerSupplier(sim, values);
@@ -281,11 +280,9 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
                 if (qValues.getScalarQuantizer().getBits() != 7) {
                     return delegate.getRandomVectorScorer(sim, values, query);
                 }
-                if (factory != null) {
-                    var scorer = factory.getInt7SQVectorScorer(sim, qValues, query);
-                    if (scorer.isPresent()) {
-                        return scorer.get();
-                    }
+                var scorer = factory.getInt7SQVectorScorer(sim, qValues, query);
+                if (scorer.isPresent()) {
+                    return scorer.get();
                 }
             }
             return delegate.getRandomVectorScorer(sim, values, query);

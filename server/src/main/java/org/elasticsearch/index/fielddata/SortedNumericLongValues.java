@@ -21,6 +21,19 @@ import java.io.IOException;
  */
 public abstract class SortedNumericLongValues {
 
+    private final boolean isSingleton;
+    private LongValues longValues;
+
+    /** Sole constructor. (For invocation by subclass
+     * constructors, typically implicit.) */
+    protected SortedNumericLongValues() {
+        this(false);
+    }
+
+    protected SortedNumericLongValues(boolean isSingleton) {
+        this.isSingleton = isSingleton;
+    }
+
     /**
      * A {@link SortedNumericLongValues} instance that does not have a value for any document
      */
@@ -62,46 +75,56 @@ public abstract class SortedNumericLongValues {
      */
     public abstract int docValueCount();
 
+    public boolean isSingleton() {
+        return isSingleton;
+    }
+
+    public LongValues asLongValues() {
+        if (isSingleton && longValues == null) {
+            var singleton = this;
+            longValues = new LongValues() {
+                @Override
+                public long longValue() throws IOException {
+                    return singleton.nextValue();
+                }
+
+                @Override
+                public boolean advanceExact(int doc) throws IOException {
+                    return singleton.advanceExact(doc);
+                }
+            };
+        }
+        return longValues;
+    }
+
     /**
      * Converts a {@link SortedNumericLongValues} values to a singly valued {@link LongValues}
      * if possible
      */
     public static LongValues unwrapSingleton(SortedNumericLongValues values) {
-        if (values instanceof SingletonSortedNumericLongValues sv) {
-            return sv.values;
-        }
-        return null;
+        return values != null ? values.asLongValues() : null;
     }
 
     /**
      * Converts a {@link LongValues} to a {@link SortedNumericLongValues}
      */
     public static SortedNumericLongValues singleton(LongValues values) {
-        return new SingletonSortedNumericLongValues(values);
-    }
+        return new SortedNumericLongValues(true) {
+            @Override
+            public boolean advanceExact(int target) throws IOException {
+                return values.advanceExact(target);
+            }
 
-    private static class SingletonSortedNumericLongValues extends SortedNumericLongValues {
+            @Override
+            public long nextValue() throws IOException {
+                return values.longValue();
+            }
 
-        private final LongValues values;
-
-        private SingletonSortedNumericLongValues(LongValues values) {
-            this.values = values;
-        }
-
-        @Override
-        public boolean advanceExact(int target) throws IOException {
-            return values.advanceExact(target);
-        }
-
-        @Override
-        public long nextValue() throws IOException {
-            return values.longValue();
-        }
-
-        @Override
-        public int docValueCount() {
-            return 1;
-        }
+            @Override
+            public int docValueCount() {
+                return 1;
+            }
+        };
     }
 
     /**
@@ -113,20 +136,7 @@ public abstract class SortedNumericLongValues {
      */
     public static SortedNumericLongValues wrap(SortedNumericDocValues values) {
         NumericDocValues singleton = DocValues.unwrapSingleton(values);
-        if (singleton != null) {
-            return new SingletonSortedNumericLongValues(new LongValues() {
-                @Override
-                public long longValue() throws IOException {
-                    return singleton.longValue();
-                }
-
-                @Override
-                public boolean advanceExact(int doc) throws IOException {
-                    return singleton.advanceExact(doc);
-                }
-            });
-        }
-        return new SortedNumericLongValues() {
+        return new SortedNumericLongValues(singleton != null) {
             @Override
             public boolean advanceExact(int target) throws IOException {
                 return values.advanceExact(target);
@@ -139,8 +149,27 @@ public abstract class SortedNumericLongValues {
 
             @Override
             public int docValueCount() {
-                return values.docValueCount();
+                return singleton != null ? 1 : values.docValueCount();
             }
         };
+    }
+
+    public static abstract class SortedNumericDoubleWrapper extends SortedNumericLongValues {
+        private final SortedNumericDoubleValues doubleValues;
+
+        protected SortedNumericDoubleWrapper(SortedNumericDoubleValues doubleValues) {
+            super(doubleValues.isSingleton());
+            this.doubleValues = doubleValues;
+        }
+
+        @Override
+        public boolean advanceExact(int target) throws IOException {
+            return doubleValues.advanceExact(target);
+        }
+
+        @Override
+        public int docValueCount() {
+            return doubleValues.docValueCount();
+        }
     }
 }

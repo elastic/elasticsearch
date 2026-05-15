@@ -27,8 +27,6 @@ public abstract class SortedNumericDoubleValues {
     private final DocIdSetIterator docIdSetIterator;
     private DoubleValues doubleValues;
 
-    /** Sole constructor. (For invocation by subclass
-     * constructors, typically implicit.) */
     protected SortedNumericDoubleValues() {
         this(false, null);
     }

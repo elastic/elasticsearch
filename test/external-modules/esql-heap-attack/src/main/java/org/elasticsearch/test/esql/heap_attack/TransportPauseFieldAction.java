@@ -39,7 +39,7 @@ public class TransportPauseFieldAction extends TransportNodesAction<
     TransportPauseFieldAction.NodeResponse,
     Void> {
 
-    public static final ActionType<Response> TYPE = new ActionType<>("internal:data/test/pause_field");
+    public static final ActionType<Response> TYPE = new ActionType<>("cluster:monitor/test/pause_field");
 
     @Inject
     public TransportPauseFieldAction(

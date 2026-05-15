@@ -39,7 +39,7 @@ public class RestPauseFieldAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         boolean block = request.path().endsWith("/block");
-        return channel -> client.execute(
+        return channel -> client.admin().cluster().execute(
             TransportPauseFieldAction.TYPE,
             new TransportPauseFieldAction.Request(block),
             new RestActionListener<>(channel) {

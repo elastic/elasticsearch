@@ -92,16 +92,14 @@ public class ManyRequestsIT extends HeapAttackTestCase {
                 String id = asyncIds.get(i);
                 ensureAsyncQueryCompleted(id);
             }
-            batchSize -= tailRequests;
         } finally {
             unblockPauseField();
-            for (int i = 0; i < batchSize; i++) {
+            for (int i = 0; i < asyncIds.size(); i++) {
                 String id = asyncIds.get(i);
                 logger.info("--> stopping query={} id={}", i, id);
                 deleteAsyncQuery(id);
             }
-            for (int i = 0; i < batchSize; i++) {
-                String id = asyncIds.get(i);
+            for (String id : asyncIds) {
                 ensureAsyncQueryCompleted(id);
             }
         }
@@ -112,8 +110,7 @@ public class ManyRequestsIT extends HeapAttackTestCase {
         createIndex.setJsonEntity("""
             {
                 "settings": {
-                    "number_of_shards": 1,
-                    "number_of_replicas": 0
+                    "number_of_shards": 1
                 },
                 "mappings": {
                     "runtime": {

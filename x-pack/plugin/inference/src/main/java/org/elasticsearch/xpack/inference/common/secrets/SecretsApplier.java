@@ -5,14 +5,16 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.azureopenai.secrets;
+package org.elasticsearch.xpack.inference.common.secrets;
 
 import org.apache.http.client.methods.HttpRequestBase;
 import org.elasticsearch.action.ActionListener;
 
 /**
- * An interface for applying secrets to Azure OpenAI requests.
+ * Applies authentication credentials to an outbound inference HTTP request.
+ * Implementations may add headers synchronously (e.g. static API key) or asynchronously
+ * (e.g. OAuth2 client-credentials token fetch).
  */
-public interface AzureOpenAiSecretsApplier {
+public interface SecretsApplier {
     void applyTo(HttpRequestBase request, ActionListener<HttpRequestBase> listener);
 }

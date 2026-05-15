@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
@@ -75,6 +76,9 @@ public class DataSourceService {
      * Validate the put-data-source request: look up the validator by type, run it, and build the
      * domain {@link DataSource}. Callable from the coordinator (pre-check) and from inside the CAS
      * task (authoritative re-validate). Throws on unknown type or validation failure.
+     *
+     * <p>The returned {@link DataSource} carries {@code uuid == null}; the master-side put step
+     * preserves the existing UUID on update or assigns a fresh one on create / legacy migration.
      */
     public DataSource validatePutDataSource(PutDataSourceAction.Request request) {
         DataSourceValidator validator = validatorsByType.get(request.type());
@@ -84,7 +88,7 @@ public class DataSourceService {
         final Map<String, org.elasticsearch.cluster.metadata.DataSourceSetting> validated = validator.validateDatasource(
             request.rawSettings()
         );
-        return new DataSource(request.name(), request.type(), request.description(), validated);
+        return new DataSource(request.name(), request.type(), request.description(), validated, null);
     }
 
     /**
@@ -96,16 +100,25 @@ public class DataSourceService {
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                final DataSource dataSource = validatePutDataSource(request);
+                final DataSource validated = validatePutDataSource(request);
                 final ProjectMetadata project = currentState.metadata().getProject(projectId);
                 final DataSourceMetadata metadata = getMetadata(project);
-                final DataSource current = metadata.get(dataSource.name());
+                final DataSource current = metadata.get(validated.name());
                 if (current == null && metadata.dataSources().size() >= maxDataSourcesCount) {
-                    logger.warn("rejected put for data source [{}]: maximum count [{}] reached", dataSource.name(), maxDataSourcesCount);
+                    logger.warn("rejected put for data source [{}]: maximum count [{}] reached", validated.name(), maxDataSourcesCount);
                     throw new IllegalArgumentException(
                         "cannot add data source, the maximum number of data sources is reached: " + maxDataSourcesCount
                     );
                 }
+                // Preserve UUID on update; assign fresh on create or legacy (pre-UUID) migration.
+                final String uuid = (current != null && current.uuid() != null) ? current.uuid() : UUIDs.randomBase64UUID();
+                final DataSource dataSource = new DataSource(
+                    validated.name(),
+                    validated.type(),
+                    validated.description(),
+                    validated.settings(),
+                    uuid
+                );
                 final Map<String, DataSource> updated = new HashMap<>(metadata.dataSources());
                 updated.put(dataSource.name(), dataSource);
                 return ClusterState.builder(currentState)

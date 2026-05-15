@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -28,19 +29,38 @@ import java.util.Objects;
 /**
  * Represents a data source definition stored in cluster state. A data source holds
  * connection settings (credentials, endpoints, auth) for an external data provider.
+ *
+ * <p>The {@code uuid} field is a rename-stable, immutable identifier populated at PUT creation time
+ * (via {@code UUIDs.randomBase64UUID()} on the master-side validator). It is reserved for use by
+ * per-data-source key derivation when the security infrastructure grows that capability; today it
+ * is persisted but not otherwise consumed. Legacy entries that predate the field parse with
+ * {@code uuid == null}; the next PUT for such an entry populates it.
  */
 public final class DataSource implements Writeable, ToXContentObject {
+
+    /**
+     * Transport-version gate for the {@code uuid} field on {@link DataSource}. Pre-version peers
+     * neither read nor write the field; reads return {@code null} on the recipient side.
+     */
+    public static final TransportVersion DATA_SOURCE_ADD_UUID_FIELD = TransportVersion.fromName("data_source_add_uuid_field");
 
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField DESCRIPTION = new ParseField("description");
     private static final ParseField SETTINGS = new ParseField("settings");
+    private static final ParseField UUID = new ParseField("uuid");
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<DataSource, Void> PARSER = new ConstructingObjectParser<>(
         "data_source",
         false,
-        (args, ctx) -> new DataSource((String) args[0], (String) args[1], (String) args[2], (Map<String, DataSourceSetting>) args[3])
+        (args, ctx) -> new DataSource(
+            (String) args[0],
+            (String) args[1],
+            (String) args[2],
+            (Map<String, DataSourceSetting>) args[3],
+            (String) args[4]
+        )
     );
 
     static {
@@ -55,18 +75,27 @@ public final class DataSource implements Writeable, ToXContentObject {
             }
             return settings;
         }, SETTINGS);
+        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), UUID);
     }
 
     private final String name;
     private final String type;
     private final String description;
     private final Map<String, DataSourceSetting> settings;
+    private final String uuid;
 
-    public DataSource(String name, String type, @Nullable String description, Map<String, DataSourceSetting> settings) {
+    public DataSource(
+        String name,
+        String type,
+        @Nullable String description,
+        Map<String, DataSourceSetting> settings,
+        @Nullable String uuid
+    ) {
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.type = Objects.requireNonNull(type, "type must not be null");
         this.description = description;
         this.settings = Collections.unmodifiableMap(Objects.requireNonNull(settings, "settings must not be null"));
+        this.uuid = uuid;
     }
 
     public DataSource(StreamInput in) throws IOException {
@@ -75,6 +104,8 @@ public final class DataSource implements Writeable, ToXContentObject {
         this.description = in.readOptionalString();
         // readMap returns a mutable HashMap when non-empty; wrap to preserve the class invariant that settings is unmodifiable
         this.settings = Collections.unmodifiableMap(in.readMap(DataSourceSetting::new));
+        // uuid is gated: pre-version peers don't write it, so reads default to null
+        this.uuid = in.getTransportVersion().supports(DATA_SOURCE_ADD_UUID_FIELD) ? in.readOptionalString() : null;
     }
 
     @Override
@@ -83,6 +114,9 @@ public final class DataSource implements Writeable, ToXContentObject {
         out.writeString(type);
         out.writeOptionalString(description);
         out.writeMap(settings, StreamOutput::writeWriteable);
+        if (out.getTransportVersion().supports(DATA_SOURCE_ADD_UUID_FIELD)) {
+            out.writeOptionalString(uuid);
+        }
     }
 
     public String name() {
@@ -99,6 +133,15 @@ public final class DataSource implements Writeable, ToXContentObject {
 
     public Map<String, DataSourceSetting> settings() {
         return settings;
+    }
+
+    /**
+     * The data source's rename-stable identifier. {@code null} for legacy entries that predate the field;
+     * non-null for every entry created or re-PUT-ed after the field shipped.
+     */
+    @Nullable
+    public String uuid() {
+        return uuid;
     }
 
     /**
@@ -156,6 +199,9 @@ public final class DataSource implements Writeable, ToXContentObject {
             entry.getValue().toXContent(builder, params);
         }
         builder.endObject();
+        if (uuid != null) {
+            builder.field(UUID.getPreferredName(), uuid);
+        }
         builder.endObject();
         return builder;
     }
@@ -168,12 +214,13 @@ public final class DataSource implements Writeable, ToXContentObject {
         return Objects.equals(name, that.name)
             && Objects.equals(type, that.type)
             && Objects.equals(description, that.description)
-            && Objects.equals(settings, that.settings);
+            && Objects.equals(settings, that.settings)
+            && Objects.equals(uuid, that.uuid);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, type, description, settings);
+        return Objects.hash(name, type, description, settings, uuid);
     }
 
     @Override
@@ -185,6 +232,8 @@ public final class DataSource implements Writeable, ToXContentObject {
             + type
             + "', description='"
             + description
+            + "', uuid='"
+            + uuid
             + "', settings="
             + toPresentationMap()
             + "}";

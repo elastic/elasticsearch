@@ -68,7 +68,7 @@ public class DataSourceMetadataTests extends AbstractChunkedSerializingTestCase<
         for (int i = 0; i < numSettings; i++) {
             settings.put(randomAlphaOfLength(6).toLowerCase(Locale.ROOT), randomStoredSetting());
         }
-        return new DataSource(name, type, description, settings);
+        return new DataSource(name, type, description, settings, null);
     }
 
     static DataSourceSetting randomStoredSetting() {
@@ -85,7 +85,7 @@ public class DataSourceMetadataTests extends AbstractChunkedSerializingTestCase<
         // - SNAPSHOT is excluded because snapshot restore has no mechanism to re-provision secrets; restoring a
         // cluster state containing data sources would produce unusable configurations.
         DataSourceMetadata metadata = new DataSourceMetadata(
-            Map.of("my-s3", new DataSource("my-s3", "s3", null, Map.of("access_key", new DataSourceSetting("AKIA_LEAK_CHECK", true))))
+            Map.of("my-s3", new DataSource("my-s3", "s3", null, Map.of("access_key", new DataSourceSetting("AKIA_LEAK_CHECK", true)), null))
         );
         assertEquals(EnumSet.of(Metadata.XContentContext.GATEWAY), metadata.context());
         assertFalse(metadata.context().contains(Metadata.XContentContext.API));

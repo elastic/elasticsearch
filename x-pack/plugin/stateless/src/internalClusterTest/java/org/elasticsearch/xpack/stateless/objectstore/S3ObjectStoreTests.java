@@ -151,7 +151,6 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             .put(ObjectStoreService.BUCKET_SETTING.getKey(), "bucket")
             .put(ObjectStoreService.CLIENT_SETTING.getKey(), "test")
             .put("s3.client.test.max_retries", maxRetries)
-            .put("s3.client.test.region", "us-east-1")
             .setSecureSettings(mockSecureSettings);
     }
 

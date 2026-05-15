@@ -14,6 +14,13 @@ package org.elasticsearch.xpack.esql.generator;
  */
 public enum GenerativeFeature {
     /**
+     * No optional feature enabled; sentinel for the default generative suite.
+     * <p>
+     * Not to be used in code. This is the same as no features enabled.
+     * */
+    BASELINE,
+
+    /**
      * Allow {@code FROM (...)} subqueries to be produced as sources. See
      * {@code GenerativeSubqueryRestTest}.
      */

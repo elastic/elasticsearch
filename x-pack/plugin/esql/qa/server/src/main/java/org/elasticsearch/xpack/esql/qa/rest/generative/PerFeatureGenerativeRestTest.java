@@ -16,7 +16,9 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * {@link GenerativeRestTest} parameterized once per {@link GenerativeFeature}, plus a {@code null} baseline.
+ * {@link GenerativeRestTest} parameterized once per {@link GenerativeFeature} (including
+ * {@link GenerativeFeature#BASELINE}).
+ * <p>
  * Each case can be muted independently in CI.
  */
 public abstract class PerFeatureGenerativeRestTest extends GenerativeRestTest {
@@ -24,7 +26,6 @@ public abstract class PerFeatureGenerativeRestTest extends GenerativeRestTest {
     @ParametersFactory(argumentFormatting = "feature:%1$s")
     public static List<Object[]> parameters() {
         List<Object[]> args = new ArrayList<>();
-        args.add(new Object[] { null });
         for (GenerativeFeature feature : GenerativeFeature.values()) {
             args.add(new Object[] { feature });
         }
@@ -34,7 +35,7 @@ public abstract class PerFeatureGenerativeRestTest extends GenerativeRestTest {
     private final Set<GenerativeFeature> features;
 
     protected PerFeatureGenerativeRestTest(GenerativeFeature feature) {
-        this.features = feature == null ? Set.of() : Set.of(feature);
+        this.features = Set.of(feature);
     }
 
     @Override

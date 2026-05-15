@@ -1,10 +1,10 @@
 # OTel audit log delivery: POC writeup for ES-14356
 
-This PoC validates the ES side of the OTel audit-log pipeline: an audit event emitted by `LoggingAuditTrail` reaches an in-process recording OTLP server through log4j and the OTel SDK, in a security-enabled multi-node test, with `project.id` attached and the SDK's `BatchLogRecordProcessor` keeping I/O off the calling thread. The real `otel-delivery-gateway`, MOTel, and destination project aren't exercised here; closing that gap is [§4.12](#sec-4-12). Around half of the cross-team requirements are satisfied or close to it; the meaningful gaps are mTLS to the gateway, a stdout fallback for exhausted retries, per-project filtering, dynamic configuration, and a few field-shape problems caused by the upstream `OpenTelemetryAppender`. R3 specifically has four open gaps that are larger than the PoC suggests: `security_config_change` events bypass `withThreadContext` in the existing audit-emit code ([§4.3](#sec-4-3)); cross-cluster CPS strips the project header at the boundary, so linked-side events have no `project.id` ([§4.4](#sec-4-4)); Cloud API key audit (the dominant serverless path) is structurally incomplete and gets `project.id` only because the platform ingress sets it ([§4.13](#sec-4-13)); and audit reads `project.id` via a different mechanism than authorization, so the two can disagree on any deployment ([§4.14](#sec-4-14)).
+This PoC validates the ES side of the OTel audit-log pipeline: an audit event emitted by `LoggingAuditTrail` reaches an in-process recording OTLP server over OTLP/gRPC (okhttp-based sender) through log4j and the OTel SDK, in a security-enabled multi-node test, with `project.id` attached and the SDK's `BatchLogRecordProcessor` keeping I/O off the calling thread. The real `otel-delivery-gateway`, MOTel, and destination project aren't exercised here; closing that gap is [§4.12](#sec-4-12). Around half of the cross-team requirements are satisfied or close to it; the meaningful gaps are mTLS to the gateway, a stdout fallback for exhausted retries, per-project filtering, dynamic configuration, and a few field-shape problems caused by the upstream `OpenTelemetryAppender`. R3 specifically has four open gaps that are larger than the PoC suggests: `security_config_change` events bypass `withThreadContext` in the existing audit-emit code ([§4.3](#sec-4-3)); cross-cluster CPS strips the project header at the boundary, so linked-side events have no `project.id` ([§4.4](#sec-4-4)); Cloud API key audit (the dominant serverless path) is structurally incomplete and gets `project.id` only because the platform ingress sets it ([§4.13](#sec-4-13)); and audit reads `project.id` via a different mechanism than authorization, so the two can disagree on any deployment ([§4.14](#sec-4-14)).
 
 I'm not expecting anyone to read this doc end-to-end;
 I've arranged it so you can skip to the parts you care about.
-[§2](#sec-2) lists each requirement with a one-line status pointing into [§3](#sec-3) (validated behavior) or [§4](#sec-4) (gaps). [§5](#sec-5) collects the open design tradeoffs that need a decision before further work. [§6](#sec-6) distills [§4](#sec-4) and [§5](#sec-5) into a punch list, split into decisions/discussions and implementation work. [Appendix A](#sec-appendix-a) records the alternatives the PoC considered and rejected; [Appendix B](#sec-appendix-b) captures incidental findings worth knowing for follow-up work.
+[§2](#sec-2) lists each requirement with a one-line status pointing into [§3](#sec-3) (validated behavior) or [§4](#sec-4) (gaps). [§5](#sec-5) collects the open design tradeoffs that need a decision before further work. [§6](#sec-6) distills [§4](#sec-4) and [§5](#sec-5) into a punch list: decisions needed ([§6.1](#sec-6-1)), implementation work ([§6.2](#sec-6-2)), and questions by audience ([§6.3](#sec-6-3)). [Appendix A](#sec-appendix-a) records the alternatives the PoC considered and rejected; [Appendix B](#sec-appendix-b) captures incidental findings worth knowing for follow-up work.
 
 ## <a id="sec-1"></a>1. Goal
 
@@ -66,13 +66,13 @@ Source: Gateway TDD §"OTel log delivery pipeline on ECP", subsection "Authentic
 
 ### <a id="sec-2-5"></a>2.5 R5: Transport over OTLP/gRPC
 
-*Partially satisfied: wire format is OTLP (PoC uses HTTP-protobuf today); switching the transport to gRPC is open work ([§4.16](#sec-4-16)).*
+*Satisfied ([§3.5](#sec-3-5)).*
 
-Wire transport is OTLP. The PoC currently uses OTLP/HTTP-protobuf; production requires **gRPC**, per Julio Camarero ([#log-delivery-project-team, 2026-05-13](https://elastic.slack.com/archives/C09PANY7FFS/p1778657565867949)):
+Wire transport is OTLP/gRPC. The PoC uses `OtlpGrpcLogRecordExporter` backed by the okhttp-based gRPC sender. Production requires **gRPC**, per Julio Camarero ([#log-delivery-project-team, 2026-05-13](https://elastic.slack.com/archives/C09PANY7FFS/p1778657565867949)):
 
 > Hey Patrick, it was HTTP initially, but we had to change it to gRPC. When testing autoscaling of the gateway, we realized that HTTP clients often reused long-lived connections, which lead to uneven distribution of the load behind kubernetes services, and even after adding more replicas to the gateway, all the HTTP Clients kept making requests to the first one. (This is a [known issue](https://github.com/open-telemetry/opentelemetry-collector/issues/9211) of the opentelemetry-collector). There are more details [here](https://github.com/elastic/otel-delivery-gateway/pull/133).
 
-So gRPC is a load-balancing-correctness requirement for the gateway behind k8s services, not a protocol-feature preference. Earlier framing in this doc ("push back on gRPC unless a concrete reason surfaces") is superseded.
+So gRPC is a load-balancing-correctness requirement for the gateway behind k8s services, not a protocol-feature preference. The switch is implemented; see [§3.5](#sec-3-5).
 
 Sources: Gateway TDD §"How services emit (audit) log records": *"Must emit logs through the otlp protocol, on the network, towards the local otel-delivery-gateway service"*; §"OTel log delivery pipeline on ECP": *"via the otlp protocol (grpc)"*; Julio Camarero's 2026-05-13 message above.
 
@@ -228,10 +228,13 @@ This is a property we *inherit* from the OTel SDK, not one we engineered into ES
 
 **Caveat:** they arrive prefixed as `log4j.map_message.event.action`, because the upstream `OpenTelemetryAppender` library hardcodes that prefix when capturing `StringMapMessage` entries with `setCaptureMapMessageAttributes(true)`. Bare-key shape is not yet satisfied; see [§5.1](#sec-5-1) for options.
 
-### <a id="sec-3-5"></a>3.5 Other tests (no regressions)
+### <a id="sec-3-5"></a>3.5 gRPC transport: *satisfies R5*
 
-- `:modules:apm:thirdPartyAudit` runs clean: no jar-hell or banned-API regression from the new `opentelemetry-sdk-logs` and `opentelemetry-log4j-appender-2.17` dependencies. (See [Appendix A.3](#sec-a-3) for the jar-hell episode that drove the module placement.)
-- **OTLP/HTTP-protobuf wire encoding** is what the PoC uses today. Exporter: `OtlpHttpLogRecordExporter.builder().setEndpoint(endpoint)` in `OtelSdkExportLogsSupplier`; the default encoding for that class is protobuf, not JSON. Confirmed on the receiving side by `OtlpLogsParser.parse(...)` which deserializes via `ExportLogsServiceRequest.parseFrom(InputStream)` (protobuf). Production now requires gRPC instead of HTTP-protobuf; switching the exporter is open work ([§4.16](#sec-4-16)).
+`OtelSdkExportLogsSupplier` uses `OtlpGrpcLogRecordExporter` backed by the okhttp-based gRPC sender — OTLP/gRPC framing over HTTP/2, no grpc-java dependency. `RecordingApmServer` in the integration test is dual-protocol: an HTTP server for metrics/traces/intake, plus a gRPC server on a separate ephemeral port for log records. Test passes end-to-end.
+
+### <a id="sec-3-6"></a>3.6 Other tests (no regressions)
+
+- `:modules:apm:thirdPartyAudit` runs clean: no jar-hell or banned-API regression from the new dependencies.
 - `OtelSdkExportLogsSupplierTests` 7/7 passing; covers install/uninstall lifecycle of the supplier (idempotent install, detach on close, behavior when audit logger config is absent).
 - ES boots cleanly under `./gradlew run` with audit and OTel logs enabled. The supplier emits `OTel SDK logs export installed; endpoint=...`, and the node reaches `started`.
 - `manage_threads` entitlement registered in `modules/apm/src/main/plugin-metadata/entitlement-policy.yaml` for `io.opentelemetry.sdk.logs`. Without this, `BatchLogRecordProcessor`'s worker thread fails to start with `NotEntitledException`. (See [Appendix B](#sec-appendix-b).)
@@ -367,14 +370,14 @@ This is significant structural work relative to the apparent ask ("let the custo
 
 ### <a id="sec-4-16"></a>4.16 Switch transport from HTTP-protobuf to gRPC
 
-The PoC's `OtelSdkExportLogsSupplier` uses `OtlpHttpLogRecordExporter`, configured against an in-process recording server that decodes OTLP/HTTP-protobuf. Production requires **gRPC** for the ES → gateway hop, per Julio Camarero ([#log-delivery-project-team, 2026-05-13](https://elastic.slack.com/archives/C09PANY7FFS/p1778657565867949)): the gateway sits behind a Kubernetes service, and HTTP clients reuse long-lived connections, so even after the gateway scales horizontally all HTTP clients keep hitting the first replica. This is the upstream [opentelemetry-collector#9211](https://github.com/open-telemetry/opentelemetry-collector/issues/9211); the gateway-side fix is captured in [otel-delivery-gateway#133](https://github.com/elastic/otel-delivery-gateway/pull/133). So gRPC is required for load-balancing correctness, not protocol-feature preference.
+**Implemented.** See [§3.5](#sec-3-5).
 
-Implementation: swap `OtlpHttpLogRecordExporter` for `OtlpGrpcLogRecordExporter` (OTel-Java SDK has both). The change is small on its face — different builder, same `LogRecordExporter` interface, same `BatchLogRecordProcessor` wiring downstream.
+The PoC's `OtelSdkExportLogsSupplier` now uses `OtlpGrpcLogRecordExporter` backed by the okhttp-based gRPC sender. Production requires **gRPC** for the ES → gateway hop, per Julio Camarero ([#log-delivery-project-team, 2026-05-13](https://elastic.slack.com/archives/C09PANY7FFS/p1778657565867949)): the gateway sits behind a Kubernetes service, and HTTP clients reuse long-lived connections, so even after the gateway scales horizontally all HTTP clients keep hitting the first replica. This is the upstream [opentelemetry-collector#9211](https://github.com/open-telemetry/opentelemetry-collector/issues/9211); the gateway-side fix is captured in [otel-delivery-gateway#133](https://github.com/elastic/otel-delivery-gateway/pull/133). So gRPC is required for load-balancing correctness, not protocol-feature preference.
 
-Open considerations for the switch:
+The two open considerations from the design phase are resolved:
 
-- **The recording-server testing question.** The PoC's `RecordingAPMServer` decodes HTTP-protobuf. Switching the production exporter to gRPC raises a question about whether the in-process test server needs to accept gRPC too, or whether HTTP-protobuf in tests + gRPC in production is acceptable since the HTTP/gRPC choice lives entirely inside the OTel SDK exporter (a component we don't own and don't need to test). Open; to be decided separately.
-- **Dependencies and entitlements.** gRPC pulls in `io.grpc` libraries; needs entitlement check (analogous to the `manage_threads` finding in Appendix B for `io.opentelemetry.sdk.logs`).
+- **Recording-server testing question.** We chose to make `RecordingApmServer` dual-protocol: the existing HTTP server (port) continues to receive metrics/traces/intake; a new gRPC server (separate ephemeral port) receives log records via `LogsServiceGrpc.LogsServiceImplBase`. Both feed the same `received` queue. The test-server gRPC path uses `io.grpc:grpc-netty` (server-side only, in `javaRestTestRuntimeOnly`); the production export path uses `opentelemetry-exporter-sender-okhttp` with no `io.grpc` dependency.
+- **Dependencies and entitlements.** Resolved in [§3.5](#sec-3-5): okhttp/okio entitlements added; no `io.grpc` on the production path.
 
 **Customer-facing chain** (confirmed in [#log-delivery-project-team thread 2026-05-12](https://elastic.slack.com/archives/C8UUBNASY/p1778614283945929) and [its sub-thread](https://elastic.slack.com/archives/C8UUBNASY/p1778614459655819)): the customer's entry point is the Control Plane's Project API — specifically the public `PATCH /api/v1/serverless/projects/<type>/{id}` endpoint, already used today to enable audit logging at the project level. The API persists configuration in CosmosDB and propagates it via `elasticsearchappconfig` / `kibanaappconfig` Kubernetes resources to the regional `elasticsearch-controller` / `kibana-controller`, which renders per-project file settings into the cluster. ES reads via reserved-state handlers.
 
@@ -456,96 +459,91 @@ This decision is broader than the audit PoC and likely needs to happen in the de
 
 ## <a id="sec-6"></a>6. Next steps
 
-Concrete items pulled from [§4](#sec-4) and [§5](#sec-5), split by what kind of action each needs.
+Pulled from [§4](#sec-4) and [§5](#sec-5). **What's implemented:** R1 (OTLP delivery) and R5 (gRPC transport) are satisfied end-to-end ([§3.1](#sec-3-1), [§3.5](#sec-3-5)); R9 (non-blocking emit) is satisfied ([§3.2](#sec-3-2)); R3 is partially satisfied — `project.id` on 11 of 12 emit methods ([§3.3](#sec-3-3)).
 
-### <a id="sec-6-1"></a>6.1 Decisions and discussions
+### <a id="sec-6-1"></a>6.1 Decisions needed
 
-Decisions that need to be made before further implementation work begins. Each item names the decision-maker plus any other stakeholders who should be in the conversation. Implementation-time coordination details (cert identity, stdout format, retry/buffer values, IT environment, config-rendering contract) are noted directly on the corresponding [§6.2](#sec-6-2) items rather than enumerated here.
-
-1. <a id="sec-6-1-1"></a>**Attribute-key shape ([§5.1](#sec-5-1)).** Pick one of: custom log4j appender, `v3_preview` wrapper, refactor to `AutoConfiguredOpenTelemetrySdk`, or `LogRecordProcessor` post-hoc rename. Gates [6.2.8](#sec-6-2-8) and [6.2.9](#sec-6-2-9). *[Decided by: Core/Infra.]*
-2. <a id="sec-6-1-2"></a>**Per-field semconv/ECS/custom mapping ([§5.2](#sec-5-2)).** Resolve the "Hard" rows: `apikey.*` namespace, `indices` array, `security_config_change` nested blobs (flatten vs opaque-JSON-string). *[Decided by: Core/Infra. Discussion with: Ankit Sethi (audit-TDD owner) on the hard rows; otel-delivery-gateway team as downstream consumer of the field shapes.]*
-3. <a id="sec-6-1-3"></a>**CPS routing direction ([§4.4](#sec-4-4)).** Design call with the gateway team: when a CPS query in project A reaches project B, should the audit event be delivered to A (originator) or B (data-owner)? **Gated on [6.1.9](#sec-6-1-9) and [6.1.10](#sec-6-1-10)** — under today's mechanism the linked side has no `project.id` to route on at all, so the question is unanswerable until the mechanism is picked. *[Decided by: otel-delivery-gateway team. Discussion with: ES Security, CPS team.]*
-4. <a id="sec-6-1-4"></a>**R6 strip-fields placement ([§4.6](#sec-4-6)).** Use the existing `xpack.security.audit.logfile.emit_*` settings on serverless vs branch in `LoggingAuditTrail.EntryCommonFields` vs attribute filter on the OTel emit path. Doc leans toward the existing-settings option, which is already in place via `serverless-default-settings.yml` — ratify or revisit. *[Decided by: Core/Infra + serverless platform.]*
-5. <a id="sec-6-1-5"></a>**Where the SDK setup lives ([§5.3](#sec-5-3)).** Keep in `modules/apm/` or carve out a new `modules/customer-telemetry/`. Worth deciding before more audit-log code accumulates here. *[Decided by: Core/Infra.]*
-6. <a id="sec-6-1-6"></a>**`request.body` PII story ([§4.11](#sec-4-11)).** Default-off vs redaction vs sampling. Needs security review before the field can leave the cluster. *[Decided by: ES Security team. Discussion with: Core/Infra, otel-delivery-gateway team (storage and handling expectations downstream).]*
-7. <a id="sec-6-1-7"></a>**gRPC vs HTTP ([§2.5](#sec-2-5)).** ~~Confirm with the gateway team that OTLP/HTTP-protobuf is acceptable~~ **Resolved 2026-05-13**: gRPC is required for load-balancing correctness behind k8s services ([§4.16](#sec-4-16)). Implementation in [§6.2.13](#sec-6-2-13).
-8. <a id="sec-6-1-8"></a>**`LoggingAuditTrail` constructor ([§5.4](#sec-5-4)).** Inject `ProjectResolver` vs use the Audit TDD's `CustomAuditLoggingMetadataProvider` extension point vs keep the direct `ThreadContext` read. Doc recommends the extension point: it resolves the [§4.14](#sec-4-14) audit-auth divergence, the [§4.4](#sec-4-4) linked-side gap, and the [§4.13](#sec-4-13) ingress fragility uniformly. Effectively merges with [§6.1.10](#sec-6-1-10) if the extension point is chosen. *[Decided by: Core/Infra. Discussion with: Ankit Sethi (extension-point ownership).]*
-9. <a id="sec-6-1-9"></a>**Cloud API key audit shape ([§4.13](#sec-4-13)).** Decide what the `api_key.*` namespace should hold for Cloud-API-key-authenticated audit events, given the source values live in Cloud API key metadata (UIAM) rather than the regular API key store. Mostly an alignment conversation with the UIAM team; gates [6.2.12](#sec-6-2-12). *[Decided by: Slobodan Adamović / UIAM team. Discussion with: ES Security, Ankit Sethi.]*
-10. <a id="sec-6-1-10"></a>**Linked-side `project.id` mechanism ([§4.4](#sec-4-4)).** Pick the mechanism by which a CPS-linked cluster derives `project.id` on inbound cross-cluster traffic: cluster-config-derived from the linked cluster's `serverless.project_id` setting; cross-cluster transport propagation of the originator's ID as `originating_project.id`; or via `CustomAuditLoggingMetadataProvider`. The three options mirror those in [§6.1.8](#sec-6-1-8); resolving §6.1.8 in favor of the extension point collapses this decision into "implement the linked-side provider." Implementation follows in [6.2.11](#sec-6-2-11); gates [6.1.3](#sec-6-1-3). *[Decided by: CPS team. Discussion with: Ankit Sethi (if via the extension point), serverless platform.]*
-11. <a id="sec-6-1-11"></a>**Per-project setting exposure: Plan A vs Plan B ([§5.5](#sec-5-5)).** Per-setting plumbing (Project API field + `ProjectCustom` + consumer refactor, per setting) vs. investing in a `ProjectScope` setting type that amortizes the cost across hundreds of settings beyond audit. Determines the shape and scope of R8 and R12 implementation, and sets a convention for future per-project ES settings. Crosses the audit scope into broader Core/Infra framework work. *[Decided by: Core/Infra. Discussion with: Tim Vernum, Yang Wang (per-project framework design); Control Plane / Julio Camarero (Project API contract). Forum: Friday design-discussion meeting referenced in [§4.15](#sec-4-15).]*
+1. <a id="sec-6-1-1"></a>**Attribute-key shape ([§5.1](#sec-5-1)).** Choose among the four options in §5.1. *[Core/Infra. Gates [6.2.8](#sec-6-2-8), [6.2.9](#sec-6-2-9).]*
+2. <a id="sec-6-1-2"></a>**Per-field semconv/ECS/custom mapping ([§5.2](#sec-5-2)).** Resolve the hard rows: `apikey.*` namespace, `indices` array, `security_config_change` nested blobs. *[Core/Infra + Ankit Sethi. Gates [6.2.9](#sec-6-2-9).]*
+3. <a id="sec-6-1-3"></a>**CPS routing direction ([§4.4](#sec-4-4)).** Originator project or data-owner project? **Gated on [6.1.9](#sec-6-1-9) and [6.1.10](#sec-6-1-10)** — the linked side has no `project.id` to route on today. *[otel-delivery-gateway team.]*
+4. <a id="sec-6-1-4"></a>**R6 strip-fields placement ([§4.6](#sec-4-6)).** Ratify the existing `emit_*`-settings approach or pick an alternative. *[Core/Infra + serverless platform.]*
+5. <a id="sec-6-1-5"></a>**SDK module placement ([§5.3](#sec-5-3)).** Keep in `modules/apm/` or new `modules/customer-telemetry/`. *[Core/Infra.]*
+6. <a id="sec-6-1-6"></a>**`request.body` PII story ([§4.11](#sec-4-11)).** Default-off vs redaction vs sampling; requires security review before the field can leave the cluster. *[ES Security.]*
+7. <a id="sec-6-1-7"></a>~~**gRPC vs HTTP.**~~ Resolved and implemented ([§3.5](#sec-3-5)).
+8. <a id="sec-6-1-8"></a>**`LoggingAuditTrail` constructor ([§5.4](#sec-5-4)).** `CustomAuditLoggingMetadataProvider` vs inject `ProjectResolver` vs keep direct `ThreadContext` read. Doc recommends the extension point: it resolves [§4.14](#sec-4-14), [§4.4](#sec-4-4), and [§4.13](#sec-4-13) in one place; effectively merges with [6.1.10](#sec-6-1-10) if chosen. *[Core/Infra + Ankit Sethi. Gates [6.1.10](#sec-6-1-10), [6.2.11](#sec-6-2-11), [6.2.12](#sec-6-2-12).]*
+9. <a id="sec-6-1-9"></a>**Cloud API key audit shape ([§4.13](#sec-4-13)).** What `api_key.*` holds for UIAM-authenticated events. *[UIAM team (Slobodan Adamović). Gates [6.2.12](#sec-6-2-12), [6.1.3](#sec-6-1-3).]*
+10. <a id="sec-6-1-10"></a>**Linked-side `project.id` mechanism ([§4.4](#sec-4-4)).** Cluster-config-derived, cross-cluster transport propagation, or via `CustomAuditLoggingMetadataProvider`. Resolving [6.1.8](#sec-6-1-8) in favor of the extension point collapses this into "implement the linked-side provider." *[CPS team. Gates [6.2.11](#sec-6-2-11), [6.1.3](#sec-6-1-3).]*
+11. <a id="sec-6-1-11"></a>**Per-project settings: Plan A vs Plan B ([§5.5](#sec-5-5)).** Per-setting plumbing vs. `ProjectScope` setting type amortized across hundreds of future settings. Friday design meeting. *[Core/Infra + Tim Vernum + Yang Wang + Julio Camarero. Gates [6.2.5](#sec-6-2-5), [6.2.6](#sec-6-2-6).]*
 
 ### <a id="sec-6-2"></a>6.2 Implementation work
 
-1. <a id="sec-6-2-1"></a>**R3 chokepoint gap for `security_config_change` ([§4.3](#sec-4-3)).** Confirm with Ankit Sethi (audit-TDD owner) that the missing `withThreadContext` call is a bug rather than intentional; once confirmed, file a ticket, add the call, and fold `withThreadContext` into `LogEntryBuilder.build()` so the chokepoint becomes structural. Most of the cost is the alignment conversation; the code changes themselves are small.
-2. <a id="sec-6-2-2"></a>**R4 mTLS to the gateway ([§4.5](#sec-4-5)).** Reuse `SSLService` + `PemKeyConfig` + `SSLConfigurationReloader`. Needs alignment with the gateway team on cert-identity expectations and with Control-Plane on the cert-distribution path (Vault → cert-manager → secret mount). Open sub-question: does our OTel-Java version's `OtlpHttpLogRecordExporterBuilder` expose client TLS directly, or do we wrap the underlying HTTP client?
-3. <a id="sec-6-2-3"></a>**R6 strip cluster/node fields on serverless ([§4.6](#sec-4-6)).** Implementation follows [6.1.4](#sec-6-1-4). If option (a) is chosen, this is a serverless-config change with no ES code change.
-4. <a id="sec-6-2-4"></a>**R7 stdout fallback on exhausted retries ([§4.7](#sec-4-7)).** Catch exporter failure, write the record to stdout in a recognizable format. Format and the ingestion contract need to be agreed with the gateway team and the platform-side replay-service team. Half of the at-least-once story (R11).
-5. <a id="sec-6-2-5"></a>**R8 per-project filter ([§4.8](#sec-4-8)).** Appender-path filter plus a config source for the enabled set, fed by per-project file-based settings rendered by the `elasticsearch-controller`. Rendering contract (file path, format, refresh semantics) needs alignment with the Control-Plane / `elasticsearch-controller` team. Coupled to [6.2.6](#sec-6-2-6).
-6. <a id="sec-6-2-6"></a>**R12 dynamic config without restart ([§4.9](#sec-4-9)).** Settings/state listener that re-installs or reconfigures the appender path on change. Covers `telemetry.otel.logs.enabled` and the per-project state from [6.2.5](#sec-6-2-5).
-7. <a id="sec-6-2-7"></a>**R13 retry/buffer tuning ([§4.10](#sec-4-10)).** Configure `BatchLogRecordProcessor` once the gateway team confirms the targets (~2 min retry, ~30–50 MB buffer).
-8. <a id="sec-6-2-8"></a>**Bare semconv keys on the wire ([§4.1](#sec-4-1)).** Implementation follows [6.1.1](#sec-6-1-1).
-9. <a id="sec-6-2-9"></a>**Per-field translation ([§4.2](#sec-4-2)).** Implementation follows [6.1.1](#sec-6-1-1) and [6.1.2](#sec-6-1-2).
-10. <a id="sec-6-2-10"></a>**Integration test against the real gateway ([§4.12](#sec-4-12)).** Add an IT that runs against the real `otel-delivery-gateway` component, alongside (not replacing) the existing in-process recording-server IT. Test-environment shape, what the IT validates, and ownership need alignment with the gateway team.
-11. <a id="sec-6-2-11"></a>**Populate `project.id` on linked-cluster audit events ([§4.4](#sec-4-4)).** Implementation follows from [6.1.10](#sec-6-1-10). Without this, [6.1.3](#sec-6-1-3) cannot be discussed concretely.
-12. <a id="sec-6-2-12"></a>**Decouple R3 chokepoint from the platform ingress ([§4.13](#sec-4-13)).** Source `project.id` from the UIAM auth context (`CloudAuthenticateProjectContext`) or from a per-node setting, in addition to or instead of the `X-Elastic-Project-Id` header. Implementation follows [6.1.9](#sec-6-1-9). Removes the assert in `LoggingAuditTrail.addAuthenticationFieldsToLogEntry` once the Cloud API key audit shape is finalized, and populates `api_key.id`/`api_key.name` on those events.
-13. <a id="sec-6-2-13"></a>**Switch the OTLP exporter from HTTP-protobuf to gRPC ([§4.16](#sec-4-16)).** Replace `OtlpHttpLogRecordExporter` with `OtlpGrpcLogRecordExporter` in `OtelSdkExportLogsSupplier`. Small mechanical change at the exporter; dependent considerations: the recording-server testing question (HTTP-protobuf in tests vs gRPC in tests) and any entitlement changes for the `io.grpc` libraries.
+1. <a id="sec-6-2-1"></a>**R3: `security_config_change` chokepoint ([§4.3](#sec-4-3)).** Confirm with Ankit that the missing `withThreadContext` call is a bug; fix it and make it implicit in `build()`. Most of the cost is the alignment conversation.
+2. <a id="sec-6-2-2"></a>**R4: mTLS to gateway ([§4.5](#sec-4-5)).** Needs cert-identity alignment with the gateway team, cert-distribution alignment with Control-Plane, and an open question on whether the gRPC exporter exposes client TLS directly.
+3. <a id="sec-6-2-3"></a>**R6: strip cluster/node fields ([§4.6](#sec-4-6)).** Follows [6.1.4](#sec-6-1-4); if option (a), this is a serverless-config change with no ES code change.
+4. <a id="sec-6-2-4"></a>**R7: stdout fallback on exhausted retries ([§4.7](#sec-4-7)).** Format and replay-ingestion contract need alignment with the gateway and replay-service teams.
+5. <a id="sec-6-2-5"></a>**R8: per-project filter ([§4.8](#sec-4-8)).** Appender-path filter keyed on `project.id`, fed by per-project file settings from `elasticsearch-controller`. Config-rendering contract needs alignment. Coupled to [6.2.6](#sec-6-2-6). *Gated on [6.1.11](#sec-6-1-11).*
+6. <a id="sec-6-2-6"></a>**R12: dynamic config ([§4.9](#sec-4-9)).** Settings listener for `telemetry.otel.logs.enabled` and the per-project state from [6.2.5](#sec-6-2-5). *Gated on [6.2.5](#sec-6-2-5).*
+7. <a id="sec-6-2-7"></a>**R13: retry/buffer tuning ([§4.10](#sec-4-10)).** Straightforward once the gateway team confirms the ~2 min retry / ~30–50 MB buffer targets.
+8. <a id="sec-6-2-8"></a>**Bare semconv keys on the wire ([§4.1](#sec-4-1)).** Follows [6.1.1](#sec-6-1-1).
+9. <a id="sec-6-2-9"></a>**Per-field translation ([§4.2](#sec-4-2)).** Follows [6.1.1](#sec-6-1-1) and [6.1.2](#sec-6-1-2).
+10. <a id="sec-6-2-10"></a>**Real-gateway integration test ([§4.12](#sec-4-12)).** Add alongside (not replacing) the existing in-process IT; test shape and ownership need alignment with the gateway team.
+11. <a id="sec-6-2-11"></a>**Linked-cluster `project.id` ([§4.4](#sec-4-4)).** Follows [6.1.10](#sec-6-1-10); gates [6.1.3](#sec-6-1-3).
+12. <a id="sec-6-2-12"></a>**Decouple R3 from platform ingress; Cloud API key shape ([§4.13](#sec-4-13)).** Source `project.id` from UIAM auth context or node config; populate `api_key.*`; remove the structural assert. Follows [6.1.9](#sec-6-1-9).
+13. <a id="sec-6-2-13"></a>~~**Switch to gRPC.**~~ Done ([§3.5](#sec-3-5)).
 
 ### <a id="sec-6-3"></a>6.3 Questions by audience
 
-A routing view of [§6.1](#sec-6-1) and [§6.2](#sec-6-2): each subsection lists the questions the named audience needs to weigh in on, with references back to the full context. Each question gives one section pointer for background (typically [§4](#sec-4) or [§5](#sec-5)) and one for where it's tracked on the punch list (typically [§6.1](#sec-6-1) or [§6.2](#sec-6-2)).
+Routing view of [§6.1](#sec-6-1) and [§6.2](#sec-6-2).
 
 #### `otel-delivery-gateway` team (`#log-delivery-project-team`)
 
-Largest set of asks — most are contract/coordination questions tied to specific work items.
-
-1. ~~**OTLP/HTTP-protobuf vs gRPC.**~~ **Resolved 2026-05-13:** gRPC required for load-balancing correctness behind k8s services. ([§2.5](#sec-2-5), [§4.16](#sec-4-16), [§6.2.13](#sec-6-2-13))
-2. **mTLS contract.** What identity does the gateway expect on the client cert, and does our OTel-Java exporter (now gRPC, [§6.2.13](#sec-6-2-13)) expose client TLS directly or do we wrap the underlying transport? ([§4.5](#sec-4-5), [§6.2.2](#sec-6-2-2))
-3. **Stdout fallback format.** What recognizable format should ES write to stdout when retries are exhausted? Format and the ingestion contract need agreement with the replay-service team below. ([§4.7](#sec-4-7), [§6.2.4](#sec-6-2-4))
-4. **Retry and buffer-size targets.** Confirm or revise the ~2 min retry / ~30–50 MB buffer values from the TDD. ([§4.10](#sec-4-10), [§6.2.7](#sec-6-2-7))
-5. **Real-gateway IT contract.** Test-environment shape, what the IT validates, ownership. ([§4.12](#sec-4-12), [§6.2.10](#sec-6-2-10))
-6. **CPS routing direction.** When a CPS query in project A reaches project B, deliver the audit event to A (originator) or B (data-owner)? Gated on the UIAM and CPS team answers below being resolved first. ([§4.4](#sec-4-4), [§6.1.3](#sec-6-1-3))
-7. **Downstream `request.body` PII handling.** Consulted only; ES Security owns the decision. ([§4.11](#sec-4-11), [§6.1.6](#sec-6-1-6))
+1. ~~**gRPC vs HTTP.**~~ Resolved and implemented.
+2. **mTLS contract.** Cert identity; whether gRPC exporter exposes client TLS directly. ([§4.5](#sec-4-5), [§6.2.2](#sec-6-2-2))
+3. **Stdout fallback format.** ([§4.7](#sec-4-7), [§6.2.4](#sec-6-2-4))
+4. **Retry/buffer targets.** Confirm ~2 min retry / ~30–50 MB buffer. ([§4.10](#sec-4-10), [§6.2.7](#sec-6-2-7))
+5. **Real-gateway IT.** Test-environment shape, ownership. ([§4.12](#sec-4-12), [§6.2.10](#sec-6-2-10))
+6. **CPS routing direction.** Gated on [§6.1.9](#sec-6-1-9) + [§6.1.10](#sec-6-1-10) first. ([§4.4](#sec-4-4), [§6.1.3](#sec-6-1-3))
+7. **`request.body` PII handling.** Consulted; ES Security owns. ([§4.11](#sec-4-11), [§6.1.6](#sec-6-1-6))
 
 #### Audit TDD owner (Ankit Sethi)
 
-1. **Is the missing `withThreadContext` on the `security_config_change` emit path a bug, not intentional?** The R3 chokepoint argument relies on closing this. ([§4.3](#sec-4-3), [§6.2.1](#sec-6-2-1))
-2. **Scope of the `CustomAuditLoggingMetadataProvider` extension point.** Doc recommends this as the mechanism for injecting `project.id` from serverless, covering the [§4.14](#sec-4-14) audit-auth divergence, the [§4.4](#sec-4-4) linked-side gap, and the [§4.13](#sec-4-13) ingress fragility in one place. Needs sign-off on contract details — it's Req 7 of his TDD. ([§5.4](#sec-5-4), [§6.1.8](#sec-6-1-8), [§6.1.10](#sec-6-1-10))
-3. **Hard rows in the field-mapping table.** What shape do audit consumers expect for `apikey.*`, the `indices` array, and the nested `security_config_change` blobs (flatten vs opaque-JSON-string)? ([§5.2](#sec-5-2), [§6.1.2](#sec-6-1-2))
+1. **Is `security_config_change` missing `withThreadContext` a bug?** ([§4.3](#sec-4-3), [§6.2.1](#sec-6-2-1))
+2. **`CustomAuditLoggingMetadataProvider` contract** (Req 7 of his TDD). ([§5.4](#sec-5-4), [§6.1.8](#sec-6-1-8), [§6.1.10](#sec-6-1-10))
+3. **Hard rows in the field-mapping table.** `apikey.*`, `indices`, nested `security_config_change` blobs. ([§5.2](#sec-5-2), [§6.1.2](#sec-6-1-2))
 
 #### CPS team
 
-1. **Linked-side `project.id` mechanism.** Pick from: cluster-config-derived (`serverless.project_id`), cross-cluster transport propagation as `originating_project.id`, or via `CustomAuditLoggingMetadataProvider`. Empirical context: a local IT confirmed linked-side events carry no `project.id` today (13 events, 3+10 split between origin/linked clusters, all without `project.id`). ([§4.4](#sec-4-4), [§6.1.10](#sec-6-1-10))
-2. **Same-cluster CPS sanity check.** Does the `AbstractProjectResolver.executeOnProject(...)` path carry `project.id` correctly today? Our local IT exercised only the cross-cluster fan-out. ([§4.4](#sec-4-4))
+1. **Linked-side `project.id` mechanism.** Three options at [§4.4](#sec-4-4). ([§6.1.10](#sec-6-1-10))
+2. **Same-cluster CPS sanity check.** Does `executeOnProject(...)` carry `project.id` correctly today? ([§4.4](#sec-4-4))
 
-#### UIAM team (Slobodan Adamović owns the original assert)
+#### UIAM team (Slobodan Adamović)
 
-1. **Cloud API key audit shape.** What should the `api_key.*` namespace hold for Cloud-API-key-authenticated audit events, given the source values live in Cloud API key metadata rather than the regular API key store? Unblocks removing the [PR #129227](https://github.com/elastic/elasticsearch/pull/129227) assert and finalizing the field shape. ([§4.13](#sec-4-13), [§6.1.9](#sec-6-1-9))
+1. **Cloud API key `api_key.*` shape.** ([§4.13](#sec-4-13), [§6.1.9](#sec-6-1-9))
 
 #### Control-Plane / Platform Ingress team
 
-1. **Ingress invariant for `X-Elastic-Project-Id`.** Confirm the platform ingress always sets the header on inbound customer HTTP, including any non-HTTP paths (service-to-service inside ECP) where it would *not* fire. The R3 chokepoint argument depends on this. ([§3.3](#sec-3-3), [§4.13](#sec-4-13))
+1. **`X-Elastic-Project-Id` invariant.** Confirm always-set on inbound customer HTTP; list paths where it doesn't fire. ([§3.3](#sec-3-3), [§4.13](#sec-4-13))
 
 #### Control-Plane / `elasticsearch-controller` team (Julio Camarero)
 
-1. **Project API audit-configuration fields.** The propagation chain (Project API → CosmosDB → `elasticsearchappconfig` → `elasticsearch-controller` → ES file settings) is understood and the `PATCH /api/v1/serverless/projects/<type>/{id}` endpoint already supports enabling audit logging. The open question is which specific audit settings the Project API will expose (Valentin's pending settings-mapping doc feeds this) and what shape they land in as file settings. ([§4.8](#sec-4-8), [§4.15](#sec-4-15), [§6.2.5](#sec-6-2-5))
-2. **Cert distribution.** The Vault → cert-manager → secret mount path for the gateway client cert. ([§4.5](#sec-4-5), [§6.2.2](#sec-6-2-2))
+1. **Project API audit-configuration fields** and their file-settings shape. ([§4.15](#sec-4-15), [§6.2.5](#sec-6-2-5))
+2. **Cert distribution path** for the gateway client cert. ([§4.5](#sec-4-5), [§6.2.2](#sec-6-2-2))
 
-#### Tim Vernum, Yang Wang — per-project framework design
+#### Tim Vernum, Yang Wang
 
-1. **`ProjectScope` setting type viability.** Whether to invest in a project-scoped setting type that routes between cluster settings (non-serverless) and per-project file settings (serverless), versus paying the per-setting plumbing cost on each setting individually. Broader than audit logging — affects potentially hundreds of existing `NodeScope` settings. ([§5.5](#sec-5-5), [§6.1.11](#sec-6-1-11))
-2. **Listener semantics for project-scoped dynamic settings.** If `ProjectScope` is built, how do listeners receive per-project updates with the right thread context so `ProjectLocal.get()` returns the right value? Crosses into ES core threading model territory. ([§5.5](#sec-5-5))
+1. **`ProjectScope` setting type** viability and listener semantics. ([§5.5](#sec-5-5), [§6.1.11](#sec-6-1-11))
 
 #### ES Security team
 
-1. **`request.body` PII story.** Default-off vs redaction vs sampling — required before the field can leave the cluster. ([§4.11](#sec-4-11), [§6.1.6](#sec-6-1-6))
+1. **`request.body` PII story.** ([§4.11](#sec-4-11), [§6.1.6](#sec-6-1-6))
 
 #### Platform-side replay-service team
 
-1. **Stdout ingestion contract.** What format does the replay service expect to pull from the internal observability pipeline when ES writes audit records to stdout on retry exhaustion? ([§4.7](#sec-4-7), [§6.2.4](#sec-6-2-4))
+1. **Stdout ingestion contract.** ([§4.7](#sec-4-7), [§6.2.4](#sec-6-2-4))
 
 #### Serverless platform team
 
-1. **R6 strip-fields placement.** Ratify (or revisit) the existing-settings approach, already in place via `serverless-default-settings.yml` (gates `cluster.name`, `cluster.uuid`, `node.name`, `node.id` off at the source). ([§4.6](#sec-4-6), [§6.1.4](#sec-6-1-4))
+1. **R6 strip-fields approach.** Ratify `emit_*` settings via `serverless-default-settings.yml`. ([§4.6](#sec-4-6), [§6.1.4](#sec-6-1-4))
 
 ## <a id="sec-appendix-a"></a>Appendix A: Options considered and rejected
 

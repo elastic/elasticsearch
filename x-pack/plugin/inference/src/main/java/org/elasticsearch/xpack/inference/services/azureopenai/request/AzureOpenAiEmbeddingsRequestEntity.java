@@ -53,7 +53,7 @@ public record AzureOpenAiEmbeddingsRequestEntity(
             builder.field(DIMENSIONS_FIELD, dimensions);
         }
 
-        // See OpenAiEmbeddingsRequestEntity for the rationale on requesting base64.
+        /** See {@link OpenAiEmbeddingsRequestEntity} for the rationale on requesting base64. */
         builder.field(ENCODING_FORMAT_FIELD, ENCODING_FORMAT_BASE64);
 
         builder.endObject();

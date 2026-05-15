@@ -15,12 +15,11 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -488,6 +487,76 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
         assertThat(parsedResults.embeddings(), is(List.of(new EmbeddingFloatResults.Embedding(expected))));
     }
 
+    /**
+     * Anchors the parser on real OpenAI wire payloads. The pair below was
+     * captured from {@code api.openai.com/v1/embeddings} via {@code curl}
+     * with input {@code "elasticsearch"}, model {@code text-embedding-3-large},
+     * and {@code dimensions=8}, once with {@code encoding_format=base64} and
+     * once with {@code encoding_format=float}. Both literals are fed through
+     * {@link OpenAiEmbeddingsResponseEntity#fromResponse} so that the base64
+     * branch and the JSON-array branch of the adaptive parser are exercised
+     * against real upstream bytes, and the two decoded {@code float[]}s are
+     * compared.
+     *
+     * <p>The two formats produced the same vector to within a very tight
+     * margin but not bit-for-bit (max absolute difference ~3e-4 at 8 dims
+     * in the captured sample), so the comparison uses a small tolerance
+     * rather than asserting bit-exact equality.
+     */
+    public void testFromResponse_LiveOpenAiResponses_BaseSixtyFourAndJsonArrayAgree() throws IOException {
+        String baseSixtyFourResponse = """
+            {
+              "object": "list",
+              "data": [
+                {
+                  "object": "embedding",
+                  "embedding": "AGChvgAguT0AgGe9ACCpvQAgCD8AwMc+AACvvgAgEz8=",
+                  "index": 0
+                }
+              ],
+              "model": "text-embedding-3-large",
+              "usage": { "prompt_tokens": 2, "total_tokens": 2 }
+            }
+            """;
+
+        String jsonArrayResponse = """
+            {
+              "object": "list",
+              "data": [
+                {
+                  "object": "embedding",
+                  "embedding": [
+                    -0.315185546875,
+                    0.0902099609375,
+                    -0.05621337890625,
+                    -0.08251953125,
+                    0.53173828125,
+                    0.390380859375,
+                    -0.341796875,
+                    0.57470703125
+                  ],
+                  "index": 0
+                }
+              ],
+              "model": "text-embedding-3-large",
+              "usage": { "prompt_tokens": 2, "total_tokens": 2 }
+            }
+            """;
+
+        float[] fromBaseSixtyFour = parseSingleEmbedding(baseSixtyFourResponse);
+        float[] fromJsonArray = parseSingleEmbedding(jsonArrayResponse);
+
+        assertThat(fromBaseSixtyFour.length, is(8));
+        assertThat(fromJsonArray.length, is(8));
+        assertArrayEquals(fromJsonArray, fromBaseSixtyFour, 1e-3F);
+    }
+
+    private static float[] parseSingleEmbedding(String responseJson) throws IOException {
+        EmbeddingFloatResults parsed = getEmbeddingFloatResultsAndAssertType(TaskType.TEXT_EMBEDDING, responseJson);
+        assertThat(parsed.embeddings().size(), is(1));
+        return parsed.embeddings().get(0).values();
+    }
+
     public void testFromResponse_BaseSixtyFour_MalformedString() {
         String responseJson = """
             {
@@ -542,6 +611,10 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
         );
 
         assertThat(thrown.getMessage(), containsString("[EmbeddingFloatResult] failed to parse field [data]"));
+        // The wrapper from ConstructingObjectParser carries the outer message; the
+        // multiple-of-4 check from decodeBase64 lives one level down on the cause.
+        assertThat(thrown.getCause(), instanceOf(XContentParseException.class));
+        assertThat(thrown.getCause().getMessage(), containsString("is not a multiple of 4"));
     }
 
     public void testFromResponse_FailsWhenEmbeddingFieldIsAnObject() {
@@ -609,7 +682,7 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
      */
     public void testFromResponse_MixedBaseSixtyFourAndJsonArrayEntries() throws IOException {
         float[] base64Vec = new float[] { 0.5F, -0.25F, 0.125F };
-        String base64Str = encodeFloats(base64Vec);
+        String base64Str = Utils.encodeFloatsAsOpenAiBase64(base64Vec);
         String responseJson = Strings.format("""
             {
               "object": "list",
@@ -650,7 +723,7 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
                     "object": "embedding",
                     "index": %d,
                     "embedding": "%s"
-                }""", i, encodeFloats(embeddings.get(i))));
+                }""", i, Utils.encodeFloatsAsOpenAiBase64(embeddings.get(i))));
         }
         return Strings.format("""
             {
@@ -661,14 +734,5 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
               "model": "%s",
               "usage": { "prompt_tokens": 1, "total_tokens": 1 }
             }""", String.join(",\n", entries), model);
-    }
-
-    /** Encode a {@code float[]} as the wire shape OpenAI emits: packed little-endian float32, then base64. */
-    private static String encodeFloats(float[] values) {
-        ByteBuffer buf = ByteBuffer.allocate(values.length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
-        for (float v : values) {
-            buf.putFloat(v);
-        }
-        return Base64.getEncoder().encodeToString(buf.array());
     }
 }

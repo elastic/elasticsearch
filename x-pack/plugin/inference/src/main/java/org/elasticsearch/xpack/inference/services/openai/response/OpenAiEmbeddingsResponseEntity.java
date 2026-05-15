@@ -121,9 +121,7 @@ public class OpenAiEmbeddingsResponseEntity {
         /**
          * Initial size of the working buffer used by the JSON-array branch.
          * Sized to match the modal embedding dimension across providers that
-         * share this parser (e.g. Mistral {@code mistral-embed}, Cohere v3,
-         * Voyage, Jina v3, mxbai-embed-large at 1024 dims, which fit exactly
-         * with no grow and no trim). Larger models pay one or more geometric
+         * share this parser. Larger models pay one or more geometric
          * grows: {@code text-embedding-ada-002} and {@code text-embedding-3-small}
          * at 1536 take one grow to 2048; {@code text-embedding-3-large} at 3072
          * takes two grows to 4096. Smaller models leave slack that is trimmed
@@ -172,6 +170,13 @@ public class OpenAiEmbeddingsResponseEntity {
             return new EmbeddingFloatResultEntry(embedding);
         }
 
+        /**
+         * Decode the embedding field as base64-encoded packed little-endian float32.
+         *
+         * <p>Uses the strict RFC 4648 decoder ({@link Base64#getDecoder()}). This matches the
+         * canonical OpenAI Python SDK, which decodes the same wire shape with Python's strict
+         * <a href="https://github.com/openai/openai-python/blob/38d75d7/src/openai/resources/embeddings.py#L128-L131">{@code base64.b64decode()}</a>.
+         */
         private static float[] decodeBase64(XContentParser p) throws IOException {
             byte[] raw;
             try {
@@ -179,13 +184,23 @@ public class OpenAiEmbeddingsResponseEntity {
             } catch (IllegalArgumentException e) {
                 throw new XContentParseException(p.getTokenLocation(), "[" + EMBEDDING_FIELD + "] is not valid base64: " + e.getMessage());
             }
+            // The base64 payload packs 4-byte float32 lanes, matching the dtype="float32"
+            // the OpenAI Python SDK uses when reinterpreting the same bytes:
+            // https://github.com/openai/openai-python/blob/38d75d7/src/openai/resources/embeddings.py#L131
+            // The decoded byte length must therefore be a whole number of lanes. Fail
+            // loudly on any other length rather than silently truncate to a partial vector.
             if ((raw.length & 0x3) != 0) {
                 throw new XContentParseException(
                     p.getTokenLocation(),
                     "[" + EMBEDDING_FIELD + "] base64-decoded length [" + raw.length + "] is not a multiple of 4"
                 );
             }
+            // One float32 lane per 4 bytes; size the output array exactly with raw.length / 4.
             float[] out = new float[raw.length >>> 2];
+            // Reinterpret as little-endian float32 lanes. The Python SDK decodes the same
+            // bytes with np.frombuffer(..., dtype="float32"), which uses native byte order
+            // (implicitly LE on every platform this runs on), and the LE choice is verified
+            // empirically against the live API in unit tests.
             ByteBuffer.wrap(raw).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer().get(out);
             return out;
         }

@@ -124,6 +124,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.crypto.EncryptedData;
 import org.elasticsearch.xpack.core.crypto.EncryptionService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
@@ -1627,6 +1628,15 @@ public class Security extends Plugin
     @Override
     public List<Setting<?>> getSettings() {
         return getSettings(securityExtensions, remoteClusterSecurityExtensionProvider.get());
+    }
+
+    @Override
+    public List<SearchPlugin.GenericNamedWriteableSpec> getGenericNamedWriteables() {
+        // Registers EncryptedData so it can travel inside Map<String, Object> carriers via
+        // StreamOutput#writeGenericValue — the byte-tag-30 GenericNamedWriteable dispatch.
+        // Required for the ES|QL data-source encryption work that puts EncryptedData into
+        // physical-plan config maps on the coord-to-data-node hop.
+        return List.of(new SearchPlugin.GenericNamedWriteableSpec(EncryptedData.NAMED_WRITEABLE_NAME, EncryptedData::new));
     }
 
     /**

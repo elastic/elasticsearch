@@ -41,8 +41,10 @@ public final class DataSource implements Writeable, ToXContentObject {
     /**
      * Transport-version gate for the {@code uuid} field on {@link DataSource}. Pre-version peers
      * neither read nor write the field; reads return {@code null} on the recipient side.
+     * Shares the {@code data_source_encryption} name with the encryption wire-format gate since
+     * both ship together in the same wire-format evolution.
      */
-    public static final TransportVersion DATA_SOURCE_ADD_UUID_FIELD = TransportVersion.fromName("data_source_add_uuid_field");
+    public static final TransportVersion DATA_SOURCE_ADD_UUID_FIELD = TransportVersion.fromName("data_source_encryption");
 
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField TYPE_FIELD = new ParseField("type");

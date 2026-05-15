@@ -8,7 +8,6 @@ steps:
   - group: esql-release-tests
     steps:
       - label: "{{matrix.TASK_SET}} / release-tests"
-        key: "esql-release-tests-{{matrix.TASK_SET}}"
         command: bash .buildkite/scripts/esql-release-tests.sh {{matrix.TASK_SET}}
         timeout_in_minutes: 120
         matrix:

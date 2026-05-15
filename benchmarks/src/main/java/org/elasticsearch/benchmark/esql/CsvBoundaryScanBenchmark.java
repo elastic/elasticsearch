@@ -34,9 +34,9 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Three variants of "find last record terminator in a synthetic TSV buffer":
- * the production override, the SPI default polyloop against the current per-record
- * scanner, and the same polyloop against a reimplemented pre-fix bulk-read scanner.
- * Pairwise differences attribute Layer 1 (override vs polyloop) and Layer 2
+ * the production override, the SPI default driver against the current per-record
+ * scanner, and the same driver against a reimplemented pre-fix bulk-read scanner.
+ * Pairwise differences attribute Layer 1 (override vs default driver) and Layer 2
  * (current scanner vs bulk-read) of the fix.
  */
 @Fork(1)
@@ -72,13 +72,13 @@ public class CsvBoundaryScanBenchmark {
     }
 
     @Benchmark
-    public int inheritedPolyloop() throws IOException {
-        return polyloop(buf, length, this::findNextRecordBoundaryViaReader);
+    public int inheritedDefault() throws IOException {
+        return runDefaultDriver(buf, length, this::findNextRecordBoundaryViaReader);
     }
 
     @Benchmark
-    public int polyloopWithBulkReadScanner() throws IOException {
-        return polyloop(buf, length, this::findNextRecordBoundaryBulkReadV1);
+    public int defaultWithBulkReadScanner() throws IOException {
+        return runDefaultDriver(buf, length, this::findNextRecordBoundaryBulkReadV1);
     }
 
     private long findNextRecordBoundaryViaReader(InputStream stream) throws IOException {
@@ -139,7 +139,7 @@ public class CsvBoundaryScanBenchmark {
         long findNext(InputStream stream) throws IOException;
     }
 
-    private static int polyloop(byte[] buf, int length, RecordScanner scanner) throws IOException {
+    private static int runDefaultDriver(byte[] buf, int length, RecordScanner scanner) throws IOException {
         if (length <= 0) {
             return -1;
         }

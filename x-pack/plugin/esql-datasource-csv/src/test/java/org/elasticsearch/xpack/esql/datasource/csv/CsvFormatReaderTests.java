@@ -2811,7 +2811,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(body.length - 1, boundary);
     }
 
-    public void testFindLastRecordBoundaryQuotedFieldsOnlyMatchesDefaultPolyloop() throws IOException {
+    public void testFindLastRecordBoundaryQuotedFieldsOnlyMatchesDefault() throws IOException {
         // Equivalence: across randomized inputs, the override must produce the same answer as
         // driving findNextRecordBoundary forward through the buffer — i.e. what
         // SegmentableFormatReader.findLastRecordBoundary's default body computes.
@@ -2819,7 +2819,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         for (int trial = 0; trial < 50; trial++) {
             byte[] data = randomQuotedFieldsCsv(randomIntBetween(0, 4096));
             int override = reader.findLastRecordBoundary(data, data.length);
-            int oracle = referenceDefaultPolyloop(reader, data, data.length);
+            int oracle = referenceDefaultDriver(reader, data, data.length);
             assertEquals("trial " + trial + " input=" + new String(data, StandardCharsets.UTF_8), oracle, override);
         }
     }
@@ -2841,7 +2841,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      * the current {@code findNextRecordBoundary} forward through the buffer. Used as the
      * equivalence oracle for the override.
      */
-    private static int referenceDefaultPolyloop(CsvFormatReader reader, byte[] buf, int length) throws IOException {
+    private static int referenceDefaultDriver(CsvFormatReader reader, byte[] buf, int length) throws IOException {
         if (length <= 0) {
             return -1;
         }

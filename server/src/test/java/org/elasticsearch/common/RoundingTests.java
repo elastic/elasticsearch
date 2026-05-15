@@ -40,6 +40,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class RoundingTests extends ESTestCase {
 
@@ -1277,6 +1278,127 @@ public class RoundingTests extends ESTestCase {
             "2020-01-05T00:00:00",
             "2020-01-06T00:00:00"
         );
+    }
+
+    public void testUpperIntervalRoundingUtcBoundaries() {
+        long min = time("2020-01-01T00:00:00");
+        long max = time("2020-01-01T00:20:00");
+        Rounding lowerRounding = Rounding.builder(TimeValue.timeValueMinutes(5)).build();
+        Rounding upperRounding = Rounding.ToUpperRounding.createRounding(lowerRounding);
+        Rounding.Prepared upper = upperRounding.prepare(min, max);
+
+        assertThat(upper.round(time("2020-01-01T00:00:00")), equalTo(time("2020-01-01T00:00:00")));
+        assertThat(upper.round(time("2020-01-01T00:00:01")), equalTo(time("2020-01-01T00:05:00")));
+        assertThat(upper.round(time("2020-01-01T00:04:59")), equalTo(time("2020-01-01T00:05:00")));
+        assertThat(upper.round(time("2020-01-01T00:05:00")), equalTo(time("2020-01-01T00:05:00")));
+        assertThat(upper.roundingFloor(time("2020-01-01T00:05:00")), equalTo(time("2020-01-01T00:00:00")));
+        assertThat(upper.roundingFloor(upper.round(time("2020-01-01T00:09:00"))), equalTo(time("2020-01-01T00:05:00")));
+        assertThat(upper.roundingCeiling(upper.round(time("2020-01-01T00:09:00"))), equalTo(time("2020-01-01T00:10:00")));
+        assertThat(upper.nextRoundingValue(time("2020-01-01T00:05:00")), equalTo(time("2020-01-01T00:10:00")));
+        assertArrayEquals(lowerRounding.prepare(min - 1, max).fixedRoundingPoints(), upper.fixedRoundingPoints());
+    }
+
+    public void testUpperIntervalGetIntervalMatchesWrappedRounding() {
+        Rounding lowerRounding = Rounding.builder(TimeValue.timeValueMinutes(5)).build();
+        Rounding upperRounding = Rounding.ToUpperRounding.createRounding(lowerRounding);
+        assertThat(upperRounding.getInterval(), equalTo(lowerRounding.getInterval()));
+    }
+
+    public void testUpperIntervalRoundingPreservesConfigurationOnReprepare() {
+        long min = time("2020-01-01T00:00:30");
+        long max = time("2020-01-01T00:20:30");
+        Rounding lowerRounding = Rounding.builder(TimeValue.timeValueMinutes(5)).offset(TimeUnit.SECONDS.toMillis(30)).build();
+        Rounding upperRounding = Rounding.ToUpperRounding.createRounding(lowerRounding);
+        Rounding.Prepared upper = upperRounding.prepare(min, max);
+        Rounding.Prepared reprepared = upper.getUnprepared().prepare(min, max);
+
+        assertThat(reprepared.round(time("2020-01-01T00:00:31")), equalTo(time("2020-01-01T00:05:30")));
+        assertThat(reprepared.round(time("2020-01-01T00:05:30")), equalTo(time("2020-01-01T00:05:30")));
+        assertThat(reprepared.roundingFloor(time("2020-01-01T00:05:30")), equalTo(time("2020-01-01T00:00:30")));
+        assertThat(reprepared.roundingCeiling(reprepared.round(time("2020-01-01T00:06:00"))), equalTo(time("2020-01-01T00:10:30")));
+    }
+
+    public void testUpperIntervalRoundingMatchesLowerDerivedFormulaAcrossDst() {
+        Rounding rounding = Rounding.builder(TimeValue.timeValueMinutes(20)).timeZone(ZoneId.of("CET")).build();
+        Rounding.Prepared lower = rounding.prepareForUnknown();
+        Rounding.Prepared upper = Rounding.ToUpperRounding.createRounding(rounding).prepareForUnknown();
+
+        long[] testValues = new long[] {
+            time("2016-03-27T01:55:00+01:00"),
+            time("2016-03-27T02:00:00+01:00"),
+            time("2016-03-27T03:15:00+02:00"),
+            time("2015-10-25T01:55:00+02:00"),
+            time("2015-10-25T02:15:00+02:00"),
+            time("2015-10-25T02:15:00+01:00") };
+
+        for (long value : testValues) {
+            long expectedFloor = lower.round(value - 1);
+            long expectedRound = lower.nextRoundingValue(expectedFloor);
+            long label = upper.round(value);
+            assertThat(label, equalTo(expectedRound));
+            assertThat(upper.roundingFloor(label), equalTo(expectedFloor));
+            assertThat(upper.roundingCeiling(label), equalTo(expectedRound));
+        }
+    }
+
+    public void testUpperIntervalRoundingWithOffsetMatchesDerivedFormula() {
+        Rounding rounding = Rounding.builder(TimeValue.timeValueMinutes(2)).offset(TimeUnit.MINUTES.toMillis(1)).build();
+        Rounding.Prepared lower = rounding.prepare(time("2024-05-10T00:10:00"), time("2024-05-10T00:30:00"));
+        Rounding.Prepared upper = Rounding.ToUpperRounding.createRounding(rounding)
+            .prepare(time("2024-05-10T00:10:00"), time("2024-05-10T00:30:00"));
+        long start = time("2024-05-10T00:15:00");
+        long end = time("2024-05-10T00:25:00");
+        for (long value = start; value <= end; value += 1000) {
+            long expectedFloor = lower.round(value - 1);
+            long expectedRound = lower.nextRoundingValue(expectedFloor);
+            long label = upper.round(value);
+            assertThat(label, equalTo(expectedRound));
+            assertThat(upper.roundingFloor(label), equalTo(expectedFloor));
+            assertThat(upper.roundingCeiling(label), equalTo(expectedRound));
+        }
+    }
+
+    public void testUpperIntervalReprepareWithOffsetMatchesDerivedFormula() {
+        Rounding rounding = Rounding.builder(TimeValue.timeValueMinutes(2)).offset(TimeUnit.MINUTES.toMillis(1)).build();
+        long min = time("2024-05-10T00:15:00");
+        long max = time("2024-05-10T00:25:00");
+        Rounding upperRounding = Rounding.ToUpperRounding.createRounding(rounding);
+        Rounding.Prepared upper = upperRounding.prepareForUnknown();
+        Rounding.Prepared optimizedUpper = upper.getUnprepared().prepare(min, max);
+        Rounding.Prepared optimizedLower = rounding.prepare(min - 1, max);
+        for (long value = min; value <= max; value += 1000) {
+            long expectedFloor = optimizedLower.round(value - 1);
+            long expectedRound = optimizedLower.nextRoundingValue(expectedFloor);
+            long label = optimizedUpper.round(value);
+            assertThat(label, equalTo(expectedRound));
+            assertThat(optimizedUpper.roundingFloor(label), equalTo(expectedFloor));
+            assertThat(optimizedUpper.roundingCeiling(label), equalTo(expectedRound));
+        }
+    }
+
+    public void testUpperRoundingIdempotent() {
+        Rounding rounding = Rounding.builder(TimeValue.timeValueMinutes(2)).offset(TimeValue.timeValueMinutes(1).millis()).build();
+        Rounding upperOnce = Rounding.ToUpperRounding.createRounding(rounding);
+        Rounding upperTwice = Rounding.ToUpperRounding.createRounding(upperOnce);
+        assertThat(upperTwice, sameInstance(upperOnce));
+    }
+
+    public void testUpperRoundingWithoutOffsetPreservesUpperSemantics() {
+        Rounding rounding = Rounding.builder(TimeValue.timeValueMinutes(2)).offset(TimeValue.timeValueMinutes(1).millis()).build();
+        long min = time("2024-05-10T00:10:00");
+        long max = time("2024-05-10T00:30:00");
+        Rounding withoutOffset = rounding.withoutOffset();
+        Rounding upper = Rounding.ToUpperRounding.createRounding(rounding);
+        Rounding upperWithoutOffset = upper.withoutOffset();
+        assertThat(upperWithoutOffset, equalTo(Rounding.ToUpperRounding.createRounding(withoutOffset)));
+
+        Rounding.Prepared lower = withoutOffset.prepare(min - 1, max);
+        Rounding.Prepared upperPrepared = upperWithoutOffset.prepare(min, max);
+        for (long t = min; t <= max; t += TimeValue.timeValueSeconds(30).millis()) {
+            long shifted = t == Long.MIN_VALUE ? Long.MIN_VALUE : t - 1;
+            long expected = lower.nextRoundingValue(lower.round(shifted));
+            assertThat(upperPrepared.round(t), equalTo(expected));
+        }
     }
 
     private void assertFixedRoundingPoints(Rounding.Prepared prepared, String... expected) {

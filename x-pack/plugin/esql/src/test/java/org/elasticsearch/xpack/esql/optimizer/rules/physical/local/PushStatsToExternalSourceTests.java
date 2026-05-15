@@ -213,6 +213,7 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
             FormatReader.NO_LIMIT,
             null,
             null,
+            Map.of(),
             List.of()
         );
         var agg = aggregateExec(ext, countStarAlias());

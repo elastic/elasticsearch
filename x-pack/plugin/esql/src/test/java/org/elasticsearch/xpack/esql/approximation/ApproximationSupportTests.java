@@ -160,7 +160,7 @@ public class ApproximationSupportTests extends ESTestCase {
         // leading to a chained stats.
         Fuse.class,
         FuseScoreEval.class,
-        
+
         // These source commands makes no sense for approximation.
         Explain.class,
         ShowInfo.class,

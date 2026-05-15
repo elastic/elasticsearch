@@ -68,6 +68,7 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
         }
 
         try {
+            // Subqueries use FORK under the hood, hence have the same restrictions as FORK tests.
             GenerativeForkRestTest.shouldSkipForkTest(testCase);
             assumeTrue("Subquery must start with FROM", testCase.query.toUpperCase(Locale.ROOT).startsWith("FROM "));
             executeQuery("""

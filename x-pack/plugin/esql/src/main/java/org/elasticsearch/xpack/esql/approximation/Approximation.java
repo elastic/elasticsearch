@@ -109,7 +109,7 @@ public class Approximation implements ApproximationDriver {
      */
     private static final double SAMPLE_PROBABILITY_THRESHOLD = 0.10;
 
-    private static final Logger logger = LogManager.getLogger(ApproximationVerifier.class);
+    private static final Logger logger = LogManager.getLogger(Approximation.class);
 
     private static final Expression WILDCARD = Literal.keyword(Source.EMPTY, StringUtils.WILDCARD);
     private static final AggregateFunction COUNT_ALL_ROWS_EXACT = new Count(Source.EMPTY, WILDCARD);

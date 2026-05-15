@@ -226,6 +226,16 @@ public class ApproximationVerifier {
         org.elasticsearch.xpack.esql.expression.function.aggregate.Sample.class
     );
 
+    private static class ChainedStatsVerificationException extends VerificationException {
+        ChainedStatsVerificationException(LogicalPlan plan) {
+            super(
+                "line {}:{}: approximation not supported: query with chained [STATS] cannot be approximated",
+                plan.source().source().getLineNumber(),
+                plan.source().source().getColumnNumber()
+            );
+        }
+    }
+
     /**
      * Verifies that a plan is suitable for approximation.
      * @return the query properties relevant for approximation if it's suitable, or null otherwise
@@ -283,11 +293,7 @@ public class ApproximationVerifier {
                 // verify there's just one STATS, and verify as if there were no FORK.
                 List<Aggregate> aggregates = logicalPlan.collect(Aggregate.class);
                 if (aggregates.size() > 1) {
-                    throw new VerificationException(
-                        "line {}:{}: approximation not supported: query with chained [STATS] cannot be approximated",
-                        logicalPlan.source().source().getLineNumber(),
-                        logicalPlan.source().source().getColumnNumber()
-                    );
+                    throw new ChainedStatsVerificationException(logicalPlan);
                 }
                 return new QueryProperties(aggregates.getFirst().groupings().isEmpty() == false, false, null);
             } else {
@@ -305,7 +311,7 @@ public class ApproximationVerifier {
                         branchProperties.add(verifyBranchOrThrow(branch));
                     } catch (VerificationException e) {
                         // Chained STATS result in a non-approximable query.
-                        if (e.getMessage().contains("query with chained [STATS] cannot be approximated")) {
+                        if (e instanceof ChainedStatsVerificationException) {
                             throw e;
                         }
                         // Otherwise, we can still approximate the other branch(es).
@@ -379,11 +385,7 @@ public class ApproximationVerifier {
             } else {
                 // Chained STATS commands are not supported.
                 if (plan instanceof Aggregate) {
-                    throw new VerificationException(
-                        "line {}:{}: approximation not supported: query with chained [STATS] cannot be approximated",
-                        plan.source().source().getLineNumber(),
-                        plan.source().source().getColumnNumber()
-                    );
+                    throw new ChainedStatsVerificationException(plan);
                 }
             }
         });

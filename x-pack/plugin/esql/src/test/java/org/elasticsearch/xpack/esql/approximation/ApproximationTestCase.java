@@ -74,7 +74,7 @@ public abstract class ApproximationTestCase extends ESTestCase {
             IntBlock forkBlock = blockFactory.newConstantIntBlockWith(i, 1);
             pages.add(new Page(countBlock, forkBlock));
         }
-        return new Result(null, pages, null, null, null);
+        return new Result(null, pages, null, null, null, null);
     }
 
     static Predicate<? super Aggregate> withAggs(Class<?>... aggs) {

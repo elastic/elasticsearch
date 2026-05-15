@@ -57,10 +57,7 @@ public class DatasetRewriterTests extends ESTestCase {
      */
     @Before
     public void requireFeatureFlag() {
-        assumeTrue(
-            "ES|QL external datasources feature flag must be enabled",
-            DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
-        );
+        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
     }
 
     public void testNoDatasetsLeavesPlanUnchanged() {

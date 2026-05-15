@@ -105,9 +105,7 @@ class ScrollDataExtractor implements DataExtractor {
         clearScroll();
         List<String> scrollIdsToRetry = List.copyOf(failedClearScrollIds);
         failedClearScrollIds.clear();
-        // Second attempt for those same ids before handing off to the factory. A CCS id can therefore log INFO twice
-        // in one destroy() (once above, once here); we skip extra bookkeeping to dedupe. After addOrphanedScrollIds,
-        // ScrollDataExtractorFactory.retryClearOrphanedScrollIds logs further failures at DEBUG only.
+        // Second attempt for those same ids before handing off to the factory. 
         for (String orphanedScrollId : scrollIdsToRetry) {
             clearScrollLoggingExceptions(orphanedScrollId);
         }

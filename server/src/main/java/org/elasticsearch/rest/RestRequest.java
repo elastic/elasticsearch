@@ -431,8 +431,6 @@ public class RestRequest implements ToXContent.Params, Traceable {
             if (params.containsKey(key)) {
                 throw new IllegalArgumentException("form parameter [" + key + "] conflicts with an existing request parameter");
             }
-        }
-        for (String key : formParams.keySet()) {
             for (String value : formParams.getAll(key)) {
                 params.addValue(key, value);
             }

@@ -162,33 +162,16 @@ public class HierarchicalKMeans {
         KMeansLocal kMeansLocal = buildKmeansLocal(vectors.size(), m);
         kMeansLocal.cluster(vectors, kMeansIntermediate);
 
-        // TODO: consider adding cluster size counts to the kmeans algo
-        // handle assignment here so we can track distance and cluster size
-        int[] centroidVectorCount = new int[centroids.length];
-        int effectiveCluster = -1;
-        int effectiveK = 0;
-        for (int assigment : assignments) {
-            centroidVectorCount[assigment]++;
-            // this cluster has received an assignment, its now effective, but only count it once
-            if (centroidVectorCount[assigment] == 1) {
-                effectiveK++;
-                effectiveCluster = assigment;
-            }
-        }
+        centroids = kMeansIntermediate.centroids();
+        int[] centroidVectorCount = kMeansIntermediate.clusterCounts();
 
-        if (effectiveK == 1) {
-            final float[][] singleClusterCentroid = new float[1][];
-            singleClusterCentroid[0] = centroids[effectiveCluster];
-            kMeansIntermediate.setCentroids(singleClusterCentroid);
-            Arrays.fill(kMeansIntermediate.assignments(), 0);
+        if (centroids.length == 1) {
             return kMeansIntermediate;
         }
 
         int centroidIndexOffset = 0; // tracks the cumulative change in centroid indices due to splits and removals
         for (int c = 0; c < centroidVectorCount.length; c++) {
-
             // Recurse for each cluster which is larger than targetSize
-            // Give ourselves 30% margin for the target size
             final int count = centroidVectorCount[c];
             final int adjustedCentroid = c + centroidIndexOffset;
             if (count > targetSize) {
@@ -200,27 +183,6 @@ public class HierarchicalKMeans {
                 KMeansIntermediate subPartitions = clusterAndSplit(sample, targetSize);
                 // Update offset: split replaces 1 centroid with subPartitions.centroids().length centroids
                 centroidIndexOffset += updateAssignmentsWithRecursiveSplit(kMeansIntermediate, adjustedCentroid, subPartitions);
-            } else if (count == 0) {
-                // remove empty clusters
-                final int newSize = kMeansIntermediate.centroids().length - 1;
-                final float[][] newCentroids = new float[newSize][];
-                System.arraycopy(kMeansIntermediate.centroids(), 0, newCentroids, 0, adjustedCentroid);
-                System.arraycopy(
-                    kMeansIntermediate.centroids(),
-                    adjustedCentroid + 1,
-                    newCentroids,
-                    adjustedCentroid,
-                    newSize - adjustedCentroid
-                );
-                // we need to update the assignments to reflect the new centroid ordinals
-                for (int i = 0; i < kMeansIntermediate.assignments().length; i++) {
-                    if (kMeansIntermediate.assignments()[i] > adjustedCentroid) {
-                        kMeansIntermediate.assignments()[i]--;
-                    }
-                }
-                kMeansIntermediate.setCentroids(newCentroids);
-                // Update offset: removed 1 centroid
-                centroidIndexOffset--;
             }
         }
 
@@ -293,11 +255,14 @@ public class HierarchicalKMeans {
 
         // update based on the outcomes from the split clusters recursion
         float[][] newCentroids = new float[newCentroidsSize][];
+        int[] newClusterCounts = new int[newCentroidsSize];
 
         // copy centroids prior to the split
         System.arraycopy(current.centroids(), 0, newCentroids, 0, cluster);
+        System.arraycopy(current.clusterCounts(), 0, newClusterCounts, 0, cluster);
         // insert the split partitions replacing the original cluster
         System.arraycopy(subPartitions.centroids(), 0, newCentroids, cluster, subPartitions.centroids().length);
+        System.arraycopy(subPartitions.clusterCounts(), 0, newClusterCounts, cluster, subPartitions.centroids().length);
         // append the remainder
         System.arraycopy(
             current.centroids(),
@@ -306,9 +271,16 @@ public class HierarchicalKMeans {
             cluster + subPartitions.centroids().length,
             orgCentroidsSize - cluster - 1
         );
+        System.arraycopy(
+            current.clusterCounts(),
+            cluster + 1,
+            newClusterCounts,
+            cluster + subPartitions.centroids().length,
+            orgCentroidsSize - cluster - 1
+        );
 
         assert Arrays.stream(newCentroids).allMatch(Objects::nonNull);
-        current.setCentroids(newCentroids);
+        current.setCentroids(newCentroids, newClusterCounts);
 
         // update the remaining cluster assignments to point to the new centroids after the split cluster
         // IMPORTANT: Do this BEFORE updating split cluster assignments to avoid double-updating

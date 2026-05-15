@@ -418,3 +418,14 @@ ROW d = "2025-01-15T00:00:00.000Z"::DATETIME
 duration_true:datetime      | duration_false:datetime     | period_true:datetime        | period_false:datetime
 2025-01-16T00:00:00.000Z    | 2025-01-25T00:00:00.000Z    | 2025-02-15T00:00:00.000Z    | 2026-01-15T00:00:00.000Z
 ;
+
+caseOnUnrolledMultivalueNoWarnings
+required_capability: fix_unrolled_foldable_mv_warning
+ROW x=1, y=[1,2,3] | STATS CASE(y==2, 10, 1) * MIN(x) BY y | SORT y
+;
+
+CASE(y==2, 10, 1) * MIN(x):integer | y:integer
+1                                  | 1
+10                                 | 2
+1                                  | 3
+;

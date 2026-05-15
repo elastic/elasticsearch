@@ -44,12 +44,12 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
         Map.entry(DataType.GEOHASH, NotEqualsLongsEvaluator.Factory::new),
         Map.entry(DataType.GEOTILE, NotEqualsLongsEvaluator.Factory::new),
         Map.entry(DataType.GEOHEX, NotEqualsLongsEvaluator.Factory::new),
-        Map.entry(DataType.KEYWORD, NotEqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.TEXT, NotEqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.VERSION, NotEqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.IP, NotEqualsKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.KEYWORD, NotEqualsBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.TEXT, NotEqualsBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.VERSION, NotEqualsBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.IP, NotEqualsBytesRefEvaluator.Factory::new),
         Map.entry(DataType.DENSE_VECTOR, NotEqualsDenseVectorEvaluator.Factory::new),
-        Map.entry(DataType.FLATTENED, NotEqualsKeywordsEvaluator.Factory::new)
+        Map.entry(DataType.FLATTENED, NotEqualsBytesRefEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -167,8 +167,8 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
         return lhs != rhs;
     }
 
-    @Evaluator(extraName = "Keywords")
-    static boolean processKeywords(BytesRef lhs, BytesRef rhs) {
+    @Evaluator(extraName = "BytesRef")
+    static boolean processBytesRef(BytesRef lhs, BytesRef rhs) {
         return false == lhs.equals(rhs);
     }
 

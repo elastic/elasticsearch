@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.datasources.utils.BoundedParallelGather;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -70,6 +71,8 @@ public class ExternalSourceResolver {
     private static final Logger LOGGER = LogManager.getLogger(ExternalSourceResolver.class);
 
     static final String CONFIG_SCHEMA_RESOLUTION = "schema_resolution";
+
+    public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_SCHEMA_RESOLUTION);
 
     private static final int MAX_PARALLEL_METADATA_READS = 16;
 
@@ -198,7 +201,20 @@ public class ExternalSourceResolver {
             List.of(new StorageEntry(storagePath, object.length(), object.lastModified())),
             path
         );
-        return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList);
+        // Single-file: degenerate case of the general flow — one-entry schemaMap, identity mapping.
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, extMetadata.schema());
+        return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap);
+    }
+
+    private static Map<StoragePath, SchemaReconciliation.FileSchemaInfo> singleEntrySchemaMap(
+        StoragePath path,
+        @Nullable List<Attribute> schema
+    ) {
+        if (schema == null || schema.isEmpty()) {
+            return Map.of();
+        }
+        SchemaReconciliation.ColumnMapping identityMapping = new SchemaReconciliation.ColumnMapping(identityMapping(schema.size()), null);
+        return Map.of(path, new SchemaReconciliation.FileSchemaInfo(schema, identityMapping, null));
     }
 
     private ExternalSourceResolution.ResolvedSource resolveMultiFileSource(
@@ -332,12 +348,40 @@ public class ExternalSourceResolver {
             }
         }
 
+        // Capture pre-enrichment schema: partition columns are injected by VirtualColumnInjector
+        // at read time, so per-file readSchema must NOT include them.
+        List<Attribute> dataOnlySchema = extMetadata.schema();
+
         PartitionMetadata partitionMetadata = listing.partitionMetadata();
         if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
         }
 
-        return new ExternalSourceResolution.ResolvedSource(extMetadata, listing);
+        // FFW: every file's readSchema is the anchor's data-only schema, identity mapping.
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
+        if (dataOnlySchema != null && dataOnlySchema.isEmpty() == false) {
+            Map<StoragePath, SchemaReconciliation.FileSchemaInfo> perFileInfo = Maps.newHashMapWithExpectedSize(listing.fileCount());
+            SchemaReconciliation.ColumnMapping identityMapping = new SchemaReconciliation.ColumnMapping(
+                identityMapping(dataOnlySchema.size()),
+                null
+            );
+            for (int i = 0; i < listing.fileCount(); i++) {
+                perFileInfo.put(listing.path(i), new SchemaReconciliation.FileSchemaInfo(dataOnlySchema, identityMapping, null));
+            }
+            schemaMap = Collections.unmodifiableMap(perFileInfo);
+        } else {
+            schemaMap = Map.of();
+        }
+
+        return new ExternalSourceResolution.ResolvedSource(extMetadata, listing, schemaMap);
+    }
+
+    private static int[] identityMapping(int n) {
+        int[] m = new int[n];
+        for (int i = 0; i < n; i++) {
+            m[i] = i;
+        }
+        return m;
     }
 
     private FileList expandAndCompact(
@@ -453,8 +497,8 @@ public class ExternalSourceResolver {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
         }
 
-        FileList enriched = GlobExpander.withSchemaInfo(fileList, result.perFileInfo());
-        return new ExternalSourceResolution.ResolvedSource(extMetadata, enriched);
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = result.perFileInfo();
+        return new ExternalSourceResolution.ResolvedSource(extMetadata, fileList, schemaMap);
     }
 
     /**

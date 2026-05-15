@@ -1256,6 +1256,181 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         assertEquals(java.util.Set.of("url"), pushed.predicateColumnNames());
     }
 
+    public void testExtractContainsLiteralRecognizesPureContainsShape() {
+        // Pins the exact set of patterns that take the SIMD-accelerated contains() path. Anything
+        // not on this list falls back to the per-byte ByteRunAutomaton; that is correct, but a silent
+        // regression here would dial back the dictionary fast-path on URL/path columns and is the
+        // single most expensive perf bug this change can introduce.
+        assertEquals(new BytesRef("google"), ParquetPushedExpressions.extractContainsLiteral("*google*"));
+        // Single-character literal — minimum recognized length is 3 ("*x*").
+        assertEquals(new BytesRef("a"), ParquetPushedExpressions.extractContainsLiteral("*a*"));
+        // UTF-8 multi-byte: helper must commit to bytes, not codepoints, because the runtime matcher
+        // operates on bytes.
+        assertEquals(new BytesRef("café"), ParquetPushedExpressions.extractContainsLiteral("*café*"));
+    }
+
+    public void testExtractContainsLiteralRejectsNonContainsShapes() {
+        // "**" -> middle is empty AND length<3 -> not recognized; the matchesAll automaton fast-path
+        // already handles "*", and "**" is equivalent at the automaton level.
+        assertNull(ParquetPushedExpressions.extractContainsLiteral("**"));
+        // No leading wildcard -> StartsWith territory, not contains.
+        assertNull(ParquetPushedExpressions.extractContainsLiteral("google*"));
+        // No trailing wildcard -> EndsWith territory, not contains.
+        assertNull(ParquetPushedExpressions.extractContainsLiteral("*google"));
+        // Embedded '*' -> two-segment pattern; the simple substring check would be wrong.
+        assertNull(ParquetPushedExpressions.extractContainsLiteral("*foo*bar*"));
+        // Embedded '?' -> single-char wildcard; the simple substring check would be wrong.
+        assertNull(ParquetPushedExpressions.extractContainsLiteral("*foo?bar*"));
+        // Embedded escape '\\' -> the literal would need un-escaping; keep on the automaton path.
+        assertNull(ParquetPushedExpressions.extractContainsLiteral("*fo\\*o*"));
+    }
+
+    public void testWildcardLikeContainsLiteralOrdinalDictionaryAgreesWithAutomaton() {
+        // Cross-checks the SIMD contains path against the per-row scalar path on a dictionary
+        // mixing entries above and below the ~24-byte SIMD activation threshold. Long URLs
+        // exercise the Panama path inside ESVectorUtil#contains; the short "google" entry exercises
+        // the scalar fallback inside the same helper. Any divergence between the two evaluator
+        // paths (ordinal short-circuit vs per-row) surfaces as a failure.
+        String[] dict = {
+            "https://www.google.com/search?q=elasticsearch",
+            "https://github.com/elastic/elasticsearch/issues",
+            "https://www.bing.com/search?q=opensearch",
+            "https://duckduckgo.com/?q=lucene+vector",
+            "https://www.google.com/maps/place/London",
+            "https://stackoverflow.com/questions/tagged/lucene",
+            "google" };
+        int rowCount = 200;
+        int[] randomOrdinals = new int[rowCount];
+        for (int i = 0; i < rowCount; i++) {
+            randomOrdinals[i] = randomIntBetween(0, dict.length - 1);
+        }
+        Block ordinalsBlock = ordinalBlock(dict, randomOrdinals, null);
+        Block plainBlock = plainBytesRefBlock(dict, randomOrdinals);
+        try (ordinalsBlock; plainBlock) {
+            // *google* takes the SIMD path; *go?gle* (single-char wildcard) falls back to the
+            // automaton. They must agree on every row.
+            for (String pattern : new String[] { "*google*", "*google.com*", "*xyz*", "*go?gle*" }) {
+                Expression like = new WildcardLike(Source.EMPTY, attr("s", DataType.KEYWORD), new WildcardPattern(pattern));
+
+                WordMask ordinalMask = new ParquetPushedExpressions(List.of(like)).evaluateFilter(
+                    Map.of("s", ordinalsBlock),
+                    rowCount,
+                    new WordMask()
+                );
+                WordMask plainMask = new ParquetPushedExpressions(List.of(like)).evaluateFilter(
+                    Map.of("s", plainBlock),
+                    rowCount,
+                    new WordMask()
+                );
+                if (ordinalMask == null) {
+                    assertNull("pattern [" + pattern + "]: ordinal returned null (all survive); plain must also", plainMask);
+                } else {
+                    assertNotNull("pattern [" + pattern + "]: ordinal produced a mask; plain must too", plainMask);
+                    assertArrayEquals(
+                        "pattern [" + pattern + "]: ordinal and plain masks diverge",
+                        plainMask.survivingPositions(),
+                        ordinalMask.survivingPositions()
+                    );
+                }
+            }
+        }
+    }
+
+    public void testWildcardLikeContainsLiteralScalarPath() {
+        // Direct functional test of the SIMD contains path through a plain BytesRefBlock — values
+        // are deliberately mixed: long enough to clear the SIMD activation threshold, short enough
+        // to exercise the scalar fallback inside ESVectorUtil#contains, and one null for SQL TVL.
+        try (var builder = blockFactory.newBytesRefBlockBuilder(5)) {
+            builder.appendBytesRef(new BytesRef("https://www.google.com/maps")); // long, contains "google"
+            builder.appendBytesRef(new BytesRef("google")); // short, contains "google"
+            builder.appendBytesRef(new BytesRef("https://www.bing.com/")); // long, no "google"
+            builder.appendNull();
+            builder.appendBytesRef(new BytesRef("Google")); // wrong case, must NOT match case-sensitive *google*
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            Expression like = new WildcardLike(Source.EMPTY, attr("s", DataType.KEYWORD), new WildcardPattern("*google*"));
+            assertSurvivors(new ParquetPushedExpressions(List.of(like)), blocks, 5, new WordMask(), new int[] { 0, 1 });
+        }
+    }
+
+    public void testWildcardLikeContainsLiteralCaseInsensitiveStillCorrect() {
+        // Case-insensitive *literal* is intentionally NOT on the SIMD path (lowercasing the haystack
+        // would defeat the SIMD win). It must still produce the case-insensitive answer via the
+        // automaton fallback.
+        try (var builder = blockFactory.newBytesRefBlockBuilder(3)) {
+            builder.appendBytesRef(new BytesRef("https://www.google.com/"));
+            builder.appendBytesRef(new BytesRef("https://www.GOOGLE.com/maps"));
+            builder.appendBytesRef(new BytesRef("https://www.bing.com/"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            Expression like = new WildcardLike(Source.EMPTY, attr("s", DataType.KEYWORD), new WildcardPattern("*google*"), true);
+            assertSurvivors(new ParquetPushedExpressions(List.of(like)), blocks, 3, new WordMask(), new int[] { 0, 1 });
+        }
+    }
+
+    public void testWildcardLikeContainsLiteralNotOnOrdinalDictionaryAgreesWithAutomaton() {
+        // NOT (col LIKE *literal*) on an OrdinalBytesRefBlock now goes through the SIMD matcher
+        // for the inner LIKE before the TVL null-fixup and the negate. The existing NOT tests
+        // (testWildcardLikeNotInvertsAndExcludesNulls etc.) only cover plain BytesRefBlocks, so
+        // they would not catch a bug where the dictionary scatter or the ordinal-mode null fixup
+        // disagreed with the per-row scalar path under the new matcher. Cross-check the two paths
+        // on a small fixed layout that includes a null row to exercise SQL three-valued logic.
+        String[] dict = { "https://www.google.com/maps", "https://www.bing.com/", "google" };
+        // 7 rows: ordinal 0 (match), 1 (no-match), 2 (match), null, 0 (match), 1 (no-match), 2 (match)
+        int[] ordinals = { 0, 1, 2, 0, 0, 1, 2 };
+        boolean[] nulls = { false, false, false, true, false, false, false };
+        Block ordinalsBlock = ordinalBlock(dict, ordinals, nulls);
+        // Plain block must reflect the same null mask, not just the ordinals.
+        Block plainBlock;
+        try (var builder = blockFactory.newBytesRefBlockBuilder(ordinals.length)) {
+            for (int i = 0; i < ordinals.length; i++) {
+                if (nulls[i]) {
+                    builder.appendNull();
+                } else {
+                    builder.appendBytesRef(new BytesRef(dict[ordinals[i]]));
+                }
+            }
+            plainBlock = builder.build();
+        }
+        try (ordinalsBlock; plainBlock) {
+            Expression like = new WildcardLike(Source.EMPTY, attr("s", DataType.KEYWORD), new WildcardPattern("*google*"));
+            Expression not = new Not(Source.EMPTY, like);
+
+            WordMask ordinalMask = new ParquetPushedExpressions(List.of(not)).evaluateFilter(
+                Map.of("s", ordinalsBlock),
+                ordinals.length,
+                new WordMask()
+            );
+            WordMask plainMask = new ParquetPushedExpressions(List.of(not)).evaluateFilter(
+                Map.of("s", plainBlock),
+                ordinals.length,
+                new WordMask()
+            );
+            // Survivors: NOT *google* on dict {0=match, 1=no-match, 2=match} excluding the null row.
+            // -> ordinals 1 only (positions 1 and 5).
+            int[] expected = new int[] { 1, 5 };
+            assertNotNull(ordinalMask);
+            assertNotNull(plainMask);
+            assertArrayEquals("plain NOT survivors", expected, plainMask.survivingPositions());
+            assertArrayEquals("ordinal NOT survivors must agree with plain", expected, ordinalMask.survivingPositions());
+        }
+    }
+
+    public void testWildcardLikeContainsLiteralEscapeStillCorrect() {
+        // *foo\*bar* (literal "foo*bar") must NOT take the SIMD path — extractContainsLiteral
+        // returns null when the middle contains '\\'. The automaton fallback still produces the
+        // right answer; this test pins that behavior so a future "smarter" un-escape doesn't
+        // regress correctness.
+        try (var builder = blockFactory.newBytesRefBlockBuilder(2)) {
+            builder.appendBytesRef(new BytesRef("xfoo*barx"));
+            builder.appendBytesRef(new BytesRef("xfooXbarx"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            Expression like = new WildcardLike(Source.EMPTY, attr("s", DataType.KEYWORD), new WildcardPattern("*foo\\*bar*"));
+            assertSurvivors(new ParquetPushedExpressions(List.of(like)), blocks, 2, new WordMask(), new int[] { 0 });
+        }
+    }
+
     public void testOrdinalStartsWithMatchesDictionaryPrefix() {
         // STARTS_WITH(x, "ap") -> matching entries are "apple" (0) and "application" (1).
         int[] pattern = { 0, 1, 2, 0, 2 };

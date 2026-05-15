@@ -825,18 +825,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * For TSV and CSV variants without bracket multi-value syntax (anything that routes
-     * {@link #findNextRecordBoundary} through {@link #findNextRecordBoundaryQuotedFieldsOnly}),
-     * walk the buffer once in scalar code with a single quote-state bit and remember the position
-     * of the last {@code \n} seen outside quotes. The SPI default synthesizes this answer by
-     * dispatching {@link #findNextRecordBoundary} forward once per record, so its cost grows with
-     * the record count in the buffer rather than the byte count — prohibitive when the per-record
-     * scanner does any setup work (e.g. allocation).
-     *
-     * <p>The bracket-comma-MVC path stays on the inherited default. Its scanner already uses a
-     * {@link BufferedInputStream}-backed per-byte read with no per-call bulk allocation, and
-     * collapsing the bracket-region semantics (depth tracking, leading-whitespace gating, mark
-     * limit) into a single-pass last-boundary scan would duplicate non-trivial state machinery.
+     * Override the SPI default for the QuotedFieldsOnly path so the streaming segmentator gets a
+     * single-pass answer instead of dispatching the per-record scanner once per record.
+     * Bracket-comma MVC stays on the inherited default — its scanner has no per-call bulk
+     * allocation, and the bracket-region state machine (depth, leading-whitespace gating,
+     * mark limit) is non-trivial to fold into a single pass.
      */
     @Override
     public int findLastRecordBoundary(byte[] buf, int length) throws IOException {
@@ -847,16 +840,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Single-pass last-boundary scan matching the quoting contract of
-     * {@link #findNextRecordBoundaryQuotedFieldsOnly}: {@code quoteChar} outside quotes opens a
-     * quoted region, a doubled quote inside quotes is a literal, an unpaired closing quote ends
-     * the region, and {@code \n} outside quotes is a record terminator. The returned offset is
-     * the index of the last such terminator within {@code buf[0..length)}, or {@code -1} if none.
-     * <p>
-     * Open-tail handling: if the buffer ends mid-quoted-field, {@code inQuotes} stays true after
-     * the unpaired open quote and any subsequent {@code \n} bytes inside the unterminated region
-     * are ignored, so the returned offset is the last terminator <em>before</em> the open region —
-     * the contract required by the streaming segmentator's grow loop.
+     * Quoting contract mirrors {@link #findNextRecordBoundaryQuotedFieldsOnly}: {@code quoteChar}
+     * toggles {@code inQuotes}, doubled quote is a literal, {@code \n} outside quotes terminates.
+     * An unpaired opening quote leaves {@code inQuotes == true} for the rest of the buffer, so
+     * any {@code \n} inside the unterminated tail is skipped and the returned offset stays before
+     * the open region — the open-tail rule the segmentator's grow loop requires.
      */
     private int findLastRecordBoundaryQuotedFieldsOnly(byte[] buf, int length) {
         if (length <= 0) {

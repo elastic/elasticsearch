@@ -399,13 +399,10 @@ public class OpenShiftAiServiceTests extends InferenceServiceTestCase {
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().getFirst().getUri().getQuery());
             assertThat(
-                webServer.requests().getFirst().getHeader(org.apache.hc.core5.http.HttpHeaders.CONTENT_TYPE),
+                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaTypeWithoutParameters())
             );
-            assertThat(
-                webServer.requests().getFirst().getHeader(org.apache.hc.core5.http.HttpHeaders.AUTHORIZATION),
-                CoreMatchers.is(org.elasticsearch.core.Strings.format("Bearer %s", TEST_API_KEY))
-            );
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is(Strings.format("Bearer %s", TEST_API_KEY)));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             Map<String, Object> expectedRequestMap = new HashMap<>(Map.of("query", query, "documents", List.of(inputOne, inputTwo)));

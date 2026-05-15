@@ -39,7 +39,7 @@ class HistogramValuesSource extends ValuesSource.Numeric {
     @Override
     public SortedNumericDoubleValues doubleValues(LeafReaderContext context) throws IOException {
         final SortedNumericDoubleValues values = vs.doubleValues(context);
-        final DoubleValues singleton = org.elasticsearch.index.fielddata.FieldData.unwrapSingleton(values);
+        final DoubleValues singleton = SortedNumericDoubleValues.unwrapSingleton(values);
         if (singleton != null) {
             return org.elasticsearch.index.fielddata.FieldData.singleton(doubleSingleValues(singleton));
         } else {

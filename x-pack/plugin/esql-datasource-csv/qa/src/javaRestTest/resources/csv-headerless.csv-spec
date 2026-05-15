@@ -36,3 +36,30 @@ f1:keyword
 "emp_no:integer"
 "10001"
 ;
+
+// End-to-end repro for the cross-file type-drift case. {{employees_multifile}} resolves to two
+// CSVs under iceberg-fixtures/multifile/:
+//   multifile_a_anchor.csv (lex-smallest, anchor): col0 = "abc","xyz" → KEYWORD;       col1 = 1,2  → INTEGER
+//   multifile_b_other.csv:                          col0 = "10","20","30" → would-be INTEGER per-file
+// Without the fix, the non-anchor file's per-file inference would produce IntBlock for col0 and the
+// SORT would crash with "Expected [BYTES_REF] but was [INT]". With the fix, the planner-resolved
+// KEYWORD type is honored across files and SORT succeeds. The KEYWORD sort of "10","20","30","abc","xyz"
+// is lex-ordered: digits sort before letters.
+multiFileHeaderlessReadSchemaPreventsTypeDrift
+required_capability: external_command
+required_capability: external_csv_header_row_option
+required_capability: external_source_read_schema
+required_capability: datasource_file_readers_no_text_type
+
+EXTERNAL "{{employees_multifile}}" WITH {"header_row": false}
+| SORT col0 ASC
+| LIMIT 10
+;
+
+col0:keyword | col1:integer
+"10"         | 10
+"20"         | 20
+"30"         | 30
+"abc"        | 1
+"xyz"        | 2
+;

@@ -63,6 +63,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         keys.add(FormatNameResolver.CONFIG_READER);
         keys.addAll(ErrorPolicy.CONFIG_KEYS);
         keys.addAll(FileSplitProvider.CONFIG_KEYS);
+        keys.addAll(ExternalSourceResolver.CONFIG_KEYS);
         COORDINATOR_KEYS = Set.copyOf(keys);
     }
 
@@ -242,6 +243,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
             )
                 .rowLimit(context.rowLimit())
                 .fileList(context.fileList())
+                .schemaMap(context.schemaMap())
                 .partitionColumnNames(context.partitionColumnNames())
                 .partitionValues(partitionValues)
                 .sliceQueue(context.sliceQueue())

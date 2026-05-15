@@ -15,6 +15,7 @@ interface PipelineStep {
   soft_fail: boolean;
   parallelism?: number;
   env?: Record<string, string>;
+  depends_on?: { step: string; allow_failure: boolean }[];
 }
 
 interface PipelineGroup {
@@ -63,6 +64,19 @@ export function toBuildkitePipeline(
       step.env = env;
     }
     steps.push(step);
+  }
+
+  if (steps.length > 0) {
+    const deps = steps.map((s) => ({ step: s.key, allow_failure: true }));
+    steps.push({
+      label: "flakiness report",
+      key: "flakiness-detection:analyze",
+      command: "bun .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts",
+      timeout_in_minutes: 10,
+      agents: { ...cfg.agents },
+      soft_fail: true,
+      depends_on: deps,
+    });
   }
 
   return {

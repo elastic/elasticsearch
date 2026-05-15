@@ -1,15 +1,22 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtemp, mkdir, writeFile } from "fs/promises";
+import { tmpdir } from "os";
+import { join, dirname } from "path";
 
 import {
+  analyzeReports,
   buildCommands,
   classifyChangedFiles,
+  classifyFailure,
   collapseYamlSuites,
   deduplicateYamlRunners,
   DEFAULT_AGENT_CONFIG,
   DEFAULT_BATCHING_CONFIG,
   generateBatchCommand,
   generatePipeline,
+  renderMarkdown,
   resolveMergeBaseTarget,
+  severity,
   toBuildkitePipeline,
   toGradleProject,
   toFqcn,
@@ -573,7 +580,8 @@ describe("generatePipeline", () => {
 
     const group = pipeline.steps[0];
     expect(group.group).toBe("flakiness-detection");
-    expect(group.steps).toHaveLength(1);
+    // 1 batch step + 1 trailing analyze step.
+    expect(group.steps).toHaveLength(2);
 
     const step = group.steps[0];
     expect(step.label).toBe("java rest tests");
@@ -588,6 +596,10 @@ describe("generatePipeline", () => {
     // which fails with "Expected identifier to start with a letter, got !".
     expect(step.command).toContain('$${!VARNAME}');
     expect(step.command).not.toMatch(/[^$]\$\{!VARNAME\}/);
+
+    const analyze = group.steps[1];
+    expect(analyze.key).toBe("flakiness-detection:analyze");
+    expect(analyze.depends_on).toEqual([{ step: "flakiness-detection:java-rest", allow_failure: true }]);
   });
 
   test("all test kinds appear in single group with unique keys", () => {
@@ -604,11 +616,13 @@ describe("generatePipeline", () => {
     const pipeline = generatePipeline(tests);
     expect(pipeline.steps).toHaveLength(1);
     expect(pipeline.steps[0].group).toBe("flakiness-detection");
-    expect(pipeline.steps[0].steps).toHaveLength(2);
+    // 2 batch steps + 1 trailing analyze step.
+    expect(pipeline.steps[0].steps).toHaveLength(3);
     expect(pipeline.steps[0].steps[0].label).toBe("unit tests");
     expect(pipeline.steps[0].steps[0].key).toBe("flakiness-detection:unit");
     expect(pipeline.steps[0].steps[1].label).toBe("integ tests");
     expect(pipeline.steps[0].steps[1].key).toBe("flakiness-detection:integ");
+    expect(pipeline.steps[0].steps[2].key).toBe("flakiness-detection:analyze");
   });
 
   test("yaml runners and suites get separate labels", () => {
@@ -624,9 +638,11 @@ describe("generatePipeline", () => {
 
     const pipeline = generatePipeline(tests);
     expect(pipeline.steps).toHaveLength(1);
-    expect(pipeline.steps[0].steps).toHaveLength(2);
+    // 2 batch steps + 1 trailing analyze step.
+    expect(pipeline.steps[0].steps).toHaveLength(3);
     expect(pipeline.steps[0].steps[0].label).toBe("yaml rest test runner");
     expect(pipeline.steps[0].steps[1].label).toBe("yaml rest tests");
+    expect(pipeline.steps[0].steps[2].key).toBe("flakiness-detection:analyze");
   });
 
   test("returns empty group for empty input", () => {
@@ -1271,3 +1287,103 @@ describe("toBuildkitePipeline", () => {
     expect(step.command).toBe("only");
   });
 });
+
+describe("classifyFailure", () => {
+  test("classifies AssertionError messages as 'assertion'", () => {
+    expect(classifyFailure({ type: "java.lang.AssertionError", message: "expected:<1> but was:<2>" })).toBe("assertion");
+  });
+
+  test("classifies suite-timeout markers as 'suite-timeout'", () => {
+    expect(classifyFailure({ type: "java.lang.Exception", message: "Test abandoned because suite timeout was reached." })).toBe("suite-timeout");
+    expect(classifyFailure({ type: "java.lang.Exception", message: "Suite timeout exceeded (>= 3600000 msec)." })).toBe("suite-timeout");
+  });
+
+  test("classifies other Exception entries as 'error'", () => {
+    expect(classifyFailure({ type: "java.lang.RuntimeException", message: "kaboom" })).toBe("error");
+  });
+
+  test("classifies unmatched shapes as 'other'", () => {
+    expect(classifyFailure({ type: "", message: "" })).toBe("other");
+  });
+});
+
+describe("analyzeReports", () => {
+  test("aggregates pass/fail counts per (class, method)", async () => {
+    const root = await mkTmpReports([
+      {
+        path: "server/build/test-results/test/TEST-org.example.FooTests.xml",
+        body: `<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="org.example.FooTests" tests="3" failures="1" errors="0">
+  <testcase classname="org.example.FooTests" name="testBar"/>
+  <testcase classname="org.example.FooTests" name="testBar"/>
+  <testcase classname="org.example.FooTests" name="testBar">
+    <failure type="java.lang.AssertionError" message="boom"/>
+  </testcase>
+</testsuite>`,
+      },
+    ]);
+    const report = await analyzeReports([root]);
+    expect(report.totals.successfulCases).toBe(2);
+    expect(report.totals.realFailures).toBe(1);
+    expect(report.perTest).toEqual([
+      expect.objectContaining({
+        className: "org.example.FooTests",
+        method: "testBar",
+        passes: 2,
+        failures: 1,
+        failureKinds: ["assertion"],
+      }),
+    ]);
+  });
+
+  test("treats suite-timeout markers as informational, not real failures", async () => {
+    const root = await mkTmpReports([
+      {
+        path: "server/build/test-results/test/TEST-org.example.BarTests.xml",
+        body: `<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="org.example.BarTests" tests="3" failures="1" errors="1">
+  <testcase classname="org.example.BarTests" name="testBaz"/>
+  <testcase classname="org.example.BarTests" name="testBaz">
+    <failure type="java.lang.Exception" message="Test abandoned because suite timeout was reached."/>
+  </testcase>
+  <testcase classname="org.example.BarTests" name="@@suite@@">
+    <error type="java.lang.Exception" message="Suite timeout exceeded (>= 3600000 msec)."/>
+  </testcase>
+</testsuite>`,
+      },
+    ]);
+    const report = await analyzeReports([root]);
+    expect(report.totals.realFailures).toBe(0);
+    expect(report.totals.suiteTimeoutMarkers).toBe(2);
+    expect(report.totals.successfulCases).toBe(1);
+  });
+});
+
+describe("renderMarkdown / severity", () => {
+  test("renders the failures table when there are real failures", () => {
+    const md = renderMarkdown({
+      batches: [],
+      perTest: [{ className: "X", method: "y", passes: 0, failures: 1, failureKinds: ["assertion"], exampleMessages: ["boom"] }],
+      totals: { iterations: 1, realFailures: 1, suiteTimeoutMarkers: 0, successfulCases: 0 },
+    });
+    expect(md).toContain("Failures by test");
+    expect(md).toContain("boom");
+  });
+
+  test("severity reflects the worst signal", () => {
+    expect(severity({ batches: [], perTest: [], totals: { iterations: 1, realFailures: 1, suiteTimeoutMarkers: 0, successfulCases: 0 } })).toBe("error");
+    expect(severity({ batches: [], perTest: [], totals: { iterations: 1, realFailures: 0, suiteTimeoutMarkers: 1, successfulCases: 0 } })).toBe("warning");
+    expect(severity({ batches: [], perTest: [], totals: { iterations: 1, realFailures: 0, suiteTimeoutMarkers: 0, successfulCases: 1 } })).toBe("success");
+  });
+});
+
+// Helper — keep alongside the analyzer describes.
+async function mkTmpReports(files: { path: string; body: string }[]): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), "analyze-"));
+  for (const f of files) {
+    const full = join(root, f.path);
+    await mkdir(dirname(full), { recursive: true });
+    await writeFile(full, f.body, "utf8");
+  }
+  return root;
+}

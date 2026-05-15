@@ -8,7 +8,7 @@ import { DEFAULT_BATCHING_CONFIG } from "../domain";
 
 const PROJECT_ROOT = resolve(`${import.meta.dir}/../../../..`);
 
-export function run(): void {
+export async function run(): Promise<void> {
   const args = process.argv.slice(2);
   const itersIdx = args.findIndex((a) => a === "--iters");
   let itersOverride: number | undefined;
@@ -51,7 +51,10 @@ export function run(): void {
     : DEFAULT_BATCHING_CONFIG;
 
   const exitCode = runLocally(buildCommands(located, cfg), PROJECT_ROOT);
-  // The analyzer wiring is added in Task 9.
+  const { analyzeReports } = await import("../analyzer/analyze");
+  const { renderMarkdown } = await import("../analyzer/render");
+  const report = await analyzeReports([PROJECT_ROOT]);
+  console.log("\n" + renderMarkdown(report));
   process.exit(exitCode);
 }
 

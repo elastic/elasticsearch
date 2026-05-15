@@ -22,6 +22,15 @@ export {
 export { toBuildkitePipeline, uploadBuildkitePipeline } from "./runners/buildkite";
 export { runLocally } from "./runners/local";
 export { resolveMergeBaseTarget } from "./entrypoints/pr";
+export {
+  analyzeReports,
+  classifyFailure,
+  type FlakinessReport,
+  type TestSummary,
+  type BatchSummary,
+  type FailureKind,
+} from "./analyzer/analyze";
+export { renderMarkdown, severity } from "./analyzer/render";
 
 // generatePipeline backward-compat wrapper — used by existing tests.
 import { buildCommands } from "./commands";

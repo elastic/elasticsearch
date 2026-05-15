@@ -914,6 +914,11 @@ public class EsqlCapabilities {
         SORTING_ON_SOURCE_AND_COUNTERS_FORBIDDEN,
 
         /**
+         * Fix sorting not allowed on histogram and _tsid.
+         */
+        SORTING_ON_HISTOGRAM_AND_TSID_FORBIDDEN,
+
+        /**
          * Fix {@code SORT} when the {@code _source} field is not a sort key but
          * <strong>is</strong> being returned.
          */
@@ -1691,6 +1696,11 @@ public class EsqlCapabilities {
          * Support for tstep bucket count variant: TSTEP(count, from, to)
          */
         TSTEP_BUCKET_COUNT(TSTEP.isEnabled()),
+
+        /**
+         * Support lower-open upper-closed boundaries (*;*] in addition to lower-closed upper-open [*;*)
+         */
+        FIX_TSTEP_BUCKET_ROUNDING(TSTEP.isEnabled()),
 
         /**
          * Allow qualifiers in attribute names.
@@ -2786,6 +2796,16 @@ public class EsqlCapabilities {
          * Support for the {@code !=} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_NOT_EQUALS_FLATTENED(Build.current().isSnapshot()),
+
+        /**
+         * Fix for {@code ReorderLimitProjectAndOrderBy} unconditionally lifting an {@code OrderBy} above a renaming/dropping
+         * {@code Project}: it now rewrites the {@code OrderBy}'s references through the {@code Project}'s aliases (so a sort on
+         * a renamed column stays valid) and bails out of the swap if a referenced column is dropped altogether.
+         * <p>
+         *     See <a href="https://github.com/elastic/elasticsearch/issues/148612">#148612</a>.
+         * </p>
+         */
+        FIX_REORDER_LIMIT_PROJECT_AND_ORDER_BY_PRESERVES_REFS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

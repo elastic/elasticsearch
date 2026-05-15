@@ -48,14 +48,34 @@ public interface FormatReader extends Closeable {
     enum SchemaResolution {
         /** Use the schema from the first file; ignore differences in subsequent files. */
         FIRST_FILE_WINS,
-        // TODO: implement strict schema validation across files
+        /** Require all files to share the exact same schema (modulo nullability). */
         STRICT,
-        // TODO: implement union-by-name schema merging across files
+        /** Merge schemas from all files by column name, with safe type widening. */
         UNION_BY_NAME
     }
 
+    /**
+     * Cluster-wide default schema resolution strategy when a query does not specify one.
+     * <p>
+     * This is the single source of truth: it is consulted both by this SPI's
+     * {@link #defaultSchemaResolution()} and by {@code ExternalSourceResolver.parseSchemaResolution}
+     * when no {@code schema_resolution} key is present in the per-query config. The format
+     * detected at glob-expansion time is not yet known when the resolver decides whether to
+     * take the read-all-and-reconcile path versus the FFW fast path, so there is no format
+     * dispatch here today; if per-format defaults become desirable in the future the resolver
+     * will need to peek at the lex-smallest file's format first, and this constant becomes the
+     * fallback only.
+     */
+    SchemaResolution DEFAULT_SCHEMA_RESOLUTION = SchemaResolution.UNION_BY_NAME;
+
+    /**
+     * Returns the cluster-wide default schema resolution for this reader. Format implementations
+     * may override this to advertise a different preferred default, but the resolver does not
+     * consult it today (see {@link #DEFAULT_SCHEMA_RESOLUTION} for the rationale). Override is
+     * effectively informational until that wiring exists.
+     */
     default SchemaResolution defaultSchemaResolution() {
-        return SchemaResolution.FIRST_FILE_WINS;
+        return DEFAULT_SCHEMA_RESOLUTION;
     }
 
     /**

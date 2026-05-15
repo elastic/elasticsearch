@@ -1698,6 +1698,11 @@ public class EsqlCapabilities {
         TSTEP_BUCKET_COUNT(TSTEP.isEnabled()),
 
         /**
+         * Support lower-open upper-closed boundaries (*;*] in addition to lower-closed upper-open [*;*)
+         */
+        FIX_TSTEP_BUCKET_ROUNDING(TSTEP.isEnabled()),
+
+        /**
          * Allow qualifiers in attribute names.
          */
         NAME_QUALIFIERS(Build.current().isSnapshot()),

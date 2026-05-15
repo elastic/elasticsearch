@@ -451,6 +451,7 @@ rate_bytes_in:double | cluster:keyword | time_bucket:datetime
 trange_absolute_with_rate_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket
+required_capability: fix_tstep_bucket_rounding
 
 PROMQL index=k8s step=2m start="2024-05-10T00:15:00.000Z" end="2024-05-10T00:25:00.000Z" rate_bytes_in=(avg by (cluster) (rate(network.total_bytes_in[2m])))
 | EVAL rate_bytes_in=ROUND(rate_bytes_in, 6), step=step, cluster=cluster
@@ -458,16 +459,16 @@ PROMQL index=k8s step=2m start="2024-05-10T00:15:00.000Z" end="2024-05-10T00:25:
 | LIMIT 10;
 
 rate_bytes_in:double | step:datetime            | cluster:keyword
-1.589583             | 2024-05-10T00:23:00.000Z | staging
-2.227083             | 2024-05-10T00:17:00.000Z | staging
-3.918056             | 2024-05-10T00:23:00.000Z | qa
-4.257292             | 2024-05-10T00:17:00.000Z | prod
-4.84375              | 2024-05-10T00:15:00.000Z | qa
-6.759054             | 2024-05-10T00:21:00.000Z | staging
-8.392708             | 2024-05-10T00:19:00.000Z | staging
-8.453935             | 2024-05-10T00:17:00.000Z | qa
-9.83125              | 2024-05-10T00:23:00.000Z | prod
-10.64375             | 2024-05-10T00:21:00.000Z | prod
+1.460569             | 2024-05-10T00:23:00.000Z | staging
+4.30674              | 2024-05-10T00:17:00.000Z | staging
+4.95977              | 2024-05-10T00:23:00.000Z | qa
+6.706234             | 2024-05-10T00:15:00.000Z | qa
+7.12595              | 2024-05-10T00:19:00.000Z | staging
+8.040258             | 2024-05-10T00:23:00.000Z | prod
+8.75881              | 2024-05-10T00:17:00.000Z | prod
+9.408179             | 2024-05-10T00:15:00.000Z | staging
+9.412586             | 2024-05-10T00:21:00.000Z | staging
+10.98925             | 2024-05-10T00:17:00.000Z | qa
 ;
 
 bare_rate_outputs_dimensions

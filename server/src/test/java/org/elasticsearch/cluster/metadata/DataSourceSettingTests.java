@@ -109,12 +109,12 @@ public class DataSourceSettingTests extends ESTestCase {
         assertNotEquals(a, d);
     }
 
-    public void testSecretMustBeString() {
-        // Per the class invariant, a secret setting must carry a String value (or null).
-        // Numeric and boolean payloads aren't valid sensitive types in the domain; rejecting
-        // them at construction prevents a later layer from accidentally producing one.
+    public void testSecretMustBeStringOrEncryptedCarrier() {
+        // Per the class invariant, a secret setting must carry a String (plaintext, legacy / pre-encrypt),
+        // a GenericNamedWriteable (ciphertext carrier — e.g. EncryptedData), a Map (parsed-from-XContent
+        // encrypted-object shape), or null. Numeric and boolean payloads are rejected at construction.
         var ex = expectThrows(IllegalArgumentException.class, () -> new DataSourceSetting(42, true));
-        assertTrue(ex.getMessage().contains("must be String-valued"));
+        assertTrue(ex.getMessage().contains("must be String, an encrypted carrier, or a parsed map"));
         expectThrows(IllegalArgumentException.class, () -> new DataSourceSetting(9_999_999_999L, true));
         expectThrows(IllegalArgumentException.class, () -> new DataSourceSetting(3.14159, true));
         expectThrows(IllegalArgumentException.class, () -> new DataSourceSetting(true, true));

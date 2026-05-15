@@ -825,6 +825,67 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
+     * For TSV and CSV variants without bracket multi-value syntax (anything that routes
+     * {@link #findNextRecordBoundary} through {@link #findNextRecordBoundaryQuotedFieldsOnly}),
+     * walk the buffer once in scalar code with a single quote-state bit and remember the position
+     * of the last {@code \n} seen outside quotes. The default polyloop would otherwise dispatch
+     * {@code findNextRecordBoundary} once per record and allocate an 8 KiB read buffer on each
+     * call — hundreds of MiB allocate-and-copy per 2.5 MiB chunk for typical TSV — which stalls
+     * the streaming segmentator on multi-million-row files.
+     *
+     * <p>The bracket-comma-MVC path stays on the inherited default. Its scanner already uses a
+     * {@link BufferedInputStream}-backed per-byte read with no per-call bulk allocation, and
+     * collapsing the bracket-region semantics (depth tracking, leading-whitespace gating, mark
+     * limit) into a single-pass last-boundary scan would duplicate non-trivial state machinery.
+     */
+    @Override
+    public int findLastRecordBoundary(byte[] buf, int length) throws IOException {
+        if (options.multiValueSyntax() != CsvFormatOptions.MultiValueSyntax.BRACKETS || options.delimiter() != ',') {
+            return findLastRecordBoundaryQuotedFieldsOnly(buf, length);
+        }
+        return SegmentableFormatReader.super.findLastRecordBoundary(buf, length);
+    }
+
+    /**
+     * Single-pass last-boundary scan matching the quoting contract of
+     * {@link #findNextRecordBoundaryQuotedFieldsOnly}: {@code quoteChar} outside quotes opens a
+     * quoted region, a doubled quote inside quotes is a literal, an unpaired closing quote ends
+     * the region, and {@code \n} outside quotes is a record terminator. The returned offset is
+     * the index of the last such terminator within {@code buf[0..length)}, or {@code -1} if none.
+     * <p>
+     * Open-tail handling: if the buffer ends mid-quoted-field, {@code inQuotes} stays true after
+     * the unpaired open quote and any subsequent {@code \n} bytes inside the unterminated region
+     * are ignored, so the returned offset is the last terminator <em>before</em> the open region —
+     * the contract required by the streaming segmentator's grow loop.
+     */
+    private int findLastRecordBoundaryQuotedFieldsOnly(byte[] buf, int length) {
+        if (length <= 0) {
+            return -1;
+        }
+        int lastBoundary = -1;
+        boolean inQuotes = false;
+        byte quoteAsByte = (byte) options.quoteChar();
+        for (int i = 0; i < length; i++) {
+            byte b = buf[i];
+            if (b == quoteAsByte) {
+                if (inQuotes) {
+                    if (i + 1 < length && buf[i + 1] == quoteAsByte) {
+                        // Doubled quote inside a quoted field — RFC 4180 literal, stay in quotes.
+                        i++;
+                    } else {
+                        inQuotes = false;
+                    }
+                } else {
+                    inQuotes = true;
+                }
+            } else if (b == '\n' && inQuotes == false) {
+                lastBoundary = i;
+            }
+        }
+        return lastBoundary;
+    }
+
+    /**
      * Upper bound for {@link BufferedInputStream#mark(int)} while probing bracket MVC cells during record-boundary
      * scans. Matches {@link CsvFormatOptions#maxFieldSize()} so an unclosed bracket cell cannot invalidate the mark
      * before we reset and treat {@code [} as a literal byte.
@@ -943,53 +1004,48 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
     }
 
+    /**
+     * Per-byte scan over a {@link BufferedInputStream} — no per-call bulk read buffer is allocated;
+     * an existing {@link BufferedInputStream} input is reused, otherwise the stream is wrapped
+     * once. Pre-refactor this method allocated a fresh {@code byte[8192]} and bulk-read up to
+     * 8 KiB per invocation, which the default polyloop in
+     * {@link SegmentableFormatReader#findLastRecordBoundary} amplified to one allocation per
+     * record in a chunk.
+     */
     private long findNextRecordBoundaryQuotedFieldsOnly(InputStream stream) throws IOException {
+        BufferedInputStream bis = stream instanceof BufferedInputStream b ? b : new BufferedInputStream(stream);
         long consumed = 0;
         boolean inQuotes = false;
         byte quoteAsByte = (byte) options.quoteChar();
-        byte[] buf = new byte[8192];
-        int bytesRead;
-        while ((bytesRead = stream.read(buf, 0, buf.length)) > 0) {
-            for (int i = 0; i < bytesRead; i++) {
-                consumed++;
-                byte b = buf[i];
-                if (b == quoteAsByte) {
-                    if (inQuotes) {
-                        if (i + 1 < bytesRead) {
-                            if (buf[i + 1] == quoteAsByte) {
-                                i++;
-                                consumed++;
-                                continue;
-                            }
-                            inQuotes = false;
-                            if (buf[i + 1] == '\n') {
-                                consumed++;
-                                return consumed;
-                            }
-                            continue;
-                        }
-                        int next = stream.read();
-                        if (next == -1) {
-                            return -1;
-                        }
-                        consumed++;
-                        if (next == quoteAsByte) {
-                            continue;
-                        }
-                        inQuotes = false;
-                        if (next == '\n') {
-                            return consumed;
-                        }
-                        continue;
-                    } else {
-                        inQuotes = true;
+        while (true) {
+            int ib = bis.read();
+            if (ib == -1) {
+                return -1;
+            }
+            consumed++;
+            byte b = (byte) ib;
+            if (b == quoteAsByte) {
+                if (inQuotes) {
+                    int next = bis.read();
+                    if (next == -1) {
+                        return -1;
                     }
-                } else if (b == '\n' && inQuotes == false) {
-                    return consumed;
+                    consumed++;
+                    if ((byte) next == quoteAsByte) {
+                        // Doubled quote inside a quoted field — RFC 4180 literal, stay in quotes.
+                        continue;
+                    }
+                    inQuotes = false;
+                    if (next == '\n') {
+                        return consumed;
+                    }
+                } else {
+                    inQuotes = true;
                 }
+            } else if (b == '\n' && inQuotes == false) {
+                return consumed;
             }
         }
-        return -1;
     }
 
     @Override

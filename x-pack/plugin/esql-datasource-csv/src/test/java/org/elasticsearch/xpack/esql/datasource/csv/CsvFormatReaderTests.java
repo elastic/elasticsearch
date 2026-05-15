@@ -2725,6 +2725,138 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals('\n', data[boundary]);
     }
 
+    // --- findLastRecordBoundary tests for the QuotedFieldsOnly override path (TSV / non-bracket-MVC CSV) ---
+
+    private static CsvFormatReader tsvReader(BlockFactory bf) {
+        return (CsvFormatReader) new CsvFormatReader(bf).withConfig(Map.of("delimiter", "\t"));
+    }
+
+    private static CsvFormatReader noMvcReader(BlockFactory bf) {
+        return (CsvFormatReader) new CsvFormatReader(bf).withConfig(Map.of("multi_value_syntax", "none"));
+    }
+
+    public void testFindLastRecordBoundaryQuotedFieldsOnlyTsvSimpleTwoLines() throws IOException {
+        CsvFormatReader reader = tsvReader(blockFactory);
+        byte[] data = "a\tb\nc\td\n".getBytes(StandardCharsets.UTF_8);
+        int boundary = reader.findLastRecordBoundary(data, data.length);
+        assertEquals(data.length - 1, boundary);
+        assertEquals('\n', data[boundary]);
+    }
+
+    public void testFindLastRecordBoundaryQuotedFieldsOnlyTsvSingleTrailingLineNoTerminator() throws IOException {
+        CsvFormatReader reader = tsvReader(blockFactory);
+        byte[] data = "a\tb\nc\td".getBytes(StandardCharsets.UTF_8);
+        int boundary = reader.findLastRecordBoundary(data, data.length);
+        assertEquals(3, boundary);
+    }
+
+    public void testFindLastRecordBoundaryQuotedFieldsOnlyTsvEmpty() throws IOException {
+        CsvFormatReader reader = tsvReader(blockFactory);
+        assertEquals(-1, reader.findLastRecordBoundary(new byte[0], 0));
+    }
+
+    public void testFindLastRecordBoundaryQuotedFieldsOnlyTsvNoNewline() throws IOException {
+        CsvFormatReader reader = tsvReader(blockFactory);
+        byte[] data = "a\tb\tc".getBytes(StandardCharsets.UTF_8);
+        assertEquals(-1, reader.findLastRecordBoundary(data, data.length));
+    }
+
+    public void testFindLastRecordBoundaryQuotedFieldsOnlyEmbeddedNewlineInQuotedField() throws IOException {
+        // multi_value_syntax=none routes through the QuotedFieldsOnly path; \n inside "..." is NOT a boundary.
+        CsvFormatReader reader = noMvcReader(blockFactory);
+        byte[] data = "\"row1\nwith\nembedded\",a\nrow2,b\n".getBytes(StandardCharsets.UTF_8);
+        int boundary = reader.findLastRecordBoundary(data, data.length);
+        assertEquals(data.length - 1, boundary);
+    }
+
+    public void testFindLastRecordBoundaryQuotedFieldsOnlyUnterminatedQuotedTail() throws IOException {
+        // One complete row, then an unterminated quoted field — open-tail contract: return the row's terminator.
+        CsvFormatReader reader = noMvcReader(blockFactory);
+        byte[] data = "row1,a\n\"row2 starts here\nstill inside quote".getBytes(StandardCharsets.UTF_8);
+        int boundary = reader.findLastRecordBoundary(data, data.length);
+        assertEquals("row1,a\n".length() - 1, boundary);
+    }
+
+    public void testFindLastRecordBoundaryQuotedFieldsOnlyAllInsideQuotedField() throws IOException {
+        // Unterminated quoted cell from byte 0: no boundary.
+        CsvFormatReader reader = noMvcReader(blockFactory);
+        byte[] data = "\"line one\nline two\nline three\n".getBytes(StandardCharsets.UTF_8);
+        assertEquals(-1, reader.findLastRecordBoundary(data, data.length));
+    }
+
+    public void testFindLastRecordBoundaryQuotedFieldsOnlyDoubledQuoteEscape() throws IOException {
+        CsvFormatReader reader = noMvcReader(blockFactory);
+        byte[] data = "\"value with \"\"escaped\"\" quotes\"\nrest\n".getBytes(StandardCharsets.UTF_8);
+        int boundary = reader.findLastRecordBoundary(data, data.length);
+        assertEquals(data.length - 1, boundary);
+        assertEquals('\n', data[boundary]);
+    }
+
+    public void testFindLastRecordBoundaryQuotedFieldsOnlyCRLF() throws IOException {
+        CsvFormatReader reader = tsvReader(blockFactory);
+        byte[] data = "a\tb\r\nc\td\r\n".getBytes(StandardCharsets.UTF_8);
+        int boundary = reader.findLastRecordBoundary(data, data.length);
+        assertEquals(data.length - 1, boundary);
+        assertEquals('\n', data[boundary]);
+    }
+
+    public void testFindLastRecordBoundaryQuotedFieldsOnlyLengthSubsetOfBuffer() throws IOException {
+        CsvFormatReader reader = tsvReader(blockFactory);
+        byte[] body = "a\tb\nc\td\n".getBytes(StandardCharsets.UTF_8);
+        byte[] padded = new byte[body.length + 64];
+        System.arraycopy(body, 0, padded, 0, body.length);
+        Arrays.fill(padded, body.length, padded.length, (byte) 0xff);
+        int boundary = reader.findLastRecordBoundary(padded, body.length);
+        assertEquals(body.length - 1, boundary);
+    }
+
+    public void testFindLastRecordBoundaryQuotedFieldsOnlyMatchesDefaultPolyloop() throws IOException {
+        // Equivalence: across randomized inputs, the override must produce the same answer as the
+        // inherited default polyloop did before the override existed (i.e. driving findNextRecordBoundary
+        // forward through the buffer).
+        CsvFormatReader reader = noMvcReader(blockFactory);
+        for (int trial = 0; trial < 50; trial++) {
+            byte[] data = randomQuotedFieldsCsv(randomIntBetween(0, 4096));
+            int override = reader.findLastRecordBoundary(data, data.length);
+            int polyloop = referenceDefaultPolyloop(reader, data, data.length);
+            assertEquals("trial " + trial + " input=" + new String(data, StandardCharsets.UTF_8), polyloop, override);
+        }
+    }
+
+    private byte[] randomQuotedFieldsCsv(int length) {
+        // Random bytes drawn from a small alphabet that exercises every branch of the QuotedFieldsOnly
+        // state machine: regular bytes, the quote char, the doubled-quote escape, the LF terminator,
+        // the comma delimiter, and an occasional CR.
+        byte[] alphabet = new byte[] { 'a', 'b', 'c', ',', '"', '\n', '\r' };
+        byte[] data = new byte[length];
+        for (int i = 0; i < length; i++) {
+            data[i] = alphabet[randomIntBetween(0, alphabet.length - 1)];
+        }
+        return data;
+    }
+
+    /**
+     * Pre-refactor reference: replays the {@code SegmentableFormatReader#findLastRecordBoundary}
+     * default body, dispatching {@code reader.findNextRecordBoundary} forward through the buffer.
+     * Used as the equivalence oracle for the override.
+     */
+    private static int referenceDefaultPolyloop(CsvFormatReader reader, byte[] buf, int length) throws IOException {
+        if (length <= 0) {
+            return -1;
+        }
+        int lastBoundary = -1;
+        int cumulative = 0;
+        while (cumulative < length) {
+            long consumed = reader.findNextRecordBoundary(new ByteArrayInputStream(buf, cumulative, length - cumulative));
+            if (consumed < 0) {
+                return lastBoundary;
+            }
+            cumulative += Math.toIntExact(consumed);
+            lastBoundary = cumulative - 1;
+        }
+        return lastBoundary;
+    }
+
     public void testBracketAwareLeadingWhitespaceBeforeBracketOpensMvc() throws IOException {
         String csv = "prefix:keyword,mid:keyword,suffix:keyword\nx,  [[37]],y\n";
         StorageObject object = createStorageObject(csv);

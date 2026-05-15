@@ -64,6 +64,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
@@ -71,6 +72,9 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.rest.RestStatus.REQUEST_TIMEOUT;
+import static org.elasticsearch.rest.RestStatus.SERVICE_UNAVAILABLE;
+import static org.elasticsearch.rest.RestStatus.TOO_MANY_REQUESTS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -671,6 +675,122 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             internalCluster().stopNode(indexNode1);
             internalCluster().stopNode(indexNode2);
             internalCluster().stopNode(masterNode);
+        }
+    }
+
+    public void testTenaciousRetriesAgainstTransientCSPError() throws Exception {
+        AtomicLong getBlobAttempted = new AtomicLong(0);
+        AtomicLong listBlobsAttempted = new AtomicLong(0);
+        var getBlobPredicate = new AtomicReference<Predicate<String>>(Predicates.never());
+        var listBlobsPredicate = new AtomicReference<Predicate<String>>(Predicates.never());
+
+        final var requiredAttempts = maxRetries + randomLongBetween(3, 5);
+
+        s3HttpHandler.setInterceptor(new Interceptor() {
+            @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
+            @Override
+            public boolean intercept(HttpExchange exchange) throws IOException {
+                final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
+                var shouldIntercept = getBlobPredicate.get().test(request) && getBlobAttempted.incrementAndGet() < requiredAttempts
+                    || listBlobsPredicate.get().test(request) && listBlobsAttempted.incrementAndGet() < requiredAttempts;
+                if (shouldIntercept) {
+                    try (exchange) {
+                        if (randomBoolean()) {
+                            exchange.sendResponseHeaders(
+                                randomFrom(SERVICE_UNAVAILABLE.getStatus(), TOO_MANY_REQUESTS.getStatus(), REQUEST_TIMEOUT.getStatus()),
+                                -1
+                            );
+                        } else {
+                            final var responseBody = Strings.format("""
+                                <?xml version="1.0" encoding="UTF-8"?>
+                                <Error>
+                                  <Code>%s</Code>
+                                  <Message>InvalidAccessKeyId</Message>
+                                  <RequestId>%s</RequestId>
+                                </Error>""", "InvalidAccessKeyId", randomUUID()).getBytes(StandardCharsets.UTF_8);
+                            exchange.sendResponseHeaders(RestStatus.FORBIDDEN.getStatus(), responseBody.length);
+                            exchange.getResponseBody().write(responseBody);
+                        }
+                    }
+                    return true;
+                }
+
+                return false;
+            }
+        });
+
+        final var settings = Settings.builder()
+            .put("s3.client.test.max_retries", 0) // disable sdk client retries
+            .put("s3.client.test.tenacious_retries.enabled", true)
+            .build();
+
+        final String masterNode = startMasterAndIndexNode(settings);
+        final String indexNode1 = startIndexNode(settings);
+        final String searchNode = startSearchNode(settings);
+        ensureStableCluster(3);
+
+        String indexNode2 = null;
+        try {
+
+            var indexName = randomIdentifier();
+            createIndex(
+                indexName,
+                indexSettings(1, 0).put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "._name", indexNode1).build()
+            );
+
+            var indexUuid = resolveIndex(indexName).getUUID();
+
+            final ObjectStoreService objectStoreService = getCurrentMasterObjectStoreService();
+            final BlobStoreRepository objectStore = randomBoolean()
+                ? objectStoreService.getClusterObjectStore()
+                : objectStoreService.getProjectObjectStore(ProjectId.DEFAULT);
+
+            final var shardPath = "indices/" + indexUuid + "/0/";
+            final var rawPrefix = objectStore.basePath().buildAsString() + shardPath;
+            final var encodedPrefix = URLEncoder.encode(rawPrefix, StandardCharsets.UTF_8);
+            listBlobsPredicate.set(rq -> rq.startsWith("GET /bucket?") && rq.contains("prefix=" + encodedPrefix));
+            getBlobPredicate.set(rq -> rq.startsWith("GET /bucket/" + rawPrefix));
+
+            int iterations = between(1, 5);
+            for (int i = 0; i < iterations; i++) {
+                indexDocs(indexName, between(1, 10));
+                flush(indexName);
+                internalCluster().restartNode(indexNode1);
+                ensureGreen(indexName);
+
+                assertThat(getBlobAttempted.get(), greaterThanOrEqualTo(requiredAttempts));
+                assertThat(listBlobsAttempted.get(), greaterThanOrEqualTo(requiredAttempts));
+                getBlobAttempted.set(0);
+                listBlobsAttempted.set(0);
+            }
+
+            indexNode2 = startIndexNode(settings);
+            ensureStableCluster(4);
+
+            updateIndexSettings(
+                Settings.builder().putList(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "._name", indexNode2),
+                indexName
+            );
+            ensureGreen(indexName);
+
+            assertThat(getBlobAttempted.get(), greaterThanOrEqualTo(requiredAttempts));
+            getBlobAttempted.set(0);
+            listBlobsAttempted.set(0);
+
+            updateIndexSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .putList(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "._name", List.of(indexNode2, searchNode)),
+                indexName
+            );
+            ensureGreen(indexName);
+            assertThat(getBlobAttempted.get(), greaterThanOrEqualTo(requiredAttempts));
+            assertThat(listBlobsAttempted.get(), greaterThanOrEqualTo(requiredAttempts));
+        } finally {
+            internalCluster().stopNode(masterNode);
+            internalCluster().stopNode(indexNode1);
+            internalCluster().stopNode(indexNode2);
+            internalCluster().stopNode(searchNode);
         }
     }
 

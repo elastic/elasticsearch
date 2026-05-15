@@ -4342,3 +4342,139 @@ a:long | languages:integer
 2      | 1
 2      | 1
 ;
+
+statsOnUnrolledMultivalueNoWarnings
+required_capability: fix_unrolled_foldable_mv_warning
+
+ROW x=1, y=[1,2,3] | STATS y + 1 BY y | SORT y
+;
+
+y + 1:integer | y:integer
+2             | 1
+3             | 2
+4             | 3
+;
+
+statsOnSingleValueGroupingExpressionNoWarnings
+required_capability: fix_unrolled_foldable_mv_warning
+
+ROW y = 1 | STATS y + 1 BY y
+;
+
+y + 1:integer | y:integer
+2             | 1
+;
+
+statsOnUnrolledMultivalueFollowedByStatsNoWarnings
+required_capability: fix_unrolled_foldable_mv_warning
+
+ROW x = 1, y = [1, 2] | STATS s = SUM(x) BY y | STATS c = COUNT(*) | LIMIT 10
+;
+
+c:long
+2
+;
+
+statsOnUnrolledMultivalueFollowedByEvalNoWarnings
+required_capability: fix_unrolled_foldable_mv_warning
+
+ROW x = 1, y = [1, 2, 3] | STATS s = SUM(x) BY y | EVAL z = y * 2 | SORT y
+;
+
+s:long | y:integer | z:integer
+1      | 1         | 2
+1      | 2         | 4
+1      | 3         | 6
+;
+
+statsOnUnrolledMultivalueFollowedByWhereNoWarnings
+required_capability: fix_unrolled_foldable_mv_warning
+
+ROW x = 1, y = [1, 2, 3] | STATS s = SUM(x) BY y | WHERE y > 1 | SORT y
+;
+
+s:long | y:integer
+1      | 2
+1      | 3
+;
+
+statsOnUnrolledMultivalueFollowedByLookupJoinNoWarnings
+required_capability: fix_unrolled_foldable_mv_warning
+required_capability: join_lookup_v12
+
+ROW x = 1, language_code = [1, 2, 3] | STATS s = SUM(x) BY language_code | LOOKUP JOIN languages_lookup ON language_code | SORT language_code
+;
+
+s:long | language_code:integer | language_name:keyword
+1      | 1                     | English
+1      | 2                     | French
+1      | 3                     | Spanish
+;
+
+statsOnNullKeyFollowedByLookupJoinNoWarnings
+required_capability: fix_unrolled_foldable_mv_warning
+required_capability: join_lookup_v12
+
+ROW language_code = null::integer | STATS c = COUNT(*) BY language_code | LOOKUP JOIN languages_lookup ON language_code
+;
+
+c:long | language_code:integer | language_name:keyword
+1      | null                  | null
+;
+
+statsAggExpressionOnMVGroupingKey
+required_capability: fix_unrolled_foldable_mv_warning
+
+ROW x = 1, y = [1, 2, 3]
+| STATS s = MAX(CASE(y == 2, 10, 1)) BY y
+| EVAL w = y * 2
+| SORT y
+;
+warning:Line 2:22: evaluation of [y == 2] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:22: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+s:integer | y:integer | w:integer
+1         | 1         | 2
+1         | 2         | 4
+1         | 3         | 6
+;
+
+statsAggExpressionOnMVGroupingKeyWithAlias
+required_capability: fix_unrolled_foldable_mv_warning
+
+ROW x = 1, y = [1, 2, 3]
+| EVAL z = y
+| RENAME z AS zzz
+| STATS s = MAX(CASE(y == 2, 10, 1)) BY y, x, zzz
+| EVAL w = y * 2, ww = zzz * 2
+| SORT y
+;
+warning:Line 4:22: evaluation of [y == 2] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:22: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+s:integer | y:integer | x:integer | zzz:integer | w:integer | ww:integer
+1         | 1         | 1         | 1           | 2         | 2
+1         | 2         | 1         | 2           | 4         | 4
+1         | 3         | 1         | 3           | 6         | 6
+;
+
+statsAggExpressionOnMultipleMVGroupingKeysNoWarnings
+required_capability: fix_unrolled_foldable_mv_warning
+
+ROW x = 1, y = [1, 2, 3], z = [0, 1, -1]
+| STATS s = MAX(MV_MAX(z) * MV_MIN(z)) BY y, x, z
+| EVAL w = y * 2, ww = z * 3
+| SORT y, z
+;
+
+s:integer | y:integer | x:integer | z:integer | w:integer | ww:integer
+-1        | 1         | 1         | -1        | 2         | -3
+-1        | 1         | 1         | 0         | 2         | 0
+-1        | 1         | 1         | 1         | 2         | 3
+-1        | 2         | 1         | -1        | 4         | -3
+-1        | 2         | 1         | 0         | 4         | 0
+-1        | 2         | 1         | 1         | 4         | 3
+-1        | 3         | 1         | -1        | 6         | -3
+-1        | 3         | 1         | 0         | 6         | 0
+-1        | 3         | 1         | 1         | 6         | 3
+;

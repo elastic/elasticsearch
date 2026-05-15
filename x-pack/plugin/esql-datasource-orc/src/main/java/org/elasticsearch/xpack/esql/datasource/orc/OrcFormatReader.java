@@ -32,9 +32,6 @@ import org.apache.orc.StripeStatistics;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.impl.OrcTail;
 import org.apache.orc.impl.ReaderImpl;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -193,33 +190,32 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 // Open a reader once, extract the parsed tail, then close the reader. The
                 // OrcTail itself retains the serialized buffer + parsed protobuf footer and is
                 // safe to share across threads (treated as immutable by all callers).
+                //
+                // This deliberately parses the tail twice on a cache miss: once inside
+                // OrcFile.createReader (which calls the protected ReaderImpl.extractFileTail
+                // (FileSystem, Path, long) to fetch and parse from storage) and once via the
+                // public ReaderImpl.extractFileTail(ByteBuffer) to produce a shareable OrcTail.
+                // The single-parse alternative would require re-implementing ORC's tail-fetch
+                // protocol (variable-length postscript, optional metadata sections, version
+                // handling) outside the library — fragile across ORC versions. Since this only
+                // runs on the cold path (first producer per file per TTL window), the second
+                // parse is a small cost that pays off as every subsequent producer hits the
+                // cache and skips both the parse and the remote read entirely.
                 try (Reader r = OrcFile.createReader(path, orcReaderOptions(fs))) {
                     return ReaderImpl.extractFileTail(r.getSerializedFileFooter());
                 }
             });
         } catch (ExecutionException e) {
-            // The winning loader thread sees its exception propagate directly out of the cache;
-            // every other concurrently-waiting thread sees an ExecutionException whose cause is
-            // the original throwable. Re-shape the cause to match the prior in-line createReader
-            // behaviour so callers observe identical exception types regardless of who won the
-            // load race. In particular Error/OOM must propagate as-is and never be reshaped into
-            // a generic IOException. Mirrors {@code ParquetFormatReader#loadFooter} so the two
-            // format readers stay consistent.
-            Throwable cause = e.getCause();
-            ExceptionsHelper.maybeError(cause).ifPresent(error -> { throw error; });
-            if (cause instanceof IOException io) {
-                throw io;
-            }
-            if (cause instanceof CircuitBreakingException cbe) {
-                throw cbe;
-            }
-            if (cause instanceof ElasticsearchException ese) {
-                throw ese;
-            }
-            if (cause instanceof RuntimeException re) {
+            // rethrowStructural handles Error/IOException/CircuitBreakingException/
+            // ElasticsearchException; anything else (typically a plain RuntimeException from
+            // orc-core indicating a corrupt tail) is returned for format-specific wrapping.
+            // Unlike Parquet there is no orc-tagged exception factory; surface a structurally
+            // tagged IOException so log lines clearly attribute the failure to ORC tail parsing.
+            Throwable other = ParsedFooterCache.rethrowStructural(e);
+            if (other instanceof RuntimeException re) {
                 throw re;
             }
-            throw new IOException("Failed to parse ORC tail for [" + path + "]", cause != null ? cause : e);
+            throw new IOException("Failed to parse ORC tail for [" + path + "]", other);
         }
     }
 
@@ -421,8 +417,13 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         // thread.
         // 2. PARSED_FOOTERS — JVM-wide cache keyed by (path, length); shared across producer
         // threads and across queries within the access TTL.
-        OrcTail tail = context.fileContext() instanceof OrcTail cached ? cached : loadTail(fs, path);
-        context.setFileContext(tail);
+        OrcTail tail;
+        if (context.fileContext() instanceof OrcTail cached) {
+            tail = cached;
+        } else {
+            tail = loadTail(fs, path);
+            context.setFileContext(tail);
+        }
         Reader reader = OrcFile.createReader(path, orcReaderOptions(fs).orcTail(tail));
         TypeDescription schema = reader.getSchema();
 

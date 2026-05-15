@@ -12,6 +12,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -210,5 +215,83 @@ public class FileSplitTests extends ESTestCase {
 
         assertEquals(fromMap, fromSplitStats);
         assertEquals(fromMap.hashCode(), fromSplitStats.hashCode());
+    }
+
+    /**
+     * Null {@code readSchema} round-trips as null. This is the smoke test that the new wire-encoding
+     * branch on {@link FileSplit} doesn't accidentally invent a non-null value during deserialization.
+     */
+    public void testNamedWriteableRoundTripWithNullReadSchema() throws IOException {
+        StoragePath path = StoragePath.of("s3://bucket/file.csv");
+        FileSplit original = FileSplit.withReadSchema("file", path, 0, 1024, ".csv", Map.of(), Map.of(), null, null);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeNamedWriteable(original);
+
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
+        FileSplit deserialized = (FileSplit) in.readNamedWriteable(ExternalSplit.class);
+
+        assertEquals(original, deserialized);
+        assertNull(deserialized.readSchema());
+    }
+
+    /**
+     * Non-null {@code readSchema} round-trips via the primitive (count, name, typeName, nullable) wire
+     * encoding. Critical because {@code FileSplit} crosses the wire inside {@code DataNodeRequest} on a
+     * {@code RecyclerBytesStreamOutput} (not a {@code PlanStreamOutput}); the encoding therefore
+     * cannot delegate to {@code writeNamedWriteableCollection(Attribute)}, which would cast.
+     * Mixes {@code Nullability.TRUE} and {@code FALSE} attributes to prove the bit round-trips faithfully.
+     */
+    public void testNamedWriteableRoundTripWithNonNullReadSchema() throws IOException {
+        StoragePath path = StoragePath.of("s3://bucket/data.csv");
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.KEYWORD, Nullability.TRUE, null, false),
+            new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.INTEGER, Nullability.FALSE, null, false),
+            new ReferenceAttribute(Source.EMPTY, null, "col2", DataType.DOUBLE, Nullability.TRUE, null, false)
+        );
+        FileSplit original = FileSplit.withReadSchema("file", path, 0, 2048, ".csv", Map.of(), Map.of(), null, schema);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeNamedWriteable(original);
+
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
+        FileSplit deserialized = (FileSplit) in.readNamedWriteable(ExternalSplit.class);
+
+        assertEquals(schema.size(), deserialized.readSchema().size());
+        for (int i = 0; i < schema.size(); i++) {
+            assertEquals(schema.get(i).name(), deserialized.readSchema().get(i).name());
+            assertEquals(schema.get(i).dataType(), deserialized.readSchema().get(i).dataType());
+            assertEquals(
+                "Nullability of " + schema.get(i).name() + " must round-trip",
+                schema.get(i).nullable(),
+                deserialized.readSchema().get(i).nullable()
+            );
+        }
+    }
+
+    /**
+     * UNKNOWN nullability is planner-internal and shouldn't survive analysis, but if it does
+     * reach wire encoding it must be conservatively reconstituted as nullable (TRUE), not as
+     * a stronger non-null guarantee (FALSE). Anything other than provable non-null is nullable.
+     */
+    public void testNamedWriteableRoundTripCoercesUnknownNullabilityToTrue() throws IOException {
+        StoragePath path = StoragePath.of("s3://bucket/data.csv");
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.KEYWORD, Nullability.UNKNOWN, null, false)
+        );
+        FileSplit original = FileSplit.withReadSchema("file", path, 0, 2048, ".csv", Map.of(), Map.of(), null, schema);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeNamedWriteable(original);
+
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
+        FileSplit deserialized = (FileSplit) in.readNamedWriteable(ExternalSplit.class);
+
+        assertEquals(1, deserialized.readSchema().size());
+        assertEquals(
+            "UNKNOWN must reconstitute as TRUE (nullable), never as FALSE",
+            Nullability.TRUE,
+            deserialized.readSchema().get(0).nullable()
+        );
     }
 }

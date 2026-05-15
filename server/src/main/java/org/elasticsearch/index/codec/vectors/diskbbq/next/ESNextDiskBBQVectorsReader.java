@@ -57,7 +57,8 @@ import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
  */
 public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVectorsReader.NextFieldEntry>
     implements
-        VectorPreconditioner {
+        VectorPreconditioner,
+        CalibrationAwareReader {
 
     public ESNextDiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader)
         throws IOException {
@@ -103,13 +104,32 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         return size;
     }
 
-    /**
-     * Rescore-style oversample from mivf (NaN if unset or missing field entry), for merging with
-     * query and mapping in {@code DenseVectorFieldMapper}; not used for centroid visit ratio.
-     */
-    public float getRescoreOversample(FieldInfo fieldInfo) {
+    @Override
+    public float getOversampleFactor(FieldInfo fieldInfo) {
         final NextFieldEntry e = fields.get(fieldInfo.number);
-        return e == null ? Float.NaN : e.rescoreOversample();
+        if (e == null) {
+            return AutoCalibrationSelector.NO_CALIBRATED_OVERSAMPLE;
+        }
+        float r = e.rescoreOversample();
+        return Float.isFinite(r) ? r : AutoCalibrationSelector.NO_CALIBRATED_OVERSAMPLE;
+    }
+
+    @Override
+    public boolean shouldPrecondition(FieldInfo fieldInfo) {
+        final NextFieldEntry e = fields.get(fieldInfo.number);
+        return e != null && e.preconditionerLength() > 0;
+    }
+
+    @Override
+    public ESNextDiskBBQVectorsFormat.QuantEncoding getQuantEncoding(FieldInfo fieldInfo) {
+        final NextFieldEntry e = fields.get(fieldInfo.number);
+        return e == null ? null : e.quantEncoding();
+    }
+
+    @Override
+    public float[] getGlobalCentroid(FieldInfo fieldInfo) {
+        final NextFieldEntry e = fields.get(fieldInfo.number);
+        return e == null ? null : e.globalCentroid();
     }
 
     @Override

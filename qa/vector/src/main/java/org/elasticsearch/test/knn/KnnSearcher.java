@@ -20,11 +20,14 @@
 
 package org.elasticsearch.test.knn;
 
+import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -59,9 +62,14 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.CalibrationAwareReader;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfQueryConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfSegmentConfig;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
@@ -349,9 +357,9 @@ public class KnnSearcher {
     public record SearchSetup(float[][] floatQueries, byte[][] byteQueries, FilterQueryProvider provider, ResultsConsumer consumer) {}
 
     /** Executes searches using the pre-built setup and populates result metrics. */
-    void search(KnnIndexTester.Results finalResults, SearchParameters searchParameters, Directory dir, SearchSetup setup)
+    void search(KnnIndexTester.Results finalResults, SearchParameters searchParameters, Directory dir, SearchSetup setup, TestConfiguration testConfiguration)
         throws IOException {
-        doSearch(finalResults, searchParameters, dir, setup.floatQueries(), setup.byteQueries(), setup.provider(), setup.consumer());
+        doSearch(finalResults, searchParameters, dir, setup.floatQueries(), setup.byteQueries(), setup.provider(), setup.consumer(), testConfiguration);
     }
 
     /**
@@ -366,8 +374,8 @@ public class KnnSearcher {
         float[][] floatQueries,
         byte[][] byteQueries,
         FilterQueryProvider filterProvider,
-        ResultsConsumer resultsConsumer
-    ) throws IOException {
+        ResultsConsumer resultsConsumer,
+        TestConfiguration testConfiguration) throws IOException {
         if (sliced && indexType != KnnIndexTester.IndexType.IVF) {
             logger.info("Data configurartion is sliced but this setting has no effect for index type \"{}\"", indexType);
         }
@@ -422,7 +430,7 @@ public class KnnSearcher {
                     if (vectorEncoding.equals(VectorEncoding.BYTE)) {
                         doVectorQuery(byteQueries[qIdx], searcher, filter, searchParameters);
                     } else {
-                        doVectorQuery(floatQueries[qIdx], searcher, filter, searchParameters, partition);
+                        doVectorQuery(floatQueries[qIdx], searcher, filter, searchParameters, partition, testConfiguration);
                     }
                 }
 
@@ -434,7 +442,7 @@ public class KnnSearcher {
                         if (vectorEncoding.equals(VectorEncoding.BYTE)) {
                             results[searchIdx] = doVectorQuery(byteQueries[qIdx], searcher, filter, searchParameters);
                         } else {
-                            results[searchIdx] = doVectorQuery(floatQueries[qIdx], searcher, filter, searchParameters, partition);
+                            results[searchIdx] = doVectorQuery(floatQueries[qIdx], searcher, filter, searchParameters, partition, testConfiguration);
                         }
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
@@ -748,7 +756,14 @@ public class KnnSearcher {
         return new TopDocs(new TotalHits(profiler.getVectorOpsCount(), docs.totalHits.relation()), docs.scoreDocs);
     }
 
-    TopDocs doVectorQuery(float[] vector, IndexSearcher searcher, Query filterQuery, SearchParameters searchParameters, BytesRef partition)
+    TopDocs doVectorQuery(
+        float[] vector,
+        IndexSearcher searcher,
+        Query filterQuery,
+        SearchParameters searchParameters,
+        BytesRef partition,
+        TestConfiguration testConfiguration
+    )
         throws IOException {
         Query knnQuery;
         int overSampledTopK = searchParameters.topK();
@@ -772,6 +787,34 @@ public class KnnSearcher {
                     partition
                 );
             } else {
+                IvfQueryConfigResolver ivfQueryConfigResolver = (fieldInfo, leafReader) -> {
+                    IvfSegmentConfig segmentConfig;
+                    if (testConfiguration.autoCalibrate()) {
+                        SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leafReader);
+                        if (segmentReader != null) {
+                            KnnVectorsReader vectorsReader = segmentReader.getVectorReader();
+                            if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader perField) {
+                                vectorsReader = perField.getFieldReader(VECTOR_FIELD);
+                            }
+                            if (vectorsReader instanceof CalibrationAwareReader calibrationAwareReader) {
+                                float oversampleFactor = searchParameters.overSamplingFactor() > 1.0
+                                    ? searchParameters.overSamplingFactor()
+                                    : calibrationAwareReader.getOversampleFactor(fieldInfo);
+                                ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding =
+                                    calibrationAwareReader.getQuantEncoding(fieldInfo);
+                                boolean precondition = calibrationAwareReader.shouldPrecondition(fieldInfo);
+                                segmentConfig = new IvfSegmentConfig(quantEncoding, precondition, oversampleFactor);
+                                return segmentConfig;
+                            }
+                        }
+                    }
+                    segmentConfig = new IvfSegmentConfig(
+                        ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) testConfiguration.quantizeBits().intValue()),
+                        doPrecondition,
+                        searchParameters.overSamplingFactor()
+                    );
+                    return segmentConfig;
+                };
                 knnQuery = new IVFKnnFloatVectorQuery(
                     VECTOR_FIELD,
                     vector,
@@ -779,7 +822,8 @@ public class KnnSearcher {
                     efSearch,
                     filterQuery,
                     visitRatio,
-                    doPrecondition
+                    doPrecondition,
+                    ivfQueryConfigResolver
                 );
             }
         } else {

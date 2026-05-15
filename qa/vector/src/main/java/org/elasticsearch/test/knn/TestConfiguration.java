@@ -78,6 +78,7 @@ public record TestConfiguration(
     int preconditioningBlockDims,
     int flatVectorThreshold,
     int secondaryClusterSize,
+    boolean autoCalibrate,
     String directoryType,
     DatasetConfig datasetConfig
 ) {
@@ -120,6 +121,7 @@ public record TestConfiguration(
     static final ParseField FILTER_CACHED = new ParseField("filter_cache");
     static final ParseField SEARCH_PARAMS = new ParseField("search_params");
     static final ParseField FLAT_VECTOR_THRESHOLD = new ParseField("flat_vector_threshold");
+    static final ParseField AUTO_CALIBRATE_FIELD = new ParseField("auto_calibrate");
     static final ParseField DIRECTORY_TYPE_FIELD = new ParseField("directory_type");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
@@ -185,6 +187,7 @@ public record TestConfiguration(
         PARSER.declareInt(Builder::setMergeWorkers, MERGE_WORKERS_FIELD);
         PARSER.declareInt(Builder::setFlatVectorThreshold, FLAT_VECTOR_THRESHOLD);
         PARSER.declareInt(Builder::setSecondaryClusterSize, SECONDARY_CLUSTER_SIZE);
+        PARSER.declareBoolean(Builder::setAutoCalibrate, AUTO_CALIBRATE_FIELD);
         PARSER.declareString(Builder::setDirectoryType, DIRECTORY_TYPE_FIELD);
     }
 
@@ -241,6 +244,12 @@ public record TestConfiguration(
             new ParameterHelp("on_disk_rescore", "boolean", "Search: enable on-disk rescore for search."),
             new ParameterHelp("precondition", "boolean", "IVF: apply preconditioning prior to indexing."),
             new ParameterHelp("preconditioning_block_dims", "int", "IVF: block dimensions used for preconditioning."),
+            new ParameterHelp(
+                "auto_calibrate",
+                "boolean",
+                "IVF (bbq_disk): enable per-segment manifold calibration on flush and merge hooks (experimental; "
+                    + "requires sufficient vectors per segment for calibration to take effect)."
+            ),
             new ParameterHelp("num_candidates", "array[int]", "HNSW: number of candidates (efSearch) to consider per query."),
             new ParameterHelp("k", "array[int]", "Search: top K results to return."),
             new ParameterHelp("visit_percentage", "array[double]", "IVF: percentage of IVF index to visit (0.0-100.0)."),
@@ -403,6 +412,7 @@ public record TestConfiguration(
         private int numMergeWorkers = 1;
         private int flatVectorThreshold = -1; // -1 mean use default (vectorPerCluster * 3)
         private int secondaryClusterSize = -1;
+        private boolean autoCalibrate = false;
         private int flatIndexThreshold = -1; // use format's default threshold
         private String directoryType = "default";
 
@@ -612,6 +622,11 @@ public record TestConfiguration(
 
         public Builder setSecondaryClusterSize(int secondaryClusterSize) {
             this.secondaryClusterSize = secondaryClusterSize;
+            return this;
+        }
+
+        public Builder setAutoCalibrate(boolean autoCalibrate) {
+            this.autoCalibrate = autoCalibrate;
             return this;
         }
 
@@ -829,6 +844,9 @@ public record TestConfiguration(
             if (vectorSpace == VectorSimilarityFunction.COSINE && vectorEncoding == KnnIndexTester.VectorEncoding.BYTE) {
                 KnnIndexTester.logger.info("vector_space=cosine with byte vectors: using cosine directly (no normalization)");
             }
+            if (autoCalibrate && indexType != KnnIndexTester.IndexType.IVF) {
+                throw new IllegalArgumentException("auto_calibrate is only supported when index_type is ivf");
+            }
 
             // length of the longest array parameter
             int longestParam = longestParameter();
@@ -894,6 +912,7 @@ public record TestConfiguration(
                 preconditioningBlockDims,
                 flatVectorThreshold,
                 secondaryClusterSize,
+                autoCalibrate,
                 directoryType,
                 datasetConfig
             );
@@ -953,6 +972,7 @@ public record TestConfiguration(
                 builder.field(SEARCH_PARAMS.getPreferredName(), searchParams);
             }
             builder.field(FLAT_VECTOR_THRESHOLD.getPreferredName(), flatVectorThreshold);
+            builder.field(AUTO_CALIBRATE_FIELD.getPreferredName(), autoCalibrate);
             builder.field(DIRECTORY_TYPE_FIELD.getPreferredName(), directoryType);
             return builder.endObject();
         }

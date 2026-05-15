@@ -49,7 +49,12 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.CalibrationAwareReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfFlushConfigSource;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfQueryConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfSegmentConfig;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ManifoldErrorCalibrationSelector;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
@@ -443,7 +448,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     indexVersionCreated,
                     false,
                     bits,
-                    experimentalFeaturesEnabled
+                    experimentalFeaturesEnabled,
+                    false
                 );
             }
 
@@ -1915,6 +1921,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
                 boolean doPrecondition = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("precondition"), false);
 
+                boolean autoCalibrate = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("auto_calibrate"), false);
+                if (autoCalibrate && experimentalFeaturesEnabled == false) {
+                    throw new IllegalArgumentException(
+                        "auto_calibrate requires experimental vector index features for field [" + fieldName + "]"
+                    );
+                }
+
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new BBQIVFIndexOptions(
                     clusterSize,
@@ -1925,7 +1938,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     indexVersion,
                     doPrecondition,
                     quantizeBits,
-                    experimentalFeaturesEnabled
+                    experimentalFeaturesEnabled,
+                    autoCalibrate
                 );
             }
 
@@ -2607,6 +2621,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final int bits;
         final boolean doPrecondition;
         final boolean experimentalFeaturesEnabled;
+        final boolean autoCalibrate;
 
         public BBQIVFIndexOptions(
             int clusterSize,
@@ -2617,7 +2632,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             IndexVersion indexVersionCreated,
             boolean doPrecondition,
             int bits,
-            boolean experimentalFeaturesEnabled
+            boolean experimentalFeaturesEnabled,
+            boolean autoCalibrate
         ) {
             super(VectorIndexType.BBQ_DISK, rescoreVector);
             this.clusterSize = clusterSize;
@@ -2628,6 +2644,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.bits = bits;
             this.doPrecondition = doPrecondition;
             this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;
+            this.autoCalibrate = autoCalibrate;
         }
 
         @Override
@@ -2642,6 +2659,26 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 );
             }
             if (indexVersionCreated.onOrAfter(DISK_BBQ_QUANTIZE_BITS) && experimentalFeaturesEnabled) {
+                if (autoCalibrate) {
+                    return new ESNextDiskBBQVectorsFormat(
+                        ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) bits),
+                        clusterSize,
+                        ES940DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                        elementType,
+                        onDiskRescore,
+                        mergingExecutorService,
+                        numMergeWorkers,
+                        doPrecondition,
+                        ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                        flatIndexThreshold,
+                        null,
+                        IvfFlushConfigSource.empty(),
+                        (fieldInfo, floatVectorValues, mergeState, codecDefault) -> {
+                            ManifoldErrorCalibrationSelector selector = new ManifoldErrorCalibrationSelector(clusterSize);
+                            return selector.select(fieldInfo, floatVectorValues, null, mergeState);
+                        }
+                    );
+                }
                 return new ESNextDiskBBQVectorsFormat(
                     ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) bits),
                     clusterSize,
@@ -2677,7 +2714,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return false;
             }
             BBQIVFIndexOptions that = (BBQIVFIndexOptions) update;
-            return this.doPrecondition == that.doPrecondition;
+            return this.doPrecondition == that.doPrecondition && this.autoCalibrate == that.autoCalibrate;
         }
 
         @Override
@@ -2689,12 +2726,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 && onDiskRescore == that.onDiskRescore
                 && bits == that.bits
                 && doPrecondition == that.doPrecondition
+                && autoCalibrate == that.autoCalibrate
                 && Objects.equals(rescoreVector, that.rescoreVector);
         }
 
         @Override
         int doHashCode() {
-            return Objects.hash(clusterSize, flatIndexThreshold, defaultVisitPercentage, onDiskRescore, doPrecondition, rescoreVector);
+            return Objects.hash(
+                clusterSize,
+                flatIndexThreshold,
+                defaultVisitPercentage,
+                onDiskRescore,
+                doPrecondition,
+                autoCalibrate,
+                rescoreVector
+            );
         }
 
         @Override
@@ -2717,6 +2763,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             builder.field("bits", bits);
             if (doPrecondition) {
                 builder.field("precondition", doPrecondition);
+            }
+            if (autoCalibrate) {
+                builder.field("auto_calibrate", true);
             }
         }
 
@@ -2762,6 +2811,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 + doPrecondition
                 + ", bits="
                 + bits
+                + ", auto_calibrate="
+                + autoCalibrate
                 + "}";
         }
     }
@@ -3205,25 +3256,45 @@ public class DenseVectorFieldMapper extends FieldMapper {
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
                 float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
+                // when auto_calibrate, prefer per-segment persisted config
+                IvfQueryConfigResolver ivfQueryConfigResolver = (fieldInfo, leafReader) -> {
+                    IvfSegmentConfig segmentConfig;
+                    if (bbqIndexOptions.autoCalibrate && leafReader instanceof CalibrationAwareReader calibrationAwareReader) {
+                        float calibratedOversample = calibrationAwareReader.getOversampleFactor(fieldInfo);
+                        float oversampleFactor = queryOversample != null ? queryOversample : calibratedOversample;
+                        ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = calibrationAwareReader.getQuantEncoding(fieldInfo);
+                        boolean precondition = calibrationAwareReader.shouldPrecondition(fieldInfo);
+                        segmentConfig = new IvfSegmentConfig(quantEncoding, precondition, oversampleFactor);
+                    } else {
+                        segmentConfig = new IvfSegmentConfig(
+                            ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) bbqIndexOptions.bits),
+                            bbqIndexOptions.doPrecondition(),
+                            queryOversample != null ? queryOversample : bbqIndexOptions.rescoreVector.oversample
+                        );
+                    }
+                    return segmentConfig;
+                };
                 knnQuery = parentFilter != null
                     ? new DiversifyingChildrenIVFKnnFloatVectorQuery(
                         name(),
                         queryVector,
-                        adjustedK,
+                        k,
                         numCands,
                         filter,
                         parentFilter,
                         visitRatio,
-                        bbqIndexOptions.doPrecondition()
+                        bbqIndexOptions.doPrecondition(),
+                        ivfQueryConfigResolver
                     )
                     : new IVFKnnFloatVectorQuery(
                         name(),
                         queryVector,
-                        adjustedK,
+                        k,
                         numCands,
                         filter,
                         visitRatio,
-                        bbqIndexOptions.doPrecondition()
+                        bbqIndexOptions.doPrecondition(),
+                        ivfQueryConfigResolver
                     );
             } else {
                 knnQuery = parentFilter != null

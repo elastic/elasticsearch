@@ -39,6 +39,8 @@ import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
 import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfFlushConfigSource;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ManifoldErrorCalibrationSelector;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
@@ -183,6 +185,9 @@ public class KnnIndexTester {
                     )
                 );
                 suffix.add(Integer.toString(args.quantizeBits()));
+                if (args.autoCalibrate()) {
+                    suffix.add("autocal");
+                }
             }
             case HNSW -> {
                 suffix.add(Integer.toString(args.hnswM()));
@@ -207,12 +212,39 @@ public class KnnIndexTester {
                 var encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(quantizeBits.byteValue());
                 // Use flatVectorThreshold from config, or default to -1 (dynamic) if not specified
                 int flatVectorThreshold = args.flatVectorThreshold() >= 0 ? args.flatVectorThreshold() : -1;
+                String sliceField = args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null;
+                int centroidsPerParent = args.secondaryClusterSize() == -1
+                    ? ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
+                    : args.secondaryClusterSize();
+                if (args.autoCalibrate()) {
+                    yield new ESNextDiskBBQVectorsFormat(
+                        encoding,
+                        args.ivfClusterSize(),
+                        centroidsPerParent,
+                        elementType,
+                        args.onDiskRescore(),
+                        exec,
+                        mergeWorkers,
+                        args.doPrecondition(),
+                        args.preconditioningBlockDims(),
+                        flatVectorThreshold,
+                        sliceField,
+                        IvfFlushConfigSource.empty(),
+                        (fieldInfo, floatVectorValues, mergeState,  codecDefault) -> {
+                            ManifoldErrorCalibrationSelector selector = new ManifoldErrorCalibrationSelector(args.ivfClusterSize());
+                            return selector.select(
+                                fieldInfo,
+                                floatVectorValues,
+                                null,
+                                mergeState
+                            );
+                        }
+                    );
+                }
                 yield new ESNextDiskBBQVectorsFormat(
                     encoding,
                     args.ivfClusterSize(),
-                    args.secondaryClusterSize() == -1
-                        ? ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
-                        : args.secondaryClusterSize(),
+                    centroidsPerParent,
                     elementType,
                     args.onDiskRescore(),
                     exec,
@@ -220,7 +252,7 @@ public class KnnIndexTester {
                     args.doPrecondition(),
                     args.preconditioningBlockDims(),
                     flatVectorThreshold,
-                    args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null
+                    sliceField
                 );
             }
             case GPU_HNSW -> switch (quantizeBits) {
@@ -584,13 +616,13 @@ public class KnnIndexTester {
                 var ignoreResults = new Results(indexPathName, indexType, testConfiguration.numDocs());
                 KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
                 var setup = dataGenerator.createSearchSetup(knnSearcher, testConfiguration.searchParams().get(i));
-                knnSearcher.search(ignoreResults, testConfiguration.searchParams().get(i), dir, setup);
+                knnSearcher.search(ignoreResults, testConfiguration.searchParams().get(i), dir, setup, testConfiguration);
             }
         }
         for (int i = 0; i < results.length; i++) {
             KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
             var setup = dataGenerator.createSearchSetup(knnSearcher, testConfiguration.searchParams().get(i));
-            knnSearcher.search(results[i], testConfiguration.searchParams().get(i), dir, setup);
+            knnSearcher.search(results[i], testConfiguration.searchParams().get(i), dir, setup, testConfiguration);
         }
     }
 
@@ -955,6 +987,7 @@ public class KnnIndexTester {
         "on_disk_rescore",
         "precondition",
         "flat_vector_threshold",
+        "auto_calibrate",
         "top_k",
         "num_candidates",
         "visit_percentage",
@@ -1065,6 +1098,7 @@ public class KnnIndexTester {
                             Boolean.toString(config.onDiskRescore()),
                             Boolean.toString(config.doPrecondition()),
                             Integer.toString(config.flatVectorThreshold()),
+                            Boolean.toString(config.autoCalibrate()),
                             Integer.toString(sp.topK()),
                             Integer.toString(sp.numCandidates()),
                             String.format(Locale.ROOT, "%.4f", sp.visitPercentage()),

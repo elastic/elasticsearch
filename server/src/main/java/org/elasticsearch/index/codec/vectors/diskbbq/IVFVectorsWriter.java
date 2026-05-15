@@ -34,6 +34,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfSegmentConfig;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.calibrate.CalibrationUtils;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -208,7 +209,8 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
      * {@link org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsWriter} returns a resolved {@link IvfSegmentConfig};
      * other writers return {@code null}.
      */
-    protected IvfSegmentConfig beginIvfFieldMerge(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+    protected IvfSegmentConfig beginIvfFieldMerge(FieldInfo fieldInfo, FloatVectorValues mergedFloatVectorValues, MergeState mergeState)
+        throws IOException {
         return null;
     }
 
@@ -371,12 +373,11 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
 
     @Override
     public final void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        final IvfSegmentConfig ivfSegmentConfig = beginIvfFieldMerge(fieldInfo, mergeState);
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32)) {
-            mergeOneFieldIVF(fieldInfo, mergeState, ivfSegmentConfig);
+            mergeOneFieldIVF(fieldInfo, mergeState);
         } else {
             // we simply write information that the field is present but we don't do anything with it.
-            writeMeta(fieldInfo, 0, 0, 0, 0, 0, null, 0, 0, 0, 0, ivfSegmentConfig);
+            writeMeta(fieldInfo, 0, 0, 0, 0, 0, null, 0, 0, 0, 0, null);
         }
         // we merge the vectors at the end so we only have two copies of the vectors on disk at the same time.
         rawVectorDelegate.mergeOneField(fieldInfo, mergeState);
@@ -439,18 +440,24 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     ) throws IOException;
 
     @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
-    private void mergeOneFieldIVF(FieldInfo fieldInfo, MergeState mergeState, IvfSegmentConfig ivfSegmentConfig) throws IOException {
+    private void mergeOneFieldIVF(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         final int numVectors;
         String tempRawVectorsFileName = null;
         String docsFileName = null;
         // build a float vector values with random access. In order to do that we dump the vectors to
         // a temporary file and if the segment is not dense, the docs to another file/
         Preconditioner preconditioner;
+        IvfSegmentConfig ivfSegmentConfig;
         try (
             IndexOutput vectorsOut = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "ivfvec_", IOContext.DEFAULT)
         ) {
             tempRawVectorsFileName = vectorsOut.getName();
             FloatVectorValues mergedFloatVectorValues = MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState);
+
+            // TODO: remove this --> Lucene merged FloatVectorValues is single-pass; calibration and temp-file write both iterate it.
+            mergedFloatVectorValues = CalibrationUtils.toHeapDenseFloatVectorValues(mergedFloatVectorValues);
+
+            ivfSegmentConfig = beginIvfFieldMerge(fieldInfo, mergedFloatVectorValues, mergeState);
 
             // TODO: we only want to write this once but we'll wind up doing it for every field with the same dim and blockdim
             preconditioner = inheritPreconditioner(fieldInfo, mergeState, ivfSegmentConfig);

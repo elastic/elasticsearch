@@ -26,7 +26,8 @@ public class DiversifyingChildrenIVFKnnFloatVectorQueryTests extends AbstractDiv
             childFilter,
             parentBitSet,
             0,
-            random().nextBoolean()
+            random().nextBoolean(),
+            null
         );
     }
 

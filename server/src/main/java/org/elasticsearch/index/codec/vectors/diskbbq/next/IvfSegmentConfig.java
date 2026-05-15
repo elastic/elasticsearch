@@ -17,6 +17,9 @@ package org.elasticsearch.index.codec.vectors.diskbbq.next;
  * read with query.
  * The effective config from flush/merge is written to stay consistent with the quantization and
  * preconditioning data stored for the segment.
+ * Invariant for a segment: {@link #usePrecondition()} is true if and only if a non-empty preconditioner is written
+ * for that field and IVF vectors for that segment were built through the same preconditioning transform; the reader
+ * exposes this via {@link ESNextDiskBBQVectorsReader#shouldPrecondition} and {@link ESNextDiskBBQVectorsReader#getPreconditioner}.
  * Search-time scoring for quant and preconditioning continues to follow the on-disk {@code mivf} and
  * reader.
  * When the stored rescore is not finite (e.g. {@code NaN}), query and mapping rescore then apply in the usual order.

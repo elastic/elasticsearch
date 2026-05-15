@@ -9,9 +9,11 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.BooleanClause;
@@ -32,8 +34,12 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.cluster.BulkNeighborQueue;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfQueryConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfSegmentConfig;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
@@ -49,6 +55,13 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
 
+    /** Used when Lucene/unit tests omit an {@link IvfQueryConfigResolver} (e.g. {@code IVFKnnFloatVectorQueryTests}). */
+    private static final IvfQueryConfigResolver DEFAULT_IVF_SEGMENT_RESOLVER = (fieldInfo, leafReader) -> new IvfSegmentConfig(
+        ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+        false,
+        3.0f
+    );
+
     protected final String field;
     protected final float providedVisitRatio;
     protected final int k;
@@ -56,8 +69,17 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected final Query filter;
     protected int vectorOpsCount;
     protected boolean doPrecondition;
+    protected final IvfQueryConfigResolver ivfQueryConfigResolver;
 
-    protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter, boolean doPrecondition) {
+    protected AbstractIVFKnnVectorQuery(
+        String field,
+        float visitRatio,
+        int k,
+        int numCands,
+        Query filter,
+        boolean doPrecondition,
+        IvfQueryConfigResolver ivfQueryConfigResolver
+    ) {
         if (k < 1) {
             throw new IllegalArgumentException("k must be at least 1, got: " + k);
         }
@@ -73,6 +95,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         this.filter = filter;
         this.numCands = numCands;
         this.doPrecondition = doPrecondition;
+        this.ivfQueryConfigResolver = ivfQueryConfigResolver;
     }
 
     @Override
@@ -122,7 +145,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         // we need to ensure we are getting at least 2*k results to ensure we cover overspill duplicates
         // TODO move the logic for automatically adjusting percentages to the query, so we can only pass
         // 2k to the collector.
-        IVFCollectorManager knnCollectorManager = getKnnCollectorManager(Math.round(2f * k), indexSearcher);
+
         TaskExecutor taskExecutor = indexSearcher.getTaskExecutor();
         List<LeafReaderContext> leafReaderContexts = reader.leaves();
 
@@ -131,15 +154,41 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         final float visitRatio = providedVisitRatio;
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
+        IvfQueryConfigResolver segmentResolver = ivfQueryConfigResolver != null ? ivfQueryConfigResolver : DEFAULT_IVF_SEGMENT_RESOLVER;
+        float maxRescoreOversampleAcrossLeaves = Float.NaN;
         for (LeafReaderContext context : leafReaderContexts) {
-            if (doPrecondition) {
+            SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(context.reader());
+            if (segmentReader == null) {
+                // segmentReader is required for accessing fieldInfo and preconditioning, but this should not happen!!
+                continue;
+            }
+            FieldInfo fieldInfo = segmentReader.getFieldInfos().fieldInfo(field);
+            IvfSegmentConfig resolved = segmentResolver.resolve(fieldInfo, segmentReader);
+
+            float segmentRescoreOversample = resolved.rescoreOversample();
+            if (Float.isFinite(segmentRescoreOversample)) {
+                maxRescoreOversampleAcrossLeaves = Float.isNaN(maxRescoreOversampleAcrossLeaves)
+                    ? segmentRescoreOversample
+                    : Math.max(maxRescoreOversampleAcrossLeaves, segmentRescoreOversample);
+            }
+
+            IVFCollectorManager knnCollectorManagerForSegment = getKnnCollectorManager(
+                Math.round(2f * k * resolved.rescoreOversample()),
+                indexSearcher
+            );
+
+            if (resolved.usePrecondition()) {
                 preconditionQuery(context);
             }
-            tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, visitRatio));
+            tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManagerForSegment, visitRatio));
         }
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
 
-        TopDocs topK = mergeLeafResults(k, perLeafResults);
+        int mergeK = k;
+        if (Float.isFinite(maxRescoreOversampleAcrossLeaves)) {
+            mergeK = (int) Math.ceil(k * maxRescoreOversampleAcrossLeaves);
+        }
+        TopDocs topK = mergeLeafResults(mergeK, perLeafResults);
         vectorOpsCount = (int) topK.totalHits.value();
         if (topK.scoreDocs.length == 0) {
             return Queries.NO_DOCS_INSTANCE;

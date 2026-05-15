@@ -33,6 +33,6 @@ public class IvfSegmentConfigTests extends ESTestCase {
     public void testMergeResolverReturnsCodecDefault() throws Exception {
         IvfMergeConfigResolver r = IvfMergeConfigResolver.useCodecDefault();
         IvfSegmentConfig def = IvfSegmentConfig.fromCodecDefaults(ESNextDiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC, false);
-        assertSame(def, r.resolve(null, null, def));
+        assertSame(def, r.resolve(null, null, null, def));
     }
 }

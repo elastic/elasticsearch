@@ -20,6 +20,7 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfQueryConfigResolver;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -46,9 +47,10 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         int numCands,
         Query filter,
         float visitRatio,
-        boolean doPrecondition
+        boolean doPrecondition,
+        IvfQueryConfigResolver queryConfigResolver
     ) {
-        super(field, visitRatio, k, numCands, filter, doPrecondition);
+        super(field, visitRatio, k, numCands, filter, doPrecondition, queryConfigResolver);
         this.query = query;
     }
 

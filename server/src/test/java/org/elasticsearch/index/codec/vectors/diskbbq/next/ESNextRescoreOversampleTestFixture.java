@@ -170,8 +170,8 @@ public final class ESNextRescoreOversampleTestFixture {
         if (kvr instanceof PerFieldKnnVectorsFormat.FieldsReader perField) {
             kvr = perField.getFieldReader(FIELD_NAME);
         }
-        if (kvr instanceof ESNextDiskBBQVectorsReader esr) {
-            return esr.getRescoreOversample(fieldInfo);
+        if (kvr instanceof CalibrationAwareReader esr) {
+            return esr.getOversampleFactor(fieldInfo);
         }
         return Float.NaN;
     }

@@ -88,7 +88,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     // field for slicing, null for no slicing
     private final String sliceField;
     private final IvfFlushConfigSource flushConfigSource;
-    private final IvfMergeConfigResolver mergeConfigResolver;
+    private final IvfMergeConfigResolver mergeConfigResolver;;
 
     public ESNextDiskBBQVectorsWriter(
         SegmentWriteState state,
@@ -152,9 +152,14 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    protected IvfSegmentConfig beginIvfFieldMerge(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        IvfSegmentConfig codec = IvfSegmentConfig.fromCodecDefaults(quantEncoding, doPrecondition);
-        return mergeConfigResolver.resolve(fieldInfo, mergeState, codec);
+    protected IvfSegmentConfig beginIvfFieldMerge(FieldInfo fieldInfo, FloatVectorValues mergedFloatVectorValues, MergeState mergeState)
+        throws IOException {
+        return mergeConfigResolver.resolve(
+            fieldInfo,
+            mergedFloatVectorValues,
+            mergeState,
+            IvfSegmentConfig.fromCodecDefaults(quantEncoding, doPrecondition)
+        );
     }
 
     private static IvfSegmentConfig requireSegmentConfig(IvfSegmentConfig cfg) {
@@ -162,9 +167,9 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    protected Preconditioner inheritPreconditioner(FieldInfo fieldInfo, MergeState mergeState, IvfSegmentConfig fieldWritingContext)
+    protected Preconditioner inheritPreconditioner(FieldInfo fieldInfo, MergeState mergeState, IvfSegmentConfig ivfSegmentConfig)
         throws IOException {
-        if (requireSegmentConfig(fieldWritingContext).usePrecondition()) {
+        if (requireSegmentConfig(ivfSegmentConfig).usePrecondition()) {
             for (KnnVectorsReader reader : mergeState.knnVectorsReaders) {
                 if (reader instanceof VectorPreconditioner) {
                     Preconditioner preconditioner = ((VectorPreconditioner) reader).getPreconditioner(fieldInfo);
@@ -174,7 +179,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 }
             }
             // else
-            return createPreconditioner(fieldInfo.getVectorDimension(), fieldWritingContext);
+            return createPreconditioner(fieldInfo.getVectorDimension(), ivfSegmentConfig);
         }
         return null;
     }
@@ -196,9 +201,9 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    protected Consumer<List<float[]>> preconditionVectors(Preconditioner preconditioner, IvfSegmentConfig fieldWritingContext) {
+    protected Consumer<List<float[]>> preconditionVectors(Preconditioner preconditioner, IvfSegmentConfig ivfSegmentConfig) {
         return (vectors) -> {
-            if (requireSegmentConfig(fieldWritingContext).usePrecondition() == false || vectors.isEmpty()) {
+            if (requireSegmentConfig(ivfSegmentConfig).usePrecondition() == false || vectors.isEmpty()) {
                 return;
             }
             if (preconditioner == null) {
@@ -217,9 +222,9 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     protected FloatVectorValues preconditionVectors(
         Preconditioner preconditioner,
         FloatVectorValues vectors,
-        IvfSegmentConfig fieldWritingContext
+        IvfSegmentConfig ivfSegmentConfig
     ) {
-        if (requireSegmentConfig(fieldWritingContext).usePrecondition() == false) {
+        if (requireSegmentConfig(ivfSegmentConfig).usePrecondition() == false) {
             return vectors;
         }
         if (preconditioner == null) {
@@ -278,9 +283,9 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         long fileOffset,
         int[] assignments,
         int[] overspillAssignments,
-        IvfSegmentConfig fieldWritingContext
+        IvfSegmentConfig ivfSegmentConfig
     ) throws IOException {
-        final IvfSegmentConfig segmentConfig = requireSegmentConfig(fieldWritingContext);
+        final IvfSegmentConfig segmentConfig = requireSegmentConfig(ivfSegmentConfig);
         final ESNextDiskBBQVectorsFormat.QuantEncoding effectiveQuantEncoding = segmentConfig.quantEncoding();
         KMeansResult centroidClusters = centroidSupplier.secondLevelClusters();
         int[] centroidVectorCount = new int[centroidSupplier.size()];

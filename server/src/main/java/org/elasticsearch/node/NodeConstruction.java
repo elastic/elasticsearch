@@ -152,6 +152,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.indices.recovery.RecoveryThrottlingQueue;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
@@ -1371,6 +1372,7 @@ class NodeConstruction {
                         snapshotFilesProvider
                     )
                 );
+            b.bind(RecoveryThrottlingQueue.class).toInstance(new RecoveryThrottlingQueue(threadPool, RecoveryThrottlingQueue.DEFAULT));
         });
 
         modules.add(loadPluginComponents(pluginComponents));

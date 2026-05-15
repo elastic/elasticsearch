@@ -45,7 +45,7 @@ public class RecoveryThrottlingQueueTests extends ESTestCase {
 
     /** Enqueued work runs asynchronously (worker thread differs from enqueueing thread). */
     public void testTasksRunOutsideEnqueueingThread() throws Exception {
-        RecoveryThrottlingQueue queue = new RecoveryThrottlingQueue(threadPool, between(2, 4), logger);
+        RecoveryThrottlingQueue queue = new RecoveryThrottlingQueue(threadPool, between(2, 4));
         Thread caller = Thread.currentThread();
         AtomicReference<Thread> executionThread = new AtomicReference<>();
         CountDownLatch done = new CountDownLatch(1);
@@ -62,7 +62,7 @@ public class RecoveryThrottlingQueueTests extends ESTestCase {
      */
     public void testMaxConcurrencyBound() throws Exception {
         final int maxConcurrentRecoveries = between(2, 5);
-        RecoveryThrottlingQueue queue = new RecoveryThrottlingQueue(threadPool, maxConcurrentRecoveries, logger);
+        RecoveryThrottlingQueue queue = new RecoveryThrottlingQueue(threadPool, maxConcurrentRecoveries);
         AtomicInteger running = new AtomicInteger();
         AtomicInteger peakConcurrent = new AtomicInteger();
         CountDownLatch maxConcurrentReached = new CountDownLatch(maxConcurrentRecoveries);
@@ -70,7 +70,7 @@ public class RecoveryThrottlingQueueTests extends ESTestCase {
         int totalEnqueuedTasks = maxConcurrentRecoveries * 3;
         CountDownLatch allFinished = new CountDownLatch(totalEnqueuedTasks);
 
-        RecoveryThrottlingQueue.RecoveryTask recoveryTask = () -> {
+        Runnable recoveryTask = () -> {
             try {
                 int current = running.incrementAndGet();
                 peakConcurrent.accumulateAndGet(current, Integer::max);
@@ -111,7 +111,7 @@ public class RecoveryThrottlingQueueTests extends ESTestCase {
      * With a single execution slot, throttled backlog runs in enqueue order ({@linkplain ConcurrentLinkedQueue FIFO} semantics).
      */
     public void testFifoWhenThrottledToOneConcurrent() throws Exception {
-        RecoveryThrottlingQueue queue = new RecoveryThrottlingQueue(threadPool, 1, logger);
+        RecoveryThrottlingQueue queue = new RecoveryThrottlingQueue(threadPool, 1);
         int total = between(10, 20);
         List<Integer> startOrder = new CopyOnWriteArrayList<>();
         CountDownLatch allDone = new CountDownLatch(total);
@@ -143,7 +143,7 @@ public class RecoveryThrottlingQueueTests extends ESTestCase {
         final int maxConcurrentRecoveries = between(1, 20);
         final int highContentionBurstSizeMin = between(1, maxConcurrentRecoveries);
         final int highContentionBurstSizeMax = between(highContentionBurstSizeMin, maxConcurrentRecoveries * 2);
-        final RecoveryThrottlingQueue queue = new RecoveryThrottlingQueue(threadPool, maxConcurrentRecoveries, logger);
+        final RecoveryThrottlingQueue queue = new RecoveryThrottlingQueue(threadPool, maxConcurrentRecoveries);
         final AtomicInteger running = new AtomicInteger();
         final AtomicInteger peakRunning = new AtomicInteger();
         final AtomicInteger totalTasksEnqueued = new AtomicInteger();

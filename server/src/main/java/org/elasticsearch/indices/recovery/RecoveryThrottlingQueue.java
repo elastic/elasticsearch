@@ -9,31 +9,32 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.ArrayDeque;
+import java.util.Queue;
 
 public class RecoveryThrottlingQueue {
 
     private final ThreadPool threadPool;
+    // todo: Introduce separate setting to control maxConcurrentRecoveries.
+    // Temporary defaults and unlimited for testing
+    public static final int DEFAULT = ThrottlingAllocationDecider.DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES;
+    public static final int UNLIMITED = -1;
     private final int maxConcurrentRecoveries;
-    // Logger useful for testing, might remove later
-    private final Logger logger;
-    private final ConcurrentLinkedQueue<RecoveryTask> pending = new ConcurrentLinkedQueue<>();
-    private final Object mutex = new Object();
-    // Protected by mutex
+    // 'pending' and 'running' both protected by synchronized(this)
+    private final Queue<Runnable> pending = new ArrayDeque<>();
     private int running;
 
-    public RecoveryThrottlingQueue(ThreadPool threadPool, int maxConcurrentRecoveries, Logger logger) {
+    public RecoveryThrottlingQueue(ThreadPool threadPool, int maxConcurrentRecoveries) {
         this.threadPool = threadPool;
         this.maxConcurrentRecoveries = maxConcurrentRecoveries;
-        this.logger = logger;
     }
 
-    public void enqueue(RecoveryTask recoveryTask) {
-        synchronized (mutex) {
-            if (running < maxConcurrentRecoveries) {
+    public void enqueue(Runnable recoveryTask) {
+        synchronized (this) {
+            if (running < maxConcurrentRecoveries || maxConcurrentRecoveries == UNLIMITED) {
                 running++;
                 dispatch(recoveryTask);
             } else {
@@ -42,7 +43,7 @@ public class RecoveryThrottlingQueue {
         }
     }
 
-    private void dispatch(RecoveryTask recoveryTask) {
+    private void dispatch(Runnable recoveryTask) {
         threadPool.generic().execute(() -> {
             try {
                 recoveryTask.run();
@@ -53,8 +54,8 @@ public class RecoveryThrottlingQueue {
     }
 
     private void scheduleNext() {
-        RecoveryTask next;
-        synchronized (mutex) {
+        Runnable next;
+        synchronized (this) {
             next = pending.poll();
             if (next == null) {
                 running--;
@@ -64,7 +65,4 @@ public class RecoveryThrottlingQueue {
             dispatch(next);
         }
     }
-
-    @FunctionalInterface
-    public interface RecoveryTask extends Runnable {}
 }

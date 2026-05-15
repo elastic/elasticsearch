@@ -154,6 +154,7 @@ import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.indices.recovery.RecoveryThrottlingQueue;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -3705,7 +3706,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         RepositoriesService repositoriesService,
         BiConsumer<MappingMetadata, ActionListener<Void>> mappingUpdateConsumer,
         IndicesService indicesService,
-        long clusterStateVersion
+        long clusterStateVersion,
+        RecoveryThrottlingQueue recoveryThrottlingQueue
     ) {
         // TODO: Create a proper object to encapsulate the recovery context
         // all of the current methods here follow a pattern of:
@@ -3729,12 +3731,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 "from store",
                 recoveryState,
                 recoveryListener,
-                this::recoverFromStore
+                this::recoverFromStore,
+                recoveryThrottlingQueue
             );
             case PEER -> {
                 try {
                     markAsRecovering("from " + recoveryState.getSourceNode(), recoveryState);
-                    recoveryTargetService.startRecovery(this, recoveryState.getSourceNode(), clusterStateVersion, recoveryListener);
+                    recoveryThrottlingQueue.enqueue(
+                        () -> recoveryTargetService.startRecovery(
+                            this,
+                            recoveryState.getSourceNode(),
+                            clusterStateVersion,
+                            recoveryListener
+                        )
+                    );
                 } catch (Exception e) {
                     failShard("corrupted preexisting index", e);
                     recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), true);
@@ -3748,7 +3758,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     "from snapshot",
                     recoveryState,
                     recoveryListener,
-                    l -> restoreFromRepository(repositoriesService.repository(projectId, repo), l)
+                    l -> restoreFromRepository(repositoriesService.repository(projectId, repo), l),
+                    recoveryThrottlingQueue
                 );
             }
             case LOCAL_SHARDS -> {
@@ -3784,7 +3795,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             mappingUpdateConsumer,
                             startedShards.stream().filter((s) -> requiredShards.contains(s.shardId())).toList(),
                             l
-                        )
+                        ),
+                        recoveryThrottlingQueue
                     );
                 } else {
                     final RuntimeException e;
@@ -3813,10 +3825,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         String reason,
         RecoveryState recoveryState,
         PeerRecoveryTargetService.RecoveryListener recoveryListener,
-        CheckedConsumer<ActionListener<Boolean>, Exception> action
+        CheckedConsumer<ActionListener<Boolean>, Exception> action,
+        RecoveryThrottlingQueue recoveryThrottlingQueue
     ) {
         markAsRecovering(reason, recoveryState); // mark the shard as recovering on the cluster state thread
-        threadPool.generic().execute(ActionRunnable.wrap(ActionListener.wrap(r -> {
+        recoveryThrottlingQueue.enqueue(ActionRunnable.wrap(ActionListener.wrap(r -> {
             if (r) {
                 recoveryListener.onRecoveryDone(recoveryState, getTimestampRange(), getEventIngestedRange());
             }

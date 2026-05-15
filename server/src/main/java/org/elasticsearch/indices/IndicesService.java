@@ -146,6 +146,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.RecoveryThrottlingQueue;
 import org.elasticsearch.indices.store.CompositeIndexFoldersDeletionListener;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.FieldPredicate;
@@ -974,6 +975,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final ProjectId projectId,
         final ShardRouting shardRouting,
         final PeerRecoveryTargetService recoveryTargetService,
+        final RecoveryThrottlingQueue recoveryThrottlingQueue,
         final PeerRecoveryTargetService.RecoveryListener recoveryListener,
         final RepositoriesService repositoriesService,
         final Consumer<IndexShard.ShardFailure> onShardFailure,
@@ -1011,7 +1013,8 @@ public class IndicesService extends AbstractLifecycleComponent
                     );
                 },
                 this,
-                clusterStateVersion
+                clusterStateVersion,
+                recoveryThrottlingQueue
             )
         );
     }

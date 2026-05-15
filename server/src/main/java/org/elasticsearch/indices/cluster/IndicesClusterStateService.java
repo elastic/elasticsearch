@@ -77,6 +77,7 @@ import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.RecoveryThrottlingQueue;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -135,6 +136,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final PeerRecoveryTargetService recoveryTargetService;
+    private final RecoveryThrottlingQueue recoveryThrottlingQueue;
     private final ShardStateAction shardStateAction;
 
     private final Settings settings;
@@ -165,6 +167,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final ClusterService clusterService,
         final ThreadPool threadPool,
         final PeerRecoveryTargetService recoveryTargetService,
+        final RecoveryThrottlingQueue recoveryThrottlingQueue,
         final ShardStateAction shardStateAction,
         final RepositoriesService repositoriesService,
         final SearchService searchService,
@@ -180,6 +183,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             clusterService,
             threadPool,
             recoveryTargetService,
+            recoveryThrottlingQueue,
             shardStateAction,
             repositoriesService,
             searchService,
@@ -198,6 +202,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final ClusterService clusterService,
         final ThreadPool threadPool,
         final PeerRecoveryTargetService recoveryTargetService,
+        final RecoveryThrottlingQueue recoveryThrottlingQueue,
         final ShardStateAction shardStateAction,
         final RepositoriesService repositoriesService,
         final SearchService searchService,
@@ -213,6 +218,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.recoveryTargetService = recoveryTargetService;
+        this.recoveryThrottlingQueue = recoveryThrottlingQueue;
         this.shardStateAction = shardStateAction;
         this.repositoriesService = repositoriesService;
         this.primaryReplicaSyncer = primaryReplicaSyncer;
@@ -830,6 +836,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 originalState.metadata().projectFor(shardRouting.index()).id(),
                 shardRouting,
                 recoveryTargetService,
+                recoveryThrottlingQueue,
                 new RecoveryListener(shardRouting, primaryTerm),
                 repositoriesService,
                 failedShardHandler,
@@ -1405,6 +1412,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             ProjectId projectId,
             ShardRouting shardRouting,
             PeerRecoveryTargetService recoveryTargetService,
+            RecoveryThrottlingQueue recoveryThrottlingQueue,
             PeerRecoveryTargetService.RecoveryListener recoveryListener,
             RepositoriesService repositoriesService,
             Consumer<IndexShard.ShardFailure> onShardFailure,

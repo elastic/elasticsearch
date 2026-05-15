@@ -23,6 +23,7 @@ import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryThrottlingQueue;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.SnapshotShardContextFactory;
 import org.elasticsearch.search.SearchService;
@@ -150,6 +151,7 @@ public class IndicesClusterStateServiceShardsClosedListenersTests extends Abstra
                 new ClusterService(Settings.EMPTY, ClusterSettings.createBuiltInClusterSettings(), threadPool, null),
                 threadPool,
                 mock(PeerRecoveryTargetService.class),
+                mock(RecoveryThrottlingQueue.class),
                 mock(ShardStateAction.class),
                 mock(RepositoriesService.class),
                 mock(SearchService.class),

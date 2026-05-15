@@ -126,6 +126,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.indices.recovery.RecoveryThrottlingQueue;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.ingest.IngestService;
@@ -455,6 +456,8 @@ public class SnapshotResiliencyTestHelper {
 
             protected PeerRecoveryTargetService peerRecoveryTargetService;
 
+            protected RecoveryThrottlingQueue recoveryThrottlingQueue;
+
             private IndicesClusterStateService indicesClusterStateService;
 
             private final MasterService masterService;
@@ -696,6 +699,8 @@ public class SnapshotResiliencyTestHelper {
                     snapshotFilesProvider
                 );
 
+                recoveryThrottlingQueue = new RecoveryThrottlingQueue(threadPool, RecoveryThrottlingQueue.DEFAULT);
+
                 final ActionFilters actionFilters = new ActionFilters(emptySet());
                 final ActiveFetchPhaseTasks activeFetchPhaseTasks = new ActiveFetchPhaseTasks();
                 new TransportFetchPhaseResponseChunkAction(transportService, activeFetchPhaseTasks, namedWriteableRegistry);
@@ -773,6 +778,7 @@ public class SnapshotResiliencyTestHelper {
                     clusterService,
                     threadPool,
                     peerRecoveryTargetService,
+                    recoveryThrottlingQueue,
                     shardStateAction,
                     repositoriesService,
                     searchService,

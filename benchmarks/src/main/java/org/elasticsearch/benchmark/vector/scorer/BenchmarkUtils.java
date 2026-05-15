@@ -29,6 +29,7 @@ import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.es93.OffHeapBFloat16VectorValues;
+import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 
 import java.io.IOException;
@@ -92,8 +93,8 @@ class BenchmarkUtils {
     }
 
     static VectorScorerFactory getScorerFactoryOrDie() {
-        var optionalVectorScorerFactory = VectorScorerFactory.instance();
-        if (optionalVectorScorerFactory.isEmpty()) {
+        var optionalVectorScorerFactory = ESVectorizationProvider.getInstance().getVectorScorerFactory();
+        if (optionalVectorScorerFactory instanceof DefaultFlatVectorScorer) {
             String msg = "JDK=["
                 + Runtime.version()
                 + "], os.name=["
@@ -103,7 +104,7 @@ class BenchmarkUtils {
                 + "]";
             throw new AssertionError("Vector scorer factory not present. Cannot run the benchmark. " + msg);
         }
-        return optionalVectorScorerFactory.get();
+        return optionalVectorScorerFactory;
     }
 
     static boolean supportsHeapSegments() {

@@ -115,7 +115,7 @@ public class GoogleVertexAiEmbeddingsActionTests extends ESTestCase {
     }
 
     private ExecutableAction createAction(String url, String location, String projectId, String modelName, Sender sender) {
-        var model = createModel(location, projectId, modelName, url, "{}");
+        var model = createModel(location, projectId, modelName, url, "{}", randomAlphaOfLength(8));
         var requestManager = new GoogleVertexAiEmbeddingsRequestManager(model, TruncatorTests.createTruncator(), threadPool);
         var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Google Vertex AI embeddings");
         return new SenderExecutableAction(sender, requestManager, failedToSendRequestErrorMessage);

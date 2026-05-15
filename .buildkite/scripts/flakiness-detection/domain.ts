@@ -119,3 +119,17 @@ export const DEFAULT_BATCHING_CONFIG: BatchingConfig = {
   itersByKind: { test: 100, internalClusterTest: 20 },
   suiteTimeoutMs: 3_600_000,
 };
+
+export interface AgentConfig {
+  agents: typeof AGENTS;
+  timeoutInMinutes: number;
+  groupName: string;
+  softFail: boolean;
+}
+
+export const DEFAULT_AGENT_CONFIG: AgentConfig = {
+  agents: AGENTS,
+  timeoutInMinutes: 60,
+  groupName: "flakiness-detection",
+  softFail: true,
+};

@@ -1,24 +1,19 @@
-import { stringify } from "yaml";
 import { execSync } from "child_process";
 import { resolve } from "path";
 import {
-  AGENTS,
-  BATCH_CAPS,
+  DEFAULT_AGENT_CONFIG,
   DEFAULT_BATCHING_CONFIG,
-  KIND_LABELS,
-  KIND_KEYS,
-  KIND_ORDER,
-  TestKind,
   ClassifiedTest,
 } from "./domain";
 import {
+  buildCommands,
   collapseYamlSuites,
   dedupeTests,
   deduplicateYamlRunners,
-  generateBatchCommand,
 } from "./commands";
 import { classifyChangedFiles } from "./detectors/changed-files";
 import { detectUnmutedTests } from "./detectors/unmutes";
+import { toBuildkitePipeline, uploadBuildkitePipeline } from "./runners/buildkite";
 
 export * from "./domain";
 export { classifyChangedFiles } from "./detectors/changed-files";
@@ -42,86 +37,18 @@ export {
   deduplicateYamlRunners,
   generateBatchCommand,
 } from "./commands";
+export { toBuildkitePipeline, uploadBuildkitePipeline } from "./runners/buildkite";
+export { runLocally } from "./runners/local";
 
 const PROJECT_ROOT = resolve(`${import.meta.dir}/../..`);
 
-interface PipelineStep {
-  label: string;
-  key: string;
-  command: string;
-  timeout_in_minutes: number;
-  agents: typeof AGENTS;
-  soft_fail: boolean;
-  parallelism?: number;
-  env?: Record<string, string>;
-}
-
-interface PipelineGroup {
-  group: string;
-  steps: PipelineStep[];
-}
-
-interface Pipeline {
-  steps: [PipelineGroup];
-}
-
 type CommandRunner = (command: string, options: { cwd: string; stdio?: "inherit" | "ignore" }) => Buffer;
 
-export function generatePipeline(tests: ClassifiedTest[]): Pipeline {
-  const byKind = new Map<TestKind, ClassifiedTest[]>();
-  for (const test of tests) {
-    if (!byKind.has(test.kind)) {
-      byKind.set(test.kind, []);
-    }
-    byKind.get(test.kind)!.push(test);
-  }
-
-  const allSteps: PipelineStep[] = [];
-
-  for (const kind of KIND_ORDER) {
-    const kindTests = byKind.get(kind);
-    if (!kindTests) continue;
-
-    const cap = BATCH_CAPS[kind];
-    const totalBatches = Math.ceil(kindTests.length / cap);
-    const typeLabel = KIND_LABELS[kind];
-
-    const batchCommands: string[] = [];
-    for (let i = 0; i < kindTests.length; i += cap) {
-      const batch = kindTests.slice(i, i + cap);
-      batchCommands.push(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG));
-    }
-
-    const step: PipelineStep = {
-      label: typeLabel,
-      key: KIND_KEYS[kind],
-      command: batchCommands[0],
-      timeout_in_minutes: 60,
-      agents: { ...AGENTS },
-      soft_fail: true,
-    };
-
-    if (totalBatches > 1) {
-      const env: Record<string, string> = {};
-      for (let i = 0; i < batchCommands.length; i++) {
-        env[`BATCH_COMMAND_${i}`] = batchCommands[i];
-      }
-      step.command = 'VARNAME="BATCH_COMMAND_${BUILDKITE_PARALLEL_JOB}"; eval "$${!VARNAME}"';
-      step.parallelism = totalBatches;
-      step.env = env;
-    }
-
-    allSteps.push(step);
-  }
-
-  return {
-    steps: [
-      {
-        group: "flakiness-detection",
-        steps: allSteps,
-      },
-    ],
-  };
+export function generatePipeline(tests: ClassifiedTest[]) {
+  return toBuildkitePipeline(
+    buildCommands(tests, DEFAULT_BATCHING_CONFIG),
+    DEFAULT_AGENT_CONFIG
+  );
 }
 
 export function resolveMergeBaseTarget(
@@ -209,20 +136,10 @@ function main() {
   tests = collapseYamlSuites(tests);
   tests = deduplicateYamlRunners(tests);
 
-  const pipeline = generatePipeline(tests);
-  const yaml = stringify(pipeline);
-
-  console.log("--- Generated pipeline");
-  console.log(yaml);
-
-  if (process.env.CI) {
-    console.log("Uploading pipeline...");
-    execSync(`buildkite-agent pipeline upload`, {
-      input: yaml,
-      stdio: ["pipe", "inherit", "inherit"],
-      cwd: PROJECT_ROOT,
-    });
-  }
+  uploadBuildkitePipeline(
+    buildCommands(tests, DEFAULT_BATCHING_CONFIG),
+    DEFAULT_AGENT_CONFIG
+  );
 }
 
 if (import.meta.main) {

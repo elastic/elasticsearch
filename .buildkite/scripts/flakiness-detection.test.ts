@@ -5,10 +5,12 @@ import {
   classifyChangedFiles,
   collapseYamlSuites,
   deduplicateYamlRunners,
+  DEFAULT_AGENT_CONFIG,
   DEFAULT_BATCHING_CONFIG,
   generateBatchCommand,
   generatePipeline,
   resolveMergeBaseTarget,
+  toBuildkitePipeline,
   toGradleProject,
   toFqcn,
   ClassifiedTest,
@@ -20,6 +22,7 @@ import {
   findUnmutedTests,
   dedupeTests,
   classifyExplicitList,
+  RunnableCommand,
 } from "./flakiness-detection";
 
 describe("toGradleProject", () => {
@@ -1241,5 +1244,30 @@ describe("buildCommands", () => {
     const cmds = buildCommands(tests, DEFAULT_BATCHING_CONFIG);
     const runners = cmds.filter((c) => c.kind === "yamlRestTestRunner");
     expect(runners).toHaveLength(1);
+  });
+});
+
+describe("toBuildkitePipeline", () => {
+  test("collapses multiple batches sharing a key into a single parallel step", () => {
+    const cmds: RunnableCommand[] = [
+      { kind: "test", label: "unit tests", key: "flakiness-detection:unit", command: "cmd1" },
+      { kind: "test", label: "unit tests", key: "flakiness-detection:unit", command: "cmd2" },
+      { kind: "test", label: "unit tests", key: "flakiness-detection:unit", command: "cmd3" },
+    ];
+    const pipeline = toBuildkitePipeline(cmds, DEFAULT_AGENT_CONFIG);
+    const step = pipeline.steps[0].steps[0];
+    expect(step.parallelism).toBe(3);
+    expect(step.env?.BATCH_COMMAND_0).toBe("cmd1");
+    expect(step.env?.BATCH_COMMAND_2).toBe("cmd3");
+  });
+
+  test("does not set parallelism for a single batch", () => {
+    const cmds: RunnableCommand[] = [
+      { kind: "test", label: "unit tests", key: "flakiness-detection:unit", command: "only" },
+    ];
+    const pipeline = toBuildkitePipeline(cmds, DEFAULT_AGENT_CONFIG);
+    const step = pipeline.steps[0].steps[0];
+    expect(step.parallelism).toBeUndefined();
+    expect(step.command).toBe("only");
   });
 });

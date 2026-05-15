@@ -44,7 +44,7 @@ public class TransportSetTransformResetModeAction extends AbstractTransportSetRe
     }
 
     @Override
-    protected Consumer<ProjectMetadata.Builder> createProjectUpdate(ProjectMetadata project, SetResetModeActionRequest request) {
+    protected Consumer<ProjectMetadata.Builder> createProjectUpdate(SetResetModeActionRequest request, ProjectMetadata project) {
         if (request.shouldDeleteMetadata()) {
             assert request.isEnabled() == false; // SetResetModeActionRequest should have enforced this
             return b -> b.removeCustom(TransformMetadata.TYPE);

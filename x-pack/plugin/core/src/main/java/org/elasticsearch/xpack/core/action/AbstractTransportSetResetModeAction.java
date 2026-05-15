@@ -66,7 +66,7 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
     /**
      * Returns a project-scoped mutation that the parent applies to the ClusterState.
      */
-    protected abstract Consumer<ProjectMetadata.Builder> createProjectUpdate(ProjectMetadata project, SetResetModeActionRequest request);
+    protected abstract Consumer<ProjectMetadata.Builder> createProjectUpdate(SetResetModeActionRequest request, ProjectMetadata project);
 
     @Override
     protected void masterOperation(
@@ -118,7 +118,7 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
             public ClusterState execute(ClusterState currentState) {
                 logger.trace(() -> "Executing cluster state update for [" + featureName() + "]");
                 var project = projectResolver.getProjectMetadata(currentState);
-                return currentState.copyAndUpdateProject(project.id(), createProjectUpdate(project, request));
+                return currentState.copyAndUpdateProject(project.id(), createProjectUpdate(request, project));
             }
         });
     }

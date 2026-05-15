@@ -79,8 +79,8 @@ public class TransportSetTransformUpgradeModeAction extends AbstractTransportSet
     }
 
     @Override
-    protected boolean upgradeMode(ProjectMetadata project) {
-        return TransformMetadata.upgradeMode(project);
+    protected boolean isUpgradeMode(ProjectMetadata project) {
+        return TransformMetadata.isUpgradeMode(project);
     }
 
     @Override

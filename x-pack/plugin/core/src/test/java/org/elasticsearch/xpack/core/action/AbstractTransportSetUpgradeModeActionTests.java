@@ -210,7 +210,7 @@ public class AbstractTransportSetUpgradeModeActionTests extends ESTestCase {
         assertNotNull(resultState.get());
         TransformMetadata projectAMeta = resultState.get().metadata().getProject(projectA).custom(TransformMetadata.TYPE);
         assertThat(projectAMeta, is(notNullValue()));
-        assertTrue(projectAMeta.upgradeMode());
+        assertTrue(projectAMeta.isUpgradeMode());
 
         // Verify project B was NOT modified
         TransformMetadata projectBMeta = resultState.get().metadata().getProject(projectB).custom(TransformMetadata.TYPE);
@@ -231,7 +231,7 @@ public class AbstractTransportSetUpgradeModeActionTests extends ESTestCase {
         }
 
         @Override
-        protected boolean upgradeMode(ProjectMetadata project) {
+        protected boolean isUpgradeMode(ProjectMetadata project) {
             return false;
         }
 
@@ -313,7 +313,7 @@ public class AbstractTransportSetUpgradeModeActionTests extends ESTestCase {
         }
 
         @Override
-        protected boolean upgradeMode(ProjectMetadata project) {
+        protected boolean isUpgradeMode(ProjectMetadata project) {
             return upgradeMode;
         }
 

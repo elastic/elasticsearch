@@ -81,7 +81,7 @@ public abstract class AbstractTransportSetUpgradeModeAction extends Acknowledged
                 "Attempted to set [upgrade_mode] for feature name [%s] to [%s] from [%s] while previous request was processing.",
                 featureName(),
                 request.enabled(),
-                upgradeMode(project)
+                isUpgradeMode(project)
             );
             logger.info(msg);
             Exception detail = new IllegalStateException(msg);
@@ -97,8 +97,8 @@ public abstract class AbstractTransportSetUpgradeModeAction extends Acknowledged
         }
 
         // Noop, nothing for us to do, simply return fast to the caller
-        var upgradeMode = upgradeMode(project);
-        if (request.enabled() == upgradeMode) {
+        var isUpgradeMode = isUpgradeMode(project);
+        if (request.enabled() == isUpgradeMode) {
             logger.info("Upgrade mode noop");
             isRunning.set(false);
             listener.onResponse(AcknowledgedResponse.TRUE);
@@ -109,7 +109,7 @@ public abstract class AbstractTransportSetUpgradeModeAction extends Acknowledged
             "Starting to set [upgrade_mode] for feature name [{}] to [{}] from [{}]",
             featureName(),
             request.enabled(),
-            upgradeMode
+            isUpgradeMode
         );
 
         ActionListener<AcknowledgedResponse> wrappedListener = ActionListener.wrap(r -> {
@@ -142,7 +142,7 @@ public abstract class AbstractTransportSetUpgradeModeAction extends Acknowledged
     /**
      * Read the upgradeMode boolean from the project's custom metadata.
      */
-    protected abstract boolean upgradeMode(ProjectMetadata project);
+    protected abstract boolean isUpgradeMode(ProjectMetadata project);
 
     /**
      * This is called from the ClusterState updater and is expected to return quickly.

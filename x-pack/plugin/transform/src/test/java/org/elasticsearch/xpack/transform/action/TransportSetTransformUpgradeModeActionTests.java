@@ -88,8 +88,8 @@ public class TransportSetTransformUpgradeModeActionTests extends ESTestCase {
     }
 
     public void testUpgradeMode() {
-        assertTrue(action.upgradeMode(state(true).metadata().getDefaultProject()));
-        assertFalse(action.upgradeMode(state(false).metadata().getDefaultProject()));
+        assertTrue(action.isUpgradeMode(state(true).metadata().getDefaultProject()));
+        assertFalse(action.isUpgradeMode(state(false).metadata().getDefaultProject()));
     }
 
     private ClusterState state(boolean upgradeMode) {
@@ -114,13 +114,13 @@ public class TransportSetTransformUpgradeModeActionTests extends ESTestCase {
         var project = input.metadata().getDefaultProject();
         var update = action.createProjectUpdate(new SetUpgradeModeActionRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, true), project);
         var updatedProject = applyUpdate(project, update);
-        assertTrue(TransformMetadata.upgradeMode(updatedProject));
+        assertTrue(TransformMetadata.isUpgradeMode(updatedProject));
 
         input = state(true);
         project = input.metadata().getDefaultProject();
         update = action.createProjectUpdate(new SetUpgradeModeActionRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, false), project);
         updatedProject = applyUpdate(project, update);
-        assertFalse(TransformMetadata.upgradeMode(updatedProject));
+        assertFalse(TransformMetadata.isUpgradeMode(updatedProject));
     }
 
     private static ProjectMetadata applyUpdate(ProjectMetadata project, java.util.function.Consumer<ProjectMetadata.Builder> update) {

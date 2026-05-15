@@ -35,9 +35,9 @@ public class EsqlFeatures implements FeatureSpecification {
     public static final NodeFeature METRICS_SYNTAX = new NodeFeature("esql.metrics_syntax");
 
     /**
-     * Cluster-wide support for encrypted data-source secret storage (esql-planning#648).
+     * Cluster-wide support for encrypted data-source secret storage.
      * Gates whether master-side PUT encrypts secrets to {@code EncryptedData}, whether the
-     * {@code coord→data-node} wire carries the new format, and whether {@code EncryptedData}
+     * coord-to-data-node wire carries the new format, and whether {@code EncryptedData}
      * is registered as a {@link org.elasticsearch.common.io.stream.GenericNamedWriteable}.
      * Until every node in the cluster advertises this feature, ES|QL stays on today's
      * plaintext-on-disk path; once the boundary crosses, all coords adopt the new format

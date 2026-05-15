@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
+import org.elasticsearch.encryption.EncryptedDataHandlerRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.features.FeatureService;
@@ -71,5 +72,6 @@ public record PluginServiceInstances(
     RemoteTransportClient remoteTransportClient,
     CrossProjectModeDecider crossProjectModeDecider,
     PersistentTaskLifecycleManager taskLifecycleManager,
-    DataStreamLifecycleErrorStore dlmErrorStore
+    DataStreamLifecycleErrorStore dlmErrorStore,
+    EncryptedDataHandlerRegistry encryptedDataHandlerRegistry
 ) implements Plugin.PluginServices {}

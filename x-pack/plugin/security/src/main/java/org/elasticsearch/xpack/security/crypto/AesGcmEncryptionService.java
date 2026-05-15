@@ -11,13 +11,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.crypto.EncryptedData;
 import org.elasticsearch.xpack.core.crypto.EncryptionKeyNotYetAvailableException;
 import org.elasticsearch.xpack.core.crypto.EncryptionService;
-import org.elasticsearch.xpack.core.crypto.KeyRotationHandler;
 
 import java.nio.ByteBuffer;
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.util.Objects;
-import java.util.function.Consumer;
 
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
@@ -67,12 +65,10 @@ public class AesGcmEncryptionService implements EncryptionService {
     private static final int MIN_PAYLOAD_LENGTH = 1 + IV_LENGTH_BYTES + GCM_TAG_LENGTH_BITS / 8;
 
     private final KeyProvider keyProvider;
-    private final Consumer<KeyRotationHandler> handlerRegistrar;
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public AesGcmEncryptionService(KeyProvider keyProvider, Consumer<KeyRotationHandler> handlerRegistrar) {
+    public AesGcmEncryptionService(KeyProvider keyProvider) {
         this.keyProvider = keyProvider;
-        this.handlerRegistrar = handlerRegistrar;
     }
 
     @Override
@@ -131,8 +127,4 @@ public class AesGcmEncryptionService implements EncryptionService {
         }
     }
 
-    @Override
-    public void registerKeyRotationHandler(KeyRotationHandler handler) {
-        handlerRegistrar.accept(handler);
-    }
 }

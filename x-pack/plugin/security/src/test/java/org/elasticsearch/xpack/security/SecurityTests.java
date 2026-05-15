@@ -38,6 +38,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.encryption.EncryptedDataHandlerRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.features.FeatureService;
@@ -275,7 +276,8 @@ public class SecurityTests extends ESTestCase {
             StubLinkedProjectConfigService.INSTANCE,
             TestProjectResolvers.alwaysThrow(),
             CrossProjectModeDecider.NOOP,
-            ProjectRoutingResolver.NOOP
+            ProjectRoutingResolver.NOOP,
+            new EncryptedDataHandlerRegistry()
         );
     }
 

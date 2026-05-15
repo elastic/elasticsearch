@@ -27,30 +27,29 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.encryption.EncryptedDataHandler;
+import org.elasticsearch.encryption.EncryptedDataHandlerRegistry;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.crypto.KeyRotationHandler;
 import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata;
 
 import java.io.Closeable;
 import java.security.SecureRandom;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
  * Owns the primary encryption key (PEK) lifecycle on the elected master: installs the initial key, rotates the active key on a timer,
- * drives registered {@link KeyRotationHandler}s to re-encrypt their owned data, and retires non-active keys once their grace window
+ * drives registered {@link EncryptedDataHandler}s to re-encrypt their owned data, and retires non-active keys once their grace window
  * expires.
  *
  * <p>All cluster-state mutations flow through a {@link MasterServiceTaskQueue} dispatched by {@link KeyRotationExecutor}; the sealed
@@ -122,7 +121,7 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
     private final MasterServiceTaskQueue<KeyRotationTask> taskQueue;
     private final TimeValue rotationInterval;
     private final TimeValue checkInterval;
-    private final Map<String, KeyRotationHandler> rotationHandlers = new ConcurrentHashMap<>();
+    private final EncryptedDataHandlerRegistry handlerRegistry;
 
     // Only accessed inside synchronized startSchedule/stopSchedule/close, so plain mutable is fine.
     private Scheduler.Cancellable scheduledTask;
@@ -138,6 +137,7 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
         ThreadPool threadPool,
         ProjectResolver projectResolver,
         FeatureService featureService,
+        EncryptedDataHandlerRegistry handlerRegistry,
         Settings settings
     ) {
         TimeValue rotationInterval = ROTATION_INTERVAL_SETTING.get(settings);
@@ -147,6 +147,7 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
             threadPool,
             projectResolver,
             featureService,
+            handlerRegistry,
             rotationInterval,
             checkInterval
         );
@@ -160,6 +161,7 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
         ThreadPool threadPool,
         ProjectResolver projectResolver,
         FeatureService featureService,
+        EncryptedDataHandlerRegistry handlerRegistry,
         TimeValue rotationInterval,
         TimeValue checkInterval
     ) {
@@ -167,6 +169,7 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
         this.threadPool = threadPool;
         this.projectResolver = projectResolver;
         this.featureService = featureService;
+        this.handlerRegistry = handlerRegistry;
         this.taskQueue = clusterService.createTaskQueue(
             "primary-encryption-key",
             Priority.NORMAL,
@@ -262,11 +265,10 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
         }
         rotatingSince.set(now);
         String activeKeyId = metadata.getActiveKeyId();
-        Collection<KeyRotationHandler> handlers = List.copyOf(rotationHandlers.values());
         try (
             var listeners = new RefCountingListener(
                 ActionListener.runAfter(
-                    ActionListener.wrap(unused -> {}, e -> logger.warn("rotation handler failed; will retry on next tick", e)),
+                    ActionListener.wrap(unused -> {}, e -> logger.warn("encrypted-data handler failed; will retry on next tick", e)),
                     () -> {
                         rotatingSince.set(0L);
                         rotating.set(false);
@@ -274,7 +276,7 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
                 )
             )
         ) {
-            for (KeyRotationHandler handler : handlers) {
+            for (EncryptedDataHandler handler : handlerRegistry.handlers()) {
                 ActionListener<Void> l = listeners.acquire();
                 try {
                     handler.reEncrypt(activeKeyId, l);
@@ -290,24 +292,6 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
         closed = true;
         clusterService.removeListener(this);
         stopSchedule();
-    }
-
-    /**
-     * Registers a {@link KeyRotationHandler}. Throws if a handler with the same {@link KeyRotationHandler#name()} is already registered.
-     */
-    public void registerKeyRotationHandler(KeyRotationHandler handler) {
-        KeyRotationHandler previous = rotationHandlers.putIfAbsent(handler.name(), handler);
-        if (previous != null) {
-            throw new IllegalStateException("rotation handler with name [" + handler.name() + "] is already registered");
-        }
-        logger.debug("registered key rotation handler [{}]", handler.name());
-    }
-
-    /**
-     * Returns the names of currently registered rotation handlers as a snapshot set.
-     */
-    public Set<String> getRegisteredHandlerNames() {
-        return Set.copyOf(rotationHandlers.keySet());
     }
 
     /**

@@ -10,12 +10,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.encryption.EncryptedDataHandler;
+import org.elasticsearch.encryption.EncryptedDataHandlerRegistry;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.crypto.EncryptedData;
 import org.elasticsearch.xpack.core.crypto.EncryptionService;
-import org.elasticsearch.xpack.core.crypto.KeyRotationHandler;
 import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata;
 import org.junit.Before;
 
@@ -75,12 +76,13 @@ public class KeyRotationIT extends SecurityIntegTestCase {
      * Registers a {@link TestHandler} on every node, sharing a single {@link TestControlState} across them, so the handler that runs on
      * whichever node is currently master observes/mutates the same state from the test thread.
      */
-    private TestControlState registerHandlerOnAllNodes(String name) {
+    private TestControlState registerHandlerOnAllNodes() {
         final TestControlState state = new TestControlState();
         for (String nodeName : internalCluster().getNodeNames()) {
             EncryptionService service = internalCluster().getInstance(EncryptionService.class, nodeName);
             ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
-            service.registerKeyRotationHandler(new TestHandler(name, service, threadPool, state));
+            EncryptedDataHandlerRegistry registry = internalCluster().getInstance(EncryptedDataHandlerRegistry.class, nodeName);
+            registry.register(new TestHandler(service, threadPool, state));
         }
         return state;
     }
@@ -106,8 +108,8 @@ public class KeyRotationIT extends SecurityIntegTestCase {
     }
 
     public void testRotationCompletesWithMultipleHandlers() throws Exception {
-        TestControlState alpha = registerHandlerOnAllNodes("alex");
-        TestControlState beta = registerHandlerOnAllNodes("limelight");
+        TestControlState alpha = registerHandlerOnAllNodes();
+        TestControlState beta = registerHandlerOnAllNodes();
         seedBlob(alpha, "alex-data");
         seedBlob(beta, "limelight-data");
         String initialKeyId = metadataOnMaster().getActiveKeyId();
@@ -131,7 +133,7 @@ public class KeyRotationIT extends SecurityIntegTestCase {
 
     public void testConsecutiveRotations() throws Exception {
         // Rotation cadence honors rotation_interval exactly; the grace window for retire does NOT block the next rotation.
-        TestControlState state = registerHandlerOnAllNodes("pert");
+        TestControlState state = registerHandlerOnAllNodes();
         seedBlob(state, "freewill");
         String initialKeyId = metadataOnMaster().getActiveKeyId();
 
@@ -154,7 +156,7 @@ public class KeyRotationIT extends SecurityIntegTestCase {
     }
 
     public void testRotationContinuesAfterMasterFailoverMidRotation() throws Exception {
-        TestControlState state = registerHandlerOnAllNodes("midflight");
+        TestControlState state = registerHandlerOnAllNodes();
         state.blockUntilReleased = true;
         seedBlob(state, "tom sawyer");
         String preRotationKeyId = state.blob.get().keyId();
@@ -198,17 +200,15 @@ public class KeyRotationIT extends SecurityIntegTestCase {
         volatile boolean blockUntilReleased = false;
     }
 
-    private record TestHandler(String name, EncryptionService service, ThreadPool threadPool, TestControlState state)
-        implements
-            KeyRotationHandler {
+    private record TestHandler(EncryptionService service, ThreadPool threadPool, TestControlState state) implements EncryptedDataHandler {
 
         @Override
         public void reEncrypt(String activeKeyId, ActionListener<Void> listener) {
             state.callCount.incrementAndGet();
             state.observedActiveKeyId.set(activeKeyId);
             switch (state.failMode) {
-                case THROW -> throw new RuntimeException("simulated synchronous throw from handler [" + name + "]");
-                case ON_FAILURE -> listener.onFailure(new RuntimeException("simulated failure from handler [" + name + "]"));
+                case THROW -> throw new RuntimeException("simulated synchronous throw from test handler");
+                case ON_FAILURE -> listener.onFailure(new RuntimeException("simulated failure from test handler"));
                 case OK -> {
                     EncryptedData current = state.blob.get();
                     if (current != null && current.keyId().equals(activeKeyId) == false) {

@@ -12,9 +12,9 @@ package org.elasticsearch.xpack.core.crypto;
  * <p>Callers never handle raw key material. The returned {@link EncryptedData} is self-describing, carrying the key ID alongside the
  * encrypted payload so that features can store both.
  *
- * <p>Features that store encrypted data must register a {@link KeyRotationHandler} via
- * {@link #registerKeyRotationHandler(KeyRotationHandler)}
- * so that their data can be re-encrypted under a new key when the primary encryption key rotates.
+ * <p>Features that store encrypted data must register an {@code EncryptedDataHandler} so that their data can be re-encrypted under
+ * a new key when the primary encryption key rotates. Registration is done via the {@code EncryptedDataHandlerProvider} SPI
+ * (see {@code org.elasticsearch.encryption} in server).
  */
 public interface EncryptionService {
 
@@ -33,11 +33,4 @@ public interface EncryptionService {
      * @return the original unencrypted bytes
      */
     byte[] decrypt(EncryptedData encryptedData);
-
-    /**
-     * Registers a {@link KeyRotationHandler} to be invoked when the encryption key is rotated.
-     *
-     * @param handler the callback to invoke when the encryption key is rotated
-     */
-    void registerKeyRotationHandler(KeyRotationHandler handler);
 }

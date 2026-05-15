@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.security.crypto;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -21,17 +20,17 @@ import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.encryption.EncryptedDataHandler;
+import org.elasticsearch.encryption.EncryptedDataHandlerRegistry;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.crypto.KeyRotationHandler;
 import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata;
 import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata.KeyEntry;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -78,7 +77,12 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
     }
 
     @SuppressWarnings("rawtypes")
-    private record Harness(KeyRotationCoordinator coordinator, MasterServiceTaskQueue taskQueue, ClusterStateListener listener) {}
+    private record Harness(
+        KeyRotationCoordinator coordinator,
+        EncryptedDataHandlerRegistry registry,
+        MasterServiceTaskQueue taskQueue,
+        ClusterStateListener listener
+    ) {}
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private static Harness newHarness(
@@ -94,11 +98,13 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         when(clusterService.createTaskQueue(anyString(), any(), any())).thenReturn(taskQueue);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.absoluteTimeInMillis()).thenReturn(now);
+        EncryptedDataHandlerRegistry registry = new EncryptedDataHandlerRegistry();
         KeyRotationCoordinator coordinator = KeyRotationCoordinator.create(
             clusterService,
             threadPool,
             DefaultProjectResolver.INSTANCE,
             featureService,
+            registry,
             org.elasticsearch.common.settings.Settings.builder()
                 .put(KeyRotationCoordinator.ROTATION_INTERVAL_SETTING.getKey(), rotationInterval)
                 .put(KeyRotationCoordinator.CHECK_INTERVAL_SETTING.getKey(), checkInterval)
@@ -106,7 +112,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         );
         ArgumentCaptor<ClusterStateListener> captor = ArgumentCaptor.forClass(ClusterStateListener.class);
         verify(clusterService).addListener(captor.capture());
-        return new Harness(coordinator, taskQueue, captor.getValue());
+        return new Harness(coordinator, registry, taskQueue, captor.getValue());
     }
 
     private static Harness newHarness(ClusterState state, long now, TimeValue rotationInterval, TimeValue checkInterval) {
@@ -240,8 +246,8 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
 
         AtomicInteger alphaCalls = new AtomicInteger();
         AtomicInteger betaCalls = new AtomicInteger();
-        h.coordinator.registerKeyRotationHandler(handler("alpha", alphaCalls, true));
-        h.coordinator.registerKeyRotationHandler(handler("beta", betaCalls, true));
+        h.registry.register(handler(alphaCalls, true));
+        h.registry.register(handler(betaCalls, true));
 
         h.coordinator.tick();
 
@@ -298,7 +304,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         Harness h = newHarness(clusterStateWith(metadata, true), now, TimeValue.timeValueDays(30));
 
         AtomicInteger calls = new AtomicInteger();
-        h.coordinator.registerKeyRotationHandler(handler("alpha", calls, true));
+        h.registry.register(handler(calls, true));
 
         h.coordinator.tick();
 
@@ -315,17 +321,9 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(Map.of("k1", entry(0L)), "k1");
         ClusterState state = clusterStateWith(metadata, true);
         AtomicInteger calls = new AtomicInteger();
-        KeyRotationHandler hanging = new KeyRotationHandler() {
-            @Override
-            public String name() {
-                return "hanging";
-            }
-
-            @Override
-            public void reEncrypt(String activeKeyId, ActionListener<Void> listener) {
-                calls.incrementAndGet();
-                // Never complete the listener.
-            }
+        EncryptedDataHandler hanging = (activeKeyId, listener) -> {
+            calls.incrementAndGet();
+            // Never complete the listener.
         };
 
         @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -337,15 +335,17 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         long t0 = 1_000L;
         long t1 = t0 + TimeValue.timeValueMinutes(5).millis();
         when(threadPool.absoluteTimeInMillis()).thenReturn(t0, t1);
+        EncryptedDataHandlerRegistry registry = new EncryptedDataHandlerRegistry();
+        registry.register(hanging);
         KeyRotationCoordinator coordinator = new KeyRotationCoordinator(
             clusterService,
             threadPool,
             DefaultProjectResolver.INSTANCE,
             mock(FeatureService.class),
+            registry,
             TimeValue.timeValueDays(30),
             TimeValue.timeValueMinutes(1)
         );
-        coordinator.registerKeyRotationHandler(hanging);
 
         coordinator.tick();
         assertEquals(1, calls.get());
@@ -366,40 +366,13 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         assertEquals(1, calls.get());
     }
 
-    // --- Handler registry ---
-
-    public void testRegisterKeyRotationHandler() {
-        Harness h = newHarness(clusterStateWith(null, true), 0L, TimeValue.timeValueDays(30));
-        h.coordinator.registerKeyRotationHandler(handler("neil", new AtomicInteger(), true));
-        h.coordinator.registerKeyRotationHandler(handler("geddy", new AtomicInteger(), true));
-        assertEquals(Set.of("neil", "geddy"), h.coordinator.getRegisteredHandlerNames());
-    }
-
-    public void testRegisterKeyRotationHandlerDuplicateNameThrows() {
-        Harness h = newHarness(clusterStateWith(null, true), 0L, TimeValue.timeValueDays(30));
-        h.coordinator.registerKeyRotationHandler(handler("alex", new AtomicInteger(), true));
-        IllegalStateException ex = expectThrows(
-            IllegalStateException.class,
-            () -> h.coordinator.registerKeyRotationHandler(handler("alex", new AtomicInteger(), true))
-        );
-        assertTrue(ex.getMessage(), ex.getMessage().contains("already registered"));
-    }
-
-    private static KeyRotationHandler handler(String name, AtomicInteger callCount, boolean succeed) {
-        return new KeyRotationHandler() {
-            @Override
-            public String name() {
-                return name;
-            }
-
-            @Override
-            public void reEncrypt(String activeKeyId, ActionListener<Void> listener) {
-                callCount.incrementAndGet();
-                if (succeed) {
-                    listener.onResponse(null);
-                } else {
-                    listener.onFailure(new RuntimeException("simulated"));
-                }
+    private static EncryptedDataHandler handler(AtomicInteger callCount, boolean succeed) {
+        return (activeKeyId, listener) -> {
+            callCount.incrementAndGet();
+            if (succeed) {
+                listener.onResponse(null);
+            } else {
+                listener.onFailure(new RuntimeException("simulated"));
             }
         };
     }

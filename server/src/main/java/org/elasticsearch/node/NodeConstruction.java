@@ -96,6 +96,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
+import org.elasticsearch.encryption.EncryptedDataHandlerProvider;
+import org.elasticsearch.encryption.EncryptedDataHandlerRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.features.FeatureService;
@@ -1032,6 +1034,8 @@ class NodeConstruction {
 
         final DataStreamLifecycleErrorStore dlmErrorStore = new DataStreamLifecycleErrorStore(threadPool::absoluteTimeInMillis);
 
+        final EncryptedDataHandlerRegistry encryptedDataHandlerRegistry = new EncryptedDataHandlerRegistry();
+
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
             clusterService,
@@ -1062,7 +1066,8 @@ class NodeConstruction {
             remoteTransportClient,
             crossProjectModeDecider,
             taskLifecycleManager,
-            dlmErrorStore
+            dlmErrorStore,
+            encryptedDataHandlerRegistry
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
@@ -1373,7 +1378,7 @@ class NodeConstruction {
                 );
         });
 
-        modules.add(loadPluginComponents(pluginComponents));
+        modules.add(loadPluginComponents(pluginComponents, encryptedDataHandlerRegistry));
 
         DataStreamAutoShardingService dataStreamAutoShardingService = new DataStreamAutoShardingService(
             settings,
@@ -1593,7 +1598,7 @@ class NodeConstruction {
         };
     }
 
-    private Module loadPluginComponents(Collection<?> pluginComponents) {
+    private Module loadPluginComponents(Collection<?> pluginComponents, EncryptedDataHandlerRegistry encryptedDataHandlerRegistry) {
         List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream().map(p -> {
             if (p instanceof PluginComponentBinding<?, ?> pcb) {
                 return pcb.impl();
@@ -1605,6 +1610,11 @@ class NodeConstruction {
 
         List<ReloadablePlugin> reloadablePlugins = pluginsService.filterPlugins(ReloadablePlugin.class).toList();
         pluginsService.filterPlugins(ReloadAwarePlugin.class).forEach(p -> p.setReloadCallback(wrapPlugins(reloadablePlugins)));
+
+        pluginsService.loadServiceProviders(EncryptedDataHandlerProvider.class)
+            .stream()
+            .flatMap(provider -> provider.getHandlers().stream())
+            .forEach(encryptedDataHandlerRegistry::register);
 
         return b -> pluginComponents.forEach(p -> {
             if (p instanceof PluginComponentBinding<?, ?> pcb) {

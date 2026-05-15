@@ -42,7 +42,7 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
     public void testEncryptDecryptRoundTrip() {
         SecretKey key = randomAesKey();
         AesGcmEncryptionService.KeyProvider keyProvider = mockKeyProvider("key-1", key);
-        AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider, h -> {});
+        AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);
 
         byte[] plaintext = randomByteArrayOfLength(randomIntBetween(0, 4096));
         EncryptedData encrypted = service.encrypt(plaintext);
@@ -55,7 +55,7 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
         SecretKey key = randomAesKey();
         String keyId = "test-key-id";
         AesGcmEncryptionService.KeyProvider keyProvider = mockKeyProvider(keyId, key);
-        AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider, h -> {});
+        AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);
 
         EncryptedData encrypted = service.encrypt(new byte[] { 1, 2, 3 });
 
@@ -70,13 +70,13 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
     public void testDecryptWithUnknownKeyIdFails() {
         SecretKey key = randomAesKey();
         AesGcmEncryptionService.KeyProvider keyProvider = mockKeyProvider("key-1", key);
-        AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider, h -> {});
+        AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);
 
         EncryptedData encrypted = service.encrypt(randomByteArrayOfLength(10));
 
         AesGcmEncryptionService.KeyProvider keyProvider2 = mock(AesGcmEncryptionService.KeyProvider.class);
         when(keyProvider2.getKey("key-1")).thenReturn(null);
-        AesGcmEncryptionService service2 = new AesGcmEncryptionService(keyProvider2, h -> {});
+        AesGcmEncryptionService service2 = new AesGcmEncryptionService(keyProvider2);
 
         EncryptionKeyNotYetAvailableException e = expectThrows(
             EncryptionKeyNotYetAvailableException.class,
@@ -90,13 +90,13 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
         SecretKey key1 = randomAesKey();
         SecretKey key2 = randomAesKey();
         AesGcmEncryptionService.KeyProvider keyProvider1 = mockKeyProvider("key-1", key1);
-        AesGcmEncryptionService service1 = new AesGcmEncryptionService(keyProvider1, h -> {});
+        AesGcmEncryptionService service1 = new AesGcmEncryptionService(keyProvider1);
 
         EncryptedData encrypted = service1.encrypt(randomByteArrayOfLength(10));
 
         AesGcmEncryptionService.KeyProvider keyProvider2 = mock(AesGcmEncryptionService.KeyProvider.class);
         when(keyProvider2.getKey("key-1")).thenReturn(key2);
-        AesGcmEncryptionService service2 = new AesGcmEncryptionService(keyProvider2, h -> {});
+        AesGcmEncryptionService service2 = new AesGcmEncryptionService(keyProvider2);
 
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> service2.decrypt(encrypted));
         assertThat(e.getMessage(), containsString("decryption failed"));
@@ -105,7 +105,7 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
     public void testDecryptWithTamperedPayloadFails() {
         SecretKey key = randomAesKey();
         AesGcmEncryptionService.KeyProvider keyProvider = mockKeyProvider("key-1", key);
-        AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider, h -> {});
+        AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);
 
         EncryptedData encrypted = service.encrypt(randomByteArrayOfLength(32));
         byte[] tampered = encrypted.payload().clone();
@@ -125,7 +125,7 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
 
         SecretKey key = randomAesKey();
         AesGcmEncryptionService.KeyProvider keyProvider = mockKeyProvider("key-1", key);
-        AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider, h -> {});
+        AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -137,7 +137,7 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
     public void testDecryptWithTruncatedPayloadFails() {
         SecretKey key = randomAesKey();
         AesGcmEncryptionService.KeyProvider keyProvider = mockKeyProvider("key-1", key);
-        AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider, h -> {});
+        AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -149,7 +149,7 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
     public void testEncryptFailsWhenKeyNotAvailable() {
         AesGcmEncryptionService.KeyProvider keyProvider = mock(AesGcmEncryptionService.KeyProvider.class);
         when(keyProvider.getActiveKey()).thenReturn(null);
-        AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider, h -> {});
+        AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);
 
         EncryptionKeyNotYetAvailableException e = expectThrows(
             EncryptionKeyNotYetAvailableException.class,
@@ -162,7 +162,7 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
     public void testEncryptEmptyPlaintext() {
         SecretKey key = randomAesKey();
         AesGcmEncryptionService.KeyProvider keyProvider = mockKeyProvider("key-1", key);
-        AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider, h -> {});
+        AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);
 
         EncryptedData encrypted = service.encrypt(new byte[0]);
         byte[] decrypted = service.decrypt(encrypted);
@@ -172,7 +172,7 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
     public void testDifferentEncryptionsProduceDifferentPayloads() {
         SecretKey key = randomAesKey();
         AesGcmEncryptionService.KeyProvider keyProvider = mockKeyProvider("key-1", key);
-        AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider, h -> {});
+        AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);
 
         byte[] plaintext = randomByteArrayOfLength(32);
         EncryptedData encrypted1 = service.encrypt(plaintext);
@@ -190,7 +190,7 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
     public void testDecryptWithTamperedIV() {
         SecretKey key = randomAesKey();
         AesGcmEncryptionService.KeyProvider keyProvider = mockKeyProvider("key-1", key);
-        AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider, h -> {});
+        AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);
 
         EncryptedData encrypted = service.encrypt(randomByteArrayOfLength(32));
         byte[] tampered = encrypted.payload().clone();
@@ -211,7 +211,7 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
         when(keyProvider.getActiveKey()).thenReturn(new AesGcmEncryptionService.ActiveKey("key-1", key1));
         when(keyProvider.getKey("key-1")).thenReturn(key1);
         when(keyProvider.getKey("key-2")).thenReturn(key2);
-        AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider, h -> {});
+        AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);
 
         EncryptedData encrypted = service.encrypt(randomByteArrayOfLength(32));
 
@@ -225,7 +225,7 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
     public void testDecryptEmptyPayload() {
         SecretKey key = randomAesKey();
         AesGcmEncryptionService.KeyProvider keyProvider = mockKeyProvider("key-1", key);
-        AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider, h -> {});
+        AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -237,7 +237,7 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
     public void testLargePayloadRoundTrip() {
         SecretKey key = randomAesKey();
         AesGcmEncryptionService.KeyProvider keyProvider = mockKeyProvider("key-1", key);
-        AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider, h -> {});
+        AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);
 
         byte[] plaintext = randomByteArrayOfLength(1024 * 1024);
         EncryptedData encrypted = service.encrypt(plaintext);

@@ -61,6 +61,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.encryption.EncryptedDataHandlerRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
@@ -771,7 +772,8 @@ public class Security extends Plugin
                 services.linkedProjectConfigService(),
                 services.projectResolver(),
                 services.crossProjectModeDecider(),
-                services.projectRoutingResolver()
+                services.projectRoutingResolver(),
+                services.encryptedDataHandlerRegistry()
             );
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
@@ -795,7 +797,8 @@ public class Security extends Plugin
         LinkedProjectConfigService linkedProjectConfigService,
         ProjectResolver projectResolver,
         CrossProjectModeDecider crossProjectModeDecider,
-        ProjectRoutingResolver projectRoutingResolver
+        ProjectRoutingResolver projectRoutingResolver,
+        EncryptedDataHandlerRegistry encryptedDataHandlerRegistry
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
@@ -1287,16 +1290,14 @@ public class Security extends Plugin
                 threadPool,
                 projectResolver,
                 featureService,
+                encryptedDataHandlerRegistry,
                 settings
             );
-            components.add(
-                new PluginComponentBinding<>(
-                    EncryptionService.class,
-                    new AesGcmEncryptionService(pekService, coordinator::registerKeyRotationHandler)
-                )
-            );
+            AesGcmEncryptionService encryptionService = new AesGcmEncryptionService(pekService);
+            components.add(new PluginComponentBinding<>(EncryptionService.class, encryptionService));
             components.add(pekService);
             components.add(coordinator);
+            components.add(encryptedDataHandlerRegistry);
         }
 
         setClosableAndReloadableComponents(components);

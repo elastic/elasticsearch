@@ -34,6 +34,17 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature METRICS_SYNTAX = new NodeFeature("esql.metrics_syntax");
 
+    /**
+     * Cluster-wide support for encrypted data-source secret storage (esql-planning#648).
+     * Gates whether master-side PUT encrypts secrets to {@code EncryptedData}, whether the
+     * {@code coord→data-node} wire carries the new format, and whether {@code EncryptedData}
+     * is registered as a {@link org.elasticsearch.common.io.stream.GenericNamedWriteable}.
+     * Until every node in the cluster advertises this feature, ES|QL stays on today's
+     * plaintext-on-disk path; once the boundary crosses, all coords adopt the new format
+     * together. Standard {@code NodeFeature}-gated wire-format evolution.
+     */
+    public static final NodeFeature DATA_SOURCE_ENCRYPTION_FEATURE = new NodeFeature("esql.data_source_encryption");
+
     private Set<NodeFeature> snapshotBuildFeatures() {
         assert Build.current().isSnapshot() : Build.current();
         return Set.of(METRICS_SYNTAX);
@@ -41,7 +52,7 @@ public class EsqlFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        Set<NodeFeature> features = Set.of();
+        Set<NodeFeature> features = Set.of(DATA_SOURCE_ENCRYPTION_FEATURE);
         if (Build.current().isSnapshot()) {
             return Collections.unmodifiableSet(Sets.union(features, snapshotBuildFeatures()));
         } else {

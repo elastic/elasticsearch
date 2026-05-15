@@ -305,7 +305,6 @@ public class RegexpQueryBuilder extends LeafQueryBuilder<RegexpQueryBuilder> imp
                 ? new RegexpQuery(term, sanitisedSyntaxFlag, matchFlagsValue, maxDeterminizedStates)
                 : new RegexpQuery(term, sanitisedSyntaxFlag, matchFlagsValue, RegexpQuery.DEFAULT_PROVIDER, maxDeterminizedStates, method);
         }
-        context.addCircuitBreakerMemory(query.ramBytesUsed(), "regexp:" + fieldName);
         return query;
     }
 

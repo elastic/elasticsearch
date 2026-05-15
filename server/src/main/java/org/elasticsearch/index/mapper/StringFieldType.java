@@ -115,7 +115,6 @@ public abstract class StringFieldType extends TermBasedFieldType {
         } else {
             query = method == null ? new PrefixQuery(prefix) : new PrefixQuery(prefix, method);
         }
-        context.addCircuitBreakerMemory(query.ramBytesUsed(), "prefix:" + name());
         return query;
     }
 
@@ -203,7 +202,6 @@ public abstract class StringFieldType extends TermBasedFieldType {
                     : new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
             }
         }
-        context.addCircuitBreakerMemory(query.ramBytesUsed(), "wildcard:" + name());
         return query;
     }
 
@@ -237,7 +235,6 @@ public abstract class StringFieldType extends TermBasedFieldType {
                 ? new RegexpQuery(new Term(name(), indexedValueForSearch(value)), syntaxFlags, matchFlags, maxDeterminizedStates)
                 : new RegexpQuery(term, syntaxFlags, matchFlags, RegexpQuery.DEFAULT_PROVIDER, maxDeterminizedStates, method);
         }
-        context.addCircuitBreakerMemory(query.ramBytesUsed(), "regexp:" + name());
         return query;
     }
 
@@ -264,7 +261,6 @@ public abstract class StringFieldType extends TermBasedFieldType {
             includeLower,
             includeUpper
         );
-        context.addCircuitBreakerMemory(query.ramBytesUsed(), "range:" + name());
         return query;
     }
 }

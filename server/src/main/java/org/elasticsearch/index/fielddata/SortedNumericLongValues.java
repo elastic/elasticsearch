@@ -12,6 +12,7 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LongValues;
 
 import java.io.IOException;
@@ -22,16 +23,24 @@ import java.io.IOException;
 public abstract class SortedNumericLongValues {
 
     private final boolean isSingleton;
+    private final DocIdSetIterator docIdSetIterator;
     private LongValues longValues;
 
-    /** Sole constructor. (For invocation by subclass
-     * constructors, typically implicit.) */
     protected SortedNumericLongValues() {
-        this(false);
+        this(false, null);
     }
 
     protected SortedNumericLongValues(boolean isSingleton) {
+        this(isSingleton, null);
+    }
+
+    protected SortedNumericLongValues(DocIdSetIterator docIdSetIterator) {
+        this(false, docIdSetIterator);
+    }
+
+    protected SortedNumericLongValues(boolean isSingleton, DocIdSetIterator docIdSetIterator) {
         this.isSingleton = isSingleton;
+        this.docIdSetIterator = docIdSetIterator;
     }
 
     /**
@@ -77,6 +86,10 @@ public abstract class SortedNumericLongValues {
 
     public boolean isSingleton() {
         return isSingleton;
+    }
+
+    public DocIdSetIterator docIdIterator() {
+        return docIdSetIterator;
     }
 
     /**
@@ -145,7 +158,7 @@ public abstract class SortedNumericLongValues {
      */
     public static SortedNumericLongValues wrap(SortedNumericDocValues values) {
         NumericDocValues singleton = DocValues.unwrapSingleton(values);
-        return new SortedNumericLongValues(singleton != null) {
+        return new SortedNumericLongValues(singleton != null, values) {
             @Override
             public boolean advanceExact(int target) throws IOException {
                 return values.advanceExact(target);
@@ -167,7 +180,7 @@ public abstract class SortedNumericLongValues {
         private final SortedNumericDoubleValues doubleValues;
 
         protected SortedNumericDoubleWrapper(SortedNumericDoubleValues doubleValues) {
-            super(doubleValues.isSingleton());
+            super(doubleValues.isSingleton(), doubleValues.docIdIterator());
             this.doubleValues = doubleValues;
         }
 

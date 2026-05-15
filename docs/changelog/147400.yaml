@@ -1,9 +1,8 @@
 area: Search
 issues: []
 pr: 147400
-summary: |-
-  Account every leaf query against the request circuit breaker (per-clause constant retained
-  heap charge plus a parameter-driven dynamic estimate for fuzzy queries' rewrite cost), so
-  request memory is bounded per-shard rather than relying solely on the global
-  `indices.query.bool.max_clause_count` cap.
+summary: Account fuzzy queries against the request circuit breaker upfront, charging the
+  query object's retained heap plus a parameter-driven estimate of the Levenshtein
+  automaton cost so oversized or excessive fuzzy clauses are rejected before any
+  automaton is compiled.
 type: enhancement

@@ -769,17 +769,19 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * Adds memory usage to the request circuit breaker, accumulating against the single
-     * per-request pool drained by {@link #releaseQueryConstructionMemory()}.
+     * Adds memory usage to the request circuit breaker, accumulating against this SEC's pool drained by
+     * {@link #releaseQueryConstructionMemory()}; the rewrite-phase clone in {@code SearchService} must not charge here.
      *
-     * @param bytes the number of bytes to add to the circuit breaker
+     * @param bytes the number of bytes to add to the circuit breaker; must be {@code >= 0}
      * @param label a descriptive label for the memory allocation, used in circuit breaker error messages
      */
     public void addCircuitBreakerMemory(long bytes, String label) {
-        if (circuitBreaker != null && bytes > 0) {
-            circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);
-            queryConstructionMemoryUsed.addAndGet(bytes);
+        assert bytes >= 0 : "negative breaker charge: " + bytes + " for [" + label + "]";
+        if (circuitBreaker == null || bytes <= 0) {
+            return;
         }
+        circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);
+        queryConstructionMemoryUsed.addAndGet(bytes);
     }
 
     /**

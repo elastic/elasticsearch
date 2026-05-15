@@ -326,7 +326,10 @@ public final class S3StorageObject implements StorageObject {
                 }
             }
 
-            listener.onResponse(ByteBuffer.wrap(responseBytes.asByteArray()));
+            // Avoid the defensive copy that asByteArray() does (Arrays.copyOf). Safe here because the AWS SDK
+            // does not retain a reference to the buffer after this callback returns; the array is wrapped in a
+            // ByteBuffer and consumed by the caller.
+            listener.onResponse(ByteBuffer.wrap(responseBytes.asByteArrayUnsafe()));
         });
     }
 

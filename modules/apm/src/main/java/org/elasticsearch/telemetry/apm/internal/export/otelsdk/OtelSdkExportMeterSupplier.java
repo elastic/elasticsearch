@@ -21,7 +21,6 @@ import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.export.AggregationTemporalitySelector;
 import io.opentelemetry.sdk.metrics.export.MetricExporter;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
-import io.opentelemetry.sdk.resources.Resource;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -102,11 +101,8 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         return new QueueingMetricExporter(delegate, settings, selfMeter);
     }
 
-    private static SdkMeterProvider sdkMeterProvider(PeriodicMetricReader reader) {
-        return SdkMeterProvider.builder()
-            .setResource(Resource.builder().put("service.name", "elasticsearch").build())
-            .registerMetricReader(reader)
-            .build();
+    private SdkMeterProvider sdkMeterProvider(PeriodicMetricReader reader) {
+        return SdkMeterProvider.builder().setResource(OtelSdkResource.get(settings)).registerMetricReader(reader).build();
     }
 
     private OtlpHttpMetricExporter createOTLPExporter(MeterProvider healthExportMeterProvider) {

@@ -92,6 +92,9 @@ org.elasticsearch.telemetry.apm:
 io.opentelemetry.sdk.metrics:
   - manage_threads
 
+io.opentelemetry.sdk.trace:
+  - manage_threads
+
 io.opentelemetry.exporter.sender.jdk.internal:
   - outbound_network
 

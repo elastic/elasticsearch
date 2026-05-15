@@ -45,7 +45,14 @@ public class ExternalRelationTests extends ESTestCase {
         SourceMetadata metadata = createMetadata();
         List<Attribute> output = createAttributes();
 
-        ExternalRelation relation = new ExternalRelation(Source.EMPTY, "s3://bucket/data.parquet", metadata, output);
+        ExternalRelation relation = new ExternalRelation(
+            Source.EMPTY,
+            "s3://bucket/data.parquet",
+            metadata,
+            output,
+            FileList.UNRESOLVED,
+            Map.of()
+        );
 
         assertSame(FileList.UNRESOLVED, relation.fileList());
         assertFalse(relation.fileList().isResolved());
@@ -85,9 +92,9 @@ public class ExternalRelationTests extends ESTestCase {
         SourceMetadata metadata = createMetadata();
         List<Attribute> output = createAttributes();
 
-        ExternalRelation relation1 = new ExternalRelation(Source.EMPTY, "s3://bucket/data.parquet", metadata, output, fileList1);
-        ExternalRelation relation2 = new ExternalRelation(Source.EMPTY, "s3://bucket/data.parquet", metadata, output, fileList1);
-        ExternalRelation relation3 = new ExternalRelation(Source.EMPTY, "s3://bucket/data.parquet", metadata, output, fileList2);
+        ExternalRelation relation1 = new ExternalRelation(Source.EMPTY, "s3://bucket/data.parquet", metadata, output, fileList1, Map.of());
+        ExternalRelation relation2 = new ExternalRelation(Source.EMPTY, "s3://bucket/data.parquet", metadata, output, fileList1, Map.of());
+        ExternalRelation relation3 = new ExternalRelation(Source.EMPTY, "s3://bucket/data.parquet", metadata, output, fileList2, Map.of());
 
         assertEquals(relation1, relation2);
         assertEquals(relation1.hashCode(), relation2.hashCode());
@@ -264,7 +271,7 @@ public class ExternalRelationTests extends ESTestCase {
     }
 
     private static ExternalRelation createRelation(FileList fileList) {
-        return new ExternalRelation(Source.EMPTY, "s3://bucket/data.parquet", createMetadata(), createAttributes(), fileList);
+        return new ExternalRelation(Source.EMPTY, "s3://bucket/data.parquet", createMetadata(), createAttributes(), fileList, Map.of());
     }
 
     private static ExternalSourceExec createExec(FileList fileList) {

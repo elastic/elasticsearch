@@ -90,8 +90,13 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
     }
 
     /**
-     * Records scroll IDs that a destroyed extractor failed to clear during a network disruption.
-     * These will be retried the next time an extractor successfully connects.
+     * Records scroll IDs that a destroyed extractor could not clear during a network disruption (typically CCS).
+     * <p>
+     * Queuing is bounded: at most {@value #MAX_ORPHAN_QUEUE_SIZE} entries are retained (overflow evicts the
+     * eldest with a WARN). {@link #retryClearOrphanedScrollIds()} is invoked when a new extractor starts
+     * ({@link ScrollDataExtractor#initScroll(long)}) or during {@link ScrollDataExtractor#destroy()}; each
+     * entry is dropped after {@link #ORPHAN_TTL_MILLIS} milliseconds since enqueue or after {@value #MAX_ORPHAN_RETRIES}
+     * consecutive failed clears (evicted with a WARN).
      */
     void addOrphanedScrollIds(List<String> scrollIds) {
         long now = System.currentTimeMillis();
@@ -118,8 +123,11 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
     }
 
     /**
-     * Attempts to clear all orphaned scroll IDs. Successfully cleared IDs are removed;
-     * IDs that still fail (e.g. persistent network issue) remain for the next retry.
+     * Attempts to clear every queued orphaned scroll ID. Successfully cleared IDs are removed.
+     * <p>
+     * Failures increment per-entry retry bookkeeping and the ID stays in the queue for later passes until
+     * {@link #ORPHAN_TTL_MILLIS} milliseconds elapse since it was queued or {@value #MAX_ORPHAN_RETRIES} failures are
+     * reached, after which the ID is evicted with a WARN (no infinite retry).
      */
     void retryClearOrphanedScrollIds() {
         long now = System.currentTimeMillis();

@@ -685,6 +685,31 @@ public class ScrollDataExtractorTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    public void testLocalScrollClearTransportExceptionDoesNotQueueOrphan() throws IOException {
+        ActionFuture<ClearScrollResponse> throwingClearFuture = mock(ActionFuture.class);
+        when(throwingClearFuture.actionGet()).thenThrow(new ElasticsearchException("network disruption"));
+        when(client.execute(same(TransportClearScrollAction.TYPE), any(ClearScrollRequest.class))).thenReturn(
+            (ActionFuture) throwingClearFuture
+        );
+
+        TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
+
+        SearchResponse response1 = createSearchResponse(Arrays.asList(1100L), Arrays.asList("a1"), Arrays.asList("b1"));
+        when(response1.getClusters()).thenReturn(null);
+        extractor.setNextResponse(response1);
+        extractor.next();
+
+        SearchResponse response2 = createEmptySearchResponse();
+        when(response2.getClusters()).thenReturn(null);
+        extractor.setNextResponse(response2);
+        extractor.next();
+
+        extractor.destroy();
+
+        verify(scrollDataExtractorFactory, never()).addOrphanedScrollIds(anyList());
+    }
+
+    @SuppressWarnings("unchecked")
     public void testCcsScrollClearFailureQueuesOrphanWithMetadata() throws IOException {
         ActionFuture<ClearScrollResponse> failedClearFuture = mock(ActionFuture.class);
         when(failedClearFuture.actionGet()).thenReturn(new ClearScrollResponse(false, 0));
@@ -707,7 +732,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         assertThat(realFactory.orphanedScrolls.isEmpty(), is(false));
         ScrollDataExtractorFactory.OrphanedScroll orphan = realFactory.orphanedScrolls.peek();
         assertThat(orphan.scrollId(), equalTo(response2.getScrollId()));
-        // TDD (red): after destroy runs retryClearOrphanedScrollIds and clear still fails, bookkeeping must bump retryAttempts
+        // Contract: destroy() calls retryClearOrphanedScrollIds(); if clear still fails, retry count must advance.
         assertThat(orphan.retryAttempts(), greaterThan(0));
     }
 

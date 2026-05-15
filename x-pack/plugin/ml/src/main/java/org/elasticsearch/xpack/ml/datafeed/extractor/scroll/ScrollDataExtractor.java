@@ -315,6 +315,8 @@ class ScrollDataExtractor implements DataExtractor {
         scrollId = null;
     }
 
+    // NOTE: The same scroll ID can log at INFO twice during destroy() (initial clearScroll plus the retry loop).
+    // Suppressing the second line would need per-ID state for little benefit; factory-side retries log failures at DEBUG.
     private void clearScrollLoggingExceptions(String scrollId) {
         if (scrollId == null) {
             return;

@@ -45,6 +45,7 @@ import java.io.InputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -99,6 +100,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final int rowLimit;
     private final Executor executor;
     private final FileList fileList;
+    // Per-file planner-resolved schemas; always non-null (empty for unresolved paths).
+    private final Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
     private final Set<String> partitionColumnNames;
     private final Map<String, Object> partitionValues;
     private final ExternalSliceQueue sliceQueue;
@@ -128,6 +131,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         int rowLimit,
         Executor executor,
         FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
         Set<String> partitionColumnNames,
         Map<String, Object> partitionValues,
         ExternalSliceQueue sliceQueue,
@@ -169,6 +173,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.maxBufferSize = maxBufferSize;
         this.rowLimit = rowLimit;
         this.fileList = fileList;
+        this.schemaMap = schemaMap != null ? schemaMap : Map.of();
         this.partitionColumnNames = partitionColumnNames != null ? partitionColumnNames : Set.of();
         this.partitionValues = partitionValues != null ? partitionValues : Map.of();
         this.sliceQueue = sliceQueue;
@@ -213,6 +218,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
         private int rowLimit = FormatReader.NO_LIMIT;
         private FileList fileList;
+        private Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
         private Set<String> partitionColumnNames;
         private Map<String, Object> partitionValues;
         private ExternalSliceQueue sliceQueue;
@@ -248,6 +254,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
         public Builder fileList(@Nullable FileList fileList) {
             this.fileList = fileList;
+            return this;
+        }
+
+        public Builder schemaMap(@Nullable Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap) {
+            this.schemaMap = schemaMap;
             return this;
         }
 
@@ -315,6 +326,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 rowLimit,
                 executor,
                 fileList,
+                schemaMap,
                 partitionColumnNames,
                 partitionValues,
                 sliceQueue,
@@ -376,6 +388,37 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             cols.add(attr.name());
         }
         return cols;
+    }
+
+    /**
+     * Translates the unified query projection (column names in unified-schema shape, identical for every
+     * file in the query) into a per-file query projection (the subset present in this file's schema,
+     * ordered to match the file's natural layout).
+     * <p>
+     * Under UBN the unified projection may name columns that are missing from a given file. Handing
+     * those names to the reader would throw "Column not found in schema"; the reader is the wrong
+     * place to handle missing columns. The {@link SchemaAdaptingIterator} wrapping the reader output
+     * does the null-filling via the per-file {@code ColumnMapping}. This narrowing matches the
+     * adapter's input contract: the reader produces only columns that exist in the file, in the
+     * file's natural order.
+     * <p>
+     * Under FFW and STRICT (and single-file), {@code perFileReadSchema} either equals or contains
+     * every name in {@code queryProjection}, so the result equals {@code queryProjection} (modulo
+     * order). When {@code perFileReadSchema} is null (no pin from the coordinator), the original
+     * projection passes through unchanged.
+     */
+    static List<String> perFileQueryProjection(List<String> queryProjection, @Nullable List<Attribute> perFileReadSchema) {
+        if (perFileReadSchema == null || perFileReadSchema.isEmpty() || queryProjection == null || queryProjection.isEmpty()) {
+            return queryProjection;
+        }
+        Set<String> wanted = new HashSet<>(queryProjection);
+        List<String> result = new ArrayList<>(Math.min(queryProjection.size(), perFileReadSchema.size()));
+        for (Attribute attr : perFileReadSchema) {
+            if (wanted.contains(attr.name())) {
+                result.add(attr.name());
+            }
+        }
+        return result;
     }
 
     private CloseableIterator<Page> adaptSchema(
@@ -473,7 +516,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         DriverContext driverContext,
         VirtualColumnInjector injector
     ) {
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = fileList != null ? fileList.fileSchemaInfo() : null;
         ActionListener<Void> completionListener = ActionListener.assertOnce(ActionListener.wrap(v -> {
             buffer.finish(false);
             driverContext.removeAsyncAction();
@@ -484,7 +526,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             releaseOperator();
         }));
         ProducerState state = new ProducerState(null, fileList, projectedColumns, injector, buffer, driverContext, rowLimit);
-        state.schemaInfo = schemaInfo;
+        state.schemaInfo = schemaMap;
         try {
             executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
         } catch (Exception e) {
@@ -802,17 +844,25 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         state.lastBoundSchema = cachedSchema;
                     }
                 }
-                pages = openWithParallelism(fileReader, obj, cols, errorPolicy, recordAlignedMacro, firstSplit);
+                // The reader is pinned to the per-file schema the coordinator inferred for this file.
+                // Sourced from FileSplit; null when no pin is set (reader falls back to per-file inference).
+                List<Attribute> perFileReadSchema = fileSplit.readSchema();
+                // Narrow the unified query projection to this file's own columns before reaching the reader.
+                // Under UBN, the query projection may include columns missing from this file; the adapter
+                // (SchemaAdaptingIterator wrapping the reader output below) null-fills those.
+                List<String> perFileCols = perFileQueryProjection(cols, perFileReadSchema);
+                pages = openWithParallelism(fileReader, obj, perFileCols, errorPolicy, recordAlignedMacro, firstSplit, perFileReadSchema);
                 if (pages == null) {
                     boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
                     FormatReadContext ctx = FormatReadContext.builder()
-                        .projectedColumns(cols)
+                        .projectedColumns(perFileCols)
                         .batchSize(batchSize)
                         .rowLimit(FormatReader.NO_LIMIT)
                         .errorPolicy(errorPolicy)
                         .firstSplit(firstSplit)
                         .lastSplit(lastSplit)
                         .recordAligned(recordAlignedMacro)
+                        .readSchema(perFileReadSchema)
                         .build();
                     pages = fileReader.read(obj, ctx);
                 }
@@ -896,23 +946,29 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         CloseableIterator<Page> pages = null;
         try {
             StorageObject obj = storageProvider.newObject(files.path(fileIndex));
-            pages = openWithParallelism(formatReader, obj, cols, errorPolicy, false, true);
-            if (pages == null) {
-                int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining;
-                FormatReadContext ctx = FormatReadContext.builder()
-                    .projectedColumns(cols)
-                    .batchSize(batchSize)
-                    .rowLimit(fileBudget)
-                    .errorPolicy(errorPolicy)
-                    .build();
-                pages = formatReader.read(obj, ctx);
-            }
+            // Pull this file's coordinator-inferred schema from schemaInfo when available, so the
+            // reader is pinned to the same inference the per-file ColumnMapping was built against.
             SchemaReconciliation.ColumnMapping mapping = null;
+            List<Attribute> perFileReadSchema = null;
             if (state.schemaInfo != null) {
                 SchemaReconciliation.FileSchemaInfo info = state.schemaInfo.get(files.path(fileIndex));
                 if (info != null) {
                     mapping = info.mapping();
+                    perFileReadSchema = info.fileSchema();
                 }
+            }
+            List<String> perFileCols = perFileQueryProjection(cols, perFileReadSchema);
+            pages = openWithParallelism(formatReader, obj, perFileCols, errorPolicy, false, true, perFileReadSchema);
+            if (pages == null) {
+                int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining;
+                FormatReadContext ctx = FormatReadContext.builder()
+                    .projectedColumns(perFileCols)
+                    .batchSize(batchSize)
+                    .rowLimit(fileBudget)
+                    .errorPolicy(errorPolicy)
+                    .readSchema(perFileReadSchema)
+                    .build();
+                pages = formatReader.read(obj, ctx);
             }
             CloseableIterator<Page> adapted = adaptSchema(pages, mapping, state.driverContext);
             state.pages = wrapWithInjector(adapted, state.multiFileInjector);
@@ -956,7 +1012,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     ) {
         ActionListener<Void> failureListener = failureListener(buffer, driverContext);
         executor.execute(ActionRunnable.run(failureListener, () -> {
-            CloseableIterator<Page> pages = openWithParallelism(formatReader, storageObject, projectedColumns, errorPolicy, false, true);
+            CloseableIterator<Page> pages = openWithParallelism(
+                formatReader,
+                storageObject,
+                projectedColumns,
+                errorPolicy,
+                false,
+                true,
+                null
+            );
             if (pages == null) {
                 FormatReadContext ctx = FormatReadContext.builder()
                     .projectedColumns(projectedColumns)
@@ -1148,7 +1212,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         List<String> cols,
         ErrorPolicy policy,
         boolean recordAlignedMacroSplit,
-        boolean splitIncludesFileLeader
+        boolean splitIncludesFileLeader,
+        @Nullable List<Attribute> perFileReadSchema
     ) throws IOException {
         if (rowLimit != FormatReader.NO_LIMIT || parsingParallelism <= 1) {
             return null;
@@ -1169,7 +1234,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     executor,
                     policy,
                     recordAlignedMacroSplit,
-                    splitIncludesFileLeader
+                    splitIncludesFileLeader,
+                    perFileReadSchema
                 );
             }
             case STREAM_ONLY_COMPRESSED -> {
@@ -1196,7 +1262,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         batchSize,
                         parsingParallelism,
                         executor,
-                        policy
+                        policy,
+                        perFileReadSchema
                     );
                 } catch (Exception e) {
                     decompressed.close();

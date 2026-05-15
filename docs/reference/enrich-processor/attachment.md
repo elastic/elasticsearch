@@ -11,7 +11,7 @@ The attachment processor lets Elasticsearch extract file attachments in common f
 
 The source field must be a base64 encoded binary. If you do not want to incur the overhead of converting back and forth between base64, you can use the CBOR format instead of JSON and specify the field as a bytes array instead of a string representation. The processor will skip the base64 decoding then.
 
-You can cap how large that raw source value may be using the processor option `max_field_bytes` and/or the node setting `ingest.attachment.max_field_size`. See [Limit raw attachment field size](#attachment-raw-field-size-limits).
+To limit the size of the raw source value, use the processor option `max_field_bytes` or the node setting `ingest.attachment.max_field_size`. For more details, refer to [Limit raw attachment field size](#attachment-raw-field-size-limits).
 
 ## Using the attachment processor in a pipeline [using-attachment]
 

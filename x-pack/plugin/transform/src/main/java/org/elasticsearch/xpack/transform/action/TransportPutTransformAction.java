@@ -137,13 +137,13 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         );
 
         // <2> Validate source and destination indices
-
         var parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         ActionListener<Void> checkPrivilegesListener = validateTransformListener.delegateFailureAndWrap(
             (l, aVoid) -> ClientHelper.executeAsyncWithOrigin(
                 new ParentTaskAssigningClient(client, parentTaskId),
                 ClientHelper.TRANSFORM_ORIGIN,
                 ValidateTransformAction.INSTANCE,
+                true,
                 new ValidateTransformAction.Request(config, request.isDeferValidation(), request.ackTimeout()),
                 l
             )

@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.CachingTokenFilter;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
@@ -64,6 +63,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.ElasticsearchAnalyzerWrapper;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -326,8 +326,8 @@ public final class TextFieldMapper extends FieldMapper {
             IndexMode indexMode = indexSettings.getMode();
             this.norms = Parameter.normsParam(m -> ((TextFieldMapper) m).norms, () -> {
                 if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DISABLE_NORMS_BY_DEFAULT_FOR_LOGSDB_AND_TSDB)) {
-                    // don't enable norms by default if the index is LOGSDB or TSDB based
-                    return indexMode != IndexMode.LOGSDB && indexMode != IndexMode.TIME_SERIES;
+                    // don't enable norms by default if the index mode is columnar.
+                    return indexMode == null || !indexMode.isColumnar();
                 }
                 // bwc - historically, norms were enabled by default on text fields regardless of which index mode was used
                 return true;
@@ -570,13 +570,13 @@ public final class TextFieldMapper extends FieldMapper {
 
     public static final TypeParser PARSER = createTypeParserWithLegacySupport(Builder::new);
 
-    private static class PhraseWrappedAnalyzer extends AnalyzerWrapper {
+    private static class PhraseWrappedAnalyzer extends ElasticsearchAnalyzerWrapper {
 
         private final Analyzer delegate;
         private final int posIncGap;
 
         PhraseWrappedAnalyzer(Analyzer delegate, int posIncGap) {
-            super(delegate.getReuseStrategy());
+            super(delegate);
             this.delegate = delegate;
             this.posIncGap = posIncGap;
         }
@@ -597,7 +597,7 @@ public final class TextFieldMapper extends FieldMapper {
         }
     }
 
-    private static class PrefixWrappedAnalyzer extends AnalyzerWrapper {
+    private static class PrefixWrappedAnalyzer extends ElasticsearchAnalyzerWrapper {
 
         private final int minChars;
         private final int maxChars;
@@ -605,7 +605,7 @@ public final class TextFieldMapper extends FieldMapper {
         private final Analyzer delegate;
 
         PrefixWrappedAnalyzer(Analyzer delegate, int posIncGap, int minChars, int maxChars) {
-            super(delegate.getReuseStrategy());
+            super(delegate);
             this.delegate = delegate;
             this.posIncGap = posIncGap;
             this.minChars = minChars;

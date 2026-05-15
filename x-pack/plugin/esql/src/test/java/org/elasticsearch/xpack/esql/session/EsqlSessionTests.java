@@ -67,7 +67,7 @@ public class EsqlSessionTests extends ESTestCase {
     public void testRefineConcreteTimeSeriesResolutionKeepsOriginalFailures() {
         FieldCapabilitiesFailure failure = new FieldCapabilitiesFailure(new String[] { "logs" }, new ElasticsearchException("boom"));
         IndexResolution originalResolution = IndexResolution.valid(
-            new EsIndex("logs", Map.of(), Map.of(), Map.of(), Map.of(), Map.of()),
+            new EsIndex("logs", Map.of(), Map.of(), Map.of(), Map.of()),
             Set.of(),
             Map.of("remote", List.of(failure))
         );
@@ -108,7 +108,7 @@ public class EsqlSessionTests extends ESTestCase {
 
     private static IndexResolution resolvedIndex(String indexName) {
         return IndexResolution.valid(
-            new EsIndex(indexName, Map.of(), Map.of(indexName, IndexMode.STANDARD), Map.of(), Map.of(), Map.of()),
+            new EsIndex(indexName, Map.of(), Map.of(indexName, IndexMode.STANDARD), Map.of(), Map.of()),
             Set.of(indexName),
             Map.of()
         );

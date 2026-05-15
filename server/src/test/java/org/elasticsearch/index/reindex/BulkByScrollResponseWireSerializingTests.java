@@ -36,7 +36,7 @@ public class BulkByScrollResponseWireSerializingTests extends AbstractWireSerial
         return new BulkByScrollResponseWrapper(
             new BulkByScrollResponse(
                 randomTimeValue(),
-                BulkByScrollTaskStatusTests.randomStatus(),
+                BulkByPaginatedSearchTaskStatusTests.randomStatus(),
                 randomBulkFailures(),
                 randomSearchFailures(),
                 randomBoolean()
@@ -87,11 +87,11 @@ public class BulkByScrollResponseWireSerializingTests extends AbstractWireSerial
         });
     }
 
-    private BulkByScrollTask.Status mutateRandomStatus(BulkByScrollTask.Status currentStatus) {
+    private BulkByPaginatedSearchTask.Status mutateRandomStatus(BulkByPaginatedSearchTask.Status currentStatus) {
         while (true) {
-            BulkByScrollTask.Status candidate = BulkByScrollTaskStatusTests.randomStatus();
+            BulkByPaginatedSearchTask.Status candidate = BulkByPaginatedSearchTaskStatusTests.randomStatus();
             try {
-                BulkByScrollTaskStatusTests.assertTaskStatusEquals(currentStatus, candidate);
+                BulkByPaginatedSearchTaskStatusTests.assertTaskStatusEquals(currentStatus, candidate);
                 // Equal → try again
             } catch (AssertionError e) {
                 // Not equal → success
@@ -176,12 +176,12 @@ public class BulkByScrollResponseWireSerializingTests extends AbstractWireSerial
 
     /**
      * {@code BulkByScrollResponse} does not implement {@code equals}/{@code hashCode},
-     * and its {@link BulkByScrollTask.Status} contains slice-level and implementation
+     * and its {@link BulkByPaginatedSearchTask.Status} contains slice-level and implementation
      * details that are not stable for direct equality checks.
      * <p>
      * Equality is defined in terms of wire-relevant state only: top-level fields,
      * aggregated task status counters (via
-     * {@link BulkByScrollTaskStatusTests#assertTaskStatusEquals}), and the stable
+     * {@link BulkByPaginatedSearchTaskStatusTests#assertTaskStatusEquals}), and the stable
      * attributes of bulk and search failures. Care must be taken for exceptions, since
      * two messages with the same cause and message would be different instances after
      * serialization / deserialization, and fail the default equality check. For this
@@ -252,7 +252,7 @@ public class BulkByScrollResponseWireSerializingTests extends AbstractWireSerial
         if (a.getTook().equals(b.getTook()) == false) return false;
 
         try {
-            BulkByScrollTaskStatusTests.assertTaskStatusEquals(a.getStatus(), b.getStatus());
+            BulkByPaginatedSearchTaskStatusTests.assertTaskStatusEquals(a.getStatus(), b.getStatus());
             // Equal → skip to next check
         } catch (AssertionError e) {
             // Assertion error → not equal

@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
  */
 public class InvalidMappedField extends EsField {
 
-    private final String errorMessage;
+    private final String customErrorMessage;
     private final Map<String, Set<String>> typesToIndices;
     private final boolean isPotentiallyUnmapped;
 
@@ -44,7 +44,7 @@ public class InvalidMappedField extends EsField {
     }
 
     public InvalidMappedField(String name, Map<String, Set<String>> typesToIndices) {
-        this(name, makeErrorMessage(typesToIndices, false), new TreeMap<>(), typesToIndices, false, TimeSeriesFieldType.UNKNOWN);
+        this(name, null, new TreeMap<>(), typesToIndices, false, TimeSeriesFieldType.UNKNOWN);
     }
 
     /**
@@ -53,26 +53,19 @@ public class InvalidMappedField extends EsField {
      * unmapped fields as {@link DataType#KEYWORD}.
      */
     public static InvalidMappedField potentiallyUnmapped(String name, Map<String, Set<String>> typesToIndices) {
-        return new InvalidMappedField(
-            name,
-            makeErrorMessage(typesToIndices, true),
-            new TreeMap<>(),
-            typesToIndices,
-            true,
-            TimeSeriesFieldType.UNKNOWN
-        );
+        return new InvalidMappedField(name, null, new TreeMap<>(), typesToIndices, true, TimeSeriesFieldType.UNKNOWN);
     }
 
     private InvalidMappedField(
         String name,
-        String errorMessage,
+        String customErrorMessage,
         Map<String, EsField> properties,
         Map<String, Set<String>> typesToIndices,
         boolean isPotentiallyUnmapped,
         TimeSeriesFieldType type
     ) {
         super(name, DataType.UNSUPPORTED, properties, false, type);
-        this.errorMessage = errorMessage;
+        this.customErrorMessage = customErrorMessage;
         this.typesToIndices = typesToIndices;
         this.isPotentiallyUnmapped = isPotentiallyUnmapped;
     }
@@ -95,7 +88,7 @@ public class InvalidMappedField extends EsField {
     @Override
     public void writeContent(StreamOutput out) throws IOException {
         ((PlanStreamOutput) out).writeCachedString(getName());
-        out.writeString(errorMessage);
+        out.writeString(errorMessage());
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
         writeTimeSeriesFieldType(out);
     }
@@ -105,19 +98,19 @@ public class InvalidMappedField extends EsField {
     }
 
     public String errorMessage() {
-        return errorMessage;
+        return customErrorMessage != null ? customErrorMessage : makeErrorMessage(typesToIndices, isPotentiallyUnmapped);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), errorMessage);
+        return Objects.hash(super.hashCode(), typesToIndices, isPotentiallyUnmapped);
     }
 
     @Override
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
             InvalidMappedField other = (InvalidMappedField) obj;
-            return Objects.equals(errorMessage, other.errorMessage);
+            return Objects.equals(typesToIndices, other.typesToIndices) && isPotentiallyUnmapped == other.isPotentiallyUnmapped;
         }
 
         return false;

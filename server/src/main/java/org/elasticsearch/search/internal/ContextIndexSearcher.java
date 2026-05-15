@@ -409,32 +409,26 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                     throw new IllegalStateException("CollectorManager does not always produce collectors with the same score mode");
                 }
             }
+            // skip accounting in the task itself when it runs on the calling thread, which we don't know upfront
+            final Thread callingThread = Thread.currentThread();
             final List<Callable<C>> listTasks = new ArrayList<>(leafSlices.length);
             for (int i = 0; i < leafSlices.length; ++i) {
                 final LeafReaderContextPartition[] leaves = leafSlices[i].partitions;
                 final C collector = collectors.get(i);
                 listTasks.add(() -> {
-                    final long before = threadBytesRead != null ? threadBytesRead.getAsLong() : -1;
+                    final boolean trackBytes = threadBytesRead != null && Thread.currentThread() != callingThread;
+                    final long before = trackBytes ? threadBytesRead.getAsLong() : -1;
                     try {
                         search(leaves, weight, collector);
                         return collector;
                     } finally {
-                        if (before >= 0) {
+                        if (trackBytes) {
                             workerDirectoryBytesRead.addAndGet(threadBytesRead.getAsLong() - before);
                         }
                     }
                 });
             }
-            // capture the calling thread's bytes-read delta around invokeAll. Lucene's TaskExecutor
-            // runs some tasks inline on the calling thread; those reads are already captured by the
-            // thread-local delta picked up by metricsDelta in SearchService. Subtract them here so
-            // they aren't double-counted when workerDirectoryBytesRead is folded into the calling
-            // thread StoreMetrics.
-            final long callingThreadBefore = threadBytesRead != null ? threadBytesRead.getAsLong() : -1;
             List<C> collectedCollectors = getTaskExecutor().invokeAll(listTasks);
-            if (callingThreadBefore >= 0) {
-                workerDirectoryBytesRead.addAndGet(callingThreadBefore - threadBytesRead.getAsLong());
-            }
             return collectorManager.reduce(collectedCollectors);
         }
     }

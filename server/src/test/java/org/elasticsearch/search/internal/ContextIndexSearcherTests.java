@@ -78,6 +78,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.lucene.util.CombinedBits;
 import org.elasticsearch.lucene.util.MatchAllBitSet;
 import org.elasticsearch.search.aggregations.BucketCollector;
@@ -96,6 +97,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntFunction;
 
 import static org.elasticsearch.search.internal.ContextIndexSearcher.intersectScorerAndBitSet;
@@ -275,6 +277,74 @@ public class ContextIndexSearcherTests extends ESTestCase {
             }
         } finally {
             terminate(executor);
+        }
+    }
+
+    public void testConcurrentCollectionDoesNotDoubleCountWorkerBytesOnCallerThread() throws Exception {
+        assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
+        final long bytesPerLeaf = 1000L;
+        ThreadLocal<AtomicLong> threadCumulativeBytes = ThreadLocal.withInitial(AtomicLong::new);
+        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
+
+        try (Directory directory = newDirectory()) {
+            indexDocs(directory);
+            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                ContextIndexSearcher searcher = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    randomBoolean(),
+                    executor,
+                    // create as many slices as possible so that at least one runs inline and others on the executor
+                    Integer.MAX_VALUE,
+                    1
+                );
+                searcher.setThreadBytesRead(() -> threadCumulativeBytes.get().get());
+
+                CollectorManager<Collector, Void> countingCollectorManager = new CollectorManager<>() {
+                    @Override
+                    public Collector newCollector() {
+                        return new Collector() {
+                            @Override
+                            public LeafCollector getLeafCollector(LeafReaderContext context) {
+                                // simulate bytes read
+                                threadCumulativeBytes.get().addAndGet(bytesPerLeaf);
+                                return new LeafCollector() {
+                                    @Override
+                                    public void setScorer(Scorable scorer) {}
+
+                                    @Override
+                                    public void collect(int doc) {}
+                                };
+                            }
+
+                            @Override
+                            public ScoreMode scoreMode() {
+                                return ScoreMode.COMPLETE_NO_SCORES;
+                            }
+                        };
+                    }
+
+                    @Override
+                    public Void reduce(Collection<Collector> collectors) {
+                        return null;
+                    }
+                };
+
+                searcher.search(Queries.ALL_DOCS_INSTANCE, countingCollectorManager);
+
+                int numLeaves = directoryReader.getContext().leaves().size();
+                long totalSimulatedBytes = numLeaves * bytesPerLeaf;
+                long callerBytes = threadCumulativeBytes.get().get();
+                long workerBytes = searcher.getWorkerDirectoryBytesRead();
+
+                assertEquals(totalSimulatedBytes, callerBytes + workerBytes);
+                assertThat(callerBytes, greaterThanOrEqualTo(bytesPerLeaf));
+            }
+        } finally {
+            terminate(executor);
+            threadCumulativeBytes.remove();
         }
     }
 

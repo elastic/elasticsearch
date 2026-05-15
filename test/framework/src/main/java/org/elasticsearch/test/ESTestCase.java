@@ -236,8 +236,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assume.assumeFalse;
 
@@ -723,7 +721,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * appropriate test.
      */
     public void ensureNoWarnings() {
-        assertThat("unexpected warning headers", getActualWarningStrings(true), empty());
+        assertThat("unexpected warning headers", filterOutExcludedWarnings(getActualWarningStrings(true)), empty());
     }
 
     protected List<String> filteredWarnings() {
@@ -791,45 +789,49 @@ public abstract class ESTestCase extends LuceneTestCase {
         if (enableWarningsCheck() == false) {
             throw new IllegalStateException("unable to check warning headers if the test is not set to do so");
         }
-        final var actualWarningStrings = getActualWarningStrings(stripXContentPosition);
-        if (expectedWarnings.isEmpty()) {
-            assertThat("expected 0 warnings, actual: " + actualWarningStrings, actualWarningStrings, empty());
-        } else {
-            assertThat("no warnings, expected: " + expectedWarnings, actualWarningStrings, not(empty()));
+        var actual = new ArrayList<>(getActualWarningStrings(stripXContentPosition));
+        var expected = new ArrayList<>(expectedWarnings);
 
-            for (var expectedWarning : expectedWarnings) {
-                assertThat(actualWarningStrings, hasItem(expectedWarning));
+        var expectedIt = expected.iterator();
+        while (expectedIt.hasNext()) {
+            var expectedMatcher = expectedIt.next();
+
+            var actualIt = actual.iterator();
+            while (actualIt.hasNext()) {
+                if (expectedMatcher.matches(actualIt.next())) {
+                    actualIt.remove();
+                    expectedIt.remove();
+                }
             }
+        }
 
-            assertEquals(
-                "Expected "
-                    + expectedWarnings.size()
-                    + " warnings but found "
-                    + actualWarningStrings.size()
-                    + "\nExpected: "
-                    + expectedWarnings
-                    + "\nActual: "
-                    + actualWarningStrings,
-                expectedWarnings.size(),
-                actualWarningStrings.size()
-            );
+        var remainingWarnings = filterOutExcludedWarnings(actual);
+
+        if (!expected.isEmpty()) {
+            throw new AssertionError("Expected warnings " + expected + " not found in " + remainingWarnings);
+        }
+        if (!remainingWarnings.isEmpty()) {
+            throw new AssertionError("Unexpected warnings found " + remainingWarnings);
         }
     }
 
     private List<String> getActualWarningStrings(boolean stripXContentPosition) {
         try {
-            var filteredWarnings = filteredWarnings();
             return threadContext.getResponseHeaders()
                 .getOrDefault("Warning", List.of())
                 .stream()
                 .map(warningString -> HeaderWarning.extractWarningValueFromWarningHeader(warningString, stripXContentPosition))
-                .filter(message -> filteredWarnings.stream().noneMatch(message::contains))
                 .toList();
         } finally {
             // Reset the deprecation logger: clear the current thread context by stashing current values and dropping the returned
             // StoredContext
             threadContext.stashContext();
         }
+    }
+
+    private List<String> filterOutExcludedWarnings(List<String> warnings) {
+        var excluded = filteredWarnings();
+        return warnings.stream().filter(message -> excluded.stream().noneMatch(message::contains)).toList();
     }
 
     private static final List<StatusData> statusData = new ArrayList<>();

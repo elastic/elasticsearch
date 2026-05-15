@@ -215,6 +215,10 @@ public class ClusterModuleTests extends ModuleTestCase {
         Settings settings = Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), "custom").build();
         ClusterModule module = newClusterModuleWithShardsAllocator(settings, "custom", FakeShardsAllocator::new);
         assertEquals(FakeShardsAllocator.class, module.shardsAllocator.getClass());
+        assertWarnings(
+            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testRegisterShardsAllocatorAlreadyRegistered() {
@@ -243,11 +247,19 @@ public class ClusterModuleTests extends ModuleTestCase {
             )
         );
         assertEquals("Unknown ShardsAllocator [dne]", e.getMessage());
+        assertWarnings(
+            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testShardsAllocatorFactoryNull() {
         Settings settings = Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), "bad").build();
         expectThrows(NullPointerException.class, () -> newClusterModuleWithShardsAllocator(settings, "bad", () -> null));
+        assertWarnings(
+            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
     // makes sure that the allocation deciders are setup in the correct order, such that the

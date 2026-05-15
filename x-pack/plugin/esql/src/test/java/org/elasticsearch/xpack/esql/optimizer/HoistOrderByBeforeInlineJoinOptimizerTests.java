@@ -1071,6 +1071,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         var rightRelation = as(join.right(), EsRelation.class);
         assertThat(rightRelation.concreteQualifiedIndices(), is(Set.of("languages_lookup")));
         assertWarnings(
+            "No limit defined, adding default limit of [1000]",
             "Line 4:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
                 + "add another SORT after the LOOKUP JOIN if order is required"
         );
@@ -1098,6 +1099,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
             );
             if (cmd.startsWith("LOOKUP JOIN")) {
                 assertWarnings(
+                    "No limit defined, adding default limit of [1000]",
                     "Line 3:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
                         + "add another SORT after the LOOKUP JOIN if order is required"
                 );

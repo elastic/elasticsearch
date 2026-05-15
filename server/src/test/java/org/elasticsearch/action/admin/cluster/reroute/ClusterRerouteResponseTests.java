@@ -36,12 +36,19 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class ClusterRerouteResponseTests extends ESTestCase {
+
+    @Override
+    protected List<String> filteredWarnings() {
+        return appendToCopy(super.filteredWarnings(), ClusterRerouteResponse.STATE_FIELD_DEPRECATION_MESSAGE);
+    }
 
     public void testToXContent() throws IOException {
         assertXContent(createClusterRerouteResponse(createClusterState()), new ToXContent.MapParams(Map.of("metric", "none")), """

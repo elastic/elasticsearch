@@ -1416,7 +1416,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         assertEquals(10000, rightRight.value());
         as(filter.child(), EsRelation.class);
 
-        assertWarnings("Line 3:16: Field 'salary' shadowed by field at line 3:40");
+        assertWarnings("Line 3:16: Field 'salary' shadowed by field at line 3:40", "No limit defined, adding default limit of [1000]");
     }
 
     /*

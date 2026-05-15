@@ -288,6 +288,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             )
         );
         assertWarnings(
+            "No limit defined, adding default limit of [1000]",
             "Line 1:25: SORT is followed by a LOOKUP JOIN which does not preserve order; "
                 + "add another SORT after the LOOKUP JOIN if order is required"
         );
@@ -350,6 +351,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             """));
         assertThat(err, containsString("4:3: LOOKUP JOIN with remote indices can't be executed after [SORT emp_no]@2:3"));
         assertWarnings(
+            "No limit defined, adding default limit of [1000]",
             "Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
                 + "add another SORT after the LOOKUP JOIN if order is required"
         );
@@ -410,6 +412,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             """));
         assertThat(err, containsString("4:3: LOOKUP JOIN with remote indices can't be executed after [SORT emp_no]@2:3"));
         assertWarnings(
+            "No limit defined, adding default limit of [1000]",
             "Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
                 + "add another SORT after the LOOKUP JOIN if order is required"
         );

@@ -124,6 +124,11 @@ public abstract class SortedNumericLongValues {
             public int docValueCount() {
                 return 1;
             }
+
+            @Override
+            public LongValues asLongValues() {
+                return values;
+            }
         };
     }
 
@@ -154,7 +159,7 @@ public abstract class SortedNumericLongValues {
         };
     }
 
-    public static abstract class SortedNumericDoubleWrapper extends SortedNumericLongValues {
+    public abstract static class SortedNumericDoubleWrapper extends SortedNumericLongValues {
         private final SortedNumericDoubleValues doubleValues;
 
         protected SortedNumericDoubleWrapper(SortedNumericDoubleValues doubleValues) {

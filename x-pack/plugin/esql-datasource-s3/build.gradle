@@ -50,6 +50,9 @@ dependencies {
   implementation "software.amazon.awssdk:netty-nio-client:${versions.awsv2sdk}"
   // Netty jars provided by esql-datasource-netty-commons via extendedPlugins classloader delegation
   compileOnly project(path: xpackModule('esql-datasource-netty-commons'))
+  // Netty types referenced directly by S3 code (e.g. ChannelOption); the actual jars are loaded at
+  // runtime through the netty-commons plugin's classloader.
+  compileOnly "io.netty:netty-transport:${versions.netty}"
 
   // Apache HTTP client for AWS SDK (required by apache-client module)
   implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
@@ -73,6 +76,9 @@ dependencies {
 
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
+  // S3 fixture for in-process unit tests of S3StorageProvider against a fake S3 endpoint.
+  testImplementation project(':test:fixtures:s3-fixture')
+  testImplementation project(':test:fixtures:aws-fixture-utils')
 }
 
 tasks.withType(org.elasticsearch.gradle.internal.AbstractDependenciesTask).configureEach {

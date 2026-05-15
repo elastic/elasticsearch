@@ -644,8 +644,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private ReaderContext removeReaderContext(ShardSearchContextId id, String reason) {
         final ReaderContext removed = removeReaderContext(id);
-        if (logger.isTraceEnabled()) {
-            logger.trace(
+        if (logger.isDebugEnabled()) {
+            logger.debug(
                 "removing reader context [{}] kind [{}] creator_task [{}] reason [{}]",
                 id,
                 removed != null ? contextKind(removed) : "unknown",
@@ -656,10 +656,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return removed;
     }
 
-    /**
-     * Returns a short string describing the kind of a reader context for diagnostic logging:
-     * {@code scroll}, {@code pit}, or {@code single} (single-shot query/fetch).
-     */
     private static String contextKind(ReaderContext context) {
         if (context.scrollContext() != null) {
             return "scroll";
@@ -667,20 +663,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return context.singleSession() ? "single" : "pit";
     }
 
-    /**
-     * Returns the creator-task identifier of the given context as a {@code nodeId:taskId} string,
-     * or {@code "unknown"} if the context has no captured creator (relocated PIT, tests).
-     * Only call inside an {@code isXxxEnabled} guard — this allocates a {@code String}.
-     */
     private String formatCreatorTaskId(ReaderContext context) {
         final long id = context.creatorTaskId();
         return id == 0L ? "unknown" : clusterService.localNode().getId() + ":" + id;
     }
 
-    /**
-     * Returns the creator-task id for a {@link Task}, or {@code 0L} sentinel if {@code task} is
-     * {@code null} (only happens in test instantiations). Real task ids start at 1.
-     */
     private static long creatorTaskIdOf(Task task) {
         return task == null ? 0L : task.getId();
     }
@@ -1554,7 +1541,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     );
                     if (logger.isDebugEnabled()) {
                         logger.debug(
-                            "recreated reader context [{}] kind [{}] creator_task [{}]",
+                            "Recreated reader context [{}] kind [{}] creator_task [{}]",
                             readerContext.id(),
                             contextKind(readerContext),
                             formatCreatorTaskId(readerContext)
@@ -1582,8 +1569,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private void logOpened(ReaderContext readerContext) {
-        if (logger.isTraceEnabled()) {
-            logger.trace(
+        if (logger.isDebugEnabled()) {
+            logger.debug(
                 "opened reader context [{}] kind [{}] creator_task [{}]",
                 readerContext.id(),
                 contextKind(readerContext),
@@ -1687,9 +1674,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     /**
      * Opens the reader context for given shardId. The newly opened reader context will be keep
-     * until the {@code keepAlive} elapsed unless it is manually released. The supplied {@code task}
-     * is recorded as the creator for diagnostic logging and may be {@code null} in tests.
+     * until the {@code keepAlive} elapsed unless it is manually released.
      */
+    public void openReaderContext(
+        ShardId shardId,
+        TimeValue keepAlive,
+        SplitShardCountSummary splitShardCountSummary,
+        ActionListener<ShardSearchContextId> listener
+    ) {
+        openReaderContext(shardId, keepAlive, null, splitShardCountSummary, listener);
+    }
+
     public void openReaderContext(
         ShardId shardId,
         TimeValue keepAlive,
@@ -1746,11 +1741,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 readerContext.addOnClose(() -> searchOperationListener.onFreeReaderContext(finalReaderContext));
                 if (logger.isDebugEnabled()) {
                     logger.debug(
-                        "opened reader context [{}] kind [{}] creator_task [{}] on node [{}]",
+                        "Opening new reader context [{}] on node [{}] kind [{}] creator_task [{}]",
                         readerContext.id(),
+                        clusterService.state().nodes().getLocalNode(),
                         contextKind(readerContext),
-                        formatCreatorTaskId(readerContext),
-                        clusterService.state().nodes().getLocalNode()
+                        formatCreatorTaskId(readerContext)
                     );
                 }
                 putReaderContext(readerContext);
@@ -2381,14 +2376,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 && ThreadPool.assertNotScheduleThread("closing contexts may do IO, e.g. deleting dangling files");
             for (ReaderContext context : activeReaders.values()) {
                 if (context.isExpired()) {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug(
-                            "freeing search context [{}] kind [{}] creator_task [{}] reason [keep-alive expired]",
-                            context.id(),
-                            contextKind(context),
-                            formatCreatorTaskId(context)
-                        );
-                    }
                     freeReaderContext(context.id(), "keep-alive expired");
                 }
             }

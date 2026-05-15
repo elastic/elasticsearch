@@ -54,6 +54,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     @Nullable
     private final BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics;
     private final TimeValue taskShutdownGracePeriod;
+    private final ReindexSettings reindexSettings;
     private final CircuitBreaker requestBreaker;
 
     @Inject
@@ -66,6 +67,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         ClusterService clusterService,
         @Nullable UpdateByQueryMetrics updateByQueryMetrics,
         @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+        ReindexSettings reindexSettings,
         CircuitBreakerService circuitBreakerService
     ) {
         super(UpdateByQueryAction.NAME, transportService, actionFilters, UpdateByQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -78,6 +80,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         // todo: if relocations are added to update-by-query and it gets its own timeout setting, this should be updated.
         // without this safe default, adding relocations to update-by-query without updating this might open it up to race conditions.
         this.taskShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
+        this.reindexSettings = Objects.requireNonNull(reindexSettings);
         this.requestBreaker = Objects.requireNonNull(circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
     }
 
@@ -113,6 +116,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                     }),
                     taskShutdownGracePeriod,
                     bulkByScrollSearchContextMetrics,
+                    reindexSettings,
                     requestBreaker
                 ).start();
             }
@@ -134,6 +138,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             ActionListener<BulkByScrollResponse> listener,
             TimeValue maxTaskShutdownGracePeriod,
             @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+            ReindexSettings reindexSettings,
             CircuitBreaker requestBreaker
         ) {
             super(
@@ -153,6 +158,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                 BulkByScrollSearchContextMetrics.TaskKind.UPDATE_BY_QUERY,
                 false,
                 maxTaskShutdownGracePeriod,
+                reindexSettings,
                 requestBreaker,
                 "update_by_query_bulk_batch"
             );

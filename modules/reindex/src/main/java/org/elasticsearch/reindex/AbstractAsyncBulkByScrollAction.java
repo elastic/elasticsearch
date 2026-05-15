@@ -167,9 +167,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
      */
     private static final Version REMOTE_SHARD_DOC_SUPPORTED = Version.V_7_12_0;
 
-    /** How many bytes must accumulate in a BulkRequest before we flush a reservation to the circuit breaker. */
-    private static final long BULK_BATCH_BREAKER_CHECK_THRESHOLD = 1024 * 1024L; // 1 MiB
-
+    private final ReindexSettings reindexSettings;
     private final CircuitBreaker circuitBreaker;
     private final String breakerLabel;
 
@@ -189,6 +187,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         BulkByScrollSearchContextMetrics.TaskKind bulkByScrollTaskKind,
         boolean remoteBulkByScrollSearch,
         TimeValue maxTaskShutdownGracePeriod,
+        ReindexSettings reindexSettings,
         CircuitBreaker circuitBreaker,
         String breakerLabel
     ) {
@@ -210,6 +209,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             bulkByScrollTaskKind,
             remoteBulkByScrollSearch,
             maxTaskShutdownGracePeriod,
+            reindexSettings,
             circuitBreaker,
             breakerLabel
         );
@@ -233,6 +233,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         BulkByScrollSearchContextMetrics.TaskKind bulkByScrollTaskKind,
         boolean remoteBulkByScrollSearch,
         TimeValue maxTaskShutdownGracePeriod,
+        ReindexSettings reindexSettings,
         CircuitBreaker circuitBreaker,
         String breakerLabel
     ) {
@@ -269,6 +270,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             )
         );
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
+        this.reindexSettings = Objects.requireNonNull(reindexSettings);
         this.circuitBreaker = Objects.requireNonNull(circuitBreaker);
         this.breakerLabel = Objects.requireNonNull(breakerLabel);
     }
@@ -417,7 +419,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 if (request != null) {
                     bulkRequest.add(request.self());
                     long delta = bulkRequest.estimatedSizeInBytes() - reservedBytes.get();
-                    if (delta >= BULK_BATCH_BREAKER_CHECK_THRESHOLD) {
+                    if (delta >= reindexSettings.getMemoryAccountingThresholdInBytes()) {
                         circuitBreaker.addEstimateBytesAndMaybeBreak(delta, breakerLabel);
                         reservedBytes.set(bulkRequest.estimatedSizeInBytes());
                     }

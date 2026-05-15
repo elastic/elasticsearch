@@ -88,6 +88,7 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadat
                 randomBoolean() ? null : Version.CURRENT,
                 randomPositiveTimeValue(),
                 null,
+                new ReindexSettings(),
                 new NoopCircuitBreaker("test")
             );
         }

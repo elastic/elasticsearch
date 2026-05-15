@@ -88,6 +88,7 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
             null,
             randomTimeValue(),
             null,
+            new ReindexSettings(),
             new NoopCircuitBreaker("test")
         );
         expectThrows(
@@ -125,6 +126,7 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
             null,
             randomTimeValue(),
             null,
+            new ReindexSettings(),
             new NoopCircuitBreaker("test")
         );
         expectThrows(
@@ -199,6 +201,7 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
             randomBoolean() ? null : Version.CURRENT,
             randomPositiveTimeValue(),
             null,
+            new ReindexSettings(),
             new NoopCircuitBreaker("test")
         );
     }

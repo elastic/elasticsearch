@@ -47,6 +47,7 @@ public class UpdateByQueryMetadataTests extends AbstractAsyncBulkByScrollActionM
                 listener(),
                 randomPositiveTimeValue(),
                 null,
+                new ReindexSettings(),
                 new NoopCircuitBreaker("test")
             );
         }

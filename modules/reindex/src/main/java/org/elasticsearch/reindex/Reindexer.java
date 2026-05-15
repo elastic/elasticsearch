@@ -311,6 +311,7 @@ public class Reindexer {
                 remoteVersion,
                 reindexShutdownGracePeriod,
                 bulkByScrollSearchContextMetrics,
+                reindexSettings,
                 requestBreaker
             );
             searchAction.start();
@@ -969,6 +970,7 @@ public class Reindexer {
             @Nullable Version remoteVersion,
             TimeValue maxTaskShutdownGracePeriod,
             @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+            ReindexSettings reindexSettings,
             CircuitBreaker requestBreaker
         ) {
             super(
@@ -993,6 +995,7 @@ public class Reindexer {
                 BulkByScrollSearchContextMetrics.TaskKind.REINDEX,
                 request.getRemoteInfo() != null,
                 maxTaskShutdownGracePeriod,
+                reindexSettings,
                 requestBreaker,
                 "reindex_bulk_batch"
             );

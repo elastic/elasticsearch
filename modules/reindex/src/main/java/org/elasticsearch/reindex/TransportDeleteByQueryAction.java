@@ -44,6 +44,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     @Nullable
     private final BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics;
     private final TimeValue taskShutdownGracePeriod;
+    private final ReindexSettings reindexSettings;
     private final CircuitBreaker requestBreaker;
 
     @Inject
@@ -56,6 +57,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         ClusterService clusterService,
         @Nullable DeleteByQueryMetrics deleteByQueryMetrics,
         @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+        ReindexSettings reindexSettings,
         CircuitBreakerService circuitBreakerService
     ) {
         super(DeleteByQueryAction.NAME, transportService, actionFilters, DeleteByQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -68,6 +70,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         // todo: if relocations are added to delete-by-query and it gets its own timeout setting, this should be updated.
         // without this safe default, adding relocations to delete-by-query without updating this might open it up to race conditions.
         this.taskShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
+        this.reindexSettings = Objects.requireNonNull(reindexSettings);
         Objects.requireNonNull(circuitBreakerService, "circuitBreakerService must not be null");
         this.requestBreaker = Objects.requireNonNull(
             circuitBreakerService.getBreaker(CircuitBreaker.REQUEST),
@@ -107,6 +110,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
                     }),
                     bulkByScrollSearchContextMetrics,
                     taskShutdownGracePeriod,
+                    reindexSettings,
                     requestBreaker
                 ).start();
             }

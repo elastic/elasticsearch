@@ -37,6 +37,7 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<De
         ActionListener<BulkByScrollResponse> listener,
         @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
         TimeValue maxTaskShutdownGracePeriod,
+        ReindexSettings reindexSettings,
         CircuitBreaker requestBreaker
     ) {
         super(
@@ -55,6 +56,7 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<De
             BulkByScrollSearchContextMetrics.TaskKind.DELETE_BY_QUERY,
             false,
             maxTaskShutdownGracePeriod,
+            reindexSettings,
             requestBreaker,
             "delete_by_query_bulk_batch"
         );

@@ -57,6 +57,7 @@ public class UpdateByQueryVersionTests extends AbstractAsyncBulkByScrollActionMe
                 listener(),
                 randomPositiveTimeValue(),
                 null,
+                new ReindexSettings(),
                 new NoopCircuitBreaker("test")
             );
         }

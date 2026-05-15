@@ -73,6 +73,7 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActio
             clusterService,
             null,
             null,
+            new ReindexSettings(),
             circuitBreakerService
         );
         return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(
@@ -85,6 +86,7 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActio
             listener(),
             randomPositiveTimeValue(),
             null,
+            new ReindexSettings(),
             new NoopCircuitBreaker("test")
         );
     }

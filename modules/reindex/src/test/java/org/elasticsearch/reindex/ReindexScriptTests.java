@@ -107,6 +107,7 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
             randomBoolean() ? null : Version.CURRENT,
             randomPositiveTimeValue(),
             null,
+            new ReindexSettings(),
             new NoopCircuitBreaker("test")
         );
     }

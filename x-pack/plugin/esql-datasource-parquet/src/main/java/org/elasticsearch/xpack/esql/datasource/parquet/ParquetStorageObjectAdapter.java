@@ -100,6 +100,16 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
     static void clearFooterCacheForTests() {
         FooterByteCache.getInstance().invalidateAll();
+        ParquetFormatReader.clearParsedFooterCacheForTests();
+    }
+
+    /**
+     * Returns the cache key identifying this file by {@code (path, length)}. Shared with
+     * {@link FooterByteCache} and the parsed-footer cache held by {@link ParquetFormatReader} so
+     * that callers reusing this adapter can hit those caches without recomputing the key.
+     */
+    FooterByteCache.Key cacheKey() {
+        return cacheKey;
     }
 
     @Override

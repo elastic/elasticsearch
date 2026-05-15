@@ -4695,7 +4695,6 @@ public class AnalyzerTests extends ESTestCase {
             Map.of("id", idField, "foo", fooField), // Updated mapping keys
             Map.of("union_index_1", IndexMode.STANDARD, "union_index_2", IndexMode.STANDARD),
             Map.of(),
-            Map.of(),
             Map.of()
         );
         IndexResolution resolution = IndexResolution.valid(index);
@@ -4737,7 +4736,6 @@ public class AnalyzerTests extends ESTestCase {
             "union_index*",
             Map.of("id", idField),
             Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
-            Map.of(),
             Map.of(),
             Map.of()
         );
@@ -5010,7 +5008,6 @@ public class AnalyzerTests extends ESTestCase {
             "k8s,k8s-downsampled",
             mapping,
             Map.of("k8s", IndexMode.TIME_SERIES, "k8s-downsampled", IndexMode.TIME_SERIES),
-            Map.of(),
             Map.of(),
             Map.of()
         );

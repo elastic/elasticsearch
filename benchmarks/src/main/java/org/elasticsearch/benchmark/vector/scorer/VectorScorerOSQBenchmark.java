@@ -21,8 +21,7 @@ import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
-import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
-import org.elasticsearch.simdvec.internal.vectorization.PanamaESVectorizationProvider;
+import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -322,25 +321,30 @@ public class VectorScorerOSQBenchmark {
         };
         ES940OSQVectorsScorer.SymmetricInt4Encoding resolvedEncoding = resolveInt4Encoding(bits, int4Encoding);
         this.scorer = switch (implementation) {
-            case SCALAR -> new ES940OSQVectorsScorer(
-                input,
-                (byte) queryBits,
-                (byte) docBits,
-                dims,
-                data.binaryIndexLength,
-                ES940OSQVectorsScorer.BULK_SIZE,
-                resolvedEncoding
-            );
-            case PANAMA -> new PanamaESVectorizationProvider(false).newES940OSQVectorsScorer(
-                input,
-                (byte) queryBits,
-                (byte) docBits,
-                dims,
-                data.binaryIndexLength,
-                BULK_SIZE,
-                resolvedEncoding
-            );
-            case NATIVE -> ESVectorizationProvider.getInstance()
+            case SCALAR -> ESVectorizationProvider.lookup(false, false)
+                .getVectorScorerFactory()
+                .newES940OSQVectorsScorer(
+                    input,
+                    (byte) queryBits,
+                    (byte) docBits,
+                    dims,
+                    data.binaryIndexLength,
+                    ES940OSQVectorsScorer.BULK_SIZE,
+                    resolvedEncoding
+                );
+            case PANAMA -> ESVectorizationProvider.lookup(true, false)
+                .getVectorScorerFactory()
+                .newES940OSQVectorsScorer(
+                    input,
+                    (byte) queryBits,
+                    (byte) docBits,
+                    dims,
+                    data.binaryIndexLength,
+                    BULK_SIZE,
+                    resolvedEncoding
+                );
+            case NATIVE -> ESVectorizationProvider.lookup(true, true)
+                .getVectorScorerFactory()
                 .newES940OSQVectorsScorer(
                     input,
                     (byte) queryBits,

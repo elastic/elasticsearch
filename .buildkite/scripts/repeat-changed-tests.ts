@@ -1,5 +1,6 @@
-import { stringify } from "yaml";
+import { parse, stringify } from "yaml";
 import { execSync } from "child_process";
+import { readFileSync } from "fs";
 import { resolve, dirname } from "path";
 
 const PROJECT_ROOT = resolve(`${import.meta.dir}/../..`);
@@ -32,7 +33,11 @@ const SOURCE_SET_PATTERNS = [
   },
 ];
 
-type TestKind = (typeof SOURCE_SET_PATTERNS)[number]["kind"];
+// yamlRestTestCase is synthesised from muted-tests.yml unmutes and does not
+// correspond to a file pattern; the rest of the kinds are derived from files
+// matched by SOURCE_SET_PATTERNS.
+type PatternKind = (typeof SOURCE_SET_PATTERNS)[number]["kind"];
+type TestKind = PatternKind | "yamlRestTestCase";
 
 export const BATCH_CAPS: Record<TestKind, number> = {
   test: 360,
@@ -40,6 +45,7 @@ export const BATCH_CAPS: Record<TestKind, number> = {
   javaRestTest: 4,
   yamlRestTestSuite: 4,
   yamlRestTestRunner: 1,
+  yamlRestTestCase: 4,
 };
 
 export interface ClassifiedTest {
@@ -48,6 +54,12 @@ export interface ClassifiedTest {
   sourceSet: string;
   fqcn?: string;
   suitePath?: string;
+  /**
+   * Full JUnit test descriptor for a single parameterized yaml test case,
+   * e.g. "test {yaml=10_apm/Test template reinstallation}". Only set for
+   * {@link TestKind} of "yamlRestTestCase".
+   */
+  yamlTest?: string;
 }
 
 interface PipelineStep {
@@ -84,6 +96,187 @@ export function toGradleProject(path: string): string {
 
 export function toFqcn(javaPath: string): string {
   return javaPath.replace(/\//g, ".");
+}
+
+export interface MutedEntry {
+  className: string;
+  method?: string;
+}
+
+interface RawMutedTest {
+  class?: string;
+  method?: string;
+  methods?: string[];
+}
+
+interface RawMutedTestsFile {
+  tests?: RawMutedTest[];
+}
+
+export function parseMutedEntries(yamlText: string): MutedEntry[] {
+  if (yamlText.trim() === "") return [];
+  const parsed = parse(yamlText) as RawMutedTestsFile | null;
+  const rawTests = parsed?.tests ?? [];
+
+  const entries: MutedEntry[] = [];
+  for (const t of rawTests) {
+    if (!t.class) continue;
+    const methodsList = t.methods ?? [];
+    const hasAnyMethod = methodsList.length > 0 || t.method !== undefined;
+
+    if (!hasAnyMethod) {
+      entries.push({ className: t.class });
+      continue;
+    }
+    for (const m of methodsList) {
+      entries.push({ className: t.class, method: m });
+    }
+    if (t.method !== undefined) {
+      entries.push({ className: t.class, method: t.method });
+    }
+  }
+  return entries;
+}
+
+function mutedEntryKey(e: MutedEntry): string {
+  return `${e.className}|${e.method ?? ""}`;
+}
+
+export function diffMutedEntries(before: MutedEntry[], after: MutedEntry[]): MutedEntry[] {
+  const afterKeys = new Set(after.map(mutedEntryKey));
+  return before.filter((e) => afterKeys.has(mutedEntryKey(e)) === false);
+}
+
+const YAML_METHOD_REGEX = /^test \{yaml=.+\}$/;
+
+export function locateUnmutedTest(entry: MutedEntry, repoFiles: string[]): ClassifiedTest | null {
+  const pathSuffix = entry.className.replace(/\./g, "/") + ".java";
+  const candidate = repoFiles.find((f) => f === pathSuffix || f.endsWith("/" + pathSuffix));
+  if (candidate === undefined) return null;
+
+  for (const pattern of SOURCE_SET_PATTERNS) {
+    const match = candidate.match(pattern.regex);
+    if (match === null) continue;
+
+    const gradleProject = toGradleProject(match[1]);
+    const kind = pattern.kind;
+
+    switch (kind) {
+      case "test":
+      case "internalClusterTest":
+      case "javaRestTest":
+        return {
+          gradleProject,
+          kind,
+          sourceSet: pattern.sourceSet,
+          fqcn: toFqcn(match[2]),
+        };
+      case "yamlRestTestRunner":
+        // A parameterized yaml test case is identified by its full descriptor
+        // "test {yaml=<path>/<test name>}". We target it exactly via
+        // `--tests "<FQCN>.test {yaml=...}"` rather than `tests.rest.suite`,
+        // which only accepts file/directory paths and cannot address an
+        // individual case.
+        if (entry.method !== undefined && YAML_METHOD_REGEX.test(entry.method)) {
+          return {
+            gradleProject,
+            kind: "yamlRestTestCase",
+            sourceSet: "yamlRestTest",
+            fqcn: entry.className,
+            yamlTest: entry.method,
+          };
+        }
+        return {
+          gradleProject,
+          kind: "yamlRestTestRunner",
+          sourceSet: "yamlRestTest",
+        };
+      case "yamlRestTestSuite":
+        // Unreachable: muted-tests entries reference a Java class, but
+        // yamlRestTestSuite only matches `.yml` resources. Fail loudly so
+        // any future change to SOURCE_SET_PATTERNS that breaks this
+        // invariant surfaces here rather than later as a malformed
+        // ClassifiedTest in generateBatchCommand.
+        throw new Error(`yamlRestTestSuite pattern unexpectedly matched Java file ${candidate}`);
+      default:
+        return assertNever(kind);
+    }
+  }
+  return null;
+}
+
+function assertNever(x: never): never {
+  throw new Error(`Unhandled SOURCE_SET_PATTERN kind: ${x as string}`);
+}
+
+export interface UnmuteDetectionResult {
+  located: ClassifiedTest[];
+  unlocated: MutedEntry[];
+}
+
+export function findUnmutedTests(
+  oldYamlText: string,
+  newYamlText: string,
+  repoFiles: string[]
+): UnmuteDetectionResult {
+  const before = parseMutedEntries(oldYamlText);
+  const after = parseMutedEntries(newYamlText);
+  const unmuted = diffMutedEntries(before, after);
+
+  const located: ClassifiedTest[] = [];
+  const unlocated: MutedEntry[] = [];
+  for (const entry of unmuted) {
+    const test = locateUnmutedTest(entry, repoFiles);
+    if (test === null) {
+      unlocated.push(entry);
+    } else {
+      located.push(test);
+    }
+  }
+  return { located, unlocated };
+}
+
+export function dedupeTests(tests: ClassifiedTest[]): ClassifiedTest[] {
+  const seen = new Set<string>();
+  const result: ClassifiedTest[] = [];
+  for (const t of tests) {
+    const identity = t.yamlTest ?? t.fqcn ?? t.suitePath ?? "";
+    const key = `${t.gradleProject}|${t.kind}|${identity}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(t);
+  }
+  return result;
+}
+
+function detectUnmutedTests(mergeBase: string, projectRoot: string): UnmuteDetectionResult {
+  let oldYaml = "";
+  try {
+    oldYaml = execSync(`git show ${mergeBase}:muted-tests.yml`, {
+      cwd: projectRoot,
+      stdio: ["ignore", "pipe", "ignore"],
+    }).toString();
+  } catch {
+    // File didn't exist at merge base; treat as empty.
+  }
+
+  let newYaml = "";
+  try {
+    newYaml = readFileSync(resolve(projectRoot, "muted-tests.yml"), "utf8");
+  } catch {
+    // File was deleted in the PR; treat as empty.
+  }
+
+  const repoFilesOutput = execSync("git ls-files", {
+    cwd: projectRoot,
+    maxBuffer: 256 * 1024 * 1024,
+  }).toString();
+  const repoFiles = repoFilesOutput
+    .split("\n")
+    .map((f) => f.trim())
+    .filter((f) => f !== "");
+
+  return findUnmutedTests(oldYaml, newYaml, repoFiles);
 }
 
 export function classifyChangedFiles(files: string[]): ClassifiedTest[] {
@@ -179,6 +372,7 @@ const KIND_LABELS: Record<TestKind, string> = {
   javaRestTest: "java rest tests",
   yamlRestTestRunner: "yaml rest test runner",
   yamlRestTestSuite: "yaml rest tests",
+  yamlRestTestCase: "yaml rest test cases",
 };
 
 const KIND_KEYS: Record<TestKind, string> = {
@@ -187,6 +381,7 @@ const KIND_KEYS: Record<TestKind, string> = {
   javaRestTest: "repeat-changed-tests:java-rest",
   yamlRestTestRunner: "repeat-changed-tests:yaml-runner",
   yamlRestTestSuite: "repeat-changed-tests:yaml-suite",
+  yamlRestTestCase: "repeat-changed-tests:yaml-case",
 };
 
 // Gradle task-level options (`--tests`, `--rerun`, ...) bind to the most
@@ -256,11 +451,25 @@ export function generateBatchCommand(batch: ClassifiedTest[]): string {
         .join(" ");
       return `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${tasks} ${suiteProps}`;
     }
+    case "yamlRestTestCase": {
+      // Each parameterized case is addressed by the full `<FQCN>.test {yaml=...}`
+      // form, so multiple cases can be batched into one gradle invocation and
+      // share agent and cluster setup.
+      const tasks = tasksWithFilters(batch, "yamlRestTest", (t) => `--tests "${t.fqcn}.${t.yamlTest}"`, "--rerun");
+      return `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${tasks}`;
+    }
   }
 }
 
 export function generatePipeline(tests: ClassifiedTest[]): Pipeline {
-  const KIND_ORDER: TestKind[] = ["test", "internalClusterTest", "javaRestTest", "yamlRestTestRunner", "yamlRestTestSuite"];
+  const KIND_ORDER: TestKind[] = [
+    "test",
+    "internalClusterTest",
+    "javaRestTest",
+    "yamlRestTestRunner",
+    "yamlRestTestSuite",
+    "yamlRestTestCase",
+  ];
 
   const byKind = new Map<TestKind, ClassifiedTest[]>();
   for (const test of tests) {
@@ -353,15 +562,30 @@ function main() {
     .filter((f) => f);
   console.log(`Found ${changedFiles.length} changed files`);
 
-  let tests = classifyChangedFiles(changedFiles);
-  console.log(`Found ${tests.length} changed test files`);
+  const changedTests = classifyChangedFiles(changedFiles);
+  console.log(`Found ${changedTests.length} changed test files`);
+
+  console.log("Detecting unmuted tests...");
+  const unmuted = detectUnmutedTests(mergeBase, PROJECT_ROOT);
+  console.log(`Found ${unmuted.located.length} unmuted tests`);
+  if (unmuted.unlocated.length > 0) {
+    console.log(
+      `Skipping ${unmuted.unlocated.length} unmuted tests whose class files no longer exist:`
+    );
+    for (const e of unmuted.unlocated) {
+      console.log(`  - ${e.className}${e.method !== undefined ? "." + e.method : ""}`);
+    }
+  }
+
+  let tests = dedupeTests([...changedTests, ...unmuted.located]);
+  console.log(`Total tests to run: ${tests.length} (${changedTests.length} changed, ${unmuted.located.length} unmuted)`);
 
   if (tests.length === 0) {
-    console.log("No test changes detected");
+    console.log("No test changes or unmutes detected");
     if (process.env.CI) {
       try {
         execSync(
-          `buildkite-agent annotate "No test changes detected" --style "info" --context "repeat-changed-tests"`,
+          `buildkite-agent annotate "No test changes or unmutes detected" --style "info" --context "repeat-changed-tests"`,
           { cwd: PROJECT_ROOT, stdio: "inherit" }
         );
       } catch {
@@ -372,11 +596,11 @@ function main() {
   }
 
   if (tests.length > 30) {
-    console.log(`Warning: ${tests.length} changed test files detected`);
+    console.log(`Warning: ${tests.length} test files to re-run`);
     if (process.env.CI) {
       try {
         execSync(
-          `buildkite-agent annotate "Warning: ${tests.length} changed test files detected. This may take a while." --style "warning" --context "repeat-changed-tests"`,
+          `buildkite-agent annotate "Warning: ${tests.length} test files to re-run (${changedTests.length} changed, ${unmuted.located.length} unmuted). This may take a while." --style "warning" --context "repeat-changed-tests"`,
           { cwd: PROJECT_ROOT, stdio: "inherit" }
         );
       } catch {

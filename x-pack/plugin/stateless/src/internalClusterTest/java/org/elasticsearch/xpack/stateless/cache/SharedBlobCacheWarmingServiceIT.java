@@ -126,8 +126,6 @@ import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrima
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -611,7 +609,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         // Trigger recovery to hollow the shard.
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+        internalCluster().awaitNodeVacated(indexName, indexNodeA);
         ensureGreen(indexName);
 
         // Check that the shard is hollow

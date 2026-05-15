@@ -14,17 +14,13 @@ import java.util.Collections;
 /**
  * SPI extension point for plugins that contribute {@link EncryptedDataHandler}s to the primary encryption key rotation coordinator.
  *
- * <p>Implementations are discovered via {@link org.elasticsearch.plugins.PluginsService#loadServiceProviders} — drop a
+ * <p>Implementations are discovered via {@link org.elasticsearch.plugins.PluginsService#loadServiceProviders} through a
  * {@code META-INF/services/org.elasticsearch.encryption.EncryptedDataHandlerProvider} entry in the contributing plugin's resources
- * pointing to the implementation class. The implementation class may declare either a no-arg constructor or a one-arg constructor
- * taking the contributing {@code Plugin} instance (the latter is how implementations get at their own runtime state).
- *
- * <p>Discovered handlers are added to the node-wide {@link EncryptedDataHandlerRegistry} after plugin construction completes.
  */
 public interface EncryptedDataHandlerProvider {
 
     /**
-     * Returns the handlers this provider contributes. Called once during node construction.
+     * Returns the handlers this provider contributes
      */
     default Collection<EncryptedDataHandler> getHandlers() {
         return Collections.emptyList();

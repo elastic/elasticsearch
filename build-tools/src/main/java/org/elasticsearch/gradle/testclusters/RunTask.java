@@ -397,6 +397,19 @@ public abstract class RunTask extends DefaultTestClustersTask {
             if (apmServerEnabled && mockServer != null) {
                 mockServer.stop();
             }
+
+            // When the build is cancelled (e.g. Ctrl-C), Gradle interrupts the task thread but does
+            // not invoke doLast actions, so clusters would otherwise be left running. Stop them here
+            // whenever the thread has been interrupted. On normal exit paths, doLast handles cleanup.
+            if (Thread.currentThread().isInterrupted()) {
+                for (ElasticsearchCluster cluster : getClusters()) {
+                    try {
+                        cluster.stop(false);
+                    } catch (Exception e) {
+                        logger.debug("exception stopping cluster {} after interrupt", cluster, e);
+                    }
+                }
+            }
         }
     }
 

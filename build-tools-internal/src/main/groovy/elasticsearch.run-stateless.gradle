@@ -1,0 +1,62 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+import org.elasticsearch.gradle.testclusters.RunTask
+
+def statelessRepoDir = file("${buildDir}/runStatelessTask/repo")
+
+testClusters.register("runStatelessTask") {
+    testDistribution = 'default'
+    numberOfNodes = 3
+
+    setting 'path.repo', statelessRepoDir.absolutePath
+    setting 'stateless.enabled', 'true'
+    setting 'stateless.object_store.type', 'fs'
+    setting 'stateless.object_store.bucket', 'stateless'
+    setting 'stateless.object_store.base_path', 'base_path'
+    setting 'xpack.security.enabled', 'true'
+    setting 'xpack.ml.enabled', 'false'
+    setting 'ingest.geoip.downloader.enabled', 'false'
+    keystore 'bootstrap.password', 'password'
+    user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
+
+    // Index node: handles writes and translog replication to the object store
+    nodes.'runStatelessTask-0'.setting 'node.roles', '[master,remote_cluster_client,ingest,index]'
+    nodes.'runStatelessTask-0'.setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'
+    nodes.'runStatelessTask-0'.setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
+
+    // Search node: read-only, serves queries from the shared blob cache
+    nodes.'runStatelessTask-1'.setting 'node.roles', '[remote_cluster_client,search]'
+    nodes.'runStatelessTask-1'.setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'
+    nodes.'runStatelessTask-1'.setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
+
+    // ML/transform node: ML enabled only here to avoid native controller startup on other nodes
+    nodes.'runStatelessTask-2'.setting 'node.roles', '[remote_cluster_client,ml,transform]'
+    nodes.'runStatelessTask-2'.setting 'xpack.ml.enabled', 'true'
+
+    // The stateless plugin and companions are excluded from the DEFAULT distribution
+    // (distribution/build.gradle filters them out), so they must be added explicitly.
+    // Without the stateless plugin, SettingsModule rejects stateless.* as unknown settings.
+    plugin ':x-pack:plugin:stateless'
+    module ':x-pack:plugin:secure-settings'
+    module ':x-pack:plugin:stateless-no-wait-for-active-shards'
+    module ':x-pack:plugin:stateless-master-failover'
+    module ':x-pack:plugin:stateless-sigterm'
+    module ':x-pack:plugin:stateless-health-shards-availability'
+
+    // Arrow memory allocator needs access to java.nio internals
+    jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+}
+
+tasks.register("runStateless", RunTask) {
+    useCluster testClusters.named("runStatelessTask")
+    description = 'Runs stateless Elasticsearch with a local filesystem object store'
+    group = 'Verification'
+    impliesSubProjects = true
+}

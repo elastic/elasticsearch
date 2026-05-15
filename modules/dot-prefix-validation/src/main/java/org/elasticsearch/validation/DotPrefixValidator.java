@@ -97,7 +97,10 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
             "\\.slm-history-7.*",
             // index defined in
             // x-pack/plugin/ent-search/src/main/java/org/elasticsearch/xpack/application/connector/ConnectorTemplateRegistry.java
-            "\\.search-acl-filter-.*"
+            "\\.search-acl-filter-.*",
+            "\\.logs-deprecation\\..*",
+            "\\.logs-elasticsearch\\.deprecation-.*",
+            "\\.reindexed-v7-ml-anomalies-.*"
         ),
         (patternList) -> patternList.forEach(pattern -> {
             try {

@@ -51,6 +51,7 @@ plugins {
   id 'elasticsearch.internal-testclusters'
   id 'elasticsearch.run'
   id 'elasticsearch.run-ccs'
+  id 'elasticsearch.run-stateless'
   id 'elasticsearch.repositories'
   id 'elasticsearch.release-tools'
   id 'elasticsearch.versions'

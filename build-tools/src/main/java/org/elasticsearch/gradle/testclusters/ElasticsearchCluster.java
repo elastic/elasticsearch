@@ -603,7 +603,21 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
     @Override
     public void stop(boolean tailLogs) {
-        nodes.forEach(each -> each.stop(tailLogs));
+        Exception thrown = null;
+        for (ElasticsearchNode node : nodes) {
+            try {
+                node.stop(tailLogs);
+            } catch (Exception e) {
+                if (thrown == null) {
+                    thrown = e;
+                } else {
+                    thrown.addSuppressed(e);
+                }
+            }
+        }
+        if (thrown != null) {
+            throw new TestClustersException("Failed to stop all nodes in cluster " + this, thrown);
+        }
     }
 
     /**

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -25,12 +26,14 @@ import java.util.List;
 
 import static java.time.temporal.ChronoUnit.HOURS;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEFAULT_PROMQL_INDEX_PATTERN;
 
 /**
  * REST handler for the Prometheus {@code GET /api/v1/labels} endpoint.
  * Returns the sorted list of label names across all matching time series.
  * The optional {@code {index}} path parameter restricts the query to a specific index pattern;
- * when omitted, all indices ({@code "*"}) are searched.
+ * when omitted, the index expression defaults to {@link PromqlCommand#DEFAULT_PROMQL_INDEX_PATTERN}
+ * (same as PromQL query APIs).
  * Only GET is supported. POST with {@code application/x-www-form-urlencoded} bodies is rejected
  * at the HTTP layer as a CSRF safeguard before this handler is ever reached — see
  * {@code RestController#isContentTypeDisallowed}.
@@ -74,7 +77,7 @@ public class PrometheusLabelsRestAction extends BaseRestHandler {
         // limit+1 sentinel to detect and report truncation.
         int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);
 
-        String index = request.param(INDEX_PARAM, "*");
+        String index = request.param(INDEX_PARAM, DEFAULT_PROMQL_INDEX_PATTERN);
         LogicalPlan plan = PrometheusLabelsPlanBuilder.buildPlan(index, matchSelectors, start, end, limit);
         EsqlStatement statement = new EsqlStatement(plan, List.of());
         PreparedEsqlQueryRequest esqlRequest = PreparedEsqlQueryRequest.sync(statement, "prometheus_labels");

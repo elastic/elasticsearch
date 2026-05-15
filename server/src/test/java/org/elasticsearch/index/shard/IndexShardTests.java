@@ -66,8 +66,10 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
@@ -173,6 +175,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntSupplier;
 import java.util.function.LongFunction;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -203,6 +206,7 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
@@ -349,6 +353,12 @@ public class IndexShardTests extends IndexShardTestCase {
             allocationId = AllocationId.newRelocation(allocationId);
         }
         return allocationId;
+    }
+
+    private static IndexMetadata newTestIndexMetadata() {
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
+        return IndexMetadata.builder("test").putMapping("""
+            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
     }
 
     public void testShardStateMetaHashCodeEquals() {
@@ -3084,9 +3094,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testTranslogRecoverySyncsTranslog() throws IOException {
-        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
-        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
-            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexMetadata metadata = newTestIndexMetadata();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
         recoverShardFromStore(primary);
 
@@ -3210,9 +3218,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testShardActiveDuringPeerRecovery() throws IOException {
-        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
-        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
-            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexMetadata metadata = newTestIndexMetadata();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
         recoverShardFromStore(primary);
 
@@ -3259,9 +3265,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testRefreshListenersDuringPeerRecovery() throws IOException {
-        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
-        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
-            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexMetadata metadata = newTestIndexMetadata();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
         recoverShardFromStore(primary);
 
@@ -3334,9 +3338,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testWaitForEngineListener() throws IOException {
-        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
-        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
-            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexMetadata metadata = newTestIndexMetadata();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
 
         AtomicBoolean called = new AtomicBoolean(false);
@@ -3350,9 +3352,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testWaitForClosedListener() throws IOException {
-        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
-        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
-            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexMetadata metadata = newTestIndexMetadata();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
 
         AtomicBoolean called = new AtomicBoolean(false);
@@ -3363,10 +3363,206 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat("listener should have been called", called.get(), equalTo(true));
     }
 
+    public void testWaitForSearchReadyListener() throws Exception {
+        IndexMetadata metadata = newTestIndexMetadata();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+
+        AtomicBoolean called = new AtomicBoolean(false);
+        primary.waitForSearchReady(ActionListener.running(() -> called.set(true)));
+        assertThat("listener should not have been called yet", called.get(), equalTo(false));
+
+        recoverShardFromStore(primary);
+        assertBusy(() -> assertThat("listener should have been called after recovery", called.get(), equalTo(true)));
+
+        closeShards(primary);
+    }
+
+    public void testWaitForSearchReadyOnClose() throws Exception {
+        IndexMetadata metadata = newTestIndexMetadata();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+
+        AtomicBoolean called = new AtomicBoolean(false);
+        AtomicBoolean failed = new AtomicBoolean(false);
+        primary.waitForSearchReady(ActionListener.wrap(v -> called.set(true), e -> failed.set(true)));
+        assertThat("listener should not have been called yet", called.get(), equalTo(false));
+
+        closeShards(primary);
+        assertBusy(() -> assertThat("listener should have failed on close", failed.get(), equalTo(true)));
+        assertThat("listener should not have succeeded", called.get(), equalTo(false));
+    }
+
+    public void testWaitForSearchReadyWhenAlreadyStarted() throws IOException {
+        IndexShard primary = newStartedShard(true);
+
+        AtomicBoolean called = new AtomicBoolean(false);
+        primary.waitForSearchReady(ActionListener.running(() -> called.set(true)));
+        assertThat("listener should have been called immediately for a started shard", called.get(), equalTo(true));
+
+        closeShards(primary);
+    }
+
+    public void testWaitForSearchReadyMultipleListeners() throws Exception {
+        IndexMetadata metadata = newTestIndexMetadata();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+
+        int listenerCount = randomIntBetween(2, 10);
+        AtomicInteger completedCount = new AtomicInteger(0);
+        for (int i = 0; i < listenerCount; i++) {
+            primary.waitForSearchReady(ActionListener.running(completedCount::incrementAndGet));
+        }
+        assertThat("no listeners should have been called yet", completedCount.get(), equalTo(0));
+
+        recoverShardFromStore(primary);
+        assertBusy(() -> assertThat("all listeners should have been called", completedCount.get(), equalTo(listenerCount)));
+
+        closeShards(primary);
+    }
+
+    private static void assertOverCapRejection(IndexShard.SearchReadyGate gate, ThreadContext threadContext) {
+        assertOverCapRejection(gate, threadContext, "expected EsRejectedExecutionException");
+    }
+
+    private static void assertOverCapRejection(IndexShard.SearchReadyGate gate, ThreadContext threadContext, String reason) {
+        AtomicReference<Exception> rejection = new AtomicReference<>();
+        gate.addListener(ActionListener.wrap(v -> fail("expected rejection"), rejection::set), threadContext);
+        assertThat(reason, rejection.get(), instanceOf(EsRejectedExecutionException.class));
+    }
+
+    public void testSearchReadyGateRejectsWhenPendingCapExceeded() {
+        int maxPending = 4;
+        IndexShard.SearchReadyGate gate = new IndexShard.SearchReadyGate(() -> maxPending, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        AtomicInteger parked = new AtomicInteger();
+        for (int i = 0; i < maxPending; i++) {
+            gate.addListener(ActionListener.running(parked::incrementAndGet), threadContext);
+        }
+        assertThat("no parked listener should have fired yet", parked.get(), equalTo(0));
+
+        assertOverCapRejection(gate, threadContext, "over-cap caller should be rejected");
+
+        gate.onReady();
+        assertThat("all parked listeners should be released on ready", parked.get(), equalTo(maxPending));
+
+        // Once the gate fires, the pending counter drains and new callers succeed immediately regardless of cap.
+        AtomicBoolean postReadyCalled = new AtomicBoolean();
+        gate.addListener(ActionListener.running(() -> postReadyCalled.set(true)), threadContext);
+        assertThat("listener registered after ready should fire immediately", postReadyCalled.get(), equalTo(true));
+    }
+
+    public void testSearchReadyGateSlotCloseFreesPending() {
+        int maxPending = 2;
+        IndexShard.SearchReadyGate gate = new IndexShard.SearchReadyGate(() -> maxPending, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        // Fill the cap. Listeners stay parked because the gate has not fired.
+        AtomicInteger fired = new AtomicInteger();
+        Releasable slot1 = gate.addListener(ActionListener.running(fired::incrementAndGet), threadContext);
+        gate.addListener(ActionListener.running(fired::incrementAndGet), threadContext);
+        assertThat("listeners must be parked while waiting for the gate", fired.get(), equalTo(0));
+
+        // Over-cap caller is rejected while the slots are held.
+        assertOverCapRejection(gate, threadContext);
+
+        // Closing slot1 must free a pending slot even though the gate has not fired and the parked listener
+        // for slot1 has not been notified externally; this models the task-cancellation case.
+        slot1.close();
+        AtomicBoolean accepted = new AtomicBoolean();
+        gate.addListener(ActionListener.running(() -> accepted.set(true)), threadContext);
+        assertThat("freed slot must allow a new caller to park", accepted.get(), equalTo(false));
+
+        // Closing the same handle twice must not double-decrement and let an extra caller in over the cap.
+        slot1.close();
+        assertOverCapRejection(gate, threadContext, "idempotent close must not free additional capacity");
+
+        // When the gate finally fires, the runAfter hook attached to slot1's listener races with the
+        // already-released flag and must not decrement pending again. We verify by filling the cap from scratch
+        // after the drain and checking that the next caller is parked, not let in beyond the limit.
+        gate.onReady();
+        assertThat("all parked listeners (including the slot1 listener) must fire", fired.get(), equalTo(2));
+    }
+
+    public void testSearchReadyGateDynamicCap() {
+        AtomicInteger cap = new AtomicInteger(2);
+        IndexShard.SearchReadyGate gate = new IndexShard.SearchReadyGate(cap::get, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        gate.addListener(ActionListener.noop(), threadContext);
+        gate.addListener(ActionListener.noop(), threadContext);
+
+        assertOverCapRejection(gate, threadContext);
+
+        // Raising the cap at runtime allows the next caller through without releasing the earlier parked ones.
+        cap.set(3);
+        AtomicBoolean accepted = new AtomicBoolean();
+        gate.addListener(ActionListener.running(() -> accepted.set(true)), threadContext);
+        assertThat("listener registered while cap allows should be parked, not rejected", accepted.get(), equalTo(false));
+    }
+
+    public void testDefaultMaxPendingSupplierUsesFallbackForUnboundedQueue() {
+        // Anchor on what the formula yields with an explicit queue size equal to the fallback constant. Asserting
+        // against this value (rather than UNBOUNDED_QUEUE_FALLBACK directly) keeps the test order-independent: the
+        // formula reads the node-global recovering-shard counter, which other tests may transiently bump.
+        int expected = IndexShard.SearchReadyGate.defaultMaxPendingSupplier((long) IndexShard.SearchReadyGate.UNBOUNDED_QUEUE_FALLBACK)
+            .getAsInt();
+
+        // null queue size (unbounded scaling pool): supplier must use UNBOUNDED_QUEUE_FALLBACK as a queue-size substitute.
+        assertThat(IndexShard.SearchReadyGate.defaultMaxPendingSupplier((Long) null).getAsInt(), equalTo(expected));
+
+        // Zero queue size: treated the same as unbounded.
+        assertThat(IndexShard.SearchReadyGate.defaultMaxPendingSupplier(0L).getAsInt(), equalTo(expected));
+    }
+
+    /**
+     * Exercises {@code onShardStateChanged} idempotency and the full RECOVERING lifecycle by observing the
+     * node-global counter through {@link IndexShard.SearchReadyGate#defaultMaxPendingSupplier(Long)}: with a known
+     * queue size, the supplier's output is a pure function of the recovering-shard count, so relative changes to its
+     * output reflect counter changes without needing to read the counter directly.
+     * <p>
+     * Uses two gates so the counter crosses {@code >= 2}: the formula clamps divisor to 1, so a single
+     * increment from 0 to 1 leaves the cap unchanged — only the second concurrently-recovering shard drops it.
+     */
+    public void testOnShardStateChangedIdempotencyAndLifecycleViaSupplier() {
+        // Large queue size keeps the supplier well above the per-shard minimum across the counter range exercised here.
+        IntSupplier supplier = IndexShard.SearchReadyGate.defaultMaxPendingSupplier(100_000L);
+        int baseline = supplier.getAsInt();
+
+        IndexShard.SearchReadyGate gateA = new IndexShard.SearchReadyGate(() -> Integer.MAX_VALUE, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        IndexShard.SearchReadyGate gateB = new IndexShard.SearchReadyGate(() -> Integer.MAX_VALUE, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
+        // The test directly manipulates the node-global counter via onShardStateChanged; the finally block
+        // guarantees we leave it where we found it even if an assertion fails mid-test, so we don't pollute
+        // other tests sharing this JVM.
+        try {
+            // Counter 0 -> 1: divisor clamped to 1, supplier unchanged.
+            gateA.onShardStateChanged(IndexShardState.RECOVERING);
+            assertThat(supplier.getAsInt(), equalTo(baseline));
+            // Idempotent: repeating RECOVERING on gateA must not increment again.
+            gateA.onShardStateChanged(IndexShardState.RECOVERING);
+            assertThat("repeated RECOVERING must not increment again", supplier.getAsInt(), equalTo(baseline));
+
+            // Counter 1 -> 2 via gateB: cap must drop.
+            gateB.onShardStateChanged(IndexShardState.RECOVERING);
+            int withTwoRecovering = supplier.getAsInt();
+            assertThat("cap should drop once a second shard is counted as recovering", withTwoRecovering, lessThan(baseline));
+
+            // Leaving RECOVERING on gateB: counter 2 -> 1, cap returns to baseline.
+            gateB.onShardStateChanged(IndexShardState.POST_RECOVERY);
+            assertThat(supplier.getAsInt(), equalTo(baseline));
+            // Repeating non-RECOVERING on gateB must not decrement again.
+            gateB.onShardStateChanged(IndexShardState.POST_RECOVERY);
+            assertThat("repeated non-RECOVERING must not decrement again", supplier.getAsInt(), equalTo(baseline));
+            gateB.onShardStateChanged(IndexShardState.CLOSED);
+            assertThat(supplier.getAsInt(), equalTo(baseline));
+        } finally {
+            // Both gates are idempotent on CLOSED, so this is safe regardless of where the try body stopped.
+            gateA.onShardStateChanged(IndexShardState.CLOSED);
+            gateB.onShardStateChanged(IndexShardState.CLOSED);
+        }
+    }
+
     public void testWaitForPrimaryTermAndGenerationFailsForClosedShard() throws IOException {
-        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
-        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
-            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexMetadata metadata = newTestIndexMetadata();
         IndexShard initializingShard = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
 
         var future = new PlainActionFuture<Long>();
@@ -4046,10 +4242,9 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testIsSearchIdle() throws Exception {
-        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
-        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
-            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexMetadata metadata = newTestIndexMetadata();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        Settings settings = metadata.getSettings();
         recoverShardFromStore(primary);
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         assertTrue(primary.getEngine().refreshNeeded());
@@ -4096,10 +4291,9 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testScheduledRefresh() throws Exception {
         // Setup and make shard search idle:
-        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
-        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
-            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexMetadata metadata = newTestIndexMetadata();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        Settings settings = metadata.getSettings();
         recoverShardFromStore(primary);
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         assertTrue(primary.getEngine().refreshNeeded());
@@ -4180,10 +4374,9 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testRefreshIsNeededWithRefreshListeners() throws IOException, InterruptedException {
-        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
-        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
-            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexMetadata metadata = newTestIndexMetadata();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        Settings settings = metadata.getSettings();
         recoverShardFromStore(primary);
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         assertTrue(primary.getEngine().refreshNeeded());

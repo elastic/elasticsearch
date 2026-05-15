@@ -8,11 +8,15 @@
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -28,6 +32,7 @@ import java.io.PushbackInputStream;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * FormatReader implementation for NDJSON files.
@@ -35,53 +40,97 @@ import java.util.Map;
  */
 public class NdJsonFormatReader implements SegmentableFormatReader {
 
+    private static final Logger logger = LogManager.getLogger(NdJsonFormatReader.class);
+
     public static final String SCHEMA_SAMPLE_SIZE_SETTING = "esql.datasource.ndjson.schema_sample_size";
     public static final int DEFAULT_SCHEMA_SAMPLE_SIZE = 20_000;
 
+    /**
+     * Node-level setting for the parallel-parsing segment size. Larger segments amortise the fixed
+     * Java/Jackson per-segment setup cost; smaller segments enable parallelism on smaller files.
+     * Also overridable per-query via the {@code segment_size} key in {@code WITH (...)}.
+     */
+    public static final String SEGMENT_SIZE_SETTING = "esql.datasource.ndjson.segment_size";
+
+    /**
+     * 4 MiB, larger than the SPI's 1 MiB. Each NDJSON segment pays a fixed Java/Jackson setup cost
+     * (schema lookup, {@link FormatReadContext} creation, {@link NdJsonPageIterator} +
+     * {@link NdJsonPageDecoder} construction, range-stream wrapping, queue coordination), so cutting
+     * the segment count by 4x cuts that overhead by ~4x. ClickHouse's 1 MiB sweet spot does not
+     * carry over because their per-chunk overhead is much lower (no per-chunk object allocation in
+     * the C++ path). Files below {@code 2 * segment_size} (~8 MiB at the default) parse
+     * single-threaded; that matches where per-chunk setup actually amortises.
+     */
+    public static final ByteSizeValue DEFAULT_SEGMENT_SIZE = ByteSizeValue.ofMb(4);
+
+    /** Below 64 KiB, per-chunk overhead dominates parse cost; reject silly configurations early. */
+    static final ByteSizeValue MIN_SEGMENT_SIZE = ByteSizeValue.ofKb(64);
+
     /** Buffer size used to accelerate {@link #scanForTerminator} on cold (unbuffered) streams. */
     private static final int SCAN_BUFFER_SIZE = 8 * 1024;
+
+    static final String CONFIG_SCHEMA_SAMPLE_SIZE = "schema_sample_size";
+    static final String CONFIG_SEGMENT_SIZE = "segment_size";
+
+    /** Keys recognised by {@link #withConfigTrackingConsumedKeys(Map)}. */
+    static final Set<String> RECOGNIZED_KEYS = Set.of(CONFIG_SCHEMA_SAMPLE_SIZE, CONFIG_SEGMENT_SIZE);
 
     private final BlockFactory blockFactory;
     private final Settings settings;
     private final List<Attribute> resolvedSchema;
     private final int schemaSampleSize;
+    private final long segmentSizeBytes;
 
     public NdJsonFormatReader(Settings settings, BlockFactory blockFactory, List<Attribute> resolvedSchema) {
-        this(settings, blockFactory, resolvedSchema, schemaSampleSize(settings));
+        this(settings, blockFactory, resolvedSchema, schemaSampleSize(settings), segmentSize(settings));
     }
 
     NdJsonFormatReader(Settings settings, BlockFactory blockFactory) {
         this(settings, blockFactory, null);
     }
 
-    private NdJsonFormatReader(Settings settings, BlockFactory blockFactory, List<Attribute> resolvedSchema, int schemaSampleSize) {
+    private NdJsonFormatReader(
+        Settings settings,
+        BlockFactory blockFactory,
+        List<Attribute> resolvedSchema,
+        int schemaSampleSize,
+        long segmentSizeBytes
+    ) {
         this.blockFactory = blockFactory;
         this.settings = settings == null ? Settings.EMPTY : settings;
         this.resolvedSchema = resolvedSchema;
         this.schemaSampleSize = schemaSampleSize;
+        this.segmentSizeBytes = segmentSizeBytes;
     }
 
     @Override
     public NdJsonFormatReader withSchema(List<Attribute> schema) {
-        return new NdJsonFormatReader(settings, blockFactory, schema, schemaSampleSize);
+        return new NdJsonFormatReader(settings, blockFactory, schema, schemaSampleSize, segmentSizeBytes);
     }
 
     @Override
-    public FormatReader withConfig(Map<String, Object> config) {
+    public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
-            return this;
+            return Configured.empty(this);
         }
-        int newSampleSize = parseInt(config.get("schema_sample_size"), schemaSampleSize);
-        Check.isTrue(newSampleSize > 0, "schema_sample_size must be positive, got: {}", newSampleSize);
-        if (newSampleSize == schemaSampleSize) {
-            return this;
-        }
-        return new NdJsonFormatReader(settings, blockFactory, resolvedSchema, newSampleSize);
+        int newSampleSize = parseInt(config.get(CONFIG_SCHEMA_SAMPLE_SIZE), schemaSampleSize);
+        Check.isTrue(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
+        long newSegmentSize = parseSegmentSize(config.get(CONFIG_SEGMENT_SIZE), segmentSizeBytes);
+        FormatReader result = (newSampleSize == schemaSampleSize && newSegmentSize == segmentSizeBytes)
+            ? this
+            : new NdJsonFormatReader(settings, blockFactory, resolvedSchema, newSampleSize, newSegmentSize);
+        return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
 
     private List<Attribute> inferSchemaIfNeeded(List<Attribute> attributes, StorageObject object, boolean skipFirstLine)
         throws IOException {
-        if (attributes != null && attributes.isEmpty() == false) {
+        if (attributes != null) {
+            // Empty schema means the optimizer pruned every column (COUNT(*) etc.); skip inference
+            // entirely. The decoder treats an empty projection list as "structure-only", so there
+            // is nothing to type-check against.
+            if (attributes.isEmpty()) {
+                return attributes;
+            }
             if (needsFullSchemaSupplement(attributes)) {
                 List<Attribute> inferred;
                 try (var stream = openForSchemaInference(object, skipFirstLine)) {
@@ -156,6 +205,20 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     }
 
     /**
+     * Resolve the effective schema when the planner has bound a read schema. When the
+     * coordinator-side projection ({@code resolvedSchema}) is unavailable, the bound schema is used
+     * as-is. Otherwise the bound schema's column order is preserved and projection types/nullability
+     * overlay matching names — same semantics as {@link #mergeInferredWithPreferred}, just with the
+     * planner-supplied schema standing in for the per-file inference result.
+     */
+    private static List<Attribute> mergeBoundWithProjection(List<Attribute> bound, List<Attribute> projection) {
+        if (projection == null || projection.isEmpty()) {
+            return bound;
+        }
+        return mergeInferredWithPreferred(bound, projection);
+    }
+
+    /**
      * Union by column name: inferred file order first, then overlay coordinator types/nullability for matching names.
      */
     private static List<Attribute> mergeInferredWithPreferred(List<Attribute> inferred, List<Attribute> preferred) {
@@ -174,6 +237,14 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         return resolved.getAsInt(SCHEMA_SAMPLE_SIZE_SETTING, DEFAULT_SCHEMA_SAMPLE_SIZE);
     }
 
+    private static long segmentSize(Settings settings) {
+        Settings resolved = settings == null ? Settings.EMPTY : settings;
+        ByteSizeValue value = resolved.getAsBytesSize(SEGMENT_SIZE_SETTING, DEFAULT_SEGMENT_SIZE);
+        long bytes = value.getBytes();
+        Check.isTrue(bytes >= MIN_SEGMENT_SIZE.getBytes(), "{} must be >= {}, got: {}", SEGMENT_SIZE_SETTING, MIN_SEGMENT_SIZE, value);
+        return bytes;
+    }
+
     private static int parseInt(Object value, int defaultValue) {
         if (value == null) {
             return defaultValue;
@@ -185,6 +256,16 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         }
     }
 
+    private static long parseSegmentSize(Object value, long defaultValueBytes) {
+        if (value == null) {
+            return defaultValueBytes;
+        }
+        ByteSizeValue parsed = ByteSizeValue.parseBytesSizeValue(value.toString(), CONFIG_SEGMENT_SIZE);
+        long bytes = parsed.getBytes();
+        Check.isTrue(bytes >= MIN_SEGMENT_SIZE.getBytes(), CONFIG_SEGMENT_SIZE + " must be >= {}, got: {}", MIN_SEGMENT_SIZE, parsed);
+        return bytes;
+    }
+
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
         List<Attribute> schema;
@@ -194,6 +275,15 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         return new SimpleSourceMetadata(schema, formatName(), object.path().toString());
     }
 
+    /**
+     * Convenience overload that builds a minimal {@link FormatReadContext} without a planner-resolved
+     * {@code readSchema}. Safe for single-file reads (reader falls back to per-file inference); do
+     * NOT use to iterate the files of a multi-file glob — cross-file type drift will not be prevented.
+     *
+     * @deprecated use {@link #read(StorageObject, FormatReadContext)} so callers express
+     *             {@code readSchema} intent (or {@code null}) explicitly.
+     */
+    @Deprecated
     @Override
     public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
         return read(
@@ -204,9 +294,29 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
 
     @Override
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
-        boolean skipFirstLine = context.firstSplit() == false;
-        boolean trimLastPartialLine = context.lastSplit() == false;
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "NDJSON read [{}]: readSchema={}, firstSplit={}, recordAligned={}, projection={}",
+                object.path(),
+                context.readSchema() == null ? "null" : "present(" + context.readSchema().size() + ")",
+                context.firstSplit(),
+                context.recordAligned(),
+                context.projectedColumns() == null ? "null" : context.projectedColumns().size()
+            );
+        }
+        // Mirror {@link org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader}: parallel byte-range
+        // splits from {@link org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator} set
+        // {@code recordAligned=true}, signalling segment boundaries already fall on {@code \n}. Do not drop the
+        // first complete row or trim a trailing partial row in that mode — doing so mis-handles aligned segments
+        // (skipped rows, or truncated JSON when trim interacts with bounded range streams).
+        boolean skipFirstLine = context.firstSplit() == false && context.recordAligned() == false;
+        boolean trimLastPartialLine = context.lastSplit() == false && context.recordAligned() == false;
         ErrorPolicy errorPolicy = context.errorPolicy() != null ? context.errorPolicy() : defaultErrorPolicy();
+        // Bound read schema wins when non-null; null falls through to per-file inference.
+        // Prevents cross-file type drift on multi-file globs (e.g. y:LONG vs file-with-1.5 y:DOUBLE).
+        List<Attribute> effectiveSchema = context.readSchema() == null
+            ? inferSchemaIfNeeded(resolvedSchema, object, skipFirstLine)
+            : mergeBoundWithProjection(context.readSchema(), resolvedSchema);
         return new NdJsonPageIterator(
             object,
             context.projectedColumns(),
@@ -215,7 +325,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             blockFactory,
             skipFirstLine,
             trimLastPartialLine,
-            inferSchemaIfNeeded(resolvedSchema, object, skipFirstLine),
+            effectiveSchema,
             errorPolicy
         );
     }
@@ -228,6 +338,22 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         // Wrap cold streams to restore the 8 KB fast path; if already buffered, pass through.
         InputStream buffered = stream instanceof BufferedInputStream ? stream : new BufferedInputStream(stream, SCAN_BUFFER_SIZE);
         return scanForTerminator(buffered).consumed();
+    }
+
+    /**
+     * NDJSON records never contain embedded newlines, so a backward scan for a line terminator
+     * is always correct and O(1) from the end of the buffer — no per-record allocations needed.
+     * Matches the LF / CRLF / lone-CR contract of {@link #scanForTerminator}.
+     */
+    @Override
+    public int findLastRecordBoundary(byte[] buf, int length) {
+        for (int i = length - 1; i >= 0; i--) {
+            byte b = buf[i];
+            if (b == '\n' || b == '\r') {
+                return i;
+            }
+        }
+        return -1;
     }
 
     /** Outcome of a single scan for the next record terminator. */
@@ -266,6 +392,15 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             }
         }
         return LineScan.EOF;
+    }
+
+    /**
+     * Resolved per-reader from {@link #SEGMENT_SIZE_SETTING} (node-level) or the {@code segment_size}
+     * key in the per-query {@code WITH (...)} config. Defaults to {@link #DEFAULT_SEGMENT_SIZE}.
+     */
+    @Override
+    public long minimumSegmentSize() {
+        return segmentSizeBytes;
     }
 
     @Override

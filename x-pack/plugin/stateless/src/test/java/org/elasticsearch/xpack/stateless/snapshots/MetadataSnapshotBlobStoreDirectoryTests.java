@@ -19,6 +19,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
@@ -47,6 +48,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
+@LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class MetadataSnapshotBlobStoreDirectoryTests extends ESTestCase {
 
     private static final Logger logger = LogManager.getLogger(MetadataSnapshotBlobStoreDirectoryTests.class);

@@ -13,7 +13,6 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.document.DocumentField;
@@ -52,7 +51,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -689,8 +687,28 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
 
     public void setInnerHits(Map<String, SearchHits> innerHits) {
         assert innerHits == null || innerHits.values().stream().noneMatch(h -> h.hasReferences() == false);
-        assert this.innerHits == null;
-        this.innerHits = innerHits != null ? unmodifiableMap(innerHits) : null;
+        if (this.innerHits == null) {
+            this.innerHits = innerHits != null ? unmodifiableMap(innerHits) : null;
+        } else {
+            // Merge: InnerHitsPhase and ExpandSearchPhase both contribute inner hits to the same hit.
+            // Keys are always disjoint (nested-query names vs collapse inner_hits names).
+            Map<String, SearchHits> merged = newDisjointMergeMap(this.innerHits, innerHits);
+            merged.putAll(this.innerHits);
+            merged.putAll(innerHits);
+            this.innerHits = unmodifiableMap(merged);
+        }
+    }
+
+    /**
+     * Asserts that {@code incoming} is non-null and has no keys in common with {@code existing},
+     * then returns a pre-sized mutable map ready for the caller to populate.
+     * Used by both {@link #setInnerHits} and {@link #withInnerHits} to merge disjoint inner-hit sets.
+     */
+    private static Map<String, SearchHits> newDisjointMergeMap(Map<String, SearchHits> existing, Map<String, SearchHits> incoming) {
+        assert incoming != null;
+        assert incoming.keySet().stream().noneMatch(existing::containsKey)
+            : "duplicate inner hits key: existing=" + existing.keySet() + " new=" + incoming.keySet();
+        return Maps.newMapWithExpectedSize(existing.size() + incoming.size());
     }
 
     @Override
@@ -749,7 +767,19 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
      */
     public SearchHit withInnerHits(Map<String, SearchHits> innerHits) {
         assert isPooled() == false;
-        assert this.innerHits == null;
+        final Map<String, SearchHits> combined;
+        if (this.innerHits == null) {
+            combined = innerHits;
+        } else {
+            // Merge: InnerHitsPhase already set inner hits on this non-pooled hit; ExpandSearchPhase
+            // adds collapse inner hits. The new pooled hit takes ownership of both sets via mustIncRef.
+            combined = newDisjointMergeMap(this.innerHits, innerHits);
+            for (Map.Entry<String, SearchHits> entry : this.innerHits.entrySet()) {
+                entry.getValue().mustIncRef();
+                combined.put(entry.getKey(), entry.getValue());
+            }
+            combined.putAll(innerHits);
+        }
         return new SearchHit(
             docId,
             score,
@@ -767,41 +797,10 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             shard,
             index,
             clusterAlias,
-            innerHits,
+            combined,
             cloneIfHashMap(documentFields),
             cloneIfHashMap(metaFields),
             null
-        );
-    }
-
-    public SearchHit asUnpooled() {
-        assert hasReferences();
-        if (isPooled() == false) {
-            return this;
-        }
-        return new SearchHit(
-            docId,
-            score,
-            rank,
-            id,
-            nestedIdentity,
-            version,
-            seqNo,
-            primaryTerm,
-            source instanceof RefCounted ? new BytesArray(source.toBytesRef(), true) : source,
-            highlightFields,
-            sortValues,
-            matchedQueries,
-            explanation,
-            shard,
-            index,
-            clusterAlias,
-            innerHits == null
-                ? null
-                : innerHits.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().asUnpooled())),
-            cloneIfHashMap(documentFields),
-            cloneIfHashMap(metaFields),
-            ALWAYS_REFERENCED
         );
     }
 

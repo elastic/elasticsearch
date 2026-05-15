@@ -87,11 +87,18 @@ public class SearchShardCacheWarmingIT extends AbstractStatelessPluginIntegTestC
 
     @Override
     protected Settings.Builder nodeSettings() {
-        return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+        Settings.Builder builder = super.nodeSettings().put(
+            ObjectStoreService.TYPE_SETTING.getKey(),
+            ObjectStoreService.ObjectStoreType.MOCK
+        )
             .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
-            .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), true)
             .put(DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING.getKey(), 1.0d)
             .put(disableIndexingDiskAndMemoryControllersNodeSettings());
+        // only set if set by super, to verify default is on.
+        if (builder.keys().contains(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey())) {
+            builder.put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), true);
+        }
+        return builder;
     }
 
     /** Applied only on search nodes (master nodes cannot set shared cache size). */

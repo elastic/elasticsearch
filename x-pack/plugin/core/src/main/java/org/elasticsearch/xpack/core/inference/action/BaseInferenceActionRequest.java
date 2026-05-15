@@ -65,7 +65,8 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
 
     public BaseInferenceActionRequest(InferenceContext context) {
         super();
-        this.context = context;
+        // The context should never be null, but this is just a safeguard in case we missed a place where null could be passed in.
+        this.context = Objects.requireNonNullElse(context, InferenceContext.EMPTY_INSTANCE);
     }
 
     public BaseInferenceActionRequest(StreamInput in) throws IOException {

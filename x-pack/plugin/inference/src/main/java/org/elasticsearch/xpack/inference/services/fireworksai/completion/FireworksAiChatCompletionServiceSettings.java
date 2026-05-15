@@ -49,13 +49,7 @@ public class FireworksAiChatCompletionServiceSettings extends FilteredXContentOb
             validationException
         );
         var uri = ServiceUtils.extractOptionalUri(map, ServiceFields.URL, validationException);
-        var rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            FireworksAiService.NAME,
-            context
-        );
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
         validationException.throwIfValidationErrorsExist();
 
@@ -86,7 +80,6 @@ public class FireworksAiChatCompletionServiceSettings extends FilteredXContentOb
             serviceSettings,
             this.rateLimitSettings,
             validationException,
-            FireworksAiService.NAME,
             ConfigurationParseContext.REQUEST
         );
         validationException.throwIfValidationErrorsExist();

@@ -101,16 +101,6 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         }
     }
 
-    private static BitSet sliceBitSet(BitSet bitSet, SliceAcceptDocs slice) {
-        if (slice != null) {
-            int startDoc = Math.max(0, slice.startDoc());
-            int endDoc = Math.min(bitSet.length() - 1, slice.endDoc());
-            bitSet.clear(0, startDoc);
-            bitSet.clear(endDoc + 1, bitSet.length());
-        }
-        return bitSet;
-    }
-
     public record SliceAcceptDocs(int startDoc, int endDoc) {
         public SliceAcceptDocs {
             if (startDoc < 0) {
@@ -340,8 +330,10 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         private void createBitSetIfNecessary(SliceAcceptDocs slice) throws IOException {
             if (acceptBitSet == null) {
                 DocIdSetIterator iterator = scorerSupplier.get(NO_MORE_DOCS).iterator();
-                if (liveDocs == null && iterator instanceof BitSetIterator) {
-                    acceptBitSet = sliceBitSet(createBitSet(iterator, liveDocs, maxDoc), slice);
+                // Reuse the scorer's BitSet only when there is no slice; with a slice we intersect first so we
+                // never mutate a shared cached filter bitset in place.
+                if (liveDocs == null && iterator instanceof BitSetIterator && slice == null) {
+                    acceptBitSet = createBitSet(iterator, liveDocs, maxDoc);
                 } else {
                     iterator = sliceIterator(iterator, slice);
                     acceptBitSet = createBitSet(iterator, liveDocs, maxDoc);
@@ -359,7 +351,11 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         @Override
         public DocIdSetIterator iterator() throws IOException {
             if (acceptBitSet != null) {
-                return new BitSetIterator(acceptBitSet, cardinality);
+                long iterCost = cardinality;
+                if (iterCost < 0) {
+                    iterCost = acceptBitSet.cardinality();
+                }
+                return new BitSetIterator(acceptBitSet, iterCost);
             }
             DocIdSetIterator iterator = liveDocs == null
                 ? scorerSupplier.get(NO_MORE_DOCS).iterator()

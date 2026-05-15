@@ -342,10 +342,12 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             // case 2, some results are from different nodes but have same context Ids
             ArrayList<SearchPhaseResult> results = new ArrayList<>();
             Set<ShardId> shardsWithSwappedNodes = new HashSet<>();
+            // pick at least one shard that must swap, so the re-encoded id is guaranteed to differ from the original
+            ShardId mustSwap = randomFrom(originalShardIdMap.keySet());
             for (ShardId shardId : originalShardIdMap.keySet()) {
                 SearchContextIdForNode searchContextIdForNode = originalShardIdMap.get(shardId);
                 // only swap node for ids there have a non-null node id, i.e. those that didn't fail when opening a PIT
-                if (randomBoolean() && searchContextIdForNode.getNode() != null) {
+                if ((shardId.equals(mustSwap) || randomBoolean()) && searchContextIdForNode.getNode() != null) {
                     // swap to a different node
                     PhaseResult otherNode = new PhaseResult(searchContextIdForNode.getSearchContextId()).withShardTarget(
                         new SearchShardTarget("otherNode", shardId, searchContextIdForNode.getClusterAlias())

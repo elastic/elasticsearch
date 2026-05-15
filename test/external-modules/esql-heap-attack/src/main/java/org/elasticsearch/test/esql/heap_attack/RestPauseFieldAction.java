@@ -39,10 +39,9 @@ public class RestPauseFieldAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         boolean block = request.path().endsWith("/block");
-        return channel -> client.admin().cluster().execute(
-            TransportPauseFieldAction.TYPE,
-            new TransportPauseFieldAction.Request(block),
-            new RestActionListener<>(channel) {
+        return channel -> client.admin()
+            .cluster()
+            .execute(TransportPauseFieldAction.TYPE, new TransportPauseFieldAction.Request(block), new RestActionListener<>(channel) {
                 @Override
                 protected void processResponse(TransportPauseFieldAction.Response response) throws Exception {
                     try (XContentBuilder builder = channel.newBuilder()) {
@@ -50,7 +49,6 @@ public class RestPauseFieldAction extends BaseRestHandler {
                         channel.sendResponse(new RestResponse(RestStatus.OK, builder));
                     }
                 }
-            }
-        );
+            });
     }
 }

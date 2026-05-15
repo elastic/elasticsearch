@@ -542,3 +542,12 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testMultipleInferencesTriggeringDownloadAndDeploy
   issue: https://github.com/elastic/elasticsearch/issues/149130
+- class: org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormatTests;
+  method: testOneRepeatedVector
+  issue: https://github.com/elastic/elasticsearch/issues/149168
+- class: org.elasticsearch.index.codec.vectors.diskbbq.es92.ES920DiskBBQVectorsFormatTests;
+  method: testOneRepeatedVector
+  issue: https://github.com/elastic/elasticsearch/issues/149168
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests;
+  method: testOneRepeatedVector
+  issue: https://github.com/elastic/elasticsearch/issues/149168

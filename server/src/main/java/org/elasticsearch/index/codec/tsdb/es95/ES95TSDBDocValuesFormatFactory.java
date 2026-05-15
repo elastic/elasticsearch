@@ -71,11 +71,7 @@ public final class ES95TSDBDocValuesFormatFactory {
      * @param writePartitions          whether to write prefix partitioned sorted fields
      * @return the configured format (shared, do not mutate)
      */
-    public static DocValuesFormat createDocValuesFormat(
-        boolean useLargeNumericBlockSize,
-        boolean useLargeBinaryBlockSize,
-        boolean writePartitions
-    ) {
+    public static DocValuesFormat get(boolean useLargeNumericBlockSize, boolean useLargeBinaryBlockSize, boolean writePartitions) {
         final int idx = (useLargeNumericBlockSize ? 4 : 0) + (useLargeBinaryBlockSize ? 2 : 0) + (writePartitions ? 1 : 0);
         return INSTANCES[idx];
     }
@@ -83,19 +79,14 @@ public final class ES95TSDBDocValuesFormatFactory {
     /**
      * Allocates a fresh ES95 doc values format with the given settings, bypassing the
      * instance cache. Intended for benchmarks that want to measure the wall clock cost
-     * of bypassing the cache (the pre cache fix behavior); production code should call
-     * {@link #createDocValuesFormat} instead.
+     * of bypassing the cache; production code should call {@link #get} instead.
      *
-     * @param useLargeNumericBlockSize same semantics as {@link #createDocValuesFormat}
-     * @param useLargeBinaryBlockSize  same semantics as {@link #createDocValuesFormat}
-     * @param writePartitions          same semantics as {@link #createDocValuesFormat}
+     * @param useLargeNumericBlockSize same semantics as {@link #get}
+     * @param useLargeBinaryBlockSize  same semantics as {@link #get}
+     * @param writePartitions          same semantics as {@link #get}
      * @return a freshly allocated format with the requested parameters
      */
-    public static DocValuesFormat createDocValuesFormatUncached(
-        boolean useLargeNumericBlockSize,
-        boolean useLargeBinaryBlockSize,
-        boolean writePartitions
-    ) {
+    public static DocValuesFormat create(boolean useLargeNumericBlockSize, boolean useLargeBinaryBlockSize, boolean writePartitions) {
         return build(useLargeNumericBlockSize, useLargeBinaryBlockSize, writePartitions);
     }
 }

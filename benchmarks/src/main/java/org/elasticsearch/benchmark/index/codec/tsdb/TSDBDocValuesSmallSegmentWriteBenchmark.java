@@ -102,7 +102,7 @@ public class TSDBDocValuesSmallSegmentWriteBenchmark {
             false,
             false
         );
-        final DocValuesFormat es95Format = ES95TSDBDocValuesFormatFactory.createDocValuesFormat(false, false, false);
+        final DocValuesFormat es95Format = ES95TSDBDocValuesFormatFactory.get(false, false, false);
         es819Codec = wrapCodec(es819Format);
         es95Codec = wrapCodec(es95Format);
         es95UncachedCodec = wrapUncachedES95Codec();
@@ -180,7 +180,7 @@ public class TSDBDocValuesSmallSegmentWriteBenchmark {
         return new Elasticsearch93Lucene104Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
-                return ES95TSDBDocValuesFormatFactory.createDocValuesFormatUncached(false, false, false);
+                return ES95TSDBDocValuesFormatFactory.create(false, false, false);
             }
         };
     }

@@ -67,6 +67,6 @@ public class TSDBDocValuesFormatCreationBenchmark {
 
     @Benchmark
     public DocValuesFormat createES95DocValuesFormat() {
-        return ES95TSDBDocValuesFormatFactory.createDocValuesFormat(false, false, false);
+        return ES95TSDBDocValuesFormatFactory.get(false, false, false);
     }
 }

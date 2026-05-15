@@ -340,11 +340,7 @@ class ScrollDataExtractor implements DataExtractor {
             boolean isCcsScroll = lastLinkedClusterStates.isEmpty() == false;
             if (isCcsScroll) {
                 logger.info(
-                    () -> Strings.format(
-                        "[%s] CCS scroll context could not be cleared, will retry [%s]",
-                        context.jobId,
-                        scrollId
-                    ),
+                    () -> Strings.format("[%s] CCS scroll context could not be cleared, will retry [%s]", context.jobId, scrollId),
                     e
                 );
                 failedClearScrollIds.add(scrollId);

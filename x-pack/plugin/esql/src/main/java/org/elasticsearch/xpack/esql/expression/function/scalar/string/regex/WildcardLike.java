@@ -162,8 +162,8 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
      * running {@code RunAutomaton.step} per row. The general path (other
      * patterns, case-insensitive matching) still goes through
      * {@code AutomataMatch}. Prefix and suffix reuse the
-     * {@code STARTS_WITH}/{@code ENDS_WITH} evaluators; contains uses the
-     * {@link #processContains} byte scan below.
+     * {@code STARTS_WITH}/{@code ENDS_WITH} evaluators; contains delegates to
+     * the SIMD-backed {@link #processContains} below.
      */
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {

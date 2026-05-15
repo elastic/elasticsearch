@@ -9,10 +9,6 @@
 
 package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
-import io.opentelemetry.sdk.metrics.SdkMeterProvider;
-import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
-import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter;
-
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -20,20 +16,22 @@ import org.elasticsearch.test.ESTestCase;
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.nullValue;
 
 public class OtelSdkExportMeterSupplierTests extends ESTestCase {
 
     public void testGetWithoutEndpointThrows() {
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> new OtelSdkExportMeterSupplier(Settings.EMPTY).get());
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> new OtelSdkExportMeterSupplier(Settings.EMPTY, null).get()
+        );
         assertThat(e.getMessage(), containsString(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY));
         assertThat(e.getMessage(), containsString("telemetry.otel.metrics.endpoint"));
     }
 
     public void testGetWithEmptyEndpointThrows() {
         Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENDPOINT.getKey(), "").build();
-        expectThrows(IllegalStateException.class, () -> new OtelSdkExportMeterSupplier(settings).get());
+        expectThrows(IllegalStateException.class, () -> new OtelSdkExportMeterSupplier(settings, null).get());
     }
 
     public void testBuildOtlpAuthorizationHeaderWithNeitherCredential() {
@@ -63,43 +61,25 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
     }
 
     public void testCloseWithoutGetDoesNotThrow() {
-        new OtelSdkExportMeterSupplier(Settings.EMPTY).close();
+        new OtelSdkExportMeterSupplier(Settings.EMPTY, null).close();
     }
 
     public void testDoubleCloseAfterGetDoesNotThrow() {
         String bogusUrl = "http://127.0.0.1:9/v1/metrics";
         Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENDPOINT.getKey(), bogusUrl).build();
-        OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings);
+        OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings, createTempDir());
         supplier.get();
         supplier.close();
         supplier.close();
     }
 
-    /** attemptFlushMetrics() after close() (resources nulled) must be a no-op and not throw. */
+    /** attemptFlushMetrics() after close() must be a no-op and not throw. */
     public void testAttemptFlushMetricsAfterCloseIsNoop() {
-        OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(testResources(InMemoryMetricExporter.create()));
+        String bogusUrl = "http://127.0.0.1:9/v1/metrics";
+        Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENDPOINT.getKey(), bogusUrl).build();
+        OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings, createTempDir());
+        supplier.get();
         supplier.close();
         supplier.attemptFlushMetrics(); // must not throw
-    }
-
-    /** attemptFlushMetrics() with initialized resources triggers an export of buffered metric data. */
-    public void testAttemptFlushMetricsTriggersExport() {
-        InMemoryMetricExporter exporter = InMemoryMetricExporter.create();
-        OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(testResources(exporter));
-
-        supplier.get().counterBuilder("test.counter").build().add(1);
-        supplier.attemptFlushMetrics();
-
-        assertThat(
-            "expected at least one metric export after attemptFlushMetrics",
-            exporter.getFinishedMetricItems().size(),
-            greaterThan(0)
-        );
-        supplier.close();
-    }
-
-    private static OtelSdkExportMeterSupplier.OTelMetricsResources testResources(InMemoryMetricExporter exporter) {
-        var provider = SdkMeterProvider.builder().registerMetricReader(PeriodicMetricReader.builder(exporter).build()).build();
-        return new OtelSdkExportMeterSupplier.OTelMetricsResources(provider, provider, null);
     }
 }

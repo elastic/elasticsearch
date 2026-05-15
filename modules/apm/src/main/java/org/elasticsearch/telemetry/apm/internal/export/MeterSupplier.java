@@ -11,7 +11,6 @@ package org.elasticsearch.telemetry.apm.internal.export;
 
 import io.opentelemetry.api.metrics.Meter;
 
-import java.nio.file.Path;
 import java.util.function.Supplier;
 
 public interface MeterSupplier extends Supplier<Meter>, AutoCloseable {
@@ -22,12 +21,6 @@ public interface MeterSupplier extends Supplier<Meter>, AutoCloseable {
      * This defaults to a no-op just to support the fairly widespread practice of using a lambda for this in tests.
      */
     default void attemptFlushMetrics() {}
-
-    /**
-     * Late-initializes the disk buffer directory for metric export buffering.
-     * Only meaningful for suppliers that support disk-backed buffering.
-     */
-    default void setDiskBufferPath(Path path) {}
 
     @Override
     default void close() {}

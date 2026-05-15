@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
@@ -58,8 +59,9 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
     }
 
     @Override
-    public TelemetryProvider getTelemetryProvider(Settings settings) {
-        final APMTelemetryProvider apmTelemetryProvider = new APMTelemetryProvider(settings);
+    public TelemetryProvider getTelemetryProvider(Environment environment) {
+        Path diskBufferPath = environment.dataDirs()[0].resolve("telemetry-buffer");
+        final APMTelemetryProvider apmTelemetryProvider = new APMTelemetryProvider(environment.settings(), diskBufferPath);
         telemetryProvider.set(apmTelemetryProvider);
         return apmTelemetryProvider;
     }
@@ -71,11 +73,6 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
 
         apmTracer.setClusterName(services.clusterService().getClusterName().value());
         apmTracer.setNodeName(services.clusterService().getNodeName());
-
-        Path[] dataPaths = services.nodeEnvironment().nodeDataPaths();
-        if (dataPaths.length > 0) {
-            telemetryProvider.get().setDiskBufferPath(dataPaths[0].resolve("telemetry-buffer"));
-        }
 
         final APMAgentSettings apmAgentSettings = new APMAgentSettings();
         apmAgentSettings.initAgentSystemProperties(settings);
@@ -100,10 +97,12 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
             OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENABLED,
             OtelSdkSettings.TELEMETRY_OTEL_METRICS_DISK_BUFFER_SIZE,
             OtelSdkSettings.TELEMETRY_OTEL_METRICS_BUFFER_TTL,
+            OtelSdkSettings.TELEMETRY_OTEL_METRICS_EXPORT_QUEUE_SIZE,
             OtelSdkSettings.TELEMETRY_OTEL_METRICS_RETRY_MAX_ATTEMPTS,
             OtelSdkSettings.TELEMETRY_OTEL_METRICS_RETRY_INITIAL_BACKOFF,
-            OtelSdkSettings.TELEMETRY_OTEL_METRICS_RETRY_MAX_BACKOFF,
             OtelSdkSettings.TELEMETRY_OTEL_METRICS_RETRY_BACKOFF_MULTIPLIER,
+            OtelSdkSettings.TELEMETRY_OTEL_METRICS_OTLP_REQUEST_TIMEOUT,
+            OtelSdkSettings.TELEMETRY_OTEL_METRICS_OTLP_CONNECT_TIMEOUT,
             // Tracing
             APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING,
             APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING,

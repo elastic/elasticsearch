@@ -20,9 +20,9 @@ public class APMTelemetryProvider implements TelemetryProvider {
     private final APMTracer apmTracer;
     private final APMMeterService apmMeterService;
 
-    public APMTelemetryProvider(Settings settings) {
+    public APMTelemetryProvider(Settings settings, Path diskBufferPath) {
         apmTracer = new APMTracer(settings);
-        apmMeterService = new APMMeterService(settings);
+        apmMeterService = new APMMeterService(settings, diskBufferPath);
     }
 
     @Override
@@ -32,10 +32,6 @@ public class APMTelemetryProvider implements TelemetryProvider {
 
     public APMMeterService getMeterService() {
         return apmMeterService;
-    }
-
-    public void setDiskBufferPath(Path path) {
-        apmMeterService.setDiskBufferPath(path);
     }
 
     @Override

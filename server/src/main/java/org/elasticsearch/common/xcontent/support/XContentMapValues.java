@@ -489,20 +489,6 @@ public class XContentMapValues {
         return Double.parseDouble(node.toString());
     }
 
-    public static long nodeLongValue(Object node, long defaultValue) {
-        if (node == null) {
-            return defaultValue;
-        }
-        return nodeLongValue(node);
-    }
-
-    public static long nodeLongValue(Object node) {
-        if (node instanceof Number) {
-            return ((Number) node).longValue();
-        }
-        return Long.parseLong(node.toString());
-    }
-
     public static int nodeIntegerValue(Object node) {
         if (node instanceof Number) {
             return Numbers.toIntExact((Number) node);

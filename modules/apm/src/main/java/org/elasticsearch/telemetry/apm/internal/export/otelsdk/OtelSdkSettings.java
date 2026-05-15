@@ -10,6 +10,7 @@
 package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 
@@ -21,6 +22,26 @@ import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 public final class OtelSdkSettings {
 
     private OtelSdkSettings() {}
+
+    /**
+     * Worst-case time for one export through the OTLP retry chain: {@code max_attempts} request
+     * timeouts plus the geometric backoffs between them. Used as the budget for flush, replay
+     * joins, and executor termination.
+     */
+    static TimeValue computeExportOperationTimeout(Settings settings) {
+        int maxAttempts = TELEMETRY_OTEL_METRICS_RETRY_MAX_ATTEMPTS.get(settings);
+        long requestTimeoutMs = TELEMETRY_OTEL_METRICS_OTLP_REQUEST_TIMEOUT.get(settings).millis();
+        long initialBackoffMs = TELEMETRY_OTEL_METRICS_RETRY_INITIAL_BACKOFF.get(settings).millis();
+        double multiplier = TELEMETRY_OTEL_METRICS_RETRY_BACKOFF_MULTIPLIER.get(settings);
+
+        double backoffSumMs = 0;
+        double currentBackoffMs = initialBackoffMs;
+        for (int i = 0; i < maxAttempts - 1; i++) {
+            backoffSumMs += currentBackoffMs;
+            currentBackoffMs *= multiplier;
+        }
+        return TimeValue.timeValueMillis((long) (maxAttempts * (double) requestTimeoutMs + backoffSumMs));
+    }
 
     public static final Setting<String> TELEMETRY_OTEL_METRICS_ENDPOINT = Setting.simpleString(
         "telemetry.otel.metrics.endpoint",
@@ -40,64 +61,68 @@ public final class OtelSdkSettings {
         NodeScope
     );
 
-    /**
-     * Maximum disk space for buffered metric batches when the OTLP endpoint is unreachable.
-     * Set to {@code 0b} to disable disk buffering entirely (pass-through mode).
-     */
+    /** Disk cap for buffered batches while OTLP is unreachable. {@code 0b} disables buffering. */
     public static final Setting<ByteSizeValue> TELEMETRY_OTEL_METRICS_DISK_BUFFER_SIZE = Setting.byteSizeSetting(
         "telemetry.otel.metrics.disk_buffer_size",
-        ByteSizeValue.ZERO,
+        ByteSizeValue.ofMb(512),
         NodeScope
     );
 
-    /**
-     * Maximum age for buffered metric data. Entries older than this are dropped without export.
-     */
+    /** Buffered entries older than this are dropped. */
     public static final Setting<TimeValue> TELEMETRY_OTEL_METRICS_BUFFER_TTL = Setting.timeSetting(
         "telemetry.otel.metrics.buffer_ttl",
-        TimeValue.timeValueMinutes(5),
+        TimeValue.timeValueHours(12),
         NodeScope
     );
 
-    // -- OTLP exporter retry policy --
-
     /**
-     * Maximum number of export attempts (including the initial request).
-     * Valid range is 1–5; set to {@code 1} to disable retry.
+     * In-memory queue between reader and exporter. Stays near 0 as long as the worst-case export
+     * (see {@link #computeExportOperationTimeout(Settings)}) is shorter than the collection interval.
      */
+    public static final Setting<Integer> TELEMETRY_OTEL_METRICS_EXPORT_QUEUE_SIZE = Setting.intSetting(
+        "telemetry.otel.metrics.export_queue_size",
+        8,
+        0,
+        NodeScope
+    );
+
+    /** Total attempts per export (initial + retries). {@code 1} disables retry. */
     public static final Setting<Integer> TELEMETRY_OTEL_METRICS_RETRY_MAX_ATTEMPTS = Setting.intSetting(
         "telemetry.otel.metrics.retry.max_attempts",
-        5,
+        2,
         1,
         5,
         NodeScope
     );
 
-    /**
-     * Initial backoff duration between retry attempts.
-     */
+    /** Initial backoff between retry attempts. */
     public static final Setting<TimeValue> TELEMETRY_OTEL_METRICS_RETRY_INITIAL_BACKOFF = Setting.timeSetting(
         "telemetry.otel.metrics.retry.initial_backoff",
         TimeValue.timeValueSeconds(1),
         NodeScope
     );
 
-    /**
-     * Maximum backoff duration between retry attempts.
-     */
-    public static final Setting<TimeValue> TELEMETRY_OTEL_METRICS_RETRY_MAX_BACKOFF = Setting.timeSetting(
-        "telemetry.otel.metrics.retry.max_backoff",
-        TimeValue.timeValueSeconds(5),
-        NodeScope
-    );
-
-    /**
-     * Multiplier applied to the backoff duration after each failed attempt.
-     */
+    /** Backoff multiplier applied after each failed attempt. */
     public static final Setting<Double> TELEMETRY_OTEL_METRICS_RETRY_BACKOFF_MULTIPLIER = Setting.doubleSetting(
         "telemetry.otel.metrics.retry.backoff_multiplier",
         1.5,
         1.0,
+        NodeScope
+    );
+
+    public static final Setting<TimeValue> TELEMETRY_OTEL_METRICS_OTLP_REQUEST_TIMEOUT = Setting.timeSetting(
+        "telemetry.otel.metrics.otlp.request_timeout",
+        TimeValue.timeValueSeconds(5),
+        TimeValue.timeValueMillis(1),
+        TimeValue.timeValueSeconds(60),
+        NodeScope
+    );
+
+    public static final Setting<TimeValue> TELEMETRY_OTEL_METRICS_OTLP_CONNECT_TIMEOUT = Setting.timeSetting(
+        "telemetry.otel.metrics.otlp.connect_timeout",
+        TimeValue.timeValueSeconds(2),
+        TimeValue.timeValueMillis(1),
+        TimeValue.timeValueSeconds(10),
         NodeScope
     );
 }

@@ -37,8 +37,8 @@ public class APMMeterService extends AbstractLifecycleComponent {
 
     protected volatile boolean enabled;
 
-    public APMMeterService(Settings settings) {
-        this(settings, createOtelMeterSupplier(settings), new NoOpMeterSupplier());
+    public APMMeterService(Settings settings, Path diskBufferPath) {
+        this(settings, createOtelMeterSupplier(settings, diskBufferPath), new NoOpMeterSupplier());
     }
 
     public APMMeterService(Settings settings, MeterSupplier otelMeterSupplier, MeterSupplier noopMeterSupplier) {
@@ -48,10 +48,10 @@ public class APMMeterService extends AbstractLifecycleComponent {
         this.meterRegistry = new APMMeterRegistry(enabled ? otelMeterSupplier.get() : noopMeterSupplier.get());
     }
 
-    private static MeterSupplier createOtelMeterSupplier(Settings settings) {
+    private static MeterSupplier createOtelMeterSupplier(Settings settings, Path diskBufferPath) {
         boolean otelMetricsEnabled = Booleans.parseBoolean(System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "false"));
         if (otelMetricsEnabled) {
-            return new OtelSdkExportMeterSupplier(settings);
+            return new OtelSdkExportMeterSupplier(settings, diskBufferPath);
         } else {
             return new AgentExportMeterSupplier(settings);
         }
@@ -61,22 +61,10 @@ public class APMMeterService extends AbstractLifecycleComponent {
         return meterRegistry;
     }
 
-    /**
-     * Export buffered metrics on a best-effort basis.
-     * <p>
-     * For OpenTelemetry SDK metrics, pushes buffered data to the exporter. For Elastic APM agent metrics,
-     * sleeps for {@code 2 * telemetry.agent.metrics_interval} because the agent has no
-     * programmatic flush; observable export (e.g. first HTTP to {@code telemetry.agent.server_url}) may still
-     * take substantially longer than this sleep.
-     */
     public void attemptFlushMetrics() {
         if (enabled) {
             otelMeterSupplier.attemptFlushMetrics();
         }
-    }
-
-    public void setDiskBufferPath(Path path) {
-        otelMeterSupplier.setDiskBufferPath(path);
     }
 
     /**
@@ -99,16 +87,17 @@ public class APMMeterService extends AbstractLifecycleComponent {
                 LOGGER.warn("Exception flushing OTel MeterSupplier", e);
             }
         }
+        meterRegistry.setProvider(noopMeterSupplier.get());
+    }
+
+    @Override
+    protected void doClose() {
         try {
             otelMeterSupplier.close();
         } catch (Exception e) {
             LOGGER.warn("Exception closing OTel MeterSupplier", e);
         }
-        meterRegistry.setProvider(noopMeterSupplier.get());
     }
-
-    @Override
-    protected void doClose() {}
 
     private static final class NoOpMeterSupplier implements MeterSupplier {
         @Override

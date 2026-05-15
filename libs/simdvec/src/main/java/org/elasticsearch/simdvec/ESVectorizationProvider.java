@@ -7,18 +7,16 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.simdvec.internal.vectorization;
+package org.elasticsearch.simdvec;
 
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
-import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
-import org.elasticsearch.simdvec.ES93BinaryQuantizedVectorScorer;
-import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
+import org.elasticsearch.simdvec.internal.vectorization.JdkFeatures;
+import org.elasticsearch.simdvec.internal.vectorization.PanamaVectorConstants;
 
-import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
@@ -36,50 +34,25 @@ public abstract class ESVectorizationProvider {
 
     ESVectorizationProvider() {}
 
-    public abstract ESVectorUtilSupport getVectorUtilSupport();
+    abstract ESVectorUtilSupport getVectorUtilSupport();
 
-    /** Create a new {@link ES91OSQVectorsScorer} for the given {@link IndexInput}. */
-    public abstract ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException;
-
-    /**
-     * Create a new {@link ES940OSQVectorsScorer} for the given {@link IndexInput} and explicit int4 disk format.
-     * The input should be unwrapped before calling this method. If the input is
-     * still a {@code FilterIndexInput} that does not implement
-     * {@code MemorySegmentAccessInput} or {@code DirectAccessInput}, an
-     * {@link IllegalArgumentException} is thrown. Non-wrapper inputs (e.g.
-     * {@code ByteBuffersIndexInput}) are accepted and use a heap-copy fallback.
-     */
-    public abstract ES940OSQVectorsScorer newES940OSQVectorsScorer(
-        IndexInput input,
-        byte queryBits,
-        byte indexBits,
-        int dimension,
-        int dataLength,
-        int bulkSize,
-        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
-    ) throws IOException;
-
-    /**
-     * Create a new {@link ES92Int7VectorsScorer} for the given {@link IndexInput}.
-     * See {@link #newES940OSQVectorsScorer} for input type requirements.
-     */
-    public abstract ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException;
-
-    public abstract ES93BinaryQuantizedVectorScorer newES93BinaryQuantizedVectorScorer(
-        IndexInput input,
-        int dimension,
-        int vectorLengthInBytes
-    ) throws IOException;
+    public abstract VectorScorerFactory getVectorScorerFactory();
 
     // visible for tests
-    static ESVectorizationProvider lookup(boolean testMode) {
+    public static ESVectorizationProvider lookup(boolean allowPanama, boolean allowNative) {
         final int runtimeVersion = Runtime.version().feature();
         assert runtimeVersion >= 21;
+
+        if (!allowPanama) {
+            return new DefaultESVectorizationProvider();
+        }
+
         // only use vector module with Hotspot VM
         if (Constants.IS_HOTSPOT_VM == false) {
             logger.warn("Java runtime is not using Hotspot VM; Java vector incubator API can't be enabled.");
             return new DefaultESVectorizationProvider();
         }
+
         // is the incubator module present and readable (JVM providers may to exclude them or it is
         // build with jlink)
         final var vectorMod = lookupVectorModule();
@@ -90,16 +63,27 @@ public abstract class ESVectorizationProvider {
             );
             return new DefaultESVectorizationProvider();
         }
-        vectorMod.ifPresent(ESVectorizationProvider.class.getModule()::addReads);
-        var impl = new PanamaESVectorizationProvider();
+        ESVectorizationProvider.class.getModule().addReads(vectorMod.get());
+
+        boolean nativeSupported = allowNative && NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
+        boolean supportsHeapSegments = JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
+        // nativeSupported is already logged by NativeAccess, and JDK version is readily inferred
         logger.info(
             String.format(
                 Locale.ENGLISH,
                 "Java vector incubator API enabled; uses preferredBitSize=%d",
-                PanamaESVectorUtilSupport.VECTOR_BITSIZE
+                PanamaVectorConstants.PREFERRED_VECTOR_BITSIZE
             )
         );
-        return impl;
+
+        if (nativeSupported && supportsHeapSegments) {
+            return new Native22ESVectorizationProvider();
+        } else if (supportsHeapSegments) {
+            // no native support, but does support heap segments
+            return new Panama22ESVectorizationProvider();
+        } else {
+            return new Panama21ESVectorizationProvider();
+        }
     }
 
     private static Optional<Module> lookupVectorModule() {
@@ -112,6 +96,6 @@ public abstract class ESVectorizationProvider {
     private static final class Holder {
         private Holder() {}
 
-        static final ESVectorizationProvider INSTANCE = lookup(false);
+        static final ESVectorizationProvider INSTANCE = lookup(true, true);
     }
 }

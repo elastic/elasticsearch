@@ -36,6 +36,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -1123,11 +1124,19 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         }
     }
 
+    /**
+     * List all finalized blobs in the blob container, exclude any temporary blobs present for in-progress
+     * atomic writes.
+     *
+     * @param blobContainer An BlobContainer that extends or delegates to a {@link FsBlobContainer}
+     * @return The list of finalized blobs in that container
+     */
     protected Set<String> listBlobsWithAbsolutePath(BlobContainer blobContainer) throws IOException {
         var blobContainerPath = blobContainer.path().buildAsString();
         return blobContainer.listBlobs(operationPurpose)
             .keySet()
             .stream()
+            .filter(blob -> FsBlobContainer.isTempBlobName(blob.substring(blob.lastIndexOf('/') + 1)) == false)
             .map(blob -> blobContainerPath + blob)
             .collect(Collectors.toSet());
     }

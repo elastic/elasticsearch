@@ -12,13 +12,13 @@ package org.elasticsearch.reindex;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.ResumeInfo.PitWorkerResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -69,10 +69,10 @@ public abstract class PitPaginatedHitSource extends PaginatedHitSource {
         cachedTotalHits.compareAndSet(null, response.getTotalHits());
     }
 
-    /// Total hits captured from the first batch, or `null` before the first batch has been observed.
-    @Nullable
-    protected final Long getCachedTotalHits() {
-        return cachedTotalHits.get();
+    /// Total hits captured from the first batch, or empty before the first batch has been observed.
+    protected final OptionalLong getCachedTotalHits() {
+        Long cached = cachedTotalHits.get();
+        return cached == null ? OptionalLong.empty() : OptionalLong.of(cached);
     }
 
     @Override

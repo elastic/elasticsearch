@@ -27,6 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -112,13 +113,13 @@ public class RemotePitPaginatedHitSource extends PitPaginatedHitSource {
             pitId.set(response.getPitId());
         }
         // Substitute the cached total on follow-up batches whose response total is a placeholder.
-        Long cachedTotal = getCachedTotalHits();
+        OptionalLong cachedTotal = getCachedTotalHits();
         Response delivered = response;
-        if (cachedTotal != null) {
+        if (cachedTotal.isPresent()) {
             delivered = new Response(
                 response.isTimedOut(),
                 response.getFailures(),
-                cachedTotal,
+                cachedTotal.getAsLong(),
                 response.getHits(),
                 response.getScrollId(),
                 response.getSearchAfterValues(),
@@ -134,7 +135,7 @@ public class RemotePitPaginatedHitSource extends PitPaginatedHitSource {
         currentKeepAlive.set(keepAlive);
         // Cache is seeded after the first batch, so drop track_total_hits on follow-ups to keep Max WAND active.
         SearchRequest nextRequest = searchRequest;
-        if (getCachedTotalHits() != null) {
+        if (getCachedTotalHits().isPresent()) {
             SearchSourceBuilder source = searchRequest.source().shallowCopy().trackTotalHits(false);
             nextRequest = new SearchRequest(searchRequest).source(source);
         }

@@ -19,7 +19,6 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
@@ -31,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -117,7 +117,7 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
         }
         SearchSourceBuilder source = firstSearchRequest.source().shallowCopy().searchAfter(searchAfter).pointInTimeBuilder(extended);
         // Cache is seeded after the first batch, so drop track_total_hits on follow-ups to keep Max WAND active.
-        if (getCachedTotalHits() != null) {
+        if (getCachedTotalHits().isPresent()) {
             source.trackTotalHits(false);
         }
         SearchRequest nextRequest = new SearchRequest(firstSearchRequest).source(source);
@@ -167,7 +167,7 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
         onCompletion.run();
     }
 
-    private static Response wrapSearchResponse(SearchResponse response, @Nullable Long cachedTotal) {
+    private static Response wrapSearchResponse(SearchResponse response, OptionalLong cachedTotal) {
         List<PaginatedSearchFailure> failures;
         if (response.getShardFailures() == null) {
             failures = emptyList();
@@ -190,11 +190,12 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
         }
         // Substitute the cached total on follow-up batches whose response total is a placeholder.
         long total;
-        if (cachedTotal != null) {
-            total = cachedTotal;
+        if (cachedTotal.isPresent()) {
+            total = cachedTotal.getAsLong();
         } else {
             var totalHits = response.getHits().getTotalHits();
-            total = totalHits != null ? totalHits.value() : 0L;
+            assert totalHits != null;
+            total = totalHits.value();
         }
         Object[] searchAfterValues = null;
         if (hits.isEmpty() == false) {

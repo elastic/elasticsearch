@@ -49,12 +49,9 @@ public class DatasetRewriterTests extends ESTestCase {
 
     private static final IndexNameExpressionResolver RESOLVER = TestIndexNameExpressionResolver.newInstance();
 
-    /**
-     * In release-tests CI, {@code build.snapshot=false} disables {@link DataSourceMetadata#ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG}.
-     * These unit tests bypass the CRUD layer (which is the production gate) by constructing {@link ProjectMetadata} with datasets
-     * directly via {@code Builder.datasets(...)}, so they exercise rewriter paths that production cannot reach when the flag is off.
-     * Skip the entire class when the flag is off — same pattern {@code FromDatasetIT} uses for the same reason.
-     */
+    // Skip when the feature flag is off: these tests bypass the CRUD gate that keeps datasets out
+    // of cluster state in production, so without the skip they exercise paths production cannot
+    // reach. Same pattern as FromDatasetIT#requireFeatureFlag.
     @Before
     public void requireFeatureFlag() {
         assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());

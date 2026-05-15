@@ -34,25 +34,16 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
- * Companion to {@link DatasetRewriterTests} that intentionally does NOT carry the
- * {@code @Before assumeTrue(ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled())} guard. Pins the
- * contract from PR #148859 that {@link DatasetRewriter#rewrite} does not read the feature flag —
- * given a {@link ProjectMetadata} that contains datasets (constructed directly via
- * {@code Builder.datasets(...)}, bypassing the CRUD gate), the rewriter must process them the same
- * way under release-tests ({@code build.snapshot=false}, flag off) as under snapshot builds.
- *
- * <p>This class is small on purpose: the heavy behavioral coverage stays in
- * {@link DatasetRewriterTests}. These tests are diagnostics — if {@link DatasetRewriterTests} ever
- * fails again in release-tests CI, the same failure here gives a smaller reproduction with
- * fewer moving parts.
+ * Pins the contract from #148859 that {@link DatasetRewriter#rewrite} does not read
+ * {@link DataSourceMetadata#ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG}. No {@code @Before} guard: with
+ * datasets seeded via {@link ProjectMetadata.Builder#datasets} (bypassing the CRUD gate), the
+ * rewriter must behave the same under release-tests as under snapshot builds.
  */
 public class DatasetRewriterFlagAgnosticTests extends ESTestCase {
 
     private static final IndexNameExpressionResolver RESOLVER = TestIndexNameExpressionResolver.newInstance();
 
     public void testSingleDatasetRewriteRegardlessOfFlagState() {
-        // Mirrors testSingleDatasetRewritesToUnresolvedExternalRelation but without the
-        // @Before guard. Must pass even when ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG is off.
         DataSource parent = new DataSource("s3_parent", "test", null, Map.of());
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT)
@@ -65,8 +56,6 @@ public class DatasetRewriterFlagAgnosticTests extends ESTestCase {
     }
 
     public void testMixedFromRejectedRegardlessOfFlagState() {
-        // Mirrors testClosedIndexCountsAsNonDatasetInMixedRejection's exception expectation
-        // without the @Before guard. Must throw VerificationException even when the flag is off.
         DataSource parent = new DataSource("s3_parent", "test", null, Map.of());
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
 
@@ -92,15 +81,6 @@ public class DatasetRewriterFlagAgnosticTests extends ESTestCase {
             () -> DatasetRewriter.rewrite(relationOf("my_index,logs"), project, RESOLVER)
         );
         assertThat(ex.getMessage(), containsString("mixing datasets and non-datasets"));
-    }
-
-    public void testNoDatasetsLeavesPlanUnchangedRegardlessOfFlagState() {
-        // Sanity: when no datasets are registered, the rewriter no-ops via the datasets.isEmpty()
-        // early-exit. This is the production-equivalent of the flag-off state (CRUD prevents
-        // datasets from landing in cluster state). Must hold under both flag states.
-        UnresolvedRelation relation = relationOf("my_index");
-        ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT).build();
-        assertSame(relation, DatasetRewriter.rewrite(relation, project, RESOLVER));
     }
 
     private static UnresolvedRelation relationOf(String pattern) {

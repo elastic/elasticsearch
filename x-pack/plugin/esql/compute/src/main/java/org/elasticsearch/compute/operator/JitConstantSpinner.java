@@ -59,7 +59,12 @@ public final class JitConstantSpinner {
     }
 
     @SuppressWarnings("unchecked")
-    private static <T> Class<? extends T> primitiveConstantSubclass(Class<T> baseClass, String methodName, Class<?> primitive, Object boxed) {
+    private static <T> Class<? extends T> primitiveConstantSubclass(
+        Class<T> baseClass,
+        String methodName,
+        Class<?> primitive,
+        Object boxed
+    ) {
         CacheKey key = new CacheKey(baseClass, methodName, boxed);
         Class<?> existing = CACHE.get(key);
         if (existing != null) {
@@ -77,22 +82,9 @@ public final class JitConstantSpinner {
         String spunInternal = baseInternal + "$Spun";
 
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
-        cw.visit(
-            Opcodes.V21,
-            Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER,
-            spunInternal,
-            null,
-            baseInternal,
-            null
-        );
+        cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER, spunInternal, null, baseInternal, null);
         // public static final <T> CONST_<NAME> = value;
-        cw.visitField(
-            Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL,
-            fieldName,
-            typeDescriptor,
-            null,
-            boxed
-        ).visitEnd();
+        cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, fieldName, typeDescriptor, null, boxed).visitEnd();
 
         // Reproduce every public/protected ctor with a super-call.
         for (var ctor : base.getDeclaredConstructors()) {
@@ -105,11 +97,22 @@ public final class JitConstantSpinner {
             mv.visitVarInsn(Opcodes.ALOAD, 0);
             int slot = 1;
             for (Class<?> pt : paramTypes) {
-                if (pt == long.class) { mv.visitVarInsn(Opcodes.LLOAD, slot); slot += 2; }
-                else if (pt == double.class) { mv.visitVarInsn(Opcodes.DLOAD, slot); slot += 2; }
-                else if (pt == float.class) { mv.visitVarInsn(Opcodes.FLOAD, slot); slot++; }
-                else if (pt.isPrimitive()) { mv.visitVarInsn(Opcodes.ILOAD, slot); slot++; }
-                else { mv.visitVarInsn(Opcodes.ALOAD, slot); slot++; }
+                if (pt == long.class) {
+                    mv.visitVarInsn(Opcodes.LLOAD, slot);
+                    slot += 2;
+                } else if (pt == double.class) {
+                    mv.visitVarInsn(Opcodes.DLOAD, slot);
+                    slot += 2;
+                } else if (pt == float.class) {
+                    mv.visitVarInsn(Opcodes.FLOAD, slot);
+                    slot++;
+                } else if (pt.isPrimitive()) {
+                    mv.visitVarInsn(Opcodes.ILOAD, slot);
+                    slot++;
+                } else {
+                    mv.visitVarInsn(Opcodes.ALOAD, slot);
+                    slot++;
+                }
             }
             mv.visitMethodInsn(Opcodes.INVOKESPECIAL, baseInternal, "<init>", descriptor, false);
             mv.visitInsn(Opcodes.RETURN);
@@ -145,7 +148,8 @@ public final class JitConstantSpinner {
 
     private static String methodDescriptor(Class<?>[] paramTypes, Class<?> returnType) {
         StringBuilder sb = new StringBuilder("(");
-        for (Class<?> pt : paramTypes) sb.append(Type.getDescriptor(pt));
+        for (Class<?> pt : paramTypes)
+            sb.append(Type.getDescriptor(pt));
         sb.append(")").append(Type.getDescriptor(returnType));
         return sb.toString();
     }

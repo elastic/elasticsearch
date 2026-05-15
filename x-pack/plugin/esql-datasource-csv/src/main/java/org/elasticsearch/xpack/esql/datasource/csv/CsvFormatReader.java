@@ -828,10 +828,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * For TSV and CSV variants without bracket multi-value syntax (anything that routes
      * {@link #findNextRecordBoundary} through {@link #findNextRecordBoundaryQuotedFieldsOnly}),
      * walk the buffer once in scalar code with a single quote-state bit and remember the position
-     * of the last {@code \n} seen outside quotes. The default polyloop would otherwise dispatch
-     * {@code findNextRecordBoundary} once per record and allocate an 8 KiB read buffer on each
-     * call — hundreds of MiB allocate-and-copy per 2.5 MiB chunk for typical TSV — which stalls
-     * the streaming segmentator on multi-million-row files.
+     * of the last {@code \n} seen outside quotes. The SPI default synthesizes this answer by
+     * dispatching {@link #findNextRecordBoundary} forward once per record, so its cost grows with
+     * the record count in the buffer rather than the byte count — prohibitive when the per-record
+     * scanner does any setup work (e.g. allocation).
      *
      * <p>The bracket-comma-MVC path stays on the inherited default. Its scanner already uses a
      * {@link BufferedInputStream}-backed per-byte read with no per-call bulk allocation, and
@@ -1006,11 +1006,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     /**
      * Per-byte scan over a {@link BufferedInputStream} — no per-call bulk read buffer is allocated;
-     * an existing {@link BufferedInputStream} input is reused, otherwise the stream is wrapped
-     * once. Pre-refactor this method allocated a fresh {@code byte[8192]} and bulk-read up to
-     * 8 KiB per invocation, which the default polyloop in
-     * {@link SegmentableFormatReader#findLastRecordBoundary} amplified to one allocation per
-     * record in a chunk.
+     * an existing {@link BufferedInputStream} input is reused, otherwise the stream is wrapped once.
+     * Mirrors the structure of {@link #findNextRecordBoundaryBracketCommaMvc} for the no-bracket-MVC
+     * quoting contract.
      */
     private long findNextRecordBoundaryQuotedFieldsOnly(InputStream stream) throws IOException {
         BufferedInputStream bis = stream instanceof BufferedInputStream b ? b : new BufferedInputStream(stream);

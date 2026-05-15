@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 149161
+summary: Implement pushdown for `range_intersects` and `range_within`
+type: enhancement

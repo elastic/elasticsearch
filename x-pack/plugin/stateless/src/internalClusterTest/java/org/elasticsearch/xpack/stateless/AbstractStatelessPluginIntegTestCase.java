@@ -132,11 +132,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
@@ -1293,11 +1291,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
 
         logger.debug("--> relocating {} hollowable shards from {} to {}", numberOfShards, indexNodeA, indexNodeB);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
-        assertBusy(() -> {
-            var nodes = internalCluster().nodesInclude(indexName);
-            assertThat(nodes, not(hasItem(indexNodeA)));
-            assertThat(nodes, hasItem(indexNodeB));
-        });
+        internalCluster().awaitNodesInclude(indexName, nodes -> nodes.contains(indexNodeA) == false && nodes.contains(indexNodeB));
         ensureGreen(indexName);
 
         var hollowShardsServiceB = internalCluster().getInstance(HollowShardsService.class, indexNodeB);

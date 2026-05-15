@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 149033
+summary: Speed up REPLACE on constant regex
+type: enhancement

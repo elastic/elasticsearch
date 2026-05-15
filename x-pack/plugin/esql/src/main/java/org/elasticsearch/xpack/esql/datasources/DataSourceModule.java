@@ -331,17 +331,18 @@ public final class DataSourceModule implements Closeable {
 
         @Override
         public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
-            return resolveDelegate().resolveMetadata(location, config);
+            // Decrypt at the connector-factory invocation seam — see DataSourceCredentials for the contract.
+            return resolveDelegate().resolveMetadata(location, DataSourceCredentials.decryptInPlace(config));
         }
 
         @Override
         public void validateConfig(String location, Map<String, Object> config) {
-            resolveDelegate().validateConfig(location, config);
+            resolveDelegate().validateConfig(location, DataSourceCredentials.decryptInPlace(config));
         }
 
         @Override
         public Connector open(Map<String, Object> config) {
-            return resolveDelegate().open(config);
+            return resolveDelegate().open(DataSourceCredentials.decryptInPlace(config));
         }
 
         @Override
@@ -431,12 +432,13 @@ public final class DataSourceModule implements Closeable {
 
         @Override
         public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
-            return resolveDelegate().resolveMetadata(location, config);
+            // Decrypt at the catalog-invocation seam — see DataSourceCredentials for the contract.
+            return resolveDelegate().resolveMetadata(location, DataSourceCredentials.decryptInPlace(config));
         }
 
         @Override
         public void validateConfig(String location, Map<String, Object> config) {
-            resolveDelegate().validateConfig(location, config);
+            resolveDelegate().validateConfig(location, DataSourceCredentials.decryptInPlace(config));
         }
 
         @Override

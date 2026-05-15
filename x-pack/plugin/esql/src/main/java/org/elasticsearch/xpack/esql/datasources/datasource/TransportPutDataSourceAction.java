@@ -22,6 +22,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.crypto.EncryptionService;
+import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 
 public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNodeProjectAction<PutDataSourceAction.Request> {
     private final DataSourceService dataSourceService;
@@ -54,6 +55,10 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
         // expose it, so Guice constructor injection on this Transport action is the supported reach.
         this.encryptionService = encryptionService;
         this.featureService = featureService;
+        // Plant the service into the data-node decrypt seam so the connector-side helper can reach it
+        // without its own Guice plumbing. Transport actions are instantiated on every node at plugin
+        // init, so this runs on data nodes too — by the time any FROM query arrives, the holder is set.
+        DataSourceCredentials.initialize(encryptionService);
     }
 
     @Override

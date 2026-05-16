@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.crypto;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -13,8 +14,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -25,12 +28,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class EncryptedDataTests extends AbstractXContentSerializingTestCase<EncryptedData> {
-
-    @Override
-    protected EncryptedData doParseInstance(XContentParser parser) throws IOException {
-        return EncryptedData.fromXContent(parser);
-    }
+public class EncryptedDataTests extends AbstractWireSerializingTestCase<EncryptedData> {
 
     @Override
     protected Writeable.Reader<EncryptedData> instanceReader() {
@@ -92,6 +90,25 @@ public class EncryptedDataTests extends AbstractXContentSerializingTestCase<Encr
             assertThat(roundTripped.get("region"), equalTo("us-east-1"));
             assertThat(roundTripped.get("secret_access_key"), instanceOf(EncryptedData.class));
             assertEquals(wire.get("secret_access_key"), roundTripped.get("secret_access_key"));
+        }
+    }
+
+    public void testXContentScalarRoundTrip() throws IOException {
+        // EncryptedData renders as a single base64 scalar in XContent (License.signature / PEK byte[]
+        // precedent). The test wraps it in a parent field so the standard parser positioning applies.
+        EncryptedData original = createTestInstance();
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject().field("encrypted");
+        original.toXContent(builder, null);
+        builder.endObject();
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals("encrypted", parser.currentName());
+            assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
+            EncryptedData parsed = EncryptedData.fromXContent(parser);
+            assertEquals(original, parsed);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
         }
     }
 }

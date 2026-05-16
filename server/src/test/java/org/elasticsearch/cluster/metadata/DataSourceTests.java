@@ -42,41 +42,30 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
 
     @Override
     protected DataSource mutateInstance(DataSource instance) {
-        return switch (randomIntBetween(0, 4)) {
+        return switch (randomIntBetween(0, 3)) {
             case 0 -> new DataSource(
                 randomValueOtherThan(instance.name(), () -> randomAlphaOfLength(8).toLowerCase(Locale.ROOT)),
                 instance.type(),
                 instance.description(),
-                instance.settings(),
-                instance.uuid()
+                instance.settings()
             );
             case 1 -> new DataSource(
                 instance.name(),
                 randomValueOtherThan(instance.type(), () -> randomFrom("s3", "gcs", "azure")),
                 instance.description(),
-                instance.settings(),
-                instance.uuid()
+                instance.settings()
             );
             case 2 -> new DataSource(
                 instance.name(),
                 instance.type(),
                 randomValueOtherThan(instance.description(), () -> randomAlphaOfLengthBetween(1, 16)),
-                instance.settings(),
-                instance.uuid()
-            );
-            case 3 -> new DataSource(
-                instance.name(),
-                instance.type(),
-                instance.description(),
-                randomValueOtherThan(instance.settings(), DataSourceTests::randomSettings),
-                instance.uuid()
+                instance.settings()
             );
             default -> new DataSource(
                 instance.name(),
                 instance.type(),
                 instance.description(),
-                instance.settings(),
-                randomValueOtherThan(instance.uuid(), () -> randomBoolean() ? null : randomAlphaOfLength(20))
+                randomValueOtherThan(instance.settings(), DataSourceTests::randomSettings)
             );
         };
     }
@@ -86,8 +75,7 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
             randomAlphaOfLength(8).toLowerCase(Locale.ROOT),
             randomFrom("s3", "gcs", "azure"),
             randomBoolean() ? null : randomAlphaOfLengthBetween(0, 32),
-            randomSettings(),
-            randomBoolean() ? null : randomAlphaOfLength(20)
+            randomSettings()
         );
     }
 
@@ -107,8 +95,7 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
             "my-s3",
             "s3",
             "Production S3 bucket",
-            Map.of("access_key", new DataSourceSetting("AKIA123", true), "region", new DataSourceSetting("us-east-1", false)),
-            "ds-uuid-1"
+            Map.of("access_key", new DataSourceSetting("AKIA123", true), "region", new DataSourceSetting("us-east-1", false))
         );
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -128,8 +115,7 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
             "my-s3",
             "s3",
             null,
-            Map.of("access_key", new DataSourceSetting("AKIA123", true), "region", new DataSourceSetting("us-east-1", false)),
-            null
+            Map.of("access_key", new DataSourceSetting("AKIA123", true), "region", new DataSourceSetting("us-east-1", false))
         );
 
         Map<String, Object> masked = dataSource.toPresentationMap();
@@ -144,7 +130,7 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
         settings.put("optional_secret", new DataSourceSetting(null, true));
         settings.put("optional_region", new DataSourceSetting(null, false));
         settings.put("present_secret", new DataSourceSetting("AKIA", true));
-        var dataSource = new DataSource("my-s3", "s3", null, settings, null);
+        var dataSource = new DataSource("my-s3", "s3", null, settings);
 
         Map<String, Object> masked = dataSource.toPresentationMap();
         assertTrue(masked.containsKey("optional_secret"));
@@ -155,7 +141,7 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
     }
 
     public void testNullDescription() throws IOException {
-        var dataSource = new DataSource("test", "s3", null, Map.of(), null);
+        var dataSource = new DataSource("test", "s3", null, Map.of());
         BytesStreamOutput out = new BytesStreamOutput();
         dataSource.writeTo(out);
         var deserialized = new DataSource(out.bytes().streamInput());
@@ -163,7 +149,7 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
     }
 
     public void testEmptySettings() throws IOException {
-        var dataSource = new DataSource("test", "s3", null, Map.of(), null);
+        var dataSource = new DataSource("test", "s3", null, Map.of());
         BytesStreamOutput out = new BytesStreamOutput();
         dataSource.writeTo(out);
         var deserialized = new DataSource(out.bytes().streamInput());
@@ -171,15 +157,15 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
     }
 
     public void testRequiresName() {
-        expectThrows(NullPointerException.class, () -> new DataSource(null, "s3", null, Map.of(), null));
+        expectThrows(NullPointerException.class, () -> new DataSource(null, "s3", null, Map.of()));
     }
 
     public void testRequiresType() {
-        expectThrows(NullPointerException.class, () -> new DataSource("test", null, null, Map.of(), null));
+        expectThrows(NullPointerException.class, () -> new DataSource("test", null, null, Map.of()));
     }
 
     public void testRequiresSettings() {
-        expectThrows(NullPointerException.class, () -> new DataSource("test", "s3", null, null, null));
+        expectThrows(NullPointerException.class, () -> new DataSource("test", "s3", null, null));
     }
 
     public void testToStringMasksSecretsAndIncludesPlaintext() {
@@ -195,8 +181,7 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
                 new DataSourceSetting("wJal_VERY_PRIVATE", true),
                 "region",
                 new DataSourceSetting("us-east-1", false)
-            ),
-            null
+            )
         );
         String summary = dataSource.toString();
         assertFalse("raw access_key leaked in toString: " + summary, summary.contains("AKIA_ABSOLUTELY_SECRET"));
@@ -217,17 +202,17 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
         settings.put("backoff_multiplier", new DataSourceSetting(1.5, false));
         settings.put("use_path_style", new DataSourceSetting(true, false));
         settings.put("optional_label", new DataSourceSetting(null, false));
-        var dataSource = new DataSource("my-s3", "s3", "Production S3 bucket", settings, null);
+        var dataSource = new DataSource("my-s3", "s3", "Production S3 bucket", settings);
         assertExplicitXContentRoundTrip(dataSource);
     }
 
     public void testXContentRoundTripNoDescription() throws IOException {
-        var dataSource = new DataSource("my-s3", "s3", null, Map.of("region", new DataSourceSetting("us-east-1", false)), null);
+        var dataSource = new DataSource("my-s3", "s3", null, Map.of("region", new DataSourceSetting("us-east-1", false)));
         assertExplicitXContentRoundTrip(dataSource);
     }
 
     public void testXContentRoundTripEmptySettings() throws IOException {
-        var dataSource = new DataSource("my-s3", "s3", "desc", Map.of(), null);
+        var dataSource = new DataSource("my-s3", "s3", "desc", Map.of());
         assertExplicitXContentRoundTrip(dataSource);
     }
 

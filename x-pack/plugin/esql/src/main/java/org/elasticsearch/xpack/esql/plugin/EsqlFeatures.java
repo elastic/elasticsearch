@@ -8,13 +8,11 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
-import java.util.Collections;
 import java.util.Set;
 
 /**
@@ -34,24 +32,12 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature METRICS_SYNTAX = new NodeFeature("esql.metrics_syntax");
 
-    /**
-     * Cluster-wide gate for encrypted data-source secret storage. Until every node advertises this
-     * feature, master-side PUT keeps writing plaintext.
-     */
-    public static final NodeFeature DATA_SOURCE_ENCRYPTION_FEATURE = new NodeFeature("esql.data_source_encryption");
-
-    private Set<NodeFeature> snapshotBuildFeatures() {
-        assert Build.current().isSnapshot() : Build.current();
-        return Set.of(METRICS_SYNTAX);
-    }
-
     @Override
     public Set<NodeFeature> getFeatures() {
-        Set<NodeFeature> features = Set.of(DATA_SOURCE_ENCRYPTION_FEATURE);
         if (Build.current().isSnapshot()) {
-            return Collections.unmodifiableSet(Sets.union(features, snapshotBuildFeatures()));
+            return Set.of(METRICS_SYNTAX);
         } else {
-            return features;
+            return Set.of();
         }
     }
 }

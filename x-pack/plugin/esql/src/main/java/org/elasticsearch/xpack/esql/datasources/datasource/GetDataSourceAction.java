@@ -97,7 +97,6 @@ public class GetDataSourceAction extends ActionType<GetDataSourceAction.Response
                     builder.field("description", ds.description());
                 }
                 builder.field("settings", ds.toPresentationMap());
-                builder.field("encryption_state", ds.encryptionState());
                 builder.endObject();
             }
             builder.endArray();

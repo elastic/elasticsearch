@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -26,10 +25,9 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 
 public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNodeProjectAction<PutDataSourceAction.Request> {
     private final DataSourceService dataSourceService;
-    private final FeatureService featureService;
 
-    // Optional Guice injection via {@link #setEncryptionService}; null when the security plugin's
-    // PEK feature flag is off (encryption skipped — same fallback as the mixed-version path).
+    // Optional Guice injection. When unset (security plugin absent or PEK feature flag off),
+    // putDataSource fails the request with 503 — there is no plaintext fallback.
     private volatile EncryptionService encryptionService;
 
     @Inject(optional = true)
@@ -44,7 +42,6 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
         ThreadPool threadPool,
         ActionFilters actionFilters,
         DataSourceService dataSourceService,
-        FeatureService featureService,
         ProjectResolver projectResolver
     ) {
         super(
@@ -58,7 +55,6 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.dataSourceService = dataSourceService;
-        this.featureService = featureService;
     }
 
     @Override
@@ -83,7 +79,7 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
         if (encryptionService != null) {
             DataSourceCredentials.initialize(encryptionService);
         }
-        dataSourceService.putDataSource(state.projectId(), request, encryptionService, featureService, listener);
+        dataSourceService.putDataSource(state.projectId(), request, encryptionService, listener);
     }
 
     @Override

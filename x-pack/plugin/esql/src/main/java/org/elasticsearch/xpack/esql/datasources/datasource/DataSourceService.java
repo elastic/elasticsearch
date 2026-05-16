@@ -24,18 +24,14 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.crypto.EncryptedData;
 import org.elasticsearch.xpack.core.crypto.EncryptionService;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
-import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -44,7 +40,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Orchestrates create / replace / delete of data sources in cluster state. */
 public class DataSourceService {
@@ -63,8 +58,6 @@ public class DataSourceService {
     protected final ClusterService clusterService;
     private final Map<String, DataSourceValidator> validatorsByType;
     private final MasterServiceTaskQueue<AckedClusterStateUpdateTask> taskQueue;
-
-    private final AtomicBoolean encryptionSkippedLogged = new AtomicBoolean(false);
 
     private volatile int maxDataSourcesCount;
 
@@ -85,34 +78,37 @@ public class DataSourceService {
 
     /**
      * Validate the put-data-source request and build the domain {@link DataSource}. Callable from the
-     * coordinator (pre-check) and from inside the CAS task (authoritative re-validate). The returned
-     * {@link DataSource} carries {@code uuid == null}; the master-side put step preserves the existing
-     * UUID on update or assigns a fresh one on create / legacy migration.
+     * coordinator (pre-check) and from inside the CAS task (authoritative re-validate).
      */
     public DataSource validatePutDataSource(PutDataSourceAction.Request request) {
         DataSourceValidator validator = validatorsByType.get(request.type());
         if (validator == null) {
             throw new IllegalArgumentException("unknown data source type [" + request.type() + "]");
         }
-        final Map<String, org.elasticsearch.cluster.metadata.DataSourceSetting> validated = validator.validateDatasource(
-            request.rawSettings()
-        );
-        return new DataSource(request.name(), request.type(), request.description(), validated, null);
+        final Map<String, DataSourceSetting> validated = validator.validateDatasource(request.rawSettings());
+        return new DataSource(request.name(), request.type(), request.description(), validated);
     }
 
     /**
-     * Create or replace a data source. Validates under CAS, encrypts secret settings master-side
-     * (only when {@code encryptionService != null} and the cluster advertises
-     * {@link EsqlFeatures#DATA_SOURCE_ENCRYPTION_FEATURE}; otherwise plaintext, one-time INFO log).
-     * A missing PEK surfaces as 503 via {@code EncryptionKeyNotYetAvailableException.status()}.
+     * Create or replace a data source. Encryption is mandatory: every secret value is encrypted master-side
+     * before being committed to cluster state. If {@code encryptionService} is {@code null} the PUT fails
+     * with {@code 503 Service Unavailable} — there is no plaintext fallback.
      */
     public void putDataSource(
         ProjectId projectId,
         PutDataSourceAction.Request request,
-        @Nullable EncryptionService encryptionService,
-        FeatureService featureService,
+        EncryptionService encryptionService,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        if (encryptionService == null) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "cannot accept data source [" + request.name() + "]: secret encryption service is not available on this node",
+                    RestStatus.SERVICE_UNAVAILABLE
+                )
+            );
+            return;
+        }
         logger.debug("submitting put data source [{}] of type [{}]", request.name(), request.type());
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, listener) {
             @Override
@@ -127,26 +123,8 @@ public class DataSourceService {
                         "cannot add data source, the maximum number of data sources is reached: " + maxDataSourcesCount
                     );
                 }
-                final boolean encryptionFeatureSupported = featureService.clusterHasFeature(
-                    currentState,
-                    EsqlFeatures.DATA_SOURCE_ENCRYPTION_FEATURE
-                );
-                final Map<String, DataSourceSetting> finalSettings;
-                if (encryptionFeatureSupported && encryptionService != null) {
-                    finalSettings = encryptSecrets(validated.settings(), encryptionService);
-                } else {
-                    logEncryptionSkippedOnce(encryptionFeatureSupported, encryptionService);
-                    finalSettings = validated.settings();
-                }
-                // Preserve UUID on update; assign fresh on create or legacy (pre-UUID) migration.
-                final String uuid = (current != null && current.uuid() != null) ? current.uuid() : UUIDs.randomBase64UUID();
-                final DataSource dataSource = new DataSource(
-                    validated.name(),
-                    validated.type(),
-                    validated.description(),
-                    finalSettings,
-                    uuid
-                );
+                final Map<String, DataSourceSetting> encrypted = encryptSecrets(validated.settings(), encryptionService);
+                final DataSource dataSource = new DataSource(validated.name(), validated.type(), validated.description(), encrypted);
                 final Map<String, DataSource> updated = new HashMap<>(metadata.dataSources());
                 updated.put(dataSource.name(), dataSource);
                 return ClusterState.builder(currentState)
@@ -170,37 +148,32 @@ public class DataSourceService {
                 result.put(entry.getKey(), setting);
                 continue;
             }
-            Object raw = setting.encryptedSecret();
+            Object raw = setting.rawValue();
+            if (raw == null) {
+                result.put(entry.getKey(), setting);
+                continue;
+            }
             if (raw instanceof String plaintext) {
                 byte[] bytes = plaintext.getBytes(StandardCharsets.UTF_8);
                 try {
-                    EncryptedData encrypted = encryptionService.encrypt(bytes);
-                    result.put(entry.getKey(), new DataSourceSetting(encrypted, true));
+                    EncryptedData encryptedValue = encryptionService.encrypt(bytes);
+                    result.put(entry.getKey(), new DataSourceSetting(encryptedValue, true));
                 } finally {
                     Arrays.fill(bytes, (byte) 0);
                 }
-            } else {
-                result.put(entry.getKey(), setting);
+                continue;
             }
+            // Already encrypted — admin-side replays from cluster state aren't expected through this path,
+            // but if one slips through, pass it forward unchanged.
+            if (raw instanceof EncryptedData) {
+                result.put(entry.getKey(), setting);
+                continue;
+            }
+            throw new IllegalStateException(
+                "cannot encrypt secret setting [" + entry.getKey() + "]: expected String plaintext, got " + raw.getClass().getSimpleName()
+            );
         }
         return result;
-    }
-
-    private void logEncryptionSkippedOnce(boolean featureSupported, @Nullable EncryptionService encryptionService) {
-        if (encryptionSkippedLogged.compareAndSet(false, true) == false) {
-            return;
-        }
-        final String reason;
-        if (featureSupported == false) {
-            reason = "not every node advertises the ["
-                + EsqlFeatures.DATA_SOURCE_ENCRYPTION_FEATURE.id()
-                + "] feature yet (rolling upgrade in progress)";
-        } else if (encryptionService == null) {
-            reason = "EncryptionService is not bound on this node (security plugin disabled or PEK feature flag off)";
-        } else {
-            reason = "unknown";
-        }
-        logger.info("data-source secret encryption skipped: {}; secrets stored as plaintext", reason);
     }
 
     /** Delete data sources by name. Fails with 409 if any dataset references one; 404 if a name doesn't exist. */

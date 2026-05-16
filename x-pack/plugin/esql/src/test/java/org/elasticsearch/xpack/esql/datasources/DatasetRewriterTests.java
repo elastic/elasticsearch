@@ -528,7 +528,7 @@ public class DatasetRewriterTests extends ESTestCase {
     }
 
     private static DataSource dataSource(String name, Map<String, DataSourceSetting> settings) {
-        return new DataSource(name, "test", null, settings, null);
+        return new DataSource(name, "test", null, settings);
     }
 
     private static ProjectMetadata projectWith(Map<String, DataSource> dataSources, Map<String, Dataset> datasets) {

@@ -107,6 +107,11 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
         return value;
     }
 
+    /** Raw value irrespective of secret flag. Use when both shapes are valid in context (e.g. master-side encrypt). */
+    public Object rawValue() {
+        return value;
+    }
+
     /**
      * Legacy plaintext-only secret accessor returning a {@link SecureString}. Throws on encrypted
      * carriers — callers should switch to {@link #encryptedSecret()} and run the value through the

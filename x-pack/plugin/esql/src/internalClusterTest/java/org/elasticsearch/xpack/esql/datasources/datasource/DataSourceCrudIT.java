@@ -73,7 +73,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateDataSource.class);
+        return List.of(LocalStateDataSource.class, TestEncryptionServicePlugin.class);
     }
 
     public void testFullLifecycle() throws Exception {
@@ -134,7 +134,17 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertThat("plain setting value accessible", region.nonSecretValue(), equalTo("us-east-1"));
 
         assertThat("secret-prefixed setting marked secret", secret.secret(), equalTo(true));
-        assertThat("secret value must be accessible via secretValue()", secret.secretValue().toString(), equalTo("AKIAXYZ"));
+        assertThat(
+            "secret value must be stored as EncryptedData carrier",
+            secret.rawValue(),
+            instanceOf(org.elasticsearch.xpack.core.crypto.EncryptedData.class)
+        );
+        org.elasticsearch.xpack.core.crypto.EncryptedData encrypted = (org.elasticsearch.xpack.core.crypto.EncryptedData) secret.rawValue();
+        assertThat(
+            "test stub round-trips the plaintext bytes through encrypt/decrypt",
+            new String(encrypted.payload(), java.nio.charset.StandardCharsets.UTF_8),
+            equalTo("AKIAXYZ")
+        );
 
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }

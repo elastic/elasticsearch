@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -32,26 +31,16 @@ import java.util.Objects;
  */
 public final class DataSource implements Writeable, ToXContentObject {
 
-    /** Transport-version gate for the {@code uuid} field — shares the encryption wire-format gate. */
-    public static final TransportVersion DATA_SOURCE_ADD_UUID_FIELD = TransportVersion.fromName("data_source_encryption");
-
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField DESCRIPTION = new ParseField("description");
     private static final ParseField SETTINGS = new ParseField("settings");
-    private static final ParseField UUID = new ParseField("uuid");
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<DataSource, Void> PARSER = new ConstructingObjectParser<>(
         "data_source",
         false,
-        (args, ctx) -> new DataSource(
-            (String) args[0],
-            (String) args[1],
-            (String) args[2],
-            (Map<String, DataSourceSetting>) args[3],
-            (String) args[4]
-        )
+        (args, ctx) -> new DataSource((String) args[0], (String) args[1], (String) args[2], (Map<String, DataSourceSetting>) args[3])
     );
 
     static {
@@ -66,27 +55,18 @@ public final class DataSource implements Writeable, ToXContentObject {
             }
             return settings;
         }, SETTINGS);
-        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), UUID);
     }
 
     private final String name;
     private final String type;
     private final String description;
     private final Map<String, DataSourceSetting> settings;
-    private final String uuid;
 
-    public DataSource(
-        String name,
-        String type,
-        @Nullable String description,
-        Map<String, DataSourceSetting> settings,
-        @Nullable String uuid
-    ) {
+    public DataSource(String name, String type, @Nullable String description, Map<String, DataSourceSetting> settings) {
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.type = Objects.requireNonNull(type, "type must not be null");
         this.description = description;
         this.settings = Collections.unmodifiableMap(Objects.requireNonNull(settings, "settings must not be null"));
-        this.uuid = uuid;
     }
 
     public DataSource(StreamInput in) throws IOException {
@@ -94,7 +74,6 @@ public final class DataSource implements Writeable, ToXContentObject {
         this.type = in.readString();
         this.description = in.readOptionalString();
         this.settings = Collections.unmodifiableMap(in.readMap(DataSourceSetting::new));
-        this.uuid = in.getTransportVersion().supports(DATA_SOURCE_ADD_UUID_FIELD) ? in.readOptionalString() : null;
     }
 
     @Override
@@ -103,9 +82,6 @@ public final class DataSource implements Writeable, ToXContentObject {
         out.writeString(type);
         out.writeOptionalString(description);
         out.writeMap(settings, StreamOutput::writeWriteable);
-        if (out.getTransportVersion().supports(DATA_SOURCE_ADD_UUID_FIELD)) {
-            out.writeOptionalString(uuid);
-        }
     }
 
     public String name() {
@@ -122,25 +98,6 @@ public final class DataSource implements Writeable, ToXContentObject {
 
     public Map<String, DataSourceSetting> settings() {
         return settings;
-    }
-
-    /** Rename-stable identifier; null for legacy entries pre-dating the field. */
-    @Nullable
-    public String uuid() {
-        return uuid;
-    }
-
-    /**
-     * {@code "encrypted"} if every secret setting holds a ciphertext carrier (or there are no secrets);
-     * {@code "plaintext_legacy"} if any secret is still plaintext String. Atomic per data source.
-     */
-    public String encryptionState() {
-        for (DataSourceSetting setting : settings.values()) {
-            if (setting.secret() && setting.encryptedSecret() instanceof String) {
-                return "plaintext_legacy";
-            }
-        }
-        return "encrypted";
     }
 
     /** Settings with secrets masked. Safe for REST responses. */
@@ -176,9 +133,6 @@ public final class DataSource implements Writeable, ToXContentObject {
             entry.getValue().toXContent(builder, params);
         }
         builder.endObject();
-        if (uuid != null) {
-            builder.field(UUID.getPreferredName(), uuid);
-        }
         builder.endObject();
         return builder;
     }
@@ -191,26 +145,22 @@ public final class DataSource implements Writeable, ToXContentObject {
         return Objects.equals(name, that.name)
             && Objects.equals(type, that.type)
             && Objects.equals(description, that.description)
-            && Objects.equals(settings, that.settings)
-            && Objects.equals(uuid, that.uuid);
+            && Objects.equals(settings, that.settings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, type, description, settings, uuid);
+        return Objects.hash(name, type, description, settings);
     }
 
     @Override
     public String toString() {
-        // Uses toPresentationMap() so secret values appear as "::es_redacted::" rather than their raw form.
         return "DataSource{name='"
             + name
             + "', type='"
             + type
             + "', description='"
             + description
-            + "', uuid='"
-            + uuid
             + "', settings="
             + toPresentationMap()
             + "}";

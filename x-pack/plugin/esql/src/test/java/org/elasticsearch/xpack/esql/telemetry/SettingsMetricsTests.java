@@ -192,7 +192,7 @@ public class SettingsMetricsTests extends ESTestCase {
         assertThat(stats.get(SETTINGS_PREFIX + "project_routing"), equalTo(1L));
 
         // Verify project_routing is serverless-only
-        assertTrue("project_routing should be a serverless-only setting", QuerySettingDef.lookup("project_routing").isServerlessOnly());
+        assertTrue("project_routing should be a serverless-only setting", QuerySettingDef.lookup("project_routing").serverlessOnly());
     }
 
     public void testIncProjectRoutingSetting_Stateful() {

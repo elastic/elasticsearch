@@ -38,8 +38,8 @@ import java.util.Set;
  * <pre>{@code
  *   public static final QuerySettingDef<String> MY_SETTING = QuerySettingDef
  *       .string("my_setting")
- *       .defaultValue("foo")
- *       .exposed();      // also accepted under settings.{my_setting}
+ *       .withDefault("foo")
+ *       .withRequestBody();      // accept under settings.{my_setting}
  * }</pre>
  *
  * Read anywhere via {@code MY_SETTING.get(envelope)}.
@@ -54,11 +54,11 @@ public final class QuerySettings {
         """)
     @Example(file = "from", tag = "project-routing", description = "Route a query to a specific project by alias:")
     public static final QuerySettingDef<String> PROJECT_ROUTING = QuerySettingDef.string("project_routing")
-        .serverlessOnly()
-        .preview()
-        .validate((value, ctx) -> ctx.crossProjectEnabled() ? null : "cross-project search not enabled")
-        .exposed()
-        .aliasAtRoot();
+        .withServerlessOnly()
+        .withPreview()
+        .withValidator((value, ctx) -> ctx.crossProjectEnabled() ? null : "cross-project search not enabled")
+        .withRequestBody()
+        .withAliasAtRoot();
 
     @Param(
         name = "time_zone",
@@ -69,9 +69,9 @@ public final class QuerySettings {
     )
     @Example(file = "tbucket", tag = "set-timezone-example")
     public static final QuerySettingDef<ZoneId> TIME_ZONE = QuerySettingDef.string("time_zone", QuerySettings::parseZoneId)
-        .defaultValue(ZoneOffset.UTC)
-        .exposed()
-        .aliasAtRoot();
+        .withDefault(ZoneOffset.UTC)
+        .withRequestBody()
+        .withAliasAtRoot();
 
     @Param(name = "unmapped_fields", type = { "keyword" }, since = "9.3.0", description = """
         Determines how unmapped fields are treated. Possible values are:
@@ -107,7 +107,7 @@ public final class QuerySettings {
     public static final QuerySettingDef<UnmappedResolution> UNMAPPED_FIELDS = QuerySettingDef.string(
         "unmapped_fields",
         QuerySettings::parseUnmappedResolution
-    ).defaultValue(UnmappedResolution.DEFAULT).preview();   // SET-only — not exposed in the body
+    ).withDefault(UnmappedResolution.DEFAULT).withPreview();   // SET-only — no withRequestBody()
 
     @Param(
         name = "approximation",
@@ -140,12 +140,11 @@ public final class QuerySettings {
         ApproximationSettings::fromXContent,
         ApproximationSettings::parse
     )
-        .preview()
-        .exposed()
-        .aliasAtRoot()
-        // Approximation merges field-by-field rather than last-wins: a query SET that only sets
-        // confidence_level does not erase a request-supplied rows value.
-        .combineWith((lower, higher) -> new ApproximationSettings.Builder(false).merge(lower).merge(higher).build());
+        .withPreview()
+        .withRequestBody()
+        .withAliasAtRoot()
+        // Field-by-field merge: a query SET that only sets confidence_level does not erase a request-supplied rows value.
+        .withMerger((lower, higher) -> new ApproximationSettings.Builder(false).merge(lower).merge(higher).build());
 
     private QuerySettings() {}
 
@@ -178,7 +177,7 @@ public final class QuerySettings {
                 HeaderWarning.addWarning("Unknown ES|QL setting [" + setting.name() + "] — ignored");
                 continue;
             }
-            if (def.isSnapshotOnly() && ctx.isSnapshot() == false) {
+            if (def.snapshotOnly() && ctx.isSnapshot() == false) {
                 throw new ParsingException(setting.source(), "Setting [" + setting.name() + "] is only available in snapshot builds");
             }
             if (def.type() != null && setting.value().dataType() != def.type()) {
@@ -217,11 +216,8 @@ public final class QuerySettings {
      *     registry default  &lt;  request body  &lt;  in-query SET
      * </pre>
      *
-     * Per-setting combiners control the merge — the default is "higher precedence wins", but settings like
+     * Per-setting mergers control the combine — default is "higher wins", but settings like
      * {@code approximation} use a custom field-level merge.
-     *
-     * <p>{@link EffectiveSettings#consumedSettingNames()} reports the SET keys that had at least one source
-     * contribute a value, used for telemetry.
      */
     public static EffectiveSettings resolve(
         Map<QuerySettingDef<?>, Object> requestParams,
@@ -249,7 +245,7 @@ public final class QuerySettings {
         if (requestParams.containsKey(def)) {
             T requestValue = (T) requestParams.get(def);
             if (requestValue != null) {
-                value = def.combiner().combine(value, requestValue);
+                value = def.merger().merge(value, requestValue);
                 consumed.add(def.name());
             }
         }
@@ -258,7 +254,7 @@ public final class QuerySettings {
             Expression querySetExpression = statement.setting(def.name());
             if (querySetExpression != null) {
                 T querySetValue = def.readFromExpression(querySetExpression);
-                value = def.combiner().combine(value, querySetValue);
+                value = def.merger().merge(value, querySetValue);
                 consumed.add(def.name());
             }
         }
@@ -269,16 +265,15 @@ public final class QuerySettings {
     }
 
     /**
-     * Convenience: enumerate the registered settings whose names match the supplied snapshot/serverless
-     * environment, used by callers that need to enumerate (e.g. telemetry metric registration).
+     * The registered settings whose names match the supplied snapshot/serverless environment.
      */
     public static java.util.List<QuerySettingDef<?>> applicableIn(boolean isSnapshot, boolean isServerless) {
         java.util.List<QuerySettingDef<?>> out = new java.util.ArrayList<>();
         for (QuerySettingDef<?> def : QuerySettingDef.all()) {
-            if (def.isSnapshotOnly() && isSnapshot == false) {
+            if (def.snapshotOnly() && isSnapshot == false) {
                 continue;
             }
-            if (def.isServerlessOnly() && isServerless == false) {
+            if (def.serverlessOnly() && isServerless == false) {
                 continue;
             }
             out.add(def);

@@ -1282,7 +1282,7 @@ public abstract class DocsV3Support {
             builder.append(SETTINGS_WARNING);
 
             for (QuerySettingDef<?> setting : settings) {
-                if (setting.isSnapshotOnly()) {
+                if (setting.snapshotOnly()) {
                     continue;
                 }
                 builder.append(":::{include} ");
@@ -1313,7 +1313,7 @@ public abstract class DocsV3Support {
         }
 
         private void renderSettingDefinition() throws IOException {
-            if (setting.isSnapshotOnly()) {
+            if (setting.snapshotOnly()) {
                 return;
             }
 
@@ -1332,14 +1332,14 @@ public abstract class DocsV3Support {
 
             builder.append("```{applies_to}\n");
             builder.append("serverless: ");
-            builder.append(setting.isPreview() ? "preview" : "ga");
+            builder.append(setting.preview() ? "preview" : "ga");
             builder.append("\n");
 
-            if (setting.isServerlessOnly()) {
+            if (setting.serverlessOnly()) {
                 builder.append("stack: unavailable");
             } else {
                 builder.append("stack: ");
-                builder.append(setting.isPreview() ? "preview" : "ga");
+                builder.append(setting.preview() ? "preview" : "ga");
                 String since = param != null ? param.since() : mapParam.since();
                 if (since.length() > 0) {
                     builder.append(" ");
@@ -1424,9 +1424,9 @@ public abstract class DocsV3Support {
                             .collect(Collectors.joining(", "))
                     );
                 }
-                builder.field("serverlessOnly", setting.isServerlessOnly());
-                builder.field("preview", setting.isPreview());
-                builder.field("snapshotOnly", setting.isSnapshotOnly());
+                builder.field("serverlessOnly", setting.serverlessOnly());
+                builder.field("preview", setting.preview());
+                builder.field("snapshotOnly", setting.snapshotOnly());
                 builder.field("description", param != null ? param.description() : mapParam.description());
                 String rendered = Strings.toString(builder.endObject());
                 logger.info("Writing kibana setting definition for [{}]", name);

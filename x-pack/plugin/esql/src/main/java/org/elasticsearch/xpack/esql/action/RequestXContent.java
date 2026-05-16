@@ -193,7 +193,7 @@ final class RequestXContent {
                     "Unknown setting [" + settingName + "] under [" + SETTINGS_FIELD.getPreferredName() + "]"
                 );
             }
-            if (def.isRequestParameterExposed() == false) {
+            if (def.requestBody() == false) {
                 throw new XContentParseException(
                     p.getTokenLocation(),
                     "Setting [" + settingName + "] is not exposed as a request body parameter"

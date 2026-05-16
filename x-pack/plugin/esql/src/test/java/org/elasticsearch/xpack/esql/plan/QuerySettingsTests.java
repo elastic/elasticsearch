@@ -338,14 +338,14 @@ public class QuerySettingsTests extends ESTestCase {
 
     public void testResolve_UnmappedFieldsIsSetOnly() {
         // UNMAPPED_FIELDS opted out of body exposure. The registry exposure flag is false.
-        assertThat(QuerySettings.UNMAPPED_FIELDS.isRequestParameterExposed(), is(false));
+        assertThat(QuerySettings.UNMAPPED_FIELDS.requestBody(), is(false));
         assertThat(QuerySettings.UNMAPPED_FIELDS.aliases().isEmpty(), is(true));
     }
 
     public void testResolve_BodyExposedSettingsDeclareAliases() {
         // The three body-exposed settings each carry exactly one root alias mirroring the legacy field names.
         for (QuerySettingDef<?> def : List.of(QuerySettings.TIME_ZONE, QuerySettings.PROJECT_ROUTING, QuerySettings.APPROXIMATION)) {
-            assertThat("requestParameterExposed for [" + def.name() + "]", def.isRequestParameterExposed(), is(true));
+            assertThat("requestParameterExposed for [" + def.name() + "]", def.requestBody(), is(true));
             assertThat("aliases for [" + def.name() + "]", def.aliases(), hasSize(1));
             QuerySettingDef.RequestBodyBinding alias = def.aliases().get(0);
             assertThat(alias.isAtRoot(), is(true));

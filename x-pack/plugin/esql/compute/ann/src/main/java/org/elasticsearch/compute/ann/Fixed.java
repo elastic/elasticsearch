@@ -53,16 +53,22 @@ public @interface Fixed {
      *       attempted adoptions; the framework's value is making this experiment
      *       cheap, not guaranteeing wins.</li>
      *
-     *   <li><b>Cardinality is a footgun.</b> Each distinct value of the parameter
-     *       spins a new hidden subclass and pins it in the (bounded) spinner cache.
-     *       This is great for parameters with low distinct-value counts ({@code rhs}
-     *       in {@code MOD x BY 60}, {@code prefix} in {@code STARTS_WITH(s, "foo")},
-     *       a fixed regex pattern). It is <b>terrible</b> for parameters that could
-     *       be a user-supplied literal varying per session, query, or field — those
-     *       will churn the LRU cache, re-spin classes constantly (each spin is
-     *       ~5-10 ms), and bloat metaspace. <b>Only flag parameters whose values
-     *       are bounded in practice</b> — typically ≤1024 distinct values per
-     *       cluster lifetime, ideally ≤100. If in doubt, don't.</li>
+     *   <li><b>Cardinality is bounded by the admission filter + GC.</b> The spinner's
+     *       admission filter (default threshold = 2) refuses to spin for first-time
+     *       keys — the codegen Factory routes them to a {@code Fallback} subclass
+     *       (regular instance field, no JIT folding, runs slower but runs).
+     *       Repeat keys spin once and the class lives only as long as some live
+     *       evaluator references it (weak-referenced in the cache; GC reclaims when
+     *       unused). This is great for parameters with low distinct-value counts
+     *       ({@code rhs} in {@code MOD x BY 60}, {@code prefix} in {@code STARTS_WITH(s, "foo")},
+     *       a fixed regex pattern). It is still <b>sub-optimal</b> for parameters
+     *       that could be user-supplied literals varying per session, query, or
+     *       field — the admission filter prevents the spin tax (each spin is ~13 μs
+     *       in steady state, post-JIT-warmup), but those queries pay the
+     *       no-JIT-folding cost for their first execution. <b>Flag parameters
+     *       whose values are bounded in practice</b> — typically ≤thousands per
+     *       cluster lifetime — for best results. If in doubt, measure with the
+     *       stress harness in {@code sweep/AdmissionStress.java}.</li>
      *
      *   <li><b>Only valid on parameters with SINGLETON scope.</b> {@code THREAD_LOCAL}
      *       parameters cannot use this flag.</li>

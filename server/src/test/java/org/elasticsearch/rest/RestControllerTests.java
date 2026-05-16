@@ -322,7 +322,24 @@ public class RestControllerTests extends ESTestCase {
             eq(threadContext),
             eq(channel.request()),
             eq("GET /"),
-            eq(Map.of("http.method", "GET", "http.flavour", "1.1", "http.url", "/"))
+            eq(
+                Map.of(
+                    "http.method",
+                    "GET",
+                    "http.request.method",
+                    "GET",
+                    "http.flavour",
+                    "1.1",
+                    "network.protocol.version",
+                    "1.1",
+                    "http.url",
+                    "/",
+                    "url.full",
+                    "/",
+                    "url.path",
+                    "/"
+                )
+            )
         );
     }
 

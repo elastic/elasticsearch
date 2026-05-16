@@ -17,6 +17,7 @@ import org.elasticsearch.simdvec.MathUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.Callable;
@@ -232,6 +233,7 @@ abstract class KMeansLocal {
             neighborhoods = computeNeighborhoods(centroids, clustersPerNeighborhood);
         }
         innerCluster(vectors, kMeansIntermediate, neighborhoods);
+        removeEmptyClusters(kMeansIntermediate);
         if (neighborAware && soarLambda >= 0) {
             assert kMeansIntermediate.soarAssignments().length == 0;
             kMeansIntermediate.setSoarAssignments(new int[vectors.size()]);
@@ -261,5 +263,59 @@ abstract class KMeansLocal {
             norm2 += ESVectorUtil.dotProduct(vecs2[i], vecs2[i]);
         }
         return MathUtils.sqrt(result / norm2);
+    }
+
+    private static void removeEmptyClusters(KMeansIntermediate kMeansIntermediate) {
+        float[][] centroids = kMeansIntermediate.centroids();
+        int[] assignments = kMeansIntermediate.assignments();
+        int[] centroidVectorCount = kMeansIntermediate.clusterCounts();
+
+        Arrays.fill(centroidVectorCount, 0, centroids.length, 0);
+
+        // handle assignment here so we can track distance and cluster size
+        int effectiveCluster = -1;
+        int effectiveK = 0;
+        for (int assignment : assignments) {
+            centroidVectorCount[assignment]++;
+            // this cluster has received an assignment, its now effective, but only count it once
+            if (centroidVectorCount[assignment] == 1) {
+                effectiveK++;
+                effectiveCluster = assignment;
+            }
+        }
+
+        if (effectiveK == 1) {
+            final float[][] singleClusterCentroid = new float[1][];
+            singleClusterCentroid[0] = centroids[effectiveCluster];
+            final int[] singleClusterCounts = new int[1];
+            singleClusterCounts[0] = assignments.length;
+            kMeansIntermediate.setCentroids(singleClusterCentroid, singleClusterCounts);
+            Arrays.fill(kMeansIntermediate.assignments(), 0);
+            return;
+        }
+
+        if (effectiveK == centroids.length) {
+            return;
+        }
+
+        final float[][] newCentroids = new float[effectiveK][centroids[0].length];
+        final int[] newClusterCounts = new int[effectiveK];
+        final int[] centroidIndexMap = new int[centroids.length];
+        int currentCluster = 0;
+        for (int c = 0; c < centroids.length; c++) {
+            if (centroidVectorCount[c] > 0) {
+                centroidIndexMap[c] = currentCluster;
+                System.arraycopy(centroids[c], 0, newCentroids[currentCluster], 0, centroids[c].length);
+                newClusterCounts[currentCluster] = centroidVectorCount[c];
+                currentCluster++;
+            }
+        }
+
+        for (int i = 0; i < assignments.length; i++) {
+            if (centroidVectorCount[assignments[i]] > 0) {
+                assignments[i] = centroidIndexMap[assignments[i]];
+            }
+        }
+        kMeansIntermediate.setCentroids(newCentroids, newClusterCounts);
     }
 }

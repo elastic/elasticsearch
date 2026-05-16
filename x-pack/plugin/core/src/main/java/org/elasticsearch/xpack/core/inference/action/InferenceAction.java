@@ -150,7 +150,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
          * @param inferenceTimeout the timeout to use. If null, a placeholder timeout will be used until the appropriate timeout for the
          *                         task type and input type can be determined by the inference service implementation
          * @param stream whether the request should use streaming
-         * @param context the {@link InferenceContext} to use
+         * @param context the {@link InferenceContext} to use, if {@code null} then an empty context will be used
          */
         public Request(
             TaskType taskType,
@@ -366,7 +366,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             private Integer topN;
             private TimeValue timeout = TIMEOUT_NOT_DETERMINED;
             private boolean stream = false;
-            private InferenceContext context;
+            private InferenceContext context = InferenceContext.EMPTY_INSTANCE;
 
             private Builder() {}
 
@@ -429,8 +429,13 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 return this;
             }
 
+            /**
+             * Sets the {@link InferenceContext} for this request. If not set, an empty context will be used.
+             * If the context is set to {@code null}, an empty context will also be used.
+             * @param context the context to set
+             */
             public Builder setContext(InferenceContext context) {
-                this.context = context;
+                this.context = Objects.requireNonNullElse(context, InferenceContext.EMPTY_INSTANCE);
                 return this;
             }
 

@@ -27,6 +27,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -44,6 +45,7 @@ import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 public class RoutingFieldMapper extends MetadataFieldMapper {
@@ -52,16 +54,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_routing";
 
     public static final NodeFeature ROUTING_AS_DOC_VALUES = new NodeFeature("mapper.routing_as_doc_values");
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder().init(this);
-    }
-
-    public static class Defaults {
-        public static final boolean REQUIRED = false;
-        public static final boolean DOC_VALUES = false;
-    }
+    public static final NodeFeature ROUTING_AS_DOC_VALUES_BY_DEFAULT = new NodeFeature("mapper.routing_as_doc_values_by_default");
 
     private static RoutingFieldMapper toType(FieldMapper in) {
         return (RoutingFieldMapper) in;
@@ -69,11 +62,18 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     public static class Builder extends MetadataFieldMapper.Builder {
 
-        final Parameter<Boolean> required = Parameter.boolParam("required", false, m -> toType(m).required, Defaults.REQUIRED);
-        final Parameter<Boolean> docValues = Parameter.boolParam("doc_values", false, m -> toType(m).docValues, Defaults.DOC_VALUES);
+        final Parameter<Boolean> required;
+        final Parameter<Boolean> docValues;
 
-        protected Builder() {
+        final boolean requiredByDefault;
+        final boolean docValuesEnabledByDefault;
+
+        Builder(boolean requiredByDefault, boolean docValuesEnabledByDefault) {
             super(NAME);
+            this.requiredByDefault = requiredByDefault;
+            this.docValuesEnabledByDefault = docValuesEnabledByDefault;
+            this.required = Parameter.boolParam("required", false, m -> toType(m).required, requiredByDefault);
+            this.docValues = Parameter.boolParam("doc_values", false, m -> toType(m).docValues, docValuesEnabledByDefault);
         }
 
         @Override
@@ -88,11 +88,15 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
         @Override
         public RoutingFieldMapper build() {
-            return RoutingFieldMapper.get(required.getValue(), docValues.getValue());
+            return InstancesLookup.lookup(requiredByDefault, required.getValue(), docValuesEnabledByDefault, docValues.getValue());
         }
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> new Builder());
+    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> {
+        var indexMode = c.getIndexSettings().getMode();
+        boolean slicesEnabled = c.getIndexSettings().isSliceEnabled();
+        return new Builder(slicesEnabled, slicesEnabled || indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.LOGSDB_COLUMNAR);
+    });
 
     /**
      * Field type used when routing is stored as a stored field (the default).
@@ -281,32 +285,28 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     private final boolean required;
 
     /**
+     * Whether routing is required by default
+     */
+    private final boolean requiredByDefault;
+
+    /**
      * Whether routing values are stored as sorted doc values instead of stored fields.
      */
     private final boolean docValues;
 
-    private static final RoutingFieldMapper REQUIRED_STORED = new RoutingFieldMapper(true, false);
-    private static final RoutingFieldMapper NOT_REQUIRED_STORED = new RoutingFieldMapper(false, false);
-    private static final RoutingFieldMapper REQUIRED_DOC_VALUES = new RoutingFieldMapper(true, true);
-    private static final RoutingFieldMapper NOT_REQUIRED_DOC_VALUES = new RoutingFieldMapper(false, true);
+    /**
+     * Whether routing values are stored as sorted doc values by default.
+     */
+    private final boolean docValuesEnabledByDefault;
 
     private static final Map<String, NamedAnalyzer> ANALYZERS = Map.of(NAME, Lucene.KEYWORD_ANALYZER);
 
-    public static RoutingFieldMapper get(boolean required) {
-        return get(required, Defaults.DOC_VALUES);
-    }
-
-    public static RoutingFieldMapper get(boolean required, boolean docValues) {
-        if (docValues) {
-            return required ? REQUIRED_DOC_VALUES : NOT_REQUIRED_DOC_VALUES;
-        }
-        return required ? REQUIRED_STORED : NOT_REQUIRED_STORED;
-    }
-
-    private RoutingFieldMapper(boolean required, boolean docValues) {
+    private RoutingFieldMapper(boolean requiredByDefault, boolean required, boolean docValuesEnabledByDefault, boolean docValues) {
         super(docValues ? DOC_VALUES_FIELD_TYPE : FIELD_TYPE);
         this.required = required;
+        this.requiredByDefault = requiredByDefault;
         this.docValues = docValues;
+        this.docValuesEnabledByDefault = docValuesEnabledByDefault;
     }
 
     @Override
@@ -334,18 +334,61 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     public void preParse(DocumentParserContext context) {
         String routing = context.routing();
         if (routing != null) {
-            if (docValues) {
-                context.doc().add(SortedDocValuesField.indexedField(fieldType().name(), new BytesRef(routing)));
-                // _field_names is only used for fields without doc values; doc values fields use FieldExistsQuery directly
-            } else {
-                context.doc().add(new StringField(fieldType().name(), routing, Field.Store.YES));
-                context.addToFieldNames(fieldType().name());
-            }
+            addRoutingField(context, context.doc(), routing);
+        }
+    }
+
+    void addRoutingField(DocumentParserContext context, LuceneDocument targetDoc, String routing) {
+        if (docValues) {
+            targetDoc.add(SortedDocValuesField.indexedField(fieldType().name(), new BytesRef(routing)));
+            // _field_names is only used for fields without doc values; doc values fields use FieldExistsQuery directly
+        } else {
+            targetDoc.add(new StringField(fieldType().name(), routing, Field.Store.YES));
+            context.addToFieldNames(fieldType().name());
         }
     }
 
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    public FieldMapper.Builder getMergeBuilder() {
+        return new Builder(requiredByDefault, docValuesEnabledByDefault).init(this);
+    }
+
+    static final class InstancesLookup {
+
+        private record Key(boolean requiredByDefault, boolean required, boolean docValuesEnabledByDefault, boolean docValues) {}
+
+        static final Map<Key, RoutingFieldMapper> INSTANCES = new HashMap<>(16);
+
+        static {
+            for (boolean required : new boolean[] { true, false }) {
+                for (boolean requiredByDefault : new boolean[] { true, false }) {
+                    for (boolean docValuesEnabled : new boolean[] { true, false }) {
+                        for (boolean docValuesEnabledByDefault : new boolean[] { true, false }) {
+                            INSTANCES.put(
+                                new Key(requiredByDefault, required, docValuesEnabledByDefault, docValuesEnabled),
+                                new RoutingFieldMapper(requiredByDefault, required, docValuesEnabledByDefault, docValuesEnabled)
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        static RoutingFieldMapper lookup(
+            boolean requiredByDefault,
+            boolean required,
+            boolean docValuesEnabledByDefault,
+            boolean docValues
+        ) {
+            var key = new Key(requiredByDefault, required, docValuesEnabledByDefault, docValues);
+            var routingFieldMapper = INSTANCES.get(key);
+            assert routingFieldMapper != null;
+            return routingFieldMapper;
+        }
     }
 }

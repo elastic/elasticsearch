@@ -52,11 +52,12 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         Map.entry(DataType.GEOHASH, EqualsLongsEvaluator.Factory::new),
         Map.entry(DataType.GEOTILE, EqualsLongsEvaluator.Factory::new),
         Map.entry(DataType.GEOHEX, EqualsLongsEvaluator.Factory::new),
-        Map.entry(DataType.KEYWORD, EqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.TEXT, EqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.VERSION, EqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.IP, EqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.DENSE_VECTOR, EqualsDenseVectorEvaluator.Factory::new)
+        Map.entry(DataType.KEYWORD, EqualsBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.TEXT, EqualsBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.VERSION, EqualsBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.IP, EqualsBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.DENSE_VECTOR, EqualsDenseVectorEvaluator.Factory::new),
+        Map.entry(DataType.FLATTENED, EqualsBytesRefEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -79,6 +80,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
                 "date",
                 "dense_vector",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -103,6 +105,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
                 "date",
                 "dense_vector",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -229,8 +232,8 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         return lhs == rhs;
     }
 
-    @Evaluator(extraName = "Keywords")
-    static boolean processKeywords(BytesRef lhs, BytesRef rhs) {
+    @Evaluator(extraName = "BytesRef")
+    static boolean processBytesRef(BytesRef lhs, BytesRef rhs) {
         return lhs.equals(rhs);
     }
 

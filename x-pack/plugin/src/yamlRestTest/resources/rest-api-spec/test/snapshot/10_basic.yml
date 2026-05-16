@@ -42,7 +42,10 @@ setup:
         snapshot: test_snapshot
         wait_for_completion: true
         body: |
-          { "indices": "test_index" }
+          {
+            "indices": "test_index",
+            "include_global_state": false
+          }
 
   - match: { snapshot.snapshot: test_snapshot }
   - match: { snapshot.state : SUCCESS }

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 138146
+pr: 146077
+summary: Implement bucket metadata
+type: enhancement

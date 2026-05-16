@@ -102,7 +102,7 @@ public final class QuerySettingDef<T> {
     private final ExpressionReader<T> expressionReader;
     @Nullable
     private final Validator<T> validator;
-    private final Reconciler<T> reconciler;
+    private final SettingReconciler<T> reconciler;
     private final boolean requestBody;
     private final List<RequestBodyBinding> aliases;
     private final boolean preview;
@@ -158,7 +158,7 @@ public final class QuerySettingDef<T> {
         return serverlessOnly;
     }
 
-    public Reconciler<T> reconciler() {
+    public SettingReconciler<T> reconciler() {
         return reconciler;
     }
 
@@ -202,7 +202,7 @@ public final class QuerySettingDef<T> {
         private ExpressionReader<T> expressionReader;
         @Nullable
         private Validator<T> validator;
-        private Reconciler<T> reconciler = (previous, current) -> current != null ? current : previous;
+        private SettingReconciler<T> reconciler = (previous, current) -> current != null ? current : previous;
         private boolean requestBody = false;
         private final List<RequestBodyBinding> aliases = new ArrayList<>();
         private boolean preview = false;
@@ -258,7 +258,7 @@ public final class QuerySettingDef<T> {
          * Override only for settings whose value is a multi-field object where partial contributions
          * from different sources should combine instead of overwriting.
          */
-        public Builder<T> withReconciler(Reconciler<T> reconciler) {
+        public Builder<T> withReconciler(SettingReconciler<T> reconciler) {
             this.reconciler = reconciler;
             return this;
         }
@@ -331,7 +331,7 @@ public final class QuerySettingDef<T> {
     }
 
     @FunctionalInterface
-    public interface Reconciler<T> {
+    public interface SettingReconciler<T> {
         T reconcile(@Nullable T previous, @Nullable T current);
     }
 

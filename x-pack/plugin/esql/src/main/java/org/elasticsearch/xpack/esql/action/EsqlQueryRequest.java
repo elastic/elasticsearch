@@ -67,7 +67,10 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private Boolean allowPartialResults = null;
 
     private final Map<QuerySettingDef<?>, Object> requestSettings = new HashMap<>();
-    /** Values from the canonical {@code settings.{}} block; merged into {@link #requestSettings} by {@link #applyCanonicalRequestSettings()} so canonical wins over legacy aliases regardless of JSON field order. */
+    /**
+     * Values from the canonical {@code settings.{}} block; merged into {@link #requestSettings} by
+     * {@link #applyCanonicalRequestSettings()} so canonical wins over legacy aliases regardless of JSON field order.
+     */
     private final Map<QuerySettingDef<?>, Object> canonicalRequestSettings = new HashMap<>();
 
     /**
@@ -374,7 +377,10 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return this;
     }
 
-    /** Body-supplied value with registry-default fallback. Pre-resolution; for the merged value use the envelope from {@link QuerySettings#resolve}. */
+    /**
+     * Body-supplied value with registry-default fallback. Pre-resolution; for the merged value use the
+     * envelope from {@link QuerySettings#resolve}.
+     */
     @SuppressWarnings("unchecked")
     public <T> T get(QuerySettingDef<T> def) {
         T value = (T) requestSettings.get(def);

@@ -176,6 +176,9 @@ public final class QuerySettings {
      * surface is forgiving of typos); other failures throw {@link ParsingException} early.
      */
     public static void validate(EsqlStatement statement, SettingsValidationContext ctx) {
+        if (statement.settings() == null) {
+            return;
+        }
         for (QuerySetting setting : statement.settings()) {
             QuerySettingDef<?> def = QuerySettingDef.lookup(setting.name());
             if (def == null) {
@@ -241,12 +244,14 @@ public final class QuerySettings {
         Set<String> consumed
     ) {
         T value = def.defaultValue();
+        boolean userSupplied = false;
 
         if (requestParams.containsKey(def)) {
             T requestValue = (T) requestParams.get(def);
             if (requestValue != null) {
                 value = def.reconciler().reconcile(value, requestValue);
                 consumed.add(def.name());
+                userSupplied = true;
             }
         }
 
@@ -256,7 +261,14 @@ public final class QuerySettings {
                 T querySetValue = def.readFromExpression(querySetExpression);
                 value = def.reconciler().reconcile(value, querySetValue);
                 consumed.add(def.name());
+                userSupplied = true;
             }
+        }
+
+        // Body-supplied snapshot-only settings bypass the parse-time gate in validate() (which only sees SET).
+        // SET-supplied ones can't reach here in non-snapshot — validate() rejected them with a ParsingException.
+        if (def.snapshotOnly() && ctx.isSnapshot() == false && userSupplied) {
+            throw new VerificationException("Setting [" + def.name() + "] is only available in snapshot builds");
         }
 
         if (value != null) {

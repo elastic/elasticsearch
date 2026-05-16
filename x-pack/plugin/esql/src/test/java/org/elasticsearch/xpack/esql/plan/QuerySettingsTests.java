@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.hamcrest.Matcher;
@@ -296,6 +297,16 @@ public class QuerySettingsTests extends ESTestCase {
         // Defaults for the rest are null
         assertThat(effective.get(QuerySettings.PROJECT_ROUTING), is(nullValue()));
         assertThat(effective.get(QuerySettings.APPROXIMATION), is(nullValue()));
+    }
+
+    public void testResolveBodyProjectRoutingFailsWithoutCps() {
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.PROJECT_ROUTING, "my-project");
+        var ex = expectThrows(
+            VerificationException.class,
+            () -> QuerySettings.resolve(requestParams, null, SNAPSHOT_CTX_WITH_CPS_DISABLED)
+        );
+        assertThat(ex.getMessage(), containsString("Error validating setting [project_routing]: cross-project search not enabled"));
     }
 
     public void testResolveRequestParameterAppliesWhenNoQuerySet() {

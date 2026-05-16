@@ -1108,6 +1108,11 @@ public class EsqlCapabilities {
          */
         FIX_INDEX_LIKE_QUESTION_MARK_WILDCARD,
 
+        /**
+         * Create new block when filtering OrdinalBytesRefBlock
+         */
+        FIX_FILTER_ORDINALS,
+
         FIX_ALIAS_ID_WHEN_DROP_ALL_AGGREGATES,
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

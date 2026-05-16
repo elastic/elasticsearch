@@ -58,7 +58,8 @@ public final class QuerySettings {
         .withPreview()
         .withValidator((value, ctx) -> ctx.crossProjectEnabled() ? null : "cross-project search not enabled")
         .withRequestBody()
-        .withAliasAtRoot();
+        .withAliasAtRoot()
+        .build();
 
     @Param(
         name = "time_zone",
@@ -71,7 +72,8 @@ public final class QuerySettings {
     public static final QuerySettingDef<ZoneId> TIME_ZONE = QuerySettingDef.string("time_zone", QuerySettings::parseZoneId)
         .withDefault(ZoneOffset.UTC)
         .withRequestBody()
-        .withAliasAtRoot();
+        .withAliasAtRoot()
+        .build();
 
     @Param(name = "unmapped_fields", type = { "keyword" }, since = "9.3.0", description = """
         Determines how unmapped fields are treated. Possible values are:
@@ -107,7 +109,7 @@ public final class QuerySettings {
     public static final QuerySettingDef<UnmappedResolution> UNMAPPED_FIELDS = QuerySettingDef.string(
         "unmapped_fields",
         QuerySettings::parseUnmappedResolution
-    ).withDefault(UnmappedResolution.DEFAULT).withPreview();   // SET-only — no withRequestBody()
+    ).withDefault(UnmappedResolution.DEFAULT).withPreview().build();
 
     @Param(
         name = "approximation",
@@ -143,8 +145,8 @@ public final class QuerySettings {
         .withPreview()
         .withRequestBody()
         .withAliasAtRoot()
-        // Field-by-field merge: a query SET that only sets confidence_level does not erase a request-supplied rows value.
-        .withMerger((lower, higher) -> new ApproximationSettings.Builder(false).merge(lower).merge(higher).build());
+        .withReconciler((previous, current) -> new ApproximationSettings.Builder(false).merge(previous).merge(current).build())
+        .build();
 
     private QuerySettings() {}
 
@@ -210,14 +212,8 @@ public final class QuerySettings {
     }
 
     /**
-     * Folds the precedence-ordered sources into one {@link EffectiveSettings}:
-     *
-     * <pre>
-     *     registry default  &lt;  request body  &lt;  in-query SET
-     * </pre>
-     *
-     * Per-setting mergers control the combine — default is "higher wins", but settings like
-     * {@code approximation} use a custom field-level merge.
+     * Folds {@code registry default < request body < in-query SET} into a single {@link EffectiveSettings},
+     * applying each setting's {@link QuerySettingDef#reconciler()} at every step.
      */
     public static EffectiveSettings resolve(
         Map<QuerySettingDef<?>, Object> requestParams,
@@ -245,7 +241,7 @@ public final class QuerySettings {
         if (requestParams.containsKey(def)) {
             T requestValue = (T) requestParams.get(def);
             if (requestValue != null) {
-                value = def.merger().merge(value, requestValue);
+                value = def.reconciler().reconcile(value, requestValue);
                 consumed.add(def.name());
             }
         }
@@ -254,7 +250,7 @@ public final class QuerySettings {
             Expression querySetExpression = statement.setting(def.name());
             if (querySetExpression != null) {
                 T querySetValue = def.readFromExpression(querySetExpression);
-                value = def.merger().merge(value, querySetValue);
+                value = def.reconciler().reconcile(value, querySetValue);
                 consumed.add(def.name());
             }
         }

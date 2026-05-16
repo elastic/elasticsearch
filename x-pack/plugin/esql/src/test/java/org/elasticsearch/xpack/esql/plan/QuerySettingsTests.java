@@ -285,7 +285,7 @@ public class QuerySettingsTests extends ESTestCase {
         assertThat(value, defaultMatcher);
     }
 
-    public void testResolve_EmptySources() {
+    public void testResolveEmptySources() {
         EffectiveSettings effective = QuerySettings.resolve(Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
         assertThat(effective.consumedSettingNames(), is(java.util.Collections.emptySet()));
         // Default for time_zone is UTC
@@ -295,7 +295,7 @@ public class QuerySettingsTests extends ESTestCase {
         assertThat(effective.get(QuerySettings.APPROXIMATION), is(nullValue()));
     }
 
-    public void testResolve_RequestParameterAppliesWhenNoQuerySet() {
+    public void testResolveRequestParameterAppliesWhenNoQuerySet() {
         Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
         requestParams.put(QuerySettings.TIME_ZONE, ZoneId.of("Europe/Paris"));
         EffectiveSettings effective = QuerySettings.resolve(requestParams, null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
@@ -303,7 +303,7 @@ public class QuerySettingsTests extends ESTestCase {
         assertThat(effective.consumedSettingNames(), equalTo(java.util.Set.of("time_zone")));
     }
 
-    public void testResolve_QuerySetOverridesRequestParameter() {
+    public void testResolveQuerySetOverridesRequestParameter() {
         // Request says Europe/Paris, query SET says UTC → query SET wins.
         Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
         requestParams.put(QuerySettings.TIME_ZONE, ZoneId.of("Europe/Paris"));
@@ -314,35 +314,90 @@ public class QuerySettingsTests extends ESTestCase {
         assertThat(effective.consumedSettingNames(), equalTo(java.util.Set.of("time_zone")));
     }
 
-    public void testResolve_ApproximationFieldLevelMerge() {
-        // Request supplies {rows: 10000}, query SET supplies {confidence_level: 0.92}. With field-level merge,
-        // the resolved value carries both. (Last-wins would drop rows.)
-        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
-        requestParams.put(QuerySettings.APPROXIMATION, new ApproximationSettings(10000, 0.90));
-        QuerySetting set = new QuerySetting(
-            Source.EMPTY,
-            new Alias(
-                Source.EMPTY,
-                "approximation",
-                new MapExpression(
-                    Source.EMPTY,
-                    List.of(Literal.keyword(Source.EMPTY, "confidence_level"), Literal.fromDouble(Source.EMPTY, 0.92))
-                )
-            )
+    public void testResolveApproximationDisjointFieldsMerge() {
+        // Request supplies rows only; query SET supplies confidence_level only. Both must survive.
+        ApproximationSettings resolved = resolveApproximation(
+            new ApproximationSettings(10000, 0.90),
+            approxMap("confidence_level", Literal.fromDouble(Source.EMPTY, 0.92))
         );
-        EsqlStatement statement = new EsqlStatement(null, List.of(set));
-        EffectiveSettings effective = QuerySettings.resolve(requestParams, statement, SNAPSHOT_CTX_WITH_CPS_ENABLED);
-        ApproximationSettings resolved = effective.get(QuerySettings.APPROXIMATION);
         assertThat(resolved, is(new ApproximationSettings(10000, 0.92)));
     }
 
-    public void testResolve_UnmappedFieldsIsSetOnly() {
+    public void testResolveApproximationSharedFieldSetWins() {
+        // Both sources supply rows; query SET's value wins for the shared field.
+        ApproximationSettings resolved = resolveApproximation(
+            new ApproximationSettings(10000, 0.90),
+            approxMap("rows", Literal.integer(Source.EMPTY, 50000), "confidence_level", Literal.fromDouble(Source.EMPTY, 0.85))
+        );
+        assertThat(resolved, is(new ApproximationSettings(50000, 0.85)));
+    }
+
+    public void testResolveApproximationRequestOnly() {
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.APPROXIMATION, new ApproximationSettings(20000, 0.88));
+        EffectiveSettings effective = QuerySettings.resolve(requestParams, null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(QuerySettings.APPROXIMATION.get(effective), is(new ApproximationSettings(20000, 0.88)));
+    }
+
+    public void testResolveApproximationSetOnly() {
+        QuerySetting set = new QuerySetting(
+            Source.EMPTY,
+            new Alias(Source.EMPTY, "approximation", approxMap("rows", Literal.integer(Source.EMPTY, 30000)))
+        );
+        EsqlStatement statement = new EsqlStatement(null, List.of(set));
+        EffectiveSettings effective = QuerySettings.resolve(Map.of(), statement, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        // SET supplied rows only; resolver enabled approximation and left confidence_level at its default.
+        ApproximationSettings resolved = QuerySettings.APPROXIMATION.get(effective);
+        assertThat(resolved.rows(), equalTo(30000));
+    }
+
+    public void testResolveApproximationBooleanTrueKeepsRequestFields() {
+        // SET approximation=true parses to DEFAULT (rows=null, confidence_level=0.9). The field-level merge
+        // treats null in the higher-precedence source as "no contribution for this field", so
+        // request-supplied rows survive.
+        ApproximationSettings resolved = resolveApproximation(
+            new ApproximationSettings(50000, 0.85),
+            Literal.fromBoolean(Source.EMPTY, true)
+        );
+        assertThat(resolved, is(new ApproximationSettings(50000, 0.9)));
+    }
+
+    public void testResolveApproximationBooleanFalseDisables() {
+        // SET approximation=false parses to EXPLICIT_NULL, which disables approximation entirely
+        // (Builder.merge with EXPLICIT_NULL clears the enabled flag → build() returns null).
+        ApproximationSettings resolved = resolveApproximation(
+            new ApproximationSettings(50000, 0.85),
+            Literal.fromBoolean(Source.EMPTY, false)
+        );
+        assertThat(resolved, is(nullValue()));
+    }
+
+    private static ApproximationSettings resolveApproximation(ApproximationSettings requestValue, Expression querySetExpr) {
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        if (requestValue != null) {
+            requestParams.put(QuerySettings.APPROXIMATION, requestValue);
+        }
+        QuerySetting set = new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, "approximation", querySetExpr));
+        EsqlStatement statement = new EsqlStatement(null, List.of(set));
+        return QuerySettings.APPROXIMATION.get(QuerySettings.resolve(requestParams, statement, SNAPSHOT_CTX_WITH_CPS_ENABLED));
+    }
+
+    private static MapExpression approxMap(Object... kvs) {
+        List<Expression> entries = new java.util.ArrayList<>();
+        for (int i = 0; i < kvs.length; i += 2) {
+            entries.add(Literal.keyword(Source.EMPTY, (String) kvs[i]));
+            entries.add((Expression) kvs[i + 1]);
+        }
+        return new MapExpression(Source.EMPTY, entries);
+    }
+
+    public void testResolveUnmappedFieldsIsSetOnly() {
         // UNMAPPED_FIELDS opted out of body exposure. The registry exposure flag is false.
         assertThat(QuerySettings.UNMAPPED_FIELDS.requestBody(), is(false));
         assertThat(QuerySettings.UNMAPPED_FIELDS.aliases().isEmpty(), is(true));
     }
 
-    public void testResolve_BodyExposedSettingsDeclareAliases() {
+    public void testResolveBodyExposedSettingsDeclareAliases() {
         // The three body-exposed settings each carry exactly one root alias mirroring the legacy field names.
         for (QuerySettingDef<?> def : List.of(QuerySettings.TIME_ZONE, QuerySettings.PROJECT_ROUTING, QuerySettings.APPROXIMATION)) {
             assertThat("requestParameterExposed for [" + def.name() + "]", def.requestBody(), is(true));

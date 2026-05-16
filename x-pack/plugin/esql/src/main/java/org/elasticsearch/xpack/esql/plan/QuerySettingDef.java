@@ -23,174 +23,114 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * The typed handle for one query setting. Each setting is declared once as a {@code public static final}
- * constant on {@link QuerySettings}; the constant carries the schema (name, type, default, parsers,
- * validator, body exposure, lifecycle flags) and is the read key. Use {@link #get(EffectiveSettings)}
- * anywhere to read the resolved value:
+ * The typed handle for one query setting. Immutable once built. Each setting is declared as a
+ * {@code public static final} constant on {@link QuerySettings} via a fluent {@link Builder} that
+ * terminates in {@link Builder#build()}.
  *
  * <pre>{@code
- *   ZoneId tz = QuerySettings.TIME_ZONE.get(envelope);
+ *   public static final QuerySettingDef<ZoneId> TIME_ZONE = QuerySettingDef
+ *       .builder("time_zone", ZoneId::of)
+ *       .withDefault(UTC)
+ *       .withRequestBody()
+ *       .withAliasAtRoot()
+ *       .build();
  * }</pre>
  *
- * <p>Construct via the static factories ({@link #string}, {@link #integer}, {@link #bool},
- * {@link #enumOf}, {@link #object}) and refine with the {@code with*} fluent modifiers. Each factory
- * auto-registers the setting.
+ * Read anywhere via {@link #get(EffectiveSettings)} on the constant.
  */
 public final class QuerySettingDef<T> {
 
-    // ---------- registry ----------
-
     private static final Map<String, QuerySettingDef<?>> REGISTRY = new ConcurrentHashMap<>();
 
-    /** All registered settings, in no particular order. */
     public static Collection<QuerySettingDef<?>> all() {
         return Collections.unmodifiableCollection(REGISTRY.values());
     }
 
-    /** Look up a setting by SET key name. Returns {@code null} for unknown keys. */
     @Nullable
     public static QuerySettingDef<?> lookup(String name) {
         return REGISTRY.get(name);
     }
 
-    // ---------- factories ----------
-
-    /** A keyword setting that holds the raw string. */
-    public static QuerySettingDef<String> string(String name) {
-        return QuerySettingDef.<String>string(name, s -> s);
+    public static Builder<String> string(String name) {
+        return Builder.<String>of(name, DataType.KEYWORD).fromString(s -> s);
     }
 
-    /** A keyword setting whose value is parsed from the supplied string. */
-    public static <T> QuerySettingDef<T> string(String name, FromString<T> from) {
-        return register(new QuerySettingDef<T>(name, DataType.KEYWORD)).installFromString(from);
+    public static <T> Builder<T> string(String name, FromString<T> from) {
+        return Builder.<T>of(name, DataType.KEYWORD).fromString(from);
     }
 
-    /** An integer setting. */
-    public static QuerySettingDef<Integer> integer(String name, int defaultValue) {
-        return register(new QuerySettingDef<Integer>(name, DataType.INTEGER)).withDefault(defaultValue)
-            .installExpressionReader(e -> ((Number) Foldables.literalValueOf(e)).intValue())
-            .installJsonReader(XContentParser::intValue);
+    public static Builder<Integer> integer(String name, int defaultValue) {
+        return Builder.<Integer>of(name, DataType.INTEGER)
+            .withDefault(defaultValue)
+            .expressionReader(e -> ((Number) Foldables.literalValueOf(e)).intValue())
+            .jsonReader(XContentParser::intValue);
     }
 
-    /** A boolean setting. */
-    public static QuerySettingDef<Boolean> bool(String name, boolean defaultValue) {
-        return register(new QuerySettingDef<Boolean>(name, DataType.BOOLEAN)).withDefault(defaultValue)
-            .installExpressionReader(e -> (Boolean) Foldables.literalValueOf(e))
-            .installJsonReader(XContentParser::booleanValue);
+    public static Builder<Boolean> bool(String name, boolean defaultValue) {
+        return Builder.<Boolean>of(name, DataType.BOOLEAN)
+            .withDefault(defaultValue)
+            .expressionReader(e -> (Boolean) Foldables.literalValueOf(e))
+            .jsonReader(XContentParser::booleanValue);
     }
 
-    /** An enum-valued keyword setting (case-insensitive on the wire). */
-    public static <E extends Enum<E>> QuerySettingDef<E> enumOf(String name, Class<E> type, E defaultValue) {
+    public static <E extends Enum<E>> Builder<E> enumOf(String name, Class<E> type, E defaultValue) {
         return string(name, s -> Enum.valueOf(type, s.toUpperCase(Locale.ROOT))).withDefault(defaultValue);
     }
 
-    /** Escape hatch for non-primitive types. Provide both a JSON parser and an expression parser. */
-    public static <T> QuerySettingDef<T> object(String name, JsonReader<T> jsonReader, ExpressionReader<T> expressionReader) {
-        return register(new QuerySettingDef<T>(name, null)).installJsonReader(jsonReader).installExpressionReader(expressionReader);
+    /** Escape hatch for non-primitive types. Supply both a JSON and an expression parser. */
+    public static <T> Builder<T> object(String name, JsonReader<T> jsonReader, ExpressionReader<T> expressionReader) {
+        return Builder.<T>of(name, null).jsonReader(jsonReader).expressionReader(expressionReader);
     }
 
-    // ---------- identity ----------
+    /** Direct entry point for a setting whose factory above doesn't fit. */
+    public static <T> Builder<T> builder(String name) {
+        return Builder.of(name, null);
+    }
+
+    public static <T> Builder<T> builder(String name, FromString<T> from) {
+        return Builder.<T>of(name, DataType.KEYWORD).fromString(from);
+    }
 
     private final String name;
     @Nullable
     private final DataType type;
+    @Nullable
+    private final T defaultValue;
+    @Nullable
+    private final JsonReader<T> jsonReader;
+    @Nullable
+    private final ExpressionReader<T> expressionReader;
+    @Nullable
+    private final Validator<T> validator;
+    private final Reconciler<T> reconciler;
+    private final boolean requestBody;
+    private final List<RequestBodyBinding> aliases;
+    private final boolean preview;
+    private final boolean snapshotOnly;
+    private final boolean serverlessOnly;
 
-    private QuerySettingDef(String name, @Nullable DataType type) {
-        this.name = name;
-        this.type = type;
+    private QuerySettingDef(Builder<T> b) {
+        this.name = b.name;
+        this.type = b.type;
+        this.defaultValue = b.defaultValue;
+        this.jsonReader = b.jsonReader;
+        this.expressionReader = b.expressionReader;
+        this.validator = b.validator;
+        this.reconciler = b.reconciler;
+        this.requestBody = b.requestBody;
+        this.aliases = List.copyOf(b.aliases);
+        this.preview = b.preview;
+        this.snapshotOnly = b.snapshotOnly;
+        this.serverlessOnly = b.serverlessOnly;
     }
 
     public String name() {
         return name;
     }
 
-    /** The declared in-query type for parser-level validation; {@code null} skips datatype check. */
     @Nullable
     public DataType type() {
         return type;
-    }
-
-    // ---------- fluent setters (with* uniform) ----------
-
-    /** The value to return when no source supplied one. */
-    public QuerySettingDef<T> withDefault(@Nullable T value) {
-        this.defaultValue = value;
-        return this;
-    }
-
-    /** A value-level validator. Returns {@code null} on success or a human error message. */
-    public QuerySettingDef<T> withValidator(Validator<T> validator) {
-        this.validator = validator;
-        return this;
-    }
-
-    /**
-     * Opt in: the setting is reachable from the {@code _query} request body under {@code settings.<name>}.
-     * Without this the setting is SET-only.
-     */
-    public QuerySettingDef<T> withRequestBody() {
-        this.requestBody = true;
-        return this;
-    }
-
-    /**
-     * Add a body alias at the top level of the request body, named after the SET key. Implies
-     * {@link #withRequestBody()}. Convenience for the common BWC case.
-     */
-    public QuerySettingDef<T> withAliasAtRoot() {
-        return withAliasAt("", name);
-    }
-
-    /** As {@link #withAliasAtRoot()} but with a different name. */
-    public QuerySettingDef<T> withAliasAtRoot(String aliasName) {
-        return withAliasAt("", aliasName);
-    }
-
-    /**
-     * Add a body alias at an arbitrary location. {@code parentPath} is a dotted JSON path to the parent
-     * object ({@code ""} = root). Implies {@link #withRequestBody()}. May be called multiple times to add
-     * multiple aliases.
-     */
-    public QuerySettingDef<T> withAliasAt(String parentPath, String name) {
-        this.requestBody = true;
-        this.aliases.add(new RequestBodyBinding(parentPath, name));
-        return this;
-    }
-
-    /**
-     * Define how this setting merges values arriving from different precedence sources. The default is
-     * "highest non-null wins" — correct for scalars (a time zone is one time zone). Override only for
-     * settings whose value is a structured object made of independent fields that should combine across
-     * sources (the only current case is {@code approximation}).
-     */
-    public QuerySettingDef<T> withMerger(Merger<T> merger) {
-        this.merger = merger;
-        return this;
-    }
-
-    /** Marks this setting as a preview feature. */
-    public QuerySettingDef<T> withPreview() {
-        this.preview = true;
-        return this;
-    }
-
-    /** Restrict to snapshot builds. */
-    public QuerySettingDef<T> withSnapshotOnly() {
-        this.snapshotOnly = true;
-        return this;
-    }
-
-    /** Restrict to serverless deployments. */
-    public QuerySettingDef<T> withServerlessOnly() {
-        this.serverlessOnly = true;
-        return this;
-    }
-
-    // ---------- bare-name getters ----------
-
-    /** Reads the resolved value from the envelope. */
-    public T get(EffectiveSettings settings) {
-        return settings.get(this);
     }
 
     @Nullable
@@ -198,13 +138,12 @@ public final class QuerySettingDef<T> {
         return defaultValue;
     }
 
-    /** True if this setting accepts a value from the request body. */
     public boolean requestBody() {
         return requestBody;
     }
 
     public List<RequestBodyBinding> aliases() {
-        return Collections.unmodifiableList(aliases);
+        return aliases;
     }
 
     public boolean preview() {
@@ -219,11 +158,14 @@ public final class QuerySettingDef<T> {
         return serverlessOnly;
     }
 
-    public Merger<T> merger() {
-        return merger;
+    public Reconciler<T> reconciler() {
+        return reconciler;
     }
 
-    /** Parse a JSON value at the parser's current position into this setting's typed value. */
+    public T get(EffectiveSettings settings) {
+        return settings.get(this);
+    }
+
     public T readFromJson(XContentParser parser) throws IOException {
         if (jsonReader == null) {
             throw new IllegalStateException("Setting [" + name + "] is not body-exposed");
@@ -231,7 +173,6 @@ public final class QuerySettingDef<T> {
         return jsonReader.read(parser);
     }
 
-    /** Parse an in-query SET expression into this setting's typed value. */
     public T readFromExpression(Expression value) {
         if (expressionReader == null) {
             throw new IllegalStateException("Setting [" + name + "] has no expression reader");
@@ -239,55 +180,139 @@ public final class QuerySettingDef<T> {
         return expressionReader.read(value);
     }
 
-    /** @return {@code null} on success, or the validator's error message. */
     @Nullable
     public String runValidator(T value, SettingsValidationContext ctx) {
         return validator == null ? null : validator.validate(value, ctx);
     }
 
-    // ---------- internal state ----------
+    /**
+     * Fluent builder for {@link QuerySettingDef}. Terminates in {@link #build()}, which validates the
+     * combination of flags and registers the resulting immutable setting in {@link #REGISTRY}.
+     */
+    public static final class Builder<T> {
 
-    @Nullable
-    private T defaultValue;
-    @Nullable
-    private JsonReader<T> jsonReader;
-    @Nullable
-    private ExpressionReader<T> expressionReader;
-    @Nullable
-    private Validator<T> validator;
-    private Merger<T> merger = (lower, higher) -> higher != null ? higher : lower;
-    private boolean requestBody = false;
-    private final List<RequestBodyBinding> aliases = new ArrayList<>();
-    private boolean preview = false;
-    private boolean snapshotOnly = false;
-    private boolean serverlessOnly = false;
+        private final String name;
+        @Nullable
+        private final DataType type;
+        @Nullable
+        private T defaultValue;
+        @Nullable
+        private JsonReader<T> jsonReader;
+        @Nullable
+        private ExpressionReader<T> expressionReader;
+        @Nullable
+        private Validator<T> validator;
+        private Reconciler<T> reconciler = (previous, current) -> current != null ? current : previous;
+        private boolean requestBody = false;
+        private final List<RequestBodyBinding> aliases = new ArrayList<>();
+        private boolean preview = false;
+        private boolean snapshotOnly = false;
+        private boolean serverlessOnly = false;
 
-    private QuerySettingDef<T> installJsonReader(JsonReader<T> reader) {
-        this.jsonReader = reader;
-        return this;
-    }
-
-    private QuerySettingDef<T> installExpressionReader(ExpressionReader<T> reader) {
-        this.expressionReader = reader;
-        return this;
-    }
-
-    /** Convenience: derive both expression and JSON readers from a single string-to-T function. */
-    private QuerySettingDef<T> installFromString(FromString<T> from) {
-        return installJsonReader(p -> from.parse(p.text())).installExpressionReader(
-            e -> from.parse(Foldables.stringLiteralValueOf(e, "Unexpected value"))
-        );
-    }
-
-    private static <T> QuerySettingDef<T> register(QuerySettingDef<T> def) {
-        QuerySettingDef<?> prior = REGISTRY.putIfAbsent(def.name, def);
-        if (prior != null) {
-            throw new IllegalStateException("Duplicate query setting [" + def.name + "]");
+        private Builder(String name, @Nullable DataType type) {
+            this.name = name;
+            this.type = type;
         }
-        return def;
-    }
 
-    // ---------- functional types ----------
+        private static <T> Builder<T> of(String name, @Nullable DataType type) {
+            return new Builder<>(name, type);
+        }
+
+        public Builder<T> withDefault(@Nullable T value) {
+            this.defaultValue = value;
+            return this;
+        }
+
+        public Builder<T> withValidator(Validator<T> validator) {
+            this.validator = validator;
+            return this;
+        }
+
+        /** Opt in: the setting is reachable from the {@code _query} request body under {@code settings.<name>}. */
+        public Builder<T> withRequestBody() {
+            this.requestBody = true;
+            return this;
+        }
+
+        /** Body alias at the top level of the request body, named after the SET key. Implies {@link #withRequestBody()}. */
+        public Builder<T> withAliasAtRoot() {
+            return withAliasAt("", name);
+        }
+
+        public Builder<T> withAliasAtRoot(String aliasName) {
+            return withAliasAt("", aliasName);
+        }
+
+        /**
+         * Body alias at an arbitrary location. {@code parentPath} is a dotted JSON path to the parent
+         * object ({@code ""} = root). Implies {@link #withRequestBody()}. May be called multiple times.
+         */
+        public Builder<T> withAliasAt(String parentPath, String aliasName) {
+            this.requestBody = true;
+            this.aliases.add(new RequestBodyBinding(parentPath, aliasName));
+            return this;
+        }
+
+        /**
+         * Custom merge function. Default is "highest-precedence non-null wins" — correct for scalars.
+         * Override only for settings whose value is a multi-field object where partial contributions
+         * from different sources should combine instead of overwriting.
+         */
+        public Builder<T> withReconciler(Reconciler<T> reconciler) {
+            this.reconciler = reconciler;
+            return this;
+        }
+
+        public Builder<T> withPreview() {
+            this.preview = true;
+            return this;
+        }
+
+        public Builder<T> withSnapshotOnly() {
+            this.snapshotOnly = true;
+            return this;
+        }
+
+        public Builder<T> withServerlessOnly() {
+            this.serverlessOnly = true;
+            return this;
+        }
+
+        Builder<T> jsonReader(JsonReader<T> reader) {
+            this.jsonReader = reader;
+            return this;
+        }
+
+        Builder<T> expressionReader(ExpressionReader<T> reader) {
+            this.expressionReader = reader;
+            return this;
+        }
+
+        Builder<T> fromString(FromString<T> from) {
+            return jsonReader(p -> from.parse(p.text())).expressionReader(
+                e -> from.parse(Foldables.stringLiteralValueOf(e, "Unexpected value"))
+            );
+        }
+
+        /** Validate the builder state, construct the immutable definition, register it, and return it. */
+        public QuerySettingDef<T> build() {
+            if (snapshotOnly && serverlessOnly) {
+                throw new IllegalStateException("Setting [" + name + "] cannot be both snapshotOnly and serverlessOnly");
+            }
+            if (aliases.isEmpty() == false && requestBody == false) {
+                throw new IllegalStateException("Setting [" + name + "] has aliases but is not body-exposed");
+            }
+            if (requestBody && jsonReader == null) {
+                throw new IllegalStateException("Setting [" + name + "] is body-exposed but has no JSON reader");
+            }
+            QuerySettingDef<T> def = new QuerySettingDef<>(this);
+            QuerySettingDef<?> prior = REGISTRY.putIfAbsent(def.name, def);
+            if (prior != null) {
+                throw new IllegalStateException("Duplicate query setting [" + def.name + "]");
+            }
+            return def;
+        }
+    }
 
     @FunctionalInterface
     public interface JsonReader<T> {
@@ -301,18 +326,13 @@ public final class QuerySettingDef<T> {
 
     @FunctionalInterface
     public interface Validator<T> {
-        /**
-         * @return {@code null} on success, an error message on failure. The {@code ctx} argument carries runtime flags
-         *         (e.g. {@code crossProjectEnabled}); ignore it if the validator is value-only.
-         */
         @Nullable
         String validate(T value, SettingsValidationContext ctx);
     }
 
     @FunctionalInterface
-    public interface Merger<T> {
-        /** Combine a lower-precedence value with a higher-precedence value into the resolved value. */
-        T merge(@Nullable T lower, @Nullable T higher);
+    public interface Reconciler<T> {
+        T reconcile(@Nullable T previous, @Nullable T current);
     }
 
     @FunctionalInterface
@@ -321,9 +341,8 @@ public final class QuerySettingDef<T> {
     }
 
     /**
-     * A body-side alias path for a setting, outside the canonical {@code settings.{}} block.
-     * {@code parentPath} is a dotted JSON path to the parent object ({@code ""} = root); {@code name}
-     * is the field name inside that parent.
+     * A body-side alias path for a setting outside the canonical {@code settings.{}} block.
+     * {@code parentPath} is a dotted JSON path to the parent object ({@code ""} = root).
      */
     public record RequestBodyBinding(String parentPath, String name) {
         public RequestBodyBinding {

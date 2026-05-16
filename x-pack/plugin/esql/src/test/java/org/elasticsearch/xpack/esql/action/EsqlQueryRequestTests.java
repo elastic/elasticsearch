@@ -692,7 +692,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals(TimeValue.timeValueDays(5), request.keepAlive());
     }
 
-    public void testSettingsBlock_TimeZoneAndProjectRouting() throws IOException {
+    public void testSettingsBlockTimeZoneAndProjectRouting() throws IOException {
         String json = """
             {
                 "query": "FROM idx",
@@ -706,7 +706,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals("*", request.get(QuerySettings.PROJECT_ROUTING));
     }
 
-    public void testSettingsBlock_ApproximationObject() throws IOException {
+    public void testSettingsBlockApproximationObject() throws IOException {
         String json = """
             {
                 "query": "FROM idx",
@@ -719,7 +719,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals(Integer.valueOf(10000), request.get(QuerySettings.APPROXIMATION).rows());
     }
 
-    public void testSettingsBlock_CanonicalWinsOverLegacyTopLevel() throws IOException {
+    public void testSettingsBlockCanonicalWinsOverLegacyTopLevel() throws IOException {
         // Both legacy top-level "time_zone" and canonical settings.time_zone supply a value.
         // Canonical wins silently (no error, regardless of JSON field order).
         String json = """
@@ -734,7 +734,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals(ZoneId.of("UTC"), request.get(QuerySettings.TIME_ZONE));
     }
 
-    public void testSettingsBlock_CanonicalWinsRegardlessOfOrder() throws IOException {
+    public void testSettingsBlockCanonicalWinsRegardlessOfOrder() throws IOException {
         // Same as above but with the order swapped — canonical still wins (the resolver doesn't depend on order).
         String json = """
             {
@@ -748,7 +748,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals(ZoneId.of("UTC"), request.get(QuerySettings.TIME_ZONE));
     }
 
-    public void testSettingsBlock_RejectsUnknownKey() {
+    public void testSettingsBlockRejectsUnknownKey() {
         // The parser wraps XContentParseException; the inner cause carries our detailed message.
         Exception e = expectThrows(IllegalArgumentException.class, () -> parseEsqlQueryRequestSync("""
             {
@@ -761,7 +761,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertThat(e.getCause().getMessage(), containsString("Unknown setting [no_such_setting] under [settings]"));
     }
 
-    public void testSettingsBlock_RejectsSetOnlySetting() {
+    public void testSettingsBlockRejectsSetOnlySetting() {
         // unmapped_fields is in the registry but opted out of body exposure.
         Exception e = expectThrows(IllegalArgumentException.class, () -> parseEsqlQueryRequestSync("""
             {

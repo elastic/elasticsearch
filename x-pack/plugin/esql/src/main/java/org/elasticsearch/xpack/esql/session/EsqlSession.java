@@ -302,9 +302,6 @@ public class EsqlSession {
 
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
 
-        // Resolve every registered setting in one pass: registry default < request parameter < query SET.
-        // The resolver is the single merge point for what used to be three divergent helpers (inline ternary
-        // for time_zone, projectRouting(...), approximationSettings(...)).
         EffectiveSettings effective = QuerySettings.resolve(
             request.requestSettings(),
             statement,

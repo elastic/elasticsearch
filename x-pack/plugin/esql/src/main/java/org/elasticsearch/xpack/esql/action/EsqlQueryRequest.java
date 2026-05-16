@@ -66,19 +66,8 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean acceptedPragmaRisks = false;
     private Boolean allowPartialResults = null;
 
-    /**
-     * Body-supplied values for SETtings, keyed by registry definition. Populated by {@link RequestXContent} from the
-     * {@code settings.{}} block and from any registry-declared additional bindings. Read by {@code EsqlSession} during
-     * resolution, where it sits at lower precedence than query SETs.
-     */
     private final Map<QuerySettingDef<?>, Object> requestSettings = new HashMap<>();
-
-    /**
-     * Values supplied via the canonical {@code settings.{}} block, accumulated during JSON parsing.
-     * Merged into {@link #requestSettings} (overwriting any additional-binding values) by
-     * {@link #applyCanonicalRequestSettings()} after parsing completes. This implements the
-     * "canonical wins over additional binding" precedence rule without depending on JSON field order.
-     */
+    /** Values from the canonical {@code settings.{}} block; merged into {@link #requestSettings} by {@link #applyCanonicalRequestSettings()} so canonical wins over legacy aliases regardless of JSON field order. */
     private final Map<QuerySettingDef<?>, Object> canonicalRequestSettings = new HashMap<>();
 
     /**
@@ -376,11 +365,6 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.acceptedPragmaRisks = accepted;
     }
 
-    /**
-     * Store a body-supplied value for the given setting. Generic entry point used by {@link RequestXContent} when
-     * parsing legacy top-level aliases — settings declared under the canonical {@code settings.{}} block route
-     * through {@link #canonicalRequestSettings()} instead.
-     */
     public <T> EsqlQueryRequest set(QuerySettingDef<T> def, T value) {
         if (value == null) {
             requestSettings.remove(def);
@@ -390,39 +374,21 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return this;
     }
 
-    /**
-     * Read the body-supplied value for the given setting, falling back to the registry default. Note: this is the
-     * pre-resolution view (in-query SETs not yet applied). For the resolved value, use the envelope produced by
-     * {@link QuerySettings#resolve(Map, EsqlStatement, SettingsValidationContext)}.
-     */
+    /** Body-supplied value with registry-default fallback. Pre-resolution; for the merged value use the envelope from {@link QuerySettings#resolve}. */
     @SuppressWarnings("unchecked")
     public <T> T get(QuerySettingDef<T> def) {
         T value = (T) requestSettings.get(def);
         return value != null ? value : def.defaultValue();
     }
 
-    /**
-     * The body-supplied SET values keyed by registry definition. Lower precedence than in-query SETs. Reflects the
-     * final merged view after {@link #applyCanonicalRequestSettings()} runs at end of parsing.
-     */
     public Map<QuerySettingDef<?>, Object> requestSettings() {
         return requestSettings;
     }
 
-    /**
-     * Internal: values from the canonical {@code settings.{}} block, accumulated during JSON parsing.
-     * Merged into {@link #requestSettings} (overwriting any legacy alias values) by
-     * {@link #applyCanonicalRequestSettings()} when parsing completes.
-     */
     public Map<QuerySettingDef<?>, Object> canonicalRequestSettings() {
         return canonicalRequestSettings;
     }
 
-    /**
-     * Merge canonical {@code settings.{}} values into {@link #requestSettings}, overwriting any values supplied via
-     * legacy aliases. Called once by {@link RequestXContent} after parsing — implements the
-     * "canonical wins over legacy alias" precedence rule independent of JSON field order.
-     */
     public void applyCanonicalRequestSettings() {
         if (canonicalRequestSettings.isEmpty()) {
             return;

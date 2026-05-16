@@ -92,7 +92,6 @@ public class Metrics {
         }
         featuresMetrics = Collections.unmodifiableMap(fMap);
 
-        // Only register settings metrics for settings that are applicable to the current environment.
         var applicable = QuerySettings.applicableIn(isSnapshot, isServerless);
         Map<String, CounterMetric> sMap = Maps.newLinkedHashMapWithExpectedSize(applicable.size());
         for (var def : applicable) {

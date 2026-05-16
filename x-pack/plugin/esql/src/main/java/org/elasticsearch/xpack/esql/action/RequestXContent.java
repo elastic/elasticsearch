@@ -48,10 +48,7 @@ import static org.elasticsearch.xpack.esql.parser.ParserUtils.paramClassificatio
 /** Static methods for parsing xcontent requests to transport requests. */
 final class RequestXContent {
 
-    /**
-     * Force {@link QuerySettings}'s static initializer to run before any body is parsed, so the registry holds the
-     * SET catalog by the time {@link QuerySettingDef#lookup(String)} is called in {@link #parseSettingsObject}.
-     */
+    // Force QuerySettings to initialize before parser declarations reference the registry.
     private static final QuerySettingDef<?> SETTINGS_REGISTRY_INIT = QuerySettings.TIME_ZONE;
 
     private static class TempObjects {
@@ -138,12 +135,7 @@ final class RequestXContent {
         parser.declareField((p, request, c) -> parseSettingsObject(p, request), SETTINGS_FIELD, ObjectParser.ValueType.OBJECT);
     }
 
-    /**
-     * Walks {@link QuerySettingDef#all()} and declares a top-level parser for each registered alias. Each alias
-     * routes its parsed value into the request envelope via {@link EsqlQueryRequest#set}. Multiple aliases per
-     * setting are supported by virtue of iterating the list. Non-root aliases — a real possibility in the data
-     * model — are not yet wired in the parser; they fail loudly at parser-build time so we don't silently drop them.
-     */
+    /** Declares one parser per registered body alias. Nested-path aliases throw at parser-build time. */
     private static void declareRegistryAliases(ObjectParser<EsqlQueryRequest, ?> parser) {
         for (QuerySettingDef<?> def : QuerySettingDef.all()) {
             for (QuerySettingDef.RequestBodyBinding alias : def.aliases()) {
@@ -167,12 +159,6 @@ final class RequestXContent {
         parser.declareField((p, request, c) -> request.set(def, def.readFromJson(p)), new ParseField(aliasName), VALUE_OBJECT_ARRAY);
     }
 
-    /**
-     * Parses the canonical {@code settings.{}} block. Each key must name a body-exposed setting in the registry;
-     * unknown keys and SET-only keys are rejected with a 400. Values are read through the registry entry and
-     * stashed in the request's canonical envelope; canonical-vs-additional-binding precedence is resolved later
-     * by {@link EsqlQueryRequest#applyCanonicalRequestSettings()}.
-     */
     private static void parseSettingsObject(XContentParser p, EsqlQueryRequest request) throws IOException {
         if (p.currentToken() != XContentParser.Token.START_OBJECT) {
             throw new XContentParseException(p.getTokenLocation(), "[" + SETTINGS_FIELD.getPreferredName() + "] must be an object");

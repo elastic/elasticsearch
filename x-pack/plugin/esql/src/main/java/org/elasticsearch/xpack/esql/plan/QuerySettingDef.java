@@ -23,59 +23,84 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * The typed handle for one ES|QL query setting. Immutable once built. Declared as a
- * {@code public static final} constant on {@link QuerySettings}; the constant is the schema,
- * the registration key, and the read key.
+ * The typed handle for one ES|QL query setting. Declared as a {@code public static final}
+ * constant on {@link QuerySettings}.
  *
- * <h2>What this is</h2>
+ * <h2>Mental model</h2>
  *
- * A query setting is a typed, named knob a user supplies two ways: in the query
- * ({@code SET time_zone='Europe/Paris';}) or in the request body
- * ({@code "settings": { "time_zone": "Europe/Paris" }}). We declare each knob once as a
- * {@code QuerySettingDef<T>} constant; the framework wires both surfaces, resolves precedence,
- * and exposes one typed read. Adding a setting is a one-line declaration. Nobody touches the
- * body parser, the SET dispatch, or {@code EsqlSession}.
+ * A setting is a typed knob. Users always supply it via in-query {@code SET}. For tooling that
+ * builds requests programmatically, a setting may also be exposed in the request body. We declare
+ * the knob once; the framework wires both surfaces and gives downstream code one typed read.
  *
- * <h2>What you control, what the framework does</h2>
+ * <h2>What you specify</h2>
  *
- * You declare: name (also the body key), value type, optional default, whether the setting is
- * reachable from the body, optional aliases at other JSON paths, optional validation, optional
- * cross-source merge, and lifecycle gating (preview / snapshot-only / serverless-only).
+ * Required:
+ * <ul>
+ *   <li>a name — used as both the {@code SET} key and the body key,</li>
+ *   <li>a value type — picked by choosing a factory.</li>
+ * </ul>
  *
- * <p>The framework owns: body parser declarations, SET expression dispatch, precedence resolution,
- * registration, and the read API. You add no code outside the one declaration.
+ * Optional:
+ * <ul>
+ *   <li>{@code withDefault} — value readers see when no source supplied one;</li>
+ *   <li>{@code withRequestBody} — opt the setting into the body under {@code settings.<name>};</li>
+ *   <li>{@code withAliasAtRoot} / {@code withAliasAt} — extra body paths, used only for BWC with
+ *       settings whose top-level body fields predate this framework ({@code time_zone},
+ *       {@code project_routing}, {@code approximation});</li>
+ *   <li>{@code withValidator} — value-level check with runtime context;</li>
+ *   <li>{@code withReconciler} — custom cross-source merge (see Reconciliation);</li>
+ *   <li>{@code withPreview}, {@code withSnapshotOnly}, {@code withServerlessOnly} — lifecycle.</li>
+ * </ul>
  *
- * <h2>How a value flows</h2>
+ * Inferred: registration, body parser wiring, {@code SET} dispatch, the precedence fold, the read
+ * API. You write no code outside the one declaration.
  *
- * The body parser walks {@code settings.{}}, looks each key up in the registry, calls the
- * setting's JSON reader, and stashes the typed value on {@code EsqlQueryRequest}. The SQL parser
- * pulls {@code SET} statements and calls each setting's expression reader.
- * {@link QuerySettings#resolve} folds {@code default < body < SET} per setting using its
- * reconciler, producing an immutable {@link EffectiveSettings} envelope. Downstream code reads
- * {@code QuerySettings.FOO.get(effective)}. That's the entire flow — the same for every setting.
+ * <h2>How to declare a setting</h2>
  *
- * <h2>Declaring one</h2>
+ * <ol>
+ *   <li>Pick a factory matching the value type.</li>
+ *   <li>Chain only the modifiers you need.</li>
+ *   <li>End with {@code build()}, which validates and registers the setting.</li>
+ * </ol>
  *
- * Pick a factory matching the value type, chain the modifiers you need, end with {@code build()}.
- * {@code build()} validates the declaration is coherent and registers the setting.
+ * <h3>1. SET-only</h3>
+ *
+ * Accepted in queries as {@code SET foo='x';}. Not reachable from the body.
  *
  * <pre>{@code
- *   // SET-only, string-valued, no default
  *   public static final QuerySettingDef<String> FOO = QuerySettingDef.string("foo").build();
+ * }</pre>
  *
- *   // Body-exposed string with a default
+ * <h3>2. SET + body parameter</h3>
+ *
+ * Also accepted as {@code "settings": { "bar": "x" }}. Tooling that constructs the body without
+ * splicing the query string uses this form.
+ *
+ * <pre>{@code
  *   public static final QuerySettingDef<String> BAR = QuerySettingDef
  *       .string("bar").withDefault("hello").withRequestBody().build();
+ * }</pre>
  *
- *   // Parsed from string into a richer type, plus a legacy top-level alias for BWC
+ * <h3>3. SET + body parameter + legacy top-level alias</h3>
+ *
+ * Same as case 2, plus accepted at the top-level body field. Reserved for BWC with the three
+ * settings whose top-level fields predate this framework.
+ *
+ * <pre>{@code
  *   public static final QuerySettingDef<ZoneId> TIME_ZONE = QuerySettingDef
  *       .string("time_zone", ZoneId::of)
  *       .withDefault(ZoneOffset.UTC)
  *       .withRequestBody()
  *       .withAliasAtRoot()
  *       .build();
+ * }</pre>
  *
- *   // Structured value, field-level merge across sources
+ * <h3>4. Structured value with a custom reconciler</h3>
+ *
+ * Use this shape when a {@code SET} and a body contribution may each fill different fields and
+ * you want them combined rather than last-wins.
+ *
+ * <pre>{@code
  *   public static final QuerySettingDef<ApproximationSettings> APPROXIMATION = QuerySettingDef
  *       .object("approximation", ApproximationSettings::fromXContent, ApproximationSettings::parse)
  *       .withRequestBody()
@@ -85,50 +110,32 @@ import java.util.concurrent.ConcurrentHashMap;
  *       .build();
  * }</pre>
  *
- * <h2>The factories</h2>
+ * <h2>Reading</h2>
  *
- * Each factory binds both the JSON reader and the SET expression reader.
- * {@link #string(String)} and {@link #string(String, FromString)} cover strings (raw, or parsed
- * via a function like {@code ZoneId::of} — function errors surface as the user-visible message).
- * {@link #integer(String, int)} and {@link #bool(String, boolean)} cover primitives.
- * {@link #enumOf(String, Class, Enum)} parses an enum case-insensitively.
- * {@link #object(String, JsonReader, ExpressionReader)} is the escape hatch for non-primitives.
- * {@link #builder(String)} / {@link #builder(String, FromString)} are the generic entry points.
+ * <pre>{@code
+ *   ZoneId tz = QuerySettings.TIME_ZONE.get(effective);
+ * }</pre>
  *
- * <h2>The modifiers</h2>
+ * <h2>Reconciliation</h2>
  *
- * {@link Builder#withDefault} sets the value readers see when nobody supplied one.
- * {@link Builder#withRequestBody} opts the setting into the body surface at {@code settings.<name>}
- * — without it, the setting is SET-only. {@link Builder#withAliasAtRoot()} (and the variants)
- * declare extra body paths; we use them for the three settings ({@code time_zone},
- * {@code project_routing}, {@code approximation}) that had top-level body fields before this
- * framework existed. Aliases imply body exposure. {@link Builder#withValidator} runs a
- * {@code (value, ctx) -> errorMsg} check against the parsed value, with runtime context
- * (cross-project enabled, snapshot build) available.
- * {@link Builder#withReconciler} replaces the default last-wins merge — use it only when a
- * structured value's fields should combine across SET and body rather than replace.
- * {@link Builder#withPreview}, {@link Builder#withSnapshotOnly}, and
- * {@link Builder#withServerlessOnly} gate lifecycle.
+ * The same setting can arrive from default, body, and {@code SET} in one query, so reconciliation
+ * is unavoidable. The framework folds the three in ascending precedence
+ * {@code default < body < SET}. The default fold is last-wins — correct for any scalar. Override
+ * with {@code withReconciler} only when a structured value's fields should combine across sources
+ * rather than replace.
  *
- * <h2>Precedence and merging</h2>
+ * <h2>Factories</h2>
  *
- * Three sources fold in ascending precedence: default {@code <} body {@code <} SET. The default
- * reconciler is "higher wins, null is no-op" — correct for any scalar. A custom reconciler is
- * only needed when a structured value's fields should combine; today that's only
- * {@code approximation}, so a SET that sets {@code confidence_level} doesn't erase a body-supplied
- * {@code rows}. Reconciler arguments are {@code (previous, current)} — previous is everything
- * folded so far (lower precedence), current is this contribution (higher precedence).
+ * {@link #string(String)}, {@link #string(String, FromString)} (function errors surface as the
+ * user-visible message), {@link #integer(String, int)}, {@link #bool(String, boolean)},
+ * {@link #enumOf(String, Class, Enum)} (case-insensitive),
+ * {@link #object(String, JsonReader, ExpressionReader)}, {@link #builder(String)}.
  *
  * <h2>When things go wrong</h2>
  *
- * Build-time: {@code build()} rejects incoherent declarations at class init — snapshot-only and
- * serverless-only together, aliases without body exposure, body exposure without a JSON reader.
- * Parse-time: unknown keys under {@code settings.{}} reject with 400 (strict — tooling surface);
- * unknown SET keys warn and skip (forgiving — user-typed surface); type mismatches throw.
- * Resolve-time: snapshot-only on non-snapshot builds throws; the validator runs.
- *
- * <p>The framework never silently ignores a knob — every failure produces a single clear error
- * at the earliest phase that can see it.
+ * Build-time: {@code build()} rejects incoherent declarations. Parse-time: unknown body keys
+ * reject with 400; unknown {@code SET} keys warn and skip; type mismatches throw. Resolve-time:
+ * snapshot-only on non-snapshot throws; the validator runs.
  */
 public final class QuerySettingDef<T> {
 

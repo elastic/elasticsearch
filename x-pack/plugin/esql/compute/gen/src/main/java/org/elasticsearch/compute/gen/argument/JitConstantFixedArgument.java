@@ -69,12 +69,7 @@ public record JitConstantFixedArgument(TypeName type, String name, boolean inclu
     /** Accessor method declared as abstract on the evaluator. */
     @Override
     public void declareAbstractAccessor(TypeSpec.Builder builder) {
-        builder.addMethod(
-            MethodSpec.methodBuilder(name)
-                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                .returns(type)
-                .build()
-        );
+        builder.addMethod(MethodSpec.methodBuilder(name).addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT).returns(type).build());
     }
 
     /** Factory still holds the value — needed to pass to the spinner. */

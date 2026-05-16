@@ -41,9 +41,7 @@ public interface Argument {
             boolean releasable = Types.extendsSuper(types, v.asType(), "org.elasticsearch.core.Releasable");
             if (fixed.jitConstant()) {
                 if (fixed.scope() != Fixed.Scope.SINGLETON) {
-                    throw new IllegalArgumentException(
-                        "@Fixed(jitConstant=true) requires SINGLETON scope (parameter: " + name + ")"
-                    );
+                    throw new IllegalArgumentException("@Fixed(jitConstant=true) requires SINGLETON scope (parameter: " + name + ")");
                 }
                 return new JitConstantFixedArgument(type, name, fixed.includeInToString(), fixed.scope(), releasable);
             }
@@ -147,7 +145,9 @@ public interface Argument {
     default void declareAbstractAccessor(TypeSpec.Builder builder) {}
 
     /** Whether this argument is a JIT-constant marker; the generated evaluator becomes non-final. */
-    default boolean isJitConstant() { return false; }
+    default boolean isJitConstant() {
+        return false;
+    }
 
     /**
      * Declare any required fields for the evaluator factory to implement this type of parameter.

@@ -11,7 +11,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -25,29 +24,49 @@ public class JitConstantSpinnerTests extends ESTestCase {
 
     public abstract static class LongBase {
         protected abstract long divisor();
-        public long applyMod(long lhs) { return lhs % divisor(); }
-        public long applyDiv(long lhs) { return lhs / divisor(); }
+
+        public long applyMod(long lhs) {
+            return lhs % divisor();
+        }
+
+        public long applyDiv(long lhs) {
+            return lhs / divisor();
+        }
     }
 
     public abstract static class IntBase {
         protected abstract int n();
-        public int triple() { return n() * 3; }
+
+        public int triple() {
+            return n() * 3;
+        }
     }
 
     public abstract static class DoubleBase {
         protected abstract double scale();
-        public double scaled(double x) { return x * scale(); }
+
+        public double scaled(double x) {
+            return x * scale();
+        }
     }
 
     public abstract static class PatternBase {
         protected abstract Pattern pat();
-        public boolean matches(String s) { return pat().matcher(s).matches(); }
+
+        public boolean matches(String s) {
+            return pat().matcher(s).matches();
+        }
     }
 
     public abstract static class TwoCtorBase {
         public final String tag;
         public final long extra;
-        public TwoCtorBase(String tag, long extra) { this.tag = tag; this.extra = extra; }
+
+        public TwoCtorBase(String tag, long extra) {
+            this.tag = tag;
+            this.extra = extra;
+        }
+
         protected abstract long value();
     }
 
@@ -87,8 +106,8 @@ public class JitConstantSpinnerTests extends ESTestCase {
 
     public void testReferenceSubclassReturnsExactInstance() throws Exception {
         Pattern p = Pattern.compile("\\d+");
-        Class<? extends PatternBase> klass = JitConstantSpinner
-            .referenceConstantSubclass(PatternBase.class, "pat", Pattern.class, p).orElseThrow();
+        Class<? extends PatternBase> klass = JitConstantSpinner.referenceConstantSubclass(PatternBase.class, "pat", Pattern.class, p)
+            .orElseThrow();
         PatternBase inst = klass.getDeclaredConstructor().newInstance();
         assertSame(p, inst.pat());
         assertTrue(inst.matches("123"));
@@ -190,9 +209,10 @@ public class JitConstantSpinnerTests extends ESTestCase {
                 int idx = i;
                 pool.submit(() -> {
                     ready.countDown();
-                    try { go.await(); } catch (InterruptedException ignore) {}
-                    results.set(idx,
-                        JitConstantSpinner.longConstantSubclass(LongBase.class, "divisor", 42L).orElseThrow());
+                    try {
+                        go.await();
+                    } catch (InterruptedException ignore) {}
+                    results.set(idx, JitConstantSpinner.longConstantSubclass(LongBase.class, "divisor", 42L).orElseThrow());
                 });
             }
             ready.await(5, TimeUnit.SECONDS);
@@ -202,7 +222,8 @@ public class JitConstantSpinnerTests extends ESTestCase {
 
             Class<?> first = results.get(0);
             assertNotNull(first);
-            for (int i = 1; i < threads; i++) assertSame(first, results.get(i));
+            for (int i = 1; i < threads; i++)
+                assertSame(first, results.get(i));
             // At least one spin happened. Under tight races several may spin redundantly;
             // cache de-dups via putIfAbsent so cacheSize stays at 1.
             assertEquals(1, JitConstantSpinner.cacheSize());

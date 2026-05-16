@@ -5,9 +5,14 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import java.lang.ArithmeticException;
+import java.lang.Class;
+import java.lang.IllegalAccessException;
 import java.lang.IllegalArgumentException;
+import java.lang.IllegalStateException;
+import java.lang.InstantiationException;
 import java.lang.Override;
 import java.lang.String;
+import java.lang.reflect.InvocationTargetException;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -15,6 +20,7 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.JitConstantSpinner;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -23,26 +29,25 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link ExpressionEvaluator} implementation for {@link Mod}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class ModDoublesByConstantEvaluator implements ExpressionEvaluator {
+public abstract class ModDoublesByConstantEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ModDoublesByConstantEvaluator.class);
 
   private final Source source;
 
   private final ExpressionEvaluator lhs;
 
-  private final double rhs;
-
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public ModDoublesByConstantEvaluator(Source source, ExpressionEvaluator lhs, double rhs,
+  public ModDoublesByConstantEvaluator(Source source, ExpressionEvaluator lhs,
       DriverContext driverContext) {
     this.source = source;
     this.lhs = lhs;
-    this.rhs = rhs;
     this.driverContext = driverContext;
   }
+
+  protected abstract double rhs();
 
   @Override
   public Block eval(Page page) {
@@ -78,7 +83,7 @@ public final class ModDoublesByConstantEvaluator implements ExpressionEvaluator 
         }
         double lhs = lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Mod.processDoublesByConstant(lhs, this.rhs));
+          result.appendDouble(Mod.processDoublesByConstant(lhs, rhs()));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -93,7 +98,7 @@ public final class ModDoublesByConstantEvaluator implements ExpressionEvaluator 
       position: for (int p = 0; p < positionCount; p++) {
         double lhs = lhsVector.getDouble(p);
         try {
-          result.appendDouble(Mod.processDoublesByConstant(lhs, this.rhs));
+          result.appendDouble(Mod.processDoublesByConstant(lhs, rhs()));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -105,7 +110,7 @@ public final class ModDoublesByConstantEvaluator implements ExpressionEvaluator 
 
   @Override
   public String toString() {
-    return "ModDoublesByConstantEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+    return "ModDoublesByConstantEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs() + "]";
   }
 
   @Override
@@ -135,7 +140,12 @@ public final class ModDoublesByConstantEvaluator implements ExpressionEvaluator 
 
     @Override
     public ModDoublesByConstantEvaluator get(DriverContext context) {
-      return new ModDoublesByConstantEvaluator(source, lhs.get(context), rhs, context);
+      Class<? extends ModDoublesByConstantEvaluator> spunClass = JitConstantSpinner.doubleConstantSubclass(ModDoublesByConstantEvaluator.class, "rhs", this.rhs).orElseThrow(() -> new IllegalStateException("JitConstantSpinner cache exhausted for ModDoublesByConstantEvaluator value=" + this.rhs));
+      try {
+        return (ModDoublesByConstantEvaluator) spunClass.getDeclaredConstructors()[0].newInstance(source, lhs.get(context), context);
+      } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+        throw new IllegalStateException("failed to construct JIT-spun evaluator for ModDoublesByConstantEvaluator", e);
+      }
     }
 
     @Override

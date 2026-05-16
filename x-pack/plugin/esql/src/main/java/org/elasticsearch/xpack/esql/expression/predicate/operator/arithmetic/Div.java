@@ -57,9 +57,9 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
             DivUnsignedLongsEvaluator.Factory::new,
             DivDoublesEvaluator.Factory::new,
             DIV_DENSE_VECTOR_EVALUATOR,
-            DivIntsByConstantJitEvaluator.Factory::new,
-            DivLongsByConstantJitEvaluator.Factory::new,
-            DivDoublesByConstantJitEvaluator.Factory::new,
+            DivIntsByConstantEvaluator.Factory::new,
+            DivLongsByConstantEvaluator.Factory::new,
+            DivDoublesByConstantEvaluator.Factory::new,
             /* excludeZeroRhs */ true
         );
         this.type = type;
@@ -74,9 +74,9 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
             DivUnsignedLongsEvaluator.Factory::new,
             DivDoublesEvaluator.Factory::new,
             DIV_DENSE_VECTOR_EVALUATOR,
-            DivIntsByConstantJitEvaluator.Factory::new,
-            DivLongsByConstantJitEvaluator.Factory::new,
-            DivDoublesByConstantJitEvaluator.Factory::new,
+            DivIntsByConstantEvaluator.Factory::new,
+            DivLongsByConstantEvaluator.Factory::new,
+            DivDoublesByConstantEvaluator.Factory::new,
             /* excludeZeroRhs */ true
         );
     }
@@ -142,17 +142,17 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
     }
 
     @Evaluator(extraName = "IntsByConstant")
-    static int processIntsByConstant(int lhs, @Fixed int rhs) {
+    static int processIntsByConstant(int lhs, @Fixed(jitConstant = true) int rhs) {
         return lhs / rhs;
     }
 
     @Evaluator(extraName = "LongsByConstant")
-    static long processLongsByConstant(long lhs, @Fixed long rhs) {
+    static long processLongsByConstant(long lhs, @Fixed(jitConstant = true) long rhs) {
         return lhs / rhs;
     }
 
     @Evaluator(extraName = "DoublesByConstant", warnExceptions = { ArithmeticException.class })
-    static double processDoublesByConstant(double lhs, @Fixed double rhs) {
+    static double processDoublesByConstant(double lhs, @Fixed(jitConstant = true) double rhs) {
         return NumericUtils.asFiniteNumber(lhs / rhs);
     }
 

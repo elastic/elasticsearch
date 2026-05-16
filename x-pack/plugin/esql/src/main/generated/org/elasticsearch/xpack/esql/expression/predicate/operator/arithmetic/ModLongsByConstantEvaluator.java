@@ -4,9 +4,14 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
+import java.lang.Class;
+import java.lang.IllegalAccessException;
 import java.lang.IllegalArgumentException;
+import java.lang.IllegalStateException;
+import java.lang.InstantiationException;
 import java.lang.Override;
 import java.lang.String;
+import java.lang.reflect.InvocationTargetException;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
@@ -14,6 +19,7 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.JitConstantSpinner;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -22,26 +28,25 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link ExpressionEvaluator} implementation for {@link Mod}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class ModLongsByConstantEvaluator implements ExpressionEvaluator {
+public abstract class ModLongsByConstantEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ModLongsByConstantEvaluator.class);
 
   private final Source source;
 
   private final ExpressionEvaluator lhs;
 
-  private final long rhs;
-
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public ModLongsByConstantEvaluator(Source source, ExpressionEvaluator lhs, long rhs,
+  public ModLongsByConstantEvaluator(Source source, ExpressionEvaluator lhs,
       DriverContext driverContext) {
     this.source = source;
     this.lhs = lhs;
-    this.rhs = rhs;
     this.driverContext = driverContext;
   }
+
+  protected abstract long rhs();
 
   @Override
   public Block eval(Page page) {
@@ -76,7 +81,7 @@ public final class ModLongsByConstantEvaluator implements ExpressionEvaluator {
               continue position;
         }
         long lhs = lhsBlock.getLong(lhsBlock.getFirstValueIndex(p));
-        result.appendLong(Mod.processLongsByConstant(lhs, this.rhs));
+        result.appendLong(Mod.processLongsByConstant(lhs, rhs()));
       }
       return result.build();
     }
@@ -86,7 +91,7 @@ public final class ModLongsByConstantEvaluator implements ExpressionEvaluator {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         long lhs = lhsVector.getLong(p);
-        result.appendLong(p, Mod.processLongsByConstant(lhs, this.rhs));
+        result.appendLong(p, Mod.processLongsByConstant(lhs, rhs()));
       }
       return result.build();
     }
@@ -94,7 +99,7 @@ public final class ModLongsByConstantEvaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "ModLongsByConstantEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+    return "ModLongsByConstantEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs() + "]";
   }
 
   @Override
@@ -124,7 +129,12 @@ public final class ModLongsByConstantEvaluator implements ExpressionEvaluator {
 
     @Override
     public ModLongsByConstantEvaluator get(DriverContext context) {
-      return new ModLongsByConstantEvaluator(source, lhs.get(context), rhs, context);
+      Class<? extends ModLongsByConstantEvaluator> spunClass = JitConstantSpinner.longConstantSubclass(ModLongsByConstantEvaluator.class, "rhs", this.rhs).orElseThrow(() -> new IllegalStateException("JitConstantSpinner cache exhausted for ModLongsByConstantEvaluator value=" + this.rhs));
+      try {
+        return (ModLongsByConstantEvaluator) spunClass.getDeclaredConstructors()[0].newInstance(source, lhs.get(context), context);
+      } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+        throw new IllegalStateException("failed to construct JIT-spun evaluator for ModLongsByConstantEvaluator", e);
+      }
     }
 
     @Override

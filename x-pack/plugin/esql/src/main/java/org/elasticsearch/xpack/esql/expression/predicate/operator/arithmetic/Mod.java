@@ -46,9 +46,9 @@ public class Mod extends EsqlArithmeticOperation {
             ModLongsEvaluator.Factory::new,
             ModUnsignedLongsEvaluator.Factory::new,
             ModDoublesEvaluator.Factory::new,
-            ModIntsByConstantJitEvaluator.Factory::new,
-            ModLongsByConstantJitEvaluator.Factory::new,
-            ModDoublesByConstantJitEvaluator.Factory::new,
+            ModIntsByConstantEvaluator.Factory::new,
+            ModLongsByConstantEvaluator.Factory::new,
+            ModDoublesByConstantEvaluator.Factory::new,
             /* excludeZeroRhs */ true
         );
     }
@@ -61,9 +61,9 @@ public class Mod extends EsqlArithmeticOperation {
             ModLongsEvaluator.Factory::new,
             ModUnsignedLongsEvaluator.Factory::new,
             ModDoublesEvaluator.Factory::new,
-            ModIntsByConstantJitEvaluator.Factory::new,
-            ModLongsByConstantJitEvaluator.Factory::new,
-            ModDoublesByConstantJitEvaluator.Factory::new,
+            ModIntsByConstantEvaluator.Factory::new,
+            ModLongsByConstantEvaluator.Factory::new,
+            ModDoublesByConstantEvaluator.Factory::new,
             /* excludeZeroRhs */ true
         );
     }
@@ -117,17 +117,17 @@ public class Mod extends EsqlArithmeticOperation {
     }
 
     @Evaluator(extraName = "IntsByConstant")
-    static int processIntsByConstant(int lhs, @Fixed int rhs) {
+    static int processIntsByConstant(int lhs, @Fixed(jitConstant = true) int rhs) {
         return lhs % rhs;
     }
 
     @Evaluator(extraName = "LongsByConstant")
-    static long processLongsByConstant(long lhs, @Fixed long rhs) {
+    static long processLongsByConstant(long lhs, @Fixed(jitConstant = true) long rhs) {
         return lhs % rhs;
     }
 
     @Evaluator(extraName = "DoublesByConstant", warnExceptions = { ArithmeticException.class })
-    static double processDoublesByConstant(double lhs, @Fixed double rhs) {
+    static double processDoublesByConstant(double lhs, @Fixed(jitConstant = true) double rhs) {
         double value = lhs % rhs;
         if (Double.isNaN(value) || Double.isInfinite(value)) {
             throw new ArithmeticException("/ by zero");

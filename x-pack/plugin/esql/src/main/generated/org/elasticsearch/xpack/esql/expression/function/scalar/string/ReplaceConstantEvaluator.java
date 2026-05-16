@@ -4,9 +4,14 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import java.lang.Class;
+import java.lang.IllegalAccessException;
 import java.lang.IllegalArgumentException;
+import java.lang.IllegalStateException;
+import java.lang.InstantiationException;
 import java.lang.Override;
 import java.lang.String;
+import java.lang.reflect.InvocationTargetException;
 import java.util.regex.Pattern;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -16,6 +21,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.JitConstantSpinner;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -24,14 +30,12 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link ExpressionEvaluator} implementation for {@link Replace}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class ReplaceConstantEvaluator implements ExpressionEvaluator {
+public abstract class ReplaceConstantEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ReplaceConstantEvaluator.class);
 
   private final Source source;
 
   private final ExpressionEvaluator str;
-
-  private final Pattern regex;
 
   private final ExpressionEvaluator newStr;
 
@@ -39,14 +43,15 @@ public final class ReplaceConstantEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
-  public ReplaceConstantEvaluator(Source source, ExpressionEvaluator str, Pattern regex,
+  public ReplaceConstantEvaluator(Source source, ExpressionEvaluator str,
       ExpressionEvaluator newStr, DriverContext driverContext) {
     this.source = source;
     this.str = str;
-    this.regex = regex;
     this.newStr = newStr;
     this.driverContext = driverContext;
   }
+
+  protected abstract Pattern regex();
 
   @Override
   public Block eval(Page page) {
@@ -103,7 +108,7 @@ public final class ReplaceConstantEvaluator implements ExpressionEvaluator {
         BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
         BytesRef newStr = newStrBlock.getBytesRef(newStrBlock.getFirstValueIndex(p), newStrScratch);
         try {
-          result.appendBytesRef(Replace.process(str, this.regex, newStr));
+          result.appendBytesRef(Replace.process(str, regex(), newStr));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -122,7 +127,7 @@ public final class ReplaceConstantEvaluator implements ExpressionEvaluator {
         BytesRef str = strVector.getBytesRef(p, strScratch);
         BytesRef newStr = newStrVector.getBytesRef(p, newStrScratch);
         try {
-          result.appendBytesRef(Replace.process(str, this.regex, newStr));
+          result.appendBytesRef(Replace.process(str, regex(), newStr));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -134,7 +139,7 @@ public final class ReplaceConstantEvaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "ReplaceConstantEvaluator[" + "str=" + str + ", regex=" + regex + ", newStr=" + newStr + "]";
+    return "ReplaceConstantEvaluator[" + "str=" + str + ", regex=" + regex() + ", newStr=" + newStr + "]";
   }
 
   @Override
@@ -168,7 +173,12 @@ public final class ReplaceConstantEvaluator implements ExpressionEvaluator {
 
     @Override
     public ReplaceConstantEvaluator get(DriverContext context) {
-      return new ReplaceConstantEvaluator(source, str.get(context), regex, newStr.get(context), context);
+      Class<? extends ReplaceConstantEvaluator> spunClass = JitConstantSpinner.referenceConstantSubclass(ReplaceConstantEvaluator.class, "regex", Pattern.class, this.regex).orElseThrow(() -> new IllegalStateException("JitConstantSpinner cache exhausted for ReplaceConstantEvaluator value=" + this.regex));
+      try {
+        return (ReplaceConstantEvaluator) spunClass.getDeclaredConstructors()[0].newInstance(source, str.get(context), newStr.get(context), context);
+      } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+        throw new IllegalStateException("failed to construct JIT-spun evaluator for ReplaceConstantEvaluator", e);
+      }
     }
 
     @Override

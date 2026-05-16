@@ -284,9 +284,9 @@ public class EvalBenchmark {
                     new Mod(Source.EMPTY, lhs, new Literal(Source.EMPTY, 60L, DataType.LONG)),
                     layout(lhs)
                 ).get(driverContext);
-                if (evaluator.toString().contains("ModLongsByConstantJitEvaluator") == false) {
+                if (evaluator.toString().contains("ModLongsByConstantEvaluator") == false) {
                     throw new IllegalArgumentException(
-                        "Evaluator was [" + evaluator + "] but expected one containing [ModLongsByConstantJitEvaluator]"
+                        "Evaluator was [" + evaluator + "] but expected one containing [ModLongsByConstantEvaluator]"
                     );
                 }
                 yield evaluator;
@@ -303,9 +303,9 @@ public class EvalBenchmark {
                     new Div(Source.EMPTY, lhs, new Literal(Source.EMPTY, 60L, DataType.LONG)),
                     layout(lhs)
                 ).get(driverContext);
-                if (evaluator.toString().contains("DivLongsByConstantJitEvaluator") == false) {
+                if (evaluator.toString().contains("DivLongsByConstantEvaluator") == false) {
                     throw new IllegalArgumentException(
-                        "Evaluator was [" + evaluator + "] but expected one containing [DivLongsByConstantJitEvaluator]"
+                        "Evaluator was [" + evaluator + "] but expected one containing [DivLongsByConstantEvaluator]"
                     );
                 }
                 yield evaluator;

@@ -220,7 +220,7 @@ public class JsonExtract extends EsqlScalarFunction {
     }
 
     @Evaluator(extraName = "Constant", warnExceptions = IllegalArgumentException.class)
-    static void processConstant(BytesRefBlock.Builder builder, BytesRef str, @Fixed JsonPath path) {
+    static void processConstant(BytesRefBlock.Builder builder, BytesRef str, @Fixed(jitConstant = true) JsonPath path) {
         doExtract(builder, str, path);
     }
 

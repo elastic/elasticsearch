@@ -5,9 +5,14 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import java.lang.ArithmeticException;
+import java.lang.Class;
+import java.lang.IllegalAccessException;
 import java.lang.IllegalArgumentException;
+import java.lang.IllegalStateException;
+import java.lang.InstantiationException;
 import java.lang.Override;
 import java.lang.String;
+import java.lang.reflect.InvocationTargetException;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -15,6 +20,7 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.JitConstantSpinner;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -23,26 +29,25 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link ExpressionEvaluator} implementation for {@link Scalb}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class ScalbConstantIntEvaluator implements ExpressionEvaluator {
+public abstract class ScalbConstantIntEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ScalbConstantIntEvaluator.class);
 
   private final Source source;
 
   private final ExpressionEvaluator d;
 
-  private final int scaleFactor;
-
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public ScalbConstantIntEvaluator(Source source, ExpressionEvaluator d, int scaleFactor,
+  public ScalbConstantIntEvaluator(Source source, ExpressionEvaluator d,
       DriverContext driverContext) {
     this.source = source;
     this.d = d;
-    this.scaleFactor = scaleFactor;
     this.driverContext = driverContext;
   }
+
+  protected abstract int scaleFactor();
 
   @Override
   public Block eval(Page page) {
@@ -78,7 +83,7 @@ public final class ScalbConstantIntEvaluator implements ExpressionEvaluator {
         }
         double d = dBlock.getDouble(dBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Scalb.processConstantInt(d, this.scaleFactor));
+          result.appendDouble(Scalb.processConstantInt(d, scaleFactor()));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -93,7 +98,7 @@ public final class ScalbConstantIntEvaluator implements ExpressionEvaluator {
       position: for (int p = 0; p < positionCount; p++) {
         double d = dVector.getDouble(p);
         try {
-          result.appendDouble(Scalb.processConstantInt(d, this.scaleFactor));
+          result.appendDouble(Scalb.processConstantInt(d, scaleFactor()));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -105,7 +110,7 @@ public final class ScalbConstantIntEvaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "ScalbConstantIntEvaluator[" + "d=" + d + ", scaleFactor=" + scaleFactor + "]";
+    return "ScalbConstantIntEvaluator[" + "d=" + d + ", scaleFactor=" + scaleFactor() + "]";
   }
 
   @Override
@@ -135,7 +140,12 @@ public final class ScalbConstantIntEvaluator implements ExpressionEvaluator {
 
     @Override
     public ScalbConstantIntEvaluator get(DriverContext context) {
-      return new ScalbConstantIntEvaluator(source, d.get(context), scaleFactor, context);
+      Class<? extends ScalbConstantIntEvaluator> spunClass = JitConstantSpinner.intConstantSubclass(ScalbConstantIntEvaluator.class, "scaleFactor", this.scaleFactor).orElseThrow(() -> new IllegalStateException("JitConstantSpinner cache exhausted for ScalbConstantIntEvaluator value=" + this.scaleFactor));
+      try {
+        return (ScalbConstantIntEvaluator) spunClass.getDeclaredConstructors()[0].newInstance(source, d.get(context), context);
+      } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+        throw new IllegalStateException("failed to construct JIT-spun evaluator for ScalbConstantIntEvaluator", e);
+      }
     }
 
     @Override

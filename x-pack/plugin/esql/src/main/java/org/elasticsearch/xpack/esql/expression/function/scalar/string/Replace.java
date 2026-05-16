@@ -131,7 +131,7 @@ public class Replace extends EsqlScalarFunction {
     }
 
     @Evaluator(extraName = "Constant", warnExceptions = IllegalArgumentException.class)
-    static BytesRef process(BytesRef str, @Fixed Pattern regex, BytesRef newStr) {
+    static BytesRef process(BytesRef str, @Fixed(jitConstant = true) Pattern regex, BytesRef newStr) {
         if (str == null || regex == null || newStr == null) {
             return null;
         }

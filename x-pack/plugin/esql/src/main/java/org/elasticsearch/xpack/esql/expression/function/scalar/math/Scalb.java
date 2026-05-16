@@ -127,12 +127,12 @@ public class Scalb extends EsqlScalarFunction {
     }
 
     @Evaluator(extraName = "ConstantInt", warnExceptions = { ArithmeticException.class })
-    static double processConstantInt(double d, @Fixed int scaleFactor) {
+    static double processConstantInt(double d, @Fixed(jitConstant = true) int scaleFactor) {
         return NumericUtils.asFiniteNumber(Math.scalb(d, scaleFactor));
     }
 
     @Evaluator(extraName = "ConstantLong", warnExceptions = { ArithmeticException.class })
-    static double processConstantLong(double d, @Fixed long scaleFactor) {
+    static double processConstantLong(double d, @Fixed(jitConstant = true) long scaleFactor) {
         return NumericUtils.asFiniteNumber(Math.scalb(d, Math.toIntExact(scaleFactor)));
     }
 

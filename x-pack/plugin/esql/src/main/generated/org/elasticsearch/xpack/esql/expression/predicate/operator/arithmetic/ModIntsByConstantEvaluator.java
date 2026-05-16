@@ -4,9 +4,14 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
+import java.lang.Class;
+import java.lang.IllegalAccessException;
 import java.lang.IllegalArgumentException;
+import java.lang.IllegalStateException;
+import java.lang.InstantiationException;
 import java.lang.Override;
 import java.lang.String;
+import java.lang.reflect.InvocationTargetException;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
@@ -14,6 +19,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.JitConstantSpinner;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -22,26 +28,25 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link ExpressionEvaluator} implementation for {@link Mod}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class ModIntsByConstantEvaluator implements ExpressionEvaluator {
+public abstract class ModIntsByConstantEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ModIntsByConstantEvaluator.class);
 
   private final Source source;
 
   private final ExpressionEvaluator lhs;
 
-  private final int rhs;
-
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public ModIntsByConstantEvaluator(Source source, ExpressionEvaluator lhs, int rhs,
+  public ModIntsByConstantEvaluator(Source source, ExpressionEvaluator lhs,
       DriverContext driverContext) {
     this.source = source;
     this.lhs = lhs;
-    this.rhs = rhs;
     this.driverContext = driverContext;
   }
+
+  protected abstract int rhs();
 
   @Override
   public Block eval(Page page) {
@@ -76,7 +81,7 @@ public final class ModIntsByConstantEvaluator implements ExpressionEvaluator {
               continue position;
         }
         int lhs = lhsBlock.getInt(lhsBlock.getFirstValueIndex(p));
-        result.appendInt(Mod.processIntsByConstant(lhs, this.rhs));
+        result.appendInt(Mod.processIntsByConstant(lhs, rhs()));
       }
       return result.build();
     }
@@ -86,7 +91,7 @@ public final class ModIntsByConstantEvaluator implements ExpressionEvaluator {
     try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         int lhs = lhsVector.getInt(p);
-        result.appendInt(p, Mod.processIntsByConstant(lhs, this.rhs));
+        result.appendInt(p, Mod.processIntsByConstant(lhs, rhs()));
       }
       return result.build();
     }
@@ -94,7 +99,7 @@ public final class ModIntsByConstantEvaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "ModIntsByConstantEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+    return "ModIntsByConstantEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs() + "]";
   }
 
   @Override
@@ -124,7 +129,12 @@ public final class ModIntsByConstantEvaluator implements ExpressionEvaluator {
 
     @Override
     public ModIntsByConstantEvaluator get(DriverContext context) {
-      return new ModIntsByConstantEvaluator(source, lhs.get(context), rhs, context);
+      Class<? extends ModIntsByConstantEvaluator> spunClass = JitConstantSpinner.intConstantSubclass(ModIntsByConstantEvaluator.class, "rhs", this.rhs).orElseThrow(() -> new IllegalStateException("JitConstantSpinner cache exhausted for ModIntsByConstantEvaluator value=" + this.rhs));
+      try {
+        return (ModIntsByConstantEvaluator) spunClass.getDeclaredConstructors()[0].newInstance(source, lhs.get(context), context);
+      } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+        throw new IllegalStateException("failed to construct JIT-spun evaluator for ModIntsByConstantEvaluator", e);
+      }
     }
 
     @Override

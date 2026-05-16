@@ -38,13 +38,16 @@ public interface Argument {
         String name = v.getSimpleName().toString();
         Fixed fixed = v.getAnnotation(Fixed.class);
         if (fixed != null) {
-            return new FixedArgument(
-                type,
-                name,
-                fixed.includeInToString(),
-                fixed.scope(),
-                Types.extendsSuper(types, v.asType(), "org.elasticsearch.core.Releasable")
-            );
+            boolean releasable = Types.extendsSuper(types, v.asType(), "org.elasticsearch.core.Releasable");
+            if (fixed.jitConstant()) {
+                if (fixed.scope() != Fixed.Scope.SINGLETON) {
+                    throw new IllegalArgumentException(
+                        "@Fixed(jitConstant=true) requires SINGLETON scope (parameter: " + name + ")"
+                    );
+                }
+                return new JitConstantFixedArgument(type, name, fixed.includeInToString(), fixed.scope(), releasable);
+            }
+            return new FixedArgument(type, name, fixed.includeInToString(), fixed.scope(), releasable);
         }
 
         Position position = v.getAnnotation(Position.class);
@@ -134,6 +137,17 @@ public interface Argument {
      * Declare any required fields for the evaluator to implement this type of parameter.
      */
     void declareField(TypeSpec.Builder builder);
+
+    /**
+     * Optionally declare an abstract accessor method on the evaluator. Used by
+     * {@code @Fixed(jitConstant=true)} parameters to expose a value that the
+     * spinner-generated subclass will override with a JIT-time constant. Default
+     * is a no-op.
+     */
+    default void declareAbstractAccessor(TypeSpec.Builder builder) {}
+
+    /** Whether this argument is a JIT-constant marker; the generated evaluator becomes non-final. */
+    default boolean isJitConstant() { return false; }
 
     /**
      * Declare any required fields for the evaluator factory to implement this type of parameter.
@@ -250,9 +264,20 @@ public interface Argument {
     void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle);
 
     /**
-     * Accumulate invocation pattern and arguments to implement {@link Object#toString()}.
+     * Accumulate invocation pattern and arguments to implement {@link Object#toString()}
+     * on the generated evaluator class.
      */
     void buildToStringInvocation(StringBuilder pattern, List<Object> args, String prefix);
+
+    /**
+     * Accumulate invocation pattern and arguments to implement {@link Object#toString()}
+     * on the generated Factory. Defaults to the evaluator variant; overridden by
+     * {@code JitConstantFixedArgument} because the Factory still holds the value as
+     * a regular field (only the evaluator side moved to an abstract accessor).
+     */
+    default void buildToStringInvocationFromFactory(StringBuilder pattern, List<Object> args, String prefix) {
+        buildToStringInvocation(pattern, args, prefix);
+    }
 
     /**
      * The string to close this argument or {@code null}.

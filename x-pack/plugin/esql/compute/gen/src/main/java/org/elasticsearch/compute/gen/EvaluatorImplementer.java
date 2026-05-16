@@ -18,6 +18,7 @@ import org.elasticsearch.compute.gen.argument.Argument;
 import org.elasticsearch.compute.gen.argument.BlockArgument;
 import org.elasticsearch.compute.gen.argument.BuilderArgument;
 import org.elasticsearch.compute.gen.argument.FixedArgument;
+import org.elasticsearch.compute.gen.argument.JitConstantFixedArgument;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,6 +37,7 @@ import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR_FACTORY;
+import static org.elasticsearch.compute.gen.Types.JIT_CONSTANT_SPINNER;
 import static org.elasticsearch.compute.gen.Types.PAGE;
 import static org.elasticsearch.compute.gen.Types.RAM_USAGE_ESIMATOR;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
@@ -90,13 +92,22 @@ public class EvaluatorImplementer {
         TypeSpec.Builder builder = TypeSpec.classBuilder(implementation);
         builder.addJavadoc("{@link $T} implementation for {@link $T}.\n", EXPRESSION_EVALUATOR, declarationType);
         builder.addJavadoc("This class is generated. Edit {@code " + getClass().getSimpleName() + "} instead.");
-        builder.addModifiers(Modifier.PUBLIC, Modifier.FINAL);
+        // When any argument is @Fixed(jitConstant=true), the class becomes non-final + abstract so
+        // JitConstantSpinner can produce per-value hidden subclasses overriding the abstract
+        // accessor methods with the value baked in as a JIT-time constant.
+        boolean hasJitConstant = processFunction.args.stream().anyMatch(Argument::isJitConstant);
+        if (hasJitConstant) {
+            builder.addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT);
+        } else {
+            builder.addModifiers(Modifier.PUBLIC, Modifier.FINAL);
+        }
         builder.addSuperinterface(EXPRESSION_EVALUATOR);
         builder.addField(baseRamBytesUsed(implementation));
         builder.addType(factory());
 
         builder.addField(SOURCE, "source", Modifier.PRIVATE, Modifier.FINAL);
         processFunction.args.forEach(a -> a.declareField(builder));
+        processFunction.args.forEach(a -> a.declareAbstractAccessor(builder));
         builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
 
         builder.addField(WARNINGS, "warnings", Modifier.PRIVATE);
@@ -293,7 +304,7 @@ public class EvaluatorImplementer {
 
         builder.addMethod(processFunction.factoryCtor());
         builder.addMethod(processFunction.factoryGet(implementation));
-        builder.addMethod(processFunction.toStringMethod(implementation));
+        builder.addMethod(processFunction.factoryToStringMethod(implementation));
 
         return builder.build();
     }
@@ -360,6 +371,14 @@ public class EvaluatorImplementer {
         }
 
         MethodSpec toStringMethod(ClassName implementation) {
+            return buildToStringMethod(implementation, /* fromFactory */ false);
+        }
+
+        MethodSpec factoryToStringMethod(ClassName implementation) {
+            return buildToStringMethod(implementation, /* fromFactory */ true);
+        }
+
+        private MethodSpec buildToStringMethod(ClassName implementation, boolean fromFactory) {
             MethodSpec.Builder builder = MethodSpec.methodBuilder("toString").addAnnotation(Override.class);
             builder.addModifiers(Modifier.PUBLIC).returns(String.class);
 
@@ -367,7 +386,14 @@ public class EvaluatorImplementer {
             List<Object> args = new ArrayList<>();
             pattern.append("return $S");
             args.add(implementation.simpleName() + "[");
-            this.args.forEach(a -> a.buildToStringInvocation(pattern, args, args.size() > 2 ? ", " : ""));
+            for (Argument a : this.args) {
+                String prefix = args.size() > 2 ? ", " : "";
+                if (fromFactory) {
+                    a.buildToStringInvocationFromFactory(pattern, args, prefix);
+                } else {
+                    a.buildToStringInvocation(pattern, args, prefix);
+                }
+            }
             pattern.append(" + $S");
             args.add("]");
             builder.addStatement(pattern.toString(), args.toArray());
@@ -388,17 +414,92 @@ public class EvaluatorImplementer {
             builder.addParameter(DRIVER_CONTEXT, "context");
             builder.returns(implementation);
 
-            List<String> args = new ArrayList<>();
-            args.add("source");
+            // Collect non-jit ctor args in order
+            List<String> ctorArgs = new ArrayList<>();
+            ctorArgs.add("source");
             for (Argument arg : this.args) {
                 String invocation = arg.factoryInvocation(builder);
-                if (invocation != null) {
-                    args.add(invocation);
+                if (invocation != null) ctorArgs.add(invocation);
+            }
+            ctorArgs.add("context");
+
+            JitConstantFixedArgument jit = null;
+            for (Argument a : this.args) {
+                if (a.isJitConstant()) {
+                    if (jit != null) {
+                        throw new IllegalStateException(
+                            "@Fixed(jitConstant=true) supported on at most one parameter per @Evaluator method"
+                        );
+                    }
+                    jit = (JitConstantFixedArgument) a;
                 }
             }
-            args.add("context");
-            builder.addStatement("return new $T($L)", implementation, String.join(", ", args));
+
+            if (jit == null) {
+                builder.addStatement("return new $T($L)", implementation, String.join(", ", ctorArgs));
+                return builder.build();
+            }
+
+            // Spinner-based construction. Class becomes abstract, spinner produces a hidden subclass
+            // per distinct value; instantiate via reflection on the (unique) inherited constructor.
+            String spinMethod = primitiveSpinnerMethod(jit.type());
+            if (spinMethod != null) {
+                builder.addStatement(
+                    "$T<? extends $T> spunClass = $T.$L($T.class, $S, this.$L).orElseThrow(() -> new $T($S + this.$L))",
+                    ClassName.get(Class.class),
+                    implementation,
+                    JIT_CONSTANT_SPINNER,
+                    spinMethod,
+                    implementation,
+                    jit.name(),
+                    jit.name(),
+                    ClassName.get(IllegalStateException.class),
+                    "JitConstantSpinner cache exhausted for " + implementation.simpleName() + " value=",
+                    jit.name()
+                );
+            } else {
+                // reference type
+                builder.addStatement(
+                    "$T<? extends $T> spunClass = $T.referenceConstantSubclass($T.class, $S, $T.class, this.$L).orElseThrow(() -> new $T($S + this.$L))",
+                    ClassName.get(Class.class),
+                    implementation,
+                    JIT_CONSTANT_SPINNER,
+                    implementation,
+                    jit.name(),
+                    jit.type(),
+                    jit.name(),
+                    ClassName.get(IllegalStateException.class),
+                    "JitConstantSpinner cache exhausted for " + implementation.simpleName() + " value=",
+                    jit.name()
+                );
+            }
+            builder.beginControlFlow("try");
+            builder.addStatement(
+                "return ($T) spunClass.getDeclaredConstructors()[0].newInstance($L)",
+                implementation,
+                String.join(", ", ctorArgs)
+            );
+            builder.nextControlFlow(
+                "catch ($T | $T | $T e)",
+                ClassName.get(InstantiationException.class),
+                ClassName.get(IllegalAccessException.class),
+                ClassName.get(java.lang.reflect.InvocationTargetException.class)
+            );
+            builder.addStatement(
+                "throw new $T($S, e)",
+                ClassName.get(IllegalStateException.class),
+                "failed to construct JIT-spun evaluator for " + implementation.simpleName()
+            );
+            builder.endControlFlow();
             return builder.build();
+        }
+
+        /** Returns the JitConstantSpinner method name for a primitive type, or null for references. */
+        private static String primitiveSpinnerMethod(com.squareup.javapoet.TypeName type) {
+            if (type == TypeName.LONG) return "longConstantSubclass";
+            if (type == TypeName.INT) return "intConstantSubclass";
+            if (type == TypeName.DOUBLE) return "doubleConstantSubclass";
+            return null;
         }
 
         MethodSpec close() {

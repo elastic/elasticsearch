@@ -147,12 +147,12 @@ public class DateTrunc extends EsqlConfigurationFunction {
     }
 
     @Evaluator(extraName = "Datetime")
-    static long processDatetime(long fieldVal, @Fixed Rounding.Prepared rounding) {
+    static long processDatetime(long fieldVal, @Fixed(jitConstant = true) Rounding.Prepared rounding) {
         return rounding.round(fieldVal);
     }
 
     @Evaluator(extraName = "DateNanos")
-    static long processDateNanos(long fieldVal, @Fixed Rounding.Prepared rounding) {
+    static long processDateNanos(long fieldVal, @Fixed(jitConstant = true) Rounding.Prepared rounding) {
         // Currently, ES|QL doesn’t support rounding to sub-millisecond values, so it’s safe to cast before rounding.
         return DateUtils.toNanoSeconds(rounding.round(DateUtils.toMilliSeconds(fieldVal)));
     }

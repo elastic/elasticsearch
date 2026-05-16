@@ -5,9 +5,14 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import java.lang.ArithmeticException;
+import java.lang.Class;
+import java.lang.IllegalAccessException;
 import java.lang.IllegalArgumentException;
+import java.lang.IllegalStateException;
+import java.lang.InstantiationException;
 import java.lang.Override;
 import java.lang.String;
+import java.lang.reflect.InvocationTargetException;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -15,6 +20,7 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.JitConstantSpinner;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -23,26 +29,25 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link ExpressionEvaluator} implementation for {@link Div}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class DivDoublesByConstantEvaluator implements ExpressionEvaluator {
+public abstract class DivDoublesByConstantEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DivDoublesByConstantEvaluator.class);
 
   private final Source source;
 
   private final ExpressionEvaluator lhs;
 
-  private final double rhs;
-
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public DivDoublesByConstantEvaluator(Source source, ExpressionEvaluator lhs, double rhs,
+  public DivDoublesByConstantEvaluator(Source source, ExpressionEvaluator lhs,
       DriverContext driverContext) {
     this.source = source;
     this.lhs = lhs;
-    this.rhs = rhs;
     this.driverContext = driverContext;
   }
+
+  protected abstract double rhs();
 
   @Override
   public Block eval(Page page) {
@@ -78,7 +83,7 @@ public final class DivDoublesByConstantEvaluator implements ExpressionEvaluator 
         }
         double lhs = lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Div.processDoublesByConstant(lhs, this.rhs));
+          result.appendDouble(Div.processDoublesByConstant(lhs, rhs()));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -93,7 +98,7 @@ public final class DivDoublesByConstantEvaluator implements ExpressionEvaluator 
       position: for (int p = 0; p < positionCount; p++) {
         double lhs = lhsVector.getDouble(p);
         try {
-          result.appendDouble(Div.processDoublesByConstant(lhs, this.rhs));
+          result.appendDouble(Div.processDoublesByConstant(lhs, rhs()));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -105,7 +110,7 @@ public final class DivDoublesByConstantEvaluator implements ExpressionEvaluator 
 
   @Override
   public String toString() {
-    return "DivDoublesByConstantEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+    return "DivDoublesByConstantEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs() + "]";
   }
 
   @Override
@@ -135,7 +140,12 @@ public final class DivDoublesByConstantEvaluator implements ExpressionEvaluator 
 
     @Override
     public DivDoublesByConstantEvaluator get(DriverContext context) {
-      return new DivDoublesByConstantEvaluator(source, lhs.get(context), rhs, context);
+      Class<? extends DivDoublesByConstantEvaluator> spunClass = JitConstantSpinner.doubleConstantSubclass(DivDoublesByConstantEvaluator.class, "rhs", this.rhs).orElseThrow(() -> new IllegalStateException("JitConstantSpinner cache exhausted for DivDoublesByConstantEvaluator value=" + this.rhs));
+      try {
+        return (DivDoublesByConstantEvaluator) spunClass.getDeclaredConstructors()[0].newInstance(source, lhs.get(context), context);
+      } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+        throw new IllegalStateException("failed to construct JIT-spun evaluator for DivDoublesByConstantEvaluator", e);
+      }
     }
 
     @Override

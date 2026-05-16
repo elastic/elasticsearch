@@ -277,6 +277,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
             .keepAlive(keepAlive);
         final String asyncId;
         long currentExpiration;
+        scriptPermits.drainPermits();
         try {
             try (EsqlQueryResponse initialResponse = client().execute(EsqlQueryAction.INSTANCE, request).actionGet(60, TimeUnit.SECONDS)) {
                 assertThat(initialResponse.isRunning(), is(true));
@@ -426,7 +427,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
 
     private static long getExpirationFromDoc(String asyncId) {
         String docId = AsyncExecutionId.decode(asyncId).getDocId();
-        GetResponse doc = client().prepareGet().setIndex(XPackPlugin.ASYNC_RESULTS_INDEX).setId(docId).get();
+        GetResponse doc = client().prepareGet().setIndex(XPackPlugin.ASYNC_RESULTS_INDEX).setId(docId).setRealtime(true).get();
         assertTrue(doc.isExists());
         return ((Number) doc.getSource().get(AsyncTaskIndexService.EXPIRATION_TIME_FIELD)).longValue();
     }

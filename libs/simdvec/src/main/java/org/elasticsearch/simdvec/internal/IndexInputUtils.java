@@ -181,13 +181,18 @@ public final class IndexInputUtils {
      * the lifetime contract explicit and protect against future changes to either
      * the callers or the backing-memory implementations.
      *
-     * @param in      the index input
-     * @param offsets file byte offsets for each range (caller-owned, not modified)
-     * @param length  byte length of each range (same for all)
-     * @param count   number of ranges to resolve
-     * @param action  receives a {@link MemorySegment} of {@code count} pointer-width
-     *                addresses, allocated from a confined arena that is closed after
-     *                the action returns
+     * @param in            the index input
+     * @param offsets       file byte offsets for each range (caller-owned, not modified)
+     * @param length        byte length of each range (same for all)
+     * @param count         number of ranges to resolve
+     * @param addressesBufferSupplier  called with {@code count}; must return a writable
+     *                      {@link MemorySegment} with room for at least {@code count}
+     *                      pointer-width entries. The segment may be larger and may be
+     *                      reused across calls; only entries {@code [0, count)} are
+     *                      written by this method.
+     * @param action        invoked with the same segment returned by the supplier; only
+     *                      the first {@code count} address slots contain valid data, and
+     *                      those addresses are valid only for the duration of the call.
      * @return {@code true} if addresses were resolved and the action was invoked
      */
     public static boolean withSliceAddresses(
@@ -195,14 +200,18 @@ public final class IndexInputUtils {
         long[] offsets,
         int length,
         int count,
+        IntFunction<MemorySegment> addressesBufferSupplier,
         CheckedConsumer<MemorySegment, IOException> action
     ) throws IOException {
         assert validateInputs(in, offsets, length, count);
+        MemorySegment addrs = addressesBufferSupplier.apply(count);
+        assert addrs.byteSize() >= (long) count * ValueLayout.ADDRESS.byteSize()
+            : "address buffer too small: " + addrs.byteSize() + " < " + ((long) count * ValueLayout.ADDRESS.byteSize());
         if (in instanceof MemorySegmentAccessInput msai) {
-            return resolveFromMmap(msai, offsets, length, count, action);
+            return resolveFromMmap(msai, offsets, length, count, addrs, action);
         }
         if (in instanceof DirectAccessInput dai) {
-            return resolveFromDirectAccess(dai, offsets, length, count, action);
+            return resolveFromDirectAccess(dai, offsets, length, count, addrs, action);
         }
         return false;
     }
@@ -212,24 +221,26 @@ public final class IndexInputUtils {
         long[] offsets,
         int length,
         int count,
+        MemorySegment addrs,
         CheckedConsumer<MemorySegment, IOException> action
     ) throws IOException {
-        MemorySegment full = msai.segmentSliceOrNull(0, ((IndexInput) msai).length());
-        if (full == null) {
-            return false;
+        for (int i = 0; i < count; i++) {
+            var segment = msai.segmentSliceOrNull(offsets[i], length);
+            if (segment == null) {
+                return false;
+            }
+            assert validateNativeSegment(segment, "mmap segment");
+            addrs.setAtIndex(ValueLayout.ADDRESS, i, segment);
         }
-        assert validateNativeSegment(full, "mmap segment");
-        try (Arena arena = Arena.ofConfined()) {
-            MemorySegment addrs = allocateAddrs(arena, count);
-            for (int i = 0; i < count; i++) {
-                addrs.setAtIndex(ValueLayout.ADDRESS, i, full.asSlice(offsets[i], length));
-            }
-            assert validateAddresses(addrs, count);
-            try {
-                action.accept(addrs);
-            } finally {
-                Reference.reachabilityFence(full);
-            }
+        assert validateAddresses(addrs, count);
+        try {
+            action.accept(addrs);
+        } finally {
+            // We rely on the MSAI contract that segments returned by
+            // segmentSliceOrNull remain valid until the input is closed:
+            // keeping msai reachable across the native call keeps the
+            // backing memory alive.
+            Reference.reachabilityFence(msai);
         }
         return true;
     }
@@ -239,27 +250,21 @@ public final class IndexInputUtils {
         long[] offsets,
         int length,
         int count,
+        MemorySegment addrs,
         CheckedConsumer<MemorySegment, IOException> action
     ) throws IOException {
         return dai.withByteBufferSlices(offsets, length, count, bbs -> {
             assert validateByteBuffers(bbs, count, length);
-            try (Arena arena = Arena.ofConfined()) {
-                MemorySegment addrs = allocateAddrs(arena, count);
-                for (int i = 0; i < count; i++) {
-                    addrs.setAtIndex(ValueLayout.ADDRESS, i, MemorySegment.ofBuffer(bbs[i]));
-                }
-                assert validateAddresses(addrs, count);
-                try {
-                    action.accept(addrs);
-                } finally {
-                    Reference.reachabilityFence(bbs);
-                }
+            for (int i = 0; i < count; i++) {
+                addrs.setAtIndex(ValueLayout.ADDRESS, i, MemorySegment.ofBuffer(bbs[i]));
+            }
+            assert validateAddresses(addrs, count);
+            try {
+                action.accept(addrs);
+            } finally {
+                Reference.reachabilityFence(bbs);
             }
         });
-    }
-
-    private static MemorySegment allocateAddrs(Arena arena, int count) {
-        return arena.allocate(ValueLayout.ADDRESS.byteSize() * count, ValueLayout.ADDRESS.byteAlignment());
     }
 
     private static boolean validateInputs(IndexInput in, long[] offsets, int length, int count) {

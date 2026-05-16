@@ -260,6 +260,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_NULLIFY_FLATTENED_SUBFIELD,
 
         /**
+         * Fix for LOOKUP JOIN and ENRICH failing when the match field has NULL type from unmapped field nullification.
+         * See https://github.com/elastic/elasticsearch/issues/141827
+         */
+        OPTIONAL_FIELDS_FIX_NULL_MATCH_FIELD_IN_JOIN_AND_ENRICH,
+
+        /**
          * Support for optional fields (might or might not be present in the mappings) using DEFAULT/NULLIFY/LOAD.
          * V2: Prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
          * V3: Fix synthetic _source numeric load bug (#143916)
@@ -2528,6 +2534,24 @@ public class EsqlCapabilities {
          * See https://github.com/elastic/elasticsearch/issues/146354
          */
         FIX_TBUCKET_NUMERIC_ON_EMPTY_RANGE,
+
+        /**
+         * Fix for SET reporting wrong line/column number (-1:-1) in validation errors.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/145873">ES|QL: wrong line/column number #145873</a>
+         */
+        FIX_SET_WRONG_LINE_COLUMN,
+
+        /**
+         * Fix for {@code _index LIKE} not supporting the {@code ?} wildcard character.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/146364">ES|QL: _index LIKE with ? #146364</a>
+         */
+        FIX_INDEX_LIKE_QUESTION_MARK_WILDCARD,
+
+        /**
+         * Fix query approximation for queries with few source rows, that are expanded
+         * (e.g. by MV_EXPAND) into many rows reaching the STATS command.
+         */
+        APPROXIMATION_FIX_MIN_SOURCE_ROW_COUNT,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

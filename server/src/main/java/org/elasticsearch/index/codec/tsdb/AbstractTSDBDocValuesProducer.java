@@ -1977,8 +1977,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     }
 
     private void readNumeric(IndexInput meta, NumericEntry entry, int numericBlockShift) throws IOException {
-        entry.fieldReader = createNumericFieldReader(entry, 1 << numericBlockShift);
-        entry.fieldReader.readField(meta, entry, numericBlockShift);
+        createNumericFieldReader(entry, 1 << numericBlockShift).readField(meta, entry, numericBlockShift);
     }
 
     private BinaryEntry readBinary(IndexInput meta, int version) throws IOException {
@@ -2223,7 +2222,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         if (entry.docsWithFieldOffset == -1) {
             // dense
             return new BaseDenseNumericValues(maxDoc) {
-                private final NumericFieldReader.Decoder decoder = entry.fieldReader.decoder();
+                private final NumericFieldReader.Decoder decoder = createNumericFieldReader(entry, numericBlockSize).decoder();
                 private long currentBlockIndex = -1;
                 private final long[] currentBlock = new long[numericBlockSize];
                 private long lookaheadBlockIndex = -1;
@@ -2353,7 +2352,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 entry.numValues
             );
             return new BaseSparseNumericValues(disi) {
-                private final NumericFieldReader.Decoder decoder = entry.fieldReader.decoder();
+                private final NumericFieldReader.Decoder decoder = createNumericFieldReader(entry, numericBlockSize).decoder();
                 private IndexedDISI lookAheadDISI;
                 private long currentBlockIndex = -1;
                 private final long[] currentBlock = new long[numericBlockSize];
@@ -2517,7 +2516,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
         final long[] currentBlockIndex = { -1 };
         final long[] currentBlock = new long[numericBlockSize];
-        final NumericFieldReader.Decoder decoder = entry.fieldReader.decoder();
+        final NumericFieldReader.Decoder decoder = createNumericFieldReader(entry, numericBlockSize).decoder();
         return index -> {
             final long blockIndex = index >>> numericBlockShift;
             final int blockInIndex = (int) (index & numericBlockMask);
@@ -2698,7 +2697,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         public long valuesOffset;
         public long valuesLength;
         public DirectMonotonicReader.Meta sortedOrdinals;
-        public NumericFieldReader fieldReader;
     }
 
     static class BinaryEntry {

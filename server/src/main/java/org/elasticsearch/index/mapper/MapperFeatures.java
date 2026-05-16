@@ -87,6 +87,12 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature ES940_DISK_BBQ = new NodeFeature("mapper.es940_disk_bbq");
     public static final NodeFeature IGNORED_VALUES_STORED_IN_BINARY_DV = new NodeFeature("mapper.doc_values.ignored_values_in_binary_dv");
     static final NodeFeature KEYWORD_NORMALIZER_SKIP_STORE_SETTING = new NodeFeature("mapper.keyword.normalizer_skip_store_setting");
+    public static final NodeFeature KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED = new NodeFeature(
+        "mapper.keyword.multi_fields_not_stored_when_ignored"
+    );
+    static final NodeFeature ANALYZER_WRAPPER_RELOADABLE_SEARCH_ANALYZER = new NodeFeature(
+        "mapper.analyzer-wrapper.reloadable_search_analyzer"
+    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -149,7 +155,9 @@ public class MapperFeatures implements FeatureSpecification {
             ES940_DISK_BBQ,
             FLATTENED_PASSTHROUGH_FEATURE,
             IGNORED_VALUES_STORED_IN_BINARY_DV,
-            KEYWORD_NORMALIZER_SKIP_STORE_SETTING
+            KEYWORD_NORMALIZER_SKIP_STORE_SETTING,
+            KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED,
+            ANALYZER_WRAPPER_RELOADABLE_SEARCH_ANALYZER
         );
     }
 }

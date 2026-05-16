@@ -888,4 +888,5 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     protected boolean supportsDocValuesSkippers() {
         return false;
     }
+
 }

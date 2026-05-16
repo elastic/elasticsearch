@@ -55,6 +55,11 @@ public class PromqlCommand extends UnaryPlan
         TimestampBoundsAware.OfLogicalPlan {
 
     /**
+     * Default index expression for embedded PromQL when no {@code index=} option is provided.
+     */
+    public static final String DEFAULT_PROMQL_INDEX_PATTERN = "metrics-*";
+
+    /**
      * The name of the column containing the step value (aka time bucket) in range queries.
      */
     private static final String STEP_COLUMN_NAME = "step";

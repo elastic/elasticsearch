@@ -71,8 +71,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
-
 /**
  * Handles computes within a single cluster by dispatching {@link DataNodeRequest} to data nodes
  * and executing these computes on the data nodes.
@@ -89,7 +87,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     private final ProjectResolver projectResolver;
     private final TransportService transportService;
     private final ExchangeService exchangeService;
-    private final Executor esqlExecutor;
+    private final Executor searchExecutor;
     private final ThreadPool threadPool;
 
     DataNodeComputeHandler(
@@ -99,7 +97,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         SearchService searchService,
         TransportService transportService,
         ExchangeService exchangeService,
-        Executor esqlExecutor
+        Executor searchExecutor
     ) {
         this.computeService = computeService;
         this.clusterService = clusterService;
@@ -107,9 +105,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         this.searchService = searchService;
         this.transportService = transportService;
         this.exchangeService = exchangeService;
-        this.esqlExecutor = esqlExecutor;
+        this.searchExecutor = searchExecutor;
         this.threadPool = transportService.getThreadPool();
-        transportService.registerRequestHandler(ComputeService.DATA_ACTION_NAME, esqlExecutor, DataNodeRequest::new, this);
+        transportService.registerRequestHandler(ComputeService.DATA_ACTION_NAME, searchExecutor, DataNodeRequest::new, this);
     }
 
     void startComputeOnDataNodes(
@@ -131,7 +129,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             clusterService,
             projectResolver,
             transportService,
-            esqlExecutor,
+            searchExecutor,
             parentTask,
             originalIndices,
             PlannerUtils.canMatchFilter(flags, configuration, clusterService.state().getMinTransportVersion(), dataNodePlan),
@@ -170,7 +168,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     connection,
                     childSessionId,
                     queryPragmas.exchangeBufferSize(),
-                    esqlExecutor,
+                    searchExecutor,
                     listener.delegateFailureAndWrap((l, unused) -> {
                         final Runnable onGroupFailure;
                         final CancellableTask groupTask;
@@ -223,7 +221,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 new ActionListenerResponseHandler<>(computeListener.acquireCompute().map(r -> {
                                     nodeResponseRef.set(r);
                                     return r.completionInfo();
-                                }), DataNodeComputeResponse::new, esqlExecutor)
+                                }), DataNodeComputeResponse::new, searchExecutor)
                             );
                             final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
                             exchangeSource.addRemoteSink(
@@ -374,7 +372,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             new ActionListenerResponseHandler<>(
                                 computeListener.acquireCompute().map(r -> r.completionInfo()),
                                 DataNodeComputeResponse::new,
-                                esqlExecutor
+                                searchExecutor
                             )
                         );
                         var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
@@ -410,7 +408,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         connection,
                         childSessionId,
                         queryPragmas.exchangeBufferSize(),
-                        esqlExecutor,
+                        searchExecutor,
                         openExchangeListenerWithNodeCompletion
                     );
                 } catch (Exception e) {
@@ -553,7 +551,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 configuration,
                 request.aliasFilters(),
                 ActionListener.wrap(acquiredSearchContexts -> {
-                    assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH, ESQL_WORKER_THREAD_POOL_NAME);
+                    assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
                     if (acquiredSearchContexts.isEmpty()) {
                         batchListener.onResponse(DriverCompletionInfo.EMPTY);
                         return;
@@ -635,7 +633,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             final AtomicBoolean waitedForRefreshes = new AtomicBoolean();
             try (RefCountingRunnable refs = new RefCountingRunnable(() -> {
                 if (waitedForRefreshes.get()) {
-                    esqlExecutor.execute(doAcquire);
+                    searchExecutor.execute(doAcquire);
                 } else {
                     doAcquire.run();
                 }
@@ -680,7 +678,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         CancellableTask task,
         String externalId,
         PhysicalPlan reducePlan,
-        LocalPhysicalOptimization localPhysicalOptimization,
         DataNodeRequest request,
         boolean failFastOnShardFailure,
         AcquiredSearchContexts searchContexts,
@@ -720,7 +717,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 );
                 dataNodeRequestExecutor.start();
                 // run the node-level reduction
-                var exchangeSource = new ExchangeSourceHandler(1, esqlExecutor);
+                var exchangeSource = new ExchangeSourceHandler(1, searchExecutor);
                 exchangeSource.addRemoteSink(internalSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
                 var reductionListener = computeListener.acquireCompute();
                 computeService.runCompute(
@@ -738,7 +735,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     ),
                     reducePlan,
                     plannerSettings,
-                    localPhysicalOptimization,
+                    // Local physical optimization is aimed at data nodes. For node-reduce-level reduction we precompute the final physical
+                    // plan and pass it in reducePlan. We don't need any additional optimizations.
+                    LocalPhysicalOptimization.DISABLED,
                     planTimeProfile,
                     ActionListener.wrap(resp -> {
                         // don't return until all pages are fetched
@@ -812,7 +811,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             (CancellableTask) task,
             sessionId,
             reductionPlan.nodeReducePlan(),
-            reductionPlan.localPhysicalOptimization(),
             request.withPlan(reductionPlan.dataNodePlan()),
             failFastOnShardFailures,
             computeSearchContexts,

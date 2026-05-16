@@ -85,8 +85,6 @@ public class GroqActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (Sender sender = HttpRequestSenderTests.createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                   "id": "chatcmpl-123",

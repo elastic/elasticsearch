@@ -1490,7 +1490,13 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             }
         });
 
-        String msg = String.format("Expected exactly one %s field [%s] of type [MultiTypeEsField]. Got %s.", name, type, fields.size());
+        String msg = String.format(
+            Locale.ROOT,
+            "Expected exactly one %s field [%s] of type [MultiTypeEsField]. Got %s.",
+            name,
+            type,
+            fields.size()
+        );
 
         assertThat(msg, fields, hasSize(1));
 

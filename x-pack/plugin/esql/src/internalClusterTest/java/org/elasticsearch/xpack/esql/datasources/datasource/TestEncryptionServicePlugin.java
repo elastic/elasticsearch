@@ -30,7 +30,7 @@ public class TestEncryptionServicePlugin extends Plugin {
         EncryptionService svc = new EncryptionService() {
             @Override
             public EncryptedData encrypt(byte[] bytes) {
-                return new EncryptedData(TEST_KEY_ID, bytes.clone());
+                return new EncryptedData(TEST_KEY_ID, bytes);
             }
 
             @Override

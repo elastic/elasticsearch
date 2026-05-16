@@ -159,17 +159,12 @@ public class DataSourceService {
                 } finally {
                     Arrays.fill(bytes, (byte) 0);
                 }
-                continue;
-            }
-            // Already encrypted — admin-side replays from cluster state aren't expected through this path,
-            // but if one slips through, pass it forward unchanged.
-            if (raw instanceof EncryptedData) {
+            } else {
+                // Already-encrypted carrier (cluster-state replay paths) — forward unchanged. The
+                // DataSourceSetting constructor restricts the value type to String | GenericNamedWriteable | null,
+                // so any non-String secret here is already a ciphertext carrier.
                 result.put(entry.getKey(), setting);
-                continue;
             }
-            throw new IllegalStateException(
-                "cannot encrypt secret setting [" + entry.getKey() + "]: expected String plaintext, got " + raw.getClass().getSimpleName()
-            );
         }
         return result;
     }

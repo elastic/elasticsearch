@@ -129,21 +129,7 @@ public class SearchEngine extends Engine {
 
     // Guarded by the openReaders monitor
     private final Map<DirectoryReader, OpenReaderInfo> openReaders = new HashMap<>();
-    private final RelocatedPITReaderTracker relocatedPITReaderTracker = new RelocatedPITReaderTracker(
-        relocatedPITReader -> acquireSearcherSupplier(
-            relocatedPITReader.wrapper,
-            SearcherScope.EXTERNAL,
-            r -> ReshardSearchFilters.maybeWrapDirectoryReaderForPitRelocation(
-                r,
-                shardId,
-                engineConfig.getIndexSettings().getIndexMetadata(),
-                engineConfig.getMapperService(),
-                relocatedPITReader.reshardingMetadata,
-                relocatedPITReader.splitShardCountSummary
-            ),
-            relocatedPITReader.pitReaderManager
-        )
-    );
+    private final RelocatedPITReaderTracker relocatedPITReaderTracker;
 
     @SuppressWarnings("this-escape")
     public SearchEngine(
@@ -162,6 +148,23 @@ public class SearchEngine extends Engine {
         var refreshExecutor = config.getThreadPool().executor(ThreadPool.Names.REFRESH);
         // we limit to one task to force sequential execution of enqueued tasks
         this.processCommitTaskRunner = new ThrottledTaskRunner("engine", 1, refreshExecutor);
+
+        relocatedPITReaderTracker = new RelocatedPITReaderTracker(
+            relocatedPITReader -> acquireSearcherSupplier(
+                relocatedPITReader.wrapper,
+                SearcherScope.EXTERNAL,
+                r -> ReshardSearchFilters.maybeWrapDirectoryReaderForPitRelocation(
+                    r,
+                    shardId,
+                    engineConfig.getIndexSettings().getIndexMetadata(),
+                    engineConfig.getMapperService(),
+                    relocatedPITReader.reshardingMetadata,
+                    relocatedPITReader.splitShardCountSummary,
+                    reshardUnownedBitsetCache
+                ),
+                relocatedPITReader.pitReaderManager
+            )
+        );
 
         ElasticsearchDirectoryReader directoryReader = null;
         ElasticsearchReaderManager readerManager = null;

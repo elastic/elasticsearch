@@ -37,7 +37,8 @@ public class ReshardSearchFilters {
         IndexMetadata currentIndexMetadata,
         MapperService mapperService,
         IndexReshardingMetadata relocatedReshardingMetadata,
-        SplitShardCountSummary relocatedSplitShardCountSummary
+        SplitShardCountSummary relocatedSplitShardCountSummary,
+        @Nullable ReshardUnownedBitsetCache unownedBitsetCache
     ) throws IOException {
         if (relocatedReshardingMetadata == null) {
             // This is a common case.
@@ -53,7 +54,14 @@ public class ReshardSearchFilters {
         // and resharding metadata will very likely not exist or differ for the same reason.
         IndexMetadata adjustedMetadata = adjustMetadataForPitRelocation(currentIndexMetadata, relocatedReshardingMetadata);
 
-        return maybeWrapDirectoryReader(reader, shardId, relocatedSplitShardCountSummary, adjustedMetadata, mapperService);
+        return maybeWrapDirectoryReader(
+            reader,
+            shardId,
+            relocatedSplitShardCountSummary,
+            adjustedMetadata,
+            mapperService,
+            unownedBitsetCache
+        );
     }
 
     // visible for testing

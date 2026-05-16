@@ -49,9 +49,7 @@ public class S3DataSourceValidatorTests extends ESTestCase {
     public void testValidateDatasourceWithCredentials() {
         var result = validator.validateDatasource(Map.of("access_key", "AKIA123", "secret_key", "secret", "region", "us-east-1"));
         assertTrue(result.get("access_key").secret());
-        try (var s = result.get("access_key").secretValue()) {
-            assertEquals("AKIA123", s.toString());
-        }
+        assertEquals("AKIA123", result.get("access_key").rawValue());
         assertTrue(result.get("secret_key").secret());
         assertEquals("us-east-1", result.get("region").nonSecretValue());
         assertFalse(result.get("region").secret());
@@ -252,9 +250,7 @@ public class S3DataSourceValidatorTests extends ESTestCase {
         assertTrue(result.get("access_key").secret());
         assertTrue(result.get("secret_key").secret());
         assertFalse(result.get("region").secret());
-        try (var s = result.get("access_key").secretValue()) {
-            assertEquals("AKIA", s.toString());
-        }
+        assertEquals("AKIA", result.get("access_key").rawValue());
     }
 
     // --- Format-aware validation tests ---

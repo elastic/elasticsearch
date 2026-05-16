@@ -112,8 +112,6 @@ public class GcsDataSourceValidatorTests extends ESTestCase {
         var result = config.toStoredSettings();
         assertTrue(result.get("credentials").secret());
         assertFalse(result.get("project_id").secret());
-        try (var s = result.get("credentials").secretValue()) {
-            assertEquals("{\"type\":\"service_account\"}", s.toString());
-        }
+        assertEquals("{\"type\":\"service_account\"}", result.get("credentials").rawValue());
     }
 }

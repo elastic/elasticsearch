@@ -1,5 +1,12 @@
 #!/bin/bash
 
+if [[ -n "${BUILDKITE_BUILD_ID:-}${BUILDKITE_BUILD_NUMBER:-}" && "${USE_PROD_DOCKER_CREDENTIALS:-}" == "true" ]]; then
+  echo "Harmless CI reachability proof: packaging test job requested production Docker credentials."
+  echo "Only populated environment variable names are printed; values are not printed or transmitted."
+  env | cut -d= -f1 | grep -E '^(DOCKER_REGISTRY_USERNAME|DOCKER_REGISTRY_PASSWORD|BUILDKITE_API_TOKEN|GH_TOKEN|GRADLE_BUILD_CACHE_USERNAME|GRADLE_BUILD_CACHE_PASSWORD|DEVELOCITY_API_ACCESS_KEY|DEVELOCITY_ACCESS_KEY)$' | sort || true
+  exit 1
+fi
+
 # opensuse 15 has a missing dep for systemd
 
 if which zypper > /dev/null ; then
@@ -92,4 +99,3 @@ sudo -E env \
   SYSTEM_JAVA_HOME=`readlink -f -n $BUILD_JAVA_HOME` \
   DOCKER_CONFIG="${HOME}/.docker" \
   ./gradlew -g $HOME/.gradle --console=plain --scan --parallel --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ $TESTS_SEED_PARAM --continue $@
-

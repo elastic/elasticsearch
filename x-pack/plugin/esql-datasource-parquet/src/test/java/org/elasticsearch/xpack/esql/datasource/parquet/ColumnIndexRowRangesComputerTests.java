@@ -15,6 +15,8 @@ import org.apache.parquet.format.OffsetIndex;
 import org.apache.parquet.format.PageLocation;
 import org.apache.parquet.format.converter.ParquetMetadataConverter;
 import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
+import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.test.ESTestCase;
@@ -269,6 +271,199 @@ public class ColumnIndexRowRangesComputerTests extends ESTestCase {
         assertTrue("Page with matching min/max should be included", result.overlaps(500, 600));
     }
 
+    public void testLtKeepsNaNStatsPagesConservatively() {
+        double[] mins = { -10.0, 10.0, -5.0, Double.NaN };
+        double[] maxes = { -1.0, 15.0, Double.NaN, 5.0 };
+        PreloadedRowGroupMetadata metadata = buildDoubleMetadataExplicit("score", mins, maxes, PAGE_SIZE);
+        FilterPredicate pred = FilterApi.lt(FilterApi.doubleColumn("score"), 0.5);
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, 4L * PAGE_SIZE);
+
+        assertTrue("Real-stats matching page must be kept", result.overlaps(0, PAGE_SIZE));
+        assertFalse("Real-stats failing page must be excluded", result.overlaps(PAGE_SIZE, 2L * PAGE_SIZE));
+        assertTrue("NaN-max page must be kept conservatively", result.overlaps(2L * PAGE_SIZE, 3L * PAGE_SIZE));
+        assertTrue("NaN-min page must be kept conservatively", result.overlaps(3L * PAGE_SIZE, 4L * PAGE_SIZE));
+    }
+
+    public void testEqKeepsNaNStatsPagesConservatively() {
+        double[] mins = { 40.0, 100.0, 40.0, Double.NaN };
+        double[] maxes = { 60.0, 200.0, Double.NaN, 60.0 };
+        PreloadedRowGroupMetadata metadata = buildDoubleMetadataExplicit("score", mins, maxes, PAGE_SIZE);
+        FilterPredicate pred = FilterApi.eq(FilterApi.doubleColumn("score"), 50.0);
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, 4L * PAGE_SIZE);
+
+        assertTrue("Real-stats matching page must be kept", result.overlaps(0, PAGE_SIZE));
+        assertFalse("Real-stats failing page must be excluded", result.overlaps(PAGE_SIZE, 2L * PAGE_SIZE));
+        assertTrue("NaN-max page must be kept conservatively", result.overlaps(2L * PAGE_SIZE, 3L * PAGE_SIZE));
+        assertTrue("NaN-min page must be kept conservatively", result.overlaps(3L * PAGE_SIZE, 4L * PAGE_SIZE));
+    }
+
+    public void testGtKeepsNaNStatsPagesConservatively() {
+        double[] mins = { 50.0, 10.0, -5.0, Double.NaN };
+        double[] maxes = { 150.0, 15.0, Double.NaN, 200.0 };
+        PreloadedRowGroupMetadata metadata = buildDoubleMetadataExplicit("score", mins, maxes, PAGE_SIZE);
+        FilterPredicate pred = FilterApi.gt(FilterApi.doubleColumn("score"), 100.0);
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, 4L * PAGE_SIZE);
+
+        assertTrue("Real-stats matching page must be kept", result.overlaps(0, PAGE_SIZE));
+        assertFalse("Real-stats failing page must be excluded", result.overlaps(PAGE_SIZE, 2L * PAGE_SIZE));
+        assertTrue("NaN-max page must be kept conservatively", result.overlaps(2L * PAGE_SIZE, 3L * PAGE_SIZE));
+        assertTrue("NaN-min page must be kept conservatively", result.overlaps(3L * PAGE_SIZE, 4L * PAGE_SIZE));
+    }
+
+    public void testLtKeepsAllNaNStatsPageConservatively() {
+        double[] mins = { -10.0, 10.0, Double.NaN };
+        double[] maxes = { -1.0, 15.0, Double.NaN };
+        PreloadedRowGroupMetadata metadata = buildDoubleMetadataExplicit("score", mins, maxes, PAGE_SIZE);
+        FilterPredicate pred = FilterApi.lt(FilterApi.doubleColumn("score"), 0.5);
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, 3L * PAGE_SIZE);
+
+        assertTrue("Real-stats matching page must be kept", result.overlaps(0, PAGE_SIZE));
+        assertFalse("Real-stats failing page must be excluded", result.overlaps(PAGE_SIZE, 2L * PAGE_SIZE));
+        assertTrue("All-NaN page must be kept conservatively", result.overlaps(2L * PAGE_SIZE, 3L * PAGE_SIZE));
+    }
+
+    public void testLtEqKeepsNaNStatsPagesConservatively() {
+        double[] mins = { -10.0, 10.0, -5.0, Double.NaN };
+        double[] maxes = { -1.0, 15.0, Double.NaN, 5.0 };
+        PreloadedRowGroupMetadata metadata = buildDoubleMetadataExplicit("score", mins, maxes, PAGE_SIZE);
+        FilterPredicate pred = FilterApi.ltEq(FilterApi.doubleColumn("score"), 0.5);
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, 4L * PAGE_SIZE);
+
+        assertTrue("Real-stats matching page must be kept", result.overlaps(0, PAGE_SIZE));
+        assertFalse("Real-stats failing page must be excluded", result.overlaps(PAGE_SIZE, 2L * PAGE_SIZE));
+        assertTrue("NaN-max page must be kept conservatively", result.overlaps(2L * PAGE_SIZE, 3L * PAGE_SIZE));
+        assertTrue("NaN-min page must be kept conservatively", result.overlaps(3L * PAGE_SIZE, 4L * PAGE_SIZE));
+    }
+
+    public void testGtEqKeepsNaNStatsPagesConservatively() {
+        double[] mins = { 50.0, 10.0, -5.0, Double.NaN };
+        double[] maxes = { 150.0, 15.0, Double.NaN, 200.0 };
+        PreloadedRowGroupMetadata metadata = buildDoubleMetadataExplicit("score", mins, maxes, PAGE_SIZE);
+        FilterPredicate pred = FilterApi.gtEq(FilterApi.doubleColumn("score"), 100.0);
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, 4L * PAGE_SIZE);
+
+        assertTrue("Real-stats matching page must be kept", result.overlaps(0, PAGE_SIZE));
+        assertFalse("Real-stats failing page must be excluded", result.overlaps(PAGE_SIZE, 2L * PAGE_SIZE));
+        assertTrue("NaN-max page must be kept conservatively", result.overlaps(2L * PAGE_SIZE, 3L * PAGE_SIZE));
+        assertTrue("NaN-min page must be kept conservatively", result.overlaps(3L * PAGE_SIZE, 4L * PAGE_SIZE));
+    }
+
+    public void testInKeepsNaNStatsPagesConservatively() {
+        double[] mins = { 40.0, 100.0, 40.0, Double.NaN };
+        double[] maxes = { 60.0, 200.0, Double.NaN, 60.0 };
+        PreloadedRowGroupMetadata metadata = buildDoubleMetadataExplicit("score", mins, maxes, PAGE_SIZE);
+        FilterPredicate pred = FilterApi.in(FilterApi.doubleColumn("score"), Set.of(50.0, 55.0));
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, 4L * PAGE_SIZE);
+
+        assertTrue("Real-stats matching page must be kept", result.overlaps(0, PAGE_SIZE));
+        assertFalse("Real-stats failing page must be excluded", result.overlaps(PAGE_SIZE, 2L * PAGE_SIZE));
+        assertTrue("NaN-max page must be kept conservatively", result.overlaps(2L * PAGE_SIZE, 3L * PAGE_SIZE));
+        assertTrue("NaN-min page must be kept conservatively", result.overlaps(3L * PAGE_SIZE, 4L * PAGE_SIZE));
+    }
+
+    public void testNotEqKeepsNaNStatsPagesConservatively() {
+        // NaN stats can never be proven equal to the value, so NotEq cannot prune NaN-stats pages.
+        // The constant value-50 page (min == max == 50) is the only one safely prunable.
+        double[] mins = { 50.0, -5.0, Double.NaN };
+        double[] maxes = { 50.0, Double.NaN, 60.0 };
+        PreloadedRowGroupMetadata metadata = buildDoubleMetadataExplicit("score", mins, maxes, PAGE_SIZE);
+        FilterPredicate pred = FilterApi.notEq(FilterApi.doubleColumn("score"), 50.0);
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, 3L * PAGE_SIZE);
+
+        assertFalse("Constant value-50 page must be pruned by NotEq(50)", result.overlaps(0, PAGE_SIZE));
+        assertTrue("NaN-max page must be kept conservatively", result.overlaps(PAGE_SIZE, 2L * PAGE_SIZE));
+        assertTrue("NaN-min page must be kept conservatively", result.overlaps(2L * PAGE_SIZE, 3L * PAGE_SIZE));
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Schema-driven decode: FLOAT vs DOUBLE disambiguation and conservative reject for
+    // non-native DOUBLE backings (DECIMAL, Float16).
+    // -----------------------------------------------------------------------------------
+
+    public void testFloatColumnDecodedViaFloatBuffers() {
+        PrimitiveType ptype = Types.required(PrimitiveType.PrimitiveTypeName.FLOAT).named("score");
+        ByteBuffer min = ByteBuffer.allocate(Float.BYTES).order(ByteOrder.LITTLE_ENDIAN).putFloat(-10.0f).flip();
+        ByteBuffer max = ByteBuffer.allocate(Float.BYTES).order(ByteOrder.LITTLE_ENDIAN).putFloat(-1.0f).flip();
+        PreloadedRowGroupMetadata metadata = buildSinglePageMetadata("score", ptype, min, max, PAGE_SIZE);
+        FilterPredicate pred = FilterApi.lt(FilterApi.doubleColumn("score"), 0.5);
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, PAGE_SIZE);
+
+        assertTrue("FLOAT-encoded page satisfying Lt(0.5) must be included", result.overlaps(0, PAGE_SIZE));
+    }
+
+    public void testDoubleColumnDecodedViaDoubleBuffers() {
+        PrimitiveType ptype = Types.required(PrimitiveType.PrimitiveTypeName.DOUBLE).named("score");
+        PreloadedRowGroupMetadata metadata = buildSinglePageMetadata("score", ptype, doubleToBuffer(10.0), doubleToBuffer(15.0), PAGE_SIZE);
+        FilterPredicate pred = FilterApi.lt(FilterApi.doubleColumn("score"), 0.5);
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, PAGE_SIZE);
+
+        assertFalse("DOUBLE-encoded page failing Lt(0.5) must be excluded", result.overlaps(0, PAGE_SIZE));
+    }
+
+    public void testDecimalEncodedDoubleColumnIsKeptConservatively() {
+        PrimitiveType ptype = Types.required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.decimalType(2, 9))
+            .named("price");
+        PreloadedRowGroupMetadata metadata = buildSinglePageMetadata("price", ptype, intToBuffer(1000), intToBuffer(500000), PAGE_SIZE);
+        FilterPredicate pred = FilterApi.gt(FilterApi.doubleColumn("price"), 100.0);
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, PAGE_SIZE);
+
+        assertTrue("DECIMAL-encoded column must be kept conservatively for doubleColumn predicates", result.overlaps(0, PAGE_SIZE));
+    }
+
+    public void testFloat16EncodedDoubleColumnIsKeptConservatively() {
+        PrimitiveType ptype = Types.required(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+            .length(2)
+            .as(LogicalTypeAnnotation.float16Type())
+            .named("ratio");
+        // Float16 little-endian per parquet-format spec (LSB first).
+        ByteBuffer min = ByteBuffer.wrap(new byte[] { 0x00, 0x3C }); // 1.0
+        ByteBuffer max = ByteBuffer.wrap(new byte[] { 0x00, 0x40 }); // 2.0
+        PreloadedRowGroupMetadata metadata = buildSinglePageMetadata("ratio", ptype, min, max, PAGE_SIZE);
+        FilterPredicate pred = FilterApi.lt(FilterApi.doubleColumn("ratio"), 0.5);
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, PAGE_SIZE);
+
+        assertTrue("Float16-encoded column must be kept conservatively for doubleColumn predicates", result.overlaps(0, PAGE_SIZE));
+    }
+
+    /**
+     * Locks down the schema-driven decode path: a FLOAT schema must dictate that the first
+     * 4 bytes of the stats buffer are read as a float, even when the buffer happens to be
+     * 8 bytes wide. The legacy heuristic ({@code buf.remaining() == Float.BYTES}) would
+     * have misread these bytes as a double.
+     *
+     * <p>The buffer encodes the double {@code 1.0} in little-endian
+     * ({@code [00,00,00,00, 00,00,F0,3F]}); its first 4 bytes interpret as float {@code 0.0}.
+     * A FLOAT-driven decode therefore yields min=max=0.0 and the {@code Lt(0.5)} predicate
+     * keeps the page; a DOUBLE-driven decode would yield 1.0 and exclude it.
+     */
+    public void testSchemaDrivesFloatDecodeWhenBufferIsEightBytes() {
+        PrimitiveType ptype = Types.required(PrimitiveType.PrimitiveTypeName.FLOAT).named("score");
+        ByteBuffer wideMin = ByteBuffer.allocate(Double.BYTES).order(ByteOrder.LITTLE_ENDIAN).putDouble(1.0).flip();
+        ByteBuffer wideMax = ByteBuffer.allocate(Double.BYTES).order(ByteOrder.LITTLE_ENDIAN).putDouble(1.0).flip();
+        PreloadedRowGroupMetadata metadata = buildSinglePageMetadata("score", ptype, wideMin, wideMax, PAGE_SIZE);
+        FilterPredicate pred = FilterApi.lt(FilterApi.doubleColumn("score"), 0.5);
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, PAGE_SIZE);
+
+        assertTrue(
+            "FLOAT schema must drive the decode regardless of buffer width; first 4 bytes read as float 0.0 satisfy Lt(0.5)",
+            result.overlaps(0, PAGE_SIZE)
+        );
+    }
+
     public void testBooleanColumnEq() {
         PreloadedRowGroupMetadata metadata = buildBooleanMetadata("flag", PAGE_COUNT, PAGE_SIZE);
         FilterPredicate pred = FilterApi.eq(FilterApi.booleanColumn("flag"), true);
@@ -302,7 +497,7 @@ public class ColumnIndexRowRangesComputerTests extends ESTestCase {
         org.apache.parquet.internal.column.columnindex.ColumnIndex typedCi = ParquetMetadataConverter.fromParquetColumnIndex(ptype, ci);
         org.apache.parquet.internal.column.columnindex.OffsetIndex typedOi = ParquetMetadataConverter.fromParquetOffsetIndex(oi);
 
-        return buildMetadata(columnPath, typedCi, typedOi);
+        return buildMetadata(columnPath, ptype, typedCi, typedOi);
     }
 
     /**
@@ -330,7 +525,7 @@ public class ColumnIndexRowRangesComputerTests extends ESTestCase {
         org.apache.parquet.internal.column.columnindex.ColumnIndex typedCi = ParquetMetadataConverter.fromParquetColumnIndex(ptype, ci);
         org.apache.parquet.internal.column.columnindex.OffsetIndex typedOi = ParquetMetadataConverter.fromParquetOffsetIndex(oi);
 
-        return buildMetadata(columnPath, typedCi, typedOi);
+        return buildMetadata(columnPath, ptype, typedCi, typedOi);
     }
 
     /**
@@ -357,7 +552,7 @@ public class ColumnIndexRowRangesComputerTests extends ESTestCase {
         org.apache.parquet.internal.column.columnindex.ColumnIndex typedCi = ParquetMetadataConverter.fromParquetColumnIndex(ptype, ci);
         org.apache.parquet.internal.column.columnindex.OffsetIndex typedOi = ParquetMetadataConverter.fromParquetOffsetIndex(oi);
 
-        return buildMetadata(columnPath, typedCi, typedOi);
+        return buildMetadata(columnPath, ptype, typedCi, typedOi);
     }
 
     private static PreloadedRowGroupMetadata buildLongMetadata(String columnPath, int pageCount, int pageSize) {
@@ -382,7 +577,7 @@ public class ColumnIndexRowRangesComputerTests extends ESTestCase {
         org.apache.parquet.internal.column.columnindex.ColumnIndex typedCi = ParquetMetadataConverter.fromParquetColumnIndex(ptype, ci);
         org.apache.parquet.internal.column.columnindex.OffsetIndex typedOi = ParquetMetadataConverter.fromParquetOffsetIndex(oi);
 
-        return buildMetadata(columnPath, typedCi, typedOi);
+        return buildMetadata(columnPath, ptype, typedCi, typedOi);
     }
 
     private static PreloadedRowGroupMetadata buildDoubleMetadata(String columnPath, int pageCount, int pageSize) {
@@ -407,7 +602,65 @@ public class ColumnIndexRowRangesComputerTests extends ESTestCase {
         org.apache.parquet.internal.column.columnindex.ColumnIndex typedCi = ParquetMetadataConverter.fromParquetColumnIndex(ptype, ci);
         org.apache.parquet.internal.column.columnindex.OffsetIndex typedOi = ParquetMetadataConverter.fromParquetOffsetIndex(oi);
 
-        return buildMetadata(columnPath, typedCi, typedOi);
+        return buildMetadata(columnPath, ptype, typedCi, typedOi);
+    }
+
+    /**
+     * Builds a DOUBLE column index where page {@code p} has explicit {@code mins[p]} / {@code maxes[p]}
+     * stats. Used to exercise edge cases (NaN, equal min==max, etc.) that the contiguous-range
+     * helper {@link #buildDoubleMetadata} cannot express.
+     */
+    private static PreloadedRowGroupMetadata buildDoubleMetadataExplicit(String columnPath, double[] mins, double[] maxes, int pageSize) {
+        assert mins.length == maxes.length : "mins/maxes length mismatch";
+        List<ByteBuffer> minValues = new ArrayList<>();
+        List<ByteBuffer> maxValues = new ArrayList<>();
+        List<Boolean> nullPages = new ArrayList<>();
+        List<PageLocation> pageLocations = new ArrayList<>();
+
+        for (int p = 0; p < mins.length; p++) {
+            minValues.add(doubleToBuffer(mins[p]));
+            maxValues.add(doubleToBuffer(maxes[p]));
+            nullPages.add(false);
+            pageLocations.add(new PageLocation(p * 1000L, pageSize * 8, p * pageSize));
+        }
+
+        ColumnIndex ci = new ColumnIndex(nullPages, minValues, maxValues, BoundaryOrder.UNORDERED);
+        OffsetIndex oi = new OffsetIndex(pageLocations);
+
+        PrimitiveType ptype = Types.required(PrimitiveType.PrimitiveTypeName.DOUBLE).named(columnPath);
+        var typedCi = ParquetMetadataConverter.fromParquetColumnIndex(ptype, ci);
+        var typedOi = ParquetMetadataConverter.fromParquetOffsetIndex(oi);
+
+        return buildMetadata(columnPath, ptype, typedCi, typedOi);
+    }
+
+    /**
+     * Single-page metadata helper for the schema-driven decode tests. The caller supplies both
+     * the {@link PrimitiveType} (driving the file MessageType captured on
+     * {@link PreloadedRowGroupMetadata}) and the raw min/max stats bytes — necessary because
+     * DECIMAL and Float16 columns intentionally produce buffer lengths (4 and 2 bytes) that the
+     * legacy {@code remaining() == Float.BYTES} heuristic mishandles, and we want to drive the
+     * exact buffer the runtime would observe rather than re-encode via a Java primitive.
+     */
+    private static PreloadedRowGroupMetadata buildSinglePageMetadata(
+        String columnPath,
+        PrimitiveType primitiveType,
+        ByteBuffer min,
+        ByteBuffer max,
+        int pageSize
+    ) {
+        List<ByteBuffer> minValues = List.of(min);
+        List<ByteBuffer> maxValues = List.of(max);
+        List<Boolean> nullPages = List.of(Boolean.FALSE);
+        List<PageLocation> pageLocations = List.of(new PageLocation(0L, pageSize * 4, 0));
+
+        ColumnIndex ci = new ColumnIndex(nullPages, minValues, maxValues, BoundaryOrder.UNORDERED);
+        OffsetIndex oi = new OffsetIndex(pageLocations);
+
+        var typedCi = ParquetMetadataConverter.fromParquetColumnIndex(primitiveType, ci);
+        var typedOi = ParquetMetadataConverter.fromParquetOffsetIndex(oi);
+
+        return buildMetadata(columnPath, primitiveType, typedCi, typedOi);
     }
 
     private static PreloadedRowGroupMetadata buildBinaryMetadata(String columnPath, int pageCount, int pageSize) {
@@ -432,7 +685,7 @@ public class ColumnIndexRowRangesComputerTests extends ESTestCase {
         org.apache.parquet.internal.column.columnindex.ColumnIndex typedCi = ParquetMetadataConverter.fromParquetColumnIndex(ptype, ci);
         org.apache.parquet.internal.column.columnindex.OffsetIndex typedOi = ParquetMetadataConverter.fromParquetOffsetIndex(oi);
 
-        return buildMetadata(columnPath, typedCi, typedOi);
+        return buildMetadata(columnPath, ptype, typedCi, typedOi);
     }
 
     private static PreloadedRowGroupMetadata buildBooleanMetadata(String columnPath, int pageCount, int pageSize) {
@@ -457,11 +710,12 @@ public class ColumnIndexRowRangesComputerTests extends ESTestCase {
         org.apache.parquet.internal.column.columnindex.ColumnIndex typedCi = ParquetMetadataConverter.fromParquetColumnIndex(ptype, ci);
         org.apache.parquet.internal.column.columnindex.OffsetIndex typedOi = ParquetMetadataConverter.fromParquetOffsetIndex(oi);
 
-        return buildMetadata(columnPath, typedCi, typedOi);
+        return buildMetadata(columnPath, ptype, typedCi, typedOi);
     }
 
     private static PreloadedRowGroupMetadata buildMetadata(
         String columnPath,
+        PrimitiveType primitiveType,
         org.apache.parquet.internal.column.columnindex.ColumnIndex ci,
         org.apache.parquet.internal.column.columnindex.OffsetIndex oi
     ) {
@@ -469,7 +723,8 @@ public class ColumnIndexRowRangesComputerTests extends ESTestCase {
         Map<String, org.apache.parquet.internal.column.columnindex.OffsetIndex> offsetIndexes = new HashMap<>();
         columnIndexes.put("0:" + columnPath, ci);
         offsetIndexes.put("0:" + columnPath, oi);
-        return new PreloadedRowGroupMetadata(columnIndexes, offsetIndexes);
+        MessageType schema = new MessageType("test", primitiveType);
+        return new PreloadedRowGroupMetadata(columnIndexes, offsetIndexes, schema);
     }
 
     private static ByteBuffer intToBuffer(int value) {

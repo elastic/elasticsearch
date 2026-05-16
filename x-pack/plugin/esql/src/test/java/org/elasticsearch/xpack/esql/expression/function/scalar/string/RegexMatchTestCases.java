@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.startsWith;
  * {@code AbstractScalarFunctionTestCase.parameterSuppliersFromTypedData}.
  *
  * <p>The matcher parameter is the seam where {@code WildcardLike} diverges from the rest of the
- * family: after this PR, {@code WildcardLike}'s prefix / suffix / contains shapes route through
+ * family: {@code WildcardLike}'s prefix / suffix / contains shapes route through
  * {@code StartsWithEvaluator} / {@code EndsWithEvaluator} / {@code WildcardLikeContainsEvaluator}
  * instead of the family-default {@code AutomataMatchEvaluator}, so it passes a relaxed matcher
  * accepting all four evaluator names. The other three test classes pass

@@ -36,15 +36,18 @@ import java.util.List;
  * {@code WildcardLike.toEvaluator} is pinned by evaluator-name assertions in
  * {@code WildcardLikeTests}.
  *
- * <p>Two assertions:
+ * <p>Most of the coverage comes from a seeded randomized sweep; hand-picked cases supplement
+ * it for known traps the random sweep is unlikely to hit on its own:
  *
  * <ul>
- *   <li><b>Hand-picked edge cases.</b> Empty literal, length boundaries, multi-byte UTF-8,
- *       supplementary-plane codepoints (surrogate pairs in UTF-16, four-byte sequences in
- *       UTF-8), and escaped specials carried through into the literal segment.</li>
- *   <li><b>Randomized property pin.</b> A seeded sweep over random shapes &times; random
- *       literals &times; random values, mixing ASCII and multi-byte content. Catches regressions
- *       the hand-picked set might miss.</li>
+ *   <li><b>Seeded randomized property pin.</b> A 10 000-iteration sweep over random shapes
+ *       &times; random literals &times; random values, mixing ASCII and multi-byte content.
+ *       This is the primary coverage source.</li>
+ *   <li><b>Hand-picked adversarial cases.</b> Empty literal, length boundaries, multi-byte
+ *       UTF-8, supplementary-plane codepoints (surrogate pairs in UTF-16, four-byte sequences
+ *       in UTF-8), escaped specials, SIMD activation threshold boundaries, high-FP SIMD
+ *       candidates, UTF-8 continuation-byte traps — inputs the random sweep is unlikely
+ *       to hit by chance.</li>
  * </ul>
  *
  * <p>Case-insensitive {@code LIKE} is short-circuited to the automaton inside

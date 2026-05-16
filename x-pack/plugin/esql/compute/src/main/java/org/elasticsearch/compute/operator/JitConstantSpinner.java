@@ -259,10 +259,7 @@ public final class JitConstantSpinner {
         // private static final <T> CONST_<NAME>; — populated by <clinit> from class data.
         // C2 trusts static final reference fields as JIT-time constants when the field is
         // read through getstatic, much more aggressively than it inlines an LDC ldc-condy.
-        cw.visitField(
-            Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL,
-            fieldName, typeDescriptor, null, null
-        ).visitEnd();
+        cw.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, fieldName, typeDescriptor, null, null).visitEnd();
 
         // static { CONST_<NAME> = (T) MethodHandles.classData(LOOKUP, "_", T.class); }
         // Implemented via: ldc Dynamic[name="_", type=T, bootstrap=MethodHandles::classData] ; putstatic

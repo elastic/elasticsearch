@@ -15,7 +15,6 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
 import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -121,11 +120,25 @@ public final class JitConstantSpinner {
     }
 
     /** Total number of subclass-generation events (cache misses that resulted in spins). */
-    public static long spinCount() { return SPINS.sum(); }
-    public static long hitCount() { return HITS.sum(); }
-    public static long missCount() { return MISSES.sum(); }
-    public static long evictionCount() { return EVICTIONS.sum(); }
-    public static long fallbackCount() { return FALLBACKS.sum(); }
+    public static long spinCount() {
+        return SPINS.sum();
+    }
+
+    public static long hitCount() {
+        return HITS.sum();
+    }
+
+    public static long missCount() {
+        return MISSES.sum();
+    }
+
+    public static long evictionCount() {
+        return EVICTIONS.sum();
+    }
+
+    public static long fallbackCount() {
+        return FALLBACKS.sum();
+    }
 
     /** Set cache capacity. New value applies to future evictions; existing entries are kept until LRU-evicted. */
     public static void setCacheCapacity(int newCapacity) {
@@ -135,7 +148,9 @@ public final class JitConstantSpinner {
 
     /** Test-only: clear cache + counters. */
     static void resetForTest() {
-        synchronized (CACHE) { CACHE.clear(); }
+        synchronized (CACHE) {
+            CACHE.clear();
+        }
         SPINS.reset();
         HITS.reset();
         MISSES.reset();
@@ -180,8 +195,9 @@ public final class JitConstantSpinner {
         MISSES.increment();
         Class<?> spun;
         try {
-            spun = primitive ? spinPrimitiveClass(baseClass, methodName, valueType, value)
-                             : spinReferenceClass(baseClass, methodName, valueType, value);
+            spun = primitive
+                ? spinPrimitiveClass(baseClass, methodName, valueType, value)
+                : spinReferenceClass(baseClass, methodName, valueType, value);
             SPINS.increment();
         } catch (RuntimeException e) {
             FALLBACKS.increment();
@@ -207,26 +223,19 @@ public final class JitConstantSpinner {
         String spunInternal = baseInternal + "$Spun";
 
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
-        cw.visit(
-            Opcodes.V21,
-            Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER,
-            spunInternal, null, baseInternal, null
-        );
+        cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER, spunInternal, null, baseInternal, null);
 
         // public static final <T> CONST_<NAME> = value;
-        cw.visitField(
-            Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL,
-            fieldName, typeDescriptor, null, boxed
-        ).visitEnd();
+        cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, fieldName, typeDescriptor, null, boxed).visitEnd();
 
         emitCtors(cw, base, baseInternal);
 
         // protected final <T> <methodName>() { return CONST_<NAME>; }
         String getterDesc = "()" + typeDescriptor;
-        int returnOp = primitive == long.class   ? Opcodes.LRETURN
-                     : primitive == double.class ? Opcodes.DRETURN
-                     : primitive == float.class  ? Opcodes.FRETURN
-                                                 : Opcodes.IRETURN;
+        int returnOp = primitive == long.class ? Opcodes.LRETURN
+            : primitive == double.class ? Opcodes.DRETURN
+            : primitive == float.class ? Opcodes.FRETURN
+            : Opcodes.IRETURN;
         MethodVisitor m = cw.visitMethod(Opcodes.ACC_PROTECTED | Opcodes.ACC_FINAL, methodName, getterDesc, null, null);
         m.visitCode();
         m.visitFieldInsn(Opcodes.GETSTATIC, spunInternal, fieldName, typeDescriptor);
@@ -244,11 +253,7 @@ public final class JitConstantSpinner {
         String spunInternal = baseInternal + "$Spun";
 
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
-        cw.visit(
-            Opcodes.V21,
-            Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER,
-            spunInternal, null, baseInternal, null
-        );
+        cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER, spunInternal, null, baseInternal, null);
 
         emitCtors(cw, base, baseInternal);
 
@@ -288,11 +293,22 @@ public final class JitConstantSpinner {
             mv.visitVarInsn(Opcodes.ALOAD, 0);
             int slot = 1;
             for (Class<?> pt : paramTypes) {
-                if (pt == long.class)        { mv.visitVarInsn(Opcodes.LLOAD, slot); slot += 2; }
-                else if (pt == double.class) { mv.visitVarInsn(Opcodes.DLOAD, slot); slot += 2; }
-                else if (pt == float.class)  { mv.visitVarInsn(Opcodes.FLOAD, slot); slot++; }
-                else if (pt.isPrimitive())   { mv.visitVarInsn(Opcodes.ILOAD, slot); slot++; }
-                else                         { mv.visitVarInsn(Opcodes.ALOAD, slot); slot++; }
+                if (pt == long.class) {
+                    mv.visitVarInsn(Opcodes.LLOAD, slot);
+                    slot += 2;
+                } else if (pt == double.class) {
+                    mv.visitVarInsn(Opcodes.DLOAD, slot);
+                    slot += 2;
+                } else if (pt == float.class) {
+                    mv.visitVarInsn(Opcodes.FLOAD, slot);
+                    slot++;
+                } else if (pt.isPrimitive()) {
+                    mv.visitVarInsn(Opcodes.ILOAD, slot);
+                    slot++;
+                } else {
+                    mv.visitVarInsn(Opcodes.ALOAD, slot);
+                    slot++;
+                }
             }
             mv.visitMethodInsn(Opcodes.INVOKESPECIAL, baseInternal, "<init>", descriptor, false);
             mv.visitInsn(Opcodes.RETURN);
@@ -316,7 +332,8 @@ public final class JitConstantSpinner {
 
     private static String methodDescriptor(Class<?>[] paramTypes, Class<?> returnType) {
         StringBuilder sb = new StringBuilder("(");
-        for (Class<?> pt : paramTypes) sb.append(Type.getDescriptor(pt));
+        for (Class<?> pt : paramTypes)
+            sb.append(Type.getDescriptor(pt));
         sb.append(")").append(Type.getDescriptor(returnType));
         return sb.toString();
     }

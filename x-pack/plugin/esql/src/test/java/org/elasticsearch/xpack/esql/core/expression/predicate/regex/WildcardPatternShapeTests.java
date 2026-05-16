@@ -214,14 +214,7 @@ public class WildcardPatternShapeTests extends ESTestCase {
         if (str.length < prefix.length) {
             return false;
         }
-        return Arrays.equals(
-            str.bytes,
-            str.offset,
-            str.offset + prefix.length,
-            prefix.bytes,
-            prefix.offset,
-            prefix.offset + prefix.length
-        );
+        return Arrays.equals(str.bytes, str.offset, str.offset + prefix.length, prefix.bytes, prefix.offset, prefix.offset + prefix.length);
     }
 
     /** Mirrors {@code EndsWith#process} byte-for-byte. */

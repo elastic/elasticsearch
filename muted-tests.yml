@@ -288,6 +288,9 @@ tests:
 - class: org.elasticsearch.reindex.ReindexBasicTests
   method: testReindexFailsWhenSourceIndexIsClosed
   issue: https://github.com/elastic/elasticsearch/issues/149234
+- class: org.elasticsearch.smoketest.SmokeTestWatcherTestSuiteIT
+  method: testMonitorClusterHealth
+  issue: https://github.com/elastic/elasticsearch/issues/148615
 
 # Examples:
 #

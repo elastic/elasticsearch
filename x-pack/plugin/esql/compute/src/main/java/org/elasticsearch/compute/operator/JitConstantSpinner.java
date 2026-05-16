@@ -520,8 +520,9 @@ public final class JitConstantSpinner {
 
     private static String methodDescriptor(Class<?>[] paramTypes, Class<?> returnType) {
         StringBuilder sb = new StringBuilder("(");
-        for (Class<?> pt : paramTypes)
+        for (Class<?> pt : paramTypes) {
             sb.append(Type.getDescriptor(pt));
+        }
         sb.append(")").append(Type.getDescriptor(returnType));
         return sb.toString();
     }

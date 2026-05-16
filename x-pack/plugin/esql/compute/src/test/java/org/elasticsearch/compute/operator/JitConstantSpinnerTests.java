@@ -254,8 +254,9 @@ public class JitConstantSpinnerTests extends ESTestCase {
 
             Class<?> first = results.get(0);
             assertNotNull(first);
-            for (int i = 1; i < threads; i++)
+            for (int i = 1; i < threads; i++) {
                 assertSame(first, results.get(i));
+            }
             // At least one spin happened. Under tight races several may spin redundantly;
             // cache de-dups via putIfAbsent so cacheSize stays at 1.
             assertEquals(1, JitConstantSpinner.cacheSize());

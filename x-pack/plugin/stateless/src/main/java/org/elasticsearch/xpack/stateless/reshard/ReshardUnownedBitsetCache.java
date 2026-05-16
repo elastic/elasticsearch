@@ -60,7 +60,7 @@ public final class ReshardUnownedBitsetCache implements IndexReader.ClosedListen
 
     public static final Setting<TimeValue> CACHE_TTL_SETTING = Setting.timeSetting(
         "stateless.reshard.unowned_bitset.cache.ttl",
-        TimeValue.timeValueMinutes(30),
+        TimeValue.timeValueSeconds(330),
         Property.NodeScope
     );
 

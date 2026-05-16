@@ -189,6 +189,14 @@ Set overrides request parameter:
 
 ---
 Paris tz under settings.time_zone:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ query_settings_request_body ]
+      test_runner_features: [ capabilities ]
+      reason: "Requires the settings request body block"
   - do:
       esql.query:
         body:
@@ -230,6 +238,14 @@ Paris tz under settings.time_zone:
 ---
 SET overrides settings.time_zone:
   # In-query SET wins over the nested settings.time_zone (in-query SET is the most-specific scope).
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ query_settings_request_body ]
+      test_runner_features: [ capabilities ]
+      reason: "Requires the settings request body block"
   - do:
       esql.query:
         body:
@@ -259,6 +275,14 @@ SET overrides settings.time_zone:
 settings.time_zone wins over legacy top-level time_zone:
   # When the same setting is supplied via both the canonical settings.{} block and the legacy top-level
   # field, the canonical path wins silently regardless of JSON field order.
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ query_settings_request_body ]
+      test_runner_features: [ capabilities ]
+      reason: "Requires the settings request body block"
   - do:
       esql.query:
         body:
@@ -279,6 +303,14 @@ settings.time_zone wins over legacy top-level time_zone:
 settings.time_zone wins regardless of JSON field order:
   # Same as above but with the legacy field appearing AFTER settings in the JSON. Canonical still wins —
   # precedence does not depend on parse order.
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ query_settings_request_body ]
+      test_runner_features: [ capabilities ]
+      reason: "Requires the settings request body block"
   - do:
       esql.query:
         body:
@@ -297,6 +329,14 @@ settings.time_zone wins regardless of JSON field order:
 
 ---
 Unknown key under settings is rejected:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ query_settings_request_body ]
+      test_runner_features: [ capabilities ]
+      reason: "Requires the settings request body block"
   - do:
       catch: bad_request
       esql.query:
@@ -310,6 +350,14 @@ Unknown key under settings is rejected:
 SET-only setting under settings is rejected:
   # unmapped_fields exists in the registry but opted out of body exposure. It must be set via in-query SET,
   # not via the request body.
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ query_settings_request_body ]
+      test_runner_features: [ capabilities ]
+      reason: "Requires the settings request body block"
   - do:
       catch: bad_request
       esql.query:

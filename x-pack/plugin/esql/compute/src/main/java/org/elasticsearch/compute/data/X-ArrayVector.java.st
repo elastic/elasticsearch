@@ -360,6 +360,12 @@ $endif$
 
 $if(BytesRef)$
     @Override
+    public void allowPassingToDifferentDriver() {
+        super.allowPassingToDifferentDriver();
+        values.changeBreaker(blockFactory().breaker());
+    }
+
+    @Override
     public void closeInternal() {
         // The circuit breaker that tracks the values {@link BytesRefArray} is adjusted outside
         // of this class.

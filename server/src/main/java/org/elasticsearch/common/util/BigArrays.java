@@ -568,6 +568,11 @@ public class BigArrays {
         return new BigArrays(recycler, breakerService, breakerName, checkBreaker);
     }
 
+    @Nullable
+    public CircuitBreaker breaker() {
+        return breaker;
+    }
+
     public CircuitBreakerService breakerService() {   // TODO this feels like it is for tests but it has escaped
         return this.circuitBreakingInstance.breakerService;
     }

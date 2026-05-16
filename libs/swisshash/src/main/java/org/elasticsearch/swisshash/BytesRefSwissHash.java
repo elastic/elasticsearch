@@ -18,7 +18,6 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.MixHash64;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -110,8 +109,8 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     /**
      * Creates a new {@link BytesRefSwissHash} that manages its own {@link BytesRefArray}.
      */
-    BytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BigArrays bigArrays) {
-        this(recycler, breaker, new BytesRefArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigArrays), true);
+    BytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker) {
+        this(recycler, breaker, new BytesRefArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES, breaker, recycler, 0L), true);
     }
 
     /**

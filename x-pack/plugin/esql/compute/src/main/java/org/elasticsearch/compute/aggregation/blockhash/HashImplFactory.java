@@ -70,7 +70,7 @@ public class HashImplFactory {
     /** Creates a new BytesRefHashTable. */
     public static BytesRefHashTable newBytesRefHash(BlockFactory bf) {
         if (SWISS_HASH_FACTORY != null) {
-            return SWISS_HASH_FACTORY.newBytesRefSwissHash(bf.bigArrays().recycler(), bf.breaker(), bf.bigArrays());
+            return SWISS_HASH_FACTORY.newBytesRefSwissHash(bf.bigArrays().recycler(), bf.breaker());
         } else {
             return new BytesRefHash(1, bf.bigArrays());
         }

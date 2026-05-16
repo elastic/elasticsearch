@@ -1,4 +1,8 @@
 setup:
+  - requires:
+      cluster_features: ["search.count.stats_parameter"]
+      reason: "stats parameter support was added to the count API"
+
   - do:
       indices.create:
           index:  test_stats
@@ -19,10 +23,6 @@ setup:
 
 ---
 "count with stats parameter (single value)":
-  - requires:
-      cluster_features: ["search.count.stats_parameter"]
-      reason: "stats parameter support was added to the count API"
-
   - do:
       count:
         index: test_stats
@@ -32,10 +32,6 @@ setup:
 
 ---
 "count with stats parameter (multiple comma-separated values)":
-  - requires:
-      cluster_features: ["search.count.stats_parameter"]
-      reason: "stats parameter support was added to the count API"
-
   - do:
       count:
         index: test_stats
@@ -45,10 +41,6 @@ setup:
 
 ---
 "count with stats parameter and query":
-  - requires:
-      cluster_features: ["search.count.stats_parameter"]
-      reason: "stats parameter support was added to the count API"
-
   - do:
       count:
         index: test_stats
@@ -62,10 +54,6 @@ setup:
 
 ---
 "count with stats parameter and query string":
-  - requires:
-      cluster_features: ["search.count.stats_parameter"]
-      reason: "stats parameter support was added to the count API"
-
   - do:
       count:
         index: test_stats

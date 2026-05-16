@@ -160,9 +160,7 @@ public class DataSourceService {
                     Arrays.fill(bytes, (byte) 0);
                 }
             } else {
-                // Already-encrypted carrier (cluster-state replay paths) — forward unchanged. The
-                // DataSourceSetting constructor restricts the value type to String | GenericNamedWriteable | null,
-                // so any non-String secret here is already a ciphertext carrier.
+                // Already a ciphertext carrier (constructor guarantees String | GenericNamedWriteable | null).
                 result.put(entry.getKey(), setting);
             }
         }

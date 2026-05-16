@@ -33,10 +33,8 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
     @Inject(optional = true)
     public void setEncryptionService(EncryptionService encryptionService) {
         this.encryptionService = encryptionService;
-        // Guice constructs this action on every node loading ESQL; this setter fires wherever the
-        // EncryptionService binding is available, so the data-node decrypt seam (DataSourceCredentials)
-        // has the service before any FROM <dataset> query reaches the connector boundary. Initializing
-        // only inside masterOperation would leave data nodes with a null holder and silently break decrypt.
+        // Fires per Guice action construction on every node loading ESQL — populates the data-node
+        // decrypt seam (DataSourceCredentials) before any FROM <dataset> reaches the connector.
         DataSourceCredentials.initialize(encryptionService);
     }
 

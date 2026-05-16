@@ -62,12 +62,9 @@ public final class EncryptedData implements GenericNamedWriteable, ToXContentObj
         out.writeByteArray(payload);
     }
 
-    /**
-     * Renders as a single base64 scalar wrapping the binary {@link #writeTo} output. Matches the codebase
-     * precedent for binary cluster-state material persisted through XContent (see {@code License.signature}
-     * and {@code PrimaryEncryptionKeyMetadata}'s {@code byte[]} fields, both of which round-trip via base64
-     * scalars rather than nested objects).
-     */
+    /** Renders as a base64 scalar wrapping the binary {@link #writeTo} output — matches the
+     *  {@code License.signature} / {@code PrimaryEncryptionKeyMetadata} pattern for binary cluster-state
+     *  material persisted via XContent. */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();

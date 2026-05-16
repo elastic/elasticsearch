@@ -29,7 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * <h2>Mental model</h2>
  *
  * A setting is a typed knob. Users always supply it via in-query {@code SET}. For tooling that
- * builds requests programmatically, a setting may also be exposed in the request body. We declare
+ * builds requests programmatically, a setting can also be exposed in the request body. We declare
  * the knob once; the framework wires both surfaces and gives downstream code one typed read.
  *
  * <h2>What you specify</h2>
@@ -97,7 +97,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <h3>4. Structured value with a custom reconciler</h3>
  *
- * Use this shape when a {@code SET} and a body contribution may each fill different fields and
+ * Use this shape when a {@code SET} and a body contribution each fill different fields and
  * you want them combined rather than last-wins.
  *
  * <pre>{@code

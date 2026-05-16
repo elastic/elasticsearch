@@ -21,85 +21,37 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Equivalence tests pinning the row-evaluator fast paths that {@code WildcardLike.toEvaluator}
- * dispatches to (via {@link WildcardPattern#shape()}) against the {@link ByteRunAutomaton}
- * baseline compiled from the same Lucene wildcard pattern. The fast paths replace per-row
- * automaton walks with byte-level prefix / suffix / SIMD-substring comparisons, so a silent
- * disagreement would change query results — these tests are the wire that catches that.
+ * Pins the byte-level semantics that {@code WildcardLike.toEvaluator} substitutes for the
+ * {@link ByteRunAutomaton} walk on affix-only patterns. For each shape returned by
+ * {@link WildcardPattern#shape()}, the routed predicate the production switch lands on
+ * ({@code Arrays.equals} on leading bytes for {@link Shape.Prefix}, {@code Arrays.equals}
+ * on trailing bytes for {@link Shape.Suffix}, {@link ByteMatchers#containsLiteral} for
+ * {@link Shape.Contains}, automaton for {@link Shape.General}) must agree with the
+ * automaton compiled from the same Lucene wildcard string on every input — a silent
+ * disagreement would change query results.
  *
- * <p>Three concerns:
+ * <p>Classification correctness of {@code WildcardPattern#shape()} itself
+ * (which pattern maps to which {@code Shape} record) lives in {@code StringPatternTests};
+ * this file owns the equivalence-vs-automaton dimension only. The dispatch wiring inside
+ * {@code WildcardLike.toEvaluator} is pinned by evaluator-name assertions in
+ * {@code WildcardLikeTests}.
+ *
+ * <p>Two assertions:
  *
  * <ul>
- *   <li><b>Shape classification.</b> {@link WildcardPattern#shape()} must return the right
- *       sealed type for every pattern; everything not in the affix-only family must fall
- *       through to {@link Shape.General}.</li>
- *   <li><b>Per-shape equivalence.</b> For each accepted shape, the routed evaluator
- *       (a byte-level {@code Arrays.equals} for prefix / suffix; {@link ByteMatchers#containsLiteral}
- *       for contains) must agree with the automaton on a hand-picked edge-case set covering
- *       empty literal, length boundaries, multi-byte UTF-8, supplementary-plane codepoints
- *       (surrogate pairs in UTF-16, four-byte sequences in UTF-8), and escaped specials.</li>
+ *   <li><b>Hand-picked edge cases.</b> Empty literal, length boundaries, multi-byte UTF-8,
+ *       supplementary-plane codepoints (surrogate pairs in UTF-16, four-byte sequences in
+ *       UTF-8), and escaped specials carried through into the literal segment.</li>
  *   <li><b>Randomized property pin.</b> A seeded sweep over random shapes &times; random
- *       literals &times; random values, mixing ASCII and multi-byte content, agreement on
- *       every iteration. Catches regressions the hand-picked set might miss.</li>
+ *       literals &times; random values, mixing ASCII and multi-byte content. Catches regressions
+ *       the hand-picked set might miss.</li>
  * </ul>
  *
- * <p>Case-insensitive {@code LIKE} is handled by short-circuiting to the automaton path
- * inside {@code WildcardLike.toEvaluator} before {@code shape()} is consulted, so it is
- * out of scope here — the shape parser is unconditionally case-sensitive.
+ * <p>Case-insensitive {@code LIKE} is short-circuited to the automaton inside
+ * {@code WildcardLike.toEvaluator} before {@code shape()} is consulted, so the fast path
+ * never runs case-insensitively — out of scope here.
  */
-public class WildcardPatternShapeTests extends ESTestCase {
-
-    public void testShapePrefix() {
-        assertEquals(new Shape.Prefix("foo"), shapeOf("foo*"));
-        assertEquals(new Shape.Prefix("a"), shapeOf("a*"));
-        // Pinned classification of the single-star pattern: the only star sits at position 0,
-        // so firstStarAtStart=true wins over lastStarAtEnd and the result is Suffix(""), not
-        // Prefix(""). Both arms produce a route to {@code ENDS_WITH(field, "")} (or symmetric
-        // STARTS_WITH), and both evaluators return true for every value — the asymmetry is
-        // bookkeeping, not semantic.
-        assertEquals(new Shape.Suffix(""), shapeOf("*"));
-    }
-
-    public void testShapeSuffix() {
-        assertEquals(new Shape.Suffix("foo"), shapeOf("*foo"));
-        assertEquals(new Shape.Suffix("a"), shapeOf("*a"));
-        // A single '*' has the star at position 0 (firstStarAtStart=true) and is classified as Suffix("").
-        assertEquals(new Shape.Suffix(""), shapeOf("*"));
-    }
-
-    public void testShapeContains() {
-        assertEquals(new Shape.Contains("foo"), shapeOf("*foo*"));
-        assertEquals(new Shape.Contains("a"), shapeOf("*a*"));
-        assertEquals(new Shape.Contains("café"), shapeOf("*café*"));
-    }
-
-    public void testShapeGeneralFallthrough() {
-        assertSame(Shape.General.INSTANCE, shapeOf(""));                  // empty
-        assertSame(Shape.General.INSTANCE, shapeOf("exact"));             // no wildcards
-        assertSame(Shape.General.INSTANCE, shapeOf("foo?"));              // '?' wildcard
-        assertSame(Shape.General.INSTANCE, shapeOf("foo*bar"));           // single middle star
-        assertSame(Shape.General.INSTANCE, shapeOf("a*b*c"));             // three segments
-        // starsCount=2, firstStarAtStart=true, lastStarAtEnd=false → not the Contains shape.
-        assertSame(Shape.General.INSTANCE, shapeOf("**foo"));
-        // starsCount=2, firstStarAtStart=false, lastStarAtEnd=true → not the Contains shape.
-        assertSame(Shape.General.INSTANCE, shapeOf("foo**"));
-        // Dangling escape is rejected upstream by {@code wildcardToJavaPattern} in the
-        // {@link WildcardPattern} constructor, before {@code shape()} is consulted — so
-        // it never produces a {@link Shape.General}; it produces an exception. Asserted
-        // here to pin the responsibility split and catch a future move of the validation
-        // into shape() itself.
-        expectThrows(Exception.class, () -> shapeOf("foo\\"));
-    }
-
-    public void testShapeEscapedSpecialsInLiteral() {
-        // *foo\*bar* — escaped star inside the literal is unwrapped to a literal '*' byte
-        // in the unescaped literal carried by the Contains shape.
-        assertEquals(new Shape.Contains("foo*bar"), shapeOf("*foo\\*bar*"));
-        // foo\?bar* — escaped '?' becomes a literal '?' byte; pattern is still Prefix.
-        assertEquals(new Shape.Prefix("foo?bar"), shapeOf("foo\\?bar*"));
-        // foo\\bar* — escaped backslash becomes a literal '\' byte; pattern is still Prefix.
-        assertEquals(new Shape.Prefix("foo\\bar"), shapeOf("foo\\\\bar*"));
-    }
+public class WildcardPatternShapeEquivalenceTests extends ESTestCase {
 
     /**
      * Per-shape equivalence on a hand-picked edge case set. Every {@code (pattern, value)}
@@ -162,8 +114,7 @@ public class WildcardPatternShapeTests extends ESTestCase {
      * Seeded randomized property pin. Each iteration picks a shape (prefix / suffix / contains),
      * a random literal (mostly ASCII, sometimes multi-byte UTF-8 including supplementary planes),
      * and a random value built either to satisfy the shape or to dodge it. Asserts routed-path
-     * vs automaton agreement, then asserts the predicate-of-record from {@code WildcardLike}:
-     * the routed boolean must equal {@code automaton.run(value)}.
+     * vs automaton agreement.
      */
     public void testFastPathEquivalentToAutomatonRandomized() {
         int iterations = 1000;
@@ -214,14 +165,7 @@ public class WildcardPatternShapeTests extends ESTestCase {
         if (str.length < prefix.length) {
             return false;
         }
-        return Arrays.equals(
-            str.bytes,
-            str.offset,
-            str.offset + prefix.length,
-            prefix.bytes,
-            prefix.offset,
-            prefix.offset + prefix.length
-        );
+        return Arrays.equals(str.bytes, str.offset, str.offset + prefix.length, prefix.bytes, prefix.offset, prefix.offset + prefix.length);
     }
 
     /** Mirrors {@code EndsWith#process} byte-for-byte. */
@@ -237,10 +181,6 @@ public class WildcardPatternShapeTests extends ESTestCase {
             suffix.offset,
             suffix.offset + suffix.length
         );
-    }
-
-    private static Shape shapeOf(String pattern) {
-        return new WildcardPattern(pattern).shape();
     }
 
     /**

@@ -1527,8 +1527,10 @@ emp_no:integer | n:keyword
 
 
 likeStarAloneOnEvalOutput
+// LIKE on a NULL value returns NULL under 3-valued logic; WHERE then filters those rows out.
+// 10 of the 100 employees have a NULL first_name, so n LIKE "*" matches the remaining 90.
 from employees | eval n = first_name | where n like "*" | stats c = count(*);
 
 c:long
-100
+90
 ;

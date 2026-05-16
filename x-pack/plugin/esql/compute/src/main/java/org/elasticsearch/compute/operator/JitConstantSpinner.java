@@ -89,14 +89,22 @@ import java.util.concurrent.atomic.LongAdder;
 public final class JitConstantSpinner {
 
     /**
-     * Default admission-tracker capacity. The tracker holds recently-seen keys and
-     * their access counts. Tunable via {@link #setAdmissionCapacity(int)}.
+     * Default admission-tracker capacity. The tracker holds recently-seen keys (those
+     * sighted once but not yet promoted) with an access counter each. Tunable via
+     * {@link #setAdmissionCapacity(int)}.
      *
-     * <p>Smaller than the historical class-cache size because each entry is just
-     * a counter (~32 bytes) rather than a spun class (~2 KB). 4096 entries =
-     * ~128 KB worst case — negligible.
+     * <p>Sized for the realistic working set of "first-sight candidates currently in
+     * flight" — typically hundreds at most for dashboard-style workloads. Each entry
+     * is ~120-160 bytes (LinkedHashMap.Entry + CacheKey + AtomicLong + boxed value);
+     * 512 entries ≈ ~60-80 KB per JVM. Per-class metaspace for spun classes is
+     * managed separately via weak refs in the unbounded class cache.
+     *
+     * <p>Stress test (PR #148678, 450 measurements) showed capacity between 256 and
+     * 16384 is essentially flat across our scenarios. 512 picked as the smallest
+     * defensible default — large enough to handle realistic concurrent dashboard
+     * workloads without thrashing, small enough that the memory cost is negligible.
      */
-    public static final int DEFAULT_ADMISSION_CAPACITY = 4096;
+    public static final int DEFAULT_ADMISSION_CAPACITY = 512;
 
     /**
      * Default admission threshold. {@code 2} means a key must be seen at least twice

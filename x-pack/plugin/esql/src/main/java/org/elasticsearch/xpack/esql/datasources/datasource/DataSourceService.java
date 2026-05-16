@@ -64,7 +64,7 @@ public class DataSourceService {
     private final Map<String, DataSourceValidator> validatorsByType;
     private final MasterServiceTaskQueue<AckedClusterStateUpdateTask> taskQueue;
 
-    private final AtomicBoolean mixedVersionDeferralLogged = new AtomicBoolean(false);
+    private final AtomicBoolean encryptionSkippedLogged = new AtomicBoolean(false);
 
     private volatile int maxDataSourcesCount;
 
@@ -131,10 +131,13 @@ public class DataSourceService {
                     currentState,
                     EsqlFeatures.DATA_SOURCE_ENCRYPTION_FEATURE
                 );
-                final boolean canEncrypt = encryptionFeatureSupported && encryptionService != null;
-                final Map<String, DataSourceSetting> finalSettings = canEncrypt
-                    ? encryptSecrets(validated.settings(), encryptionService)
-                    : announceDeferral(validated.settings());
+                final Map<String, DataSourceSetting> finalSettings;
+                if (encryptionFeatureSupported && encryptionService != null) {
+                    finalSettings = encryptSecrets(validated.settings(), encryptionService);
+                } else {
+                    logEncryptionSkippedOnce(encryptionFeatureSupported, encryptionService);
+                    finalSettings = validated.settings();
+                }
                 // Preserve UUID on update; assign fresh on create or legacy (pre-UUID) migration.
                 final String uuid = (current != null && current.uuid() != null) ? current.uuid() : UUIDs.randomBase64UUID();
                 final DataSource dataSource = new DataSource(
@@ -183,15 +186,21 @@ public class DataSourceService {
         return result;
     }
 
-    private Map<String, DataSourceSetting> announceDeferral(Map<String, DataSourceSetting> settings) {
-        if (mixedVersionDeferralLogged.compareAndSet(false, true)) {
-            logger.info(
-                "data-source secret encryption deferred: mixed-version cluster detected; "
-                    + "future PUTs will encrypt once every node advertises the [{}] feature",
-                EsqlFeatures.DATA_SOURCE_ENCRYPTION_FEATURE.id()
-            );
+    private void logEncryptionSkippedOnce(boolean featureSupported, @Nullable EncryptionService encryptionService) {
+        if (encryptionSkippedLogged.compareAndSet(false, true) == false) {
+            return;
         }
-        return settings;
+        final String reason;
+        if (featureSupported == false) {
+            reason = "not every node advertises the ["
+                + EsqlFeatures.DATA_SOURCE_ENCRYPTION_FEATURE.id()
+                + "] feature yet (rolling upgrade in progress)";
+        } else if (encryptionService == null) {
+            reason = "EncryptionService is not bound on this node (security plugin disabled or PEK feature flag off)";
+        } else {
+            reason = "unknown";
+        }
+        logger.info("data-source secret encryption skipped: {}; secrets stored as plaintext", reason);
     }
 
     /** Delete data sources by name. Fails with 409 if any dataset references one; 404 if a name doesn't exist. */

@@ -42,7 +42,16 @@ import java.util.List;
  *   <li>Use FormatReader to parse the data format</li>
  *   <li>Produce ESQL Page batches for the query pipeline</li>
  * </ul>
+ *
+ * <p><b>Single-file only; no production callers.</b> Takes one {@link StoragePath} and lets the
+ * reader self-infer the file's schema; multi-file paths must go through
+ * {@link AsyncExternalSourceOperatorFactory}, which pins each reader to the per-file schema
+ * carried by its {@link FileSplit}.
+ *
+ * @deprecated retained for test fixtures only; new code should use
+ *             {@link AsyncExternalSourceOperatorFactory}.
  */
+@Deprecated
 public class ExternalSourceOperatorFactory implements SourceOperator.SourceOperatorFactory {
 
     private final StorageProvider storageProvider;

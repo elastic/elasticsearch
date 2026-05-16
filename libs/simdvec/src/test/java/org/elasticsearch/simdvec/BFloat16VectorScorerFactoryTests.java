@@ -22,8 +22,6 @@ import org.elasticsearch.index.codec.vectors.es93.OffHeapBFloat16VectorValues;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.List;
 import java.util.function.IntFunction;
 import java.util.stream.IntStream;
@@ -271,12 +269,12 @@ public class BFloat16VectorScorerFactoryTests extends AbstractVectorTestCase {
         int dims,
         float[][] vectors
     ) throws IOException {
-        ByteBuffer buffer = ByteBuffer.allocate(dims * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        byte[] buffer = new byte[dims * BFloat16.BYTES];
         try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
             for (int i = 0; i < size; i++) {
                 float[] vec = floatsSupplier.apply(dims);
-                BFloat16.floatToBFloat16(vec, buffer.asShortBuffer());
-                out.writeBytes(buffer.array(), buffer.capacity());
+                BFloat16.floatToBFloat16(vec, buffer);
+                out.writeBytes(buffer, buffer.length);
                 vectors[i] = vec;
             }
         }

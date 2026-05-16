@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOp
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiEntraIdApiKeySecrets;
 import org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiOAuth2Secrets;
-import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings;
@@ -495,9 +494,6 @@ public class InferenceNamedWriteablesProvider {
     }
 
     private static void addCohereNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(ServiceSettings.class, CohereServiceSettings.NAME, CohereServiceSettings::new)
-        );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 ServiceSettings.class,

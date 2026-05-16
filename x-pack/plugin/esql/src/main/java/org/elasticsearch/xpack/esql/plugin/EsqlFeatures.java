@@ -8,11 +8,13 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
+import java.util.Collections;
 import java.util.Set;
 
 /**
@@ -32,12 +34,18 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature METRICS_SYNTAX = new NodeFeature("esql.metrics_syntax");
 
+    private Set<NodeFeature> snapshotBuildFeatures() {
+        assert Build.current().isSnapshot() : Build.current();
+        return Set.of(METRICS_SYNTAX);
+    }
+
     @Override
     public Set<NodeFeature> getFeatures() {
+        Set<NodeFeature> features = Set.of();
         if (Build.current().isSnapshot()) {
-            return Set.of(METRICS_SYNTAX);
+            return Collections.unmodifiableSet(Sets.union(features, snapshotBuildFeatures()));
         } else {
-            return Set.of();
+            return features;
         }
     }
 }

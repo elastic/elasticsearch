@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.crypto.EncryptedData;
 import org.elasticsearch.xpack.core.crypto.EncryptionService;
@@ -15,9 +17,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 
 public class DataSourceCredentialsTests extends ESTestCase {
 
@@ -44,9 +46,11 @@ public class DataSourceCredentialsTests extends ESTestCase {
         assertNull(DataSourceCredentials.decryptInPlace(null));
     }
 
-    public void testEmptyMapPassesThrough() {
+    public void testEmptyMapReturnsCopy() {
         Map<String, Object> empty = Map.of();
-        assertThat(DataSourceCredentials.decryptInPlace(empty), is(empty));
+        Map<String, Object> out = DataSourceCredentials.decryptInPlace(empty);
+        assertNotNull(out);
+        assertTrue(out.isEmpty());
     }
 
     public void testNonSecretsPreserved() {
@@ -121,15 +125,39 @@ public class DataSourceCredentialsTests extends ESTestCase {
         assertSame(encrypted, input.get("secret_access_key"));
     }
 
-    public void testUnboundEncryptionServiceReturnsInputUntouched() throws Exception {
-        // Defensive: if the connector boundary is reached before initialize() ran, decrypt is a no-op.
+    public void testUnboundEncryptionServiceFailsLoudWhenAnyEncryptedCarrierPresent() throws Exception {
+        // Symmetric with the PUT-side "encrypt or fail" rule: if the connector boundary is reached
+        // without an EncryptionService binding but the settings carry encrypted material, the read
+        // must fail with 503 rather than silently passing an EncryptedData to the SDK as opaque junk.
         DataSourceCredentials.initialize(null);
         try {
             EncryptedData encrypted = IDENTITY.encrypt("plain".getBytes(StandardCharsets.UTF_8));
             Map<String, Object> input = new HashMap<>();
+            input.put("region", "us-east-1");
             input.put("secret_access_key", encrypted);
+
+            ElasticsearchStatusException ese = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> DataSourceCredentials.decryptInPlace(input)
+            );
+            assertEquals(RestStatus.SERVICE_UNAVAILABLE, ese.status());
+            assertThat(ese.getMessage(), containsString("encryption service is not bound"));
+        } finally {
+            DataSourceCredentials.initialize(IDENTITY);
+        }
+    }
+
+    public void testUnboundServiceWithNoEncryptedValuesIsAllowedThrough() throws Exception {
+        // Plaintext-only settings reach the connector even when no service is bound — there is nothing
+        // to decrypt. The 503 fires only when an EncryptedData carrier is actually present.
+        DataSourceCredentials.initialize(null);
+        try {
+            Map<String, Object> input = new HashMap<>();
+            input.put("region", "us-east-1");
+            input.put("endpoint", "https://example.test");
             Map<String, Object> out = DataSourceCredentials.decryptInPlace(input);
-            assertSame(encrypted, out.get("secret_access_key"));
+            assertEquals("us-east-1", out.get("region"));
+            assertEquals("https://example.test", out.get("endpoint"));
         } finally {
             DataSourceCredentials.initialize(IDENTITY);
         }

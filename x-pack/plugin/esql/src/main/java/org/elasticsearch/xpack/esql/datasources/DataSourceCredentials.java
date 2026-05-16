@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.crypto.EncryptedData;
 import org.elasticsearch.xpack.core.crypto.EncryptionService;
 
@@ -16,9 +18,17 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Decrypts secret values at the catalog-invocation seam. {@link #initialize} is called once by the
- * Guice-injected put-data-source transport action; {@link #decryptInPlace} runs on every connector
- * call to replace {@link EncryptedData} carriers with plaintext just before the connector consumes them.
+ * Decrypts secret values at the catalog-invocation seam. {@link #initialize} runs once per node at
+ * Guice setter time (from {@code TransportPutDataSourceAction.setEncryptionService}); {@link #decryptInPlace}
+ * runs on every connector call to replace {@link EncryptedData} carriers with plaintext just before the
+ * connector consumes them.
+ *
+ * <p>If the holder is unbound but the input contains encrypted carriers, the method throws
+ * {@code 503 Service Unavailable} — symmetric with the PUT-side "encrypt or fail" contract.
+ *
+ * <p>TODO(#149194): the static singleton holder mirrors the same per-project mismatch the linked issue
+ * flags inside {@code PrimaryEncryptionKeyService}. When that lands and the service becomes project-aware,
+ * replace this static seam with a per-call lookup that carries {@code ProjectId} context.
  */
 public final class DataSourceCredentials {
 
@@ -31,17 +41,20 @@ public final class DataSourceCredentials {
     }
 
     public static Map<String, Object> decryptInPlace(Map<String, Object> config) {
-        if (config == null || config.isEmpty()) {
-            return config;
+        if (config == null) {
+            return null;
         }
         EncryptionService service = encryptionService;
-        if (service == null) {
-            return config;
-        }
         Map<String, Object> result = new HashMap<>(config.size());
         for (Map.Entry<String, Object> entry : config.entrySet()) {
             Object value = entry.getValue();
             if (value instanceof EncryptedData encrypted) {
+                if (service == null) {
+                    throw new ElasticsearchStatusException(
+                        "cannot decrypt secret data-source settings: encryption service is not bound on this node",
+                        RestStatus.SERVICE_UNAVAILABLE
+                    );
+                }
                 result.put(entry.getKey(), decryptToString(encrypted, service));
             } else {
                 result.put(entry.getKey(), value);

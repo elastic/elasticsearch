@@ -109,7 +109,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener) {
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
-        if (TransformMetadata.upgradeMode(clusterState)) {
+        if (TransformMetadata.isUpgradeMode(clusterState)) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Cannot create new Transform while the Transform feature is upgrading.",
@@ -137,13 +137,13 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         );
 
         // <2> Validate source and destination indices
-
         var parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         ActionListener<Void> checkPrivilegesListener = validateTransformListener.delegateFailureAndWrap(
             (l, aVoid) -> ClientHelper.executeAsyncWithOrigin(
                 new ParentTaskAssigningClient(client, parentTaskId),
                 ClientHelper.TRANSFORM_ORIGIN,
                 ValidateTransformAction.INSTANCE,
+                true,
                 new ValidateTransformAction.Request(config, request.isDeferValidation(), request.ackTimeout()),
                 l
             )

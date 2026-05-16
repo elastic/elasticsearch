@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceSparklineAggr
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTrivialTypeConversions;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.RewriteSumOfExpressionPlusConstant;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SkipQueryOnEmptyMappings;
@@ -91,6 +92,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesW
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.WarnLostSortOrder;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.PruneLeftJoinOnNullMatchingField;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslateTimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
@@ -162,6 +164,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // Needs to occur before ReplaceAggregateAggExpressionWithEval, which will update the functions, losing the filter.
             new SubstituteFilteredExpression(),
             new RemoveStatsOverride(),
+            // Populates the TS_COLLAPSE wrapping a PromqlCommand with dimensions and bounds drawn from the
+            // PromqlCommand. The wrapped PromqlCommand is left in place and translated to ESQL nodes by the next rule.
+            new TranslateTimeSeriesCollapse(),
             // translate PromQL plan to ESQL. It should run before TranslateTimeSeriesAggregate.
             new TranslatePromqlToEsqlPlan(),
             // Replace TimeSeriesWithout grouping nodes with TimeSeriesMetadataAttribute carrying the excluded dimensions.
@@ -171,6 +176,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new TranslateTimeSeriesAggregate(),
             new ApplyWindowFilter(),
             new PruneUnusedIndexMode(),
+            // Must run before ReplaceAggregateNestedExpressionWithEval, which extracts
+            // SUM(field + c) into a pre-agg EVAL and hides the pattern from this rule.
+            new RewriteSumOfExpressionPlusConstant(),
             // first extract nested expressions inside aggs
             new ReplaceAggregateNestedExpressionWithEval(),
             // then extract nested aggs top-level

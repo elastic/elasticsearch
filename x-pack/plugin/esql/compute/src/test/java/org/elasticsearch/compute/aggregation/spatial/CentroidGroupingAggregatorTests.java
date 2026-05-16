@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.aggregation.spatial;
 
-import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.IntVector;
@@ -28,14 +27,13 @@ public class CentroidGroupingAggregatorTests extends ComputeTestCase {
 
     public void testPointCentroidEvaluateFinalWithOutOfBoundsSelectedGroup() {
         var blockFactory = blockFactory();
-        var driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        var driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory);
         try (
             var state = CentroidPointAggregator.initGrouping(blockFactory.bigArrays());
             IntVector selected = blockFactory.newIntArrayVector(new int[] { 0, 1 }, 2);
         ) {
-            var evaluationContext = new GroupingAggregatorEvaluationContext(driverContext);
             CentroidPointAggregator.combineIntermediate(state, 0, 10.0, 0.0, 20.0, 0.0, 1L);
-            try (Block result = CentroidPointAggregator.evaluateFinal(state, selected, evaluationContext)) {
+            try (Block result = CentroidPointAggregator.evaluateFinal(state, selected, driverContext)) {
                 assertThat(result.getPositionCount(), equalTo(2));
                 assertThat("in-bounds group should have a centroid result", BlockUtils.toJavaObject(result, 0), notNullValue());
                 assertThat(

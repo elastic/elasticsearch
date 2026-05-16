@@ -391,15 +391,21 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return requestSettings;
     }
 
-    public Map<QuerySettingDef<?>, Object> canonicalRequestSettings() {
+    Map<QuerySettingDef<?>, Object> canonicalRequestSettings() {
         return canonicalRequestSettings;
     }
 
-    public void applyCanonicalRequestSettings() {
+    void applyCanonicalRequestSettings() {
         if (canonicalRequestSettings.isEmpty()) {
             return;
         }
-        requestSettings.putAll(canonicalRequestSettings);
+        for (Map.Entry<QuerySettingDef<?>, Object> e : canonicalRequestSettings.entrySet()) {
+            if (e.getValue() == null) {
+                requestSettings.remove(e.getKey());
+            } else {
+                requestSettings.put(e.getKey(), e.getValue());
+            }
+        }
         canonicalRequestSettings.clear();
     }
 }

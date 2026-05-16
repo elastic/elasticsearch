@@ -51,6 +51,10 @@ final class RequestXContent {
     // Force QuerySettings to initialize before parser declarations reference the registry.
     private static final QuerySettingDef<?> SETTINGS_REGISTRY_INIT = QuerySettings.TIME_ZONE;
 
+    static {
+        assert QuerySettingDef.all().isEmpty() == false : "QuerySettings static-init guard failed: registry is empty";
+    }
+
     private static class TempObjects {
         Map<String, Object> fields = new HashMap<>();
 

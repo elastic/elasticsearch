@@ -23,11 +23,14 @@ import org.junit.AfterClass;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomizeCase;
@@ -287,7 +290,7 @@ public class QuerySettingsTests extends ESTestCase {
 
     public void testResolveEmptySources() {
         EffectiveSettings effective = QuerySettings.resolve(Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
-        assertThat(effective.consumedSettingNames(), is(java.util.Collections.emptySet()));
+        assertThat(effective.consumedSettingNames(), is(Collections.emptySet()));
         // Default for time_zone is UTC
         assertThat(effective.get(QuerySettings.TIME_ZONE), equalTo(ZoneOffset.UTC));
         // Defaults for the rest are null
@@ -300,7 +303,7 @@ public class QuerySettingsTests extends ESTestCase {
         requestParams.put(QuerySettings.TIME_ZONE, ZoneId.of("Europe/Paris"));
         EffectiveSettings effective = QuerySettings.resolve(requestParams, null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
         assertThat(effective.get(QuerySettings.TIME_ZONE), equalTo(ZoneId.of("Europe/Paris")));
-        assertThat(effective.consumedSettingNames(), equalTo(java.util.Set.of("time_zone")));
+        assertThat(effective.consumedSettingNames(), equalTo(Set.of("time_zone")));
     }
 
     public void testResolveQuerySetOverridesRequestParameter() {
@@ -311,7 +314,7 @@ public class QuerySettingsTests extends ESTestCase {
         EsqlStatement statement = new EsqlStatement(null, List.of(set));
         EffectiveSettings effective = QuerySettings.resolve(requestParams, statement, SNAPSHOT_CTX_WITH_CPS_ENABLED);
         assertThat(effective.get(QuerySettings.TIME_ZONE), equalTo(ZoneId.of("UTC")));
-        assertThat(effective.consumedSettingNames(), equalTo(java.util.Set.of("time_zone")));
+        assertThat(effective.consumedSettingNames(), equalTo(Set.of("time_zone")));
     }
 
     public void testResolveApproximationDisjointFieldsMerge() {
@@ -383,7 +386,7 @@ public class QuerySettingsTests extends ESTestCase {
     }
 
     private static MapExpression approxMap(Object... kvs) {
-        List<Expression> entries = new java.util.ArrayList<>();
+        List<Expression> entries = new ArrayList<>();
         for (int i = 0; i < kvs.length; i += 2) {
             entries.add(Literal.keyword(Source.EMPTY, (String) kvs[i]));
             entries.add((Expression) kvs[i + 1]);

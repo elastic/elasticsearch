@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -19,9 +20,11 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -223,7 +226,7 @@ public final class QuerySettings {
         Map<QuerySettingDef<?>, Object> resolved = new HashMap<>();
         Set<String> consumed = new HashSet<>();
         for (QuerySettingDef<?> def : QuerySettingDef.all()) {
-            resolveSingle(def, requestParams, statement, resolved, consumed);
+            resolveSingle(def, requestParams, statement, ctx, resolved, consumed);
         }
         return new EffectiveSettings(resolved, consumed);
     }
@@ -233,6 +236,7 @@ public final class QuerySettings {
         QuerySettingDef<T> def,
         Map<QuerySettingDef<?>, Object> requestParams,
         @Nullable EsqlStatement statement,
+        SettingsValidationContext ctx,
         Map<QuerySettingDef<?>, Object> resolved,
         Set<String> consumed
     ) {
@@ -246,7 +250,7 @@ public final class QuerySettings {
             }
         }
 
-        if (statement != null && statement.settings() != null) {
+        if (statement != null) {
             Expression querySetExpression = statement.setting(def.name());
             if (querySetExpression != null) {
                 T querySetValue = def.readFromExpression(querySetExpression);
@@ -256,6 +260,10 @@ public final class QuerySettings {
         }
 
         if (value != null) {
+            String error = def.runValidator(value, ctx);
+            if (error != null) {
+                throw new VerificationException("Error validating setting [" + def.name() + "]: " + error);
+            }
             resolved.put(def, value);
         }
     }
@@ -263,8 +271,8 @@ public final class QuerySettings {
     /**
      * The registered settings whose names match the supplied snapshot/serverless environment.
      */
-    public static java.util.List<QuerySettingDef<?>> applicableIn(boolean isSnapshot, boolean isServerless) {
-        java.util.List<QuerySettingDef<?>> out = new java.util.ArrayList<>();
+    public static List<QuerySettingDef<?>> applicableIn(boolean isSnapshot, boolean isServerless) {
+        List<QuerySettingDef<?>> out = new ArrayList<>();
         for (QuerySettingDef<?> def : QuerySettingDef.all()) {
             if (def.snapshotOnly() && isSnapshot == false) {
                 continue;

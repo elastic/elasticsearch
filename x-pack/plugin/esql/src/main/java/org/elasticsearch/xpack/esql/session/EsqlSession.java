@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.session;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
@@ -305,16 +304,11 @@ public class EsqlSession {
         EffectiveSettings effective = QuerySettings.resolve(
             request.requestSettings(),
             statement,
-            new SettingsValidationContext(crossProjectModeDecider.crossProjectEnabled(), Build.current().isSnapshot())
+            SettingsValidationContext.from(remoteClusterService)
         );
 
         ZoneId timeZone = QuerySettings.TIME_ZONE.get(effective);
-
         String projectRouting = QuerySettings.PROJECT_ROUTING.get(effective);
-        if (projectRouting != null && crossProjectModeDecider.crossProjectEnabled() == false) {
-            throw new VerificationException("[project_routing] is only allowed when cross-project search is enabled");
-        }
-
         ApproximationSettings approximationSettings = QuerySettings.APPROXIMATION.get(effective);
         if (approximationSettings != null) {
             EsqlLicenseChecker.checkQueryApproximation(verifier.licenseState());

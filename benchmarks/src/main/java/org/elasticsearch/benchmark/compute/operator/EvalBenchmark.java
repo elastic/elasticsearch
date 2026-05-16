@@ -384,8 +384,11 @@ public class EvalBenchmark {
             case "starts_with_var" -> {
                 FieldAttribute str = keywordField();
                 FieldAttribute prefix = keywordField("prefix");
-                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(FOLD_CONTEXT, new StartsWith(Source.EMPTY, str, prefix), layout(str, prefix))
-                    .get(driverContext);
+                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+                    FOLD_CONTEXT,
+                    new StartsWith(Source.EMPTY, str, prefix),
+                    layout(str, prefix)
+                ).get(driverContext);
                 if (evaluator.toString().contains("StartsWithEvaluator") == false
                     || evaluator.toString().contains("StartsWithConstant") != false) {
                     throw new IllegalArgumentException(
@@ -397,8 +400,11 @@ public class EvalBenchmark {
             case "ends_with_var" -> {
                 FieldAttribute str = keywordField();
                 FieldAttribute suffix = keywordField("suffix");
-                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(FOLD_CONTEXT, new EndsWith(Source.EMPTY, str, suffix), layout(str, suffix))
-                    .get(driverContext);
+                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+                    FOLD_CONTEXT,
+                    new EndsWith(Source.EMPTY, str, suffix),
+                    layout(str, suffix)
+                ).get(driverContext);
                 if (evaluator.toString().contains("EndsWithEvaluator") == false
                     || evaluator.toString().contains("EndsWithConstant") != false) {
                     throw new IllegalArgumentException(
@@ -952,13 +958,7 @@ public class EvalBenchmark {
                 }
                 yield new Page(str.build().asBlock(), suffix.build().asBlock());
             }
-            case "rlike",
-                "rlike_long_pattern",
-                "to_lower",
-                "to_upper",
-                "replace_const",
-                "starts_with_const",
-                "ends_with_const" -> {
+            case "rlike", "rlike_long_pattern", "to_lower", "to_upper", "replace_const", "starts_with_const", "ends_with_const" -> {
                 var builder = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
                 BytesRef[] values = new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") };
                 for (int i = 0; i < BLOCK_LENGTH; i++) {

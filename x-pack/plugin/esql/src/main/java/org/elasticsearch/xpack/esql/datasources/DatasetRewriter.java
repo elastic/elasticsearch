@@ -236,13 +236,13 @@ public final class DatasetRewriter {
 
     /**
      * Parent settings overlaid by dataset settings. Secrets are forwarded as their raw
-     * {@link DataSourceSetting#encryptedSecret()} carrier; the data-node decrypt helper materializes
+     * {@link DataSourceSetting#rawValue()} carrier; the data-node decrypt helper materializes
      * plaintext at the connector boundary.
      */
     private static Map<String, Object> mergeSettings(DataSource parent, Dataset dataset) {
         Map<String, Object> merged = new HashMap<>();
         for (Map.Entry<String, DataSourceSetting> e : parent.settings().entrySet()) {
-            merged.put(e.getKey(), e.getValue().secret() ? e.getValue().encryptedSecret() : e.getValue().nonSecretValue());
+            merged.put(e.getKey(), e.getValue().secret() ? e.getValue().rawValue() : e.getValue().nonSecretValue());
         }
         merged.putAll(dataset.settings());
         return merged;

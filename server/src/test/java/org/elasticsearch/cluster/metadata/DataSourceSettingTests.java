@@ -12,7 +12,6 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -34,9 +33,7 @@ public class DataSourceSettingTests extends ESTestCase {
         var setting = new DataSourceSetting("AKIA123", true);
         var deserialized = writeableRoundTrip(setting);
         assertEquals(setting, deserialized);
-        try (var s = deserialized.secretValue()) {
-            assertEquals("AKIA123", s.toString());
-        }
+        assertEquals("AKIA123", deserialized.rawValue());
         assertTrue(deserialized.secret());
     }
 
@@ -110,37 +107,18 @@ public class DataSourceSettingTests extends ESTestCase {
     }
 
     public void testSecretMustBeStringOrEncryptedCarrier() {
-        // Per the class invariant, a secret setting must carry a String (plaintext, legacy / pre-encrypt),
-        // a GenericNamedWriteable (ciphertext carrier — e.g. EncryptedData), a Map (parsed-from-XContent
-        // encrypted-object shape), or null. Numeric and boolean payloads are rejected at construction.
+        // Secret values must be either a transient plaintext String or a GenericNamedWriteable
+        // ciphertext carrier. Numeric and boolean payloads are rejected at construction.
         var ex = expectThrows(IllegalArgumentException.class, () -> new DataSourceSetting(42, true));
-        assertTrue(ex.getMessage().contains("must be String, an encrypted carrier, or a parsed map"));
+        assertTrue(ex.getMessage().contains("must be a String"));
         expectThrows(IllegalArgumentException.class, () -> new DataSourceSetting(9_999_999_999L, true));
         expectThrows(IllegalArgumentException.class, () -> new DataSourceSetting(3.14159, true));
         expectThrows(IllegalArgumentException.class, () -> new DataSourceSetting(true, true));
     }
 
     public void testSecretMayBeNull() {
-        // Null is the explicit "no value" state and is allowed even when secret=true.
         var setting = new DataSourceSetting(null, true);
-        assertNull(setting.secretValue());
-    }
-
-    public void testSecretValueReturnsSecureString() {
-        var setting = new DataSourceSetting("AKIA_THE_REAL_KEY", true);
-        try (SecureString s = setting.secretValue()) {
-            assertEquals("AKIA_THE_REAL_KEY", s.toString());
-        }
-    }
-
-    public void testSecretValueWithNull() {
-        var setting = new DataSourceSetting(null, true);
-        assertNull(setting.secretValue());
-    }
-
-    public void testSecretValueThrowsIfNotSecret() {
-        var setting = new DataSourceSetting("us-east-1", false);
-        expectThrows(IllegalStateException.class, setting::secretValue);
+        assertNull(setting.rawValue());
     }
 
     public void testXContentRoundTrip() throws IOException {

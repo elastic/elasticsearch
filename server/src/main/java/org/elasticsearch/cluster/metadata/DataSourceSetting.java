@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -22,19 +21,20 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Objects;
 
 /**
  * A validated data source setting value paired with its sensitivity classification, stored in
  * cluster state as part of data source metadata.
  *
- * <p>Secret values may be a plaintext {@code String} (legacy / pre-encrypt), a ciphertext
- * {@link GenericNamedWriteable} carrier ({@code EncryptedData}) deposited by the master-side
- * encrypt step, or a {@code Map<String, Object>} parsed from encrypted XContent. Non-secret values
- * may carry any type that round-trips through {@link StreamOutput#writeGenericValue}. Access plaintext
- * secrets via {@link #encryptedSecret()} (returns the raw carrier; consumer decrypts) or the legacy
- * {@link #secretValue()} (throws on encrypted carriers).
+ * <p>Secret values are either a transient plaintext {@code String} (only on the way into the
+ * master-side encrypt step) or a ciphertext {@link GenericNamedWriteable} carrier deposited by
+ * that step. After encryption every secret value persisted to cluster state is a carrier; any other
+ * shape read back from cluster state is stale pre-encryption data and consumers should fail.
+ *
+ * <p>Non-secret values may carry any type that round-trips through {@link StreamOutput#writeGenericValue}.
+ * Access values via {@link #rawValue()} (always returns the raw value) or {@link #nonSecretValue()}
+ * (asserts {@code !secret}).
  */
 public final class DataSourceSetting implements Writeable, ToXContentObject {
 
@@ -50,13 +50,10 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
     );
 
     static {
-        // Accept either a scalar (legacy plaintext) or START_OBJECT (encrypted-data as a map).
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), (p, c) -> {
-            if (p.currentToken() == XContentParser.Token.START_OBJECT) {
-                return p.map();
-            }
-            return p.objectText();
-        }, VALUE, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
+        // XContent input arrives only via user PUTs (REST layer) — secrets are scalar plaintext at that
+        // boundary. The ciphertext carrier shape is binary-only on the wire and never round-trips
+        // through XContent in the API or persistence paths (DataSourceMetadata.context() excludes both).
+        PARSER.declareField(ConstructingObjectParser.constructorArg(), (p, c) -> p.objectText(), VALUE, ObjectParser.ValueType.VALUE);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), SECRET);
     }
 
@@ -65,9 +62,9 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
 
     public DataSourceSetting(Object value, boolean secret) {
         if (secret && value != null) {
-            if ((value instanceof String || value instanceof GenericNamedWriteable || value instanceof Map<?, ?>) == false) {
+            if ((value instanceof String || value instanceof GenericNamedWriteable) == false) {
                 throw new IllegalArgumentException(
-                    "secret data source settings must be String, an encrypted carrier, or a parsed map; got ["
+                    "secret data source settings must be a String (transient plaintext) or an encrypted carrier; got ["
                         + value.getClass().getName()
                         + "]"
                 );
@@ -94,42 +91,14 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
     /** Returns the value of a non-secret setting; throws if secret. */
     public Object nonSecretValue() {
         if (secret) {
-            throw new IllegalStateException("secret setting — use encryptedSecret() or secretValue()");
+            throw new IllegalStateException("secret setting — use rawValue() and route through the decrypt helper");
         }
         return value;
     }
 
-    /** Returns the raw secret carrier (String, GenericNamedWriteable, or Map); throws if not secret. */
-    public Object encryptedSecret() {
-        if (secret == false) {
-            throw new IllegalStateException("not a secret setting — use nonSecretValue()");
-        }
-        return value;
-    }
-
-    /** Raw value irrespective of secret flag. Use when both shapes are valid in context (e.g. master-side encrypt). */
+    /** Raw value irrespective of secret flag. Callers must route secret values through the consumer-side decrypt helper. */
     public Object rawValue() {
         return value;
-    }
-
-    /**
-     * Legacy plaintext-only secret accessor returning a {@link SecureString}. Throws on encrypted
-     * carriers — callers should switch to {@link #encryptedSecret()} and run the value through the
-     * consumer-side decrypt helper.
-     */
-    public SecureString secretValue() {
-        if (secret == false) {
-            throw new IllegalStateException("not a secret setting — use nonSecretValue()");
-        }
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof String s) {
-            return new SecureString(s.toCharArray());
-        }
-        throw new IllegalStateException(
-            "secret value is encrypted [" + value.getClass().getName() + "] — call encryptedSecret() and decrypt"
-        );
     }
 
     /** Returns the masked sentinel for secrets, or the plaintext value otherwise. Safe for REST responses. */
@@ -147,10 +116,6 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
         if (value instanceof ToXContentObject toX) {
             builder.field(VALUE.getPreferredName());
             toX.toXContent(builder, params);
-        } else if (value instanceof Map<?, ?> map) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> typed = (Map<String, Object>) map;
-            builder.field(VALUE.getPreferredName(), typed);
         } else {
             builder.field(VALUE.getPreferredName(), value);
         }

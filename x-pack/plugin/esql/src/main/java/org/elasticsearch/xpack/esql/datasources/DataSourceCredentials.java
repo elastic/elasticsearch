@@ -18,7 +18,7 @@ import java.util.Map;
 /**
  * Decrypts secret values at the catalog-invocation seam. {@link #initialize} is called once by the
  * Guice-injected put-data-source transport action; {@link #decryptInPlace} runs on every connector
- * call to replace {@link EncryptedData} carriers (and their XContent-parsed map form) with plaintext.
+ * call to replace {@link EncryptedData} carriers with plaintext just before the connector consumes them.
  */
 public final class DataSourceCredentials {
 
@@ -40,22 +40,14 @@ public final class DataSourceCredentials {
         }
         Map<String, Object> result = new HashMap<>(config.size());
         for (Map.Entry<String, Object> entry : config.entrySet()) {
-            result.put(entry.getKey(), decryptOne(entry.getValue(), service));
-        }
-        return result;
-    }
-
-    private static Object decryptOne(Object value, EncryptionService service) {
-        if (value instanceof EncryptedData encrypted) {
-            return decryptToString(encrypted, service);
-        }
-        if (value instanceof Map<?, ?> rawMap && rawMap.get("key_id") instanceof String keyId) {
-            byte[] payload = coerceToBytes(rawMap.get("data"));
-            if (payload != null) {
-                return decryptToString(new EncryptedData(keyId, payload), service);
+            Object value = entry.getValue();
+            if (value instanceof EncryptedData encrypted) {
+                result.put(entry.getKey(), decryptToString(encrypted, service));
+            } else {
+                result.put(entry.getKey(), value);
             }
         }
-        return value;
+        return result;
     }
 
     private static String decryptToString(EncryptedData encrypted, EncryptionService service) {
@@ -65,15 +57,5 @@ public final class DataSourceCredentials {
         } finally {
             Arrays.fill(plaintext, (byte) 0);
         }
-    }
-
-    private static byte[] coerceToBytes(Object value) {
-        if (value instanceof byte[] bytes) {
-            return bytes;
-        }
-        if (value instanceof String s) {
-            return s.getBytes(StandardCharsets.UTF_8);
-        }
-        return null;
     }
 }

@@ -67,7 +67,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         // spare BytesRef
         + RamUsageEstimator.shallowSizeOfInstance(BytesRef.class) + PagedBytesCursor.SHALLOW_SIZE;
 
-    private static final VectorSpecies<Byte> BS = ByteVector.SPECIES_128;
+    private static final VectorSpecies<Byte> BS = ByteVector.SPECIES_PREFERRED;
 
     private static final int BYTE_VECTOR_LANES = BS.vectorByteSize();
 

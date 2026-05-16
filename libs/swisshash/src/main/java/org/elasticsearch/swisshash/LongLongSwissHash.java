@@ -32,7 +32,7 @@ import java.util.Objects;
 /** Specialization for LongSwissHash, for LongLong. */
 public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
 
-    static final VectorSpecies<Byte> BS = ByteVector.SPECIES_128;
+    static final VectorSpecies<Byte> BS = ByteVector.SPECIES_PREFERRED;
 
     private static final int BYTE_VECTOR_LANES = BS.vectorByteSize();
 

@@ -551,3 +551,6 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexRelocationIT
   method: testNonSlicedRemoteReindexRelocation
   issue: https://github.com/elastic/elasticsearch/issues/149222
+- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
+  method: testRightClosedBucketIsNotSubstituted
+  issue: https://github.com/elastic/elasticsearch/issues/149133

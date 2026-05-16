@@ -4,14 +4,9 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
-import java.lang.Class;
-import java.lang.IllegalAccessException;
 import java.lang.IllegalArgumentException;
-import java.lang.IllegalStateException;
-import java.lang.InstantiationException;
 import java.lang.Override;
 import java.lang.String;
-import java.lang.reflect.InvocationTargetException;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.compute.data.Block;
@@ -20,7 +15,6 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.JitConstantSpinner;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -29,25 +23,26 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link ExpressionEvaluator} implementation for {@link DateTrunc}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public abstract class DateTruncDatetimeEvaluator implements ExpressionEvaluator {
+public final class DateTruncDatetimeEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DateTruncDatetimeEvaluator.class);
 
   private final Source source;
 
   private final ExpressionEvaluator fieldVal;
 
+  private final Rounding.Prepared rounding;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public DateTruncDatetimeEvaluator(Source source, ExpressionEvaluator fieldVal,
-      DriverContext driverContext) {
+      Rounding.Prepared rounding, DriverContext driverContext) {
     this.source = source;
     this.fieldVal = fieldVal;
+    this.rounding = rounding;
     this.driverContext = driverContext;
   }
-
-  protected abstract Rounding.Prepared rounding();
 
   @Override
   public Block eval(Page page) {
@@ -82,7 +77,7 @@ public abstract class DateTruncDatetimeEvaluator implements ExpressionEvaluator 
               continue position;
         }
         long fieldVal = fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p));
-        result.appendLong(DateTrunc.processDatetime(fieldVal, rounding()));
+        result.appendLong(DateTrunc.processDatetime(fieldVal, this.rounding));
       }
       return result.build();
     }
@@ -92,7 +87,7 @@ public abstract class DateTruncDatetimeEvaluator implements ExpressionEvaluator 
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         long fieldVal = fieldValVector.getLong(p);
-        result.appendLong(p, DateTrunc.processDatetime(fieldVal, rounding()));
+        result.appendLong(p, DateTrunc.processDatetime(fieldVal, this.rounding));
       }
       return result.build();
     }
@@ -100,7 +95,7 @@ public abstract class DateTruncDatetimeEvaluator implements ExpressionEvaluator 
 
   @Override
   public String toString() {
-    return "DateTruncDatetimeEvaluator[" + "fieldVal=" + fieldVal + ", rounding=" + rounding() + "]";
+    return "DateTruncDatetimeEvaluator[" + "fieldVal=" + fieldVal + ", rounding=" + rounding + "]";
   }
 
   @Override
@@ -131,12 +126,7 @@ public abstract class DateTruncDatetimeEvaluator implements ExpressionEvaluator 
 
     @Override
     public DateTruncDatetimeEvaluator get(DriverContext context) {
-      Class<? extends DateTruncDatetimeEvaluator> spunClass = JitConstantSpinner.referenceConstantSubclass(DateTruncDatetimeEvaluator.class, "rounding", Rounding.Prepared.class, this.rounding).orElseThrow(() -> new IllegalStateException("JitConstantSpinner cache exhausted for DateTruncDatetimeEvaluator value=" + this.rounding));
-      try {
-        return (DateTruncDatetimeEvaluator) spunClass.getDeclaredConstructors()[0].newInstance(source, fieldVal.get(context), context);
-      } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-        throw new IllegalStateException("failed to construct JIT-spun evaluator for DateTruncDatetimeEvaluator", e);
-      }
+      return new DateTruncDatetimeEvaluator(source, fieldVal.get(context), rounding, context);
     }
 
     @Override

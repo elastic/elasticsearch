@@ -227,7 +227,7 @@ public final class JitConstantSpinner {
                      : primitive == double.class ? Opcodes.DRETURN
                      : primitive == float.class  ? Opcodes.FRETURN
                                                  : Opcodes.IRETURN;
-        MethodVisitor m = cw.visitMethod(Opcodes.ACC_PROTECTED | Opcodes.ACC_FINAL, methodName, getterDesc, null, null);
+        MethodVisitor m = cw.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL, methodName, getterDesc, null, null);
         m.visitCode();
         m.visitFieldInsn(Opcodes.GETSTATIC, spunInternal, fieldName, typeDescriptor);
         m.visitInsn(returnOp);
@@ -242,6 +242,7 @@ public final class JitConstantSpinner {
         String typeDescriptor = Type.getDescriptor(valueType);
         String baseInternal = Type.getInternalName(base);
         String spunInternal = baseInternal + "$Spun";
+        String fieldName = "CONST_" + sanitize(methodName);
 
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         cw.visit(
@@ -250,24 +251,40 @@ public final class JitConstantSpinner {
             spunInternal, null, baseInternal, null
         );
 
-        emitCtors(cw, base, baseInternal);
+        // private static final <T> CONST_<NAME>; — populated by <clinit> from class data.
+        // C2 trusts static final reference fields as JIT-time constants when the field is
+        // read through getstatic, much more aggressively than it inlines an LDC ldc-condy.
+        cw.visitField(
+            Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL,
+            fieldName, typeDescriptor, null, null
+        ).visitEnd();
 
-        // protected final <T> <methodName>() { return (T) MethodHandles.classData(LOOKUP, "_", T.class); }
-        // Implemented as: ldc Dynamic[name="_", type=T, bootstrap=MethodHandles::classData]; areturn
+        // static { CONST_<NAME> = (T) MethodHandles.classData(LOOKUP, "_", T.class); }
+        // Implemented via: ldc Dynamic[name="_", type=T, bootstrap=MethodHandles::classData] ; putstatic
         Handle classDataBoot = new Handle(
             Opcodes.H_INVOKESTATIC,
             "java/lang/invoke/MethodHandles",
             "classData",
-            // (Lookup, String, Class) -> Object
             "(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/Class;)Ljava/lang/Object;",
             false
         );
         ConstantDynamic condy = new ConstantDynamic("_", typeDescriptor, classDataBoot);
 
+        MethodVisitor clinit = cw.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
+        clinit.visitCode();
+        clinit.visitLdcInsn(condy);
+        clinit.visitFieldInsn(Opcodes.PUTSTATIC, spunInternal, fieldName, typeDescriptor);
+        clinit.visitInsn(Opcodes.RETURN);
+        clinit.visitMaxs(0, 0);
+        clinit.visitEnd();
+
+        emitCtors(cw, base, baseInternal);
+
+        // protected final <T> <methodName>() { return CONST_<NAME>; }
         String getterDesc = "()" + typeDescriptor;
-        MethodVisitor m = cw.visitMethod(Opcodes.ACC_PROTECTED | Opcodes.ACC_FINAL, methodName, getterDesc, null, null);
+        MethodVisitor m = cw.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL, methodName, getterDesc, null, null);
         m.visitCode();
-        m.visitLdcInsn(condy);
+        m.visitFieldInsn(Opcodes.GETSTATIC, spunInternal, fieldName, typeDescriptor);
         m.visitInsn(Opcodes.ARETURN);
         m.visitMaxs(0, 0);
         m.visitEnd();

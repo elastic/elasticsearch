@@ -49,6 +49,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
@@ -596,6 +597,18 @@ public class OperatorTests extends MapperServiceTestCase {
             randomPageSize(),
             limit,
             false // no scoring
+        );
+    }
+
+    static LuceneOperator.Factory luceneCountOperatorFactory(IndexReader reader, List<LuceneSliceQueue.QueryAndTags> queryAndTags) {
+        final ShardContext searchContext = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
+        return new LuceneCountOperator.Factory(
+            List.of(searchContext),
+            ctx -> queryAndTags,
+            randomFrom(DataPartitioning.values()),
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
+            randomIntBetween(1, 10),
+            LuceneOperator.NO_LIMIT
         );
     }
 }

@@ -545,11 +545,7 @@ public class EvaluatorImplementer {
                 );
             }
             builder.beginControlFlow("if (spunClassOpt.isPresent())");
-            builder.addStatement(
-                "$T<? extends $T> spunClass = spunClassOpt.get()",
-                ClassName.get(Class.class),
-                implementation
-            );
+            builder.addStatement("$T<? extends $T> spunClass = spunClassOpt.get()", ClassName.get(Class.class), implementation);
             builder.beginControlFlow("try");
             builder.addStatement(
                 "return ($T) spunClass.getDeclaredConstructors()[0].newInstance($L)",
@@ -574,11 +570,7 @@ public class EvaluatorImplementer {
             // "context". The Fallback ctor inserts the jit value just before "context".
             List<String> fallbackArgs = new ArrayList<>(ctorArgs);
             fallbackArgs.add(fallbackArgs.size() - 1, "this." + jit.name());
-            builder.addStatement(
-                "return new $T($L)",
-                implementation.nestedClass("Fallback"),
-                String.join(", ", fallbackArgs)
-            );
+            builder.addStatement("return new $T($L)", implementation.nestedClass("Fallback"), String.join(", ", fallbackArgs));
             return builder.build();
         }
 

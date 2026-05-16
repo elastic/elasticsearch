@@ -285,6 +285,9 @@ tests:
 - class: org.elasticsearch.index.engine.CompletionStatsCacheTests
   method: testCompletionStatsCache
   issue: https://github.com/elastic/elasticsearch/issues/148965
+- class: org.elasticsearch.reindex.ReindexBasicTests
+  method: testReindexFailsWhenSourceIndexIsClosed
+  issue: https://github.com/elastic/elasticsearch/issues/149234
 
 # Examples:
 #

@@ -137,10 +137,8 @@ public class DataSourceService {
         taskQueue.submitTask("update-esql-data-source-metadata-[" + request.name() + "]", task, task.timeout());
     }
 
-    private static Map<String, DataSourceSetting> encryptSecrets(
-        Map<String, DataSourceSetting> settings,
-        EncryptionService encryptionService
-    ) {
+    // Package-private for unit testing.
+    static Map<String, DataSourceSetting> encryptSecrets(Map<String, DataSourceSetting> settings, EncryptionService encryptionService) {
         Map<String, DataSourceSetting> result = new HashMap<>(settings.size());
         for (var entry : settings.entrySet()) {
             DataSourceSetting setting = entry.getValue();

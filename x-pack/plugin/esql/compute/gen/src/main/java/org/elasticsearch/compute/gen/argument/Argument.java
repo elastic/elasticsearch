@@ -169,7 +169,8 @@ public interface Argument {
      */
     default void declareCtorParam(MethodSpec.Builder builder) {
         throw new UnsupportedOperationException(
-            getClass().getSimpleName() + " does not support fallback constructor codegen; "
+            getClass().getSimpleName()
+                + " does not support fallback constructor codegen; "
                 + "extend Argument.declareCtorParam if you want to use @Fixed(jitConstant=true) with this argument type"
         );
     }

@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -73,6 +74,10 @@ public class JitConstantSpinnerTests extends ESTestCase {
     @Before
     public void reset() {
         JitConstantSpinner.resetForTest();
+        // Most correctness tests don't care about admission filtering; force threshold=1
+        // (spin immediately on first miss) so they can call .orElseThrow() freely.
+        // Tests that exercise admission filtering set threshold explicitly.
+        JitConstantSpinner.setAdmissionThreshold(1);
     }
 
     @After
@@ -154,46 +159,73 @@ public class JitConstantSpinnerTests extends ESTestCase {
         assertNotSame(a, b);
     }
 
-    public void testBoundedCacheEvictsLRU() {
-        JitConstantSpinner.setCacheCapacity(3);
-        Class<?> v1 = JitConstantSpinner.longConstantSubclass(LongBase.class, "divisor", 1L).orElseThrow();
-        Class<?> v2 = JitConstantSpinner.longConstantSubclass(LongBase.class, "divisor", 2L).orElseThrow();
-        Class<?> v3 = JitConstantSpinner.longConstantSubclass(LongBase.class, "divisor", 3L).orElseThrow();
-        assertEquals(3, JitConstantSpinner.cacheSize());
+    // ---- Admission filtering ----
 
-        // Touch v1 to mark it recently used; v2 becomes LRU
-        Class<?> v1b = JitConstantSpinner.longConstantSubclass(LongBase.class, "divisor", 1L).orElseThrow();
-        assertSame(v1, v1b);
+    public void testAdmissionRejectsFirstAccess() {
+        JitConstantSpinner.setAdmissionThreshold(2);  // explicit default
+        // First access: admission counter goes 0->1, threshold=2, return empty
+        Optional<Class<? extends LongBase>> first = JitConstantSpinner.longConstantSubclass(LongBase.class, "divisor", 17L);
+        assertTrue("first access should be rejected by admission", first.isEmpty());
+        assertEquals(0, JitConstantSpinner.spinCount());
+        assertEquals(1, JitConstantSpinner.admissionRejectedCount());
 
-        // Insert v4 — should evict v2 (the LRU)
-        Class<?> v4 = JitConstantSpinner.longConstantSubclass(LongBase.class, "divisor", 4L).orElseThrow();
-        assertEquals(3, JitConstantSpinner.cacheSize());
-        assertEquals(1, JitConstantSpinner.evictionCount());
+        // Second access: counter 1->2, threshold met, spin and return class
+        Optional<Class<? extends LongBase>> second = JitConstantSpinner.longConstantSubclass(LongBase.class, "divisor", 17L);
+        assertTrue("second access should spin and return class", second.isPresent());
+        assertEquals(1, JitConstantSpinner.spinCount());
 
-        // v2 is gone — re-fetching it spins a new class
-        long spinBefore = JitConstantSpinner.spinCount();
-        Class<?> v2b = JitConstantSpinner.longConstantSubclass(LongBase.class, "divisor", 2L).orElseThrow();
-        assertNotSame(v2, v2b);
-        assertEquals(spinBefore + 1, JitConstantSpinner.spinCount());
-
-        // But v1 and v4 are still cached
-        assertSame(v1, JitConstantSpinner.longConstantSubclass(LongBase.class, "divisor", 1L).orElseThrow());
-        assertSame(v4, JitConstantSpinner.longConstantSubclass(LongBase.class, "divisor", 4L).orElseThrow());
+        // Third+ access: cache hit
+        Optional<Class<? extends LongBase>> third = JitConstantSpinner.longConstantSubclass(LongBase.class, "divisor", 17L);
+        assertSame(second.get(), third.get());
+        assertEquals(1, JitConstantSpinner.spinCount());
+        assertEquals(1, JitConstantSpinner.hitCount());
     }
 
-    public void testEvictedClassRemainsUsableViaExistingReference() throws Exception {
-        JitConstantSpinner.setCacheCapacity(2);
-        Class<? extends LongBase> oldClass = JitConstantSpinner.longConstantSubclass(LongBase.class, "divisor", 7L).orElseThrow();
-        LongBase oldInstance = oldClass.getDeclaredConstructor().newInstance();
-        assertEquals(7L, oldInstance.divisor());
+    public void testAdmissionFiltersOneOffKeys() {
+        JitConstantSpinner.setAdmissionThreshold(2);
+        // 100 distinct keys, each accessed once. With threshold=2, none should spin.
+        for (long i = 0; i < 100; i++) {
+            Optional<Class<? extends LongBase>> r = JitConstantSpinner.longConstantSubclass(LongBase.class, "divisor", 1000L + i);
+            assertTrue("one-off key should be rejected", r.isEmpty());
+        }
+        assertEquals("no spins for one-off keys", 0, JitConstantSpinner.spinCount());
+        assertEquals(100, JitConstantSpinner.admissionRejectedCount());
+    }
 
-        // Force eviction of class-for-7
-        JitConstantSpinner.longConstantSubclass(LongBase.class, "divisor", 8L);
-        JitConstantSpinner.longConstantSubclass(LongBase.class, "divisor", 9L);
+    public void testAdmissionTrackerLRUEviction() {
+        JitConstantSpinner.setAdmissionCapacity(3);
+        JitConstantSpinner.setAdmissionThreshold(2);
 
-        // oldInstance still works — JVM keeps the class alive while instances exist
-        assertEquals(7L, oldInstance.divisor());
-        assertEquals(2L, oldInstance.applyMod(16L));
+        // Fill the admission tracker with 3 keys, each at count 1
+        JitConstantSpinner.longConstantSubclass(LongBase.class, "divisor", 1L);
+        JitConstantSpinner.longConstantSubclass(LongBase.class, "divisor", 2L);
+        JitConstantSpinner.longConstantSubclass(LongBase.class, "divisor", 3L);
+        assertEquals(3, JitConstantSpinner.admissionTrackerSize());
+
+        // Add a 4th key — LRU should evict key 1
+        JitConstantSpinner.longConstantSubclass(LongBase.class, "divisor", 4L);
+        assertEquals(3, JitConstantSpinner.admissionTrackerSize());
+        assertEquals(1, JitConstantSpinner.evictionCount());
+
+        // Key 1's counter is gone — next access starts fresh (count=1), still rejected
+        Optional<Class<? extends LongBase>> r = JitConstantSpinner.longConstantSubclass(LongBase.class, "divisor", 1L);
+        assertTrue("key with evicted counter should be re-rejected", r.isEmpty());
+        assertEquals(0, JitConstantSpinner.spinCount());
+    }
+
+    public void testEvaluatorInstancePinsClassThroughWeakRef() throws Exception {
+        JitConstantSpinner.setAdmissionThreshold(1);  // skip admission for this test
+        Class<? extends LongBase> klass = JitConstantSpinner.longConstantSubclass(LongBase.class, "divisor", 99L).orElseThrow();
+        LongBase instance = klass.getDeclaredConstructor().newInstance();
+
+        // GC should NOT reclaim the class while the instance is alive
+        System.gc();
+        Thread.sleep(50);
+        System.gc();
+
+        Class<? extends LongBase> klassAgain = JitConstantSpinner.longConstantSubclass(LongBase.class, "divisor", 99L).orElseThrow();
+        assertSame("class must still be cached while instance lives", klass, klassAgain);
+        assertEquals(99L, instance.divisor());  // sanity: instance still works
     }
 
     // ---- Concurrency ----
@@ -255,9 +287,11 @@ public class JitConstantSpinnerTests extends ESTestCase {
         assertEquals(2, JitConstantSpinner.missCount());
     }
 
-    public void testSetCacheCapacityValidation() {
-        expectThrows(IllegalArgumentException.class, () -> JitConstantSpinner.setCacheCapacity(0));
-        expectThrows(IllegalArgumentException.class, () -> JitConstantSpinner.setCacheCapacity(-1));
+    public void testSetCapacityValidation() {
+        expectThrows(IllegalArgumentException.class, () -> JitConstantSpinner.setAdmissionCapacity(0));
+        expectThrows(IllegalArgumentException.class, () -> JitConstantSpinner.setAdmissionCapacity(-1));
+        expectThrows(IllegalArgumentException.class, () -> JitConstantSpinner.setAdmissionThreshold(0));
+        expectThrows(IllegalArgumentException.class, () -> JitConstantSpinner.setAdmissionThreshold(-1));
     }
 
     public void testReferenceSubclassRejectsNull() {

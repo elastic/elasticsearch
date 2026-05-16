@@ -43,6 +43,11 @@ public record BuilderArgument(ClassName type, String name) implements Argument {
     }
 
     @Override
+    public void declareCtorParam(MethodSpec.Builder builder) {
+        // Nothing to do — BuilderArgument is not passed to the parent ctor.
+    }
+
+    @Override
     public void implementFactoryCtor(MethodSpec.Builder builder) {
         // Nothing to do
     }

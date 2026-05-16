@@ -65,6 +65,11 @@ public record StandardArgument(TypeName type, String name) implements Argument {
     }
 
     @Override
+    public void declareCtorParam(MethodSpec.Builder builder) {
+        builder.addParameter(EXPRESSION_EVALUATOR, name);
+    }
+
+    @Override
     public void implementFactoryCtor(MethodSpec.Builder builder) {
         builder.addParameter(EXPRESSION_EVALUATOR_FACTORY, name);
         builder.addStatement("this.$L = $L", name, name);

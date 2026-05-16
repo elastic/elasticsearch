@@ -12,6 +12,7 @@ import java.lang.InstantiationException;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.reflect.InvocationTargetException;
+import java.util.Optional;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
@@ -142,17 +143,42 @@ public abstract class JsonExtractConstantEvaluator implements ExpressionEvaluato
 
     @Override
     public JsonExtractConstantEvaluator get(DriverContext context) {
-      Class<? extends JsonExtractConstantEvaluator> spunClass = JitConstantSpinner.referenceConstantSubclass(JsonExtractConstantEvaluator.class, "path", JsonPath.class, this.path).orElseThrow(() -> new IllegalStateException("JitConstantSpinner cache exhausted for JsonExtractConstantEvaluator value=" + this.path));
-      try {
-        return (JsonExtractConstantEvaluator) spunClass.getDeclaredConstructors()[0].newInstance(source, str.get(context), context);
-      } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-        throw new IllegalStateException("failed to construct JIT-spun evaluator for JsonExtractConstantEvaluator", e);
+      Optional<Class<? extends JsonExtractConstantEvaluator>> spunClassOpt = JitConstantSpinner.referenceConstantSubclass(JsonExtractConstantEvaluator.class, "path", JsonPath.class, this.path);
+      if (spunClassOpt.isPresent()) {
+        Class<? extends JsonExtractConstantEvaluator> spunClass = spunClassOpt.get();
+        try {
+          return (JsonExtractConstantEvaluator) spunClass.getDeclaredConstructors()[0].newInstance(source, str.get(context), context);
+        } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+          throw new IllegalStateException("failed to construct JIT-spun evaluator for JsonExtractConstantEvaluator", e);
+        }
       }
+      return new Fallback(source, str.get(context), this.path, context);
     }
 
     @Override
     public String toString() {
       return "JsonExtractConstantEvaluator[" + "str=" + str + ", path=" + path + "]";
+    }
+  }
+
+  /**
+   * Concrete fallback used when {@link JitConstantSpinner} returns {@code Optional.empty()}
+   * (admission filter rejected the spin). The constant lives in a regular
+   * instance field — no JIT-time constant folding, but the per-row work
+   * runs correctly. The Factory chooses between this and the spun subclass.
+   */
+  public static final class Fallback extends JsonExtractConstantEvaluator {
+    private final JsonPath path;
+
+    public Fallback(Source source, ExpressionEvaluator str, JsonPath path,
+        DriverContext driverContext) {
+      super(source, str, driverContext);
+      this.path = path;
+    }
+
+    @Override
+    protected final JsonPath path() {
+      return path;
     }
   }
 }

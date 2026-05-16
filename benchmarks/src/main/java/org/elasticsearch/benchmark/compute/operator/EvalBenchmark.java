@@ -98,6 +98,15 @@ public class EvalBenchmark {
     // Matches the AggregatorBenchmark pattern.
     static {
         Utils.configureBenchmarkLogging();
+        // EvalBenchmark constructs a fresh evaluator per invocation and discards it. With
+        // admission threshold=2 (production default), each invocation would start a fresh
+        // admission cycle and route through the Fallback (non-JIT-folded) path — defeating
+        // the measurement of the JIT-folded steady-state performance. Set threshold=1 here
+        // so the bench measures what production sees AFTER admission is met (which is the
+        // case for every query past the first one for a given constant). The admission
+        // filter's protection against high-cardinality workloads is measured separately
+        // by the dedicated stress harness (sweep/AdmissionStress.java).
+        org.elasticsearch.compute.operator.JitConstantSpinner.setAdmissionThreshold(1);
     }
 
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)

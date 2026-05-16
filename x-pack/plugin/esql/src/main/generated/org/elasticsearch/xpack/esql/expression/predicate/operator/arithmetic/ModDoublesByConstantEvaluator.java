@@ -13,6 +13,7 @@ import java.lang.InstantiationException;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.reflect.InvocationTargetException;
+import java.util.Optional;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -140,17 +141,42 @@ public abstract class ModDoublesByConstantEvaluator implements ExpressionEvaluat
 
     @Override
     public ModDoublesByConstantEvaluator get(DriverContext context) {
-      Class<? extends ModDoublesByConstantEvaluator> spunClass = JitConstantSpinner.doubleConstantSubclass(ModDoublesByConstantEvaluator.class, "rhs", this.rhs).orElseThrow(() -> new IllegalStateException("JitConstantSpinner cache exhausted for ModDoublesByConstantEvaluator value=" + this.rhs));
-      try {
-        return (ModDoublesByConstantEvaluator) spunClass.getDeclaredConstructors()[0].newInstance(source, lhs.get(context), context);
-      } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-        throw new IllegalStateException("failed to construct JIT-spun evaluator for ModDoublesByConstantEvaluator", e);
+      Optional<Class<? extends ModDoublesByConstantEvaluator>> spunClassOpt = JitConstantSpinner.doubleConstantSubclass(ModDoublesByConstantEvaluator.class, "rhs", this.rhs);
+      if (spunClassOpt.isPresent()) {
+        Class<? extends ModDoublesByConstantEvaluator> spunClass = spunClassOpt.get();
+        try {
+          return (ModDoublesByConstantEvaluator) spunClass.getDeclaredConstructors()[0].newInstance(source, lhs.get(context), context);
+        } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+          throw new IllegalStateException("failed to construct JIT-spun evaluator for ModDoublesByConstantEvaluator", e);
+        }
       }
+      return new Fallback(source, lhs.get(context), this.rhs, context);
     }
 
     @Override
     public String toString() {
       return "ModDoublesByConstantEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+    }
+  }
+
+  /**
+   * Concrete fallback used when {@link JitConstantSpinner} returns {@code Optional.empty()}
+   * (admission filter rejected the spin). The constant lives in a regular
+   * instance field — no JIT-time constant folding, but the per-row work
+   * runs correctly. The Factory chooses between this and the spun subclass.
+   */
+  public static final class Fallback extends ModDoublesByConstantEvaluator {
+    private final double rhs;
+
+    public Fallback(Source source, ExpressionEvaluator lhs, double rhs,
+        DriverContext driverContext) {
+      super(source, lhs, driverContext);
+      this.rhs = rhs;
+    }
+
+    @Override
+    protected final double rhs() {
+      return rhs;
     }
   }
 }

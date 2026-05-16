@@ -110,6 +110,10 @@ public class EvaluatorImplementer {
         processFunction.args.forEach(a -> a.declareAbstractAccessor(builder));
         builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
 
+        if (hasJitConstant) {
+            builder.addType(fallback());
+        }
+
         builder.addField(WARNINGS, "warnings", Modifier.PRIVATE);
 
         builder.addMethod(ctor());
@@ -294,6 +298,75 @@ public class EvaluatorImplementer {
         return builder.build();
     }
 
+    /**
+     * Concrete fallback subclass for the abstract jit-constant evaluator. Used when
+     * {@code JitConstantSpinner} returns {@code Optional.empty()} (admission filter
+     * rejected the spin for a first-time key). The fallback stores the constant in a
+     * regular instance field — no JIT-time constant folding occurs — but the per-row
+     * work still executes correctly. This is the safety net that lets the admission
+     * filter ship in production without breaking queries with novel constants.
+     */
+    private TypeSpec fallback() {
+        JitConstantFixedArgument jit = processFunction.args.stream()
+            .filter(Argument::isJitConstant)
+            .map(a -> (JitConstantFixedArgument) a)
+            .findFirst()
+            .orElseThrow();
+
+        TypeSpec.Builder builder = TypeSpec.classBuilder("Fallback")
+            .addModifiers(Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
+            .superclass(implementation);
+
+        builder.addJavadoc(
+            "Concrete fallback used when {@link $T} returns {@code Optional.empty()}\n"
+                + "(admission filter rejected the spin). The constant lives in a regular\n"
+                + "instance field — no JIT-time constant folding, but the per-row work\n"
+                + "runs correctly. The Factory chooses between this and the spun subclass.\n",
+            JIT_CONSTANT_SPINNER
+        );
+
+        // Instance field for the jit constant.
+        builder.addField(jit.type(), jit.name(), Modifier.PRIVATE, Modifier.FINAL);
+
+        // Constructor mirrors the abstract base's ctor + adds the jit param.
+        // We use the same signal factoryGet uses to determine "is this arg a ctor param":
+        // non-null factoryInvocation. BuilderArgument returns null, so it's excluded
+        // (it's a process-method param, not a ctor param).
+        MethodSpec.Builder ctor = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
+        List<String> superArgs = new ArrayList<>();
+        ctor.addParameter(SOURCE, "source");
+        superArgs.add("source");
+        MethodSpec.Builder probe = MethodSpec.constructorBuilder();
+        for (Argument a : processFunction.args) {
+            if (a.isJitConstant()) {
+                continue;
+            }
+            if (a.factoryInvocation(probe) == null) {
+                continue;
+            }
+            a.declareCtorParam(ctor);
+            superArgs.add(a.name());
+        }
+        ctor.addParameter(jit.type(), jit.name());
+        ctor.addParameter(DRIVER_CONTEXT, "driverContext");
+        superArgs.add("driverContext");
+        ctor.addStatement("super($L)", String.join(", ", superArgs));
+        ctor.addStatement("this.$L = $L", jit.name(), jit.name());
+        builder.addMethod(ctor.build());
+
+        // Override the abstract accessor to return the field.
+        builder.addMethod(
+            MethodSpec.methodBuilder(jit.name())
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED, Modifier.FINAL)
+                .returns(jit.type())
+                .addStatement("return $L", jit.name())
+                .build()
+        );
+
+        return builder.build();
+    }
+
     private TypeSpec factory() {
         TypeSpec.Builder builder = TypeSpec.classBuilder("Factory");
         builder.addSuperinterface(EXPRESSION_EVALUATOR_FACTORY);
@@ -440,39 +513,43 @@ public class EvaluatorImplementer {
                 return builder.build();
             }
 
-            // Spinner-based construction. Class becomes abstract, spinner produces a hidden subclass
-            // per distinct value; instantiate via reflection on the (unique) inherited constructor.
+            // Spinner-based construction with admission-aware fallback.
+            // The spinner may return Optional.empty() if the admission filter rejected
+            // this constant (first-time key, count < threshold). In that case we route
+            // to the Fallback nested class — same evaluator, regular instance field for
+            // the constant, no JIT folding. The Factory hides this from callers.
             String spinMethod = primitiveSpinnerMethod(jit.type());
             if (spinMethod != null) {
                 builder.addStatement(
-                    "$T<? extends $T> spunClass = $T.$L($T.class, $S, this.$L).orElseThrow(() -> new $T($S + this.$L))",
+                    "$T<$T<? extends $T>> spunClassOpt = $T.$L($T.class, $S, this.$L)",
+                    ClassName.get(java.util.Optional.class),
                     ClassName.get(Class.class),
                     implementation,
                     JIT_CONSTANT_SPINNER,
                     spinMethod,
                     implementation,
                     jit.name(),
-                    jit.name(),
-                    ClassName.get(IllegalStateException.class),
-                    "JitConstantSpinner cache exhausted for " + implementation.simpleName() + " value=",
                     jit.name()
                 );
             } else {
-                // reference type
                 builder.addStatement(
-                    "$T<? extends $T> spunClass = $T.referenceConstantSubclass($T.class, $S, $T.class, this.$L).orElseThrow(() -> new $T($S + this.$L))",
+                    "$T<$T<? extends $T>> spunClassOpt = $T.referenceConstantSubclass($T.class, $S, $T.class, this.$L)",
+                    ClassName.get(java.util.Optional.class),
                     ClassName.get(Class.class),
                     implementation,
                     JIT_CONSTANT_SPINNER,
                     implementation,
                     jit.name(),
                     jit.type(),
-                    jit.name(),
-                    ClassName.get(IllegalStateException.class),
-                    "JitConstantSpinner cache exhausted for " + implementation.simpleName() + " value=",
                     jit.name()
                 );
             }
+            builder.beginControlFlow("if (spunClassOpt.isPresent())");
+            builder.addStatement(
+                "$T<? extends $T> spunClass = spunClassOpt.get()",
+                ClassName.get(Class.class),
+                implementation
+            );
             builder.beginControlFlow("try");
             builder.addStatement(
                 "return ($T) spunClass.getDeclaredConstructors()[0].newInstance($L)",
@@ -490,7 +567,18 @@ public class EvaluatorImplementer {
                 ClassName.get(IllegalStateException.class),
                 "failed to construct JIT-spun evaluator for " + implementation.simpleName()
             );
-            builder.endControlFlow();
+            builder.endControlFlow(); // try-catch
+            builder.endControlFlow(); // if isPresent
+
+            // Fallback path. ctorArgs are "source", non-jit args (via factoryInvocation),
+            // "context". The Fallback ctor inserts the jit value just before "context".
+            List<String> fallbackArgs = new ArrayList<>(ctorArgs);
+            fallbackArgs.add(fallbackArgs.size() - 1, "this." + jit.name());
+            builder.addStatement(
+                "return new $T($L)",
+                implementation.nestedClass("Fallback"),
+                String.join(", ", fallbackArgs)
+            );
             return builder.build();
         }
 

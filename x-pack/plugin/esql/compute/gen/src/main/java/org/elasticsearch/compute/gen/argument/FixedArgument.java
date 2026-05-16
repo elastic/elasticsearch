@@ -54,6 +54,11 @@ public record FixedArgument(TypeName type, String name, boolean includeInToStrin
     }
 
     @Override
+    public void declareCtorParam(MethodSpec.Builder builder) {
+        builder.addParameter(type, name);
+    }
+
+    @Override
     public void implementFactoryCtor(MethodSpec.Builder builder) {
         builder.addParameter(factoryFieldType(), name);
         builder.addStatement("this.$L = $L", name, name);

@@ -12,6 +12,7 @@ import java.lang.InstantiationException;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.reflect.InvocationTargetException;
+import java.util.Optional;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
@@ -134,17 +135,42 @@ public abstract class StartsWithConstantEvaluator implements ExpressionEvaluator
 
     @Override
     public StartsWithConstantEvaluator get(DriverContext context) {
-      Class<? extends StartsWithConstantEvaluator> spunClass = JitConstantSpinner.referenceConstantSubclass(StartsWithConstantEvaluator.class, "prefix", BytesRef.class, this.prefix).orElseThrow(() -> new IllegalStateException("JitConstantSpinner cache exhausted for StartsWithConstantEvaluator value=" + this.prefix));
-      try {
-        return (StartsWithConstantEvaluator) spunClass.getDeclaredConstructors()[0].newInstance(source, str.get(context), context);
-      } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-        throw new IllegalStateException("failed to construct JIT-spun evaluator for StartsWithConstantEvaluator", e);
+      Optional<Class<? extends StartsWithConstantEvaluator>> spunClassOpt = JitConstantSpinner.referenceConstantSubclass(StartsWithConstantEvaluator.class, "prefix", BytesRef.class, this.prefix);
+      if (spunClassOpt.isPresent()) {
+        Class<? extends StartsWithConstantEvaluator> spunClass = spunClassOpt.get();
+        try {
+          return (StartsWithConstantEvaluator) spunClass.getDeclaredConstructors()[0].newInstance(source, str.get(context), context);
+        } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+          throw new IllegalStateException("failed to construct JIT-spun evaluator for StartsWithConstantEvaluator", e);
+        }
       }
+      return new Fallback(source, str.get(context), this.prefix, context);
     }
 
     @Override
     public String toString() {
       return "StartsWithConstantEvaluator[" + "str=" + str + ", prefix=" + prefix + "]";
+    }
+  }
+
+  /**
+   * Concrete fallback used when {@link JitConstantSpinner} returns {@code Optional.empty()}
+   * (admission filter rejected the spin). The constant lives in a regular
+   * instance field — no JIT-time constant folding, but the per-row work
+   * runs correctly. The Factory chooses between this and the spun subclass.
+   */
+  public static final class Fallback extends StartsWithConstantEvaluator {
+    private final BytesRef prefix;
+
+    public Fallback(Source source, ExpressionEvaluator str, BytesRef prefix,
+        DriverContext driverContext) {
+      super(source, str, driverContext);
+      this.prefix = prefix;
+    }
+
+    @Override
+    protected final BytesRef prefix() {
+      return prefix;
     }
   }
 }

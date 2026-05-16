@@ -12,6 +12,7 @@ import java.lang.InstantiationException;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.reflect.InvocationTargetException;
+import java.util.Optional;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
@@ -129,17 +130,41 @@ public abstract class DivLongsByConstantEvaluator implements ExpressionEvaluator
 
     @Override
     public DivLongsByConstantEvaluator get(DriverContext context) {
-      Class<? extends DivLongsByConstantEvaluator> spunClass = JitConstantSpinner.longConstantSubclass(DivLongsByConstantEvaluator.class, "rhs", this.rhs).orElseThrow(() -> new IllegalStateException("JitConstantSpinner cache exhausted for DivLongsByConstantEvaluator value=" + this.rhs));
-      try {
-        return (DivLongsByConstantEvaluator) spunClass.getDeclaredConstructors()[0].newInstance(source, lhs.get(context), context);
-      } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-        throw new IllegalStateException("failed to construct JIT-spun evaluator for DivLongsByConstantEvaluator", e);
+      Optional<Class<? extends DivLongsByConstantEvaluator>> spunClassOpt = JitConstantSpinner.longConstantSubclass(DivLongsByConstantEvaluator.class, "rhs", this.rhs);
+      if (spunClassOpt.isPresent()) {
+        Class<? extends DivLongsByConstantEvaluator> spunClass = spunClassOpt.get();
+        try {
+          return (DivLongsByConstantEvaluator) spunClass.getDeclaredConstructors()[0].newInstance(source, lhs.get(context), context);
+        } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+          throw new IllegalStateException("failed to construct JIT-spun evaluator for DivLongsByConstantEvaluator", e);
+        }
       }
+      return new Fallback(source, lhs.get(context), this.rhs, context);
     }
 
     @Override
     public String toString() {
       return "DivLongsByConstantEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+    }
+  }
+
+  /**
+   * Concrete fallback used when {@link JitConstantSpinner} returns {@code Optional.empty()}
+   * (admission filter rejected the spin). The constant lives in a regular
+   * instance field — no JIT-time constant folding, but the per-row work
+   * runs correctly. The Factory chooses between this and the spun subclass.
+   */
+  public static final class Fallback extends DivLongsByConstantEvaluator {
+    private final long rhs;
+
+    public Fallback(Source source, ExpressionEvaluator lhs, long rhs, DriverContext driverContext) {
+      super(source, lhs, driverContext);
+      this.rhs = rhs;
+    }
+
+    @Override
+    protected final long rhs() {
+      return rhs;
     }
   }
 }

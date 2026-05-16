@@ -15,10 +15,13 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
 import java.lang.invoke.MethodHandles;
+import java.lang.ref.WeakReference;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
@@ -36,26 +39,108 @@ import java.util.concurrent.atomic.LongAdder;
  * one of the {@code *ConstantSubclass} methods. Authors do not invoke this class
  * directly.
  *
- * <p>The cache is bounded (default 1024 entries, LRU eviction). When capacity is
- * reached, {@link #longConstantSubclass} and friends return {@link Optional#empty()};
- * the caller falls back to the non-folded path. This protects against pathological
- * workloads with very high cardinality of distinct constant values.
+ * <h2>Cache design — weak refs + admission filter</h2>
+ *
+ * Two structures handle the workload-shape tradeoffs:
+ *
+ * <ol>
+ *   <li><b>Class cache</b>: {@code ConcurrentHashMap<Key, WeakReference<Class>>}. Unbounded;
+ *       JVM manages size via reachability. A spun class is kept alive by any live evaluator
+ *       instance referencing it. Once nothing references the class, GC reclaims it and the
+ *       weak ref clears — the next access starts fresh.</li>
+ *   <li><b>Admission tracker</b>: bounded LRU counters keyed by spinner key (default 4096
+ *       entries, ~128 KB). Spin triggers only when a key's count reaches
+ *       {@code admissionThreshold} (default 2). Single-occurrence keys never trigger a
+ *       spin — the caller falls back to the non-folded path. This eliminates the spin
+ *       tax for one-off cold keys.</li>
+ * </ol>
+ *
+ * <p>Properties this gives:
+ * <ul>
+ *   <li><b>High-cardinality one-off workload</b> (e.g. 50 K distinct constants none repeating):
+ *       zero spins. Per-access overhead = one CHM lookup + one counter increment (~50 ns).</li>
+ *   <li><b>Bursty workload</b>: hot keys spin once on second access; stay alive while bursts
+ *       run (live instances pin them); GC after a quiet period.</li>
+ *   <li><b>Steady-state hot</b>: spin once per key, then constant hit rate forever.</li>
+ *   <li><b>Stampede</b>: concurrent threads requesting the same missing key all funnel through
+ *       a single {@code computeIfAbsent} — only one spin happens.</li>
+ * </ul>
+ *
+ * <h2>Cost calibration</h2>
+ *
+ * Measured on Apple aarch64 JDK 21 after JIT warmup:
+ * <ul>
+ *   <li>Spin cost: mean 13 μs, p99 52 μs, max 1.5 ms (cold-JIT outlier)</li>
+ *   <li>Per-class metaspace: ~1.4-2 KB</li>
+ *   <li>Cache hit lookup: ~50 ns</li>
+ *   <li>Admission-rejected path: ~50 ns (one CHM lookup + counter inc)</li>
+ * </ul>
+ *
+ * <h2>Measurement is mandatory for adoption</h2>
+ *
+ * Adoption decisions are not predictable from code reading alone — both wins and
+ * regressions surface that the static rules don't catch. Every flag adoption
+ * must come with a JMH bench case (const-folded + variable baseline) measured
+ * on at least three microarchitectures. See {@link org.elasticsearch.compute.ann.Fixed#jitConstant()}
+ * for the decision framework and the calibration table from PR #148678 covering
+ * 11 attempted adoptions, of which 4 shipped, 1 was kept noise-band-neutral,
+ * and 6 were reverted with measurement evidence.
  */
 public final class JitConstantSpinner {
 
-    /** Default cache capacity. Tunable via {@link #setCacheCapacity(int)}. */
-    public static final int DEFAULT_CACHE_CAPACITY = 1024;
+    /**
+     * Default admission-tracker capacity. The tracker holds recently-seen keys and
+     * their access counts. Tunable via {@link #setAdmissionCapacity(int)}.
+     *
+     * <p>Smaller than the historical class-cache size because each entry is just
+     * a counter (~32 bytes) rather than a spun class (~2 KB). 4096 entries =
+     * ~128 KB worst case — negligible.
+     */
+    public static final int DEFAULT_ADMISSION_CAPACITY = 4096;
+
+    /**
+     * Default admission threshold. {@code 2} means a key must be seen at least twice
+     * before the spinner emits a class for it. First-time keys go through the codegen
+     * Factory's fallback path (regular non-JIT-folded evaluator). This protects against
+     * pathological high-cardinality workloads (many distinct one-off constants) at the
+     * cost of slightly slower first execution for queries with novel constants.
+     *
+     * <p>Set to {@code 1} to disable admission filtering — every miss spins immediately.
+     * This is the prior behavior; faster for queries with unique-but-large constants
+     * that benefit from JIT folding even on first invocation, but vulnerable to
+     * pathological cardinality.
+     */
+    public static final int DEFAULT_ADMISSION_THRESHOLD = 2;
+
+    /** @deprecated kept for compatibility with {@link #setCacheCapacity}; admission tracker is the new bound. */
+    @Deprecated
+    public static final int DEFAULT_CACHE_CAPACITY = DEFAULT_ADMISSION_CAPACITY;
 
     private record CacheKey(Class<?> base, String name, Object value) {}
 
-    private static volatile int capacity = DEFAULT_CACHE_CAPACITY;
+    private static volatile int admissionCapacity = DEFAULT_ADMISSION_CAPACITY;
+    private static volatile int admissionThreshold = DEFAULT_ADMISSION_THRESHOLD;
 
-    private static final Map<CacheKey, Class<?>> CACHE = Collections.synchronizedMap(
+    /**
+     * Spun class cache. Weak refs let the JVM reclaim classes when no live
+     * evaluator instances reference them — the cache becomes a transparent index,
+     * never an artificial retention root. A class is alive iff any code holds a
+     * strong ref to it (typically an evaluator instance in a Driver).
+     */
+    private static final ConcurrentHashMap<CacheKey, WeakReference<Class<?>>> CLASSES = new ConcurrentHashMap<>();
+
+    /**
+     * Admission tracker. Counts recently-seen keys; spin only triggers when a
+     * key's count reaches {@link #admissionThreshold}. Single-occurrence keys
+     * never cost a spin — the caller falls back to the non-folded path.
+     * Bounded LRU so memory is capped even on pathological cardinality.
+     */
+    private static final Map<CacheKey, AtomicLong> ADMISSION = Collections.synchronizedMap(
         new LinkedHashMap<>(16, 0.75f, /* accessOrder */ true) {
             @Override
-            protected boolean removeEldestEntry(Map.Entry<CacheKey, Class<?>> eldest) {
-                if (size() > capacity) {
-                    EVICTIONS.increment();
+            protected boolean removeEldestEntry(Map.Entry<CacheKey, AtomicLong> eldest) {
+                if (size() > admissionCapacity) {
+                    ADMISSION_EVICTIONS.increment();
                     return true;
                 }
                 return false;
@@ -67,8 +152,10 @@ public final class JitConstantSpinner {
     private static final LongAdder SPINS = new LongAdder();
     private static final LongAdder HITS = new LongAdder();
     private static final LongAdder MISSES = new LongAdder();
-    private static final LongAdder EVICTIONS = new LongAdder();
-    private static final LongAdder FALLBACKS = new LongAdder();
+    private static final LongAdder ADMISSION_REJECTED = new LongAdder();   // returned empty because count < threshold
+    private static final LongAdder WEAK_REF_CLEARED = new LongAdder();     // cache had entry but ref was GC'd
+    private static final LongAdder ADMISSION_EVICTIONS = new LongAdder();  // counters evicted by LRU
+    private static final LongAdder FALLBACKS = new LongAdder();            // spin threw — gave up
 
     private JitConstantSpinner() {}
 
@@ -112,10 +199,15 @@ public final class JitConstantSpinner {
         return spinOrCache(baseClass, methodName, valueType, value, /* primitive */ false);
     }
 
-    /** Number of entries currently in the cache. */
+    /** Number of entries currently in the spun-class cache (some may have cleared weak refs awaiting prune). */
     public static int cacheSize() {
-        synchronized (CACHE) {
-            return CACHE.size();
+        return CLASSES.size();
+    }
+
+    /** Number of entries in the admission tracker. */
+    public static int admissionTrackerSize() {
+        synchronized (ADMISSION) {
+            return ADMISSION.size();
         }
     }
 
@@ -133,30 +225,65 @@ public final class JitConstantSpinner {
     }
 
     public static long evictionCount() {
-        return EVICTIONS.sum();
+        return ADMISSION_EVICTIONS.sum();
+    }
+
+    public static long admissionRejectedCount() {
+        return ADMISSION_REJECTED.sum();
+    }
+
+    public static long weakRefClearedCount() {
+        return WEAK_REF_CLEARED.sum();
     }
 
     public static long fallbackCount() {
         return FALLBACKS.sum();
     }
 
-    /** Set cache capacity. New value applies to future evictions; existing entries are kept until LRU-evicted. */
-    public static void setCacheCapacity(int newCapacity) {
+    /**
+     * Set admission tracker capacity. Counters above this are LRU-evicted. New value applies
+     * to future evictions; existing entries are kept until LRU-evicted.
+     */
+    public static void setAdmissionCapacity(int newCapacity) {
         if (newCapacity < 1) throw new IllegalArgumentException("capacity must be >= 1");
-        capacity = newCapacity;
+        admissionCapacity = newCapacity;
     }
 
-    /** Test-only: clear cache + counters. */
-    static void resetForTest() {
-        synchronized (CACHE) {
-            CACHE.clear();
+    /**
+     * Set admission threshold. A key must be seen this many times before a class is spun
+     * for it. Default = 2 (skip the first-time access — usually a one-off). Set to 1 to
+     * disable admission filtering (every miss spins immediately, like the prior behavior).
+     */
+    public static void setAdmissionThreshold(int newThreshold) {
+        if (newThreshold < 1) throw new IllegalArgumentException("threshold must be >= 1");
+        admissionThreshold = newThreshold;
+    }
+
+    /** @deprecated use {@link #setAdmissionCapacity(int)}; this maps to the admission tracker. */
+    @Deprecated
+    public static void setCacheCapacity(int newCapacity) {
+        setAdmissionCapacity(newCapacity);
+    }
+
+    /**
+     * Stress-test / tooling support: clear all caches and counters and reset config.
+     * Not for production use. Marked public so external benchmark/stress harnesses
+     * can reset state between scenarios; production code should never call this.
+     */
+    public static void resetForTest() {
+        CLASSES.clear();
+        synchronized (ADMISSION) {
+            ADMISSION.clear();
         }
         SPINS.reset();
         HITS.reset();
         MISSES.reset();
-        EVICTIONS.reset();
+        ADMISSION_REJECTED.reset();
+        WEAK_REF_CLEARED.reset();
+        ADMISSION_EVICTIONS.reset();
         FALLBACKS.reset();
-        capacity = DEFAULT_CACHE_CAPACITY;
+        admissionCapacity = DEFAULT_ADMISSION_CAPACITY;
+        admissionThreshold = DEFAULT_ADMISSION_THRESHOLD;
     }
 
     // ----- internals -----
@@ -170,6 +297,24 @@ public final class JitConstantSpinner {
         return spinOrCache(baseClass, methodName, primitive, boxed, /* primitive */ true);
     }
 
+    /**
+     * Core lookup. Returns an existing spun class (cache hit on a still-alive weak ref) OR
+     * spins a new one (if the key has been seen enough times) OR returns empty (first-time
+     * key — caller uses the non-jit-folded path).
+     *
+     * <p>Three layers:
+     * <ol>
+     *   <li>Class cache: {@code CHM<Key, WeakReference<Class>>}. A class is alive as long as
+     *       any code references it (typically live evaluator instances). Once nothing references
+     *       it, GC reclaims the class and the weak ref clears — next access starts fresh from
+     *       layer 2.</li>
+     *   <li>Admission tracker: bounded LRU counters per key. Only on count ≥ threshold do we
+     *       spin. This eliminates the spin tax for one-off cold keys.</li>
+     *   <li>Spin: ASM emit + {@code defineHiddenClass}. {@code computeIfAbsent} on the class
+     *       cache prevents concurrent threads from racing into redundant spinning for the same
+     *       key.</li>
+     * </ol>
+     */
     @SuppressWarnings("unchecked")
     private static <T> Optional<Class<? extends T>> spinOrCache(
         Class<T> baseClass,
@@ -179,39 +324,68 @@ public final class JitConstantSpinner {
         boolean primitive
     ) {
         CacheKey key = new CacheKey(baseClass, methodName, value);
-        Class<?> existing;
-        synchronized (CACHE) {
-            existing = CACHE.get(key); // accessOrder=true makes this an LRU touch
-        }
-        if (existing != null) {
-            HITS.increment();
-            return Optional.of((Class<? extends T>) existing);
+
+        // Layer 1: class cache hit (weak ref still alive)
+        WeakReference<Class<?>> ref = CLASSES.get(key);
+        if (ref != null) {
+            Class<?> cls = ref.get();
+            if (cls != null) {
+                HITS.increment();
+                return Optional.of((Class<? extends T>) cls);
+            }
+            // Weak ref cleared by GC since last access — class had no live instances
+            // and was unloaded. Drop the dead entry and fall through to admission.
+            CLASSES.remove(key, ref);
+            WEAK_REF_CLEARED.increment();
         }
 
-        // Cache miss — spin a new class, but only if we won't blow past capacity
-        // without doing the work (we do allow eviction; just want to be honest about
-        // the fallback policy: if at capacity, we still spin + evict; the fallback
-        // path is reserved for explicit overload via fallbackCount).
+        // Layer 2: admission tracker. Only spin when we've seen this key enough times.
+        long count = incrementAdmission(key);
+        if (count < admissionThreshold) {
+            ADMISSION_REJECTED.increment();
+            return Optional.empty();   // caller falls back to non-jit-folded path
+        }
+
+        // Layer 3: spin. computeIfAbsent prevents stampede — only one thread spins per key.
         MISSES.increment();
-        Class<?> spun;
+        WeakReference<Class<?>> spunRef;
         try {
-            spun = primitive
-                ? spinPrimitiveClass(baseClass, methodName, valueType, value)
-                : spinReferenceClass(baseClass, methodName, valueType, value);
-            SPINS.increment();
+            spunRef = CLASSES.computeIfAbsent(key, k -> {
+                Class<?> spun = primitive
+                    ? spinPrimitiveClass(baseClass, methodName, valueType, value)
+                    : spinReferenceClass(baseClass, methodName, valueType, value);
+                SPINS.increment();
+                // Counter no longer needed; drop it so the tracker stays focused on candidates.
+                removeAdmission(key);
+                return new WeakReference<>(spun);
+            });
         } catch (RuntimeException e) {
             FALLBACKS.increment();
             return Optional.empty();
         }
-
-        synchronized (CACHE) {
-            // Re-check after acquiring lock, another thread may have spun the same key
-            Class<?> raced = CACHE.putIfAbsent(key, spun);
-            if (raced != null) {
-                return Optional.of((Class<? extends T>) raced);
-            }
+        Class<?> spunClass = spunRef.get();
+        if (spunClass == null) {
+            // Race: weak ref cleared between insertion and our read. Recurse — admission will
+            // re-trigger via counter, or fallback. Bounded by GC frequency so this is rare.
+            CLASSES.remove(key, spunRef);
+            WEAK_REF_CLEARED.increment();
+            return spinOrCache(baseClass, methodName, valueType, value, primitive);
         }
-        return Optional.of((Class<? extends T>) spun);
+        return Optional.of((Class<? extends T>) spunClass);
+    }
+
+    private static long incrementAdmission(CacheKey key) {
+        AtomicLong counter;
+        synchronized (ADMISSION) {
+            counter = ADMISSION.computeIfAbsent(key, k -> new AtomicLong(0));
+        }
+        return counter.incrementAndGet();
+    }
+
+    private static void removeAdmission(CacheKey key) {
+        synchronized (ADMISSION) {
+            ADMISSION.remove(key);
+        }
     }
 
     // ----- bytecode generation -----

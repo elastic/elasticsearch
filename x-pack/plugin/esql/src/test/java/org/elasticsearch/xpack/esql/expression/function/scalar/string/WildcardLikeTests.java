@@ -49,7 +49,7 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
             }
             return str;
         };
-        // The shared suppliers in RLikeTests only emit `<text>*` prefix shapes via the `optionalPattern=() -> "*"` argument,
+        // The shared RegexMatchTestCases suppliers only emit `<text>*` prefix shapes via the `optionalPattern=() -> "*"` argument,
         // so the WildcardLike fast paths visible here are StartsWith and (for the empty optional) AutomataMatch. Contains
         // is not reachable from these suppliers and so is not in the matcher.
         Matcher<String> evaluatorMatcher = anyOf(
@@ -57,7 +57,9 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
             startsWith("StartsWithEvaluator[str=Attribute[channel=0], prefix="),
             startsWith("EndsWithEvaluator[str=Attribute[channel=0], suffix=")
         );
-        List<Object[]> cases = (List<Object[]>) RLikeTests.parameters(escapeString, () -> "*", evaluatorMatcher);
+        List<Object[]> cases = (List<Object[]>) parameterSuppliersFromTypedData(
+            RegexMatchTestCases.buildCases(escapeString, () -> "*", evaluatorMatcher)
+        );
 
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         addCases(suppliers);

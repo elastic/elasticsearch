@@ -114,10 +114,11 @@ public class WildcardPatternShapeEquivalenceTests extends ESTestCase {
      * Seeded randomized property pin. Each iteration picks a shape (prefix / suffix / contains),
      * a random literal (mostly ASCII, sometimes multi-byte UTF-8 including supplementary planes),
      * and a random value built either to satisfy the shape or to dodge it. Asserts routed-path
-     * vs automaton agreement.
+     * vs automaton agreement. 10 000 iterations gives the SIMD path enough adversarial coverage
+     * to catch regressions the hand-picked set would miss; the cost is ~100 ms per run.
      */
     public void testFastPathEquivalentToAutomatonRandomized() {
-        int iterations = 1000;
+        int iterations = 10_000;
         for (int i = 0; i < iterations; i++) {
             String shape = randomFrom("prefix", "suffix", "contains");
             String literal = randomLiteral();
@@ -129,6 +130,66 @@ public class WildcardPatternShapeEquivalenceTests extends ESTestCase {
                 default -> throw new AssertionError(shape);
             };
             assertAgrees(pattern, value);
+        }
+    }
+
+    /**
+     * Adversarial inputs the {@code ByteMatchers.containsLiteral} SIMD path would worst-case-stress:
+     * high-false-positive candidate rates (the SIMD first+last-byte filter fires repeatedly but
+     * every verification fails), literal lengths close to value lengths, empty literal, and
+     * UTF-8 continuation-byte traps (literal's leading byte appears mid-codepoint in the value).
+     * If the fast path agrees with the automaton across all of these, the regression risk is
+     * mostly empirical — the primitive is correct on the corner cases reviewers tend to ask about.
+     */
+    public void testAdversarialAgreement() {
+        record Case(String pattern, String value, String description) {}
+        List<Case> cases = List.of(
+            // High false-positive SIMD candidate rate. Literal first byte 'f' and last byte 'o' both
+            // appear many times in the value, but the full literal "foo" never does. The SIMD
+            // first+last byte filter fires on every "f...o" position pair, the scalar verification
+            // step rejects each. The fast path should still agree with the automaton (both return false).
+            new Case("*foo*", "foa foa foa foa foa foa foa foa", "high FP SIMD candidate, all miss"),
+            new Case("*foo*", "foa foa foo foa foa foa foa foa", "high FP SIMD candidate, one hit mid-value"),
+            // Literal length close to value length. Arrays.equals on the prefix/suffix exhausts the
+            // value; the early-exit on shorter values is the only short-circuit.
+            new Case("12345678901234567890*", "12345678901234567890extra", "long-prefix exact match + trailing"),
+            new Case("12345678901234567890*", "12345678901234567899extra", "long-prefix mismatch at last byte"),
+            new Case("*12345678901234567890", "head12345678901234567890", "long-suffix exact match"),
+            new Case("*12345678901234567890", "head12345678901234567899", "long-suffix mismatch at last byte"),
+            new Case("*12345678901234567890*", "x12345678901234567890y", "long-contains, exact full literal inside"),
+            new Case("*12345678901234567890*", "x12345678901234567899y", "long-contains, mismatch at last byte"),
+            // Empty literal — LIKE '*' classifies as Suffix("") and EndsWith.process(v, "") is true.
+            new Case("*", "", "empty literal, empty value"),
+            new Case("*", "anything", "empty literal, non-empty value"),
+            new Case("*", "é中😀", "empty literal, multi-codepoint value"),
+            // One-byte literal. Smallest SIMD window; the first+last byte filter degenerates to a
+            // single-byte search.
+            new Case("a*", "a", "one-byte prefix exact"),
+            new Case("a*", "b", "one-byte prefix mismatch"),
+            new Case("*a", "ba", "one-byte suffix exact"),
+            new Case("*a*", "xxxxxxxxxxxxxxxxxxxxxxxxxa", "one-byte contains at end of long value"),
+            new Case("*a*", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "one-byte contains all-miss in long value"),
+            // UTF-8 continuation-byte trap. 0xC3 0xA9 is 'é'. If the pattern says "é"
+            // (bytes 0xC3 0xA9) and the value has the leading 0xC3 byte followed by a different
+            // continuation byte (e.g., 0xA8 = 'è'), the byte-level match must fail at byte 2 — same
+            // as the automaton.
+            new Case("é*", "èextra", "UTF-8 continuation-byte trap, prefix"),
+            new Case("*é", "extraè", "UTF-8 continuation-byte trap, suffix"),
+            new Case("*é*", "  è  ", "UTF-8 continuation-byte trap, contains"),
+            // Supplementary-plane (4-byte UTF-8) at boundary positions.
+            new Case("😀*", "😀extra", "supp-plane prefix exact"),
+            new Case("*😀", "extra😀", "supp-plane suffix exact"),
+            new Case("*😀*", "head 😀 tail", "supp-plane contains mid-value"),
+            // SIMD threshold boundary. The value is exactly 24 bytes — the threshold for SIMD
+            // activation inside containsLiteral.
+            new Case("*needle*", "abcdefghijklmnopqrstuvwx", "value=24B (SIMD threshold), miss"),
+            new Case("*needle*", "abcneedleefghijklmnopqrs", "value=24B (SIMD threshold), hit"),
+            // Just-below SIMD threshold (scalar fallback only).
+            new Case("*needle*", "abcdefghijklmnopqrstuvw", "value=23B (just below SIMD), miss"),
+            new Case("*needle*", "abcneedleefghijklmnopqr", "value=23B (just below SIMD), hit")
+        );
+        for (Case c : cases) {
+            assertAgrees(c.pattern, c.value);
         }
     }
 

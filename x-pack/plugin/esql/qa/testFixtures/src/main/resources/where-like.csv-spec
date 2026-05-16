@@ -1482,3 +1482,53 @@ FROM employees METADATA _index | WHERE _index LIKE "employ??es" | KEEP emp_no;
 
 emp_no:integer
 ;
+
+
+// LIKE fast-path coverage on the row evaluator (non-pushable position).
+// These exercise the WildcardLike.toEvaluator dispatch added in elastic/elasticsearch#148680:
+// prefix -> StartsWithEvaluator, suffix -> EndsWithEvaluator, contains -> WildcardLikeContainsEvaluator.
+// LIKE sits on an EVAL-output column so the optimizer cannot push it down to Lucene; the row
+// evaluator is the only path it can take. End-to-end answers must match what the automaton path
+// would have produced before this PR.
+
+likePrefixOnEvalOutput
+from employees | eval n = first_name | where n like "Eberhar*" | keep emp_no, n;
+
+emp_no:integer | n:keyword
+10013          | Eberhardt
+;
+
+
+likeSuffixOnEvalOutput
+from employees | eval n = first_name | where n like "*uhito" | keep emp_no, n;
+
+emp_no:integer | n:keyword
+10016          | Kazuhito
+;
+
+
+likeContainsOnEvalOutput
+from employees | eval n = first_name | where n like "*har*" | keep emp_no, n | sort emp_no;
+
+emp_no:integer | n:keyword
+10013          | Eberhardt
+10058          | Berhard
+10068          | Charlene
+10089          | Sudharsan
+;
+
+
+likeContainsLongerLiteralOnEvalOutput
+from employees | eval n = first_name | where n like "*ardt*" | keep emp_no, n;
+
+emp_no:integer | n:keyword
+10013          | Eberhardt
+;
+
+
+likeStarAloneOnEvalOutput
+from employees | eval n = first_name | where n like "*" | stats c = count(*);
+
+c:long
+100
+;

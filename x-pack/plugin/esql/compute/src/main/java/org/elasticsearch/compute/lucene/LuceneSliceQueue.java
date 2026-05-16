@@ -130,7 +130,13 @@ public final class LuceneSliceQueue {
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
-                PartitioningStrategy partitioning = PartitioningStrategy.pick(dataPartitioning, autoStrategy, docThresholdForAutoStrategy, ctx, query);
+                PartitioningStrategy partitioning = PartitioningStrategy.pick(
+                    dataPartitioning,
+                    autoStrategy,
+                    docThresholdForAutoStrategy,
+                    ctx,
+                    query
+                );
                 partitioningStrategies.put(ctx.shardIdentifier(), partitioning);
                 List<List<PartialLeafReaderContext>> groups = partitioning.groups(ctx.searcher(), taskConcurrency);
                 Weight weight = weight(ctx, query, scoreMode);
@@ -260,7 +266,12 @@ public final class LuceneSliceQueue {
             };
         }
 
-        private static PartitioningStrategy forAuto(Function<Query, PartitioningStrategy> autoStrategy, ShardContext ctx, Query query, int docThresholdForAutoStrategy) {
+        private static PartitioningStrategy forAuto(
+            Function<Query, PartitioningStrategy> autoStrategy,
+            ShardContext ctx,
+            Query query,
+            int docThresholdForAutoStrategy
+        ) {
             if (ctx.searcher().getIndexReader().maxDoc() < docThresholdForAutoStrategy) {
                 return PartitioningStrategy.SHARD;
             }

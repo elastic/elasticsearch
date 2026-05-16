@@ -600,10 +600,7 @@ public class OperatorTests extends MapperServiceTestCase {
         );
     }
 
-    static LuceneOperator.Factory luceneCountOperatorFactory(
-        IndexReader reader,
-        List<LuceneSliceQueue.QueryAndTags> queryAndTags
-    ) {
+    static LuceneOperator.Factory luceneCountOperatorFactory(IndexReader reader, List<LuceneSliceQueue.QueryAndTags> queryAndTags) {
         final ShardContext searchContext = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
         return new LuceneCountOperator.Factory(
             List.of(searchContext),

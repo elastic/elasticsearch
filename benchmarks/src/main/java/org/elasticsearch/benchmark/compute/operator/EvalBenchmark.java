@@ -48,9 +48,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Scalb;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonExtract;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Replace;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -142,6 +144,8 @@ public class EvalBenchmark {
             "mod_long_const_60",
             "div_long_long",
             "div_long_const_60",
+            "scalb_const",
+            "replace_const",
             "mv_min",
             "mv_min_ascending",
             "round_to_4_via_case",
@@ -306,6 +310,39 @@ public class EvalBenchmark {
                 if (evaluator.toString().contains("DivLongsByConstantEvaluator") == false) {
                     throw new IllegalArgumentException(
                         "Evaluator was [" + evaluator + "] but expected one containing [DivLongsByConstantEvaluator]"
+                    );
+                }
+                yield evaluator;
+            }
+            case "scalb_const" -> {
+                FieldAttribute d = doubleField();
+                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+                    FOLD_CONTEXT,
+                    new Scalb(Source.EMPTY, d, new Literal(Source.EMPTY, 3, DataType.INTEGER)),
+                    layout(d)
+                ).get(driverContext);
+                if (evaluator.toString().contains("ScalbConstantIntEvaluator") == false) {
+                    throw new IllegalArgumentException(
+                        "Evaluator was [" + evaluator + "] but expected one containing [ScalbConstantIntEvaluator]"
+                    );
+                }
+                yield evaluator;
+            }
+            case "replace_const" -> {
+                FieldAttribute keywordField = keywordField();
+                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+                    FOLD_CONTEXT,
+                    new Replace(
+                        Source.EMPTY,
+                        keywordField,
+                        new Literal(Source.EMPTY, new BytesRef("foo"), DataType.KEYWORD),
+                        new Literal(Source.EMPTY, new BytesRef("X"), DataType.KEYWORD)
+                    ),
+                    layout(keywordField)
+                ).get(driverContext);
+                if (evaluator.toString().contains("ReplaceConstantEvaluator") == false) {
+                    throw new IllegalArgumentException(
+                        "Evaluator was [" + evaluator + "] but expected one containing [ReplaceConstantEvaluator]"
                     );
                 }
                 yield evaluator;
@@ -606,6 +643,20 @@ public class EvalBenchmark {
                     }
                 }
             }
+            case "scalb_const" -> {
+                DoubleVector v = actual.<DoubleBlock>getBlock(1).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    double expected = Math.scalb((double) i * 100_000D, 3);
+                    if (Double.compare(v.getDouble(i), expected) != 0) {
+                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getDouble(i) + "]");
+                    }
+                }
+            }
+            case "replace_const" -> {
+                BytesRef expected0 = new BytesRef("X");      // "foo" → replaced
+                BytesRef expected1 = new BytesRef("bar");   // unchanged
+                checkBytes(operation, actual, false, new BytesRef[] { expected0, expected1 });
+            }
             case "rlike" -> {
                 BooleanVector v = actual.<BooleanBlock>getBlock(1).asVector();
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
@@ -725,7 +776,7 @@ public class EvalBenchmark {
                 }
                 yield new Page(builder.build());
             }
-            case "add_double" -> {
+            case "add_double", "scalb_const" -> {
                 var builder = blockFactory.newDoubleBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     builder.appendDouble(i * 100_000D);
@@ -806,7 +857,7 @@ public class EvalBenchmark {
                 }
                 yield new Page(builder.build());
             }
-            case "rlike", "to_lower", "to_upper" -> {
+            case "rlike", "to_lower", "to_upper", "replace_const" -> {
                 var builder = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
                 BytesRef[] values = new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") };
                 for (int i = 0; i < BLOCK_LENGTH; i++) {

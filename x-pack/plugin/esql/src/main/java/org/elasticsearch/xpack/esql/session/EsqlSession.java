@@ -86,7 +86,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.plan.EffectiveSettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
@@ -301,15 +301,15 @@ public class EsqlSession {
 
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
 
-        EffectiveSettings effective = QuerySettings.resolve(
+        ResolvedSettings resolved = QuerySettings.resolve(
             request.requestSettings(),
             statement,
             SettingsValidationContext.from(remoteClusterService)
         );
 
-        ZoneId timeZone = QuerySettings.TIME_ZONE.get(effective);
-        String projectRouting = QuerySettings.PROJECT_ROUTING.get(effective);
-        ApproximationSettings approximationSettings = QuerySettings.APPROXIMATION.get(effective);
+        ZoneId timeZone = QuerySettings.TIME_ZONE.get(resolved);
+        String projectRouting = QuerySettings.PROJECT_ROUTING.get(resolved);
+        ApproximationSettings approximationSettings = QuerySettings.APPROXIMATION.get(resolved);
         if (approximationSettings != null) {
             EsqlLicenseChecker.checkQueryApproximation(verifier.licenseState());
         }

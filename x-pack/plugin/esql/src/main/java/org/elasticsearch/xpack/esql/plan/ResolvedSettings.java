@@ -12,16 +12,16 @@ import java.util.Set;
 
 /**
  * Immutable typed view of resolved query setting values, produced by {@link QuerySettings#resolve}.
- * Read via {@link QuerySettingDef#get(EffectiveSettings)} on each setting's constant.
+ * Read via {@link QuerySettingDef#get(ResolvedSettings)} on each setting's constant.
  */
-public final class EffectiveSettings {
+public final class ResolvedSettings {
 
-    public static final EffectiveSettings EMPTY = new EffectiveSettings(Map.of(), Set.of());
+    public static final ResolvedSettings EMPTY = new ResolvedSettings(Map.of(), Set.of());
 
     private final Map<QuerySettingDef<?>, Object> values;
     private final Set<String> consumed;
 
-    EffectiveSettings(Map<QuerySettingDef<?>, Object> values, Set<String> consumed) {
+    ResolvedSettings(Map<QuerySettingDef<?>, Object> values, Set<String> consumed) {
         this.values = Map.copyOf(values);
         this.consumed = Set.copyOf(consumed);
     }

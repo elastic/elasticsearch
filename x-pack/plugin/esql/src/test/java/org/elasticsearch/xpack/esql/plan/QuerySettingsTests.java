@@ -290,13 +290,13 @@ public class QuerySettingsTests extends ESTestCase {
     }
 
     public void testResolveEmptySources() {
-        EffectiveSettings effective = QuerySettings.resolve(Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
-        assertThat(effective.consumedSettingNames(), is(Collections.emptySet()));
+        ResolvedSettings resolved = QuerySettings.resolve(Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(resolved.consumedSettingNames(), is(Collections.emptySet()));
         // Default for time_zone is UTC
-        assertThat(effective.get(QuerySettings.TIME_ZONE), equalTo(ZoneOffset.UTC));
+        assertThat(resolved.get(QuerySettings.TIME_ZONE), equalTo(ZoneOffset.UTC));
         // Defaults for the rest are null
-        assertThat(effective.get(QuerySettings.PROJECT_ROUTING), is(nullValue()));
-        assertThat(effective.get(QuerySettings.APPROXIMATION), is(nullValue()));
+        assertThat(resolved.get(QuerySettings.PROJECT_ROUTING), is(nullValue()));
+        assertThat(resolved.get(QuerySettings.APPROXIMATION), is(nullValue()));
     }
 
     public void testResolveBodyProjectRoutingFailsWithoutCps() {
@@ -312,9 +312,9 @@ public class QuerySettingsTests extends ESTestCase {
     public void testResolveRequestParameterAppliesWhenNoQuerySet() {
         Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
         requestParams.put(QuerySettings.TIME_ZONE, ZoneId.of("Europe/Paris"));
-        EffectiveSettings effective = QuerySettings.resolve(requestParams, null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
-        assertThat(effective.get(QuerySettings.TIME_ZONE), equalTo(ZoneId.of("Europe/Paris")));
-        assertThat(effective.consumedSettingNames(), equalTo(Set.of("time_zone")));
+        ResolvedSettings resolved = QuerySettings.resolve(requestParams, null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(resolved.get(QuerySettings.TIME_ZONE), equalTo(ZoneId.of("Europe/Paris")));
+        assertThat(resolved.consumedSettingNames(), equalTo(Set.of("time_zone")));
     }
 
     public void testResolveQuerySetOverridesRequestParameter() {
@@ -323,9 +323,9 @@ public class QuerySettingsTests extends ESTestCase {
         requestParams.put(QuerySettings.TIME_ZONE, ZoneId.of("Europe/Paris"));
         QuerySetting set = new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, "time_zone", of("UTC")));
         EsqlStatement statement = new EsqlStatement(null, List.of(set));
-        EffectiveSettings effective = QuerySettings.resolve(requestParams, statement, SNAPSHOT_CTX_WITH_CPS_ENABLED);
-        assertThat(effective.get(QuerySettings.TIME_ZONE), equalTo(ZoneId.of("UTC")));
-        assertThat(effective.consumedSettingNames(), equalTo(Set.of("time_zone")));
+        ResolvedSettings resolved = QuerySettings.resolve(requestParams, statement, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(resolved.get(QuerySettings.TIME_ZONE), equalTo(ZoneId.of("UTC")));
+        assertThat(resolved.consumedSettingNames(), equalTo(Set.of("time_zone")));
     }
 
     public void testResolveApproximationDisjointFieldsMerge() {
@@ -349,8 +349,8 @@ public class QuerySettingsTests extends ESTestCase {
     public void testResolveApproximationRequestOnly() {
         Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
         requestParams.put(QuerySettings.APPROXIMATION, new ApproximationSettings(20000, 0.88));
-        EffectiveSettings effective = QuerySettings.resolve(requestParams, null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
-        assertThat(QuerySettings.APPROXIMATION.get(effective), is(new ApproximationSettings(20000, 0.88)));
+        ResolvedSettings resolved = QuerySettings.resolve(requestParams, null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(QuerySettings.APPROXIMATION.get(resolved), is(new ApproximationSettings(20000, 0.88)));
     }
 
     public void testResolveApproximationSetOnly() {
@@ -359,9 +359,9 @@ public class QuerySettingsTests extends ESTestCase {
             new Alias(Source.EMPTY, "approximation", approxMap("rows", Literal.integer(Source.EMPTY, 30000)))
         );
         EsqlStatement statement = new EsqlStatement(null, List.of(set));
-        EffectiveSettings effective = QuerySettings.resolve(Map.of(), statement, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        ResolvedSettings settings = QuerySettings.resolve(Map.of(), statement, SNAPSHOT_CTX_WITH_CPS_ENABLED);
         // SET supplied rows only; resolver enabled approximation and left confidence_level at its default.
-        ApproximationSettings resolved = QuerySettings.APPROXIMATION.get(effective);
+        ApproximationSettings resolved = QuerySettings.APPROXIMATION.get(settings);
         assertThat(resolved.rows(), equalTo(30000));
     }
 

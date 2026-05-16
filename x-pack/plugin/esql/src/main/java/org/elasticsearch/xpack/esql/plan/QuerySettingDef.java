@@ -113,7 +113,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * <h2>Reading</h2>
  *
  * <pre>{@code
- *   ZoneId tz = QuerySettings.TIME_ZONE.get(effective);
+ *   ZoneId tz = QuerySettings.TIME_ZONE.get(resolved);
  * }</pre>
  *
  * <h2>Reconciliation</h2>
@@ -261,7 +261,7 @@ public final class QuerySettingDef<T> {
         return reconciler;
     }
 
-    public T get(EffectiveSettings settings) {
+    public T get(ResolvedSettings settings) {
         return settings.get(this);
     }
 

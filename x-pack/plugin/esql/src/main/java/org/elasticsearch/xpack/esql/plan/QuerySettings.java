@@ -34,7 +34,7 @@ import java.util.Set;
  *
  * <p>Each entry is one fluent declaration. {@link QuerySettingDef} carries the schema and the read API;
  * this class is a list of constants and two utility methods ({@link #validate} for the in-query SET
- * pass, {@link #resolve} for the merge step that produces an {@link EffectiveSettings}).
+ * pass, {@link #resolve} for the merge step that produces an {@link ResolvedSettings}).
  *
  * <h2>Adding a new setting</h2>
  *
@@ -218,10 +218,10 @@ public final class QuerySettings {
     }
 
     /**
-     * Folds {@code registry default < request body < in-query SET} into a single {@link EffectiveSettings},
+     * Folds {@code registry default < request body < in-query SET} into a single {@link ResolvedSettings},
      * applying each setting's {@link QuerySettingDef#reconciler()} at every step.
      */
-    public static EffectiveSettings resolve(
+    public static ResolvedSettings resolve(
         Map<QuerySettingDef<?>, Object> requestParams,
         @Nullable EsqlStatement statement,
         SettingsValidationContext ctx
@@ -231,7 +231,7 @@ public final class QuerySettings {
         for (QuerySettingDef<?> def : QuerySettingDef.all()) {
             resolveSingle(def, requestParams, statement, ctx, resolved, consumed);
         }
-        return new EffectiveSettings(resolved, consumed);
+        return new ResolvedSettings(resolved, consumed);
     }
 
     @SuppressWarnings("unchecked")

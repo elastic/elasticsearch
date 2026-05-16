@@ -76,6 +76,11 @@ public class FromPartialGroupingAggregatorFunction implements GroupingAggregator
     }
 
     @Override
+    public AddInput prepareProcessIntermediateInputPage(SeenGroupIds seenGroupIds, Page page) {
+        return delegate.prepareProcessIntermediateInputPage(seenGroupIds, page);
+    }
+
+    @Override
     public void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page) {
         final CompositeBlock inputBlock = page.getBlock(inputChannel);
         delegate.addIntermediateInput(positionOffset, groupIdVector, inputBlock.asPage());

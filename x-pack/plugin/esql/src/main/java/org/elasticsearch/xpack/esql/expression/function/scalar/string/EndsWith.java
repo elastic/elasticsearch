@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -125,6 +126,21 @@ public class EndsWith extends EsqlScalarFunction implements TranslationAware.Sin
         );
     }
 
+    @Evaluator(extraName = "Constant")
+    static boolean processConstant(BytesRef str, @Fixed(jitConstant = true) BytesRef suffix) {
+        if (str.length < suffix.length) {
+            return false;
+        }
+        return Arrays.equals(
+            str.bytes,
+            str.offset + str.length - suffix.length,
+            str.offset + str.length,
+            suffix.bytes,
+            suffix.offset,
+            suffix.offset + suffix.length
+        );
+    }
+
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         return new EndsWith(source(), newChildren.get(0), newChildren.get(1));
@@ -137,6 +153,13 @@ public class EndsWith extends EsqlScalarFunction implements TranslationAware.Sin
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        if (suffix.foldable()) {
+            Object folded = suffix.fold(toEvaluator.foldCtx());
+            BytesRef constantSuffix = BytesRefs.toBytesRef(folded);
+            if (constantSuffix != null) {
+                return new EndsWithConstantEvaluator.Factory(source(), toEvaluator.apply(str), constantSuffix);
+            }
+        }
         return new EndsWithEvaluator.Factory(source(), toEvaluator.apply(str), toEvaluator.apply(suffix));
     }
 

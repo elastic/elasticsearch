@@ -51,8 +51,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Scalb;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Replace;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -146,6 +148,11 @@ public class EvalBenchmark {
             "div_long_const_60",
             "scalb_const",
             "replace_const",
+            "starts_with_const",
+            "starts_with_var",
+            "ends_with_const",
+            "ends_with_var",
+            "rlike_long_pattern",
             "mv_min",
             "mv_min_ascending",
             "round_to_4_via_case",
@@ -356,6 +363,66 @@ public class EvalBenchmark {
                 RLike rlike = new RLike(Source.EMPTY, keywordField, new RLikePattern(".ar"));
                 yield EvalMapper.toEvaluator(FOLD_CONTEXT, rlike, layout(keywordField)).get(driverContext);
             }
+            case "rlike_long_pattern" -> {
+                FieldAttribute keywordField = keywordField();
+                // More complex pattern — exercises a larger DFA than the existing "rlike" case
+                RLike rlike = new RLike(Source.EMPTY, keywordField, new RLikePattern("[a-z]oo"));
+                yield EvalMapper.toEvaluator(FOLD_CONTEXT, rlike, layout(keywordField)).get(driverContext);
+            }
+            case "starts_with_const" -> {
+                FieldAttribute keywordField = keywordField();
+                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+                    FOLD_CONTEXT,
+                    new StartsWith(Source.EMPTY, keywordField, new Literal(Source.EMPTY, new BytesRef("fo"), DataType.KEYWORD)),
+                    layout(keywordField)
+                ).get(driverContext);
+                if (evaluator.toString().contains("StartsWithConstantEvaluator") == false) {
+                    throw new IllegalArgumentException(
+                        "Evaluator was [" + evaluator + "] but expected one containing [StartsWithConstantEvaluator]"
+                    );
+                }
+                yield evaluator;
+            }
+            case "ends_with_const" -> {
+                FieldAttribute keywordField = keywordField();
+                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+                    FOLD_CONTEXT,
+                    new EndsWith(Source.EMPTY, keywordField, new Literal(Source.EMPTY, new BytesRef("oo"), DataType.KEYWORD)),
+                    layout(keywordField)
+                ).get(driverContext);
+                if (evaluator.toString().contains("EndsWithConstantEvaluator") == false) {
+                    throw new IllegalArgumentException(
+                        "Evaluator was [" + evaluator + "] but expected one containing [EndsWithConstantEvaluator]"
+                    );
+                }
+                yield evaluator;
+            }
+            case "starts_with_var" -> {
+                FieldAttribute str = keywordField();
+                FieldAttribute prefix = keywordField("prefix");
+                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(FOLD_CONTEXT, new StartsWith(Source.EMPTY, str, prefix), layout(str, prefix))
+                    .get(driverContext);
+                if (evaluator.toString().contains("StartsWithEvaluator") == false
+                    || evaluator.toString().contains("StartsWithConstant") != false) {
+                    throw new IllegalArgumentException(
+                        "Evaluator was [" + evaluator + "] but expected one containing [StartsWithEvaluator] (non-constant)"
+                    );
+                }
+                yield evaluator;
+            }
+            case "ends_with_var" -> {
+                FieldAttribute str = keywordField();
+                FieldAttribute suffix = keywordField("suffix");
+                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(FOLD_CONTEXT, new EndsWith(Source.EMPTY, str, suffix), layout(str, suffix))
+                    .get(driverContext);
+                if (evaluator.toString().contains("EndsWithEvaluator") == false
+                    || evaluator.toString().contains("EndsWithConstant") != false) {
+                    throw new IllegalArgumentException(
+                        "Evaluator was [" + evaluator + "] but expected one containing [EndsWithEvaluator] (non-constant)"
+                    );
+                }
+                yield evaluator;
+            }
             case "round_to_4_via_case" -> {
                 FieldAttribute f = longField();
 
@@ -454,10 +521,14 @@ public class EvalBenchmark {
     }
 
     private static FieldAttribute keywordField() {
+        return keywordField("keyword");
+    }
+
+    private static FieldAttribute keywordField(String name) {
         return new FieldAttribute(
             Source.EMPTY,
-            "keyword",
-            new EsField("keyword", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            name,
+            new EsField(name, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
     }
 
@@ -666,6 +737,33 @@ public class EvalBenchmark {
                     }
                 }
             }
+            case "rlike_long_pattern", "starts_with_const" -> {
+                BooleanVector v = actual.<BooleanBlock>getBlock(1).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    boolean expected = i % 2 == 0;  // "foo" rows
+                    if (v.getBoolean(i) != expected) {
+                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getBoolean(i) + "]");
+                    }
+                }
+            }
+            case "ends_with_const" -> {
+                BooleanVector v = actual.<BooleanBlock>getBlock(1).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    boolean expected = i % 2 == 0;  // "foo" ends with "oo"
+                    if (v.getBoolean(i) != expected) {
+                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getBoolean(i) + "]");
+                    }
+                }
+            }
+            case "starts_with_var", "ends_with_var" -> {
+                BooleanVector v = actual.<BooleanBlock>getBlock(2).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    boolean expected = i % 2 == 0;
+                    if (v.getBoolean(i) != expected) {
+                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getBoolean(i) + "]");
+                    }
+                }
+            }
             case "round_to_4_via_case", "round_to_4" -> {
                 long b = 1;
                 long kb = ByteSizeUnit.KB.toBytes(1);
@@ -857,7 +955,35 @@ public class EvalBenchmark {
                 }
                 yield new Page(builder.build());
             }
-            case "rlike", "to_lower", "to_upper", "replace_const" -> {
+            case "starts_with_var" -> {
+                var str = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
+                var prefix = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
+                BytesRef[] values = new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") };
+                BytesRef constPrefix = new BytesRef("fo");
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    str.appendBytesRef(values[i % 2]);
+                    prefix.appendBytesRef(constPrefix);
+                }
+                yield new Page(str.build().asBlock(), prefix.build().asBlock());
+            }
+            case "ends_with_var" -> {
+                var str = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
+                var suffix = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
+                BytesRef[] values = new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") };
+                BytesRef constSuffix = new BytesRef("oo");
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    str.appendBytesRef(values[i % 2]);
+                    suffix.appendBytesRef(constSuffix);
+                }
+                yield new Page(str.build().asBlock(), suffix.build().asBlock());
+            }
+            case "rlike",
+                "rlike_long_pattern",
+                "to_lower",
+                "to_upper",
+                "replace_const",
+                "starts_with_const",
+                "ends_with_const" -> {
                 var builder = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
                 BytesRef[] values = new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") };
                 for (int i = 0; i < BLOCK_LENGTH; i++) {

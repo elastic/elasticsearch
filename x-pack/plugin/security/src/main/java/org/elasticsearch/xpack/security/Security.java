@@ -124,7 +124,6 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
-import org.elasticsearch.xpack.core.crypto.EncryptedData;
 import org.elasticsearch.xpack.core.crypto.EncryptionService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
@@ -1628,11 +1627,6 @@ public class Security extends Plugin
     @Override
     public List<Setting<?>> getSettings() {
         return getSettings(securityExtensions, remoteClusterSecurityExtensionProvider.get());
-    }
-
-    @Override
-    public List<SearchPlugin.GenericNamedWriteableSpec> getGenericNamedWriteables() {
-        return List.of(new SearchPlugin.GenericNamedWriteableSpec(EncryptedData.NAMED_WRITEABLE_NAME, EncryptedData::new));
     }
 
     /**

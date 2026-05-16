@@ -9,14 +9,12 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -27,16 +25,17 @@ import java.util.Objects;
  * A validated data source setting value paired with its sensitivity classification, stored in
  * cluster state as part of data source metadata.
  *
- * <p>Secret values are either a transient plaintext {@code String} (only on the way into the
- * master-side encrypt step) or a ciphertext {@link GenericNamedWriteable} carrier deposited by
- * that step. After encryption every secret value persisted to cluster state is a carrier; any other
- * shape read back from cluster state is stale pre-encryption data and consumers should fail.
+ * <p>Secret values are either a plaintext {@code String} (when no encryption service was available
+ * at PUT time) or an encrypted {@code byte[]} (the binary {@code writeTo} output of an
+ * {@code EncryptedData} carrier, when encryption succeeded). Runtime type discrimination
+ * ({@code value instanceof byte[]}) tells them apart at every layer — binary writeGenericValue
+ * preserves the type tag, SMILE XContent preserves the byte-array embedded-object token.
  *
  * <p>Non-secret values may carry any type that round-trips through {@link StreamOutput#writeGenericValue}.
  * Access values via {@link #rawValue()} (always returns the raw value) or {@link #nonSecretValue()}
  * (asserts {@code !secret}).
  */
-public final class DataSourceSetting implements Writeable, ToXContentObject {
+public final class DataSourceSetting implements Writeable, org.elasticsearch.xcontent.ToXContentObject {
 
     static final String MASK_SENTINEL = "::es_redacted::";
 
@@ -50,10 +49,14 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
     );
 
     static {
-        // XContent input arrives only via user PUTs (REST layer) — secrets are scalar plaintext at that
-        // boundary. The ciphertext carrier shape is binary-only on the wire and never round-trips
-        // through XContent in the API or persistence paths (DataSourceMetadata.context() excludes both).
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), (p, c) -> p.objectText(), VALUE, ObjectParser.ValueType.VALUE);
+        // Value field accepts scalars (plaintext String, numbers, booleans, null) and binary embedded
+        // objects (encrypted byte[] from SMILE persistence). The parser dispatches on token kind.
+        PARSER.declareField(ConstructingObjectParser.constructorArg(), (p, c) -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+                return p.binaryValue();
+            }
+            return p.objectText();
+        }, VALUE, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), SECRET);
     }
 
@@ -62,9 +65,9 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
 
     public DataSourceSetting(Object value, boolean secret) {
         if (secret && value != null) {
-            if ((value instanceof String || value instanceof GenericNamedWriteable) == false) {
+            if ((value instanceof String || value instanceof byte[]) == false) {
                 throw new IllegalArgumentException(
-                    "secret data source settings must be a String (transient plaintext) or an encrypted carrier; got ["
+                    "secret data source settings must be a String (plaintext) or byte[] (encrypted blob); got ["
                         + value.getClass().getName()
                         + "]"
                 );
@@ -86,6 +89,11 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
 
     public boolean secret() {
         return secret;
+    }
+
+    /** True iff the value is an encrypted blob (byte[] — the binary writeTo of an EncryptedData). */
+    public boolean isEncryptedBlob() {
+        return value instanceof byte[];
     }
 
     /** Returns the value of a non-secret setting; throws if secret. */
@@ -111,11 +119,12 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, org.elasticsearch.xcontent.ToXContent.Params params) throws IOException {
         builder.startObject();
-        if (value instanceof ToXContentObject toX) {
-            builder.field(VALUE.getPreferredName());
-            toX.toXContent(builder, params);
+        if (value instanceof byte[] bytes) {
+            // Renders as base64 in JSON, embedded-object token in SMILE — the SMILE form is what
+            // PersistedClusterStateService round-trips through.
+            builder.field(VALUE.getPreferredName(), bytes);
         } else {
             builder.field(VALUE.getPreferredName(), value);
         }
@@ -129,12 +138,17 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DataSourceSetting that = (DataSourceSetting) o;
-        return secret == that.secret && Objects.equals(value, that.value);
+        if (secret != that.secret) return false;
+        if (value instanceof byte[] lhs && that.value instanceof byte[] rhs) {
+            return java.util.Arrays.equals(lhs, rhs);
+        }
+        return Objects.equals(value, that.value);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(value, secret);
+        int v = value instanceof byte[] bytes ? java.util.Arrays.hashCode(bytes) : Objects.hashCode(value);
+        return Objects.hash(v, secret);
     }
 
     @Override

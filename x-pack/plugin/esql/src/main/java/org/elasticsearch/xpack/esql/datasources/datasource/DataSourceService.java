@@ -24,7 +24,10 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -33,6 +36,7 @@ import org.elasticsearch.xpack.core.crypto.EncryptedData;
 import org.elasticsearch.xpack.core.crypto.EncryptionService;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
@@ -40,6 +44,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Orchestrates create / replace / delete of data sources in cluster state. */
 public class DataSourceService {
@@ -58,6 +63,9 @@ public class DataSourceService {
     protected final ClusterService clusterService;
     private final Map<String, DataSourceValidator> validatorsByType;
     private final MasterServiceTaskQueue<AckedClusterStateUpdateTask> taskQueue;
+
+    /** CAS-guarded so the "encryption unavailable" warning logs at most once per cluster lifetime. */
+    private final AtomicBoolean plaintextWarningLogged = new AtomicBoolean(false);
 
     private volatile int maxDataSourcesCount;
 
@@ -90,25 +98,20 @@ public class DataSourceService {
     }
 
     /**
-     * Create or replace a data source. Encryption is mandatory: every secret value is encrypted master-side
-     * before being committed to cluster state. If {@code encryptionService} is {@code null} the PUT fails
-     * with {@code 503 Service Unavailable} — there is no plaintext fallback.
+     * Create or replace a data source. When {@code encryptionService} is bound, every secret value is
+     * encrypted master-side before being committed to cluster state. When it is not bound (e.g. the
+     * cluster runs without {@code xpack.security.enabled} or with the PEK feature flag off), secret
+     * values are committed as plaintext and a single loud warning is logged once per cluster lifetime.
+     * The decrypt seam ({@code DataSourceCredentials.decryptInPlace}) still refuses to hand the
+     * connector an encrypted blob without a key, so the only asymmetric mode is "unbound at PUT, then
+     * plaintext at FROM" — which is what you'd expect on a dev / no-security cluster.
      */
     public void putDataSource(
         ProjectId projectId,
         PutDataSourceAction.Request request,
-        EncryptionService encryptionService,
+        @Nullable EncryptionService encryptionService,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        if (encryptionService == null) {
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    "cannot accept data source [" + request.name() + "]: secret encryption service is not available on this node",
-                    RestStatus.SERVICE_UNAVAILABLE
-                )
-            );
-            return;
-        }
         logger.debug("submitting put data source [{}] of type [{}]", request.name(), request.type());
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, listener) {
             @Override
@@ -123,8 +126,20 @@ public class DataSourceService {
                         "cannot add data source, the maximum number of data sources is reached: " + maxDataSourcesCount
                     );
                 }
-                final Map<String, DataSourceSetting> encrypted = encryptSecrets(validated.settings(), encryptionService);
-                final DataSource dataSource = new DataSource(validated.name(), validated.type(), validated.description(), encrypted);
+                final Map<String, DataSourceSetting> stored;
+                if (encryptionService != null) {
+                    stored = encryptSecrets(validated.settings(), encryptionService);
+                } else {
+                    if (hasSecret(validated.settings()) && plaintextWarningLogged.compareAndSet(false, true)) {
+                        logger.warn(
+                            "data-source secrets are being stored as PLAINTEXT in cluster state because "
+                                + "no encryption service is bound on this node. To encrypt at rest, enable xpack.security "
+                                + "and the primary-encryption-key feature flag. This message is logged once per node lifetime."
+                        );
+                    }
+                    stored = validated.settings();
+                }
+                final DataSource dataSource = new DataSource(validated.name(), validated.type(), validated.description(), stored);
                 final Map<String, DataSource> updated = new HashMap<>(metadata.dataSources());
                 updated.put(dataSource.name(), dataSource);
                 return ClusterState.builder(currentState)
@@ -135,6 +150,13 @@ public class DataSourceService {
             }
         };
         taskQueue.submitTask("update-esql-data-source-metadata-[" + request.name() + "]", task, task.timeout());
+    }
+
+    private static boolean hasSecret(Map<String, DataSourceSetting> settings) {
+        for (DataSourceSetting s : settings.values()) {
+            if (s.secret() && s.rawValue() != null) return true;
+        }
+        return false;
     }
 
     // Package-private for unit testing.
@@ -154,13 +176,24 @@ public class DataSourceService {
             if (raw instanceof String plaintext) {
                 byte[] bytes = plaintext.getBytes(StandardCharsets.UTF_8);
                 try {
-                    EncryptedData encryptedValue = encryptionService.encrypt(bytes);
-                    result.put(entry.getKey(), new DataSourceSetting(encryptedValue, true));
+                    EncryptedData encrypted = encryptionService.encrypt(bytes);
+                    BytesStreamOutput out = new BytesStreamOutput();
+                    try {
+                        encrypted.writeTo(out);
+                    } catch (IOException e) {
+                        throw new ElasticsearchStatusException(
+                            "failed to serialize encrypted value for setting [" + entry.getKey() + "]",
+                            RestStatus.INTERNAL_SERVER_ERROR,
+                            e
+                        );
+                    }
+                    byte[] wireBytes = BytesReference.toBytes(out.bytes());
+                    result.put(entry.getKey(), new DataSourceSetting(wireBytes, true));
                 } finally {
                     Arrays.fill(bytes, (byte) 0);
                 }
             } else {
-                // Already a ciphertext carrier (constructor guarantees String | GenericNamedWriteable | null).
+                // Already a byte[] blob (cluster-state replay); forward unchanged.
                 result.put(entry.getKey(), setting);
             }
         }

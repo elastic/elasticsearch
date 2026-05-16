@@ -8,11 +8,14 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.crypto.EncryptedData;
 import org.elasticsearch.xpack.core.crypto.EncryptionService;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
@@ -35,6 +38,14 @@ public class DataSourceCredentialsTests extends ESTestCase {
             return encryptedData.payload();
         }
     };
+
+    /** Encrypt the given plaintext + serialize to the byte[] blob shape that lives in cluster state. */
+    private static byte[] encryptToBlob(String plaintext) throws IOException {
+        EncryptedData encrypted = IDENTITY.encrypt(plaintext.getBytes(StandardCharsets.UTF_8));
+        BytesStreamOutput out = new BytesStreamOutput();
+        encrypted.writeTo(out);
+        return BytesReference.toBytes(out.bytes());
+    }
 
     @Override
     public void setUp() throws Exception {
@@ -69,13 +80,13 @@ public class DataSourceCredentialsTests extends ESTestCase {
         assertEquals(input.size(), out.size());
     }
 
-    public void testEncryptedCarrierIsDecryptedToPlaintextString() {
+    public void testEncryptedBlobIsDecryptedToPlaintextString() throws IOException {
         String canary = "AKIA_canary_" + randomAlphaOfLength(8);
-        EncryptedData encrypted = IDENTITY.encrypt(canary.getBytes(StandardCharsets.UTF_8));
+        byte[] blob = encryptToBlob(canary);
 
         Map<String, Object> input = new HashMap<>();
         input.put("region", "us-east-1");
-        input.put("secret_access_key", encrypted);
+        input.put("secret_access_key", blob);
 
         Map<String, Object> out = DataSourceCredentials.decryptInPlace(input);
 
@@ -84,12 +95,12 @@ public class DataSourceCredentialsTests extends ESTestCase {
         assertThat(out.get("secret_access_key"), equalTo(canary));
     }
 
-    public void testMultipleEncryptedCarriersAreEachDecrypted() {
+    public void testMultipleEncryptedBlobsAreEachDecrypted() throws IOException {
         String akCanary = "ak_" + randomAlphaOfLength(8);
         String skCanary = "sk_" + randomAlphaOfLength(12);
         Map<String, Object> input = new HashMap<>();
-        input.put("access_key", IDENTITY.encrypt(akCanary.getBytes(StandardCharsets.UTF_8)));
-        input.put("secret_key", IDENTITY.encrypt(skCanary.getBytes(StandardCharsets.UTF_8)));
+        input.put("access_key", encryptToBlob(akCanary));
+        input.put("secret_key", encryptToBlob(skCanary));
         input.put("endpoint", "https://example.test");
 
         Map<String, Object> out = DataSourceCredentials.decryptInPlace(input);
@@ -99,10 +110,20 @@ public class DataSourceCredentialsTests extends ESTestCase {
         assertEquals("https://example.test", out.get("endpoint"));
     }
 
+    public void testPlaintextSecretsPassThrough() throws IOException {
+        // Plaintext String values for secrets (the no-encryption-service path on the producer side)
+        // reach the connector untouched — the SDK can use the plaintext String directly.
+        Map<String, Object> input = new HashMap<>();
+        input.put("region", "us-east-1");
+        input.put("secret_access_key", "AKIA_plaintext_storage");
+
+        Map<String, Object> out = DataSourceCredentials.decryptInPlace(input);
+
+        assertEquals("us-east-1", out.get("region"));
+        assertEquals("AKIA_plaintext_storage", out.get("secret_access_key"));
+    }
+
     public void testUnknownObjectsPassThroughUntouched() {
-        // Anything that isn't an EncryptedData stays as-is. The decrypt seam doesn't reject foreign
-        // shapes — it only decrypts what it knows. The corruption-check policy (a String for a
-        // secret-flagged setting is stale pre-encryption data) is enforced upstream at PUT time.
         Map<String, Object> input = new HashMap<>();
         input.put("nested", Map.of("k", "v"));
         input.put("list", java.util.List.of(1, 2, 3));
@@ -113,28 +134,27 @@ public class DataSourceCredentialsTests extends ESTestCase {
         assertEquals(input.get("list"), out.get("list"));
     }
 
-    public void testDecryptInPlaceProducesACopyNotMutatingTheInput() {
-        EncryptedData encrypted = IDENTITY.encrypt("canary".getBytes(StandardCharsets.UTF_8));
+    public void testDecryptInPlaceProducesACopyNotMutatingTheInput() throws IOException {
+        byte[] blob = encryptToBlob("canary");
         Map<String, Object> input = new HashMap<>();
-        input.put("secret_access_key", encrypted);
+        input.put("secret_access_key", blob);
         Map<String, Object> snapshot = new HashMap<>(input);
 
         DataSourceCredentials.decryptInPlace(input);
 
         assertEquals(snapshot, input);
-        assertSame(encrypted, input.get("secret_access_key"));
+        assertSame(blob, input.get("secret_access_key"));
     }
 
-    public void testUnboundEncryptionServiceFailsLoudWhenAnyEncryptedCarrierPresent() throws Exception {
-        // Symmetric with the PUT-side "encrypt or fail" rule: if the connector boundary is reached
-        // without an EncryptionService binding but the settings carry encrypted material, the read
-        // must fail with 503 rather than silently passing an EncryptedData to the SDK as opaque junk.
+    public void testUnboundEncryptionServiceFailsLoudWhenEncryptedBlobPresent() throws Exception {
+        // Consumer-side strict: if an encrypted blob reaches the connector boundary without an
+        // EncryptionService to decrypt it, fail with 503 rather than hand the SDK opaque bytes.
         DataSourceCredentials.initialize(null);
         try {
-            EncryptedData encrypted = IDENTITY.encrypt("plain".getBytes(StandardCharsets.UTF_8));
+            byte[] blob = encryptToBlob("plain");
             Map<String, Object> input = new HashMap<>();
             input.put("region", "us-east-1");
-            input.put("secret_access_key", encrypted);
+            input.put("secret_access_key", blob);
 
             ElasticsearchStatusException ese = expectThrows(
                 ElasticsearchStatusException.class,
@@ -147,17 +167,17 @@ public class DataSourceCredentialsTests extends ESTestCase {
         }
     }
 
-    public void testUnboundServiceWithNoEncryptedValuesIsAllowedThrough() throws Exception {
-        // Plaintext-only settings reach the connector even when no service is bound — there is nothing
-        // to decrypt. The 503 fires only when an EncryptedData carrier is actually present.
+    public void testUnboundServiceWithPlaintextSecretsIsAllowedThrough() throws Exception {
+        // The no-encryption-service producer path produces plaintext String values; reading them back
+        // on a node still without a service is fine — there is nothing to decrypt.
         DataSourceCredentials.initialize(null);
         try {
             Map<String, Object> input = new HashMap<>();
             input.put("region", "us-east-1");
-            input.put("endpoint", "https://example.test");
+            input.put("secret_access_key", "AKIA_plaintext");
             Map<String, Object> out = DataSourceCredentials.decryptInPlace(input);
             assertEquals("us-east-1", out.get("region"));
-            assertEquals("https://example.test", out.get("endpoint"));
+            assertEquals("AKIA_plaintext", out.get("secret_access_key"));
         } finally {
             DataSourceCredentials.initialize(IDENTITY);
         }

@@ -106,14 +106,16 @@ public class DataSourceSettingTests extends ESTestCase {
         assertNotEquals(a, d);
     }
 
-    public void testSecretMustBeStringOrEncryptedCarrier() {
-        // Secret values must be either a transient plaintext String or a GenericNamedWriteable
-        // ciphertext carrier. Numeric and boolean payloads are rejected at construction.
+    public void testSecretMustBeStringOrEncryptedBlob() {
+        // Secret values are either a plaintext String (no-encryption-service producer path) or an
+        // encrypted byte[] blob (the master-encrypted form). Numeric and boolean payloads are rejected.
         var ex = expectThrows(IllegalArgumentException.class, () -> new DataSourceSetting(42, true));
         assertTrue(ex.getMessage().contains("must be a String"));
         expectThrows(IllegalArgumentException.class, () -> new DataSourceSetting(9_999_999_999L, true));
         expectThrows(IllegalArgumentException.class, () -> new DataSourceSetting(3.14159, true));
         expectThrows(IllegalArgumentException.class, () -> new DataSourceSetting(true, true));
+        // byte[] is allowed (encrypted shape)
+        new DataSourceSetting(new byte[] { 1, 2, 3 }, true);
     }
 
     public void testSecretMayBeNull() {

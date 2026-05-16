@@ -100,6 +100,30 @@ public final class DataSource implements Writeable, ToXContentObject {
         return settings;
     }
 
+    /**
+     * Per-data-source encryption posture, derived from the stored shape of its secret settings:
+     * {@code "encrypted"} when every secret is a ciphertext blob, {@code "plaintext"} when every
+     * secret is plaintext, {@code "mixed"} when both forms coexist (re-PUT happened against a node
+     * whose encryption capability differed from the original PUT), and {@code "no_secrets"} when
+     * the data source has no secret settings at all.
+     */
+    public String encryptionState() {
+        boolean anyEncrypted = false;
+        boolean anyPlaintext = false;
+        for (DataSourceSetting setting : settings.values()) {
+            if (setting.secret() == false || setting.rawValue() == null) continue;
+            if (setting.isEncryptedBlob()) {
+                anyEncrypted = true;
+            } else {
+                anyPlaintext = true;
+            }
+        }
+        if (anyEncrypted && anyPlaintext) return "mixed";
+        if (anyEncrypted) return "encrypted";
+        if (anyPlaintext) return "plaintext";
+        return "no_secrets";
+    }
+
     /** Settings with secrets masked. Safe for REST responses. */
     public Map<String, Object> toPresentationMap() {
         Map<String, Object> result = new HashMap<>();

@@ -99,7 +99,6 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         plugins.add(HttpDataSourcePlugin.class);
         plugins.add(CsvDataSourcePlugin.class);
         plugins.add(TestDataSourcePlugin.class);
-        plugins.add(org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin.class);
         return plugins;
     }
 

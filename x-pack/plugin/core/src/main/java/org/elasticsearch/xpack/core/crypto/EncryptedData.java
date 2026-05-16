@@ -6,33 +6,40 @@
  */
 package org.elasticsearch.xpack.core.crypto;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Objects;
 
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+
 /**
- * Holds the result of an encryption operation: the key ID and the encrypted payload.
- * Implements {@link GenericNamedWriteable} so it can travel inside {@code Map<String, Object>}
- * carriers serialized via {@link StreamOutput#writeGenericValue}.
+ * Holds the result of an encryption operation: the key ID that was used and the encrypted payload.
  */
-public final class EncryptedData implements GenericNamedWriteable, ToXContentObject {
+public final class EncryptedData implements Writeable, ToXContentObject {
 
-    /** Stable transport-name for {@link GenericNamedWriteable} dispatch; renaming is a wire-format break. */
-    public static final String NAMED_WRITEABLE_NAME = "encrypted_data";
+    private static final ParseField KEY_ID_FIELD = new ParseField("key_id");
+    private static final ParseField DATA_FIELD = new ParseField("data");
 
-    public static final TransportVersion GENERIC_NAMED_WRITEABLE_V1 = TransportVersion.fromName("data_source_encryption");
+    private static final ConstructingObjectParser<EncryptedData, Void> PARSER = new ConstructingObjectParser<>(
+        "encrypted_data",
+        false,
+        args -> new EncryptedData((String) args[0], (byte[]) args[1])
+    );
+
+    static {
+        PARSER.declareString(constructorArg(), KEY_ID_FIELD);
+        PARSER.declareField(constructorArg(), (p, c) -> p.binaryValue(), DATA_FIELD, ObjectParser.ValueType.VALUE);
+    }
 
     private final String keyId;
     private final byte[] payload;
@@ -62,25 +69,17 @@ public final class EncryptedData implements GenericNamedWriteable, ToXContentObj
         out.writeByteArray(payload);
     }
 
-    /** Renders as a base64 scalar wrapping the binary {@link #writeTo} output — matches the
-     *  {@code License.signature} / {@code PrimaryEncryptionKeyMetadata} pattern for binary cluster-state
-     *  material persisted via XContent. */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        BytesStreamOutput out = new BytesStreamOutput();
-        writeTo(out);
-        builder.value(Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes())));
+        builder.startObject();
+        builder.field(KEY_ID_FIELD.getPreferredName(), keyId);
+        builder.field(DATA_FIELD.getPreferredName(), payload);
+        builder.endObject();
         return builder;
     }
 
-    public static EncryptedData fromXContent(XContentParser parser) throws IOException {
-        if (parser.currentToken() == null) {
-            parser.nextToken();
-        }
-        byte[] decoded = Base64.getDecoder().decode(parser.text());
-        try (StreamInput in = new BytesArray(decoded).streamInput()) {
-            return new EncryptedData(in);
-        }
+    public static EncryptedData fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 
     @Override
@@ -94,16 +93,6 @@ public final class EncryptedData implements GenericNamedWriteable, ToXContentObj
     @Override
     public int hashCode() {
         return Objects.hash(keyId, Arrays.hashCode(payload));
-    }
-
-    @Override
-    public String getWriteableName() {
-        return NAMED_WRITEABLE_NAME;
-    }
-
-    @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return GENERIC_NAMED_WRITEABLE_V1;
     }
 
     @Override

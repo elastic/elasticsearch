@@ -65,8 +65,9 @@ public class DataSourceServiceEncryptSecretsTests extends ESTestCase {
         assertEquals(1, encryptCalls.get());
         DataSourceSetting result = out.get("secret_access_key");
         assertTrue("secret flag preserved", result.secret());
-        assertThat("plaintext String replaced by carrier", result.rawValue(), instanceOf(EncryptedData.class));
-        EncryptedData ed = (EncryptedData) result.rawValue();
+        assertThat("plaintext String replaced by encrypted byte[] blob", result.rawValue(), instanceOf(byte[].class));
+        byte[] blob = (byte[]) result.rawValue();
+        EncryptedData ed = decodeBlob(blob);
         assertThat(new String(ed.payload(), StandardCharsets.UTF_8), equalTo(canary));
     }
 
@@ -111,13 +112,13 @@ public class DataSourceServiceEncryptSecretsTests extends ESTestCase {
             }
         };
 
-        EncryptedData preEncrypted = new EncryptedData("upstream-key", "AKIA_old".getBytes(StandardCharsets.UTF_8));
-        Map<String, DataSourceSetting> in = Map.of("secret_access_key", new DataSourceSetting(preEncrypted, true));
+        byte[] preEncryptedBlob = encodeBlob(new EncryptedData("upstream-key", "AKIA_old".getBytes(StandardCharsets.UTF_8)));
+        Map<String, DataSourceSetting> in = Map.of("secret_access_key", new DataSourceSetting(preEncryptedBlob, true));
 
         Map<String, DataSourceSetting> out = DataSourceService.encryptSecrets(in, svc);
 
-        assertEquals("encrypt() not invoked when value is already a carrier", 0, encryptCalls.get());
-        assertSame(preEncrypted, out.get("secret_access_key").rawValue());
+        assertEquals("encrypt() not invoked when value is already a blob", 0, encryptCalls.get());
+        assertSame(preEncryptedBlob, out.get("secret_access_key").rawValue());
     }
 
     public void testMixedSettingsEncryptOnlyTheSecrets() {
@@ -141,10 +142,28 @@ public class DataSourceServiceEncryptSecretsTests extends ESTestCase {
         assertEquals("https://example.test", out.get("endpoint").rawValue());
         assertEquals(7, out.get("max_retries").rawValue());
 
-        assertThat(out.get("access_key").rawValue(), instanceOf(EncryptedData.class));
-        assertThat(out.get("secret_access_key").rawValue(), instanceOf(EncryptedData.class));
-        assertEquals(ak, new String(((EncryptedData) out.get("access_key").rawValue()).payload(), StandardCharsets.UTF_8));
-        assertEquals(sk, new String(((EncryptedData) out.get("secret_access_key").rawValue()).payload(), StandardCharsets.UTF_8));
+        assertThat(out.get("access_key").rawValue(), instanceOf(byte[].class));
+        assertThat(out.get("secret_access_key").rawValue(), instanceOf(byte[].class));
+        assertEquals(ak, new String(decodeBlob((byte[]) out.get("access_key").rawValue()).payload(), StandardCharsets.UTF_8));
+        assertEquals(sk, new String(decodeBlob((byte[]) out.get("secret_access_key").rawValue()).payload(), StandardCharsets.UTF_8));
+    }
+
+    private static byte[] encodeBlob(EncryptedData encrypted) {
+        try {
+            org.elasticsearch.common.io.stream.BytesStreamOutput out = new org.elasticsearch.common.io.stream.BytesStreamOutput();
+            encrypted.writeTo(out);
+            return org.elasticsearch.common.bytes.BytesReference.toBytes(out.bytes());
+        } catch (java.io.IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    private static EncryptedData decodeBlob(byte[] blob) {
+        try (org.elasticsearch.common.io.stream.StreamInput in = new org.elasticsearch.common.bytes.BytesArray(blob).streamInput()) {
+            return new EncryptedData(in);
+        } catch (java.io.IOException e) {
+            throw new AssertionError(e);
+        }
     }
 
     private static EncryptionService countingService() {

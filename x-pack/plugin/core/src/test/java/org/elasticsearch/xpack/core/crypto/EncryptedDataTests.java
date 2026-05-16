@@ -6,29 +6,20 @@
  */
 package org.elasticsearch.xpack.core.crypto;
 
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.GenericNamedWriteable;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 
-public class EncryptedDataTests extends AbstractWireSerializingTestCase<EncryptedData> {
+public class EncryptedDataTests extends AbstractXContentSerializingTestCase<EncryptedData> {
+
+    @Override
+    protected EncryptedData doParseInstance(XContentParser parser) throws IOException {
+        return EncryptedData.fromXContent(parser);
+    }
 
     @Override
     protected Writeable.Reader<EncryptedData> instanceReader() {
@@ -58,57 +49,5 @@ public class EncryptedDataTests extends AbstractWireSerializingTestCase<Encrypte
         String str = data.toString();
         assertThat(str, containsString(data.keyId()));
         assertThat(str, containsString("::es_redacted::"));
-    }
-
-    public void testNamedWriteableNameIsStable() {
-        // Wire-format identity: the registered name is part of the on-wire shape; renaming it is a
-        // breaking change for any cluster state that carries an EncryptedData carrier inside a
-        // generic-value map. Pin it.
-        assertEquals("encrypted_data", EncryptedData.NAMED_WRITEABLE_NAME);
-        EncryptedData data = createTestInstance();
-        assertEquals("encrypted_data", data.getWriteableName());
-    }
-
-    public void testRoundTripViaWriteGenericValue() throws IOException {
-        // The whole point of implementing GenericNamedWriteable is so that EncryptedData can ride
-        // inside any Map<String, Object> serialized via writeGenericValue — which is how
-        // DataSourceSetting ships values on the wire. If this regresses, the storage encryption path
-        // breaks even though the standalone Writeable round-trip continues to pass.
-        NamedWriteableRegistry registry = new NamedWriteableRegistry(
-            List.of(new Entry(GenericNamedWriteable.class, EncryptedData.NAMED_WRITEABLE_NAME, EncryptedData::new))
-        );
-        Map<String, Object> wire = new HashMap<>();
-        wire.put("region", "us-east-1");
-        wire.put("secret_access_key", createTestInstance());
-
-        BytesStreamOutput out = new BytesStreamOutput();
-        out.writeGenericValue(wire);
-
-        try (StreamInput rawInput = out.bytes().streamInput(); StreamInput in = new NamedWriteableAwareStreamInput(rawInput, registry)) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> roundTripped = (Map<String, Object>) in.readGenericValue();
-            assertThat(roundTripped.get("region"), equalTo("us-east-1"));
-            assertThat(roundTripped.get("secret_access_key"), instanceOf(EncryptedData.class));
-            assertEquals(wire.get("secret_access_key"), roundTripped.get("secret_access_key"));
-        }
-    }
-
-    public void testXContentScalarRoundTrip() throws IOException {
-        // EncryptedData renders as a single base64 scalar in XContent (License.signature / PEK byte[]
-        // precedent). The test wraps it in a parent field so the standard parser positioning applies.
-        EncryptedData original = createTestInstance();
-        XContentBuilder builder = JsonXContent.contentBuilder().startObject().field("encrypted");
-        original.toXContent(builder, null);
-        builder.endObject();
-
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-            assertEquals("encrypted", parser.currentName());
-            assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
-            EncryptedData parsed = EncryptedData.fromXContent(parser);
-            assertEquals(original, parsed);
-            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-        }
     }
 }

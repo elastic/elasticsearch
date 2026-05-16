@@ -8,10 +8,13 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.crypto.EncryptedData;
 import org.elasticsearch.xpack.core.crypto.EncryptionService;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -20,15 +23,18 @@ import java.util.Map;
 /**
  * Decrypts secret values at the catalog-invocation seam. {@link #initialize} runs once per node at
  * Guice setter time (from {@code TransportPutDataSourceAction.setEncryptionService}); {@link #decryptInPlace}
- * runs on every connector call to replace {@link EncryptedData} carriers with plaintext just before the
- * connector consumes them.
+ * runs on every connector call to materialize plaintext from encrypted blobs just before the connector
+ * consumes them.
  *
- * <p>If the holder is unbound but the input contains encrypted carriers, the method throws
- * {@code 503 Service Unavailable} — symmetric with the PUT-side "encrypt or fail" contract.
+ * <p>Asymmetry with the producer side is intentional. PUT is lax: if the encryption service is
+ * unavailable, secrets are stored as plaintext (the cluster has no way to encrypt). FROM is strict:
+ * if a {@code byte[]} blob arrives at the connector boundary but no service is bound to decrypt it,
+ * the call fails with 503 — passing the SDK opaque bytes it can't read would surface as a confusing
+ * auth error or worse.
  *
  * <p>TODO(#149194): the static singleton holder mirrors the same per-project mismatch the linked issue
- * flags inside {@code PrimaryEncryptionKeyService}. When that lands and the service becomes project-aware,
- * replace this static seam with a per-call lookup that carries {@code ProjectId} context.
+ * flags inside {@code PrimaryEncryptionKeyService}. When that lands and the service becomes
+ * project-aware, replace this static seam with a per-call lookup that carries {@code ProjectId} context.
  */
 public final class DataSourceCredentials {
 
@@ -48,14 +54,14 @@ public final class DataSourceCredentials {
         Map<String, Object> result = new HashMap<>(config.size());
         for (Map.Entry<String, Object> entry : config.entrySet()) {
             Object value = entry.getValue();
-            if (value instanceof EncryptedData encrypted) {
+            if (value instanceof byte[] blob) {
                 if (service == null) {
                     throw new ElasticsearchStatusException(
                         "cannot decrypt secret data-source settings: encryption service is not bound on this node",
                         RestStatus.SERVICE_UNAVAILABLE
                     );
                 }
-                result.put(entry.getKey(), decryptToString(encrypted, service));
+                result.put(entry.getKey(), decryptToString(blob, service));
             } else {
                 result.put(entry.getKey(), value);
             }
@@ -63,7 +69,17 @@ public final class DataSourceCredentials {
         return result;
     }
 
-    private static String decryptToString(EncryptedData encrypted, EncryptionService service) {
+    private static String decryptToString(byte[] blob, EncryptionService service) {
+        EncryptedData encrypted;
+        try (StreamInput in = new BytesArray(blob).streamInput()) {
+            encrypted = new EncryptedData(in);
+        } catch (IOException e) {
+            throw new ElasticsearchStatusException(
+                "cannot decrypt secret data-source setting: encrypted blob is malformed",
+                RestStatus.INTERNAL_SERVER_ERROR,
+                e
+            );
+        }
         byte[] plaintext = service.decrypt(encrypted);
         try {
             return new String(plaintext, StandardCharsets.UTF_8);

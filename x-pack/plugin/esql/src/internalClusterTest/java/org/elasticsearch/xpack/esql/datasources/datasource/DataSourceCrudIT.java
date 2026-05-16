@@ -31,7 +31,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.crypto.EncryptedData;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.GetDatasetAction;
@@ -41,7 +40,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashMap;
@@ -137,19 +135,15 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertThat("plain setting value accessible", region.nonSecretValue(), equalTo("us-east-1"));
 
         assertThat("secret-prefixed setting marked secret", secret.secret(), equalTo(true));
-        assertThat("secret value must be stored as EncryptedData carrier", secret.rawValue(), instanceOf(EncryptedData.class));
-        EncryptedData encrypted = (EncryptedData) secret.rawValue();
-        assertThat(
-            "test stub round-trips the plaintext bytes through encrypt/decrypt",
-            new String(encrypted.payload(), StandardCharsets.UTF_8),
-            equalTo("AKIAXYZ")
-        );
+        assertThat("secret value must be stored as encrypted byte[] blob", secret.rawValue(), instanceOf(byte[].class));
+        byte[] blob = (byte[]) secret.rawValue();
+        assertThat("ds reports encrypted state", ds.encryptionState(), equalTo("encrypted"));
 
         // E2E round-trip through DataSourceCredentials.decryptInPlace — the seam the connector boundary uses.
-        // Proves: PUT encrypts → cluster state holds EncryptedData → consumer decrypts back to the canary.
+        // Proves: PUT encrypts → cluster state holds byte[] blob → consumer decrypts back to the canary.
         Map<String, Object> connectorInput = new HashMap<>();
         connectorInput.put("region", "us-east-1");
-        connectorInput.put("secret_access_key", encrypted);
+        connectorInput.put("secret_access_key", blob);
         Map<String, Object> decrypted = DataSourceCredentials.decryptInPlace(connectorInput);
         assertThat("decryptInPlace passes non-secrets through", decrypted.get("region"), equalTo("us-east-1"));
         assertThat("decryptInPlace materialises the plaintext canary", decrypted.get("secret_access_key"), equalTo("AKIAXYZ"));

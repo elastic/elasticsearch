@@ -16,10 +16,10 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * Test-only {@link EncryptionService} binding so the CRUD ITs exercise the mandatory-encryption path
+ * Test-only {@link EncryptionService} binding so the CRUD ITs exercise the encryption path
  * without provisioning a real {@code PrimaryEncryptionKey}. Encrypt wraps the input as-is under
- * a fixed test key id; decrypt unwraps. Not cryptographically meaningful — solely a stand-in
- * to satisfy the mandatory-encryption invariant.
+ * a fixed test key id; decrypt unwraps. Not cryptographically meaningful — purely a stand-in
+ * for the binding the security plugin would provide when {@code xpack.security} is enabled.
  */
 public class TestEncryptionServicePlugin extends Plugin {
 

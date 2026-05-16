@@ -146,6 +146,17 @@ public class DataSourceCrudIT extends ESIntegTestCase {
             equalTo("AKIAXYZ")
         );
 
+        // E2E round-trip through DataSourceCredentials.decryptInPlace — the seam the connector boundary uses.
+        // Proves: PUT encrypts → cluster state holds EncryptedData → consumer decrypts back to the canary.
+        java.util.Map<String, Object> connectorInput = new java.util.HashMap<>();
+        connectorInput.put("region", "us-east-1");
+        connectorInput.put("secret_access_key", encrypted);
+        java.util.Map<String, Object> decrypted = org.elasticsearch.xpack.esql.datasources.DataSourceCredentials.decryptInPlace(
+            connectorInput
+        );
+        assertThat("decryptInPlace passes non-secrets through", decrypted.get("region"), equalTo("us-east-1"));
+        assertThat("decryptInPlace materialises the plaintext canary", decrypted.get("secret_access_key"), equalTo("AKIAXYZ"));
+
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
 
@@ -533,7 +544,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
 
-    private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
+    static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
         return new PutDataSourceAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, name, "test", null, new HashMap<>(settings));
     }
 

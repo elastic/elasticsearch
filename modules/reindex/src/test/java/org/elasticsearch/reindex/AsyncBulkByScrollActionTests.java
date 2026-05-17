@@ -74,6 +74,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.Task;
@@ -1511,6 +1512,81 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         testRequest.getSearchRequest().source().trackTotalHitsUpTo(userTrackTotalHitsUpTo);
         var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
         assertEquals(Integer.valueOf(userTrackTotalHitsUpTo), preparedSearchRequest.source().trackTotalHitsUpTo());
+    }
+
+    /// PIT pagination tracks accurately on the first batch only, then disables tracking on follow-ups while still
+    /// reporting the cached total in the response.
+    public void testPitPaginatedHitSourceCachesTotalAndDisablesTrackOnSubsequentBatches() {
+        configurePitOrScroll(true);
+        SearchRequest preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
+        AtomicReference<PaginatedHitSource.AsyncResponse> capturedAsyncResponse = new AtomicReference<>();
+        AtomicReference<Exception> capturedFailure = new AtomicReference<>();
+        ClientPitPaginatedHitSource paginatedHitSource = new ClientPitPaginatedHitSource(
+            logger,
+            buildTestBackoffPolicy(),
+            threadPool,
+            () -> {},
+            capturedAsyncResponse::set,
+            capturedFailure::set,
+            new ParentTaskAssigningClient(client, localNode, testTask),
+            preparedSearchRequest,
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
+        );
+        paginatedHitSource.start();
+        assertNull("paginatedHitSource start should not fail", capturedFailure.get());
+
+        // First batch inherits accurate tracking from prepareSearchRequest.
+        SearchRequest firstRequest = client.lastSearch.get().request;
+        assertEquals(Integer.valueOf(Integer.MAX_VALUE), firstRequest.source().trackTotalHitsUpTo());
+
+        long totalHits = randomLongBetween(100L, 1_000_000L);
+        SearchHit[] firstBatchHits = new SearchHit[] { new SearchHit(0, "id").sourceRef(new BytesArray("{}")) };
+        firstBatchHits[0].sortValues(new Object[] { 0L }, new DocValueFormat[] { DocValueFormat.RAW });
+        SearchHits firstSearchHits = new SearchHits(firstBatchHits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 0);
+        SearchResponse firstResponse = SearchResponseUtils.response(firstSearchHits).pointInTimeId(TEST_PIT_ID).shards(1, 1, 0).build();
+        firstSearchHits.decRef();
+        try {
+            client.lastSearch.get().listener.onResponse(firstResponse);
+            assertNotNull("first batch must be delivered", capturedAsyncResponse.get());
+            assertEquals("first batch reports the accurate total", totalHits, capturedAsyncResponse.get().response().getTotalHits());
+            new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(capturedAsyncResponse.get()).releaseRemainingHits();
+            capturedAsyncResponse.set(null);
+        } finally {
+            firstResponse.decRef();
+        }
+
+        // After the first batch the cache is seeded, so the next request must drop track_total_hits.
+        paginatedHitSource.requestNextBatch(TimeValue.ZERO);
+        assertNull("next-batch request should not fail", capturedFailure.get());
+        SearchRequest nextRequest = client.lastSearch.get().request;
+        assertEquals(
+            "subsequent PIT searches should disable track_total_hits to keep Max WAND active",
+            Integer.valueOf(SearchContext.TRACK_TOTAL_HITS_DISABLED),
+            nextRequest.source().trackTotalHitsUpTo()
+        );
+        assertNotSame("next request must not mutate the first-batch source", firstRequest.source(), nextRequest.source());
+        assertEquals(
+            "first-batch source remains accurate-tracking",
+            Integer.valueOf(Integer.MAX_VALUE),
+            firstRequest.source().trackTotalHitsUpTo()
+        );
+
+        // Server returns a null total when track_total_hits is disabled; the hit source must substitute the cache.
+        SearchHits secondSearchHits = new SearchHits(new SearchHit[0], null, 0);
+        SearchResponse secondResponse = SearchResponseUtils.response(secondSearchHits).pointInTimeId(TEST_PIT_ID).shards(1, 1, 0).build();
+        secondSearchHits.decRef();
+        try {
+            client.lastSearch.get().listener.onResponse(secondResponse);
+            assertNotNull("second batch must be delivered", capturedAsyncResponse.get());
+            assertEquals(
+                "subsequent batches must report the cached total instead of the placeholder",
+                totalHits,
+                capturedAsyncResponse.get().response().getTotalHits()
+            );
+            new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(capturedAsyncResponse.get()).releaseRemainingHits();
+        } finally {
+            secondResponse.decRef();
+        }
     }
 
     /**

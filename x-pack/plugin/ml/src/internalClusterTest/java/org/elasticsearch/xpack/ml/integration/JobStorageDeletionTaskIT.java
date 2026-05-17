@@ -73,6 +73,8 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
                     MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                     ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
+                    OperationRouting.ADAPTIVE_REPLICA_SELECTION_PROBE_ENABLED_SETTING,
+                    OperationRouting.ADAPTIVE_REPLICA_SELECTION_PROBE_INFLIGHT_CAP_SETTING,
                     OperationRouting.ADAPTIVE_REPLICA_SELECTION_WARMUP_SAMPLES_SETTING,
                     ClusterService.USER_DEFINED_METADATA,
                     ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,

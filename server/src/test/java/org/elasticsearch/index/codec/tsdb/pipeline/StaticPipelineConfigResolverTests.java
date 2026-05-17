@@ -20,7 +20,7 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
         final PipelineConfig config = resolver.resolve(new FieldContext(randomBlockSize(), "@timestamp"));
 
         assertEquals(
-            List.of(StageId.DELTA_OF_DELTA_STAGE, StageId.OFFSET_STAGE, StageId.BITPACK_PAYLOAD),
+            List.of(StageId.DELTA_OF_DELTA_STAGE, StageId.OFFSET_STAGE, StageId.GCD_STAGE, StageId.BITPACK_PAYLOAD),
             config.specs().stream().map(StageSpec::stageId).toList()
         );
     }

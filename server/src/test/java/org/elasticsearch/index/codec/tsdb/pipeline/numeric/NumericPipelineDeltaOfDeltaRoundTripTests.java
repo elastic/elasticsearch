@@ -92,7 +92,7 @@ public class NumericPipelineDeltaOfDeltaRoundTripTests extends ESTestCase {
     public void testMultipleBlocksRoundTrip() throws IOException {
         final int blockSize = randomBlockSize();
         final int numBlocks = randomIntBetween(2, 10);
-        final PipelineConfig config = PipelineConfig.forLongs(blockSize).deltaOfDelta().offset().bitPack();
+        final PipelineConfig config = PipelineConfig.forLongs(blockSize).deltaOfDelta().offset().gcd().bitPack();
         final NumericEncoder encoder = NumericCodecFactory.DEFAULT.createEncoder(config);
         final NumericBlockEncoder blockEncoder = encoder.newBlockEncoder();
 
@@ -156,7 +156,7 @@ public class NumericPipelineDeltaOfDeltaRoundTripTests extends ESTestCase {
     }
 
     private long assertRoundTripAndReturnSize(long[] values, int blockSize, int count) throws IOException {
-        final PipelineConfig config = PipelineConfig.forLongs(blockSize).deltaOfDelta().offset().bitPack();
+        final PipelineConfig config = PipelineConfig.forLongs(blockSize).deltaOfDelta().offset().gcd().bitPack();
         final NumericEncoder encoder = NumericCodecFactory.DEFAULT.createEncoder(config);
         final NumericBlockEncoder blockEncoder = encoder.newBlockEncoder();
 

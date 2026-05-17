@@ -22,8 +22,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link ExpressionEvaluator} implementation for {@link RoundToDouble}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class RoundToDouble1Evaluator implements ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToDouble1Evaluator.class);
+public final class RoundToDoubleFloor4Evaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToDoubleFloor4Evaluator.class);
 
   private final Source source;
 
@@ -31,15 +31,24 @@ public final class RoundToDouble1Evaluator implements ExpressionEvaluator {
 
   private final double p0;
 
+  private final double p1;
+
+  private final double p2;
+
+  private final double p3;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public RoundToDouble1Evaluator(Source source, ExpressionEvaluator field, double p0,
-      DriverContext driverContext) {
+  public RoundToDoubleFloor4Evaluator(Source source, ExpressionEvaluator field, double p0, double p1,
+      double p2, double p3, DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.p0 = p0;
+    this.p1 = p1;
+    this.p2 = p2;
+    this.p3 = p3;
     this.driverContext = driverContext;
   }
 
@@ -76,7 +85,7 @@ public final class RoundToDouble1Evaluator implements ExpressionEvaluator {
               continue position;
         }
         double field = fieldBlock.getDouble(fieldBlock.getFirstValueIndex(p));
-        result.appendDouble(RoundToDouble.process(field, this.p0));
+        result.appendDouble(RoundToDouble.process(field, this.p0, this.p1, this.p2, this.p3));
       }
       return result.build();
     }
@@ -86,7 +95,7 @@ public final class RoundToDouble1Evaluator implements ExpressionEvaluator {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         double field = fieldVector.getDouble(p);
-        result.appendDouble(p, RoundToDouble.process(field, this.p0));
+        result.appendDouble(p, RoundToDouble.process(field, this.p0, this.p1, this.p2, this.p3));
       }
       return result.build();
     }
@@ -94,7 +103,7 @@ public final class RoundToDouble1Evaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "RoundToDouble1Evaluator[" + "field=" + field + ", p0=" + p0 + "]";
+    return "RoundToDoubleFloor4Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + "]";
   }
 
   @Override
@@ -116,20 +125,30 @@ public final class RoundToDouble1Evaluator implements ExpressionEvaluator {
 
     private final double p0;
 
-    public Factory(Source source, ExpressionEvaluator.Factory field, double p0) {
+    private final double p1;
+
+    private final double p2;
+
+    private final double p3;
+
+    public Factory(Source source, ExpressionEvaluator.Factory field, double p0, double p1,
+        double p2, double p3) {
       this.source = source;
       this.field = field;
       this.p0 = p0;
+      this.p1 = p1;
+      this.p2 = p2;
+      this.p3 = p3;
     }
 
     @Override
-    public RoundToDouble1Evaluator get(DriverContext context) {
-      return new RoundToDouble1Evaluator(source, field.get(context), p0, context);
+    public RoundToDoubleFloor4Evaluator get(DriverContext context) {
+      return new RoundToDoubleFloor4Evaluator(source, field.get(context), p0, p1, p2, p3, context);
     }
 
     @Override
     public String toString() {
-      return "RoundToDouble1Evaluator[" + "field=" + field + ", p0=" + p0 + "]";
+      return "RoundToDoubleFloor4Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + "]";
     }
   }
 }

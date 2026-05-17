@@ -22,8 +22,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link ExpressionEvaluator} implementation for {@link RoundToLong}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class RoundToLong10Evaluator implements ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToLong10Evaluator.class);
+public final class RoundToLongFloor10Evaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToLongFloor10Evaluator.class);
 
   private final Source source;
 
@@ -53,7 +53,7 @@ public final class RoundToLong10Evaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
-  public RoundToLong10Evaluator(Source source, ExpressionEvaluator field, long p0, long p1, long p2,
+  public RoundToLongFloor10Evaluator(Source source, ExpressionEvaluator field, long p0, long p1, long p2,
       long p3, long p4, long p5, long p6, long p7, long p8, long p9, DriverContext driverContext) {
     this.source = source;
     this.field = field;
@@ -121,7 +121,7 @@ public final class RoundToLong10Evaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "RoundToLong10Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + ", p5=" + p5 + ", p6=" + p6 + ", p7=" + p7 + ", p8=" + p8 + ", p9=" + p9 + "]";
+    return "RoundToLongFloor10Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + ", p5=" + p5 + ", p6=" + p6 + ", p7=" + p7 + ", p8=" + p8 + ", p9=" + p9 + "]";
   }
 
   @Override
@@ -178,13 +178,13 @@ public final class RoundToLong10Evaluator implements ExpressionEvaluator {
     }
 
     @Override
-    public RoundToLong10Evaluator get(DriverContext context) {
-      return new RoundToLong10Evaluator(source, field.get(context), p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, context);
+    public RoundToLongFloor10Evaluator get(DriverContext context) {
+      return new RoundToLongFloor10Evaluator(source, field.get(context), p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, context);
     }
 
     @Override
     public String toString() {
-      return "RoundToLong10Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + ", p5=" + p5 + ", p6=" + p6 + ", p7=" + p7 + ", p8=" + p8 + ", p9=" + p9 + "]";
+      return "RoundToLongFloor10Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + ", p5=" + p5 + ", p6=" + p6 + ", p7=" + p7 + ", p8=" + p8 + ", p9=" + p9 + "]";
     }
   }
 }

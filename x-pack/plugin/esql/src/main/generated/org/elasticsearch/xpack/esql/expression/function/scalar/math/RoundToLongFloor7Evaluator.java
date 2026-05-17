@@ -22,8 +22,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link ExpressionEvaluator} implementation for {@link RoundToLong}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class RoundToLong2Evaluator implements ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToLong2Evaluator.class);
+public final class RoundToLongFloor7Evaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToLongFloor7Evaluator.class);
 
   private final Source source;
 
@@ -33,16 +33,31 @@ public final class RoundToLong2Evaluator implements ExpressionEvaluator {
 
   private final long p1;
 
+  private final long p2;
+
+  private final long p3;
+
+  private final long p4;
+
+  private final long p5;
+
+  private final long p6;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public RoundToLong2Evaluator(Source source, ExpressionEvaluator field, long p0, long p1,
-      DriverContext driverContext) {
+  public RoundToLongFloor7Evaluator(Source source, ExpressionEvaluator field, long p0, long p1, long p2,
+      long p3, long p4, long p5, long p6, DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.p0 = p0;
     this.p1 = p1;
+    this.p2 = p2;
+    this.p3 = p3;
+    this.p4 = p4;
+    this.p5 = p5;
+    this.p6 = p6;
     this.driverContext = driverContext;
   }
 
@@ -79,7 +94,7 @@ public final class RoundToLong2Evaluator implements ExpressionEvaluator {
               continue position;
         }
         long field = fieldBlock.getLong(fieldBlock.getFirstValueIndex(p));
-        result.appendLong(RoundToLong.process(field, this.p0, this.p1));
+        result.appendLong(RoundToLong.process(field, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6));
       }
       return result.build();
     }
@@ -89,7 +104,7 @@ public final class RoundToLong2Evaluator implements ExpressionEvaluator {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         long field = fieldVector.getLong(p);
-        result.appendLong(p, RoundToLong.process(field, this.p0, this.p1));
+        result.appendLong(p, RoundToLong.process(field, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6));
       }
       return result.build();
     }
@@ -97,7 +112,7 @@ public final class RoundToLong2Evaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "RoundToLong2Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + "]";
+    return "RoundToLongFloor7Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + ", p5=" + p5 + ", p6=" + p6 + "]";
   }
 
   @Override
@@ -121,21 +136,37 @@ public final class RoundToLong2Evaluator implements ExpressionEvaluator {
 
     private final long p1;
 
-    public Factory(Source source, ExpressionEvaluator.Factory field, long p0, long p1) {
+    private final long p2;
+
+    private final long p3;
+
+    private final long p4;
+
+    private final long p5;
+
+    private final long p6;
+
+    public Factory(Source source, ExpressionEvaluator.Factory field, long p0, long p1, long p2,
+        long p3, long p4, long p5, long p6) {
       this.source = source;
       this.field = field;
       this.p0 = p0;
       this.p1 = p1;
+      this.p2 = p2;
+      this.p3 = p3;
+      this.p4 = p4;
+      this.p5 = p5;
+      this.p6 = p6;
     }
 
     @Override
-    public RoundToLong2Evaluator get(DriverContext context) {
-      return new RoundToLong2Evaluator(source, field.get(context), p0, p1, context);
+    public RoundToLongFloor7Evaluator get(DriverContext context) {
+      return new RoundToLongFloor7Evaluator(source, field.get(context), p0, p1, p2, p3, p4, p5, p6, context);
     }
 
     @Override
     public String toString() {
-      return "RoundToLong2Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + "]";
+      return "RoundToLongFloor7Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + ", p5=" + p5 + ", p6=" + p6 + "]";
     }
   }
 }

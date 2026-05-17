@@ -45,8 +45,9 @@ PROMQL index=k8s step=1m start="2024-05-10T00:08:00.000Z" end="2024-05-10T00:10:
 | SORT step;
 
 cost_change:double | step:datetime
-4.375              | 2024-05-10T00:08:00.000Z
-18.625             | 2024-05-10T00:09:00.000Z
+2.5                | 2024-05-10T00:08:00.000Z
+0.5                | 2024-05-10T00:09:00.000Z
+18.625             | 2024-05-10T00:10:00.000Z
 ;
 
 idelta_of_double_no_grouping_promql_collapsed

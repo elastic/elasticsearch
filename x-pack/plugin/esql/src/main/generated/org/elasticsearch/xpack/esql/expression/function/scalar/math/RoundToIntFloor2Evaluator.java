@@ -27,7 +27,7 @@ public final class RoundToIntFloor2Evaluator implements ExpressionEvaluator {
 
   private final Source source;
 
-  private final ExpressionEvaluator field;
+  private final ExpressionEvaluator v;
 
   private final int p0;
 
@@ -37,10 +37,10 @@ public final class RoundToIntFloor2Evaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
-  public RoundToIntFloor2Evaluator(Source source, ExpressionEvaluator field, int p0, int p1,
+  public RoundToIntFloor2Evaluator(Source source, ExpressionEvaluator v, int p0, int p1,
       DriverContext driverContext) {
     this.source = source;
-    this.field = field;
+    this.v = v;
     this.p0 = p0;
     this.p1 = p1;
     this.driverContext = driverContext;
@@ -48,26 +48,26 @@ public final class RoundToIntFloor2Evaluator implements ExpressionEvaluator {
 
   @Override
   public Block eval(Page page) {
-    try (IntBlock fieldBlock = (IntBlock) field.eval(page)) {
-      IntVector fieldVector = fieldBlock.asVector();
-      if (fieldVector == null) {
-        return eval(page.getPositionCount(), fieldBlock);
+    try (IntBlock vBlock = (IntBlock) v.eval(page)) {
+      IntVector vVector = vBlock.asVector();
+      if (vVector == null) {
+        return eval(page.getPositionCount(), vBlock);
       }
-      return eval(page.getPositionCount(), fieldVector).asBlock();
+      return eval(page.getPositionCount(), vVector).asBlock();
     }
   }
 
   @Override
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
-    baseRamBytesUsed += field.baseRamBytesUsed();
+    baseRamBytesUsed += v.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 
-  public IntBlock eval(int positionCount, IntBlock fieldBlock) {
+  public IntBlock eval(int positionCount, IntBlock vBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        switch (fieldBlock.getValueCount(p)) {
+        switch (vBlock.getValueCount(p)) {
           case 0:
               result.appendNull();
               continue position;
@@ -78,18 +78,18 @@ public final class RoundToIntFloor2Evaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
-        int field = fieldBlock.getInt(fieldBlock.getFirstValueIndex(p));
-        result.appendInt(RoundToInt.process(field, this.p0, this.p1));
+        int v = vBlock.getInt(vBlock.getFirstValueIndex(p));
+        result.appendInt(RoundToInt.floor2(v, this.p0, this.p1));
       }
       return result.build();
     }
   }
 
-  public IntVector eval(int positionCount, IntVector fieldVector) {
+  public IntVector eval(int positionCount, IntVector vVector) {
     try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        int field = fieldVector.getInt(p);
-        result.appendInt(p, RoundToInt.process(field, this.p0, this.p1));
+        int v = vVector.getInt(p);
+        result.appendInt(p, RoundToInt.floor2(v, this.p0, this.p1));
       }
       return result.build();
     }
@@ -97,12 +97,12 @@ public final class RoundToIntFloor2Evaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "RoundToIntFloor2Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + "]";
+    return "RoundToIntFloor2Evaluator[" + "v=" + v + ", p0=" + p0 + ", p1=" + p1 + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(field);
+    Releasables.closeExpectNoException(v);
   }
 
   private Warnings warnings() {
@@ -115,27 +115,27 @@ public final class RoundToIntFloor2Evaluator implements ExpressionEvaluator {
   static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final ExpressionEvaluator.Factory field;
+    private final ExpressionEvaluator.Factory v;
 
     private final int p0;
 
     private final int p1;
 
-    public Factory(Source source, ExpressionEvaluator.Factory field, int p0, int p1) {
+    public Factory(Source source, ExpressionEvaluator.Factory v, int p0, int p1) {
       this.source = source;
-      this.field = field;
+      this.v = v;
       this.p0 = p0;
       this.p1 = p1;
     }
 
     @Override
     public RoundToIntFloor2Evaluator get(DriverContext context) {
-      return new RoundToIntFloor2Evaluator(source, field.get(context), p0, p1, context);
+      return new RoundToIntFloor2Evaluator(source, v.get(context), p0, p1, context);
     }
 
     @Override
     public String toString() {
-      return "RoundToIntFloor2Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + "]";
+      return "RoundToIntFloor2Evaluator[" + "v=" + v + ", p0=" + p0 + ", p1=" + p1 + "]";
     }
   }
 }

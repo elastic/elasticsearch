@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
@@ -22,19 +23,23 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSor
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
- * Loads {@code long}s from doc values, rounding each value down to one of a sorted list of points.
+ * Loads {@code long}s from doc values, rounding each value to one of a sorted list of points
+ * according to the configured {@link Rounding.RoundingConvention}.
  * When a {@link DocValuesSkipper} is available, attempts to shortcircuit entire blocks by checking
  * whether the min and max values for the block's doc ID range round to the same point.
  */
 public class RoundToLongsFromDocValuesBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
     final String fieldName;
     private final long[] points;
+    private final Rounding.RoundingConvention convention;
 
-    public RoundToLongsFromDocValuesBlockLoader(String fieldName, long[] points) {
+    public RoundToLongsFromDocValuesBlockLoader(String fieldName, long[] points, Rounding.RoundingConvention convention) {
         this.fieldName = fieldName;
-        this.points = points;
+        this.points = Objects.requireNonNull(points);
+        this.convention = Objects.requireNonNull(convention);
     }
 
     @Override
@@ -51,9 +56,9 @@ public class RoundToLongsFromDocValuesBlockLoader extends BlockDocValuesReader.D
         try {
             DocValuesSkipper skipper = context.reader().getDocValuesSkipper(fieldName);
             if (dv.singleton() != null) {
-                return new RoundToSingleton(dv.singleton(), points, skipper);
+                return new RoundToSingleton(dv.singleton(), points, convention, skipper);
             }
-            return new RoundToSorted(dv.sorted(), points, skipper);
+            return new RoundToSorted(dv.sorted(), points, convention, skipper);
         } catch (IOException e) {
             if (dv.singleton() != null) {
                 dv.singleton().close();
@@ -69,9 +74,12 @@ public class RoundToLongsFromDocValuesBlockLoader extends BlockDocValuesReader.D
         return "RoundToLongsFromDocValues[" + fieldName + "]";
     }
 
-    static long roundTo(long value, long[] points) {
+    static long roundTo(long value, long[] points, Rounding.RoundingConvention convention) {
         int idx = Arrays.binarySearch(points, value);
-        return points[idx >= 0 ? idx : Math.max(0, -idx - 2)];
+        return switch (convention) {
+            case DOWN -> points[idx >= 0 ? idx : Math.max(0, -idx - 2)];
+            case UP -> points[idx >= 0 ? idx : Math.min(points.length - 1, -idx - 1)];
+        };
     }
 
     /**
@@ -79,7 +87,14 @@ public class RoundToLongsFromDocValuesBlockLoader extends BlockDocValuesReader.D
      * Returns {@code null} if the optimization cannot be applied.
      */
     @Nullable
-    static Block tryConstantBlock(BlockFactory factory, Docs docs, int offset, long[] points, DocValuesSkipper skipper) throws IOException {
+    static Block tryConstantBlock(
+        BlockFactory factory,
+        Docs docs,
+        int offset,
+        long[] points,
+        Rounding.RoundingConvention convention,
+        DocValuesSkipper skipper
+    ) throws IOException {
         if (skipper == null || docs.count() - offset == 0) {
             return null;
         }
@@ -97,8 +112,8 @@ public class RoundToLongsFromDocValuesBlockLoader extends BlockDocValuesReader.D
                     // some docs are missing, so we have to go doc by doc to get the nulls right
                     return null;
                 }
-                long roundedMin = roundTo(skipper.minValue(level), points);
-                long roundedMax = roundTo(skipper.maxValue(level), points);
+                long roundedMin = roundTo(skipper.minValue(level), points, convention);
+                long roundedMax = roundTo(skipper.maxValue(level), points, convention);
                 if (roundedMin == roundedMax) {
                     return factory.constantLong(roundedMin, docs.count() - offset);
                 }
@@ -111,19 +126,26 @@ public class RoundToLongsFromDocValuesBlockLoader extends BlockDocValuesReader.D
     private static class RoundToSingleton extends BlockDocValuesReader {
         private final TrackingNumericDocValues numericDocValues;
         private final long[] points;
+        private final Rounding.RoundingConvention convention;
         @Nullable
         private final DocValuesSkipper skipper;
 
-        RoundToSingleton(TrackingNumericDocValues numericDocValues, long[] points, @Nullable DocValuesSkipper skipper) {
+        RoundToSingleton(
+            TrackingNumericDocValues numericDocValues,
+            long[] points,
+            Rounding.RoundingConvention convention,
+            @Nullable DocValuesSkipper skipper
+        ) {
             super(null);
             this.numericDocValues = numericDocValues;
             this.points = points;
+            this.convention = convention;
             this.skipper = skipper;
         }
 
         @Override
         public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            Block constant = tryConstantBlock(factory, docs, offset, points, skipper);
+            Block constant = tryConstantBlock(factory, docs, offset, points, convention, skipper);
             if (constant != null) {
                 return constant;
             }
@@ -131,7 +153,7 @@ public class RoundToLongsFromDocValuesBlockLoader extends BlockDocValuesReader.D
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (numericDocValues.docValues().advanceExact(doc)) {
-                        builder.appendLong(roundTo(numericDocValues.docValues().longValue(), points));
+                        builder.appendLong(roundTo(numericDocValues.docValues().longValue(), points, convention));
                     } else {
                         builder.appendNull();
                     }
@@ -159,19 +181,26 @@ public class RoundToLongsFromDocValuesBlockLoader extends BlockDocValuesReader.D
     private static class RoundToSorted extends BlockDocValuesReader {
         private final TrackingSortedNumericDocValues numericDocValues;
         private final long[] points;
+        private final Rounding.RoundingConvention convention;
         @Nullable
         private final DocValuesSkipper skipper;
 
-        RoundToSorted(TrackingSortedNumericDocValues numericDocValues, long[] points, @Nullable DocValuesSkipper skipper) {
+        RoundToSorted(
+            TrackingSortedNumericDocValues numericDocValues,
+            long[] points,
+            Rounding.RoundingConvention convention,
+            @Nullable DocValuesSkipper skipper
+        ) {
             super(null);
             this.numericDocValues = numericDocValues;
             this.points = points;
+            this.convention = convention;
             this.skipper = skipper;
         }
 
         @Override
         public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            Block constant = tryConstantBlock(factory, docs, offset, points, skipper);
+            Block constant = tryConstantBlock(factory, docs, offset, points, convention, skipper);
             if (constant != null) {
                 return constant;
             }
@@ -191,12 +220,12 @@ public class RoundToLongsFromDocValuesBlockLoader extends BlockDocValuesReader.D
             }
             int count = numericDocValues.docValues().docValueCount();
             if (count == 1) {
-                builder.appendLong(roundTo(numericDocValues.docValues().nextValue(), points));
+                builder.appendLong(roundTo(numericDocValues.docValues().nextValue(), points, convention));
                 return;
             }
             builder.beginPositionEntry();
             for (int v = 0; v < count; v++) {
-                builder.appendLong(roundTo(numericDocValues.docValues().nextValue(), points));
+                builder.appendLong(roundTo(numericDocValues.docValues().nextValue(), points, convention));
             }
             builder.endPositionEntry();
         }

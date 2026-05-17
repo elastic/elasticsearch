@@ -22,16 +22,16 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link ExpressionEvaluator} implementation for {@link RoundToLong}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class RoundToLongFixedIntervalEvaluator implements ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToLongFixedIntervalEvaluator.class);
+public final class RoundToLongFloorIntervalEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToLongFloorIntervalEvaluator.class);
 
   private final Source source;
 
-  private final ExpressionEvaluator field;
+  private final ExpressionEvaluator v;
 
-  private final long first;
+  private final long lo;
 
-  private final long last;
+  private final long hi;
 
   private final long interval;
 
@@ -39,38 +39,38 @@ public final class RoundToLongFixedIntervalEvaluator implements ExpressionEvalua
 
   private Warnings warnings;
 
-  public RoundToLongFixedIntervalEvaluator(Source source, ExpressionEvaluator field, long first,
-      long last, long interval, DriverContext driverContext) {
+  public RoundToLongFloorIntervalEvaluator(Source source, ExpressionEvaluator v, long lo, long hi,
+      long interval, DriverContext driverContext) {
     this.source = source;
-    this.field = field;
-    this.first = first;
-    this.last = last;
+    this.v = v;
+    this.lo = lo;
+    this.hi = hi;
     this.interval = interval;
     this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
-    try (LongBlock fieldBlock = (LongBlock) field.eval(page)) {
-      LongVector fieldVector = fieldBlock.asVector();
-      if (fieldVector == null) {
-        return eval(page.getPositionCount(), fieldBlock);
+    try (LongBlock vBlock = (LongBlock) v.eval(page)) {
+      LongVector vVector = vBlock.asVector();
+      if (vVector == null) {
+        return eval(page.getPositionCount(), vBlock);
       }
-      return eval(page.getPositionCount(), fieldVector).asBlock();
+      return eval(page.getPositionCount(), vVector).asBlock();
     }
   }
 
   @Override
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
-    baseRamBytesUsed += field.baseRamBytesUsed();
+    baseRamBytesUsed += v.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 
-  public LongBlock eval(int positionCount, LongBlock fieldBlock) {
+  public LongBlock eval(int positionCount, LongBlock vBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        switch (fieldBlock.getValueCount(p)) {
+        switch (vBlock.getValueCount(p)) {
           case 0:
               result.appendNull();
               continue position;
@@ -81,18 +81,18 @@ public final class RoundToLongFixedIntervalEvaluator implements ExpressionEvalua
               result.appendNull();
               continue position;
         }
-        long field = fieldBlock.getLong(fieldBlock.getFirstValueIndex(p));
-        result.appendLong(RoundToLong.processFixed(field, this.first, this.last, this.interval));
+        long v = vBlock.getLong(vBlock.getFirstValueIndex(p));
+        result.appendLong(RoundToLong.floorInterval(v, this.lo, this.hi, this.interval));
       }
       return result.build();
     }
   }
 
-  public LongVector eval(int positionCount, LongVector fieldVector) {
+  public LongVector eval(int positionCount, LongVector vVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        long field = fieldVector.getLong(p);
-        result.appendLong(p, RoundToLong.processFixed(field, this.first, this.last, this.interval));
+        long v = vVector.getLong(p);
+        result.appendLong(p, RoundToLong.floorInterval(v, this.lo, this.hi, this.interval));
       }
       return result.build();
     }
@@ -100,12 +100,12 @@ public final class RoundToLongFixedIntervalEvaluator implements ExpressionEvalua
 
   @Override
   public String toString() {
-    return "RoundToLongFixedIntervalEvaluator[" + "field=" + field + ", first=" + first + ", last=" + last + ", interval=" + interval + "]";
+    return "RoundToLongFloorIntervalEvaluator[" + "v=" + v + ", lo=" + lo + ", hi=" + hi + ", interval=" + interval + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(field);
+    Releasables.closeExpectNoException(v);
   }
 
   private Warnings warnings() {
@@ -118,31 +118,30 @@ public final class RoundToLongFixedIntervalEvaluator implements ExpressionEvalua
   static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final ExpressionEvaluator.Factory field;
+    private final ExpressionEvaluator.Factory v;
 
-    private final long first;
+    private final long lo;
 
-    private final long last;
+    private final long hi;
 
     private final long interval;
 
-    public Factory(Source source, ExpressionEvaluator.Factory field, long first, long last,
-        long interval) {
+    public Factory(Source source, ExpressionEvaluator.Factory v, long lo, long hi, long interval) {
       this.source = source;
-      this.field = field;
-      this.first = first;
-      this.last = last;
+      this.v = v;
+      this.lo = lo;
+      this.hi = hi;
       this.interval = interval;
     }
 
     @Override
-    public RoundToLongFixedIntervalEvaluator get(DriverContext context) {
-      return new RoundToLongFixedIntervalEvaluator(source, field.get(context), first, last, interval, context);
+    public RoundToLongFloorIntervalEvaluator get(DriverContext context) {
+      return new RoundToLongFloorIntervalEvaluator(source, v.get(context), lo, hi, interval, context);
     }
 
     @Override
     public String toString() {
-      return "RoundToLongFixedIntervalEvaluator[" + "field=" + field + ", first=" + first + ", last=" + last + ", interval=" + interval + "]";
+      return "RoundToLongFloorIntervalEvaluator[" + "v=" + v + ", lo=" + lo + ", hi=" + hi + ", interval=" + interval + "]";
     }
   }
 }

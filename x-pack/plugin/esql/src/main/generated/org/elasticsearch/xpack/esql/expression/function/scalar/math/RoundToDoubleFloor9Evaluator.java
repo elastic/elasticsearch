@@ -27,7 +27,7 @@ public final class RoundToDoubleFloor9Evaluator implements ExpressionEvaluator {
 
   private final Source source;
 
-  private final ExpressionEvaluator field;
+  private final ExpressionEvaluator v;
 
   private final double p0;
 
@@ -51,11 +51,11 @@ public final class RoundToDoubleFloor9Evaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
-  public RoundToDoubleFloor9Evaluator(Source source, ExpressionEvaluator field, double p0, double p1,
+  public RoundToDoubleFloor9Evaluator(Source source, ExpressionEvaluator v, double p0, double p1,
       double p2, double p3, double p4, double p5, double p6, double p7, double p8,
       DriverContext driverContext) {
     this.source = source;
-    this.field = field;
+    this.v = v;
     this.p0 = p0;
     this.p1 = p1;
     this.p2 = p2;
@@ -70,26 +70,26 @@ public final class RoundToDoubleFloor9Evaluator implements ExpressionEvaluator {
 
   @Override
   public Block eval(Page page) {
-    try (DoubleBlock fieldBlock = (DoubleBlock) field.eval(page)) {
-      DoubleVector fieldVector = fieldBlock.asVector();
-      if (fieldVector == null) {
-        return eval(page.getPositionCount(), fieldBlock);
+    try (DoubleBlock vBlock = (DoubleBlock) v.eval(page)) {
+      DoubleVector vVector = vBlock.asVector();
+      if (vVector == null) {
+        return eval(page.getPositionCount(), vBlock);
       }
-      return eval(page.getPositionCount(), fieldVector).asBlock();
+      return eval(page.getPositionCount(), vVector).asBlock();
     }
   }
 
   @Override
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
-    baseRamBytesUsed += field.baseRamBytesUsed();
+    baseRamBytesUsed += v.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 
-  public DoubleBlock eval(int positionCount, DoubleBlock fieldBlock) {
+  public DoubleBlock eval(int positionCount, DoubleBlock vBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        switch (fieldBlock.getValueCount(p)) {
+        switch (vBlock.getValueCount(p)) {
           case 0:
               result.appendNull();
               continue position;
@@ -100,18 +100,18 @@ public final class RoundToDoubleFloor9Evaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
-        double field = fieldBlock.getDouble(fieldBlock.getFirstValueIndex(p));
-        result.appendDouble(RoundToDouble.process(field, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6, this.p7, this.p8));
+        double v = vBlock.getDouble(vBlock.getFirstValueIndex(p));
+        result.appendDouble(RoundToDouble.floor9(v, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6, this.p7, this.p8));
       }
       return result.build();
     }
   }
 
-  public DoubleVector eval(int positionCount, DoubleVector fieldVector) {
+  public DoubleVector eval(int positionCount, DoubleVector vVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        double field = fieldVector.getDouble(p);
-        result.appendDouble(p, RoundToDouble.process(field, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6, this.p7, this.p8));
+        double v = vVector.getDouble(p);
+        result.appendDouble(p, RoundToDouble.floor9(v, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6, this.p7, this.p8));
       }
       return result.build();
     }
@@ -119,12 +119,12 @@ public final class RoundToDoubleFloor9Evaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "RoundToDoubleFloor9Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + ", p5=" + p5 + ", p6=" + p6 + ", p7=" + p7 + ", p8=" + p8 + "]";
+    return "RoundToDoubleFloor9Evaluator[" + "v=" + v + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + ", p5=" + p5 + ", p6=" + p6 + ", p7=" + p7 + ", p8=" + p8 + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(field);
+    Releasables.closeExpectNoException(v);
   }
 
   private Warnings warnings() {
@@ -137,7 +137,7 @@ public final class RoundToDoubleFloor9Evaluator implements ExpressionEvaluator {
   static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final ExpressionEvaluator.Factory field;
+    private final ExpressionEvaluator.Factory v;
 
     private final double p0;
 
@@ -157,10 +157,10 @@ public final class RoundToDoubleFloor9Evaluator implements ExpressionEvaluator {
 
     private final double p8;
 
-    public Factory(Source source, ExpressionEvaluator.Factory field, double p0, double p1,
-        double p2, double p3, double p4, double p5, double p6, double p7, double p8) {
+    public Factory(Source source, ExpressionEvaluator.Factory v, double p0, double p1, double p2,
+        double p3, double p4, double p5, double p6, double p7, double p8) {
       this.source = source;
-      this.field = field;
+      this.v = v;
       this.p0 = p0;
       this.p1 = p1;
       this.p2 = p2;
@@ -174,12 +174,12 @@ public final class RoundToDoubleFloor9Evaluator implements ExpressionEvaluator {
 
     @Override
     public RoundToDoubleFloor9Evaluator get(DriverContext context) {
-      return new RoundToDoubleFloor9Evaluator(source, field.get(context), p0, p1, p2, p3, p4, p5, p6, p7, p8, context);
+      return new RoundToDoubleFloor9Evaluator(source, v.get(context), p0, p1, p2, p3, p4, p5, p6, p7, p8, context);
     }
 
     @Override
     public String toString() {
-      return "RoundToDoubleFloor9Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + ", p5=" + p5 + ", p6=" + p6 + ", p7=" + p7 + ", p8=" + p8 + "]";
+      return "RoundToDoubleFloor9Evaluator[" + "v=" + v + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + ", p5=" + p5 + ", p6=" + p6 + ", p7=" + p7 + ", p8=" + p8 + "]";
     }
   }
 }

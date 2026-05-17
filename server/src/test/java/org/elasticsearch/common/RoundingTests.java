@@ -1358,6 +1358,27 @@ public class RoundingTests extends ESTestCase {
         }
     }
 
+    public void testUpperIntervalRoundingWithOffsetFixedPoints() {
+        Rounding rounding = Rounding.ToUpperRounding.createRounding(
+            Rounding.builder(TimeValue.timeValueMinutes(2)).offset(TimeUnit.MINUTES.toMillis(1)).build()
+        );
+        assertFixedRoundingPoints(
+            rounding.prepare(time("2024-05-10T00:10:00"), time("2024-05-10T00:30:00")),
+            "2024-05-10T00:09:00",
+            "2024-05-10T00:11:00",
+            "2024-05-10T00:13:00",
+            "2024-05-10T00:15:00",
+            "2024-05-10T00:17:00",
+            "2024-05-10T00:19:00",
+            "2024-05-10T00:21:00",
+            "2024-05-10T00:23:00",
+            "2024-05-10T00:25:00",
+            "2024-05-10T00:27:00",
+            "2024-05-10T00:29:00",
+            "2024-05-10T00:31:00"
+        );
+    }
+
     public void testUpperIntervalReprepareWithOffsetMatchesDerivedFormula() {
         Rounding rounding = Rounding.builder(TimeValue.timeValueMinutes(2)).offset(TimeUnit.MINUTES.toMillis(1)).build();
         long min = time("2024-05-10T00:15:00");

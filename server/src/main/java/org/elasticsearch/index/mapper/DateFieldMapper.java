@@ -955,10 +955,10 @@ public final class DateFieldMapper extends FieldMapper {
                     return new LongsBlockLoader(name());
                 }
                 return switch (cfg.function()) {
-                    case ROUND_TO -> new RoundToLongsFromDocValuesBlockLoader(
-                        name(),
-                        ((BlockLoaderFunctionConfig.RoundToLongs) cfg).points()
-                    );
+                    case ROUND_TO -> {
+                        BlockLoaderFunctionConfig.RoundToLongs roundTo = (BlockLoaderFunctionConfig.RoundToLongs) cfg;
+                        yield new RoundToLongsFromDocValuesBlockLoader(name(), roundTo.points(), roundTo.convention());
+                    }
                     default -> throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
                 };
             }

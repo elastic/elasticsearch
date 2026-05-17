@@ -27,7 +27,7 @@ public final class RoundToLongFloor5Evaluator implements ExpressionEvaluator {
 
   private final Source source;
 
-  private final ExpressionEvaluator field;
+  private final ExpressionEvaluator v;
 
   private final long p0;
 
@@ -43,10 +43,10 @@ public final class RoundToLongFloor5Evaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
-  public RoundToLongFloor5Evaluator(Source source, ExpressionEvaluator field, long p0, long p1, long p2,
+  public RoundToLongFloor5Evaluator(Source source, ExpressionEvaluator v, long p0, long p1, long p2,
       long p3, long p4, DriverContext driverContext) {
     this.source = source;
-    this.field = field;
+    this.v = v;
     this.p0 = p0;
     this.p1 = p1;
     this.p2 = p2;
@@ -57,26 +57,26 @@ public final class RoundToLongFloor5Evaluator implements ExpressionEvaluator {
 
   @Override
   public Block eval(Page page) {
-    try (LongBlock fieldBlock = (LongBlock) field.eval(page)) {
-      LongVector fieldVector = fieldBlock.asVector();
-      if (fieldVector == null) {
-        return eval(page.getPositionCount(), fieldBlock);
+    try (LongBlock vBlock = (LongBlock) v.eval(page)) {
+      LongVector vVector = vBlock.asVector();
+      if (vVector == null) {
+        return eval(page.getPositionCount(), vBlock);
       }
-      return eval(page.getPositionCount(), fieldVector).asBlock();
+      return eval(page.getPositionCount(), vVector).asBlock();
     }
   }
 
   @Override
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
-    baseRamBytesUsed += field.baseRamBytesUsed();
+    baseRamBytesUsed += v.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 
-  public LongBlock eval(int positionCount, LongBlock fieldBlock) {
+  public LongBlock eval(int positionCount, LongBlock vBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        switch (fieldBlock.getValueCount(p)) {
+        switch (vBlock.getValueCount(p)) {
           case 0:
               result.appendNull();
               continue position;
@@ -87,18 +87,18 @@ public final class RoundToLongFloor5Evaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
-        long field = fieldBlock.getLong(fieldBlock.getFirstValueIndex(p));
-        result.appendLong(RoundToLong.process(field, this.p0, this.p1, this.p2, this.p3, this.p4));
+        long v = vBlock.getLong(vBlock.getFirstValueIndex(p));
+        result.appendLong(RoundToLong.floor5(v, this.p0, this.p1, this.p2, this.p3, this.p4));
       }
       return result.build();
     }
   }
 
-  public LongVector eval(int positionCount, LongVector fieldVector) {
+  public LongVector eval(int positionCount, LongVector vVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        long field = fieldVector.getLong(p);
-        result.appendLong(p, RoundToLong.process(field, this.p0, this.p1, this.p2, this.p3, this.p4));
+        long v = vVector.getLong(p);
+        result.appendLong(p, RoundToLong.floor5(v, this.p0, this.p1, this.p2, this.p3, this.p4));
       }
       return result.build();
     }
@@ -106,12 +106,12 @@ public final class RoundToLongFloor5Evaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "RoundToLongFloor5Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + "]";
+    return "RoundToLongFloor5Evaluator[" + "v=" + v + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(field);
+    Releasables.closeExpectNoException(v);
   }
 
   private Warnings warnings() {
@@ -124,7 +124,7 @@ public final class RoundToLongFloor5Evaluator implements ExpressionEvaluator {
   static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final ExpressionEvaluator.Factory field;
+    private final ExpressionEvaluator.Factory v;
 
     private final long p0;
 
@@ -136,10 +136,10 @@ public final class RoundToLongFloor5Evaluator implements ExpressionEvaluator {
 
     private final long p4;
 
-    public Factory(Source source, ExpressionEvaluator.Factory field, long p0, long p1, long p2,
-        long p3, long p4) {
+    public Factory(Source source, ExpressionEvaluator.Factory v, long p0, long p1, long p2, long p3,
+        long p4) {
       this.source = source;
-      this.field = field;
+      this.v = v;
       this.p0 = p0;
       this.p1 = p1;
       this.p2 = p2;
@@ -149,12 +149,12 @@ public final class RoundToLongFloor5Evaluator implements ExpressionEvaluator {
 
     @Override
     public RoundToLongFloor5Evaluator get(DriverContext context) {
-      return new RoundToLongFloor5Evaluator(source, field.get(context), p0, p1, p2, p3, p4, context);
+      return new RoundToLongFloor5Evaluator(source, v.get(context), p0, p1, p2, p3, p4, context);
     }
 
     @Override
     public String toString() {
-      return "RoundToLongFloor5Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + "]";
+      return "RoundToLongFloor5Evaluator[" + "v=" + v + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + "]";
     }
   }
 }

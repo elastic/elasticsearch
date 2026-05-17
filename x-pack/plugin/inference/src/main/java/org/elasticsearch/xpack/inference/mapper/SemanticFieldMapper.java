@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
-import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -677,14 +677,13 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
     private boolean indexValue(DocumentParserContext context, XContentString value) {
         var utfBytes = value.bytes();
-        var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
         final String fieldName = fieldType().name() + VALUE_SUFFIX;
-        context.doc().add(new SortedSetDocValuesField(fieldName, bytesRef));
+        context.doc().add(new StoredField(fieldName, utfBytes.bytes(), utfBytes.offset(), utfBytes.length()));
         return true;
     }
 
     private void indexValue(DocumentParserContext context, BytesRef bytesRef) {
-        context.doc().add(new SortedSetDocValuesField(fieldType().name() + VALUE_SUFFIX, bytesRef));
+        context.doc().add(new StoredField(fieldType().name() + VALUE_SUFFIX, bytesRef.bytes, bytesRef.offset, bytesRef.length));
     }
 
     @Override

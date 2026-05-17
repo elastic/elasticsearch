@@ -215,7 +215,7 @@ public class RoundToTests extends AbstractScalarFunctionTestCase {
                 }
             }
             return max;
-        }, "FixedInterval");
+        }, "FloorInterval");
     }
 
     private static TestCaseSupplier fixedIntervalInts(
@@ -233,7 +233,7 @@ public class RoundToTests extends AbstractScalarFunctionTestCase {
                 }
             }
             return max;
-        }, "FixedInterval");
+        }, "FloorInterval");
     }
 
     private static TestCaseSupplier supplier(double f, double expected, double... points) {
@@ -354,8 +354,11 @@ public class RoundToTests extends AbstractScalarFunctionTestCase {
     }
 
     private static <P> String specialization(int pointsSize, DataType dataType, List<P> points) {
+        if (pointsSize == 1) {
+            return "Constant";
+        }
         if (pointsSize < 11) {
-            return Integer.toString(pointsSize);
+            return "Floor" + pointsSize;
         }
         // fixed intervals?
         if (dataType == DataType.INTEGER || dataType == DataType.LONG || dataType == DataType.DATETIME || dataType == DataType.DATE_NANOS) {
@@ -365,12 +368,12 @@ public class RoundToTests extends AbstractScalarFunctionTestCase {
             long interval = (pn - p0) / (size - 1);
             for (int i = 1; i < size; i++) {
                 if (((Number) points.get(i)).longValue() - ((Number) points.get(i - 1)).longValue() != interval) {
-                    return "BinarySearch";
+                    return "FloorSearch";
                 }
             }
-            return "FixedInterval";
+            return "FloorInterval";
         }
-        return "BinarySearch";
+        return "FloorSearch";
     }
 
     private static DataType expectedType(List<DataType> types) {

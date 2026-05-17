@@ -9,8 +9,8 @@ import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -19,49 +19,40 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link ExpressionEvaluator} implementation for {@link RoundToInt}.
+ * {@link ExpressionEvaluator} implementation for {@link RoundToLong}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class RoundToIntFloor6Evaluator implements ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToIntFloor6Evaluator.class);
+public final class RoundToLongCeilingIntervalEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToLongCeilingIntervalEvaluator.class);
 
   private final Source source;
 
   private final ExpressionEvaluator v;
 
-  private final int p0;
+  private final long lo;
 
-  private final int p1;
+  private final long hi;
 
-  private final int p2;
-
-  private final int p3;
-
-  private final int p4;
-
-  private final int p5;
+  private final long interval;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public RoundToIntFloor6Evaluator(Source source, ExpressionEvaluator v, int p0, int p1, int p2,
-      int p3, int p4, int p5, DriverContext driverContext) {
+  public RoundToLongCeilingIntervalEvaluator(Source source, ExpressionEvaluator v, long lo, long hi,
+      long interval, DriverContext driverContext) {
     this.source = source;
     this.v = v;
-    this.p0 = p0;
-    this.p1 = p1;
-    this.p2 = p2;
-    this.p3 = p3;
-    this.p4 = p4;
-    this.p5 = p5;
+    this.lo = lo;
+    this.hi = hi;
+    this.interval = interval;
     this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
-    try (IntBlock vBlock = (IntBlock) v.eval(page)) {
-      IntVector vVector = vBlock.asVector();
+    try (LongBlock vBlock = (LongBlock) v.eval(page)) {
+      LongVector vVector = vBlock.asVector();
       if (vVector == null) {
         return eval(page.getPositionCount(), vBlock);
       }
@@ -76,8 +67,8 @@ public final class RoundToIntFloor6Evaluator implements ExpressionEvaluator {
     return baseRamBytesUsed;
   }
 
-  public IntBlock eval(int positionCount, IntBlock vBlock) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+  public LongBlock eval(int positionCount, LongBlock vBlock) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         switch (vBlock.getValueCount(p)) {
           case 0:
@@ -90,18 +81,18 @@ public final class RoundToIntFloor6Evaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
-        int v = vBlock.getInt(vBlock.getFirstValueIndex(p));
-        result.appendInt(RoundToInt.floor6(v, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5));
+        long v = vBlock.getLong(vBlock.getFirstValueIndex(p));
+        result.appendLong(RoundToLong.ceilingInterval(v, this.lo, this.hi, this.interval));
       }
       return result.build();
     }
   }
 
-  public IntVector eval(int positionCount, IntVector vVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+  public LongVector eval(int positionCount, LongVector vVector) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        int v = vVector.getInt(p);
-        result.appendInt(p, RoundToInt.floor6(v, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5));
+        long v = vVector.getLong(p);
+        result.appendLong(p, RoundToLong.ceilingInterval(v, this.lo, this.hi, this.interval));
       }
       return result.build();
     }
@@ -109,7 +100,7 @@ public final class RoundToIntFloor6Evaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "RoundToIntFloor6Evaluator[" + "v=" + v + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + ", p5=" + p5 + "]";
+    return "RoundToLongCeilingIntervalEvaluator[" + "v=" + v + ", lo=" + lo + ", hi=" + hi + ", interval=" + interval + "]";
   }
 
   @Override
@@ -129,38 +120,28 @@ public final class RoundToIntFloor6Evaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory v;
 
-    private final int p0;
+    private final long lo;
 
-    private final int p1;
+    private final long hi;
 
-    private final int p2;
+    private final long interval;
 
-    private final int p3;
-
-    private final int p4;
-
-    private final int p5;
-
-    public Factory(Source source, ExpressionEvaluator.Factory v, int p0, int p1, int p2, int p3,
-        int p4, int p5) {
+    public Factory(Source source, ExpressionEvaluator.Factory v, long lo, long hi, long interval) {
       this.source = source;
       this.v = v;
-      this.p0 = p0;
-      this.p1 = p1;
-      this.p2 = p2;
-      this.p3 = p3;
-      this.p4 = p4;
-      this.p5 = p5;
+      this.lo = lo;
+      this.hi = hi;
+      this.interval = interval;
     }
 
     @Override
-    public RoundToIntFloor6Evaluator get(DriverContext context) {
-      return new RoundToIntFloor6Evaluator(source, v.get(context), p0, p1, p2, p3, p4, p5, context);
+    public RoundToLongCeilingIntervalEvaluator get(DriverContext context) {
+      return new RoundToLongCeilingIntervalEvaluator(source, v.get(context), lo, hi, interval, context);
     }
 
     @Override
     public String toString() {
-      return "RoundToIntFloor6Evaluator[" + "v=" + v + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + ", p5=" + p5 + "]";
+      return "RoundToLongCeilingIntervalEvaluator[" + "v=" + v + ", lo=" + lo + ", hi=" + hi + ", interval=" + interval + "]";
     }
   }
 }

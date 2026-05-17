@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper.blockloader;
 
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.util.Arrays;
@@ -43,7 +44,8 @@ public interface BlockLoaderFunctionConfig {
     /**
      * Configuration for rounding long values to one of a sorted list of points.
      */
-    record RoundToLongs(long[] points) implements BlockLoaderFunctionConfig {
+    record RoundToLongs(long[] points, Rounding.RoundingConvention convention) implements BlockLoaderFunctionConfig {
+
         @Override
         public Function function() {
             return Function.ROUND_TO;
@@ -51,12 +53,12 @@ public interface BlockLoaderFunctionConfig {
 
         @Override
         public int hashCode() {
-            return Arrays.hashCode(points);
+            return 31 * Arrays.hashCode(points) + convention.hashCode();
         }
 
         @Override
         public boolean equals(Object o) {
-            return o instanceof RoundToLongs other && Arrays.equals(points, other.points);
+            return o instanceof RoundToLongs other && Arrays.equals(points, other.points) && convention == other.convention;
         }
     }
 

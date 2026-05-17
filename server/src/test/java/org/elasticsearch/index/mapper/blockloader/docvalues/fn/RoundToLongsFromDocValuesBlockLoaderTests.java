@@ -15,6 +15,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -38,32 +39,34 @@ public class RoundToLongsFromDocValuesBlockLoaderTests extends AbstractLongsFrom
 
     @Override
     protected void innerTest(CircuitBreaker breaker, LeafReaderContext ctx, int mvCount) throws IOException {
-        LongsBlockLoader longsLoader = new LongsBlockLoader("field");
-        RoundToLongsFromDocValuesBlockLoader roundToLoader = new RoundToLongsFromDocValuesBlockLoader("field", POINTS);
-        BlockLoader.Docs docs = TestBlock.docs(ctx);
+        for (Rounding.RoundingConvention convention : Rounding.RoundingConvention.values()) {
+            LongsBlockLoader longsLoader = new LongsBlockLoader("field");
+            RoundToLongsFromDocValuesBlockLoader roundToLoader = new RoundToLongsFromDocValuesBlockLoader("field", POINTS, convention);
+            BlockLoader.Docs docs = TestBlock.docs(ctx);
 
-        try (
-            BlockLoader.ColumnAtATimeReader longsReader = longsLoader.reader(breaker, ctx);
-            BlockLoader.ColumnAtATimeReader roundToReader = roundToLoader.reader(breaker, ctx)
-        ) {
-            assertThat(roundToReader, readerMatcher());
-            try (TestBlock longs = read(longsReader, docs); TestBlock rounded = read(roundToReader, docs)) {
-                checkBlocks(longs, rounded);
-            }
-        }
-
-        try (
-            BlockLoader.ColumnAtATimeReader longsReader = longsLoader.reader(breaker, ctx);
-            BlockLoader.ColumnAtATimeReader roundToReader = roundToLoader.reader(breaker, ctx)
-        ) {
-            for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
-                int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
-                for (int d = 0; d < docsArray.length; d++) {
-                    docsArray[d] = i + d;
-                }
-                docs = TestBlock.docs(docsArray);
+            try (
+                BlockLoader.ColumnAtATimeReader longsReader = longsLoader.reader(breaker, ctx);
+                BlockLoader.ColumnAtATimeReader roundToReader = roundToLoader.reader(breaker, ctx)
+            ) {
+                assertThat(roundToReader, readerMatcher());
                 try (TestBlock longs = read(longsReader, docs); TestBlock rounded = read(roundToReader, docs)) {
-                    checkBlocks(longs, rounded);
+                    checkBlocks(longs, rounded, convention);
+                }
+            }
+
+            try (
+                BlockLoader.ColumnAtATimeReader longsReader = longsLoader.reader(breaker, ctx);
+                BlockLoader.ColumnAtATimeReader roundToReader = roundToLoader.reader(breaker, ctx)
+            ) {
+                for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
+                    int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
+                    for (int d = 0; d < docsArray.length; d++) {
+                        docsArray[d] = i + d;
+                    }
+                    docs = TestBlock.docs(docsArray);
+                    try (TestBlock longs = read(longsReader, docs); TestBlock rounded = read(roundToReader, docs)) {
+                        checkBlocks(longs, rounded, convention);
+                    }
                 }
             }
         }
@@ -84,14 +87,17 @@ public class RoundToLongsFromDocValuesBlockLoaderTests extends AbstractLongsFrom
             try (DirectoryReader dr = iw.getReader()) {
                 LeafReaderContext ctx = getOnlyLeafReader(dr).getContext();
                 assertNotNull(ctx.reader().getDocValuesSkipper("field"));
-                RoundToLongsFromDocValuesBlockLoader loader = new RoundToLongsFromDocValuesBlockLoader("field", points);
-                try (BlockLoader.ColumnAtATimeReader reader = loader.reader(breaker, ctx)) {
-                    BlockLoader.Docs docs = TestBlock.docs(ctx);
-                    try (TestBlock block = (TestBlock) reader.read(TestBlock.factory(), docs, 0, false)) {
-                        assertTrue("expected constant block from skipper optimization", block.isConstant());
-                        assertThat(block.size(), equalTo(docCount));
-                        for (int i = 0; i < docCount; i++) {
-                            assertThat(block.get(i), equalTo(100L));
+                for (Rounding.RoundingConvention convention : Rounding.RoundingConvention.values()) {
+                    RoundToLongsFromDocValuesBlockLoader loader = new RoundToLongsFromDocValuesBlockLoader("field", points, convention);
+                    try (BlockLoader.ColumnAtATimeReader reader = loader.reader(breaker, ctx)) {
+                        BlockLoader.Docs docs = TestBlock.docs(ctx);
+                        try (TestBlock block = (TestBlock) reader.read(TestBlock.factory(), docs, 0, false)) {
+                            assertTrue("expected constant block from skipper optimization", block.isConstant());
+                            assertThat(block.size(), equalTo(docCount));
+                            long expected = RoundToLongsFromDocValuesBlockLoader.roundTo(150, points, convention);
+                            for (int i = 0; i < docCount; i++) {
+                                assertThat(block.get(i), equalTo(expected));
+                            }
                         }
                     }
                 }
@@ -116,29 +122,34 @@ public class RoundToLongsFromDocValuesBlockLoaderTests extends AbstractLongsFrom
                 LeafReaderContext ctx = getOnlyLeafReader(dr).getContext();
                 assertNotNull(ctx.reader().getDocValuesSkipper("field"));
 
-                // Derive expected rounded values from actual index state since
-                // RandomIndexWriter may reorder segments during merge.
-                SortedNumericDocValues dv = ctx.reader().getSortedNumericDocValues("field");
-                long[] expectedRounded = new long[docCount];
-                int bucket100Count = 0;
-                int bucket200Count = 0;
-                for (int i = 0; i < docCount; i++) {
-                    assertTrue("doc " + i + " should have a value", dv.advanceExact(i));
-                    expectedRounded[i] = RoundToLongsFromDocValuesBlockLoader.roundTo(dv.nextValue(), points);
-                    if (expectedRounded[i] == 100L) bucket100Count++;
-                    else bucket200Count++;
-                }
-                assertThat("docs rounding to 100", bucket100Count, equalTo(100));
-                assertThat("docs rounding to 200", bucket200Count, equalTo(100));
+                for (Rounding.RoundingConvention convention : Rounding.RoundingConvention.values()) {
+                    // Derive expected rounded values from actual index state since
+                    // RandomIndexWriter may reorder segments during merge.
+                    SortedNumericDocValues dv = ctx.reader().getSortedNumericDocValues("field");
+                    long[] expectedRounded = new long[docCount];
+                    int lowerBucketCount = 0;
+                    int upperBucketCount = 0;
+                    for (int i = 0; i < docCount; i++) {
+                        assertTrue("doc " + i + " should have a value", dv.advanceExact(i));
+                        expectedRounded[i] = RoundToLongsFromDocValuesBlockLoader.roundTo(dv.nextValue(), points, convention);
+                        if (expectedRounded[i] == RoundToLongsFromDocValuesBlockLoader.roundTo(150, points, convention)) {
+                            lowerBucketCount++;
+                        } else {
+                            upperBucketCount++;
+                        }
+                    }
+                    assertThat("lower bucket docs", lowerBucketCount, equalTo(100));
+                    assertThat("upper bucket docs", upperBucketCount, equalTo(100));
 
-                RoundToLongsFromDocValuesBlockLoader loader = new RoundToLongsFromDocValuesBlockLoader("field", points);
-                try (BlockLoader.ColumnAtATimeReader reader = loader.reader(breaker, ctx)) {
-                    BlockLoader.Docs docs = TestBlock.docs(ctx);
-                    try (TestBlock block = (TestBlock) reader.read(TestBlock.factory(), docs, 0, false)) {
-                        assertFalse("expected non-constant block when values span buckets", block.isConstant());
-                        assertThat(block.size(), equalTo(docCount));
-                        for (int i = 0; i < docCount; i++) {
-                            assertThat("doc " + i, block.get(i), equalTo(expectedRounded[i]));
+                    RoundToLongsFromDocValuesBlockLoader loader = new RoundToLongsFromDocValuesBlockLoader("field", points, convention);
+                    try (BlockLoader.ColumnAtATimeReader reader = loader.reader(breaker, ctx)) {
+                        BlockLoader.Docs docs = TestBlock.docs(ctx);
+                        try (TestBlock block = (TestBlock) reader.read(TestBlock.factory(), docs, 0, false)) {
+                            assertFalse("expected non-constant block when values span buckets", block.isConstant());
+                            assertThat(block.size(), equalTo(docCount));
+                            for (int i = 0; i < docCount; i++) {
+                                assertThat("doc " + i, block.get(i), equalTo(expectedRounded[i]));
+                            }
                         }
                     }
                 }
@@ -177,17 +188,20 @@ public class RoundToLongsFromDocValuesBlockLoaderTests extends AbstractLongsFrom
                 }
                 assertThat("number of missing docs", missingCount, equalTo(20));
 
-                RoundToLongsFromDocValuesBlockLoader loader = new RoundToLongsFromDocValuesBlockLoader("field", points);
-                try (BlockLoader.ColumnAtATimeReader reader = loader.reader(breaker, ctx)) {
-                    BlockLoader.Docs docs = TestBlock.docs(ctx);
-                    try (TestBlock block = (TestBlock) reader.read(TestBlock.factory(), docs, 0, false)) {
-                        assertFalse("expected non-constant block when values are missing", block.isConstant());
-                        assertThat(block.size(), equalTo(docCount));
-                        for (int i = 0; i < docCount; i++) {
-                            if (docHasValue[i]) {
-                                assertThat("doc " + i, block.get(i), equalTo(100L));
-                            } else {
-                                assertThat("doc " + i, block.get(i), nullValue());
+                for (Rounding.RoundingConvention convention : Rounding.RoundingConvention.values()) {
+                    RoundToLongsFromDocValuesBlockLoader loader = new RoundToLongsFromDocValuesBlockLoader("field", points, convention);
+                    try (BlockLoader.ColumnAtATimeReader reader = loader.reader(breaker, ctx)) {
+                        BlockLoader.Docs docs = TestBlock.docs(ctx);
+                        try (TestBlock block = (TestBlock) reader.read(TestBlock.factory(), docs, 0, false)) {
+                            assertFalse("expected non-constant block when values are missing", block.isConstant());
+                            assertThat(block.size(), equalTo(docCount));
+                            long expected = RoundToLongsFromDocValuesBlockLoader.roundTo(150, points, convention);
+                            for (int i = 0; i < docCount; i++) {
+                                if (docHasValue[i]) {
+                                    assertThat("doc " + i, block.get(i), equalTo(expected));
+                                } else {
+                                    assertThat("doc " + i, block.get(i), nullValue());
+                                }
                             }
                         }
                     }
@@ -204,7 +218,7 @@ public class RoundToLongsFromDocValuesBlockLoaderTests extends AbstractLongsFrom
     }
 
     @SuppressWarnings("unchecked")
-    private void checkBlocks(TestBlock longs, TestBlock rounded) {
+    private void checkBlocks(TestBlock longs, TestBlock rounded, Rounding.RoundingConvention convention) {
         for (int i = 0; i < longs.size(); i++) {
             Object v = longs.get(i);
             if (v == null) {
@@ -213,11 +227,11 @@ public class RoundToLongsFromDocValuesBlockLoaderTests extends AbstractLongsFrom
             }
             if (v instanceof List<?> l) {
                 List<Long> expected = ((List<Long>) l).stream()
-                    .map(val -> RoundToLongsFromDocValuesBlockLoader.roundTo(val, POINTS))
+                    .map(val -> RoundToLongsFromDocValuesBlockLoader.roundTo(val, POINTS, convention))
                     .toList();
                 assertThat(rounded.get(i), equalTo(expected));
             } else {
-                assertThat(rounded.get(i), equalTo(RoundToLongsFromDocValuesBlockLoader.roundTo((Long) v, POINTS)));
+                assertThat(rounded.get(i), equalTo(RoundToLongsFromDocValuesBlockLoader.roundTo((Long) v, POINTS, convention)));
             }
         }
     }

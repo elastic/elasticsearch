@@ -570,7 +570,7 @@ public abstract class Rounding implements Writeable {
             }
         }
 
-        private record Prepared(Rounding.Prepared delegate) implements Rounding.Prepared {
+        private record Prepared(Rounding.Prepared delegate, Long maxUtcMillis) implements Rounding.Prepared {
             @Override
             public long round(long utcMillis) {
                 return delegate.nextRoundingValue(prevLong(utcMillis));
@@ -608,7 +608,17 @@ public abstract class Rounding implements Writeable {
 
             @Override
             public long[] fixedRoundingPoints() {
-                return delegate.fixedRoundingPoints();
+                long[] points = delegate.fixedRoundingPoints();
+                if (points == null || maxUtcMillis == null) {
+                    return points;
+                }
+                long end = round(maxUtcMillis);
+                if (points.length == 0 || points[points.length - 1] >= end) {
+                    return points;
+                }
+                points = Arrays.copyOf(points, points.length + 1);
+                points[points.length - 1] = end;
+                return points;
             }
 
             @Override
@@ -632,17 +642,17 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public Rounding.Prepared prepare(long minUtcMillis, long maxUtcMillis) {
-            return new ToUpperRounding.Prepared(next.prepare(prevLong(minUtcMillis), maxUtcMillis));
+            return new ToUpperRounding.Prepared(next.prepare(prevLong(minUtcMillis), maxUtcMillis), maxUtcMillis);
         }
 
         @Override
         public Rounding.Prepared prepareForUnknown() {
-            return new ToUpperRounding.Prepared(next.prepareForUnknown());
+            return new ToUpperRounding.Prepared(next.prepareForUnknown(), null);
         }
 
         @Override
         public Rounding.Prepared prepareJavaTime() {
-            return new ToUpperRounding.Prepared(next.prepareJavaTime());
+            return new ToUpperRounding.Prepared(next.prepareJavaTime(), null);
         }
 
         @Override
@@ -1737,8 +1747,15 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public long[] fixedRoundingPoints() {
-            // TODO we can likely translate here
-            return null;
+            long[] delegatePoints = delegatePrepared.fixedRoundingPoints();
+            if (delegatePoints == null) {
+                return null;
+            }
+            long[] points = Arrays.copyOf(delegatePoints, delegatePoints.length);
+            for (int i = 0; i < points.length; i++) {
+                points[i] += offset;
+            }
+            return points;
         }
 
         @Override

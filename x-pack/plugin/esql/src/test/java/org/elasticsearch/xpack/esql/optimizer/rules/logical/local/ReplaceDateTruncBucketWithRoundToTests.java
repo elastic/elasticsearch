@@ -281,11 +281,10 @@ public class ReplaceDateTruncBucketWithRoundToTests extends AbstractLocalLogical
     }
 
     /**
-     * TStep (upper-bound) buckets are NOT substituted with a {@link RoundTo}: ceiling lookup needs a
-     * specialized RoundTo path that does not exist yet, so the rule keeps the {@link Bucket} so the
-     * eval path uses the wrapped {@code Rounding.Prepared} directly.
+     * TStep (right-closed) buckets are substituted with a {@link RoundTo} carrying
+     * {@link org.elasticsearch.common.Rounding.RoundingConvention#UP} (smallest p &gt;= t, ceiling lookup).
      */
-    public void testRightClosedBucketIsNotSubstituted() {
+    public void testRightClosedBucketIsSubstitutedWithRoundToCeiling() {
         String query = """
             FROM sample_data
             | WHERE @timestamp >= "2023-10-23T12:00:00Z" AND @timestamp <= "2023-10-23T14:00:00Z"
@@ -301,8 +300,9 @@ public class ReplaceDateTruncBucketWithRoundToTests extends AbstractLocalLogical
         assertEquals(1, fields.size());
         Alias a = fields.get(0);
         assertEquals("x", a.name());
-        Bucket bucket = as(a.child(), Bucket.class);
-        FieldAttribute fa = as(bucket.field(), FieldAttribute.class);
+        RoundTo roundTo = as(a.child(), RoundTo.class);
+        assertEquals(org.elasticsearch.common.Rounding.RoundingConvention.UP, roundTo.roundingConvention());
+        FieldAttribute fa = as(roundTo.field(), FieldAttribute.class);
         assertEquals("@timestamp", fa.name());
         assertEquals(DATETIME, fa.dataType());
     }

@@ -31,6 +31,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -554,7 +555,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points, Rounding.RoundingConvention convention) {
                 throw new UnsupportedOperationException("ROUND_TO not supported for half_float");
             }
         },
@@ -774,7 +775,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points, Rounding.RoundingConvention convention) {
                 throw new UnsupportedOperationException("ROUND_TO not supported for float");
             }
         },
@@ -960,7 +961,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points, Rounding.RoundingConvention convention) {
                 throw new UnsupportedOperationException("ROUND_TO not supported for double");
             }
         },
@@ -1110,7 +1111,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points, Rounding.RoundingConvention convention) {
                 throw new UnsupportedOperationException("ROUND_TO not supported for byte");
             }
 
@@ -1260,7 +1261,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points, Rounding.RoundingConvention convention) {
                 throw new UnsupportedOperationException("ROUND_TO not supported for short");
             }
 
@@ -1485,7 +1486,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points, Rounding.RoundingConvention convention) {
                 throw new UnsupportedOperationException("ROUND_TO not supported for integer");
             }
         },
@@ -1690,8 +1691,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points) {
-                return new RoundToLongsFromDocValuesBlockLoader(fieldName, points);
+            BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points, Rounding.RoundingConvention convention) {
+                return new RoundToLongsFromDocValuesBlockLoader(fieldName, points, convention);
             }
 
             private boolean isOutOfRange(Object value) {
@@ -1994,7 +1995,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         abstract BlockLoader blockLoaderFromDocValuesMvMax(String fieldName);
 
-        abstract BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points);
+        abstract BlockLoader blockLoaderFromDocValuesRoundTo(String fieldName, long[] points, Rounding.RoundingConvention convention);
 
         // All values that fit into integer are returned as integers
         private static BlockLoader integerBlockLoaderFromFallbackSyntheticSource(
@@ -2276,7 +2277,10 @@ public class NumberFieldMapper extends FieldMapper {
                     case MV_MAX -> type.blockLoaderFromDocValuesMvMax(name());
                     case MV_MIN -> type.blockLoaderFromDocValuesMvMin(name());
                     case AMD_COUNT, AMD_DEFAULT, AMD_MAX, AMD_MIN, AMD_SUM -> type.blockLoaderFromDocValues(name());
-                    case ROUND_TO -> type.blockLoaderFromDocValuesRoundTo(name(), ((BlockLoaderFunctionConfig.RoundToLongs) cfg).points());
+                    case ROUND_TO -> {
+                        BlockLoaderFunctionConfig.RoundToLongs roundTo = (BlockLoaderFunctionConfig.RoundToLongs) cfg;
+                        yield type.blockLoaderFromDocValuesRoundTo(name(), roundTo.points(), roundTo.convention());
+                    }
                     default -> throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
                 };
             }

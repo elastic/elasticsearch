@@ -86,6 +86,7 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.infra.Blackhole;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -1557,11 +1558,11 @@ public class EvalBenchmark {
 
     @Benchmark
     @OperationsPerInvocation(1024 * BLOCK_LENGTH)
-    public void run() {
-        run(operation);
+    public void run(Blackhole bh) {
+        bh.consume(run(operation));
     }
 
-    private static void run(Operation operation) {
+    private static Object run(Operation operation) {
         try (var operator = operator(operation)) {
             Page page = page(operation);
             Page output = null;
@@ -1571,6 +1572,8 @@ public class EvalBenchmark {
             }
             // We only check the last one
             checkExpected(operation, output);
+
+            return output;
         }
     }
 }

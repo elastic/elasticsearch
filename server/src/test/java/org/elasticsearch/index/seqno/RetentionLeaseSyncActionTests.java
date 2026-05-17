@@ -35,6 +35,7 @@ import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -115,7 +116,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
         );
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
-        action.dispatchedShardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
+        action.dispatchedShardOperationOnPrimary(mock(Task.class), request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
             // the retention leases on the shard should be persisted
             verify(indexShard).persistRetentionLeases();
             // we should forward the request containing the current retention leases to the replica

@@ -48,6 +48,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -139,14 +140,19 @@ public class TransportWriteActionTests extends ESTestCase {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.NONE); // The default, but we'll set it anyway just to be explicit
         TestAction testAction = new TestAction();
-        testAction.dispatchedShardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
-            CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
-            result.runPostReplicationActions(listener.map(ignore -> result.replicationResponse));
-            assertNotNull(listener.response);
-            assertNull(listener.failure);
-            verify(indexShard, never()).refresh(any());
-            verify(indexShard, never()).addRefreshListener(any(), any());
-        }));
+        testAction.dispatchedShardOperationOnPrimary(
+            mock(Task.class),
+            request,
+            indexShard,
+            ActionTestUtils.assertNoFailureListener(result -> {
+                CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
+                result.runPostReplicationActions(listener.map(ignore -> result.replicationResponse));
+                assertNotNull(listener.response);
+                assertNull(listener.failure);
+                verify(indexShard, never()).refresh(any());
+                verify(indexShard, never()).addRefreshListener(any(), any());
+            })
+        );
     }
 
     public void testReplicaNoRefreshCall() throws Exception {
@@ -168,24 +174,29 @@ public class TransportWriteActionTests extends ESTestCase {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         TestAction testAction = new TestAction();
-        testAction.dispatchedShardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
-            CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
-            result.runPostReplicationActions(listener.map(ignore -> result.replicationResponse));
+        testAction.dispatchedShardOperationOnPrimary(
+            mock(Task.class),
+            request,
+            indexShard,
+            ActionTestUtils.assertNoFailureListener(result -> {
+                CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
+                result.runPostReplicationActions(listener.map(ignore -> result.replicationResponse));
 
-            @SuppressWarnings({ "unchecked", "rawtypes" })
-            ArgumentCaptor<ActionListener<Boolean>> refreshListener = ArgumentCaptor.forClass((Class) ActionListener.class);
-            verify(testAction.postWriteRefresh).refreshShard(
-                eq(RefreshPolicy.IMMEDIATE),
-                eq(indexShard),
-                any(),
-                refreshListener.capture(),
-                eq(request.timeout())
-            );
+                @SuppressWarnings({ "unchecked", "rawtypes" })
+                ArgumentCaptor<ActionListener<Boolean>> refreshListener = ArgumentCaptor.forClass((Class) ActionListener.class);
+                verify(testAction.postWriteRefresh).refreshShard(
+                    eq(RefreshPolicy.IMMEDIATE),
+                    eq(indexShard),
+                    any(),
+                    refreshListener.capture(),
+                    eq(request.timeout())
+                );
 
-            // Now we can fire the listener manually and we'll get a response
-            refreshListener.getValue().onResponse(true);
-            assertEquals(true, listener.response.forcedRefresh);
-        }));
+                // Now we can fire the listener manually and we'll get a response
+                refreshListener.getValue().onResponse(true);
+                assertEquals(true, listener.response.forcedRefresh);
+            })
+        );
     }
 
     public void testReplicaImmediateRefresh() throws Exception {
@@ -213,26 +224,31 @@ public class TransportWriteActionTests extends ESTestCase {
         request.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
 
         TestAction testAction = new TestAction();
-        testAction.dispatchedShardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
-            CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
-            result.runPostReplicationActions(listener.map(ignore -> result.replicationResponse));
-            assertNull(listener.response); // Haven't really responded yet
+        testAction.dispatchedShardOperationOnPrimary(
+            mock(Task.class),
+            request,
+            indexShard,
+            ActionTestUtils.assertNoFailureListener(result -> {
+                CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
+                result.runPostReplicationActions(listener.map(ignore -> result.replicationResponse));
+                assertNull(listener.response); // Haven't really responded yet
 
-            @SuppressWarnings({ "unchecked", "rawtypes" })
-            ArgumentCaptor<ActionListener<Boolean>> refreshListener = ArgumentCaptor.forClass((Class) ActionListener.class);
-            verify(testAction.postWriteRefresh).refreshShard(
-                eq(RefreshPolicy.WAIT_UNTIL),
-                eq(indexShard),
-                any(),
-                refreshListener.capture(),
-                eq(request.timeout())
-            );
+                @SuppressWarnings({ "unchecked", "rawtypes" })
+                ArgumentCaptor<ActionListener<Boolean>> refreshListener = ArgumentCaptor.forClass((Class) ActionListener.class);
+                verify(testAction.postWriteRefresh).refreshShard(
+                    eq(RefreshPolicy.WAIT_UNTIL),
+                    eq(indexShard),
+                    any(),
+                    refreshListener.capture(),
+                    eq(request.timeout())
+                );
 
-            // Now we can fire the listener manually and we'll get a response
-            boolean forcedRefresh = randomBoolean();
-            refreshListener.getValue().onResponse(forcedRefresh);
-            assertEquals(forcedRefresh, listener.response.forcedRefresh);
-        }));
+                // Now we can fire the listener manually and we'll get a response
+                boolean forcedRefresh = randomBoolean();
+                refreshListener.getValue().onResponse(forcedRefresh);
+                assertEquals(forcedRefresh, listener.response.forcedRefresh);
+            })
+        );
     }
 
     public void testReplicaWaitForRefresh() throws Exception {
@@ -260,6 +276,7 @@ public class TransportWriteActionTests extends ESTestCase {
     public void testDocumentFailureInShardOperationOnPrimary() {
         final var listener = SubscribableListener.<Exception>newForked(
             l -> new TestAction(true, randomBoolean()).dispatchedShardOperationOnPrimary(
+                mock(Task.class),
                 new TestRequest(),
                 indexShard,
                 ActionTestUtils.assertNoSuccessListener(l::onResponse)
@@ -477,6 +494,7 @@ public class TransportWriteActionTests extends ESTestCase {
 
         @Override
         protected void dispatchedShardOperationOnPrimary(
+            Task task,
             TestRequest request,
             IndexShard primary,
             ActionListener<PrimaryResult<TestRequest, TestResponse>> listener

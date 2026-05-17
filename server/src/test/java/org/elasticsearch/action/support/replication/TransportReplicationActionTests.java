@@ -66,6 +66,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.ClusterStateChanges;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -478,13 +479,14 @@ public class TransportReplicationActionTests extends ESTestCase {
         new TestAction(Settings.EMPTY, "internal:test-action", transportService, clusterService, shardStateAction, threadPool) {
             @Override
             protected void shardOperationOnPrimary(
+                Task replicationTask,
                 Request shardRequest,
                 IndexShard primary,
                 ActionListener<PrimaryResult<Request, TestResponse>> listener
             ) {
                 assertPhase(task, "primary");
                 assertFalse(executed.getAndSet(true));
-                super.shardOperationOnPrimary(shardRequest, primary, listener);
+                super.shardOperationOnPrimary(replicationTask, shardRequest, primary, listener);
             }
         }.new AsyncPrimaryAction(primaryRequest, listener, task).run();
 
@@ -818,13 +820,14 @@ public class TransportReplicationActionTests extends ESTestCase {
         new TestAction(Settings.EMPTY, "internal:testAction2", transportService, clusterService, shardStateAction, threadPool) {
             @Override
             protected void shardOperationOnPrimary(
+                Task replicationTask,
                 Request shardRequest,
                 IndexShard primary,
                 ActionListener<PrimaryResult<Request, TestResponse>> listener
             ) {
                 assertPhase(task, "primary");
                 assertFalse(executed.getAndSet(true));
-                super.shardOperationOnPrimary(shardRequest, primary, listener);
+                super.shardOperationOnPrimary(replicationTask, shardRequest, primary, listener);
             }
         }.new AsyncPrimaryAction(primaryRequest, listener, task).run();
 
@@ -879,13 +882,14 @@ public class TransportReplicationActionTests extends ESTestCase {
         new TestAction(Settings.EMPTY, "internal:testAction2", transportService, clusterService, shardStateAction, threadPool) {
             @Override
             protected void shardOperationOnPrimary(
+                Task replicationTask,
                 Request shardRequest,
                 IndexShard primary,
                 ActionListener<PrimaryResult<Request, TestResponse>> listener
             ) {
                 assertPhase(task, "primary");
                 assertFalse(executed.getAndSet(true));
-                super.shardOperationOnPrimary(shardRequest, primary, listener);
+                super.shardOperationOnPrimary(replicationTask, shardRequest, primary, listener);
             }
         }.new AsyncPrimaryAction(primaryRequest, listener, task).run();
         assertThat(executed.get(), equalTo(true));
@@ -897,6 +901,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
     public void testPrimaryReference() {
         final IndexShard shard = mock(IndexShard.class);
+        final ReplicationTask replicationTask = mock(ReplicationTask.class);
 
         AtomicBoolean closed = new AtomicBoolean();
         Releasable releasable = () -> {
@@ -904,7 +909,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                 fail("releasable is closed twice");
             }
         };
-        TestAction.PrimaryShardReference primary = action.new PrimaryShardReference(shard, releasable);
+        TestAction.PrimaryShardReference primary = action.new PrimaryShardReference(shard, releasable, replicationTask);
         final Request request = new Request(NO_SHARD_ID);
         shard.runUnderPrimaryPermit(() -> primary.perform(request, ActionTestUtils.assertNoFailureListener(r -> {
             final ElasticsearchException exception = new ElasticsearchException("testing");
@@ -1087,6 +1092,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         new TestAction(Settings.EMPTY, "internal:testAction2", transportService, clusterService, shardStateAction, threadPool) {
             @Override
             protected void shardOperationOnPrimary(
+                Task task,
                 Request shardRequest,
                 IndexShard primary,
                 ActionListener<PrimaryResult<Request, TestResponse>> listener
@@ -1097,7 +1103,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                 } else if (respondWithError) {
                     listener.onFailure(new ElasticsearchException("simulated exception, as a response"));
                 } else {
-                    super.shardOperationOnPrimary(request, primary, listener);
+                    super.shardOperationOnPrimary(task, request, primary, listener);
                 }
             }
         }.new AsyncPrimaryAction(primaryRequest, listener, task).run();
@@ -1615,6 +1621,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         @Override
         protected void shardOperationOnPrimary(
+            Task task,
             Request shardRequest,
             IndexShard primary,
             ActionListener<PrimaryResult<Request, TestResponse>> listener

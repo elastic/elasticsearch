@@ -111,6 +111,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
 
     @Override
     protected void dispatchedShardOperationOnPrimary(
+        Task task,
         ResyncReplicationRequest request,
         IndexShard primary,
         ActionListener<PrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse>> listener

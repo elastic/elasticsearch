@@ -167,6 +167,7 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
 
     @Override
     protected void dispatchedShardOperationOnPrimary(
+        Task task,
         Request request,
         IndexShard primary,
         ActionListener<PrimaryResult<Request, Response>> listener

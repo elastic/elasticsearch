@@ -21,6 +21,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -123,7 +124,7 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
         );
         final GlobalCheckpointSyncAction.Request primaryRequest = new GlobalCheckpointSyncAction.Request(indexShard.shardId());
         if (randomBoolean()) {
-            action.shardOperationOnPrimary(primaryRequest, indexShard, ActionTestUtils.assertNoFailureListener(r -> {}));
+            action.shardOperationOnPrimary(mock(Task.class), primaryRequest, indexShard, ActionTestUtils.assertNoFailureListener(r -> {}));
         } else {
             action.shardOperationOnReplica(
                 new GlobalCheckpointSyncAction.Request(indexShard.shardId()),

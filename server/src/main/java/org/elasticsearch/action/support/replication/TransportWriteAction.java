@@ -38,6 +38,7 @@ import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -234,6 +235,7 @@ public abstract class TransportWriteAction<
      */
     @Override
     protected void shardOperationOnPrimary(
+        Task task,
         Request request,
         IndexShard primary,
         ActionListener<PrimaryResult<ReplicaRequest, Response>> listener
@@ -241,7 +243,7 @@ public abstract class TransportWriteAction<
         executorFunction.apply(executorSelector, primary).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
-                dispatchedShardOperationOnPrimary(request, primary, listener);
+                dispatchedShardOperationOnPrimary(task, request, primary, listener);
             }
 
             @Override
@@ -252,6 +254,7 @@ public abstract class TransportWriteAction<
     }
 
     protected abstract void dispatchedShardOperationOnPrimary(
+        Task task,
         Request request,
         IndexShard primary,
         ActionListener<PrimaryResult<ReplicaRequest, Response>> listener

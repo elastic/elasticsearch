@@ -24,6 +24,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -107,12 +108,17 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
         );
 
         final CountDownLatch latch = new CountDownLatch(1);
-        action.shardOperationOnPrimary(request, indexShard, new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {
-            // the retention leases on the shard should be persisted
-            verify(indexShard).persistRetentionLeases();
-            // we should forward the request containing the current retention leases to the replica
-            assertThat(result.replicaRequest(), sameInstance(request));
-        }), latch));
+        action.shardOperationOnPrimary(
+            mock(Task.class),
+            request,
+            indexShard,
+            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {
+                // the retention leases on the shard should be persisted
+                verify(indexShard).persistRetentionLeases();
+                // we should forward the request containing the current retention leases to the replica
+                assertThat(result.replicaRequest(), sameInstance(request));
+            }), latch)
+        );
         latch.await();
     }
 

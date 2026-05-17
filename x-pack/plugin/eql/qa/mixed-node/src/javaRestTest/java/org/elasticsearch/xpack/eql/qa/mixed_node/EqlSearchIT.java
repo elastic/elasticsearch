@@ -15,12 +15,17 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
+import org.elasticsearch.test.TestClustersThreadFilter;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.ql.TestNode;
 import org.elasticsearch.xpack.ql.TestNodes;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,9 +50,18 @@ import static org.elasticsearch.xpack.ql.TestUtils.readResource;
  * The test is against a three-node cluster where one node is upgraded, the other two are on the old version.
  *
  */
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class EqlSearchIT extends ESRestTestCase {
 
-    private static final String BWC_NODES_VERSION = System.getProperty("tests.bwc_nodes_version");
+    @ClassRule
+    public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
+    private static final String BWC_NODES_VERSION = Clusters.OLD_CLUSTER_VERSION;
 
     private static final String index = "test_eql_mixed_versions";
     private static int numShards;

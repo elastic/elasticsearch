@@ -989,6 +989,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
+     * Runs the given task on the SEARCH executor when {@code wasInRefreshListener} is true, otherwise
+     * runs it inline on the calling thread. Use to escape a potential refresh-completing thread when
+     * a follow-up step does non-trivial Lucene or search-side work — see #97280 for context.
+     */
+    private void forkOrRunInline(boolean wasInRefreshListener, Runnable task) {
+        if (wasInRefreshListener) {
+            threadPool.executor(Names.SEARCH).execute(task);
+        } else {
+            task.run();
+        }
+    }
+
+    /**
      * The returned {@link SearchPhaseResult} will have had its ref count incremented by this method.
      * It is the responsibility of the caller to ensure that the ref count is correctly decremented
      * when the object is no longer needed.
@@ -1633,7 +1646,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard shard = indexService.getShard(shardId.id());
         final SearchOperationListener searchOperationListener = shard.getSearchOperationListener();
-        shard.ensureShardSearchActive(ignored -> {
+        // The ensureShardSearchActive callback may fire on the thread that completed a refresh (an
+        // indexing or recovery thread). Opening a PIT reader context acquires a searcher and calls
+        // SearchOperationListener hooks, which should not run on those pools, so fork to the SEARCH
+        // pool whenever we were registered as a refresh listener. See #97280.
+        shard.ensureShardSearchActive(b -> forkOrRunInline(b, () -> {
             Engine.SearcherSupplier searcherSupplier = null;
             ReaderContext readerContext = null;
             try {
@@ -1686,7 +1703,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 Releasables.closeWhileHandlingException(searcherSupplier, readerContext);
                 listener.onFailure(exc);
             }
-        });
+        }));
     }
 
     protected SearchContext createContext(
@@ -2584,10 +2601,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             indicesService.getDataRewriteContext(request::nowInMillis),
             threadPool.executor(Names.SEARCH),
             request.readerId() == null ? listener.delegateFailureAndWrap((delegate, r) -> {
+                // The ensureShardSearchActive callback below may fire on the thread that completed a refresh
+                // (an indexing or recovery thread), so dispatch onto the SEARCH pool before running the
+                // follow-up can-match phase in executeQueryPhase. The `b` flag is true exactly when we were
+                // registered as a refresh listener and so are at risk of running on a refresh thread. When
+                // false we are still on the rewrite executor (SEARCH) and can complete inline. See #97280.
+                //
                 // If the shard is already search-ready, skip the gate and the task-cancellation listener
                 // wiring entirely.
                 if (shard.isReadAllowed()) {
-                    shard.ensureShardSearchActive(b -> delegate.onResponse(request));
+                    shard.ensureShardSearchActive(b -> forkOrRunInline(b, () -> delegate.onResponse(request)));
                     return;
                 }
                 // notifyOnce guards against double-completion: both the task cancellation listener
@@ -2598,7 +2621,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 var l = ActionListener.notifyOnce(delegate);
                 @SuppressWarnings("resource")
                 Releasable slot = shard.waitForSearchReady(
-                    l.delegateFailureAndWrap((l2, v) -> shard.ensureShardSearchActive(b -> l2.onResponse(request)))
+                    l.delegateFailureAndWrap(
+                        (l2, v) -> shard.ensureShardSearchActive(b -> forkOrRunInline(b, () -> l2.onResponse(request)))
+                    )
                 );
                 searchTask.addListener(() -> {
                     slot.close();

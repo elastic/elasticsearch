@@ -84,6 +84,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -142,7 +143,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         String... nestedPath
     ) {
         String testName = RANDOMIZED_RUNNER_SEED_SUFFIX_AT_END.matcher(getTestName()).replaceFirst("");
-        new Test(baseFile, testName, nestedPath, esqlQuery, stages, searchStats, transportVersion).doTest();
+        new Test(baseFile, testName, nestedPath, esqlQuery, stages, searchStats, transportVersion, null).doTest();
     }
 
     protected TestBuilder builder(String esqlQuery) {
@@ -155,6 +156,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         private SearchStats searchStats;
         private String[] nestedPath;
         private TransportVersion transportVersion;
+        private Function<LogicalOptimizerContext, LogicalPlanOptimizer> optimizerFactory;
 
         private TestBuilder(
             String esqlQuery,
@@ -172,6 +174,11 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         TestBuilder(String esqlQuery) {
             this(esqlQuery, EnumSet.allOf(Stage.class), EsqlTestUtils.TEST_SEARCH_STATS, new String[0], randomMinimumVersion());
+        }
+
+        public TestBuilder optimizer(Function<LogicalOptimizerContext, LogicalPlanOptimizer> factory) {
+            this.optimizerFactory = factory;
+            return this;
         }
 
         public TestBuilder stages(EnumSet<Stage> stages) {
@@ -211,7 +218,8 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
 
         public void run() {
-            runGoldenTest(esqlQuery, stages, searchStats, transportVersion, nestedPath);
+            String testName = RANDOMIZED_RUNNER_SEED_SUFFIX_AT_END.matcher(getTestName()).replaceFirst("");
+            new Test(baseFile, testName, nestedPath, esqlQuery, stages, searchStats, transportVersion, optimizerFactory).doTest();
         }
 
         public Optional<Throwable> tryRun() {
@@ -231,7 +239,8 @@ public abstract class GoldenTestCase extends ESTestCase {
         String esqlQuery,
         EnumSet<Stage> stages,
         SearchStats searchStats,
-        TransportVersion transportVersion
+        TransportVersion transportVersion,
+        Function<LogicalOptimizerContext, LogicalPlanOptimizer> optimizerFactory
     ) {
 
         private void doTest() {
@@ -279,7 +288,10 @@ public abstract class GoldenTestCase extends ESTestCase {
             }
             var configuration = EsqlTestUtils.configuration(new QueryPragmas(Settings.EMPTY), esqlQuery, statement);
             var optimizerContext = new LogicalOptimizerContext(configuration, FoldContext.small(), transportVersion);
-            var logicallyOptimized = new LogicalPlanOptimizer(optimizerContext).optimize(analyzed);
+            var optimizer = optimizerFactory != null
+                ? optimizerFactory.apply(optimizerContext)
+                : new LogicalPlanOptimizer(optimizerContext);
+            var logicallyOptimized = optimizer.optimize(analyzed);
             if (stages.contains(Stage.LOGICAL_OPTIMIZATION)) {
                 result.add(Tuple.tuple(Stage.LOGICAL_OPTIMIZATION, verifyOrWrite(logicallyOptimized, Stage.LOGICAL_OPTIMIZATION)));
             }

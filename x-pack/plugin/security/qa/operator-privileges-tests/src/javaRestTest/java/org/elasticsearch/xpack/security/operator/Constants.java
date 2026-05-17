@@ -48,6 +48,7 @@ public class Constants {
         "cluster:admin/ingest/pipeline/put",
         "cluster:admin/ingest/pipeline/simulate",
         "cluster:admin/ingest/processor/grok/get",
+        "cluster:admin/ip_location/downloads/consumers/update",
         "cluster:admin/logstash/pipeline/delete",
         "cluster:admin/logstash/pipeline/get",
         "cluster:admin/logstash/pipeline/put",

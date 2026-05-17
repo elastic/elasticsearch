@@ -1549,14 +1549,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     }
                 } else {
                     readerContext = createAndPutReaderContext(request, indexService, shard, searcherSupplier, defaultKeepAlive, task);
-                    logOpened(readerContext);
                 }
                 return readerContext;
             }
         }
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard shard = indexService.getShard(request.shardId().id());
-        final ReaderContext readerContext = createAndPutReaderContext(
+        return createAndPutReaderContext(
             request,
             indexService,
             shard,
@@ -1564,8 +1563,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             keepAliveInMillis,
             task
         );
-        logOpened(readerContext);
-        return readerContext;
     }
 
     private void logOpened(ReaderContext readerContext) {
@@ -1615,6 +1612,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             readerContext.addOnClose(() -> searchOperationListener.onFreeReaderContext(finalReaderContext));
             putReaderContext(finalReaderContext);
             readerContext = null;
+            logOpened(finalReaderContext);
             return finalReaderContext;
         } finally {
             Releasables.close(reader, readerContext, decreaseScrollContexts);

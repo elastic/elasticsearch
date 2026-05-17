@@ -125,7 +125,7 @@ public class EncodeSplitDeltaBenchmark {
             outputs[i] = new ByteArrayDataOutput(outputBuffers[i]);
         }
 
-        final PipelineConfig config = PipelineConfig.forLongs(blockSize).withSplitDelta().bitPack();
+        final PipelineConfig config = PipelineConfig.forLongs(blockSize).splitDelta().bitPack();
         final NumericEncoder encoder = NumericCodecFactory.DEFAULT.createEncoder(config);
         blockEncoder = encoder.newBlockEncoder();
     }

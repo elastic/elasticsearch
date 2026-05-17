@@ -181,7 +181,7 @@ public class NumericPipelineRoundTripTests extends ESTestCase {
             }
         }
 
-        final PipelineConfig config = PipelineConfig.forLongs(blockSize).withSplitDelta().delta().offset().gcd().bitPack();
+        final PipelineConfig config = PipelineConfig.forLongs(blockSize).splitDelta().delta().offset().gcd().bitPack();
         final NumericEncoder encoder = NumericCodecFactory.DEFAULT.createEncoder(config);
         final NumericBlockEncoder blockEncoder = encoder.newBlockEncoder();
 

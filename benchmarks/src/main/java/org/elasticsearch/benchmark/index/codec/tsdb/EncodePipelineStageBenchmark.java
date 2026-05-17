@@ -183,7 +183,7 @@ public class EncodePipelineStageBenchmark {
             case "delta" -> PipelineConfig.forLongs(blockSize).delta().bitPack();
             case "offset" -> PipelineConfig.forLongs(blockSize).offset().bitPack();
             case "gcd" -> PipelineConfig.forLongs(blockSize).gcd().bitPack();
-            case "splitDelta" -> PipelineConfig.forLongs(blockSize).withSplitDelta().bitPack();
+            case "splitDelta" -> PipelineConfig.forLongs(blockSize).splitDelta().bitPack();
             case "bitpackOnly" -> PipelineConfig.forLongs(blockSize).bitPack();
             case "full" -> PipelineConfig.forLongs(blockSize).delta().offset().gcd().bitPack();
             default -> throw new IllegalArgumentException("Unknown stage: " + stage);

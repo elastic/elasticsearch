@@ -167,7 +167,7 @@ public class SplitDeltaStorageComparisonTests extends ESTestCase {
     }
 
     private static PipelineConfig splitDeltaPipeline(int blockSize) {
-        return PipelineConfig.forLongs(blockSize).withSplitDelta().delta().offset().gcd().bitPack();
+        return PipelineConfig.forLongs(blockSize).splitDelta().delta().offset().gcd().bitPack();
     }
 
     private static long encodeBlockSize(PipelineConfig config, long[] values) throws IOException {

@@ -135,7 +135,7 @@ public record PipelineConfig(
          *
          * @return this builder
          */
-        public LongBuilder withSplitDelta() {
+        public LongBuilder splitDelta() {
             transforms.add(new StageSpec.SplitDeltaStage(StageSpec.SplitDeltaStage.DEFAULT_K_MAX));
             return this;
         }
@@ -147,7 +147,7 @@ public record PipelineConfig(
          * @param kMax the maximum number of flips accepted per block; must be at least one
          * @return this builder
          */
-        public LongBuilder withSplitDelta(int kMax) {
+        public LongBuilder splitDelta(int kMax) {
             transforms.add(new StageSpec.SplitDeltaStage(kMax));
             return this;
         }

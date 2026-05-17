@@ -103,7 +103,7 @@ public class DecodeSplitDeltaBenchmark {
     public void setupTrial() throws IOException {
         final long[] template = BoundaryBlockSupplier.builder(SEED, blockSize).withFlips(flips).withJitterMs(jitterMs).build().get();
 
-        final PipelineConfig config = PipelineConfig.forLongs(blockSize).withSplitDelta().bitPack();
+        final PipelineConfig config = PipelineConfig.forLongs(blockSize).splitDelta().bitPack();
         final NumericEncoder encoder = NumericCodecFactory.DEFAULT.createEncoder(config);
         final NumericBlockEncoder blockEncoder = encoder.newBlockEncoder();
 

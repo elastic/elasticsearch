@@ -10,6 +10,8 @@
 package org.elasticsearch.benchmark.index.codec.tsdb;
 
 import org.apache.lucene.store.ByteArrayDataOutput;
+import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.index.codec.tsdb.internal.BoundaryBlockSupplier;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.ConstantIntegerSupplier;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.CounterWithResetsSupplier;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.DecreasingIntegerSupplier;
@@ -60,6 +62,7 @@ import java.util.function.Supplier;
  *   <li>{@code delta} - just {@code delta>bitpack}</li>
  *   <li>{@code offset} - just {@code offset>bitpack}</li>
  *   <li>{@code gcd} - just {@code gcd>bitpack}</li>
+ *   <li>{@code splitDelta} - just {@code splitDelta>bitpack}</li>
  *   <li>{@code bitpackOnly} - just {@code bitpack}</li>
  *   <li>{@code full} - {@code delta>offset>gcd>bitpack} (production)</li>
  * </ul>
@@ -76,6 +79,8 @@ import java.util.function.Supplier;
  *   <li>{@code counterWithResets} - monotonic counter with occasional drops</li>
  *   <li>{@code nearConstant} - mostly the same value with rare outliers (offset case)</li>
  *   <li>{@code timestampLike} - timestamps with small jitter around a fixed delta</li>
+ *   <li>{@code tsdbBoundary} - TSDB descending block with one upward boundary jump (k=1, the SplitDelta common case)</li>
+ *   <li>{@code tsdbMultiBoundary} - TSDB block with four boundary jumps (k=4)</li>
  * </ul>
  *
  * <h2>Ready to run commands</h2>
@@ -108,11 +113,15 @@ import java.util.function.Supplier;
 @State(Scope.Benchmark)
 public class EncodePipelineStageBenchmark {
 
+    static {
+        Utils.configureBenchmarkLogging();
+    }
+
     private static final int SEED = 17;
-    private static final int EXTRA_METADATA_SIZE = 64;
+    private static final int EXTRA_METADATA_SIZE = 512;
     private static final int RANDOM_INTEGER_BITS = 32;
 
-    @Param({ "delta", "offset", "gcd", "bitpackOnly", "full" })
+    @Param({ "delta", "offset", "gcd", "splitDelta", "bitpackOnly", "full" })
     private String stage;
 
     @Param(
@@ -126,7 +135,9 @@ public class EncodePipelineStageBenchmark {
             "lowCardinality",
             "counterWithResets",
             "nearConstant",
-            "timestampLike" }
+            "timestampLike",
+            "tsdbBoundary",
+            "tsdbMultiBoundary" }
     )
     private String pattern;
 
@@ -172,6 +183,7 @@ public class EncodePipelineStageBenchmark {
             case "delta" -> PipelineConfig.forLongs(blockSize).delta().bitPack();
             case "offset" -> PipelineConfig.forLongs(blockSize).offset().bitPack();
             case "gcd" -> PipelineConfig.forLongs(blockSize).gcd().bitPack();
+            case "splitDelta" -> PipelineConfig.forLongs(blockSize).withSplitDelta().bitPack();
             case "bitpackOnly" -> PipelineConfig.forLongs(blockSize).bitPack();
             case "full" -> PipelineConfig.forLongs(blockSize).delta().offset().gcd().bitPack();
             default -> throw new IllegalArgumentException("Unknown stage: " + stage);
@@ -190,6 +202,8 @@ public class EncodePipelineStageBenchmark {
             case "counterWithResets" -> CounterWithResetsSupplier.builder(SEED, size).build();
             case "nearConstant" -> NearConstantWithOutliersSupplier.builder(SEED, size).build();
             case "timestampLike" -> TimestampLikeSupplier.builder(SEED, size).build();
+            case "tsdbBoundary" -> BoundaryBlockSupplier.builder(SEED, size).withFlips(1).build();
+            case "tsdbMultiBoundary" -> BoundaryBlockSupplier.builder(SEED, size).withFlips(4).build();
             default -> throw new IllegalArgumentException("Unknown pattern: " + pattern);
         };
     }

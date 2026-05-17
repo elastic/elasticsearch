@@ -24,7 +24,7 @@ import java.io.IOException;
  * <h2>Effectiveness</h2>
  * <p>Applied when a block consists of multiple monotonic sub-runs separated by direction
  * flips. For TSDB indices sorted by {@code [_tsid asc, @timestamp desc]} this captures
- * blocks that straddle one or more {@code _tsid} boundaries: timestamps decrease within a
+ * blocks that cross one or more {@code _tsid} boundaries: timestamps decrease within a
  * {@code _tsid} run and jump up at the boundary. {@link DeltaCodecStage} declines such
  * blocks because it requires a single direction throughout the entire block, leaving the
  * downstream stages to bit-pack the raw range at {@code log2(time_range)} bits per value.
@@ -149,7 +149,27 @@ public final class SplitDeltaCodecStage implements NumericCodecStage {
         for (int j = 0; j <= k; j++) {
             final int hi = splits[j];
             long sum = firstDeltas[j];
-            for (int i = lo; i < hi; i++) {
+            // NOTE: 4-wide ILP unroll. Computing the four partial prefix sums (v0, v0+v1,
+            // v0+v1+v2, v0+v1+v2+v3) as a balanced tree cuts the dependency chain from
+            // four serial adds to two, letting the CPU issue the four writes in parallel.
+            final int unrollEnd = lo + ((hi - lo) & ~3);
+            int i = lo;
+            for (; i < unrollEnd; i += 4) {
+                final long v0 = values[i];
+                final long v1 = values[i + 1];
+                final long v2 = values[i + 2];
+                final long v3 = values[i + 3];
+                final long s1 = v0 + v1;
+                final long t23 = v2 + v3;
+                final long s2 = s1 + v2;
+                final long s3 = s1 + t23;
+                values[i] = sum + v0;
+                values[i + 1] = sum + s1;
+                values[i + 2] = sum + s2;
+                values[i + 3] = sum + s3;
+                sum += s3;
+            }
+            for (; i < hi; i++) {
                 sum += values[i];
                 values[i] = sum;
             }
@@ -182,7 +202,7 @@ public final class SplitDeltaCodecStage implements NumericCodecStage {
         int pendingDir = 0;
         for (int i = 1; i < valueCount; i++) {
             final long diff = values[i] - values[i - 1];
-            final int cur = Long.compare(diff, 0L);
+            final int cur = Long.signum(diff);
             if (cur == 0) {
                 continue;
             }

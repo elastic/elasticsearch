@@ -24,7 +24,10 @@ import java.util.Random;
 
 public class SplitDeltaStorageComparisonTests extends ESTestCase {
 
-    private static final int BLOCK_SIZE = 128;
+    // NOTE: BS=128 is the non-TSDB default; BS=512 is the production block size for
+    // @timestamp in TSDB indices; BS=1024 and BS=2048 capture the larger block sizes
+    // SplitDelta unlocks by neutralizing the boundary block payload penalty.
+    private static final int[] BLOCK_SIZES = { 128, 512, 1024, 2048 };
     private static final long BASE_TIMESTAMP = 1_700_000_000_000L;
     private static final long INTERVAL_MS = 10_000L;
     private static final long BOUNDARY_JUMP_MS = 240L * 60L * 1000L;
@@ -35,81 +38,136 @@ public class SplitDeltaStorageComparisonTests extends ESTestCase {
     private static final long JITTER_SEED = 42L;
 
     public void testSingleBoundaryBlock() throws IOException {
-        final long[] values = tsdbBoundaryBlock(BLOCK_SIZE, BLOCK_SIZE / 2);
-        assertEquals(186, encodeBlockSize(deltaPipeline(), values));
-        assertEquals(19, encodeBlockSize(splitDeltaPipeline(), values));
+        final long[] expectedDelta = { 186, 714, 1418, 3082 };
+        final long[] expectedSplitDelta = { 19, 20, 20, 20 };
+        for (int i = 0; i < BLOCK_SIZES.length; i++) {
+            final int blockSize = BLOCK_SIZES[i];
+            final long[] values = tsdbBoundaryBlock(blockSize, blockSize / 2);
+            assertEquals(expectedDelta[i], encodeBlockSize(deltaPipeline(blockSize), values));
+            assertEquals(expectedSplitDelta[i], encodeBlockSize(splitDeltaPipeline(blockSize), values));
+        }
     }
 
     public void testFourFlipBlock() throws IOException {
-        final long[] values = tsdbMultiFlipBlock(BLOCK_SIZE, 4);
-        assertEquals(218, encodeBlockSize(deltaPipeline(), values));
-        assertEquals(40, encodeBlockSize(splitDeltaPipeline(), values));
+        final long[] expectedDelta = { 218, 842, 1674, 3338 };
+        final long[] expectedSplitDelta = { 40, 43, 44, 44 };
+        for (int i = 0; i < BLOCK_SIZES.length; i++) {
+            final int blockSize = BLOCK_SIZES[i];
+            final long[] values = tsdbMultiFlipBlock(blockSize, 4);
+            assertEquals(expectedDelta[i], encodeBlockSize(deltaPipeline(blockSize), values));
+            assertEquals(expectedSplitDelta[i], encodeBlockSize(splitDeltaPipeline(blockSize), values));
+        }
     }
 
     public void testKMaxFlipBlock() throws IOException {
-        final long[] values = tsdbMultiFlipBlock(BLOCK_SIZE, 16);
-        assertEquals(250, encodeBlockSize(deltaPipeline(), values));
-        assertEquals(124, encodeBlockSize(splitDeltaPipeline(), values));
+        final long[] expectedDelta = { 250, 970, 1930, 3850 };
+        final long[] expectedSplitDelta = { 124, 136, 138, 139 };
+        for (int i = 0; i < BLOCK_SIZES.length; i++) {
+            final int blockSize = BLOCK_SIZES[i];
+            final long[] values = tsdbMultiFlipBlock(blockSize, 16);
+            assertEquals(expectedDelta[i], encodeBlockSize(deltaPipeline(blockSize), values));
+            assertEquals(expectedSplitDelta[i], encodeBlockSize(splitDeltaPipeline(blockSize), values));
+        }
     }
 
     public void testFullyDescendingBlock() throws IOException {
-        final long[] values = tsdbDescendingBlock(BLOCK_SIZE);
-        assertEquals(11, encodeBlockSize(deltaPipeline(), values));
-        assertEquals(11, encodeBlockSize(splitDeltaPipeline(), values));
+        for (int blockSize : BLOCK_SIZES) {
+            final long[] values = tsdbDescendingBlock(blockSize);
+            assertEquals(11, encodeBlockSize(deltaPipeline(blockSize), values));
+            assertEquals(11, encodeBlockSize(splitDeltaPipeline(blockSize), values));
+        }
     }
 
     public void testConstantBlock() throws IOException {
-        final long[] values = new long[BLOCK_SIZE];
-        Arrays.fill(values, BASE_TIMESTAMP);
-        assertEquals(8, encodeBlockSize(deltaPipeline(), values));
-        assertEquals(8, encodeBlockSize(splitDeltaPipeline(), values));
+        for (int blockSize : BLOCK_SIZES) {
+            final long[] values = new long[blockSize];
+            Arrays.fill(values, BASE_TIMESTAMP);
+            assertEquals(8, encodeBlockSize(deltaPipeline(blockSize), values));
+            assertEquals(8, encodeBlockSize(splitDeltaPipeline(blockSize), values));
+        }
     }
 
     public void testTooManyFlipsBlock() throws IOException {
-        final long[] values = tsdbMultiFlipBlock(BLOCK_SIZE, 17);
-        assertEquals(250, encodeBlockSize(deltaPipeline(), values));
-        assertEquals(250, encodeBlockSize(splitDeltaPipeline(), values));
+        final long[] expected = { 250, 970, 1930, 3850 };
+        for (int i = 0; i < BLOCK_SIZES.length; i++) {
+            final int blockSize = BLOCK_SIZES[i];
+            final long[] values = tsdbMultiFlipBlock(blockSize, 17);
+            assertEquals(expected[i], encodeBlockSize(deltaPipeline(blockSize), values));
+            assertEquals(expected[i], encodeBlockSize(splitDeltaPipeline(blockSize), values));
+        }
     }
 
     public void testJitteredBoundaryBlock() throws IOException {
-        final long[] values = jitteredBoundaryBlock(BLOCK_SIZE, BLOCK_SIZE / 2);
-        assertEquals(392, encodeBlockSize(deltaPipeline(), values));
-        assertEquals(211, encodeBlockSize(splitDeltaPipeline(), values));
+        final long[] expectedDelta = { 392, 2056, 4104, 8200 };
+        final long[] expectedSplitDelta = { 211, 788, 1556, 3092 };
+        for (int i = 0; i < BLOCK_SIZES.length; i++) {
+            final int blockSize = BLOCK_SIZES[i];
+            final long[] values = jitteredBoundaryBlock(blockSize, blockSize / 2);
+            assertEquals(expectedDelta[i], encodeBlockSize(deltaPipeline(blockSize), values));
+            assertEquals(expectedSplitDelta[i], encodeBlockSize(splitDeltaPipeline(blockSize), values));
+        }
     }
 
     public void testJitteredFullyDescendingBlock() throws IOException {
-        final long[] values = jitteredDescendingBlock(BLOCK_SIZE);
-        assertEquals(203, encodeBlockSize(deltaPipeline(), values));
-        assertEquals(203, encodeBlockSize(splitDeltaPipeline(), values));
+        final long[] expected = { 203, 779, 1547, 3083 };
+        for (int i = 0; i < BLOCK_SIZES.length; i++) {
+            final int blockSize = BLOCK_SIZES[i];
+            final long[] values = jitteredDescendingBlock(blockSize);
+            assertEquals(expected[i], encodeBlockSize(deltaPipeline(blockSize), values));
+            assertEquals(expected[i], encodeBlockSize(splitDeltaPipeline(blockSize), values));
+        }
     }
 
-    public void testMixedKValuesAcrossBlocks() throws IOException {
-        final long[][] blocks = mixedKBlocks();
-        assertEquals(1106, encodeBlocksTotalSize(deltaPipeline(), blocks));
-        assertEquals(263, encodeBlocksTotalSize(splitDeltaPipeline(), blocks));
+    public void testBlockSequenceWithVaryingFlipCounts() throws IOException {
+        final long[] expectedDelta = { 1106, 4274, 8498, 17202 };
+        final long[] expectedSplitDelta = { 263, 286, 290, 292 };
+        for (int i = 0; i < BLOCK_SIZES.length; i++) {
+            final int blockSize = BLOCK_SIZES[i];
+            final long[][] blocks = blocksWithVaryingFlipCounts(blockSize);
+            assertEquals(expectedDelta[i], encodeBlocksTotalSize(deltaPipeline(blockSize), blocks));
+            assertEquals(expectedSplitDelta[i], encodeBlocksTotalSize(splitDeltaPipeline(blockSize), blocks));
+        }
     }
 
-    public void testJitteredMixedKValuesAcrossBlocks() throws IOException {
-        final long[][] blocks = jitteredMixedKBlocks();
-        assertEquals(2472, encodeBlocksTotalSize(deltaPipeline(), blocks));
-        assertEquals(1223, encodeBlocksTotalSize(splitDeltaPipeline(), blocks));
+    public void testJitteredBlockSequenceWithVaryingFlipCounts() throws IOException {
+        final long[] expectedDelta = { 2472, 10280, 20520, 41000 };
+        final long[] expectedSplitDelta = { 1223, 4126, 7970, 15652 };
+        for (int i = 0; i < BLOCK_SIZES.length; i++) {
+            final int blockSize = BLOCK_SIZES[i];
+            final long[][] blocks = jitteredBlocksWithVaryingFlipCounts(blockSize);
+            assertEquals(expectedDelta[i], encodeBlocksTotalSize(deltaPipeline(blockSize), blocks));
+            assertEquals(expectedSplitDelta[i], encodeBlocksTotalSize(splitDeltaPipeline(blockSize), blocks));
+        }
     }
 
     public void testAggregateOverHundredBlocksWithTenBoundaries() throws IOException {
-        final long[][] blocks = new long[100][];
-        for (int b = 0; b < 100; b++) {
-            blocks[b] = (b < 10) ? tsdbBoundaryBlock(BLOCK_SIZE, BLOCK_SIZE / 2) : tsdbDescendingBlock(BLOCK_SIZE);
+        final long[] expectedDelta = { 2850, 8130, 15170, 31810 };
+        final long[] expectedSplitDelta = { 1180, 1190, 1190, 1190 };
+        for (int i = 0; i < BLOCK_SIZES.length; i++) {
+            final int blockSize = BLOCK_SIZES[i];
+            final long[][] blocks = boundaryAndDescendingBlockMix(blockSize, 10);
+            assertEquals(expectedDelta[i], encodeBlocksTotalSize(deltaPipeline(blockSize), blocks));
+            assertEquals(expectedSplitDelta[i], encodeBlocksTotalSize(splitDeltaPipeline(blockSize), blocks));
         }
-        assertEquals(2850, encodeBlocksTotalSize(deltaPipeline(), blocks));
-        assertEquals(1180, encodeBlocksTotalSize(splitDeltaPipeline(), blocks));
     }
 
-    private static PipelineConfig deltaPipeline() {
-        return PipelineConfig.forLongs(BLOCK_SIZE).delta().offset().gcd().bitPack();
+    public void testAggregateOverHundredBlocksWithTwentyBoundaries() throws IOException {
+        final long[] expectedDelta = { 4600, 15160, 29240, 62520 };
+        final long[] expectedSplitDelta = { 1260, 1280, 1280, 1280 };
+        for (int i = 0; i < BLOCK_SIZES.length; i++) {
+            final int blockSize = BLOCK_SIZES[i];
+            final long[][] blocks = boundaryAndDescendingBlockMix(blockSize, 20);
+            assertEquals(expectedDelta[i], encodeBlocksTotalSize(deltaPipeline(blockSize), blocks));
+            assertEquals(expectedSplitDelta[i], encodeBlocksTotalSize(splitDeltaPipeline(blockSize), blocks));
+        }
     }
 
-    private static PipelineConfig splitDeltaPipeline() {
-        return PipelineConfig.forLongs(BLOCK_SIZE).withSplitDelta().delta().offset().gcd().bitPack();
+    private static PipelineConfig deltaPipeline(int blockSize) {
+        return PipelineConfig.forLongs(blockSize).delta().offset().gcd().bitPack();
+    }
+
+    private static PipelineConfig splitDeltaPipeline(int blockSize) {
+        return PipelineConfig.forLongs(blockSize).withSplitDelta().delta().offset().gcd().bitPack();
     }
 
     private static long encodeBlockSize(PipelineConfig config, long[] values) throws IOException {
@@ -206,21 +264,29 @@ public class SplitDeltaStorageComparisonTests extends ESTestCase {
         return values;
     }
 
-    private static long[][] mixedKBlocks() {
-        final int[] ks = { 1, 3, 5, 8, 12 };
-        final long[][] blocks = new long[ks.length][];
-        for (int i = 0; i < ks.length; i++) {
-            blocks[i] = tsdbMultiFlipBlock(BLOCK_SIZE, ks[i]);
+    private static long[][] blocksWithVaryingFlipCounts(int blockSize) {
+        final int[] flipCounts = { 1, 3, 5, 8, 12 };
+        final long[][] blocks = new long[flipCounts.length][];
+        for (int i = 0; i < flipCounts.length; i++) {
+            blocks[i] = tsdbMultiFlipBlock(blockSize, flipCounts[i]);
         }
         return blocks;
     }
 
-    private static long[][] jitteredMixedKBlocks() {
+    private static long[][] jitteredBlocksWithVaryingFlipCounts(int blockSize) {
         final Random rng = new Random(JITTER_SEED);
-        final int[] ks = { 1, 3, 5, 8, 12 };
-        final long[][] blocks = new long[ks.length][];
-        for (int i = 0; i < ks.length; i++) {
-            blocks[i] = jitteredMultiFlipBlock(BLOCK_SIZE, ks[i], rng);
+        final int[] flipCounts = { 1, 3, 5, 8, 12 };
+        final long[][] blocks = new long[flipCounts.length][];
+        for (int i = 0; i < flipCounts.length; i++) {
+            blocks[i] = jitteredMultiFlipBlock(blockSize, flipCounts[i], rng);
+        }
+        return blocks;
+    }
+
+    private static long[][] boundaryAndDescendingBlockMix(int blockSize, int boundaryCount) {
+        final long[][] blocks = new long[100][];
+        for (int b = 0; b < 100; b++) {
+            blocks[b] = (b < boundaryCount) ? tsdbBoundaryBlock(blockSize, blockSize / 2) : tsdbDescendingBlock(blockSize);
         }
         return blocks;
     }

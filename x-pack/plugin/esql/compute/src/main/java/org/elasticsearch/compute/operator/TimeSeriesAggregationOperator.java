@@ -362,6 +362,11 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 bucket = optimizedTimeBucket.nextRoundingValue(bucket);
             }
         }
+
+        final int maxGroupId = blockHash.numKeys() - 1;
+        for (GroupingAggregator aggregator : aggregators) {
+            aggregator.aggregatorFunction().presizeGroupingStates(maxGroupId);
+        }
     }
 
     @Override

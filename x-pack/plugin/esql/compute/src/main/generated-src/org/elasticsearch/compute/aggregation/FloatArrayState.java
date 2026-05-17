@@ -51,7 +51,6 @@ final class FloatArrayState extends AbstractArrayState implements GroupingAggreg
     }
 
     void set(int groupId, float value) {
-        ensureCapacity(groupId);
         values.set(groupId, value);
         trackGroupId(groupId);
     }
@@ -76,6 +75,11 @@ final class FloatArrayState extends AbstractArrayState implements GroupingAggreg
             }
             return builder.build();
         }
+    }
+
+    @Override
+    public void presizeGroupingStates(int maxPossibleGroupId) {
+        ensureCapacity(maxPossibleGroupId);
     }
 
     private void ensureCapacity(int groupId) {

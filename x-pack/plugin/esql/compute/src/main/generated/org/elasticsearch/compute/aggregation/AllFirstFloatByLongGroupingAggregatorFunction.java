@@ -222,6 +222,11 @@ public final class AllFirstFloatByLongGroupingAggregatorFunction implements Grou
   }
 
   @Override
+  public void presizeGroupingStates(int maxPossibleGroupId) {
+    state.presizeGroupingStates(maxPossibleGroupId);
+  }
+
+  @Override
   public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
       IntVector selected, GroupingAggregatorEvaluationContext ctx) {
     return this::evaluateIntermediate;

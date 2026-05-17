@@ -53,7 +53,6 @@ final class BooleanArrayState extends AbstractArrayState implements GroupingAggr
     }
 
     void set(int groupId, boolean value) {
-        ensureCapacity(groupId);
         values.set(groupId, value);
         trackGroupId(groupId);
     }
@@ -78,6 +77,11 @@ final class BooleanArrayState extends AbstractArrayState implements GroupingAggr
             }
             return builder.build();
         }
+    }
+
+    @Override
+    public void presizeGroupingStates(int maxPossibleGroupId) {
+        ensureCapacity(maxPossibleGroupId);
     }
 
     private void ensureCapacity(int groupId) {

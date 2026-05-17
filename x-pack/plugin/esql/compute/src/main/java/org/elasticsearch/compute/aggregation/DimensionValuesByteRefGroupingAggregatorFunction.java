@@ -69,6 +69,11 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
     }
 
     @Override
+    public void presizeGroupingStates(int maxPossibleGroupId) {
+        // noop
+    }
+
+    @Override
     public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
         BytesRefBlock valuesBlock = page.getBlock(channel);
         if (valuesBlock.areAllValuesNull()) {

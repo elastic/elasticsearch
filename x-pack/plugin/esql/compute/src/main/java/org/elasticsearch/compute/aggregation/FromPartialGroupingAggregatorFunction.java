@@ -40,6 +40,11 @@ public class FromPartialGroupingAggregatorFunction implements GroupingAggregator
     }
 
     @Override
+    public void presizeGroupingStates(int maxPossibleGroupId) {
+        delegate.presizeGroupingStates(maxPossibleGroupId);
+    }
+
+    @Override
     public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
         return new AddInput() {
             @Override

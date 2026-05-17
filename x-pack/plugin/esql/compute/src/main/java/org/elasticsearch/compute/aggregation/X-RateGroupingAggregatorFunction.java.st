@@ -117,6 +117,11 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
     }
 
     @Override
+    public void presizeGroupingStates(int maxPossibleGroupId) {
+        // noop
+    }
+
+    @Override
     public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
         // manage nulls via buffers/reducedStates arrays
     }

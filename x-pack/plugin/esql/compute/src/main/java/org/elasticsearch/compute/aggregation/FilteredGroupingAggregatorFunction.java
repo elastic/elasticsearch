@@ -106,6 +106,11 @@ public record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next
     }
 
     @Override
+    public void presizeGroupingStates(int maxPossibleGroupId) {
+        next.presizeGroupingStates(maxPossibleGroupId);
+    }
+
+    @Override
     public void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page) {
         next.addIntermediateInput(positionOffset, groupIdVector, page);
     }

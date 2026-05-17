@@ -316,6 +316,11 @@ public final class ValuesLongGroupingAggregatorFunction implements GroupingAggre
   }
 
   @Override
+  public void presizeGroupingStates(int maxPossibleGroupId) {
+    state.presizeGroupingStates(maxPossibleGroupId);
+  }
+
+  @Override
   public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
       IntVector selected, GroupingAggregatorEvaluationContext ctx) {
     return ValuesLongAggregator.prepareEvaluateIntermediate(state, selected, ctx);

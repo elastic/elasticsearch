@@ -112,12 +112,18 @@ public interface GroupingAggregatorFunction extends Releasable {
      *     This should load the input {@link Block}s and check their types and
      *     select an optimal path and return that path as an {@link AddInput}.
      * </p>
-     */
-    /**
-     * Returns {@code null} to opt out of the callback loop for this page entirely,
-     * e.g. when the values block is all-null and contributes nothing to the aggregation.
+     * <p>
+     *     Returns {@code null} to opt out of the callback loop for this page entirely,
+     *     e.g. when the values block is all-null and contributes nothing to the aggregation.
+     * </p>
      */
     AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page);
+
+    /**
+     * Optionally pre-size aggregation state to handle incoming groups up to {@code maxPossibleGroupId}.
+     * A grouping aggregation function can implement this to avoid resizing for each input row.
+     */
+    void presizeGroupingStates(int maxPossibleGroupId);
 
     /**
      * Call this to signal to the aggregation that the {@code selected}

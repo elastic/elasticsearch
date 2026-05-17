@@ -50,6 +50,11 @@ public class PresentGroupingAggregatorFunction implements GroupingAggregatorFunc
     }
 
     @Override
+    public void presizeGroupingStates(int maxPossibleGroupId) {
+        // noop
+    }
+
+    @Override
     public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
         Block valuesBlock = page.getBlock(blockIndex());
 

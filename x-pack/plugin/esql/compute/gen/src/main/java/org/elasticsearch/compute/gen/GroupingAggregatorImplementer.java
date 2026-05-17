@@ -247,6 +247,7 @@ public class GroupingAggregatorImplementer {
         }
         builder.addMethod(maybeEnableGroupIdTracking());
         builder.addMethod(selectedMayContainUnseenGroups());
+        builder.addMethod(presizeGroupingStates());
         builder.addMethod(prepareEvaluateIntermediate());
         if (prepareEvaluateIntermediate == null) {
             builder.addMethod(evaluateIntermediate());
@@ -494,7 +495,6 @@ public class GroupingAggregatorImplementer {
                 builder.addStatement("$T $L = new $T()", a.scratchType(), a.scratchName(), a.scratchType());
             }
         }
-
         builder.beginControlFlow("for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++)");
         {
             if (groupsIsBlock) {
@@ -642,6 +642,14 @@ public class GroupingAggregatorImplementer {
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.addParameter(SEEN_GROUP_IDS, "seenGroupIds");
         builder.addStatement("state.enableGroupIdTracking(seenGroupIds)");
+        return builder.build();
+    }
+
+    private MethodSpec presizeGroupingStates() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("presizeGroupingStates");
+        builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        builder.addParameter(TypeName.INT, "maxPossibleGroupId");
+        builder.addStatement("state.presizeGroupingStates(maxPossibleGroupId)");
         return builder.build();
     }
 

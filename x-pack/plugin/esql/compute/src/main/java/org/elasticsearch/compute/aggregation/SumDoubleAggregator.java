@@ -176,13 +176,17 @@ class SumDoubleAggregator {
             }
         }
 
+        @Override
+        public void presizeGroupingStates(int maxPossibleGroupId) {
+            values = bigArrays.grow(values, maxPossibleGroupId + 1);
+            deltas = bigArrays.grow(deltas, maxPossibleGroupId + 1);
+        }
+
         void add(double valueToAdd, int groupId) {
             add(valueToAdd, 0d, groupId);
         }
 
         void add(double valueToAdd, double deltaToAdd, int groupId) {
-            ensureCapacity(groupId);
-
             // If the value is Inf or NaN, just add it to the running tally to "convert" to
             // Inf/NaN. This keeps the behavior bwc from before kahan summing
             if (Double.isFinite(valueToAdd) == false) {
@@ -201,11 +205,6 @@ class SumDoubleAggregator {
             deltas.set(groupId, correctedSum - (updatedValue - value));
             values.set(groupId, updatedValue);
             trackGroupId(groupId);
-        }
-
-        private void ensureCapacity(int groupId) {
-            values = bigArrays.grow(values, groupId + 1);
-            deltas = bigArrays.grow(deltas, groupId + 1);
         }
 
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {

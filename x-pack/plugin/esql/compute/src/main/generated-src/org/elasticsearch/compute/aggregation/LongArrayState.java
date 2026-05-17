@@ -51,13 +51,11 @@ final class LongArrayState extends AbstractArrayState implements GroupingAggrega
     }
 
     void set(int groupId, long value) {
-        ensureCapacity(groupId);
         values.set(groupId, value);
         trackGroupId(groupId);
     }
 
     void increment(int groupId, long value) {
-        ensureCapacity(groupId);
         values.increment(groupId, value);
         trackGroupId(groupId);
     }
@@ -82,6 +80,11 @@ final class LongArrayState extends AbstractArrayState implements GroupingAggrega
             }
             return builder.build();
         }
+    }
+
+    @Override
+    public void presizeGroupingStates(int maxPossibleGroupId) {
+        ensureCapacity(maxPossibleGroupId);
     }
 
     private void ensureCapacity(int groupId) {

@@ -62,6 +62,11 @@ public class ToPartialGroupingAggregatorFunction implements GroupingAggregatorFu
     }
 
     @Override
+    public void presizeGroupingStates(int maxPossibleGroupId) {
+        delegate.presizeGroupingStates(maxPossibleGroupId);
+    }
+
+    @Override
     public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
         delegate.selectedMayContainUnseenGroups(seenGroupIds);
     }

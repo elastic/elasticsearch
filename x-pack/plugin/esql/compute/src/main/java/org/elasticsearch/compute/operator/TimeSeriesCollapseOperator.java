@@ -362,6 +362,11 @@ public class TimeSeriesCollapseOperator extends HashAggregationOperator {
         }
 
         @Override
+        public void presizeGroupingStates(int maxPossibleGroupId) {
+
+        }
+
+        @Override
         public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
             return state.prepareProcessPage(page);
         }

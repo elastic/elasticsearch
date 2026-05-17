@@ -205,6 +205,11 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     }
 
     @Override
+    public void presizeGroupingStates(int maxPossibleGroupId) {
+        state.presizeGroupingStates(maxPossibleGroupId);
+    }
+
+    @Override
     public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
         // no need to track seen groups, as count returns 0 for groups without values.
     }

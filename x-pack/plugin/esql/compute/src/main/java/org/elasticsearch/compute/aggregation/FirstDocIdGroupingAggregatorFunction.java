@@ -88,6 +88,11 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
     }
 
     @Override
+    public void presizeGroupingStates(int maxPossibleGroupId) {
+        docs = bigArrays.grow(docs, 3L * maxPossibleGroupId + 3);
+    }
+
+    @Override
     public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
         DocBlock docBlock = page.getBlock(channel);
         if (docBlock.areAllValuesNull()) {
@@ -163,7 +168,6 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
         int shard = docVector.shards().getInt(valuePosition);
         int segment = docVector.segments().getInt(valuePosition);
         int doc = docVector.docs().getInt(valuePosition);
-        docs = bigArrays.grow(docs, 3L * groupId + 3);
         docs.set(3L * groupId, shard);
         docs.set(3L * groupId + 1, segment);
         docs.set(3L * groupId + 2, doc);

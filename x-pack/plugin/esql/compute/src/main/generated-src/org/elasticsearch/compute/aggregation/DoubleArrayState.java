@@ -51,13 +51,11 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
     }
 
     void set(int groupId, double value) {
-        ensureCapacity(groupId);
         values.set(groupId, value);
         trackGroupId(groupId);
     }
 
     void increment(int groupId, double value) {
-        ensureCapacity(groupId);
         values.increment(groupId, value);
         trackGroupId(groupId);
     }
@@ -82,6 +80,11 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
             }
             return builder.build();
         }
+    }
+
+    @Override
+    public void presizeGroupingStates(int maxPossibleGroupId) {
+        ensureCapacity(maxPossibleGroupId);
     }
 
     private void ensureCapacity(int groupId) {

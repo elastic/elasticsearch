@@ -38,6 +38,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -419,6 +420,23 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString(repoName));
     }
 
+    public void testIsEligibleThrowsWhenRepositoryIsReadOnly() {
+        String repoName = "my-repo";
+        createProjectStateWithRepo(repoName, Settings.builder().put(BlobStoreRepository.READONLY_SETTING_KEY, true).build());
+
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
+            indexName,
+            projectId,
+            createMockClient(),
+            clusterService,
+            () -> licenseState,
+            Clock.systemUTC()
+        );
+
+        ElasticsearchException exception = expectThrows(DLMUnrecoverableException.class, converter::checkIfEligibleForConvertToFrozen);
+        assertThat(exception.getMessage(), containsString(repoName));
+    }
+
     public void testIsEligibleThrowsWhenLicenseDoesNotAllowSearchableSnapshots() {
         String repoName = "my-repo";
         createProjectStateWithRepo(repoName, true);
@@ -490,6 +508,10 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
      * and optionally registers a matching repository in the project's RepositoriesMetadata.
      */
     private void createProjectStateWithRepo(String repoName, boolean registerRepo) {
+        createProjectStateWithRepo(repoName, registerRepo ? Settings.EMPTY : null);
+    }
+
+    private void createProjectStateWithRepo(String repoName, Settings repoSettings) {
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
             .put(
                 IndexMetadata.builder(indexName)
@@ -504,8 +526,8 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
                 false
             );
 
-        if (registerRepo) {
-            RepositoryMetadata repo = new RepositoryMetadata(repoName, "fs", Settings.EMPTY);
+        if (repoSettings != null) {
+            RepositoryMetadata repo = new RepositoryMetadata(repoName, "fs", repoSettings);
             projectMetadataBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)));
         }
 

@@ -62,6 +62,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
@@ -167,6 +168,7 @@ public class IngestServiceTests extends ESTestCase {
             client,
             null,
             UserAgentParserRegistry.NOOP,
+            IpLocationService.NOOP,
             FailureStoreMetrics.NOOP,
             TestProjectResolvers.alwaysThrow(),
             new FeatureService(List.of()) {
@@ -195,6 +197,7 @@ public class IngestServiceTests extends ESTestCase {
                 client,
                 null,
                 UserAgentParserRegistry.NOOP,
+                IpLocationService.NOOP,
                 FailureStoreMetrics.NOOP,
                 TestProjectResolvers.alwaysThrow(),
                 new FeatureService(List.of()) {
@@ -220,6 +223,7 @@ public class IngestServiceTests extends ESTestCase {
             client,
             null,
             UserAgentParserRegistry.NOOP,
+            IpLocationService.NOOP,
             FailureStoreMetrics.NOOP,
             TestProjectResolvers.alwaysThrow(),
             new FeatureService(List.of()) {
@@ -2656,6 +2660,7 @@ public class IngestServiceTests extends ESTestCase {
             client,
             null,
             UserAgentParserRegistry.NOOP,
+            IpLocationService.NOOP,
             FailureStoreMetrics.NOOP,
             TestProjectResolvers.alwaysThrow(),
             new FeatureService(List.of()) {
@@ -3164,6 +3169,7 @@ public class IngestServiceTests extends ESTestCase {
             client,
             null,
             UserAgentParserRegistry.NOOP,
+            IpLocationService.NOOP,
             FailureStoreMetrics.NOOP,
             TestProjectResolvers.alwaysThrow(),
             new FeatureService(List.of()) {
@@ -3496,6 +3502,7 @@ public class IngestServiceTests extends ESTestCase {
             client,
             null,
             UserAgentParserRegistry.NOOP,
+            IpLocationService.NOOP,
             FailureStoreMetrics.NOOP,
             TestProjectResolvers.alwaysThrow(),
             new FeatureService(List.of()) {

@@ -532,6 +532,7 @@ public final class MappingLookup {
         }
         var syntheticVectorsLoader = mapping.syntheticVectorsLoader(filter);
         if (syntheticVectorsLoader != null) {
+            // TODO: Make this generic to load all types of synthetic fields
             return new SourceLoader.SyntheticVectors(removeExcludedSyntheticVectorFields(filter), syntheticVectorsLoader);
         }
         return filter == null ? SourceLoader.FROM_STORED_SOURCE : new SourceLoader.Stored(filter);

@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.Explicit;
@@ -64,6 +66,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
@@ -96,6 +99,8 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbe
 
 public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMapper {
     private static final Logger logger = LogManager.getLogger(SemanticFieldMapper.class);
+
+    private static final String VALUE_SUFFIX = ".value";
 
     public static final String CONTENT_TYPE = "semantic";
 
@@ -653,8 +658,33 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             context.parser().skipChildren();
             return;
         }
-        // Store field value as doc values
+        XContentParser parser = context.parser();
+        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            return;
+        }
+        if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+            var value = parser.optimizedTextOrNull();
+            if (value != null) {
+                indexValue(context, value);
+            }
+        } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            try (XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType())) {
+                builder.copyCurrentStructure(parser);
+                indexValue(context, BytesReference.bytes(builder).toBytesRef());
+            }
+        }
+    }
 
+    private boolean indexValue(DocumentParserContext context, XContentString value) {
+        var utfBytes = value.bytes();
+        var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
+        final String fieldName = fieldType().name() + VALUE_SUFFIX;
+        context.doc().add(new SortedSetDocValuesField(fieldName, bytesRef));
+        return true;
+    }
+
+    private void indexValue(DocumentParserContext context, BytesRef bytesRef) {
+        context.doc().add(new SortedSetDocValuesField(fieldType().name() + VALUE_SUFFIX, bytesRef));
     }
 
     @Override

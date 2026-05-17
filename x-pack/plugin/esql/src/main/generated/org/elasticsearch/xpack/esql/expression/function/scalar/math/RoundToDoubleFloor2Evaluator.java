@@ -9,8 +9,8 @@ import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -19,34 +19,37 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link ExpressionEvaluator} implementation for {@link RoundToInt}.
+ * {@link ExpressionEvaluator} implementation for {@link RoundToDouble}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class RoundToInt1Evaluator implements ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToInt1Evaluator.class);
+public final class RoundToDoubleFloor2Evaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToDoubleFloor2Evaluator.class);
 
   private final Source source;
 
   private final ExpressionEvaluator field;
 
-  private final int p0;
+  private final double p0;
+
+  private final double p1;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public RoundToInt1Evaluator(Source source, ExpressionEvaluator field, int p0,
+  public RoundToDoubleFloor2Evaluator(Source source, ExpressionEvaluator field, double p0, double p1,
       DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.p0 = p0;
+    this.p1 = p1;
     this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
-    try (IntBlock fieldBlock = (IntBlock) field.eval(page)) {
-      IntVector fieldVector = fieldBlock.asVector();
+    try (DoubleBlock fieldBlock = (DoubleBlock) field.eval(page)) {
+      DoubleVector fieldVector = fieldBlock.asVector();
       if (fieldVector == null) {
         return eval(page.getPositionCount(), fieldBlock);
       }
@@ -61,8 +64,8 @@ public final class RoundToInt1Evaluator implements ExpressionEvaluator {
     return baseRamBytesUsed;
   }
 
-  public IntBlock eval(int positionCount, IntBlock fieldBlock) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+  public DoubleBlock eval(int positionCount, DoubleBlock fieldBlock) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         switch (fieldBlock.getValueCount(p)) {
           case 0:
@@ -75,18 +78,18 @@ public final class RoundToInt1Evaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
-        int field = fieldBlock.getInt(fieldBlock.getFirstValueIndex(p));
-        result.appendInt(RoundToInt.process(field, this.p0));
+        double field = fieldBlock.getDouble(fieldBlock.getFirstValueIndex(p));
+        result.appendDouble(RoundToDouble.process(field, this.p0, this.p1));
       }
       return result.build();
     }
   }
 
-  public IntVector eval(int positionCount, IntVector fieldVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+  public DoubleVector eval(int positionCount, DoubleVector fieldVector) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        int field = fieldVector.getInt(p);
-        result.appendInt(p, RoundToInt.process(field, this.p0));
+        double field = fieldVector.getDouble(p);
+        result.appendDouble(p, RoundToDouble.process(field, this.p0, this.p1));
       }
       return result.build();
     }
@@ -94,7 +97,7 @@ public final class RoundToInt1Evaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "RoundToInt1Evaluator[" + "field=" + field + ", p0=" + p0 + "]";
+    return "RoundToDoubleFloor2Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + "]";
   }
 
   @Override
@@ -114,22 +117,25 @@ public final class RoundToInt1Evaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory field;
 
-    private final int p0;
+    private final double p0;
 
-    public Factory(Source source, ExpressionEvaluator.Factory field, int p0) {
+    private final double p1;
+
+    public Factory(Source source, ExpressionEvaluator.Factory field, double p0, double p1) {
       this.source = source;
       this.field = field;
       this.p0 = p0;
+      this.p1 = p1;
     }
 
     @Override
-    public RoundToInt1Evaluator get(DriverContext context) {
-      return new RoundToInt1Evaluator(source, field.get(context), p0, context);
+    public RoundToDoubleFloor2Evaluator get(DriverContext context) {
+      return new RoundToDoubleFloor2Evaluator(source, field.get(context), p0, p1, context);
     }
 
     @Override
     public String toString() {
-      return "RoundToInt1Evaluator[" + "field=" + field + ", p0=" + p0 + "]";
+      return "RoundToDoubleFloor2Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + "]";
     }
   }
 }

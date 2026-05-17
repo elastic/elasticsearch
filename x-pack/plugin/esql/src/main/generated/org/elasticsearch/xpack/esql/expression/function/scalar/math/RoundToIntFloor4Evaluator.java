@@ -22,8 +22,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link ExpressionEvaluator} implementation for {@link RoundToInt}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class RoundToInt7Evaluator implements ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToInt7Evaluator.class);
+public final class RoundToIntFloor4Evaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToIntFloor4Evaluator.class);
 
   private final Source source;
 
@@ -37,27 +37,18 @@ public final class RoundToInt7Evaluator implements ExpressionEvaluator {
 
   private final int p3;
 
-  private final int p4;
-
-  private final int p5;
-
-  private final int p6;
-
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public RoundToInt7Evaluator(Source source, ExpressionEvaluator field, int p0, int p1, int p2,
-      int p3, int p4, int p5, int p6, DriverContext driverContext) {
+  public RoundToIntFloor4Evaluator(Source source, ExpressionEvaluator field, int p0, int p1, int p2,
+      int p3, DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.p0 = p0;
     this.p1 = p1;
     this.p2 = p2;
     this.p3 = p3;
-    this.p4 = p4;
-    this.p5 = p5;
-    this.p6 = p6;
     this.driverContext = driverContext;
   }
 
@@ -94,7 +85,7 @@ public final class RoundToInt7Evaluator implements ExpressionEvaluator {
               continue position;
         }
         int field = fieldBlock.getInt(fieldBlock.getFirstValueIndex(p));
-        result.appendInt(RoundToInt.process(field, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6));
+        result.appendInt(RoundToInt.process(field, this.p0, this.p1, this.p2, this.p3));
       }
       return result.build();
     }
@@ -104,7 +95,7 @@ public final class RoundToInt7Evaluator implements ExpressionEvaluator {
     try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         int field = fieldVector.getInt(p);
-        result.appendInt(p, RoundToInt.process(field, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6));
+        result.appendInt(p, RoundToInt.process(field, this.p0, this.p1, this.p2, this.p3));
       }
       return result.build();
     }
@@ -112,7 +103,7 @@ public final class RoundToInt7Evaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "RoundToInt7Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + ", p5=" + p5 + ", p6=" + p6 + "]";
+    return "RoundToIntFloor4Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + "]";
   }
 
   @Override
@@ -140,33 +131,24 @@ public final class RoundToInt7Evaluator implements ExpressionEvaluator {
 
     private final int p3;
 
-    private final int p4;
-
-    private final int p5;
-
-    private final int p6;
-
-    public Factory(Source source, ExpressionEvaluator.Factory field, int p0, int p1, int p2, int p3,
-        int p4, int p5, int p6) {
+    public Factory(Source source, ExpressionEvaluator.Factory field, int p0, int p1, int p2,
+        int p3) {
       this.source = source;
       this.field = field;
       this.p0 = p0;
       this.p1 = p1;
       this.p2 = p2;
       this.p3 = p3;
-      this.p4 = p4;
-      this.p5 = p5;
-      this.p6 = p6;
     }
 
     @Override
-    public RoundToInt7Evaluator get(DriverContext context) {
-      return new RoundToInt7Evaluator(source, field.get(context), p0, p1, p2, p3, p4, p5, p6, context);
+    public RoundToIntFloor4Evaluator get(DriverContext context) {
+      return new RoundToIntFloor4Evaluator(source, field.get(context), p0, p1, p2, p3, context);
     }
 
     @Override
     public String toString() {
-      return "RoundToInt7Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + ", p5=" + p5 + ", p6=" + p6 + "]";
+      return "RoundToIntFloor4Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + "]";
     }
   }
 }

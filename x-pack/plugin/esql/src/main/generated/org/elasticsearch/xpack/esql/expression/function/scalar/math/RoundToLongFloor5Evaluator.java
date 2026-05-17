@@ -22,8 +22,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link ExpressionEvaluator} implementation for {@link RoundToLong}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class RoundToLong3Evaluator implements ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToLong3Evaluator.class);
+public final class RoundToLongFloor5Evaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToLongFloor5Evaluator.class);
 
   private final Source source;
 
@@ -35,17 +35,23 @@ public final class RoundToLong3Evaluator implements ExpressionEvaluator {
 
   private final long p2;
 
+  private final long p3;
+
+  private final long p4;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public RoundToLong3Evaluator(Source source, ExpressionEvaluator field, long p0, long p1, long p2,
-      DriverContext driverContext) {
+  public RoundToLongFloor5Evaluator(Source source, ExpressionEvaluator field, long p0, long p1, long p2,
+      long p3, long p4, DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.p0 = p0;
     this.p1 = p1;
     this.p2 = p2;
+    this.p3 = p3;
+    this.p4 = p4;
     this.driverContext = driverContext;
   }
 
@@ -82,7 +88,7 @@ public final class RoundToLong3Evaluator implements ExpressionEvaluator {
               continue position;
         }
         long field = fieldBlock.getLong(fieldBlock.getFirstValueIndex(p));
-        result.appendLong(RoundToLong.process(field, this.p0, this.p1, this.p2));
+        result.appendLong(RoundToLong.process(field, this.p0, this.p1, this.p2, this.p3, this.p4));
       }
       return result.build();
     }
@@ -92,7 +98,7 @@ public final class RoundToLong3Evaluator implements ExpressionEvaluator {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         long field = fieldVector.getLong(p);
-        result.appendLong(p, RoundToLong.process(field, this.p0, this.p1, this.p2));
+        result.appendLong(p, RoundToLong.process(field, this.p0, this.p1, this.p2, this.p3, this.p4));
       }
       return result.build();
     }
@@ -100,7 +106,7 @@ public final class RoundToLong3Evaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "RoundToLong3Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + "]";
+    return "RoundToLongFloor5Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + "]";
   }
 
   @Override
@@ -126,22 +132,29 @@ public final class RoundToLong3Evaluator implements ExpressionEvaluator {
 
     private final long p2;
 
-    public Factory(Source source, ExpressionEvaluator.Factory field, long p0, long p1, long p2) {
+    private final long p3;
+
+    private final long p4;
+
+    public Factory(Source source, ExpressionEvaluator.Factory field, long p0, long p1, long p2,
+        long p3, long p4) {
       this.source = source;
       this.field = field;
       this.p0 = p0;
       this.p1 = p1;
       this.p2 = p2;
+      this.p3 = p3;
+      this.p4 = p4;
     }
 
     @Override
-    public RoundToLong3Evaluator get(DriverContext context) {
-      return new RoundToLong3Evaluator(source, field.get(context), p0, p1, p2, context);
+    public RoundToLongFloor5Evaluator get(DriverContext context) {
+      return new RoundToLongFloor5Evaluator(source, field.get(context), p0, p1, p2, p3, p4, context);
     }
 
     @Override
     public String toString() {
-      return "RoundToLong3Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + "]";
+      return "RoundToLongFloor5Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + "]";
     }
   }
 }

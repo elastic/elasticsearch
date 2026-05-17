@@ -48,26 +48,33 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
- * Per-stage encode benchmark for the ES95 pipeline.
+ * Multi-stage pipeline encode benchmark for the ES95 pipeline.
  *
- * <p>Each {@code stage} parameter builds a minimal pipeline that contains only the named
- * transform plus the {@code bitpack} payload, so the throughput score isolates that stage's
- * contribution. The {@code pattern} parameter feeds inputs that exercise both the apply
- * path and the skip path of every transform, so a regression in any stage shows up as a
- * slowdown on the stage's row for the relevant pattern.
+ * <p>Sibling of {@link EncodePipelineStageBenchmark}, which isolates single transforms.
+ * This class runs full production-shaped pipelines so the per-pattern numbers can be
+ * compared against the realistic refresh workload and against design alternatives.
  *
- * <p>{@code full} runs the production {@code delta>offset>gcd>bitpack} pipeline so the
- * per-pattern numbers can be compared against the realistic refresh workload. For multi
- * stage {@code @timestamp} pipelines, see {@link EncodePipelineBenchmark}.
+ * <p>Reports average time per invocation in microseconds. Each invocation encodes
+ * {@code blocksPerInvocation} blocks, so multiply the score by
+ * {@code 1000 / blocksPerInvocation} to get nanoseconds per 128 value block. The
+ * latency framing matches how the codec is consumed (cost per encoded block) and
+ * lines up with the {@code bytesPerBlock} aux counter that reports compressed size
+ * on the same axis.
  *
- * <h2>Stages</h2>
+ * <p>{@code full} is the baseline production pipeline for non {@code @timestamp} fields.
+ * {@code fullTimestamp} is the production pipeline routed for the {@code @timestamp} field.
+ * {@code fullCascade} is the hypothetical alternative that would result from removing
+ * {@link org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaOfDeltaCodecStage}
+ * and applying {@link org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaCodecStage}
+ * twice instead. The pair {@code fullTimestamp} vs {@code fullCascade} measures the cost of
+ * running two sequential delta stages vs one dedicated stage, plus the downstream offset and
+ * gcd work.
+ *
+ * <h2>Pipelines</h2>
  * <ul>
- *   <li>{@code delta} - just {@code delta>bitpack}</li>
- *   <li>{@code deltaOfDelta} - just {@code deltaOfDelta>bitpack}</li>
- *   <li>{@code offset} - just {@code offset>bitpack}</li>
- *   <li>{@code gcd} - just {@code gcd>bitpack}</li>
- *   <li>{@code bitpackOnly} - just {@code bitpack}</li>
- *   <li>{@code full} - {@code delta>offset>gcd>bitpack} (production)</li>
+ *   <li>{@code full} - {@code delta>offset>gcd>bitpack} (baseline production)</li>
+ *   <li>{@code fullTimestamp} - {@code deltaOfDelta>offset>bitpack} ({@code @timestamp} production)</li>
+ *   <li>{@code fullCascade} - {@code delta>delta>offset>gcd>bitpack} (two sequential {@code delta} stages instead of one dedicated {@code deltaOfDelta})</li>
  * </ul>
  *
  * <h2>Patterns</h2>
@@ -81,49 +88,52 @@ import java.util.function.Supplier;
  *   <li>{@code lowCardinality} - small palette of values (bitpack uses few bits)</li>
  *   <li>{@code counterWithResets} - monotonic counter with occasional drops</li>
  *   <li>{@code nearConstant} - mostly the same value with rare outliers (offset case)</li>
- *   <li>{@code timestampLike} - timestamps with small jitter around a fixed delta</li>
- *   <li>{@code constantInterval} - timestamps spaced by a perfectly constant interval, no jitter</li>
- *   <li>{@code eventDriven} - irregular bursty timestamps, modeling event ingest (logs, traces)</li>
- *   <li>{@code constantRateOfChange} - timestamps whose interval grows by a fixed amount per step
- *       (jitter free; {@code deltaOfDelta} applies and both passes of a two stage delta cascade gate on)</li>
+ *   <li>{@code timestampLike} - timestamps with small jitter around a fixed delta
+ *       (the second {@code delta} stage of {@code fullCascade} gates off on jitter and skips
+ *       on this pattern)</li>
+ *   <li>{@code constantInterval} - timestamps spaced by a perfectly constant interval, no jitter
+ *       (idealized scrape input; {@code delta>offset} collapses to zeros, {@code deltaOfDelta}
+ *       reaches the same result in one stage)</li>
+ *   <li>{@code eventDriven} - irregular bursty timestamps, modeling event ingest (logs, traces)
+ *       where short bursts are separated by occasional longer gaps</li>
+ *   <li>{@code constantRateOfChange} - timestamps whose interval grows by a fixed amount per
+ *       step (jitter free; both {@code delta} stages of {@code fullCascade} gate on, exercising
+ *       the cost of running two sequential transforms vs one dedicated {@code deltaOfDelta})</li>
  * </ul>
  *
  * <h2>Ready to run commands</h2>
  *
  * <pre>{@code
- * # Full stage x pattern matrix (6 x 13 = 78 rows)
- * ./gradlew :benchmarks:run --args="EncodePipelineStageBenchmark"
+ * # Full pipeline x pattern matrix (3 x 13 = 39 rows)
+ * ./gradlew :benchmarks:run --args="EncodePipelineBenchmark"
  *
- * # Just the production pipeline across all patterns
- * ./gradlew :benchmarks:run --args="EncodePipelineStageBenchmark -p stage=full"
+ * # Realistic @timestamp shape (the second delta in fullCascade skips on jitter)
+ * ./gradlew :benchmarks:run --args="EncodePipelineBenchmark -p pattern=timestampLike"
  *
- * # Drill into a single stage (e.g. spot regressions in gcd)
- * ./gradlew :benchmarks:run --args="EncodePipelineStageBenchmark -p stage=gcd"
- *
- * # Compare gcd against a known-friendly input vs no common factor
- * ./gradlew :benchmarks:run --args="EncodePipelineStageBenchmark -p stage=gcd -p pattern=random,gcdFriendly"
+ * # Compare fullTimestamp vs fullCascade when both delta stages actually apply
+ * ./gradlew :benchmarks:run --args="EncodePipelineBenchmark -p pipeline=fullTimestamp,fullCascade -p pattern=constantRateOfChange"
  *
  * # Allocation rate per pattern (uses JMH built in GC profiler)
- * ./gradlew :benchmarks:run --args="EncodePipelineStageBenchmark -p stage=full -prof gc"
+ * ./gradlew :benchmarks:run --args="EncodePipelineBenchmark -prof gc"
  *
  * # Quick smoke (1 warmup, 1 measurement iteration, 1 fork)
- * ./gradlew :benchmarks:run --args="EncodePipelineStageBenchmark -wi 1 -i 1 -f 1 -w 1 -r 1"
+ * ./gradlew :benchmarks:run --args="EncodePipelineBenchmark -wi 1 -i 1 -f 1 -w 1 -r 1"
  * }</pre>
  */
 @Fork(1)
 @Warmup(iterations = 3, time = 1)
 @Measurement(iterations = 5, time = 2)
-@BenchmarkMode(Mode.Throughput)
+@BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Benchmark)
-public class EncodePipelineStageBenchmark {
+public class EncodePipelineBenchmark {
 
     private static final int SEED = 17;
     private static final int EXTRA_METADATA_SIZE = 64;
     private static final int RANDOM_INTEGER_BITS = 32;
 
-    @Param({ "delta", "deltaOfDelta", "offset", "gcd", "bitpackOnly", "full" })
-    private String stage;
+    @Param({ "full", "fullTimestamp", "fullCascade" })
+    private String pipeline;
 
     @Param(
         {
@@ -165,7 +175,7 @@ public class EncodePipelineStageBenchmark {
             outputs[i] = new ByteArrayDataOutput(outputBuffers[i]);
         }
 
-        final PipelineConfig config = configFor(stage, blockSize);
+        final PipelineConfig config = configFor(pipeline, blockSize);
         final NumericEncoder encoder = NumericCodecFactory.DEFAULT.createEncoder(config);
         blockEncoder = encoder.newBlockEncoder();
     }
@@ -182,8 +192,8 @@ public class EncodePipelineStageBenchmark {
     }
 
     /**
-     * Reports the encoded size per 128 value block alongside the throughput score. The size is
-     * deterministic given the stage and pattern, so every invocation overwrites the same value
+     * Reports the encoded size per 128 value block alongside the average time score. The size is
+     * deterministic given the pipeline and pattern, so every invocation overwrites the same value
      * and JMH reports it as the final per iteration reading.
      */
     @AuxCounters(AuxCounters.Type.EVENTS)
@@ -192,15 +202,12 @@ public class EncodePipelineStageBenchmark {
         public int bytesPerBlock;
     }
 
-    private static PipelineConfig configFor(final String stage, final int blockSize) {
-        return switch (stage) {
-            case "delta" -> PipelineConfig.forLongs(blockSize).delta().bitPack();
-            case "deltaOfDelta" -> PipelineConfig.forLongs(blockSize).deltaOfDelta().bitPack();
-            case "offset" -> PipelineConfig.forLongs(blockSize).offset().bitPack();
-            case "gcd" -> PipelineConfig.forLongs(blockSize).gcd().bitPack();
-            case "bitpackOnly" -> PipelineConfig.forLongs(blockSize).bitPack();
+    private static PipelineConfig configFor(final String pipeline, final int blockSize) {
+        return switch (pipeline) {
             case "full" -> PipelineConfig.forLongs(blockSize).delta().offset().gcd().bitPack();
-            default -> throw new IllegalArgumentException("Unknown stage: " + stage);
+            case "fullTimestamp" -> PipelineConfig.forLongs(blockSize).deltaOfDelta().offset().bitPack();
+            case "fullCascade" -> PipelineConfig.forLongs(blockSize).delta().delta().offset().gcd().bitPack();
+            default -> throw new IllegalArgumentException("Unknown pipeline: " + pipeline);
         };
     }
 

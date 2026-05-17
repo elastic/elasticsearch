@@ -340,7 +340,9 @@ public class EvalBenchmark {
                     ),
                     layout(keywordField)
                 ).get(driverContext);
-                if (evaluator.toString().contains("ReplaceConstantEvaluator") == false) {
+                // Upstream main may select ReplaceConstantOrdinalEvaluator (ordinal fast path) for
+                // BytesRef inputs; either is a "constant" path. Accept both shapes.
+                if (evaluator.toString().contains("ReplaceConstant") == false) {
                     throw new IllegalArgumentException(
                         "Evaluator was [" + evaluator + "] but expected one containing [ReplaceConstantEvaluator]"
                     );

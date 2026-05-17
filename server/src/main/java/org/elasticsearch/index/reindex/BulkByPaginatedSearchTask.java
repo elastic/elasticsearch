@@ -111,7 +111,7 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
             // task might not actually be cancelled at this point, but rather be in the process of cancelling
             // make sure the task result is indeed serialized as cancelled
             BulkByPaginatedSearchTask.Status status = (BulkByPaginatedSearchTask.Status) taskInfo.status();
-            BulkByPaginatedSearchTask.Status cancelledStatus = new BulkByPaginatedSearchTask().Status(
+            BulkByPaginatedSearchTask.Status cancelledStatus = new BulkByPaginatedSearchTask.Status(
                 status.sliceId,
                 status.total,
                 status.updated,

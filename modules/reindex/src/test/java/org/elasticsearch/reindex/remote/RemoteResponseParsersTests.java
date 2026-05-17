@@ -341,6 +341,25 @@ public class RemoteResponseParsersTests extends ESTestCase {
         }
     }
 
+    /// When a remote omits `hits.total` (because the request disabled `track_total_hits`), the parser must default
+    /// the total to `0` rather than throwing; the caller substitutes the cached total separately.
+    public void testResponseParserMissingTotalDefaultsToZero() throws IOException {
+        XContentBuilder builder = jsonBuilder().startObject()
+            .field("timed_out", false)
+            .startObject("hits")
+            .startArray("hits")
+            .endArray()
+            .endObject()
+            .startObject("_shards")
+            .endObject()
+            .endObject();
+        try (XContentParser parser = createParser(builder)) {
+            PaginatedHitSource.Response response = RESPONSE_PARSER.apply(parser, XContentType.JSON);
+            assertEquals(0L, response.getTotalHits());
+            assertTrue(response.getHits().isEmpty());
+        }
+    }
+
     /**
      * Verifies that RESPONSE_PARSER handles null timed_out (parses successfully with timedOut=false).
      */

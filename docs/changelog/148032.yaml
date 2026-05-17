@@ -1,0 +1,6 @@
+pr: 148032
+summary: Treat `unsigned_long` counter fields as unsupported in ES|QL
+area: ES|QL
+type: bug
+issues:
+ - 148032

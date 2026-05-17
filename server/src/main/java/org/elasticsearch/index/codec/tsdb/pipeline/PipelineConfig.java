@@ -130,6 +130,29 @@ public record PipelineConfig(
         }
 
         /**
+         * Adds a split delta encoding stage using the default flip cap
+         * ({@link StageSpec.SplitDeltaStage#DEFAULT_K_MAX}).
+         *
+         * @return this builder
+         */
+        public LongBuilder withSplitDelta() {
+            transforms.add(new StageSpec.SplitDeltaStage(StageSpec.SplitDeltaStage.DEFAULT_K_MAX));
+            return this;
+        }
+
+        /**
+         * Adds a split delta encoding stage that accepts up to {@code kMax} direction
+         * flips per block. Blocks with more flips fall through to the rest of the pipeline.
+         *
+         * @param kMax the maximum number of flips accepted per block; must be at least one
+         * @return this builder
+         */
+        public LongBuilder withSplitDelta(int kMax) {
+            transforms.add(new StageSpec.SplitDeltaStage(kMax));
+            return this;
+        }
+
+        /**
          * Adds a bit-packing payload and builds the configuration.
          *
          * @return the pipeline configuration

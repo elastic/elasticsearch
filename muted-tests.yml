@@ -563,3 +563,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRecoveryIT
   method: testSnapshotRecovery
   issue: https://github.com/elastic/elasticsearch/issues/149252
+- class: org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormatTests
+  method: testOneRepeatedVector
+  issue: https://github.com/elastic/elasticsearch/issues/149254

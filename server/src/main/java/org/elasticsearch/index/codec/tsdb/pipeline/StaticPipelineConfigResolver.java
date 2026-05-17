@@ -63,6 +63,6 @@ public final class StaticPipelineConfigResolver implements PipelineConfigResolve
     }
 
     private static PipelineConfig buildTimestamp(final int blockSize) {
-        return PipelineConfig.forLongs(blockSize).deltaOfDelta().offset().bitPack();
+        return PipelineConfig.forLongs(blockSize).deltaOfDelta().offset().gcd().bitPack();
     }
 }

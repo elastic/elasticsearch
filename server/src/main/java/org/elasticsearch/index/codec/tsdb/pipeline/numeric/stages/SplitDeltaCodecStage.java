@@ -87,6 +87,27 @@ public final class SplitDeltaCodecStage implements NumericCodecStage {
     }
 
     /**
+     * Returns a stage with a {@code kMax} derived from the encoder block size.
+     *
+     * <p>The formula is {@code kMax = clamp(blockSize / 32, 4, 64)}, which scales
+     * the flip cap with the block size so accepted sub-runs have roughly 32 values
+     * each at the cap. This keeps per sub-run metadata overhead amortized regardless
+     * of {@code blockSize}: at the TSDB production {@code blockSize=512} the formula
+     * yields {@code kMax=16}, matching the historical default. Larger block sizes
+     * unlock proportionally larger flip caps without changing per sub-run economics.
+     *
+     * @param blockSize the encoder block size in values; must be at least one
+     * @return a stage configured with a block size derived {@code kMax}
+     * @throws IllegalArgumentException if {@code blockSize} is less than one
+     */
+    public static SplitDeltaCodecStage forBlockSize(int blockSize) {
+        if (blockSize < 1) {
+            throw new IllegalArgumentException("blockSize must be at least 1, got: " + blockSize);
+        }
+        return new SplitDeltaCodecStage(Math.min(64, Math.max(4, blockSize / 32)));
+    }
+
+    /**
      * Returns the maximum number of direction flips this stage accepts per block.
      *
      * @return the per-block flip cap

@@ -30,6 +30,31 @@ public class SplitDeltaCodecStageTests extends AbstractTransformStageTestCase {
         expectThrows(IllegalArgumentException.class, () -> new SplitDeltaCodecStage(-1));
     }
 
+    public void testForBlockSizeKMaxScalesWithBlockSize() {
+        assertEquals(4, SplitDeltaCodecStage.forBlockSize(128).kMax());
+        assertEquals(16, SplitDeltaCodecStage.forBlockSize(512).kMax());
+        assertEquals(32, SplitDeltaCodecStage.forBlockSize(1024).kMax());
+        assertEquals(64, SplitDeltaCodecStage.forBlockSize(2048).kMax());
+    }
+
+    public void testForBlockSizeClampsToBounds() {
+        assertEquals(4, SplitDeltaCodecStage.forBlockSize(1).kMax());
+        assertEquals(4, SplitDeltaCodecStage.forBlockSize(64).kMax());
+        assertEquals(64, SplitDeltaCodecStage.forBlockSize(4096).kMax());
+        assertEquals(64, SplitDeltaCodecStage.forBlockSize(Integer.MAX_VALUE).kMax());
+    }
+
+    public void testForBlockSizeRoundTripAtProductionBlockSize() throws IOException {
+        final SplitDeltaCodecStage stage = SplitDeltaCodecStage.forBlockSize(512);
+        final long[] values = piecewiseDescending(512, 8);
+        assertTransformRoundTrip(stage, values);
+    }
+
+    public void testForBlockSizeRejectsInvalidBlockSize() {
+        expectThrows(IllegalArgumentException.class, () -> SplitDeltaCodecStage.forBlockSize(0));
+        expectThrows(IllegalArgumentException.class, () -> SplitDeltaCodecStage.forBlockSize(-1));
+    }
+
     public void testFullyMonotonicAscendingSkips() {
         final int blockSize = randomBlockSize();
         final long[] values = randomMonotonicIncreasing(blockSize);

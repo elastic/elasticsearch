@@ -620,7 +620,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         final DateFieldMapper timestampMapper = (DateFieldMapper) mapperService.documentMapper()
             .mappers()
             .getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-        assertTrue(timestampMapper.fieldType().indexType().hasPoints());
+        assertFalse(timestampMapper.fieldType().indexType().hasPoints());
         assertTrue(timestampMapper.fieldType().hasDocValues());
         assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
     }
@@ -678,7 +678,6 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         final MapperService mapperService = createMapperService(settings, timestampMapping(true, b -> {
             b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
             b.field("type", "date");
-            b.field("index", true);
             b.endObject();
         }));
 
@@ -699,7 +698,6 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         final MapperService mapperService = createMapperService(settings, timestampMapping(true, b -> {
             b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
             b.field("type", "date");
-            b.field("index", true);
             b.endObject();
         }));
 
@@ -708,7 +706,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
             .getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         assertTrue(timestampMapper.fieldType().hasDocValues());
         assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
-        assertTrue(timestampMapper.fieldType().indexType().hasPoints());
+        assertFalse(timestampMapper.fieldType().indexType().hasPoints());
     }
 
     public void testFieldTypeWithDocValuesSkipper_ColumnarModeWithoutDefaultMapping() throws IOException {
@@ -750,9 +748,8 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
             .mappers()
             .getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         assertTrue(timestampMapper.fieldType().hasDocValues());
-        // columnar mode has no default sort on @timestamp, so the skipper is not enabled
-        assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
-        assertTrue(timestampMapper.fieldType().indexType().hasPoints());
+        assertTrue(timestampMapper.fieldType().hasDocValuesSkipper());
+        assertFalse(timestampMapper.fieldType().indexType().hasPoints());
     }
 
     // ---- LOGSDB_COLUMNAR mode ----
@@ -773,7 +770,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         final DateFieldMapper timestampMapper = (DateFieldMapper) mapperService.documentMapper()
             .mappers()
             .getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-        assertTrue(timestampMapper.fieldType().indexType().hasPoints());
+        assertFalse(timestampMapper.fieldType().indexType().hasPoints());
         assertTrue(timestampMapper.fieldType().hasDocValues());
         assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
     }
@@ -847,7 +844,6 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         final MapperService mapperService = createMapperService(settings, timestampMapping(true, b -> {
             b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
             b.field("type", "date");
-            b.field("index", true);
             b.endObject();
         }));
 
@@ -868,7 +864,6 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         final MapperService mapperService = createMapperService(settings, timestampMapping(true, b -> {
             b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
             b.field("type", "date");
-            b.field("index", true);
             b.endObject();
         }));
 
@@ -877,7 +872,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
             .getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         assertTrue(timestampMapper.fieldType().hasDocValues());
         assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
-        assertTrue(timestampMapper.fieldType().indexType().hasPoints());
+        assertFalse(timestampMapper.fieldType().indexType().hasPoints());
     }
 
     public void testFieldTypeWithDocValuesSkipper_ColumnarLogsDBModeWithoutDefaultMapping() throws IOException {

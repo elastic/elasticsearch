@@ -121,6 +121,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         return new Builder().init(this);
     }
 
+    @Override
     public void doValidate(MappingLookup lookup) {
         if (enabled == false) {
             // not configured, so skip the validation
@@ -149,9 +150,6 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
         DateFieldMapper dateFieldMapper = (DateFieldMapper) mapper;
         IndexType indexType = dateFieldMapper.fieldType().indexType();
-        if (indexType.hasPoints() == false && indexType.hasDocValuesSkipper() == false) {
-            throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is not indexed");
-        }
         if (dateFieldMapper.fieldType().hasDocValues() == false) {
             throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] doesn't have doc values");
         }

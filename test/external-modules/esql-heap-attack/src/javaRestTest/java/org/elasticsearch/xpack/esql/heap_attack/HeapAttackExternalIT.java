@@ -11,6 +11,7 @@ import fixture.s3.S3HttpHandler;
 
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -51,7 +52,7 @@ import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.WAREHOUSE;
  * {@code /_trigger_out_of_memory} backstop from {@link #runQuery} catches the (unwanted) case
  * where the breaker never trips before timeout.
  */
-@TimeoutSuite(millis = 40 * 60 * 1000)
+@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class HeapAttackExternalIT extends HeapAttackRestHelpers {
 
     private static final DataSourcesS3HttpFixture S3_FIXTURE = new DataSourcesS3HttpFixture();
@@ -153,19 +154,19 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
      * decode pressure.
      */
 
-    public void testStatsBlowup_ndjson_none() throws IOException {
+    public void testStatsBlowupNdjson() throws IOException {
         runStatsBlowup(Format.NDJSON, Compression.NONE);
     }
 
-    public void testStatsBlowup_ndjson_zstd() throws IOException {
+    public void testStatsBlowupNdjsonZstd() throws IOException {
         runStatsBlowup(Format.NDJSON, Compression.ZSTD);
     }
 
-    public void testStatsBlowup_csv_none() throws IOException {
+    public void testStatsBlowupCsv() throws IOException {
         runStatsBlowup(Format.CSV, Compression.NONE);
     }
 
-    public void testStatsBlowup_csv_zstd() throws IOException {
+    public void testStatsBlowupCsvZstd() throws IOException {
         runStatsBlowup(Format.CSV, Compression.ZSTD);
     }
 

@@ -136,7 +136,6 @@ public class SearchEngine extends Engine {
     private final Map<DirectoryReader, OpenReaderInfo> openReaders = new HashMap<>();
 
     private final CircuitBreaker readerHeapBreaker;
-    private final StatelessReaderHeapMetrics readerHeapMetrics;
     private final SegmentReservations reservations = new SegmentReservations();
     private final ToLongFunction<SegmentCommitInfo> segmentBytesFn = DirectoryReaderHeapEstimator::segmentBytes;
     private final AtomicLong refreshDeferredCount = new AtomicLong();
@@ -185,7 +184,6 @@ public class SearchEngine extends Engine {
         assert config.isPromotableToPrimary() == false;
         this.closedShardService = closedShardService;
         this.readerHeapBreaker = readerHeapBreaker;
-        this.readerHeapMetrics = readerHeapMetrics;
         var refreshExecutor = config.getThreadPool().executor(ThreadPool.Names.REFRESH);
         // we limit to one task to force sequential execution of enqueued tasks
         this.processCommitTaskRunner = new ThrottledTaskRunner("engine", 1, refreshExecutor);
@@ -244,11 +242,14 @@ public class SearchEngine extends Engine {
                             try {
                                 readerHeapBreaker.addEstimateBytesAndMaybeBreak(delta, StatelessReaderHeapBreaker.NAME);
                             } catch (CircuitBreakingException e) {
+                                // Establish the revert invariant first: if anything below throws, doUpdateInternalState
+                                // still sees lastRefreshDeferred == true and rolls segmentInfosAndCommit back to the
+                                // previous snapshot so the deferred notification is re-processed.
+                                lastRefreshDeferred = true;
                                 reservation.release();
                                 refreshDeferredCount.incrementAndGet();
                                 refreshDeferredPendingBytes.set(delta);
                                 readerHeapMetrics.recordRefreshDeferred();
-                                lastRefreshDeferred = true;
                                 logger.warn(
                                     "[{}] deferring refresh: reader-heap limit would be exceeded — delta [{}] used [{}] limit [{}]",
                                     shardId,

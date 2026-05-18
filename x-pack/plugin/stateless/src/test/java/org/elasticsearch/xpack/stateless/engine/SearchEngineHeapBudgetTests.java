@@ -267,6 +267,61 @@ public class SearchEngineHeapBudgetTests extends AbstractEngineTestCase {
         );
     }
 
+    public void testCoalescedRetryPicksUpLatestDeferredNotification() throws IOException {
+        // Andrei's scenario: N1 defers, then N2 also defers (limit stays tight, retry timer hasn't fired). The
+        // coalesced retry slot must target the latest notification — when the limit is lifted, advancing past
+        // the timer must land the reader at N2's generation, not N1's.
+        trackingBreaker.setLimit(1L);
+
+        final var indexConfig = indexConfig();
+        final var searchTaskQueue = new DeterministicTaskQueue();
+
+        try (
+            var indexEngine = newIndexEngine(indexConfig);
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
+        ) {
+            long startGen = searchEngine.getCurrentPrimaryTermAndGeneration().generation();
+
+            // First defer (N1).
+            indexEngine.index(randomDoc("d1"));
+            indexEngine.flush();
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+            assertThat("N1 must defer", searchEngine.getRefreshDeferredCount(), equalTo(1L));
+            assertThat("retry timer must be scheduled after the first defer", searchTaskQueue.hasDeferredTasks(), equalTo(true));
+
+            // Second defer (N2) — limit still tight, retry hasn't fired yet.
+            indexEngine.index(randomDoc("d2"));
+            indexEngine.flush();
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+            assertThat("N2 must also defer", searchEngine.getRefreshDeferredCount(), equalTo(2L));
+            assertThat("retry timer still pending after N2 (coalesced)", searchTaskQueue.hasDeferredTasks(), equalTo(true));
+
+            // Lift the limit and let the coalesced retry fire. It must target N2 (the latest deferred
+            // notification), not N1.
+            trackingBreaker.setLimit(Long.MAX_VALUE);
+            long expectedGen = indexEngine.getLastCommittedSegmentInfos().getGeneration();
+            assertThat("indexer is at the N2 generation", expectedGen, greaterThan(startGen));
+
+            long retryDelayMillis = searchEngine.config().getIndexSettings().getRefreshInterval().millis() * 2L;
+            advancePast(searchTaskQueue, searchTaskQueue.getCurrentTimeMillis() + retryDelayMillis + 1L);
+
+            assertThat(
+                "coalesced retry must land the reader at N2, not N1",
+                searchEngine.getCurrentPrimaryTermAndGeneration().generation(),
+                equalTo(expectedGen)
+            );
+            assertThat("successful retry must not bump the deferred counter further", searchEngine.getRefreshDeferredCount(), equalTo(2L));
+        }
+
+        assertThat("reservation drains to zero after engine close", trackingBreaker.getUsed(), equalTo(0L));
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+    }
+
     public void testRetryLosesToNewerQueuedNotification() throws IOException {
         // Variant of testRetryIsIdempotentWhenNaturalNotificationWinsRace: instead of letting the natural N2 fully
         // process before the retry fires, drop the limit, enqueue N2, then advance the clock past the retry delay

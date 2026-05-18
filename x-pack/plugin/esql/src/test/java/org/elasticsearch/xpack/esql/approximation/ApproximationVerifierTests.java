@@ -281,10 +281,7 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
         String expectedMessage = EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled()
             ? "line 1:87: approximation not supported: query with [FUSE] cannot be approximated"
             : "line 1:42: approximation not supported: query with [FORK (WHERE true) (WHERE true)] cannot be approximated";
-        assertError(
-            "FROM test METADATA _id, _index, _score | FORK (WHERE true) (WHERE true) | LIMIT 100 | FUSE",
-            equalTo(expectedMessage)
-        );
+        assertError("FROM test METADATA _id, _index, _score | FORK (WHERE true) (WHERE true) | LIMIT 100 | FUSE", equalTo(expectedMessage));
     }
 
     public void testVerify_incompatibleProcessingCommandBeforeStats() {

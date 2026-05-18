@@ -183,7 +183,7 @@ public final class IndexSortConfig {
 
             if (IndexMode.TIME_SERIES.getName().equals(indexMode)) {
                 return TIME_SERIES_SORT;
-            } else if (IndexMode.LOGSDB.getName().equals(indexMode) || IndexMode.COLUMNAR_LOGSDB.getName().equals(indexMode)) {
+            } else if (IndexMode.LOGSDB.getName().equals(indexMode) || IndexMode.LOGSDB_COLUMNAR.getName().equals(indexMode)) {
                 var version = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
                 if (version.onOrAfter(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME)
                     || version.between(

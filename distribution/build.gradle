@@ -229,7 +229,7 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
 // use licenses from each of the bundled xpack plugins
 Project xpack = project(':x-pack:plugin')
 xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
-  if (xpackModule.name.contains("stateless") == false && xpackModule.name.contains("secure-settings") == false) {
+  if (xpackModule.name.contains("stateless") == false) {
     File licenses = new File(xpackModule.projectDir, 'licenses')
     if (licenses.exists()) {
       buildDefaultNoticeTaskProvider.configure {

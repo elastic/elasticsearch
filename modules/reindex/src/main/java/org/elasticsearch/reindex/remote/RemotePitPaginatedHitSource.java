@@ -27,6 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -111,15 +112,35 @@ public class RemotePitPaginatedHitSource extends PitPaginatedHitSource {
         if (response.getPitId() != null) {
             pitId.set(response.getPitId());
         }
-        searchListener.onResponse(response);
+        // Substitute the cached total on follow-up batches whose response total is a placeholder.
+        OptionalLong cachedTotal = getCachedTotalHits();
+        Response delivered = response;
+        if (cachedTotal.isPresent()) {
+            delivered = new Response(
+                response.isTimedOut(),
+                response.getFailures(),
+                cachedTotal.getAsLong(),
+                response.getHits(),
+                response.getScrollId(),
+                response.getSearchAfterValues(),
+                response.getPitId()
+            );
+        }
+        searchListener.onResponse(delivered);
     }
 
     @Override
     protected void doNextPitSearch(Object[] searchAfter, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
         TimeValue keepAlive = timeValueNanos(baseKeepAlive.nanos() + extraKeepAlive.nanos());
         currentKeepAlive.set(keepAlive);
+        // Cache is seeded after the first batch, so drop track_total_hits on follow-ups to keep Max WAND active.
+        SearchRequest nextRequest = searchRequest;
+        if (getCachedTotalHits().isPresent()) {
+            SearchSourceBuilder source = searchRequest.source().shallowCopy().trackTotalHits(false);
+            nextRequest = new SearchRequest(searchRequest).source(source);
+        }
         execute(
-            RemoteRequestBuilders.pitSearch(searchRequest, remote.getQuery(), pitId.get(), keepAlive, searchAfter, remoteVersion),
+            RemoteRequestBuilders.pitSearch(nextRequest, remote.getQuery(), pitId.get(), keepAlive, searchAfter, remoteVersion),
             RESPONSE_PARSER,
             wrapPitSearchListener(searchListener),
             threadPool,

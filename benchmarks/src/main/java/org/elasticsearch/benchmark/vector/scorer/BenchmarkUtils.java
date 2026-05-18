@@ -30,6 +30,7 @@ import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.es93.OffHeapBFloat16VectorValues;
+import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 
 import java.io.IOException;
@@ -76,10 +77,10 @@ class BenchmarkUtils {
 
     static void writeBFloat16VectorData(Directory dir, float[][] vectors) throws IOException {
         try (IndexOutput out = dir.createOutput("vector.data", IOContext.DEFAULT)) {
-            ByteBuffer buffer = ByteBuffer.allocate(vectors[0].length * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+            byte[] buffer = new byte[vectors[0].length * BFloat16.BYTES];
             for (float[] vector : vectors) {
-                BFloat16.floatToBFloat16(vector, buffer.asShortBuffer());
-                out.writeBytes(buffer.array(), buffer.capacity());
+                BFloat16.floatToBFloat16(vector, buffer);
+                out.writeBytes(buffer, buffer.length);
             }
         }
     }
@@ -93,8 +94,8 @@ class BenchmarkUtils {
     }
 
     static VectorScorerFactory getScorerFactoryOrDie() {
-        var optionalVectorScorerFactory = VectorScorerFactory.instance();
-        if (optionalVectorScorerFactory.isEmpty()) {
+        var optionalVectorScorerFactory = ESVectorizationProvider.getInstance().getVectorScorerFactory();
+        if (optionalVectorScorerFactory instanceof DefaultFlatVectorScorer) {
             String msg = "JDK=["
                 + Runtime.version()
                 + "], os.name=["
@@ -104,7 +105,7 @@ class BenchmarkUtils {
                 + "]";
             throw new AssertionError("Vector scorer factory not present. Cannot run the benchmark. " + msg);
         }
-        return optionalVectorScorerFactory.get();
+        return optionalVectorScorerFactory;
     }
 
     static boolean supportsHeapSegments() {

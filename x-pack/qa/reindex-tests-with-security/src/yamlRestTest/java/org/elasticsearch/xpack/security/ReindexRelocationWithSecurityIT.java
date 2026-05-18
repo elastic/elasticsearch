@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security;
 
 import org.apache.http.HttpHost;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -25,6 +26,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
@@ -103,6 +106,10 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
             "reindex resilience endpoints must be available",
             clusterHasCapability("GET", "/_reindex/{task_id}", List.of(), List.of("reindex_management_api")).orElse(false)
         );
+        // The test cluster framework's Process.destroy() maps to TerminateProcess on Windows, which kills the JVM without running
+        // shutdown hooks. As a result ShutdownPrepareService.prepareForShutdown() never fires, the reindex-stop hook never marks the
+        // task for relocation, and the assertions below cannot be satisfied.
+        assumeFalse("graceful JVM shutdown is not deliverable on Windows by the test cluster framework", Constants.WINDOWS);
 
         final int numDocs = 30;
         createSourceIndexAndPopulate(numDocs);
@@ -136,9 +143,7 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
             assertListViaSurvivingNode(dataNodeAddress, taskId);
 
             // Stage 4: rethrottle to unlimited via a *non-coordinator* node, since the coordinator's HTTP transport is being torn down.
-            // The rethrottle is dispatched via internal transport (which is still up on the coordinator during the relocation hook),
-            // and lets the throttled reindex advance past its current sleep so it can pick up the relocation flag.
-            rethrottleViaSurvivingNode(dataNodeAddress, taskId);
+            unthrottleViaSurvivingNode(dataNodeAddress, taskId);
 
             // Stage 5: wait for the relocation chain in .tasks to show the original task was relocated and the relocated task completed
             // successfully. Without the fix, the resume action is rejected by RBAC and this never happens.
@@ -246,12 +251,16 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
             Request list = new Request("GET", "/_reindex");
             Response response = dataClient.performRequest(list);
             ObjectPath body = ObjectPath.createFromResponse(response);
+            // Surface fan-out failures up front so that an unexpectedly empty `reindex` array points at the real cause (e.g. the
+            // coordinator going unreachable mid-list) rather than a bare hasSize(1) mismatch.
+            assertThat(body.<List<?>>evaluate("node_failures"), anyOf(nullValue(), empty()));
+            assertThat(body.<List<?>>evaluate("task_failures"), anyOf(nullValue(), empty()));
             assertThat(body.<List<?>>evaluate("reindex"), hasSize(1));
             assertThat(body.evaluate("reindex.0.id"), equalTo(taskId));
         }
     }
 
-    private void rethrottleViaSurvivingNode(String dataNodeAddress, String taskId) throws Exception {
+    private void unthrottleViaSurvivingNode(String dataNodeAddress, String taskId) throws Exception {
         // Use the data node address captured before coordinator shutdown so the fixture is not asked to resolve a dead node.
         try (
             RestClient dataClient = buildClient(
@@ -259,12 +268,17 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
                 new HttpHost[] { HttpHost.create(dataNodeAddress) }
             )
         ) {
-            // retry in case the reindex task is not initialized and ready to be rethrottled yet
             assertBusy(() -> {
                 final Request rethrottle = new Request("POST", "/_reindex/" + taskId + "/_rethrottle");
-                rethrottle.addParameter("requests_per_second", "-1");
-                dataClient.performRequest(rethrottle);
-            }, 15, TimeUnit.SECONDS);
+                // Forces the reindexing task to still take 2 seconds, giving enough time for the node to shut down
+                rethrottle.addParameter("requests_per_second", String.valueOf(Float.POSITIVE_INFINITY));
+                try {
+                    dataClient.performRequest(rethrottle);
+                } catch (Exception e) {
+                    // Translate transient server errors to AssertionError so assertBusy will retry
+                    throw new AssertionError("rethrottle failed", e);
+                }
+            });
         }
     }
 

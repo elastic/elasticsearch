@@ -656,6 +656,15 @@ public class EsqlFunctionRegistry {
         return false;
     }
 
+    private static final Set<Class<? extends Function>> SNAPSHOT_FUNCTION_CLASSES = Arrays.stream(snapshotFunctions())
+        .flatMap(Arrays::stream)
+        .map(FunctionDefinition::clazz)
+        .collect(Collectors.toUnmodifiableSet());
+
+    public static boolean isSnapshotOnly(Class<? extends Function> functionClass) {
+        return SNAPSHOT_FUNCTION_CLASSES.contains(functionClass);
+    }
+
     public static String normalizeName(String name) {
         return name.toLowerCase(Locale.ROOT);
     }

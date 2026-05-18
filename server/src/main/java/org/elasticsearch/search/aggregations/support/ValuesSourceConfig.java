@@ -401,6 +401,14 @@ public class ValuesSourceConfig {
     }
 
     /**
+     * Like {@link #roundingPreparer(AggregationContext)} but for use under a {@code global} agg,
+     * which ignores the top-level query.
+     */
+    public Function<Rounding, Rounding.Prepared> roundingPreparerForGlobal(AggregationContext context) throws IOException {
+        return valuesSource.roundingPreparerForGlobal(context);
+    }
+
+    /**
      * Check if this values source supports segment ordinals. Global ordinals might or might not be supported.
      * <p>
      * If this returns {@code true} then it is safe to cast it to {@link ValuesSource.Bytes.WithOrdinals}.

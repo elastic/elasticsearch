@@ -134,6 +134,7 @@ toc:
                   - file: esql/commands/sort.md
                   - file: esql/commands/stats-by.md
                   - file: esql/commands/ts-info.md
+                  - file: esql/commands/ts_collapse.md
                   - file: esql/commands/user-agent.md
                   - file: esql/commands/uri-parts.md
                   - file: esql/commands/where.md
@@ -412,6 +413,10 @@ toc:
           - file: esql/esql-query-log.md
           - file: esql/esql-task-management.md
       - file: esql/limitations.md
+  - file: promql.md
+    children:
+      - file: promql/promql-http-api.md
+      - file: promql/promql-limitations.md
   - file: sql.md
     children:
       - file: sql/sql-getting-started.md

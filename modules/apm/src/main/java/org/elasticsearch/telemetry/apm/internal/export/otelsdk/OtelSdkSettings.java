@@ -15,6 +15,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
+import static org.elasticsearch.common.settings.Setting.Property.OperatorDynamic;
 
 /**
  * Node settings for the OpenTelemetry SDK metrics ({@link OtelSdkExportMeterSupplier}) and traces
@@ -123,6 +124,38 @@ public final class OtelSdkSettings {
         "telemetry.otel.metrics.otlp.connect_timeout",
         TimeValue.timeValueSeconds(2),
         TimeValue.timeValueMillis(1),
+        TimeValue.timeValueSeconds(10),
+        NodeScope
+    );
+
+    /** OTLP HTTP endpoint URL where the SDK exports buffered spans. Required when the SDK trace path is active. */
+    public static final Setting<String> TELEMETRY_OTEL_TRACES_ENDPOINT = Setting.simpleString(
+        "telemetry.otel.traces.endpoint",
+        "",
+        NodeScope
+    );
+
+    /** How often {@code BatchSpanProcessor} flushes buffered spans to the exporter. */
+    public static final Setting<TimeValue> TELEMETRY_OTEL_TRACES_INTERVAL = Setting.timeSetting(
+        "telemetry.otel.traces.interval",
+        // Matches the APM agent's api_request_time default; full batches (512 spans) flush immediately.
+        TimeValue.timeValueSeconds(10),
+        NodeScope
+    );
+
+    /** Maximum depth of child spans per request. {@code 0} exports only the root span.
+     * Spans from an upstream {@code traceparent} are not counted. */
+    public static final Setting<Integer> TELEMETRY_OTEL_TRACES_MAX_TRACE_DEPTH = Setting.intSetting(
+        "telemetry.otel.traces.max_trace_depth",
+        0,
+        0,
+        OperatorDynamic,
+        NodeScope
+    );
+
+    /** Best-effort upper bound on time spent flushing buffered metrics or spans to the exporter. */
+    public static final Setting<TimeValue> TELEMETRY_OTEL_FLUSH_TIMEOUT = Setting.timeSetting(
+        "telemetry.otel.flush_timeout",
         TimeValue.timeValueSeconds(10),
         NodeScope
     );

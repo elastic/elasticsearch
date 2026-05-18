@@ -150,7 +150,7 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
 
             @Override
             public void packQuery(int[] quantized, byte[] destination) {
-                packDibitQueryByStripe(quantized, destination);
+                packNibblesForPackedDibit(quantized, destination);
             }
 
             @Override
@@ -261,7 +261,7 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
             }
         }
 
-        private static void packDibitQueryByStripe(int[] quantized, byte[] destination) {
+        private static void packNibblesForPackedDibit(int[] quantized, byte[] destination) {
             assert quantized.length == destination.length;
             assert destination.length % 4 == 0;
             int packedLength = destination.length / 4;

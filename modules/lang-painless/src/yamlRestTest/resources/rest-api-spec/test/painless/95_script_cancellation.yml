@@ -1,0 +1,639 @@
+# End-to-end timeout tests for Painless script contexts that have in-script cancellation polls.
+#
+# Each test uses a single shard with a single document so that inter-segment and
+# BulkScorer cancellation points never fire.  The only stop signal is the in-script
+# poll injected by the Painless compiler when it detects that the script class
+# overrides _getCancellationCheck().  Without that poll, every tight loop below
+# would run for ~60 s regardless of the 100 ms request timeout.
+#
+# Contexts covered (one test each):
+#   filter, number_sort, string_sort, bytesref_sort (version sort),
+#   terms_set, interval_filter, aggs, aggs_map,
+#   long_field, double_field, boolean_field, date_field, keyword_field,
+#   geo_point_field, ip_field, composite_field.
+#
+# geometry_field (geo_shape) is x-pack/spatial only; its timeout test lives in
+# x-pack/plugin/src/yamlRestTest/resources/rest-api-spec/test/spatial/130_geo_shape_runtime.yml.
+#
+# aggs_init and aggs_combine are intentionally omitted: ContextIndexSearcher.search() sets
+# timeoutOverwrites=true during doPostCollection(), which suppresses TimeExceededException in
+# that phase.  init_script also runs in doPostCollection() when State is rebuilt after a
+# timeout.  These contexts are still wired to _setCancellationCheck (allowing explicit task
+# cancellation to work) but cannot be reliably tested via the search timeout mechanism.
+
+---
+"Search timeout aborts a long-running filter script loop":
+  - do:
+      indices.create:
+        index: test_filter_script_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              val:
+                type: long
+  - do:
+      index:
+        index: test_filter_script_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_filter_script_timeout
+        timeout: 100ms
+        body:
+          query:
+            script:
+              script:
+                source: |
+                  long start = System.currentTimeMillis();
+                  while (System.currentTimeMillis() - start < 60000L) {
+                      /* deliberately empty: rely on timeout to cancel */
+                  }
+                  return true;
+  - is_true: timed_out
+
+---
+"Search timeout aborts a long-running number sort script loop":
+  - do:
+      indices.create:
+        index: test_number_sort_script_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              val:
+                type: double
+  - do:
+      index:
+        index: test_number_sort_script_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_number_sort_script_timeout
+        timeout: 100ms
+        body:
+          sort:
+            - _script:
+                type: number
+                script:
+                  source: |
+                    long start = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - start < 60000L) {
+                        /* deliberately empty: rely on timeout to cancel */
+                    }
+                    return 0.0;
+                order: asc
+  - is_true: timed_out
+
+---
+"Search timeout aborts a long-running string sort script loop":
+  - do:
+      indices.create:
+        index: test_string_sort_script_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              val:
+                type: keyword
+  - do:
+      index:
+        index: test_string_sort_script_timeout
+        id: d1
+        body: {"val": "hello"}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_string_sort_script_timeout
+        timeout: 100ms
+        body:
+          sort:
+            - _script:
+                type: string
+                script:
+                  source: |
+                    long start = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - start < 60000L) {
+                        /* deliberately empty: rely on timeout to cancel */
+                    }
+                    return "";
+                order: asc
+  - is_true: timed_out
+
+---
+"Search timeout aborts a long-running bytesref (version) sort script loop":
+  - do:
+      indices.create:
+        index: test_bytesref_sort_script_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              val:
+                type: keyword
+  - do:
+      index:
+        index: test_bytesref_sort_script_timeout
+        id: d1
+        body: {"val": "1.0.0"}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bytesref_sort_script_timeout
+        timeout: 100ms
+        body:
+          sort:
+            - _script:
+                type: version
+                script:
+                  source: |
+                    long start = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - start < 60000L) {
+                        /* deliberately empty: rely on timeout to cancel */
+                    }
+                    return "";
+                order: asc
+  - is_true: timed_out
+
+---
+"Search timeout aborts a long-running terms_set minimum_should_match script loop":
+  - do:
+      indices.create:
+        index: test_terms_set_script_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              tags:
+                type: keyword
+  - do:
+      index:
+        index: test_terms_set_script_timeout
+        id: d1
+        body: {"tags": ["a", "b", "c"]}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_terms_set_script_timeout
+        timeout: 100ms
+        body:
+          query:
+            terms_set:
+              tags:
+                terms: ["a", "b", "c"]
+                minimum_should_match_script:
+                  source: |
+                    long start = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - start < 60000L) {
+                        /* deliberately empty: rely on timeout to cancel */
+                    }
+                    return 1;
+  - is_true: timed_out
+
+---
+"Search timeout aborts a long-running interval filter script loop":
+  - do:
+      indices.create:
+        index: test_interval_script_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              text:
+                type: text
+                analyzer: standard
+  - do:
+      index:
+        index: test_interval_script_timeout
+        id: d1
+        body: {"text": "the quick brown fox"}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_interval_script_timeout
+        timeout: 100ms
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "fox"
+                  filter:
+                    script:
+                      source: |
+                        long start = System.currentTimeMillis();
+                        while (System.currentTimeMillis() - start < 60000L) {
+                            /* deliberately empty: rely on timeout to cancel */
+                        }
+                        return true;
+  - is_true: timed_out
+
+---
+"Search timeout aborts a long-running aggregation script loop":
+  - do:
+      indices.create:
+        index: test_agg_script_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              val:
+                type: double
+  - do:
+      index:
+        index: test_agg_script_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_agg_script_timeout
+        timeout: 100ms
+        body:
+          size: 0
+          aggs:
+            spinning:
+              avg:
+                script:
+                  source: |
+                    long start = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - start < 60000L) {
+                        /* deliberately empty: rely on timeout to cancel */
+                    }
+                    return 0.0;
+  - is_true: timed_out
+
+---
+"Search timeout aborts a long-running scripted_metric map_script loop":
+  - do:
+      indices.create:
+        index: test_scripted_metric_map_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              val:
+                type: double
+  - do:
+      index:
+        index: test_scripted_metric_map_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_scripted_metric_map_timeout
+        timeout: 100ms
+        body:
+          size: 0
+          aggs:
+            spinning:
+              scripted_metric:
+                init_script: "state.total = 0"
+                map_script:
+                  source: |
+                    long start = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - start < 60000L) {
+                        /* deliberately empty: rely on timeout to cancel */
+                    }
+                    state.total += doc['val'].value;
+                combine_script: "return state.total"
+                reduce_script: "double t = 0; for (a in states) { t += a } return t"
+  - is_true: timed_out
+
+---
+"Search timeout aborts a long-running long runtime field script loop":
+  - do:
+      indices.create:
+        index: test_rt_long_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_rt_long_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_rt_long_timeout
+        timeout: 100ms
+        body:
+          runtime_mappings:
+            rt_field:
+              type: long
+              script:
+                source: |
+                  long start = System.currentTimeMillis();
+                  while (System.currentTimeMillis() - start < 60000L) {
+                      /* deliberately empty: rely on timeout to cancel */
+                  }
+                  emit(1L);
+          query:
+            exists:
+              field: rt_field
+  - is_true: timed_out
+
+---
+"Search timeout aborts a long-running double runtime field script loop":
+  - do:
+      indices.create:
+        index: test_rt_double_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_rt_double_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_rt_double_timeout
+        timeout: 100ms
+        body:
+          runtime_mappings:
+            rt_field:
+              type: double
+              script:
+                source: |
+                  long start = System.currentTimeMillis();
+                  while (System.currentTimeMillis() - start < 60000L) {
+                      /* deliberately empty: rely on timeout to cancel */
+                  }
+                  emit(1.0);
+          query:
+            exists:
+              field: rt_field
+  - is_true: timed_out
+
+---
+"Search timeout aborts a long-running boolean runtime field script loop":
+  - do:
+      indices.create:
+        index: test_rt_boolean_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_rt_boolean_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_rt_boolean_timeout
+        timeout: 100ms
+        body:
+          runtime_mappings:
+            rt_field:
+              type: boolean
+              script:
+                source: |
+                  long start = System.currentTimeMillis();
+                  while (System.currentTimeMillis() - start < 60000L) {
+                      /* deliberately empty: rely on timeout to cancel */
+                  }
+                  emit(true);
+          query:
+            exists:
+              field: rt_field
+  - is_true: timed_out
+
+---
+"Search timeout aborts a long-running date runtime field script loop":
+  - do:
+      indices.create:
+        index: test_rt_date_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_rt_date_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_rt_date_timeout
+        timeout: 100ms
+        body:
+          runtime_mappings:
+            rt_field:
+              type: date
+              script:
+                source: |
+                  long start = System.currentTimeMillis();
+                  while (System.currentTimeMillis() - start < 60000L) {
+                      /* deliberately empty: rely on timeout to cancel */
+                  }
+                  emit(System.currentTimeMillis());
+          query:
+            exists:
+              field: rt_field
+  - is_true: timed_out
+
+---
+"Search timeout aborts a long-running keyword runtime field script loop":
+  - do:
+      indices.create:
+        index: test_rt_keyword_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_rt_keyword_timeout
+        id: d1
+        body: {"val": "hello"}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_rt_keyword_timeout
+        timeout: 100ms
+        body:
+          runtime_mappings:
+            rt_field:
+              type: keyword
+              script:
+                source: |
+                  long start = System.currentTimeMillis();
+                  while (System.currentTimeMillis() - start < 60000L) {
+                      /* deliberately empty: rely on timeout to cancel */
+                  }
+                  emit("hello");
+          query:
+            exists:
+              field: rt_field
+  - is_true: timed_out
+
+---
+"Search timeout aborts a long-running geo_point runtime field script loop":
+  - do:
+      indices.create:
+        index: test_rt_geo_point_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_rt_geo_point_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_rt_geo_point_timeout
+        timeout: 100ms
+        body:
+          runtime_mappings:
+            rt_field:
+              type: geo_point
+              script:
+                source: |
+                  long start = System.currentTimeMillis();
+                  while (System.currentTimeMillis() - start < 60000L) {
+                      /* deliberately empty: rely on timeout to cancel */
+                  }
+                  emit(0.0, 0.0);
+          query:
+            exists:
+              field: rt_field
+  - is_true: timed_out
+
+---
+"Search timeout aborts a long-running ip runtime field script loop":
+  - do:
+      indices.create:
+        index: test_rt_ip_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_rt_ip_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_rt_ip_timeout
+        timeout: 100ms
+        body:
+          runtime_mappings:
+            rt_field:
+              type: ip
+              script:
+                source: |
+                  long start = System.currentTimeMillis();
+                  while (System.currentTimeMillis() - start < 60000L) {
+                      /* deliberately empty: rely on timeout to cancel */
+                  }
+                  emit("127.0.0.1");
+          query:
+            exists:
+              field: rt_field
+  - is_true: timed_out
+
+---
+"Search timeout aborts a long-running composite runtime field script loop":
+  # composite_field scripts are evaluated via sub-field wrappers; the cancellation
+  # check is propagated to the composite script by AbstractFieldScript.emitFromCompositeScript.
+  - do:
+      indices.create:
+        index: test_rt_composite_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_rt_composite_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_rt_composite_timeout
+        timeout: 100ms
+        body:
+          runtime_mappings:
+            rt_field:
+              type: composite
+              fields:
+                count:
+                  type: long
+              script:
+                source: |
+                  long start = System.currentTimeMillis();
+                  while (System.currentTimeMillis() - start < 60000L) {
+                      /* deliberately empty: rely on timeout to cancel */
+                  }
+                  emit('count', 1L);
+          query:
+            exists:
+              field: rt_field.count
+  - is_true: timed_out

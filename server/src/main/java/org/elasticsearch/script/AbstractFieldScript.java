@@ -124,6 +124,7 @@ public abstract class AbstractFieldScript extends DocBasedScript {
     }
 
     protected final void emitFromCompositeScript(CompositeFieldScript compositeFieldScript) {
+        compositeFieldScript._setCancellationCheck(_getCancellationCheck());
         List<Object> values = compositeFieldScript.getValues(fieldName);
         if (values == null) {
             return;

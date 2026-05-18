@@ -235,3 +235,44 @@ geo_tile agg":
   - match: { aggregations.tiles_from_source.buckets.2.doc_count: 2 }
   - match: { aggregations.tiles_from_source.buckets.3.key: "3/3/3" }
   - match: { aggregations.tiles_from_source.buckets.3.doc_count: 2 }
+
+---
+"Search timeout aborts a long-running geo_shape (geometry_field) runtime script loop":
+  # GeometryFieldScript extends AbstractFieldScript which overrides _getCancellationCheck().
+  # The Painless compiler therefore injects a cancellation poll at every loop back-edge.
+  # AbstractScriptFieldQuery.createWeight() wires the poll to ContextIndexSearcher::checkCancelled,
+  # so the 100 ms search timeout terminates the loop instead of letting it spin for ~60 s.
+  - do:
+      indices.create:
+        index: test_rt_geometry_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_rt_geometry_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_rt_geometry_timeout
+        timeout: 100ms
+        body:
+          runtime_mappings:
+            rt_field:
+              type: geo_shape
+              script:
+                source: |
+                  long start = System.currentTimeMillis();
+                  while (System.currentTimeMillis() - start < 60000L) {
+                      /* deliberately empty: rely on timeout to cancel */
+                  }
+                  emit("POINT(0 0)");
+          query:
+            exists:
+              field: rt_field
+  - is_true: timed_out

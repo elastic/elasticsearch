@@ -31,47 +31,17 @@ This page covers remote clusters and {{ccs}}, which are not available in {{serve
     We recommend using gateway nodes capable of serving as coordinating nodes. The seed nodes can be a subset of these gateway nodes.
 
 * If you use [proxy mode](docs-content:///deploy-manage/remote-clusters/remote-clusters-self-managed.md#proxy-mode), the local coordinating node must be able to connect to the configured `proxy_address`. The proxy at this address must be able to route connections to gateway and coordinating nodes on the remote cluster.
-* {{ccs-cap}} requires different security privileges on the local cluster and remote cluster. See [Configure privileges for {{ccs}}](docs-content://deploy-manage/remote-clusters/remote-clusters-cert.md#remote-clusters-privileges-ccs) and [*Remote clusters*](docs-content://deploy-manage/remote-clusters.md).
+* {{ccs-cap}} requires different security privileges on the local cluster and remote cluster. See [Configure roles and users](docs-content://deploy-manage/remote-clusters/remote-clusters-api-key.md#remote-clusters-privileges-api-key) and [*Remote clusters*](docs-content://deploy-manage/remote-clusters.md).
 
 
-## Security model [esql-ccs-security-model]
+## API key authentication [esql-ccs-security-model-api-key]
 
-{{es}} supports two security models for cross-cluster search (CCS):
-
-* [TLS certificate authentication](#esql-ccs-security-model-certificate)
-* [API key authentication](#esql-ccs-security-model-api-key)
+{{esql}} uses [API key authentication](docs-content://deploy-manage/remote-clusters/remote-clusters-api-key.md) for {{ccs}}. Follow the steps on that page for the full setup instructions, including how to add remote clusters. This page contains only the information specific to {{esql}}.
 
 ::::{tip}
 To check which security model is being used to connect your clusters, run `GET _remote/info`. If you’re using the API key authentication method, you’ll see the `"cluster_credentials"` key in the response.
 
 ::::
-
-
-
-### TLS certificate authentication [esql-ccs-security-model-certificate]
-
-::::{admonition} Deprecated in 9.0.0.
-:class: warning
-
-Use [API key authentication](#esql-ccs-security-model-api-key) instead.
-::::
-
-
-TLS certificate authentication secures remote clusters with mutual TLS. This could be the preferred model when a single administrator has full control over both clusters. We generally recommend that roles and their privileges be identical in both clusters.
-
-Refer to [TLS certificate authentication](docs-content://deploy-manage/remote-clusters/remote-clusters-cert.md) for prerequisites and detailed setup instructions.
-
-
-### API key authentication [esql-ccs-security-model-api-key]
-
-The following information pertains to using {{esql}} across clusters with the [**API key based security model**](docs-content://deploy-manage/remote-clusters/remote-clusters-api-key.md). You’ll need to follow the steps on that page for the **full setup instructions**. This page only contains additional information specific to {{esql}}.
-
-API key based cross-cluster search (CCS) enables more granular control over allowed actions between clusters. This may be the preferred model when you have different administrators for different clusters and want more control over who can access what data. In this model, cluster administrators must explicitly define the access given to clusters and users.
-
-You will need to:
-
-* Create an API key on the **remote cluster** using the [Create cross-cluster API key](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-cross-cluster-api-key) API or using the [Kibana API keys UI](docs-content://deploy-manage/api-keys/elasticsearch-api-keys.md).
-* Add the API key to the keystore on the **local cluster**, as part of the steps in [configuring the local cluster](docs-content://deploy-manage/remote-clusters/remote-clusters-api-key.md#remote-clusters-security-api-key-local-actions). All cross-cluster requests from the local cluster are bound by the API key’s privileges.
 
 Using {{esql}} with the API key based security model requires some additional permissions that may not be needed when using the traditional query DSL based search. The following example API call creates a role that can query remote indices using {{esql}} when using the API key based security model. The final privilege, `remote_cluster`, is required to allow remote enrich operations.
 
@@ -129,48 +99,6 @@ Remember that all cross-cluster requests from the local cluster are bound by the
 Cross cluster API keys created in versions prior to 8.15.0 will need to replaced or updated to add the new permissions required for {{esql}} with ENRICH.
 
 ::::
-
-
-
-## Remote cluster setup [ccq-remote-cluster-setup]
-
-Once the security model is configured, you can add remote clusters.
-
-The following [cluster update settings](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings) API request adds three remote clusters: `cluster_one`, `cluster_two`, and `cluster_three`.
-
-```console
-PUT _cluster/settings
-{
-  "persistent": {
-    "cluster": {
-      "remote": {
-        "cluster_one": {
-          "seeds": [
-            "35.238.149.1:9300"
-          ],
-          "skip_unavailable": true
-        },
-        "cluster_two": {
-          "seeds": [
-            "35.238.149.2:9300"
-          ],
-          "skip_unavailable": false
-        },
-        "cluster_three": {  <1>
-          "seeds": [
-            "35.238.149.3:9300"
-          ]
-        }
-      }
-    }
-  }
-}
-```
-% TEST[setup:host]
-% TEST[s/35.238.149.\d+:930\d+/\${transport_host}/]
-% end::ccs-remote-cluster-setup[]
-
-1. Since `skip_unavailable` was not set on `cluster_three`, it uses the default of `true`. See the [Optional remote clusters](#ccq-skip-unavailable-clusters) section for details.
 
 
 
@@ -365,6 +293,7 @@ Which returns:
 2. Indicates that no shards were searched (due to not having any matching indices).
 3. Since one of the clusters is skipped, the search result is marked as partial.
 
+For more on partial results and how cluster status is determined when failures occur, see [{{ccs-cap}} failures](docs-content://explore-analyze/cross-cluster-search.md#cross-cluster-search-failures).
 
 
 ## Enrich across clusters [ccq-enrich]
@@ -506,6 +435,8 @@ in which case the query will fail.
 :::
 
 ::::
+
+For broader context on the `skip_unavailable` setting, including how it interacts with `allow_no_indices` and `ignore_unavailable`, see [Optional remote clusters](docs-content://explore-analyze/cross-cluster-search.md#skip-unavailable-clusters).
 
 ## Query across clusters during an upgrade [ccq-during-upgrade]
 

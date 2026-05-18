@@ -60,9 +60,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
     private static final Logger logger = LogManager.getLogger(PeerRecoverySourceService.class);
 
-    // This setting is intentionally not registered; it is only used in tests.
-    // In production the default value mirrors the master-side throttle
-    // (cluster.routing.allocation.node_concurrent_recoveries).
+    // TODO: register this setting in `BUILT_IN_CLUSTER_SETTINGS` before we start elasticsearch-team#2805
     public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_OUTBOUND_RECOVERIES_SETTING = Setting.intSetting(
         "indices.recovery.max_concurrent_outbound_recoveries",
         ThrottlingAllocationDecider.DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES,
@@ -81,7 +79,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     private final RecoverySettings recoverySettings;
     private final RecoveryPlannerService recoveryPlannerService;
 
-    // TODO: make this dynamic?
+    // TODO: make this value dynamic once we register `INDICES_RECOVERY_MAX_CONCURRENT_OUTBOUND_RECOVERIES_SETTING`
     private final int maxConcurrentOutboundRecoveries;
 
     // visible for testing
@@ -229,7 +227,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         ongoingRecoveries.reestablishRecovery(request, shard, listener);
     }
 
-    // TODO: add actual metrics for how many recoveries are queued vs ongoing.
+    // TODO: add actual OTel metrics for how many recoveries are queued vs ongoing. RecoveryStats is only exposed via REST calls.
     final class OngoingRecoveries {
 
         private final Map<IndexShard, ShardRecoveryContext> ongoingRecoveries = new HashMap<>();
@@ -268,7 +266,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 return addNewRecovery(request, task, shard);
             }
             shard.recoveryStats().incCurrentAsSourceQueued();
-            // TODO: should we add a limit to the queuing as well? After which we just straight up reject?
+            // TODO: should we add a limit to the queuing as well? After which we just straight up reject the request?
             pendingRecoveries.add(new PendingRecovery(request, task, shard, listener));
             return null;
         }
@@ -410,7 +408,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             FutureUtils.get(future);
         }
 
-        // TODO: optimize this?
         private void ensureNoDuplicateAllocationId(String targetAllocationId) {
             for (PendingRecovery pending : pendingRecoveries) {
                 if (pending.request().targetAllocationId().equals(targetAllocationId)) {

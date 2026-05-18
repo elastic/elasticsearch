@@ -2813,6 +2813,12 @@ public class EsqlCapabilities {
         FN_NOT_EQUALS_FLATTENED(Build.current().isSnapshot()),
 
         /**
+         * Support for using a {@code flattened} field as a grouping key in
+         * {@code STATS … BY} and {@code LIMIT N BY}.
+         */
+        GROUP_BY_FLATTENED(Build.current().isSnapshot()),
+
+        /**
          * Fix for {@code ReorderLimitProjectAndOrderBy} unconditionally lifting an {@code OrderBy} above a renaming/dropping
          * {@code Project}: it now rewrites the {@code OrderBy}'s references through the {@code Project}'s aliases (so a sort on
          * a renamed column stays valid) and bails out of the swap if a referenced column is dropped altogether.

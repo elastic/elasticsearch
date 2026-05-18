@@ -886,6 +886,22 @@ public class VerifierTests extends ESTestCase {
             );
     }
 
+    public void testFlattenedAllowedInLimitBy() {
+        assumeTrue("requires GROUP_BY_FLATTENED capability", EsqlCapabilities.Cap.GROUP_BY_FLATTENED.isEnabled());
+        analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json")
+            .query("FROM flattened_otel_logs | LIMIT 1 BY resource.attributes");
+        analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json")
+            .query("FROM flattened_otel_logs | LIMIT 1 BY attributes");
+    }
+
+    public void testFlattenedAllowedInStatsBy() {
+        assumeTrue("requires GROUP_BY_FLATTENED capability", EsqlCapabilities.Cap.GROUP_BY_FLATTENED.isEnabled());
+        analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json")
+            .query("FROM flattened_otel_logs | STATS count(*) BY attributes");
+        analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json")
+            .query("FROM flattened_otel_logs | STATS count(*) BY resource.attributes");
+    }
+
     public void testDoubleRenamingField() {
         defaultAnalyzer().error(
             "from test | rename emp_no as r1, r1 as r2, emp_no as r3 | keep r3",

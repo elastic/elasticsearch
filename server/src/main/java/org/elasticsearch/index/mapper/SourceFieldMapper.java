@@ -501,7 +501,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 var sourceLeafLoader = sourceLoader.leaf(leafCtx.reader(), docIds);
                 var storedFieldLoader = StoredFieldLoader.create(false, sourceLoader.requiredStoredFields()).getLoader(leafCtx, docIds);
                 storedFieldLoader.advanceTo(docId);
-                try (var b = new XContentBuilder(context.sourceToParse().getXContentType().xContent(), new ByteArrayOutputStream())) {
+                try (var b = new XContentBuilder(context.sourceToParse().source().xContentType().xContent(), new ByteArrayOutputStream())) {
                     sourceLeafLoader.write(storedFieldLoader, docId, b);
                     final BytesRef ref = BytesReference.bytes(b).toBytesRef();
                     context.doc().add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));

@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -36,14 +37,17 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * The source recovery accepts recovery requests from other peer shards and start the recovery process from this
@@ -64,7 +68,12 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     private final RecoverySettings recoverySettings;
     private final RecoveryPlannerService recoveryPlannerService;
 
+    // visible for testing
     final OngoingRecoveries ongoingRecoveries = new OngoingRecoveries();
+
+    final int numberOfOngoingRecoveries() {
+        return ongoingRecoveries.ongoingRecoveries.size();
+    }
 
     public PeerRecoverySourceService(
         TransportService transportService,
@@ -110,6 +119,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     protected void doStop() {
         final ClusterService clusterService = indicesService.clusterService();
         if (DiscoveryNode.canContainData(clusterService.getSettings())) {
+            ongoingRecoveries.cancelAllPendingRecoveries();
             ongoingRecoveries.awaitEmpty();
             indicesService.clusterService().removeListener(this);
         }
@@ -175,14 +185,16 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             throw new DelayRecoveryException("source shard is not marked yet as relocating to [" + request.targetNode() + "]");
         }
 
-        RecoverySourceHandler handler = ongoingRecoveries.addNewRecovery(request, task, shard);
-        logger.trace(
-            "[{}][{}] starting recovery to {}",
-            request.shardId().getIndex().getName(),
-            request.shardId().id(),
-            request.targetNode()
-        );
-        handler.recoverToTarget(ActionListener.runAfter(listener, () -> ongoingRecoveries.remove(shard, handler)));
+        final RecoverySourceHandler handler = ongoingRecoveries.addOrEnqueueNewRecovery(request, task, shard, listener);
+        if (handler != null) {
+            logger.trace(
+                "[{}][{}] starting recovery to {}",
+                request.shardId().getIndex().getName(),
+                request.shardId().id(),
+                request.targetNode()
+            );
+            handler.recoverToTarget(ActionListener.runAfter(listener, () -> ongoingRecoveries.onRecoveryComplete(shard, handler)));
+        }
     }
 
     private void reestablish(ReestablishRecoveryRequest request, ActionListener<RecoveryResponse> listener) {
@@ -198,22 +210,56 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         ongoingRecoveries.reestablishRecovery(request, shard, listener);
     }
 
-    // exposed for testing
-    final int numberOfOngoingRecoveries() {
-        return ongoingRecoveries.ongoingRecoveries.size();
-    }
-
     final class OngoingRecoveries {
+
+        // TODO: replace with a dynamic node-level setting (indices.recovery.max_concurrent_outbound_recoveries)
+        static final int MAX_CONCURRENT_OUTBOUND_RECOVERIES = 2;
 
         private final Map<IndexShard, ShardRecoveryContext> ongoingRecoveries = new HashMap<>();
 
         private final Map<DiscoveryNode, Collection<RemoteRecoveryTargetHandler>> nodeToHandlers = new HashMap<>();
 
+        // TODO: should we do some smarter aggregation by shard?
+        private final Deque<PendingRecovery> pendingRecoveries = new ArrayDeque<>();
+
+        private volatile int activeRecoveryHandlersCount = 0;
+
         @Nullable
         private List<ActionListener<Void>> emptyListeners;
 
-        synchronized RecoverySourceHandler addNewRecovery(StartRecoveryRequest request, Task task, IndexShard shard) {
+        // visible for testing
+        int activeRecoveryCount() {
+            return activeRecoveryHandlersCount;
+        }
+
+        // visible for testing
+        int pendingRecoveriesCount() {
+            return pendingRecoveries.size();
+        }
+
+        /// Starts the recovery immediately if a slot is available, otherwise queues it for later.
+        /// Returns the handler to start (non-null) if a slot was available, or null if the request was queued.
+        synchronized RecoverySourceHandler addOrEnqueueNewRecovery(
+            StartRecoveryRequest request,
+            Task task,
+            IndexShard shard,
+            ActionListener<RecoveryResponse> listener
+        ) {
             assert lifecycle.started();
+            ensureNoDuplicateAllocationId(request.targetAllocationId());
+            if (activeRecoveryHandlersCount < MAX_CONCURRENT_OUTBOUND_RECOVERIES) {
+                return addNewRecovery(request, task, shard);
+            }
+            shard.recoveryStats().incCurrentQueuedAsSource();
+            // TODO: should we add a limit to the queuing as well? After which we just straight up reject?
+            pendingRecoveries.add(new PendingRecovery(request, task, shard, listener));
+            return null;
+        }
+
+        private RecoverySourceHandler addNewRecovery(StartRecoveryRequest request, Task task, IndexShard shard) {
+            assert lifecycle.started();
+            assert activeRecoveryHandlersCount < MAX_CONCURRENT_OUTBOUND_RECOVERIES;
+            activeRecoveryHandlersCount++;
             final ShardRecoveryContext shardContext = ongoingRecoveries.computeIfAbsent(shard, s -> new ShardRecoveryContext());
             final Tuple<RecoverySourceHandler, RemoteRecoveryTargetHandler> handlers = shardContext.addNewRecovery(request, task, shard);
             final RemoteRecoveryTargetHandler recoveryTargetHandler = handlers.v2();
@@ -229,6 +275,10 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     handler.cancel();
                 }
             }
+            cancelPendingRecoveries(
+                pendingRecovery -> pendingRecovery.request().targetNode().equals(node),
+                "target node left during queued recovery"
+            );
         }
 
         synchronized void reestablishRecovery(
@@ -244,12 +294,47 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             shardContext.reestablishRecovery(request, listener);
         }
 
+        /// Called when an active recovery completes (successfully or not).
+        /// Frees the throttling slot and starts the next queued recovery if one is waiting.
+        void onRecoveryComplete(IndexShard shard, RecoverySourceHandler handler) {
+            final PendingRecovery nextRecovery;
+            final RecoverySourceHandler nextHandler;
+            synchronized (this) {
+                remove(shard, handler);
+                if (activeRecoveryHandlersCount < MAX_CONCURRENT_OUTBOUND_RECOVERIES && pendingRecoveries.isEmpty() == false) {
+                    assert activeRecoveryHandlersCount == MAX_CONCURRENT_OUTBOUND_RECOVERIES - 1;
+                    nextRecovery = pendingRecoveries.poll();
+                    nextRecovery.shard().recoveryStats().decCurrentQueuedAsSource();
+                    nextHandler = addNewRecovery(nextRecovery.request(), nextRecovery.task(), nextRecovery.shard());
+                } else {
+                    nextHandler = null;
+                    nextRecovery = null;
+                }
+            }
+            if (nextHandler != null) {
+                logger.trace(
+                    "[{}][{}] starting queued recovery to {}",
+                    nextRecovery.request().shardId().getIndex().getName(),
+                    nextRecovery.request().shardId().id(),
+                    nextRecovery.request().targetNode()
+                );
+                nextHandler.recoverToTarget(
+                    ActionListener.runAfter(nextRecovery.listener(), () -> onRecoveryComplete(nextRecovery.shard(), nextHandler))
+                );
+            }
+        }
+
+        synchronized void cancelAllPendingRecoveries() {
+            cancelPendingRecoveries(ignored -> true, "source node is closing");
+        }
+
         synchronized void remove(IndexShard shard, RecoverySourceHandler handler) {
             final ShardRecoveryContext shardRecoveryContext = ongoingRecoveries.get(shard);
             assert shardRecoveryContext != null : "Shard was not registered [" + shard + "]";
             final RemoteRecoveryTargetHandler removed = shardRecoveryContext.recoveryHandlers.remove(handler);
             assert removed != null : "Handler was not registered [" + handler + "]";
             if (removed != null) {
+                activeRecoveryHandlersCount--;
                 shard.recoveryStats().decCurrentAsSource();
                 removed.cancel();
                 assert nodeToHandlers.getOrDefault(removed.targetNode(), Collections.emptySet()).contains(removed)
@@ -265,7 +350,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             if (shardRecoveryContext.recoveryHandlers.isEmpty()) {
                 ongoingRecoveries.remove(shard);
             }
-            if (ongoingRecoveries.isEmpty()) {
+            if (ongoingRecoveries.isEmpty() && pendingRecoveries.isEmpty()) {
                 if (emptyListeners != null) {
                     final List<ActionListener<Void>> onEmptyListeners = emptyListeners;
                     emptyListeners = null;
@@ -289,13 +374,14 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 }
                 ExceptionsHelper.maybeThrowRuntimeAndSuppress(failures);
             }
+            cancelPendingRecoveries(pendingRecovery -> pendingRecovery.shard() == shard, "index shard closed");
         }
 
         void awaitEmpty() {
             assert lifecycle.stoppedOrClosed();
             final PlainActionFuture<Void> future;
             synchronized (this) {
-                if (ongoingRecoveries.isEmpty()) {
+                if (ongoingRecoveries.isEmpty() && pendingRecoveries.isEmpty()) {
                     return;
                 }
                 future = new PlainActionFuture<>();
@@ -306,6 +392,55 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             }
             FutureUtils.get(future);
         }
+
+        // TODO: optimize this?
+        private void ensureNoDuplicateAllocationId(String targetAllocationId) {
+            for (PendingRecovery pending : pendingRecoveries) {
+                if (pending.request().targetAllocationId().equals(targetAllocationId)) {
+                    throw new DelayRecoveryException(
+                        "recovery with same target already registered, waiting for "
+                            + "previous recovery attempt to be cancelled or completed"
+                    );
+                }
+            }
+            for (ShardRecoveryContext ctx : ongoingRecoveries.values()) {
+                for (RecoverySourceHandler h : ctx.recoveryHandlers.keySet()) {
+                    if (h.getRequest().targetAllocationId().equals(targetAllocationId)) {
+                        throw new DelayRecoveryException(
+                            "recovery with same target already registered, waiting for "
+                                + "previous recovery attempt to be cancelled or completed"
+                        );
+                    }
+                }
+            }
+        }
+
+        private void cancelPendingRecoveries(Predicate<PendingRecovery> predicate, String reason) {
+            final List<PendingRecovery> cancelled = new ArrayList<>();
+            pendingRecoveries.removeIf(pendingRecovery -> {
+                if (predicate.test(pendingRecovery)) {
+                    cancelled.add(pendingRecovery);
+                    return true;
+                }
+                return false;
+            });
+            cancelled.forEach(pendingRecovery -> {
+                final String cancellationMsg = Strings.format(
+                    "cancelled pending recovery for shard {}, with target node {}",
+                    pendingRecovery.shard.shardId(),
+                    pendingRecovery.request.targetNode()
+                );
+                pendingRecovery.shard().recoveryStats().decCurrentQueuedAsSource();
+                pendingRecovery.listener().onFailure(new DelayRecoveryException(cancellationMsg + " : " + reason));
+            });
+        }
+
+        private record PendingRecovery(
+            StartRecoveryRequest request,
+            Task task,
+            IndexShard shard,
+            ActionListener<RecoveryResponse> listener
+        ) {}
 
         private final class ShardRecoveryContext {
             final Map<RecoverySourceHandler, RemoteRecoveryTargetHandler> recoveryHandlers = new HashMap<>();
@@ -318,14 +453,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 Task task,
                 IndexShard shard
             ) {
-                for (RecoverySourceHandler existingHandler : recoveryHandlers.keySet()) {
-                    if (existingHandler.getRequest().targetAllocationId().equals(request.targetAllocationId())) {
-                        throw new DelayRecoveryException(
-                            "recovery with same target already registered, waiting for "
-                                + "previous recovery attempt to be cancelled or completed"
-                        );
-                    }
-                }
                 final Tuple<RecoverySourceHandler, RemoteRecoveryTargetHandler> handlers = createRecoverySourceHandler(
                     request,
                     task,

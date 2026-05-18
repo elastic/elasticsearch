@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
 import org.elasticsearch.cluster.ProjectState;
@@ -30,15 +31,15 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class EsqlResolveLocalViewAction extends TransportLocalProjectMetadataAction<
-    EsqlResolveLocalViewAction.Request,
-    EsqlResolveLocalViewAction.Response> {
+public class EsqlHasOriginProjectTargetAction extends TransportLocalProjectMetadataAction<
+    EsqlHasOriginProjectTargetAction.Request,
+    EsqlHasOriginProjectTargetAction.Response> {
 
-    public static final String NAME = "indices:data/read/esql/resolve_local_views";
-    public static final ActionType<EsqlResolveLocalViewAction.Response> TYPE = new ActionType<>(NAME);
+    public static final String NAME = "indices:data/read/esql/has_origin_project_target";
+    public static final ActionType<EsqlHasOriginProjectTargetAction.Response> TYPE = new ActionType<>(NAME);
 
     @Inject
-    public EsqlResolveLocalViewAction(
+    public EsqlHasOriginProjectTargetAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
@@ -54,7 +55,12 @@ public class EsqlResolveLocalViewAction extends TransportLocalProjectMetadataAct
 
     @Override
     protected void localClusterStateOperation(Task task, Request request, ProjectState project, ActionListener<Response> listener) {
-        listener.onResponse(new Response(request.getResolvedTargetProjects().originProject() != null));
+        if (request.getResolvedTargetProjects() == null) {
+            assert false : "request.getResolvedTargetProjects() must be not null";
+            listener.onResponse(new Response(true));
+        } else {
+            listener.onResponse(new Response(request.getResolvedTargetProjects().originProject() != null));
+        }
     }
 
     public static class Request extends LocalClusterStateRequest implements CompositeIndicesRequest, IndicesRequest.CrossProjectCandidate {
@@ -110,7 +116,7 @@ public class EsqlResolveLocalViewAction extends TransportLocalProjectMetadataAct
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeBoolean(resolveLocalViews);
+            TransportAction.localOnly();
         }
     }
 }

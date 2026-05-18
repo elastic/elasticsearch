@@ -65,10 +65,10 @@ import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncStopAction;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlHasOriginProjectTargetAction;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
-import org.elasticsearch.xpack.esql.action.EsqlResolveLocalViewAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
@@ -462,7 +462,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
                 new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
                 new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
-                new ActionHandler(EsqlResolveLocalViewAction.TYPE, EsqlResolveLocalViewAction.class),
+                new ActionHandler(EsqlHasOriginProjectTargetAction.TYPE, EsqlHasOriginProjectTargetAction.class),
                 new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class)
             )
         );

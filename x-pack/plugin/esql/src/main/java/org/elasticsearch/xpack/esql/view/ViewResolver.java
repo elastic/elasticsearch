@@ -26,7 +26,7 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.EsqlResolveLocalViewAction;
+import org.elasticsearch.xpack.esql.action.EsqlHasOriginProjectTargetAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -604,15 +604,13 @@ public class ViewResolver {
     }
 
     protected void doResolveOriginViews(String projectRouting, ActionListener<Boolean> listener) {
-        if (crossProjectModeDecider.crossProjectEnabled() == false
-            || Strings.isNullOrBlank(projectRouting)
-            || Objects.equals(projectRouting, "_alias:_origin")) {
+        if (crossProjectModeDecider.crossProjectEnabled() == false || Strings.isNullOrBlank(projectRouting)) {
             listener.onResponse(true);
         } else {
             client.execute(
-                EsqlResolveLocalViewAction.TYPE,
-                new EsqlResolveLocalViewAction.Request(REST_MASTER_TIMEOUT_DEFAULT, projectRouting),
-                new ThreadedActionListener<>(executor, listener.map(EsqlResolveLocalViewAction.Response::resolveLocalViews))
+                EsqlHasOriginProjectTargetAction.TYPE,
+                new EsqlHasOriginProjectTargetAction.Request(REST_MASTER_TIMEOUT_DEFAULT, projectRouting),
+                new ThreadedActionListener<>(executor, listener.map(EsqlHasOriginProjectTargetAction.Response::resolveLocalViews))
             );
         }
     }

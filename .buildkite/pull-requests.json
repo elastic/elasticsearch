@@ -16,7 +16,7 @@
       "set_commit_status": false,
       "build_on_commit": true,
       "build_on_comment": true,
-      "trigger_comment_regex": "(run\\W+elasticsearch-ci.+)|(^\\s*((buildkite|@elastic(search)?machine)\\s*)?test\\s+this(\\s+please)?)",
+      "trigger_comment_regex": "^(buildkite|@elastic(search)?machine) test this$",
       "cancel_intermediate_builds": true,
       "cancel_intermediate_builds_on_comment": false
     },
@@ -29,11 +29,13 @@
         "admin",
         "write"
       ],
-      "allowed_list": ["elastic-renovate-prod[bot]"],
+      "allowed_list": [
+        "elastic-renovate-prod[bot]"
+      ],
       "set_commit_status": false,
       "build_on_commit": true,
       "build_on_comment": true,
-      "trigger_comment_regex": "(run\\W+elasticsearch-ci.+)|(^\\s*((buildkite|@elastic(search)?machine)\\s*)?test\\s+this(\\s+please)?)",
+      "trigger_comment_regex": "^(buildkite|@elastic(search)?machine) test this$",
       "retrigger_label_regex": "v[0-9]+\\.[0-9]+\\.[0-9]+",
       "cancel_intermediate_builds": true,
       "cancel_intermediate_builds_on_comment": false,

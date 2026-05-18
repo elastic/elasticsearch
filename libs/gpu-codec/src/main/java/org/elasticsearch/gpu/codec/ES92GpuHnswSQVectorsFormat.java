@@ -31,7 +31,11 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_
  * HNSW graph is built on GPU, while scalar quantization and search is performed on CPU.
  */
 public class ES92GpuHnswSQVectorsFormat extends KnnVectorsFormat {
-    public static final String NAME = "Lucene99HnswVectorsFormat";
+    // Must match the format whose fieldsReader correctly reads the scalar-quantized flat data the GPU
+    // writer produces. Writing "Lucene99HnswVectorsFormat" here makes the on-disk segment info resolve
+    // to Lucene's built-in reader, which ignores the quantized vectors and falls back to float32
+    // scoring. See https://github.com/elastic/elasticsearch/issues/148975.
+    public static final String NAME = "ES814HnswScalarQuantizedVectorsFormat";
     static final int MAXIMUM_MAX_CONN = 512;
     static final int MAXIMUM_BEAM_WIDTH = 3200;
     private final int maxConn;

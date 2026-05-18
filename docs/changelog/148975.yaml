@@ -1,0 +1,6 @@
+pr: 148975
+summary: Write the scalar-quantized format name for GPU INT8 SQ vector graphs
+area: Vector Search
+type: bug
+issues:
+ - 148975

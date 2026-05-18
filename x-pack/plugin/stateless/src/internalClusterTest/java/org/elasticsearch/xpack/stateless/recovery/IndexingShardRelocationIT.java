@@ -563,7 +563,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         stopBreakingActions(indexNodeA, indexNodeB);
 
         ensureGreen();
-        // Nodes stats fan-out may fail briefly while mock transport reconnects after disconnect injection
+        // Node stats may fail briefly while mock transport reconnects after disconnect injection
         assertBusy(() -> assertNodeHasNoCurrentRecoveries(indexNodeB));
         // Have to assertBusy here because sometimes the failed IndexShard lingers on indexNodeB
         assertBusy(() -> assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), equalTo((long) numDocs)));

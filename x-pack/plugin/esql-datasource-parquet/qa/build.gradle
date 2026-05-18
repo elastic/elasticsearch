@@ -27,9 +27,6 @@ dependencies {
   // GCS fixture infrastructure for mocking GCS operations
   javaRestTestImplementation project(':test:fixtures:gcs-fixture')
 
-  // S3 datasource provider for discovery tests
-  javaRestTestImplementation project(xpackModule('esql-datasource-s3'))
-  
   // Parquet support - needed for reading test fixtures
   javaRestTestImplementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
   

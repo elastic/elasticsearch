@@ -127,13 +127,15 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 // TODO: only open these for mockito when it is modularized
                 "--add-opens=java.base/java.security.cert=ALL-UNNAMED",
                 "--add-opens=java.base/java.nio.channels=ALL-UNNAMED",
+                // org.apache.arrow.memory.core needs access java.nio internals
+                "--add-opens=java.base/java.nio=ALL-UNNAMED",
                 "--add-opens=java.base/java.net=ALL-UNNAMED",
                 "--add-opens=java.base/javax.net.ssl=ALL-UNNAMED",
                 "--add-opens=java.base/java.nio.file=ALL-UNNAMED",
-                // Needed by UninitializedArrayAllocator to reflectively access jdk.internal.misc.Unsafe
-                "--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED",
                 "--add-opens=java.base/java.time=ALL-UNNAMED",
                 "--add-opens=java.management/java.lang.management=ALL-UNNAMED",
+                // Needed by UninitializedArrays to reflectively access jdk.internal.misc.Unsafe
+                "--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED",
                 "--enable-native-access=ALL-UNNAMED",
                 "--add-modules=jdk.incubator.vector",
                 "-XX:+HeapDumpOnOutOfMemoryError",

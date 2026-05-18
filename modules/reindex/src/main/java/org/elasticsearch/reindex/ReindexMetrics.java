@@ -25,6 +25,7 @@ public class ReindexMetrics {
     public static final String REINDEX_TIME_HISTOGRAM = "es.reindex.duration.histogram";
     public static final String REINDEX_COMPLETION_COUNTER = "es.reindex.completion.total";
     public static final String REINDEX_RELOCATION_COUNTER = "es.reindex.relocation.total";
+    public static final String REINDEX_RELOCATION_STARTED_COUNTER = "es.reindex.relocation.started.total";
 
     // refers to https://opentelemetry.io/docs/specs/semconv/registry/attributes/error/#error-type
     public static final String ATTRIBUTE_NAME_ERROR_TYPE = "error_type";
@@ -38,6 +39,7 @@ public class ReindexMetrics {
     private final LongHistogram reindexTimeSecsHistogram;
     private final LongCounter reindexCompletionCounter;
     private final LongCounter reindexRelocationCounter;
+    private final LongCounter reindexRelocationStartedCounter;
 
     public ReindexMetrics(MeterRegistry meterRegistry) {
         this.reindexTimeSecsHistogram = meterRegistry.registerLongHistogram(REINDEX_TIME_HISTOGRAM, "Time to reindex by search", "seconds");
@@ -49,6 +51,11 @@ public class ReindexMetrics {
         this.reindexRelocationCounter = meterRegistry.registerLongCounter(
             REINDEX_RELOCATION_COUNTER,
             "Number of attempted reindex relocations",
+            "unit"
+        );
+        this.reindexRelocationStartedCounter = meterRegistry.registerLongCounter(
+            REINDEX_RELOCATION_STARTED_COUNTER,
+            "Number of times relocated reindex operations have started",
             "unit"
         );
     }
@@ -95,6 +102,10 @@ public class ReindexMetrics {
         // attribute ATTRIBUTE_ERROR_TYPE being present indicates failure
         final Map<String, Object> attributes = Map.of(ATTRIBUTE_NAME_ERROR_TYPE, e.getClass().getTypeName());
         reindexRelocationCounter.incrementBy(1, attributes);
+    }
+
+    public void recordRelocationStarted() {
+        reindexRelocationStartedCounter.incrementBy(1);
     }
 
     public enum SlicingMode {

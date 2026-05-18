@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -128,7 +129,8 @@ public enum FeatureMetric {
         Aggregate.class, // STATS is managed in another way, see above
         LocalRelation.class, // produced as a short-circuit for empty index patterns (e.g. PROMQL on missing index)
         NamedSubquery.class, // temporary plan node used as part of view resolution, but is removed by Analyzer
-        ViewShadowRelation.class // CPS lenient-lookup marker, stripped by ViewCompactionPostAnalysis after ResolveTable
+        ViewShadowRelation.class, // CPS lenient-lookup marker, stripped by ViewCompactionPostAnalysis after ResolveTable
+        TimeSeriesCollapse.class // TS_COLLAPSE is rolled into the PROMQL counter via the wrapped PromqlCommand below it
     );
 
     private Predicate<LogicalPlan> planCheck;

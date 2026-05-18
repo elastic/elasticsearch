@@ -1105,6 +1105,7 @@ time:datetime            | count:long
 
 isNotNullFilter
 required_capability: ts_command_v0
+required_capability: count_of_histogram_types
 required_capability: fix_histogram_blockloaders_isnull
 
 TS exp_histo_sample

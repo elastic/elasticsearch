@@ -44,6 +44,7 @@ This page lists the {{es}} index settings available in {{serverless-full}} proje
 * [`index.mapping.synthetic_source_keep`](../mapping-reference/mapping-source-field.md)
 * [`index.mapping.total_fields.limit`](./mapping-limit.md#total-fields-limit)
 * [`index.mapping.total_fields.ignore_dynamic_beyond_limit`](./mapping-limit.md#ignore-dynamic-beyond-limit)
+* [`index.mapping.tokens_per_field.limit`](./mapping-limit.md#tokens-per-field-limit)
 
 ### Data stream lifecycle settings
 

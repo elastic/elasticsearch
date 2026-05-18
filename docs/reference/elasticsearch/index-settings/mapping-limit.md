@@ -200,6 +200,10 @@ $$$ignore-dynamic-beyond-limit$$$
 `index.mapping.array_objects.limit` {applies_to}`stack: ga 9.5`
 :   The maximum cumulative number of JSON object elements that a single document can contain across all arrays. The count spans every nested and sibling array, so splitting a payload across multiple arrays cannot bypass the limit. This setting guards against "poison documents" whose arrays contain a very large number of objects, which can cause excessive memory consumption during parsing and dynamic mapping materialization. The limit is enforced on the document source at parse time, before mapping is applied: it counts JSON object elements inside arrays, not mappers, and applies whether the surrounding array is mapped (for example as `object` or `nested`) or unmapped. Field types that consume an entire array as a single value (for example `completion`) are not affected. Default is `20000`. The minimum value is `1`. To effectively disable the limit, set it to `9223372036854775807` (`Long.MAX_VALUE`).
 
+$$$tokens-per-field-limit$$$
+`index.mapping.tokens_per_field.limit` {applies_to}`stack: ga 9.5` {applies_to}`serverless: all`
+:   The maximum number of tokens that can be produced for any single field value when indexing a document. This protects against out-of-memory errors when Lucene's analysis phase produces an excessive number of tokens (for example, large text fields with n-gram analyzers). When the limit is exceeded, the document is rejected with a `400` error. For multi-value fields, the limit applies independently to each value. Default is `-1` (no limit).
+
 `index.mapping.field_name_length.limit`
 :   Setting for the maximum length of a field name. This setting isn’t really something that addresses mappings explosion but might still be useful if you want to limit the field length. It usually shouldn’t be necessary to set this setting. The default is okay unless a user starts to add a huge number of fields with really long names. Default is `Long.MAX_VALUE` (no limit).
 

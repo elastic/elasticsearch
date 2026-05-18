@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -24,12 +25,16 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 
 /**
  * Similar to {@link Avg}, but it is used to calculate the average value over a time series of values from the given field.
@@ -37,8 +42,8 @@ import static java.util.Collections.emptyList;
 public class AvgOverTime extends TimeSeriesAggregateFunction
     implements
         OptionalArgument,
-        AggregateMetricDoubleNativeSupport,
-        SurrogateExpression {
+        SurrogateExpression,
+        AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "AvgOverTime",
@@ -46,6 +51,11 @@ public class AvgOverTime extends TimeSeriesAggregateFunction
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(AvgOverTime.class)
         .binary(AvgOverTime::new)
+        .name("avg_over_time");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .withinSeriesOverTime(AvgOverTime::new)
+        .description("Returns the average value of all points in the specified time range.")
+        .example("avg_over_time(http_requests_total[5m])")
         .name("avg_over_time");
 
     @FunctionInfo(
@@ -114,7 +124,15 @@ public class AvgOverTime extends TimeSeriesAggregateFunction
 
     @Override
     public Expression surrogate() {
-        return perTimeSeriesAggregation();
+        if (field().dataType() == EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
+            var mergeOverTime = new DeltaOnlyHistogramMergeOverTime(source(), field(), filter(), window());
+            return new Div(
+                source(),
+                ExtractHistogramComponent.create(source(), mergeOverTime, HistogramBlock.Component.SUM),
+                ExtractHistogramComponent.create(source(), mergeOverTime, HistogramBlock.Component.COUNT)
+            );
+        }
+        return null;
     }
 
     @Override

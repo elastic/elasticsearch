@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sparkline;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -45,10 +46,12 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
     );
     private static final TransportVersion TIME_SERIES_AGGREGATE_TIMESTAMP = TransportVersion.fromName("time_series_aggregate_timestamp");
     public static final TransportVersion TIME_SERIES_OUTPUT_BUCKET = TransportVersion.fromName("time_series_output_bucket");
+    private static final TransportVersion TIME_SERIES_AGGREGATE_COLLAPSED = TransportVersion.fromName("time_series_aggregate_collapsed");
 
     private final Bucket timeBucket;
     private final Bucket outputTimeBucket;
     private final Expression timestamp;
+    private final boolean collapsed;
 
     public TimeSeriesAggregate(
         Source source,
@@ -58,7 +61,19 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         Bucket timeBucket,
         Expression timestamp
     ) {
-        this(source, child, groupings, aggregates, timeBucket, timeBucket, timestamp);
+        this(source, child, groupings, aggregates, timeBucket, timeBucket, timestamp, false);
+    }
+
+    public TimeSeriesAggregate(
+        Source source,
+        LogicalPlan child,
+        List<Expression> groupings,
+        List<? extends NamedExpression> aggregates,
+        Bucket timeBucket,
+        Expression timestamp,
+        boolean collapsed
+    ) {
+        this(source, child, groupings, aggregates, timeBucket, timeBucket, timestamp, collapsed);
     }
 
     public TimeSeriesAggregate(
@@ -68,12 +83,14 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         List<? extends NamedExpression> aggregates,
         Bucket timeBucket,
         Bucket outputTimeBucket,
-        Expression timestamp
+        Expression timestamp,
+        boolean collapsed
     ) {
         super(source, child, groupings, aggregates);
         this.timeBucket = timeBucket;
         this.outputTimeBucket = outputTimeBucket;
         this.timestamp = timestamp;
+        this.collapsed = collapsed;
     }
 
     public TimeSeriesAggregate(StreamInput in) throws IOException {
@@ -89,6 +106,11 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         } else {
             this.outputTimeBucket = this.timeBucket;
         }
+        if (in.getTransportVersion().supports(TIME_SERIES_AGGREGATE_COLLAPSED)) {
+            this.collapsed = in.readBoolean();
+        } else {
+            this.collapsed = false;
+        }
     }
 
     @Override
@@ -101,6 +123,9 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         if (out.getTransportVersion().supports(TIME_SERIES_OUTPUT_BUCKET)) {
             out.writeOptionalWriteable(outputTimeBucket);
         }
+        if (out.getTransportVersion().supports(TIME_SERIES_AGGREGATE_COLLAPSED)) {
+            out.writeBoolean(collapsed);
+        }
     }
 
     @Override
@@ -110,24 +135,38 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
 
     @Override
     protected NodeInfo<Aggregate> info() {
-        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket, outputTimeBucket, timestamp);
+        return NodeInfo.create(
+            this,
+            TimeSeriesAggregate::new,
+            child(),
+            groupings,
+            aggregates,
+            timeBucket,
+            outputTimeBucket,
+            timestamp,
+            collapsed
+        );
     }
 
     @Override
     public TimeSeriesAggregate replaceChild(LogicalPlan newChild) {
-        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket, outputTimeBucket, timestamp);
+        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket, outputTimeBucket, timestamp, collapsed);
     }
 
     @Override
     public TimeSeriesAggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
-        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, outputTimeBucket, timestamp);
+        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, outputTimeBucket, timestamp, collapsed);
     }
 
     public LogicalPlan withTimestamp(Expression newTimestamp) {
         if (newTimestamp.equals(timestamp)) {
             return this;
         }
-        return new TimeSeriesAggregate(source(), child(), groupings, aggregates, timeBucket, outputTimeBucket, newTimestamp);
+        return new TimeSeriesAggregate(source(), child(), groupings, aggregates, timeBucket, outputTimeBucket, newTimestamp, collapsed);
+    }
+
+    public boolean isCollapsed() {
+        return collapsed;
     }
 
     @Override
@@ -155,7 +194,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
 
     @Override
     public int hashCode() {
-        return Objects.hash(groupings, aggregates, child(), timeBucket, outputTimeBucket, timestamp);
+        return Objects.hash(groupings, aggregates, child(), timeBucket, outputTimeBucket, timestamp, collapsed);
     }
 
     @Override
@@ -174,7 +213,8 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             && Objects.equals(child(), other.child())
             && Objects.equals(timeBucket, other.timeBucket)
             && Objects.equals(outputTimeBucket, other.outputTimeBucket)
-            && Objects.equals(timestamp, other.timestamp);
+            && Objects.equals(timestamp, other.timestamp)
+            && collapsed == other.collapsed;
     }
 
     @Override
@@ -288,6 +328,10 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
                         fail(count, "count_star [{}] can't be used with TS command; use count on a field instead", outer.sourceText())
                     );
                     // reject COUNT(keyword), but allow COUNT(numeric)
+                }
+                // reject `TS metrics | STATS SPARKLINE(...)`
+                if (outer instanceof Sparkline sparkline) {
+                    failures.add(fail(sparkline, "sparkline [{}] can't be used with TS command", sparkline.sourceText()));
                 }
                 outer.field().forEachDown(AggregateFunction.class, nested -> {
                     if (nested instanceof TimeSeriesAggregateFunction == false) {

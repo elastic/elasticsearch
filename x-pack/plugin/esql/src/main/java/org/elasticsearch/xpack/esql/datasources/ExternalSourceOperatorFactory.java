@@ -42,7 +42,16 @@ import java.util.List;
  *   <li>Use FormatReader to parse the data format</li>
  *   <li>Produce ESQL Page batches for the query pipeline</li>
  * </ul>
+ *
+ * <p><b>Single-file only; no production callers.</b> Takes one {@link StoragePath} and lets the
+ * reader self-infer the file's schema; multi-file paths must go through
+ * {@link AsyncExternalSourceOperatorFactory}, which pins each reader to the per-file schema
+ * carried by its {@link FileSplit}.
+ *
+ * @deprecated retained for test fixtures only; new code should use
+ *             {@link AsyncExternalSourceOperatorFactory}.
  */
+@Deprecated
 public class ExternalSourceOperatorFactory implements SourceOperator.SourceOperatorFactory {
 
     private final StorageProvider storageProvider;
@@ -291,13 +300,9 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         private CloseableIterator<Page> openFileSplit(ExternalSplit split) throws IOException {
             if (split instanceof FileSplit fileSplit) {
                 currentSplitPath = fileSplit.path();
-                StorageObject obj = storageProvider.newObject(fileSplit.path(), fileSplit.length());
-                boolean firstSplit = true;
+                StorageObject obj = FileSplitProvider.storageObjectForSplit(storageProvider, fileSplit);
+                boolean firstSplit = fileSplit.offset() == 0 || "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
                 boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
-                if (fileSplit.offset() > 0) {
-                    obj = new RangeStorageObject(obj, fileSplit.offset(), fileSplit.length());
-                    firstSplit = "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
-                }
 
                 SchemaReconciliation.ColumnMapping columnMapping = fileSplit.columnMapping();
                 List<String> effectiveProjection = projectedColumns;
@@ -316,6 +321,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                     .rowLimit(FormatReader.NO_LIMIT)
                     .firstSplit(firstSplit)
                     .lastSplit(lastSplit)
+                    .recordAligned(FileSplitProvider.isRecordAlignedMacroSplit(fileSplit))
                     .build();
                 CloseableIterator<Page> pages = formatReader.read(obj, ctx);
 

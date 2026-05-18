@@ -14,7 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.IndexReader;
@@ -36,7 +35,6 @@ import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -46,10 +44,13 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.RoundToLongsFromDocValuesBlockLoader;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.SortedNumericDocValuesRangeQuery;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
@@ -258,13 +259,13 @@ public final class DateFieldMapper extends FieldMapper {
     public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
         true,
         DocValuesParameter.Values.Cardinality.LOW,
-        DocValuesParameter.Values.MultiValue.SORTED
+        true
     );
 
     public static final class Builder extends FieldMapper.Builder {
 
-        private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).indexed, true);
-        private final DocValuesParameter docValuesParameters = DocValuesParameter.sorted(
+        private final Parameter<Boolean> index;
+        private final DocValuesParameter docValuesParameters = DocValuesParameter.of(
             DEFAULT_DOC_VALUES_PARAMS,
             m -> toType(m).docValuesParameters()
         );
@@ -306,6 +307,7 @@ public final class DateFieldMapper extends FieldMapper {
             IndexSettings indexSettings
         ) {
             super(name);
+            this.index = Parameter.indexParam(m -> toType(m).indexed, indexSettings.isIndexDisabledByDefault() == false);
             this.resolution = resolution;
             this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
@@ -686,11 +688,11 @@ public final class DateFieldMapper extends FieldMapper {
                     if (indexType.hasPoints()) {
                         query = LongPoint.newRangeQuery(name(), l, u);
                         if (hasDocValues()) {
-                            Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                            Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u);
                             query = new IndexOrDocValuesQuery(query, dvQuery);
                         }
                     } else {
-                        query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                        query = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u);
                     }
                     if (hasDocValues() && context.indexSortedOnField(name())) {
                         query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
@@ -803,11 +805,11 @@ public final class DateFieldMapper extends FieldMapper {
             if (indexType.hasPoints()) {
                 query = LongPoint.newRangeQuery(name(), l, u);
                 if (hasDocValues()) {
-                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                    Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u);
                     query = new IndexOrDocValuesQuery(query, dvQuery);
                 }
             } else {
-                query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                query = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u);
             }
             if (hasDocValues() && context.indexSortedOnField(name())) {
                 query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
@@ -948,7 +950,21 @@ public final class DateFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
-                return new LongsBlockLoader(name());
+                BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
+                if (cfg == null) {
+                    return new LongsBlockLoader(name());
+                }
+                return switch (cfg.function()) {
+                    case ROUND_TO -> new RoundToLongsFromDocValuesBlockLoader(
+                        name(),
+                        ((BlockLoaderFunctionConfig.RoundToLongs) cfg).points()
+                    );
+                    default -> throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
+                };
+            }
+            // supportsBlockLoaderConfig gates which configs are accepted, so reaching here means a programming error
+            if (blContext.blockLoaderFunctionConfig() != null) {
+                throw new UnsupportedOperationException("function fusing only supported for doc values");
             }
 
             // Multi fields don't have fallback synthetic source.
@@ -971,6 +987,17 @@ public final class DateFieldMapper extends FieldMapper {
                 sourceValueFetcher(blContext.sourcePaths(name()), blContext.indexSettings()),
                 lookup
             );
+        }
+
+        @Override
+        public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
+            if (hasDocValues()) {
+                return switch (config.function()) {
+                    case ROUND_TO -> indexType.hasDocValuesSkipper();
+                    default -> false;
+                };
+            }
+            return false;
         }
 
         private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
@@ -1075,6 +1102,7 @@ public final class DateFieldMapper extends FieldMapper {
     private final boolean store;
     private final boolean indexed;
     private final DocValuesParameter.Values docValuesParameters;
+    private final DocValuesFieldFactory dvFactory;
     private final Locale locale;
     private final String format;
     private final boolean ignoreMalformed;
@@ -1103,6 +1131,11 @@ public final class DateFieldMapper extends FieldMapper {
         this.store = builder.store.getValue();
         this.indexed = builder.index.getValue();
         this.docValuesParameters = builder.docValuesParameters.getValue();
+        this.dvFactory = new DocValuesFieldFactory(
+            docValuesParameters.multiValue(),
+            ((DateFieldType) mappedFieldType).hasDocValuesSkipper(),
+            builder.indexSettings.getIndexVersionCreated()
+        );
         this.locale = builder.locale.getValue();
         this.format = builder.format.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
@@ -1122,8 +1155,8 @@ public final class DateFieldMapper extends FieldMapper {
      * <p>
      * The doc values skipper is enabled only if {@code index.mapping.use_doc_values_skipper} is set to {@code true},
      * the index was created on or after {@link IndexVersions#SKIPPERS_ENABLED_BY_DEFAULT}, and the
-     * field has doc values enabled. Additionally, the index mode must be {@link IndexMode#LOGSDB} or {@link IndexMode#TIME_SERIES}, and
-     * the index sorting configuration must include the {@code @timestamp} field.
+     * field has doc values enabled. Additionally, the index mode must be columnar, and the index sorting
+     * configuration must include the {@code @timestamp} field.
      *
      * @param indexSettings  The index settings of the parent index
      * @param hasDocValues   Whether the field has doc values enabled.
@@ -1133,7 +1166,7 @@ public final class DateFieldMapper extends FieldMapper {
     private static boolean shouldUseDocValuesSkipper(IndexSettings indexSettings, boolean hasDocValues, final String fullFieldName) {
         return indexSettings.useDocValuesSkipper()
             && hasDocValues
-            && (IndexMode.LOGSDB.equals(indexSettings.getMode()) || IndexMode.TIME_SERIES.equals(indexSettings.getMode()))
+            && indexSettings.getMode().isColumnar()
             && indexSettings.getIndexSortConfig() != null
             && indexSettings.getIndexSortConfig().hasSortOnField(fullFieldName)
             && DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(fullFieldName);
@@ -1149,6 +1182,11 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean isSingleValueEnforced() {
+        return docValuesParameters.multiValue() == false;
+    }
+
+    @Override
     public DateFieldType fieldType() {
         return (DateFieldType) super.fieldType();
     }
@@ -1156,6 +1194,18 @@ public final class DateFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return fieldType().resolution.type();
+    }
+
+    @Override
+    public boolean supportsBatchIndexing() {
+        // Plain date mappers can be driven through parseCreateField by the bulk batch path.
+        // Excludes: scripts, copy_to, multi-fields, and the data-stream @timestamp field
+        // (which has an additional side effect in indexValue that the v1 batch path does
+        // not handle).
+        return hasScript() == false
+            && copyTo().copyToFields().isEmpty()
+            && multiFields().iterator().hasNext() == false
+            && isDataStreamTimestampField == false;
     }
 
     @Override
@@ -1233,11 +1283,16 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         if (fieldType().hasDocValuesSkipper()) {
-            context.doc().add(SortedNumericDocValuesField.indexedField(fieldType().name(), timestamp));
+            dvFactory.addNumericField(context.doc(), fieldType().name(), timestamp);
         } else if (indexed && docValuesParameters.enabled()) {
-            context.doc().add(new LongField(fieldType().name(), timestamp, Field.Store.NO));
+            context.doc()
+                .add(
+                    docValuesParameters.multiValue()
+                        ? new LongField(fieldType().name(), timestamp, Field.Store.NO)
+                        : new SingleValuedLongField(fieldType().name(), timestamp)
+                );
         } else if (docValuesParameters.enabled()) {
-            context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
+            dvFactory.addNumericField(context.doc(), fieldType().name(), timestamp);
         } else if (indexed) {
             context.doc().add(new LongPoint(fieldType().name(), timestamp));
         }

@@ -15,7 +15,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V6;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V7;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL;
@@ -46,14 +46,18 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
 
     @Override
     protected void doTest() throws Throwable {
-        String query = testCase.query + " | FORK (WHERE true) (WHERE true) | LIMIT 300 | WHERE _fork == \"fork1\" | DROP _fork";
+        // we add a LIMIT in one of the branches, so we prevent the filter pushdown that would end up removing one of the branches.
+        String query = testCase.query + " | FORK (WHERE true | LIMIT 300) (WHERE true) | LIMIT 300 | WHERE _fork == \"fork1\" | DROP _fork";
         doTest(query);
     }
 
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
+        shouldSkipForkTest(testCase);
+    }
 
+    static void shouldSkipForkTest(CsvSpecReader.CsvTestCase testCase) {
         assumeFalse(
             "Tests using FORK are skipped since we don't support multiple FORKs",
             testCase.requiredCapabilities.contains(FORK_V9.capabilityName())
@@ -92,7 +96,7 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
 
         assumeFalse(
             "Tests using query approximation are skipped since query approximation is not supported with FORK",
-            testCase.requiredCapabilities.contains(APPROXIMATION_V6.capabilityName())
+            testCase.requiredCapabilities.contains(APPROXIMATION_V7.capabilityName())
         );
 
         assumeFalse(

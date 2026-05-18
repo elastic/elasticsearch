@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
@@ -24,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -35,11 +35,7 @@ import static java.util.Collections.emptyList;
 /**
  * Similar to {@link Present}, but it is used to check the presence of values over a time series in the given field.
  */
-public class PresentOverTime extends TimeSeriesAggregateFunction
-    implements
-        AggregateMetricDoubleNativeSupport,
-        SurrogateExpression,
-        ToAggregator {
+public class PresentOverTime extends TimeSeriesAggregateFunction implements AggregateMetricDoubleNativeSupport, ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "PresentOverTime",
@@ -47,6 +43,12 @@ public class PresentOverTime extends TimeSeriesAggregateFunction
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(PresentOverTime.class)
         .binary(PresentOverTime::new)
+        .name("present_over_time");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .withinSeriesOverTime(PresentOverTime::new)
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .description("Returns 1 if the range vector has any elements, otherwise returns an empty vector.")
+        .example("present_over_time(http_requests_total[5m])")
         .name("present_over_time");
 
     @FunctionInfo(
@@ -133,11 +135,6 @@ public class PresentOverTime extends TimeSeriesAggregateFunction
     @Override
     public DataType dataType() {
         return perTimeSeriesAggregation().dataType();
-    }
-
-    @Override
-    public Expression surrogate() {
-        return perTimeSeriesAggregation();
     }
 
     @Override

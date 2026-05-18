@@ -23,8 +23,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.injection.guice.Inject;
@@ -66,7 +66,9 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         TransportService transportService,
         ReindexSslConfig sslConfig,
         @Nullable ReindexMetrics reindexMetrics,
+        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
         ReindexRelocationNodePicker relocationNodePicker,
+        ReindexSettings reindexSettings,
         FeatureService featureService,
         TaskResultsService taskResultsService
     ) {
@@ -84,7 +86,9 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             transportService,
             sslConfig,
             reindexMetrics,
+            bulkByScrollSearchContextMetrics,
             relocationNodePicker,
+            reindexSettings,
             featureService,
             taskResultsService
         );
@@ -104,7 +108,9 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         TransportService transportService,
         ReindexSslConfig sslConfig,
         @Nullable ReindexMetrics reindexMetrics,
+        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
         ReindexRelocationNodePicker relocationNodePicker,
+        ReindexSettings reindexSettings,
         FeatureService featureService,
         TaskResultsService taskResultsService
     ) {
@@ -119,12 +125,14 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         );
         this.reindexer = new Reindexer(
             clusterService,
+            reindexSettings,
             projectResolver,
             client,
             threadPool,
             scriptService,
             sslConfig,
             reindexMetrics,
+            bulkByScrollSearchContextMetrics,
             transportService,
             relocationNodePicker,
             featureService,
@@ -136,11 +144,11 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
         validate(request);
         normalize(request);
-        BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
+        BulkByPaginatedSearchTask bulkByPaginatedSearchTask = (BulkByPaginatedSearchTask) task;
         reindexer.initTask(
-            bulkByScrollTask,
+            bulkByPaginatedSearchTask,
             request,
-            listener.delegateFailure((l, v) -> reindexer.execute(bulkByScrollTask, request, getBulkClient(), l))
+            listener.delegateFailure((l, v) -> reindexer.execute(bulkByPaginatedSearchTask, request, getBulkClient(), l))
         );
     }
 

@@ -74,6 +74,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Settings destIndexSettings;
     private final BooleanSupplier hasLinkedProjects;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportUpdateTransformAction(
@@ -109,13 +110,14 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
         this.hasLinkedProjects = () -> transformServices.hasLinkedProjects().apply(projectResolver.getProjectId());
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState clusterState = clusterService.state();
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
-        if (TransformMetadata.upgradeMode(clusterState)) {
+        if (TransformMetadata.isUpgradeMode(clusterState)) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Cannot update any Transform while the Transform feature is upgrading.",
@@ -185,7 +187,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                         if (updateChangesSettings || updateChangesHeaders || updateChangesDestIndex || updateFrequency) {
                             PersistentTasksCustomMetadata.PersistentTask<?> transformTask = TransformTask.getTransformTask(
                                 request.getId(),
-                                clusterState
+                                projectResolver.getProjectMetadata(clusterState)
                             );
 
                             // to send a request to apply new settings at runtime, several requirements must be met:

@@ -99,6 +99,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -158,9 +159,11 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
+import org.hamcrest.TypeSafeMatcher;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -171,7 +174,6 @@ import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 import org.junit.rules.TestWatcher;
-import org.junit.runner.Description;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -232,10 +234,9 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.startsWith;
@@ -307,7 +308,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
         setTestSysProps(random);
         // TODO: consolidate logging initialization for tests so it all occurs in logconfigurator
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
         MockLog.init();
 
@@ -622,6 +622,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     @Before
     public final void before() {
         LeakTracker.setContextHint(getTestName());
+        LeakTracker.installTestLeakCollector();
         logger.info("{}before test", getTestParamsForLogging());
         assertNull("Thread context initialized twice", threadContext);
         if (enableWarningsCheck()) {
@@ -655,6 +656,28 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Asserts that no {@link LeakTracker}-tracked resources remain open at end of test.
+     * Declared before {@link #after()} so that under JUnit 4's reverse-declaration ordering it executes after
+     * {@link #after()}, giving {@link #after()} a chance to complete first.
+     * <p>
+     * Resources released in a subclass {@code @After} are already deregistered from the collector before this fires,
+     * because JUnit 4 runs subclass {@code @After} methods before superclass ones.
+     * <p>
+     * Resources closed on background threads (e.g. async release) are handled by retrying the check for up to
+     * 10 seconds via {@code assertBusy}; only resources that remain open after the full wait are reported as leaks.
+     * If a test intentionally leaves tracked resources open (e.g. to exercise GC-based detection), call
+     * {@link LeakTracker#clearTestLeakCollector()} before the test method returns.
+     */
+    @After
+    public final void verifyNoOutstandingLeakTrackerLeaks() throws Exception {
+        try {
+            assertBusy(LeakTracker::assertNoLeaks, 10, TimeUnit.SECONDS);
+        } finally {
+            LeakTracker.clearTestLeakCollector();
+        }
+    }
+
+    /**
      * Whether or not we check after each test whether it has left warnings behind. That happens if any deprecated feature or syntax
      * was used by the test and the test didn't assert on it using {@link #assertWarnings(String...)}.
      */
@@ -662,14 +685,21 @@ public abstract class ESTestCase extends LuceneTestCase {
         return true;
     }
 
-    protected boolean enableBigArraysReleasedCheck() {
+    protected boolean enableArraysReleasedCheck() {
+        return true;
+    }
+
+    protected boolean enableAllPagesReleasedCheck() {
         return true;
     }
 
     @After
     public final void after() throws Exception {
-        if (enableBigArraysReleasedCheck()) {
+        if (enableArraysReleasedCheck()) {
             MockBigArrays.ensureAllArraysAreReleased();
+        }
+        if (enableAllPagesReleasedCheck()) {
+            MockPageCacheRecycler.ensureAllPagesAreReleased();
         }
         checkStaticState();
         // We check threadContext != null rather than enableWarningsCheck()
@@ -851,11 +881,16 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     // Tolerate the absence or otherwise denial of these specific lookup classes.
     // At some future time, we should require the JDNI warning.
-    private static final List<String> LOG_4J_MSG_PREFIXES = List.of(
-        "JNDI lookup class is not available because this JRE does not support JNDI. "
-            + "JNDI string lookups will not be available, continuing configuration.",
-        "JMX runtime input lookup class is not available because this JRE does not support JMX. "
-            + "JMX lookups will not be available, continuing configuration. "
+    private static final Matcher<String> LOG_4J_MSG_PREFIXES = anyOf(
+        startsWith(
+            "JNDI lookup class is not available because this JRE does not support JNDI. "
+                + "JNDI string lookups will not be available, continuing configuration."
+        ),
+        startsWith(
+            "JMX runtime input lookup class is not available because this JRE does not support JMX. "
+                + "JMX lookups will not be available, continuing configuration. "
+        ),
+        startsWith("No Root logger was configured, creating default ERROR-level Root logger with Console appender")
     );
 
     // separate method so that this can be checked again after suite scoped cluster is shut down
@@ -864,16 +899,25 @@ public abstract class ESTestCase extends LuceneTestCase {
         assertThat(StatusLogger.getLogger().getLevel(), equalTo(Level.WARN));
         synchronized (statusData) {
             try {
-                // ensure that there are no status logger messages which would indicate a problem with our Log4j usage; we map the
-                // StatusData instances to Strings as otherwise their toString output is useless
-                assertThat(
-                    statusData.stream().map(status -> status.getMessage().getFormattedMessage()).collect(Collectors.toList()),
-                    anyOf(
-                        emptyCollectionOf(String.class),
-                        contains(startsWith(LOG_4J_MSG_PREFIXES.get(0)), startsWith(LOG_4J_MSG_PREFIXES.get(1))),
-                        contains(startsWith(LOG_4J_MSG_PREFIXES.get(1)))
-                    )
-                );
+                // ensure that there are no status logger messages which would indicate a problem with our Log4j usage;
+                assertThat(statusData, everyItem(new TypeSafeMatcher<StatusData>() {
+                    @Override
+                    protected boolean matchesSafely(StatusData item) {
+                        return LOG_4J_MSG_PREFIXES.matches(item.getMessage().getFormattedMessage());
+                    }
+
+                    @Override
+                    public void describeTo(Description description) {
+                        LOG_4J_MSG_PREFIXES.describeTo(description);
+                    }
+
+                    @Override
+                    protected void describeMismatchSafely(StatusData item, Description mismatchDescription) {
+                        // make sure we see log4j exceptions in case of issues
+                        mismatchDescription.appendText("was ").appendValue(item.getFormattedStatus());
+                    }
+                }));
+
             } finally {
                 // we clear the list so that status data from other tests do not interfere with tests within the same JVM
                 statusData.clear();
@@ -3227,7 +3271,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     @Rule
     public final TestWatcher previousFailureSkipsRemainingRule = new TestWatcher() {
         @Override
-        protected void failed(Throwable e, Description description) {
+        protected void failed(Throwable e, org.junit.runner.Description description) {
             previousFailureSkipsRemaining = shouldFailureSkipRemainingTests();
         }
     };

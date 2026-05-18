@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.util.List;
@@ -28,10 +30,15 @@ import java.util.List;
 /**
  * Similar to {@link Percentile}, but it is used to calculate the percentile value over a time series of values from the given field.
  */
-public class PercentileOverTime extends TimeSeriesAggregateFunction implements OnlySurrogateExpression, ToAggregator {
+public class PercentileOverTime extends TimeSeriesAggregateFunction implements SurrogateExpression, ToAggregator {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(PercentileOverTime.class)
         .binary(PercentileOverTime::new)
         .name("percentile_over_time");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .withinSeriesOverTimeBinary(PromqlFunctionDefinition.QUANTILE, PercentileOverTime::new)
+        .description("Returns the φ-quantile (0 ≤ φ ≤ 1) of the values in the specified time range.")
+        .example("quantile_over_time(0.5, http_requests_total[1h])")
+        .name("quantile_over_time");
 
     @FunctionInfo(
         returnType = "double",
@@ -91,13 +98,20 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction implements O
     }
 
     @Override
-    public Expression surrogate() {
-        return perTimeSeriesAggregation();
+    public AggregatorFunctionSupplier supplier() {
+        return ((ToAggregator) perTimeSeriesAggregation()).supplier();
     }
 
     @Override
-    public AggregatorFunctionSupplier supplier() {
-        return ((ToAggregator) perTimeSeriesAggregation()).supplier();
+    public Expression surrogate() {
+        if (field().dataType() == DataType.EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
+            return new HistogramPercentile(
+                source(),
+                new DeltaOnlyHistogramMergeOverTime(source(), field(), filter(), window()),
+                children().get(3)
+            );
+        }
+        return null;
     }
 
     @Override

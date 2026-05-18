@@ -12,42 +12,23 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockResponse;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.fireworksai.completion.FireworksAiChatCompletionModel;
-import org.elasticsearch.xpack.inference.services.fireworksai.completion.FireworksAiChatCompletionServiceSettings;
-import org.elasticsearch.xpack.inference.services.fireworksai.completion.FireworksAiChatCompletionTaskSettings;
+import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.fireworksai.embeddings.FireworksAiEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.fireworksai.embeddings.FireworksAiEmbeddingsServiceSettings;
-import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.net.URI;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,129 +40,14 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
-import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
+import static org.elasticsearch.xpack.inference.services.fireworksai.FireworksAiServiceParameterizedTestConfiguration.createInternalChatCompletionModel;
+import static org.elasticsearch.xpack.inference.services.fireworksai.FireworksAiServiceParameterizedTestConfiguration.createInternalEmbeddingModel;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.core.Is.is;
-import static org.mockito.Mockito.mock;
 
-public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
-
-    private static final String MODEL = "model";
-    private static final SimilarityMeasure SIMILARITY = SimilarityMeasure.DOT_PRODUCT;
-    private static final int DIMENSIONS = 100;
-    private static final String SECRET = "secret";
-    private static final String INFERENCE_ID = "id";
-    private static final String DEFAULT_URL = "https://api.fireworks.ai/inference/v1/embeddings";
-
-    public FireworksAiServiceTests() {
-        super(createTestConfiguration());
-    }
-
-    public static TestConfiguration createTestConfiguration() {
-        return new TestConfiguration.Builder(
-            new CommonConfig(
-                TaskType.TEXT_EMBEDDING,
-                TaskType.RERANK,
-                EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION)
-            ) {
-                @Override
-                protected FireworksAiService createService(ThreadPool threadPool, HttpClientManager clientManager) {
-                    return FireworksAiServiceTests.createService(threadPool, clientManager);
-                }
-
-                @Override
-                protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
-                    return createServiceSettingsMap(taskType, ConfigurationParseContext.REQUEST);
-                }
-
-                @Override
-                protected ModelConfigurations createModelConfigurations(TaskType taskType) {
-                    return switch (taskType) {
-                        case TEXT_EMBEDDING -> new ModelConfigurations(
-                            "some_inference_id",
-                            taskType,
-                            FireworksAiService.NAME,
-                            FireworksAiEmbeddingsServiceSettings.fromMap(
-                                createServiceSettingsMap(taskType, ConfigurationParseContext.PERSISTENT),
-                                ConfigurationParseContext.PERSISTENT
-                            ),
-                            EmptyTaskSettings.INSTANCE
-                        );
-                        case COMPLETION, CHAT_COMPLETION -> new ModelConfigurations(
-                            "some_inference_id",
-                            taskType,
-                            FireworksAiService.NAME,
-                            FireworksAiChatCompletionServiceSettings.fromMap(
-                                createServiceSettingsMap(taskType, ConfigurationParseContext.PERSISTENT),
-                                ConfigurationParseContext.PERSISTENT
-                            ),
-                            new FireworksAiChatCompletionTaskSettings((String) null, null)
-                        );
-                        case RERANK -> new ModelConfigurations(
-                            "some_inference_id",
-                            taskType,
-                            FireworksAiService.NAME,
-                            mock(ServiceSettings.class),
-                            EmptyTaskSettings.INSTANCE
-                        );
-                        default -> throw new IllegalStateException("Unexpected value: " + taskType);
-                    };
-                }
-
-                @Override
-                protected ModelSecrets createModelSecrets() {
-                    return new ModelSecrets(DefaultSecretSettings.fromMap(createSecretSettingsMap()));
-                }
-
-                @Override
-                protected Map<String, Object> createServiceSettingsMap(TaskType taskType, ConfigurationParseContext parseContext) {
-                    return FireworksAiServiceTests.createServiceSettingsMap(taskType, parseContext);
-                }
-
-                @Override
-                protected Map<String, Object> createTaskSettingsMap() {
-                    return new HashMap<>();
-                }
-
-                @Override
-                protected Map<String, Object> createSecretSettingsMap() {
-                    return getSecretSettingsMap(SECRET);
-                }
-
-                @Override
-                protected void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
-                    FireworksAiServiceTests.assertModel(model, taskType, modelIncludesSecrets);
-                }
-
-                @Override
-                protected EnumSet<TaskType> supportedStreamingTasks() {
-                    return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
-                }
-            }
-        ).enableUpdateModelTests(new UpdateModelConfiguration() {
-            @Override
-            protected Model createEmbeddingModel(@Nullable SimilarityMeasure similarityMeasure) {
-                return createInternalEmbeddingModel(similarityMeasure, null);
-            }
-        }).build();
-    }
-
-    @Override
-    public void testUpdateModelWithEmbeddingDetails_NullSimilarityInOriginalModel() throws IOException {
-        // FireworksAI defaults to COSINE similarity, not DOT_PRODUCT
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new FireworksAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            var embeddingSize = randomNonNegativeInt();
-            var model = createInternalEmbeddingModel(null, null);
-
-            Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
-
-            assertEquals(SimilarityMeasure.COSINE, updatedModel.getServiceSettings().similarity());
-            assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
-        }
-    }
+public class FireworksAiServiceTests extends InferenceServiceTestCase {
 
     public void testInfer_SendsEmbeddingsRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
@@ -212,18 +78,7 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
 
             var model = createInternalEmbeddingModel(getUrl(webServer), "secret", "model", null, null);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("abc"),
-                false,
-                new HashMap<>(),
-                InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
@@ -270,18 +125,7 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
 
             var model = createInternalChatCompletionModel(getUrl(webServer), "secret", "test-model");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("Hello"),
-                false,
-                new HashMap<>(),
-                InputType.UNSPECIFIED,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("Hello"), false, new HashMap<>(), InputType.UNSPECIFIED, null, listener);
 
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
@@ -294,116 +138,8 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
         }
     }
 
-    private static Map<String, Object> createServiceSettingsMap(TaskType taskType, ConfigurationParseContext parseContext) {
-        var settingsMap = new HashMap<String, Object>(Map.of(ServiceFields.MODEL_ID, MODEL));
-
-        if (taskType == TaskType.TEXT_EMBEDDING) {
-            settingsMap.putAll(Map.of(ServiceFields.SIMILARITY, SIMILARITY.toString(), ServiceFields.DIMENSIONS, DIMENSIONS));
-
-            if (parseContext == ConfigurationParseContext.PERSISTENT) {
-                settingsMap.put(FireworksAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER, true);
-            }
-        }
-
-        return settingsMap;
-    }
-
-    private static void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
-        if (taskType == TaskType.TEXT_EMBEDDING) {
-            assertEmbeddingsModel(model, modelIncludesSecrets);
-        } else if (taskType == TaskType.COMPLETION || taskType == TaskType.CHAT_COMPLETION) {
-            assertChatCompletionModel(model, modelIncludesSecrets);
-        }
-    }
-
-    private static void assertEmbeddingsModel(Model model, boolean modelIncludesSecrets) {
-        assertThat(model, instanceOf(FireworksAiEmbeddingsModel.class));
-
-        var embeddingsModel = (FireworksAiEmbeddingsModel) model;
-        assertThat(
-            embeddingsModel.getServiceSettings(),
-            is(
-                new FireworksAiEmbeddingsServiceSettings(
-                    MODEL,
-                    URI.create(DEFAULT_URL),
-                    SIMILARITY,
-                    DIMENSIONS,
-                    null,
-                    true,
-                    FireworksAiEmbeddingsServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS
-                )
-            )
-        );
-
-        assertThat(embeddingsModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
-
-        if (modelIncludesSecrets) {
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(SECRET));
-        } else {
-            assertNull(embeddingsModel.getSecretSettings());
-        }
-    }
-
-    private static void assertChatCompletionModel(Model model, boolean modelIncludesSecrets) {
-        assertThat(model, instanceOf(FireworksAiChatCompletionModel.class));
-
-        var chatModel = (FireworksAiChatCompletionModel) model;
-        assertThat(chatModel.getServiceSettings().modelId(), is(MODEL));
-
-        if (modelIncludesSecrets) {
-            assertThat(chatModel.getSecretSettings().apiKey().toString(), is(SECRET));
-        } else {
-            assertNull(chatModel.getSecretSettings());
-        }
-    }
-
-    private static FireworksAiEmbeddingsModel createInternalEmbeddingModel(
-        @Nullable SimilarityMeasure similarityMeasure,
-        @Nullable ChunkingSettings chunkingSettings
-    ) {
-        return new FireworksAiEmbeddingsModel(
-            INFERENCE_ID,
-            "service",
-            new FireworksAiEmbeddingsServiceSettings(MODEL, URI.create(DEFAULT_URL), similarityMeasure, DIMENSIONS, null, false, null),
-            chunkingSettings,
-            new DefaultSecretSettings(new SecureString(SECRET.toCharArray()))
-        );
-    }
-
-    private static FireworksAiEmbeddingsModel createInternalEmbeddingModel(
-        String url,
-        String apiKey,
-        String modelId,
-        @Nullable Integer dimensions,
-        @Nullable SimilarityMeasure similarity
-    ) {
-        return new FireworksAiEmbeddingsModel(
-            INFERENCE_ID,
-            FireworksAiService.NAME,
-            new FireworksAiEmbeddingsServiceSettings(modelId, URI.create(url), similarity, dimensions, null, dimensions != null, null),
-            null,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
-        );
-    }
-
-    private static FireworksAiChatCompletionModel createInternalChatCompletionModel(String url, String apiKey, String modelId) {
-        return new FireworksAiChatCompletionModel(
-            INFERENCE_ID,
-            TaskType.CHAT_COMPLETION,
-            FireworksAiService.NAME,
-            new FireworksAiChatCompletionServiceSettings(modelId, URI.create(url), null),
-            new FireworksAiChatCompletionTaskSettings((String) null, null),
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
-        );
-    }
-
-    private static FireworksAiService createService(ThreadPool threadPool, HttpClientManager clientManager) {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        return new FireworksAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
-    }
-
     public void testGetConfiguration() throws Exception {
-        try (var service = createService()) {
+        try (var service = createInferenceService()) {
 
             var dimensionsDescription =
                 "The number of dimensions the resulting output embeddings should have. Only supported by some models. "
@@ -499,11 +235,34 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
         }
     }
 
-    private FireworksAiService createService() {
+    @Override
+    public InferenceService createInferenceService() {
         return new FireworksAiService(
-            mock(HttpRequestSender.Factory.class),
+            HttpRequestSenderTests.createSenderFactory(threadPool, clientManager),
             createWithEmptySettings(threadPool),
             mockClusterServiceEmpty()
         );
+    }
+
+    @Override
+    public Model createEmbeddingModel(SimilarityMeasure similarity) {
+        var serviceSettings = new HashMap<String, Object>(Map.of(MODEL_ID, randomAlphaOfLength(8)));
+        if (similarity != null) {
+            serviceSettings.put(SIMILARITY, similarity.toString());
+        }
+        return new FireworksAiEmbeddingsModel(
+            randomAlphaOfLength(8),
+            randomAlphaOfLength(8),
+            serviceSettings,
+            null,
+            null,
+            null,
+            ConfigurationParseContext.REQUEST
+        );
+    }
+
+    @Override
+    public SimilarityMeasure getDefaultSimilarity() {
+        return SimilarityMeasure.COSINE;
     }
 }

@@ -21,7 +21,7 @@ import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
-import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
+import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -48,6 +48,32 @@ import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestU
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.randomVector;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.writeBulkOSQVectorData;
 
+/**
+ * Benchmarks for {@link ES940OSQVectorsScorer} as used by the DiskBBQ readers
+ * ({@code ES9{20,40}DiskBBQVectorsReader}, {@code ESNextDiskBBQVectorsReader}).
+ *
+ * <p>Methods are split into two groups:
+ * <ul>
+ *   <li><b>{@code score*}</b> — production paths. These mirror the dispatch in the DiskBBQ
+ *       readers (see {@code ES940DiskBBQVectorsReader#visit}): {@link #scoreBulk} for the
+ *       all-pass / no-filter case, {@link #scoreBulkFilteredDense} /
+ *       {@link #scoreBulkFilteredSparse} for partial filters, and
+ *       {@link #scoreIndividualFilteredOne} for the "exactly one doc passes" case.</li>
+ *   <li><b>{@code controlScore*}</b> — control / baseline benchmarks not used in production,
+ *       kept to isolate the per-call cost of the dot-product kernel and to compare against the
+ *       prod paths (e.g. what would per-vector scoring cost if used everywhere).</li>
+ * </ul>
+ *
+ * <p>JMH filter patterns (the leading {@code \.} anchors at the method-name boundary):
+ * <pre>
+ *   # prod only
+ *   ./gradlew :benchmarks:jmh -Pargs='VectorScorerOSQBenchmark\.score'
+ *   # control only
+ *   ./gradlew :benchmarks:jmh -Pargs='VectorScorerOSQBenchmark\.controlScore'
+ *   # all, exclude control
+ *   ./gradlew :benchmarks:jmh -Pargs='VectorScorerOSQBenchmark -e controlScore'
+ * </pre>
+ */
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @State(Scope.Benchmark)
@@ -71,10 +97,11 @@ public class VectorScorerOSQBenchmark {
 
     public enum VectorImplementation {
         SCALAR,
-        VECTORIZED
+        PANAMA,
+        NATIVE
     }
 
-    @Param({ "384", "768", "1024" })
+    @Param({ "96", "128", "192", "256", "384", "768", "1024" })
     public int dims;
 
     @Param({ "1", "2", "4", "7" })
@@ -195,13 +222,14 @@ public class VectorScorerOSQBenchmark {
         );
     }
 
-    private float scoreFilteredIndividually(int[] offsets, int offsetsCount) throws IOException {
+    private float scoreFilteredIndividually(int queryIndex, int[] offsets, int offsetsCount) throws IOException {
         float maxScore = Float.NEGATIVE_INFINITY;
+        var query = binaryQueries[queryIndex];
         int offsetIndex = 0;
         for (int j = 0; j < BULK_SIZE; j++) {
             if (offsetIndex < offsetsCount && offsets[offsetIndex] == j) {
                 offsetIndex++;
-                float qcDist = scorer.quantizeScore(binaryQueries[j].quantizedVector());
+                float qcDist = scorer.quantizeScore(query.quantizedVector());
                 scratchScores[j] = qcDist;
             } else {
                 scratchScores[j] = 0;
@@ -224,10 +252,10 @@ public class VectorScorerOSQBenchmark {
             if (offsetIndex < offsetsCount && offsets[offsetIndex] == b) {
                 offsetIndex++;
                 float score = scorer.applyCorrectionsIndividually(
-                    binaryQueries[b].lowerInterval(),
-                    binaryQueries[b].upperInterval(),
-                    binaryQueries[b].quantizedComponentSum(),
-                    binaryQueries[b].additionalCorrection(),
+                    query.lowerInterval(),
+                    query.upperInterval(),
+                    query.quantizedComponentSum(),
+                    query.additionalCorrection(),
                     similarityFunction,
                     centroidDp,
                     lowerIntervals[b],
@@ -293,16 +321,30 @@ public class VectorScorerOSQBenchmark {
         };
         ES940OSQVectorsScorer.SymmetricInt4Encoding resolvedEncoding = resolveInt4Encoding(bits, int4Encoding);
         this.scorer = switch (implementation) {
-            case SCALAR -> new ES940OSQVectorsScorer(
-                input,
-                (byte) queryBits,
-                (byte) docBits,
-                dims,
-                data.binaryIndexLength,
-                ES940OSQVectorsScorer.BULK_SIZE,
-                resolvedEncoding
-            );
-            case VECTORIZED -> ESVectorizationProvider.getInstance()
+            case SCALAR -> ESVectorizationProvider.lookup(false, false)
+                .getVectorScorerFactory()
+                .newES940OSQVectorsScorer(
+                    input,
+                    (byte) queryBits,
+                    (byte) docBits,
+                    dims,
+                    data.binaryIndexLength,
+                    ES940OSQVectorsScorer.BULK_SIZE,
+                    resolvedEncoding
+                );
+            case PANAMA -> ESVectorizationProvider.lookup(true, false)
+                .getVectorScorerFactory()
+                .newES940OSQVectorsScorer(
+                    input,
+                    (byte) queryBits,
+                    (byte) docBits,
+                    dims,
+                    data.binaryIndexLength,
+                    BULK_SIZE,
+                    resolvedEncoding
+                );
+            case NATIVE -> ESVectorizationProvider.lookup(true, true)
+                .getVectorScorerFactory()
                 .newES940OSQVectorsScorer(
                     input,
                     (byte) queryBits,
@@ -331,7 +373,7 @@ public class VectorScorerOSQBenchmark {
     }
 
     @Benchmark
-    public float[] score() throws IOException {
+    public float[] controlScoreIndividual() throws IOException {
         float[] results = new float[NUM_QUERIES * NUM_VECTORS];
 
         float[] lowerIntervals = new float[BULK_SIZE];
@@ -339,10 +381,19 @@ public class VectorScorerOSQBenchmark {
         int[] sums = new int[BULK_SIZE];
         float[] additional = new float[BULK_SIZE];
 
+        // Control benchmark: pure per-vector scoring in a loop.
+        // For each chunk of BULK_SIZE vectors we issue BULK_SIZE single-vector quantizeScore calls
+        // (no bulk dot-product amortization), then read the corrections in bulk and apply them
+        // one-by-one in Java. This isolates the per-call overhead of the dot-product kernel and
+        // serves as a baseline against scoreBulk (fused native bulk).
+        // Note: corrections are still bulk-read per chunk because the on-disk layout is
+        // [BULK_SIZE x vectors | BULK_SIZE x lowerIntervals | ... | BULK_SIZE x additional].
         for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
             for (int i = 0; i < NUM_VECTORS; i += BULK_SIZE) {
-                scorer.quantizeScoreBulk(binaryQueries[j].quantizedVector(), BULK_SIZE, scratchScores);
+                for (int b = 0; b < BULK_SIZE; b++) {
+                    scratchScores[b] = scorer.quantizeScore(binaryQueries[j].quantizedVector());
+                }
                 input.readFloats(lowerIntervals, 0, BULK_SIZE);
                 input.readFloats(upperIntervals, 0, BULK_SIZE);
                 input.readInts(sums, 0, BULK_SIZE);
@@ -370,7 +421,7 @@ public class VectorScorerOSQBenchmark {
     }
 
     @Benchmark
-    public float[] bulkScore() throws IOException {
+    public float[] scoreBulk() throws IOException {
         float[] results = new float[NUM_QUERIES * NUM_VECTORS];
         for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
@@ -392,7 +443,7 @@ public class VectorScorerOSQBenchmark {
     }
 
     @Benchmark
-    public float[] filteredScoreBulkOne() throws IOException {
+    public float[] controlScoreBulkFilteredOne() throws IOException {
         float[] results = new float[NUM_QUERIES * NUM_VECTORS];
         for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
@@ -417,12 +468,12 @@ public class VectorScorerOSQBenchmark {
     }
 
     @Benchmark
-    public float[] filteredScoreIndividuallyOne() throws IOException {
+    public float[] scoreIndividualFilteredOne() throws IOException {
         float[] results = new float[NUM_QUERIES * NUM_VECTORS];
         for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
             for (int i = 0; i < NUM_VECTORS; i += scratchScores.length) {
-                scoreFilteredIndividually(SINGLE_OFFSET, 1);
+                scoreFilteredIndividually(j, SINGLE_OFFSET, 1);
                 System.arraycopy(scratchScores, 0, results, j * NUM_VECTORS + i, scratchScores.length);
             }
         }
@@ -430,7 +481,7 @@ public class VectorScorerOSQBenchmark {
     }
 
     @Benchmark
-    public float[] filteredScoreBulkDense() throws IOException {
+    public float[] scoreBulkFilteredDense() throws IOException {
         float[] results = new float[NUM_QUERIES * NUM_VECTORS];
         for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
@@ -455,12 +506,12 @@ public class VectorScorerOSQBenchmark {
     }
 
     @Benchmark
-    public float[] filteredScoreIndividuallyDense() throws IOException {
+    public float[] controlScoreIndividualFilteredDense() throws IOException {
         float[] results = new float[NUM_QUERIES * NUM_VECTORS];
         for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
             for (int i = 0; i < NUM_VECTORS; i += scratchScores.length) {
-                scoreFilteredIndividually(denseOffsets, denseOffsetsCount);
+                scoreFilteredIndividually(j, denseOffsets, denseOffsetsCount);
                 System.arraycopy(scratchScores, 0, results, j * NUM_VECTORS + i, scratchScores.length);
             }
         }
@@ -468,7 +519,7 @@ public class VectorScorerOSQBenchmark {
     }
 
     @Benchmark
-    public float[] filteredScoreBulkSparse() throws IOException {
+    public float[] scoreBulkFilteredSparse() throws IOException {
         float[] results = new float[NUM_QUERIES * NUM_VECTORS];
         for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
@@ -493,12 +544,12 @@ public class VectorScorerOSQBenchmark {
     }
 
     @Benchmark
-    public float[] filteredScoreIndividuallySparse() throws IOException {
+    public float[] controlScoreIndividualFilteredSparse() throws IOException {
         float[] results = new float[NUM_QUERIES * NUM_VECTORS];
         for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
             for (int i = 0; i < NUM_VECTORS; i += BULK_SIZE) {
-                scoreFilteredIndividually(sparseOffsets, sparseOffsetsCount);
+                scoreFilteredIndividually(j, sparseOffsets, sparseOffsetsCount);
                 System.arraycopy(scratchScores, 0, results, j * NUM_VECTORS + i, scratchScores.length);
             }
         }

@@ -34,6 +34,7 @@ import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -318,7 +319,8 @@ public class InternalUsers {
                 "cluster:internal:data/read/esql/open_exchange",
                 "cluster:internal:data/read/esql/exchange",
                 "cluster:internal/remote_cluster/nodes",
-                "cluster:admin/serverless/autoscaling/get_serverless_autoscaling_metrics" },
+                "cluster:admin/serverless/autoscaling/get_serverless_autoscaling_metrics",
+                XPackInfoAction.NAME },
             null,
             null,
             null,

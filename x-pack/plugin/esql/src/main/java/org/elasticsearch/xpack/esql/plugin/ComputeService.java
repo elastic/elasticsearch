@@ -53,17 +53,23 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
 import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
+import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
@@ -97,6 +103,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -173,8 +180,8 @@ public class ComputeService {
     private final ExchangeService exchangeService;
     private final PlannerSettings.Holder plannerSettings;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
-    private final FilterPushdownRegistry filterPushdownRegistry;
     private final FormatReaderRegistry formatReaderRegistry;
+    private final Executor searchExecutor;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -185,7 +192,6 @@ public class ComputeService {
         BigArrays bigArrays,
         BlockFactory blockFactory,
         OperatorFactoryRegistry operatorFactoryRegistry,
-        FilterPushdownRegistry filterPushdownRegistry,
         FormatReaderRegistry formatReaderRegistry
     ) {
         this.searchService = transportActionServices.searchService();
@@ -193,8 +199,8 @@ public class ComputeService {
         this.exchangeService = transportActionServices.exchangeService();
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.blockFactory = blockFactory;
-        var esqlExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
-        this.driverRunner = new DriverTaskRunner(transportService, esqlExecutor);
+        this.searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
+        this.driverRunner = new DriverTaskRunner(transportService, searchExecutor);
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceService = transportActionServices.inferenceService();
@@ -208,27 +214,22 @@ public class ComputeService {
             searchService,
             transportService,
             exchangeService,
-            esqlExecutor
+            searchExecutor
         );
         this.clusterComputeHandler = new ClusterComputeHandler(
             this,
             exchangeService,
             transportService,
-            esqlExecutor,
+            searchExecutor,
             dataNodeComputeHandler
         );
         this.plannerSettings = transportActionServices.plannerSettings();
         this.operatorFactoryRegistry = operatorFactoryRegistry;
-        this.filterPushdownRegistry = filterPushdownRegistry != null ? filterPushdownRegistry : FilterPushdownRegistry.empty();
         this.formatReaderRegistry = formatReaderRegistry;
     }
 
     PlannerSettings.Holder plannerSettings() {
         return plannerSettings;
-    }
-
-    FilterPushdownRegistry filterPushdownRegistry() {
-        return filterPushdownRegistry;
     }
 
     FormatReaderRegistry formatReaderRegistry() {
@@ -314,16 +315,103 @@ public class ComputeService {
         List<ExternalSplit> splits = new ArrayList<>();
         plan.forEachDown(ExternalSourceExec.class, exec -> splits.addAll(exec.splits()));
         if (splits.isEmpty()) {
-            discoverSplitsFromFragments(plan, splits);
-            if (splits.size() > SplitCoalescer.COALESCING_THRESHOLD) {
-                List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits);
-                if (coalesced != splits) {
-                    splits.clear();
-                    splits.addAll(coalesced);
+            if (canSkipSplitDiscovery(plan, formatReaderRegistry) == false) {
+                discoverSplitsFromFragments(plan, splits);
+                if (splits.size() > SplitCoalescer.COALESCING_THRESHOLD) {
+                    List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits);
+                    if (coalesced != splits) {
+                        splits.clear();
+                        splits.addAll(coalesced);
+                    }
                 }
             }
+            // else: splits stays empty — the optimizer will use sourceMetadata for pushdown
         }
         return splits;
+    }
+
+    /**
+     * Returns {@code true} when split discovery (Phase 2 footer reads) can be skipped because
+     * every fragment in {@code plan} that references an {@link ExternalRelation} is a pure
+     * ungrouped {@link Aggregate} directly over that relation, the relation's
+     * {@code sourceMetadata} already contains complete (non-partial) statistics, and the
+     * fragment's aggregate functions are metadata-pushable for that source's format reader
+     * (i.e. {@link AggregatePushdownSupport#canPushAggregates} returns {@code YES}).
+     * <p>
+     * When eligible, the local physical optimizer uses {@code sourceMetadata} statistics to
+     * evaluate the aggregates (COUNT/MIN/MAX) without reading any data files. Skipping
+     * discovery for non-pushable aggregates (e.g. {@code SUM}, {@code AVG}) would force the
+     * data node to fall back to a single-path read with no slice queue, which is typically
+     * less parallel than per-row-group splits — hence the explicit pushability check.
+     * <p>
+     * This method is conservative: if the registry has no reader for the source type, if any
+     * fragment containing an {@link ExternalRelation} does not match the
+     * {@code Aggregate -> ExternalRelation} shape, or if any required statistic is missing,
+     * it returns {@code false} so that normal split discovery proceeds.
+     */
+    public static boolean canSkipSplitDiscovery(PhysicalPlan plan, FormatReaderRegistry formatReaderRegistry) {
+        boolean[] foundAny = { false };
+        boolean[] allCanSkip = { true };
+
+        plan.forEachDown(FragmentExec.class, fragment -> {
+            LogicalPlan logical = fragment.fragment();
+            if (logical instanceof Aggregate agg && agg.groupings().isEmpty() && agg.child() instanceof ExternalRelation ext) {
+                foundAny[0] = true;
+                if (canSkipForAggregateOverExternal(agg, ext, formatReaderRegistry) == false) {
+                    allCanSkip[0] = false;
+                }
+            } else if (logical.anyMatch(ExternalRelation.class::isInstance)) {
+                // External relation exists but not in the simple Aggregate -> ExternalRelation pattern.
+                // Cannot skip split discovery for this fragment.
+                foundAny[0] = true;
+                allCanSkip[0] = false;
+            }
+        });
+
+        return foundAny[0] && allCanSkip[0];
+    }
+
+    /**
+     * Returns {@code true} when the given ungrouped {@code Aggregate} over an
+     * {@link ExternalRelation} can rely solely on {@code sourceMetadata} statistics — i.e.
+     * stats are complete and every aggregate function is metadata-pushable for the source's
+     * format reader.
+     */
+    private static boolean canSkipForAggregateOverExternal(Aggregate agg, ExternalRelation ext, FormatReaderRegistry registry) {
+        Map<String, Object> meta = ext.metadata().sourceMetadata();
+        if (meta == null
+            || meta.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT) == false
+            || Boolean.TRUE.equals(meta.get(SourceStatisticsSerializer.STATS_PARTIAL))) {
+            return false;
+        }
+        if (registry == null) {
+            return false;
+        }
+        FormatReader formatReader = registry.findByName(ext.sourceType());
+        if (formatReader == null) {
+            return false;
+        }
+        AggregatePushdownSupport support = formatReader.aggregatePushdownSupport();
+        if (support == AggregatePushdownSupport.UNSUPPORTED) {
+            return false;
+        }
+        List<Expression> aggFunctions = extractAggregateFunctions(agg.aggregates());
+        // No aggregate functions to push (e.g. only literals): keep normal discovery.
+        if (aggFunctions.isEmpty()) {
+            return false;
+        }
+        return support.canPushAggregates(aggFunctions, List.of()) == AggregatePushdownSupport.Pushability.YES;
+    }
+
+    private static List<Expression> extractAggregateFunctions(List<? extends NamedExpression> aggregates) {
+        List<Expression> result = new ArrayList<>(aggregates.size());
+        for (NamedExpression agg : aggregates) {
+            Expression toCheck = agg instanceof Alias alias ? alias.child() : agg;
+            if (toCheck instanceof AggregateFunction) {
+                result.add(toCheck);
+            }
+        }
+        return result;
     }
 
     private void discoverSplitsFromFragments(PhysicalPlan plan, List<ExternalSplit> splits) {
@@ -371,7 +459,6 @@ public class ComputeService {
         ActionListener<Result> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
-            ESQL_WORKER_THREAD_POOL_NAME,
             ThreadPool.Names.SYSTEM_READ,
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SEARCH_COORDINATION
@@ -419,10 +506,7 @@ public class ComputeService {
         var mainSessionId = newChildSession(sessionId);
         QueryPragmas queryPragmas = configuration.pragmas();
 
-        ExchangeSourceHandler mainExchangeSource = new ExchangeSourceHandler(
-            queryPragmas.exchangeBufferSize(),
-            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
-        );
+        ExchangeSourceHandler mainExchangeSource = new ExchangeSourceHandler(queryPragmas.exchangeBufferSize(), searchExecutor);
 
         exchangeService.addExchangeSourceHandler(mainSessionId, mainExchangeSource);
         var finalListener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
@@ -446,7 +530,7 @@ public class ComputeService {
                 cancelQueryOnFailure,
                 finalListener.map(profiles -> {
                     execInfo.markEndQuery();
-                    return new Result(mainPlan.output(), collectedPages, configuration, profiles, execInfo);
+                    return new Result(mainPlan.output(), collectedPages, null, configuration, profiles, execInfo);
                 })
             )
         ) {
@@ -673,7 +757,7 @@ public class ComputeService {
                     cancelQueryOnFailure,
                     listener.map(completionInfo -> {
                         updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo);
-                        return new Result(resolvedPlan.output(), collectedPages, configuration, completionInfo, execInfo);
+                        return new Result(resolvedPlan.output(), collectedPages, null, configuration, completionInfo, execInfo);
                     })
                 )
             ) {
@@ -727,10 +811,7 @@ public class ComputeService {
          * entire plan.
          */
         List<Attribute> outputAttributes = resolvedPlan.output();
-        var exchangeSource = new ExchangeSourceHandler(
-            configuration.pragmas().exchangeBufferSize(),
-            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
-        );
+        var exchangeSource = new ExchangeSourceHandler(configuration.pragmas().exchangeBufferSize(), searchExecutor);
         listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
         exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
         try (
@@ -740,7 +821,7 @@ public class ComputeService {
                 listener.delegateFailureAndWrap((l, completionInfo) -> {
                     failIfAllShardsFailed(execInfo, collectedPages);
                     execInfo.markEndQuery();
-                    l.onResponse(new Result(outputAttributes, collectedPages, configuration, completionInfo, execInfo));
+                    l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo));
                 })
             )
         ) {
@@ -904,10 +985,7 @@ public class ComputeService {
         ActionListener<Result> listener
     ) {
         List<Attribute> outputAttributes = resolvedPlan.output();
-        var exchangeSource = new ExchangeSourceHandler(
-            configuration.pragmas().exchangeBufferSize(),
-            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
-        );
+        var exchangeSource = new ExchangeSourceHandler(configuration.pragmas().exchangeBufferSize(), searchExecutor);
         listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
         exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
         try (
@@ -916,7 +994,7 @@ public class ComputeService {
                 cancelQueryOnFailure,
                 listener.delegateFailureAndWrap((l, completionInfo) -> {
                     execInfo.markEndQuery();
-                    l.onResponse(new Result(outputAttributes, collectedPages, configuration, completionInfo, execInfo));
+                    l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo));
                 })
             )
         ) {
@@ -1100,8 +1178,8 @@ public class ComputeService {
                         context.foldCtx(),
                         plan,
                         SearchContextStats.from(localContexts),
-                        filterPushdownRegistry,
                         formatReaderRegistry,
+                        coordinatorExternalSplits,
                         planTimeProfile
                     );
                     logicalPlanString = null;
@@ -1121,12 +1199,6 @@ public class ComputeService {
             } else {
                 localPlan = plan;
                 logicalPlanString = null;
-            }
-            if (coordinatorExternalSplits.isEmpty() == false) {
-                localPlan = localPlan.transformUp(
-                    ExternalSourceExec.class,
-                    exec -> exec.splits().isEmpty() ? exec.withSplits(coordinatorExternalSplits) : exec
-                );
             }
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local plan for {}:\n{}", context.description(), localPlan);
@@ -1179,7 +1251,9 @@ public class ComputeService {
                 ActionListener.releaseAfter(driverListener, () -> Releasables.close(drivers))
             );
         } catch (Exception e) {
-            Releasables.close(context.searchContexts().iterable());
+            if (context.description().equals(DATA_DESCRIPTION)) {
+                Releasables.close(context.searchContexts().iterable());
+            }
             LOGGER.debug("Error in ComputeService.runCompute for : " + context.description());
             listener.onFailure(e);
         }
@@ -1238,20 +1312,14 @@ public class ComputeService {
     ) {
         long startTime = planTimeProfile == null ? 0 : System.nanoTime();
         PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
-        // Just send out everything through a single exchange as a fallback
-        ReductionPlan passThroughReduction = new ReductionPlan(
-            originalPlan.replaceChild(source),
-            originalPlan,
-            LocalPhysicalOptimization.ENABLED
-        );
+        ReductionPlan passThroughReduction = new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
         if (reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {
             return passThroughReduction;
         }
 
         Function<PhysicalPlan, ReductionPlan> placePlanBetweenExchanges = p -> new ReductionPlan(
             originalPlan.replaceChild(p.replaceChildren(List.of(source))),
-            originalPlan,
-            LocalPhysicalOptimization.ENABLED
+            originalPlan
         );
 
         // The default plan is just the exchange source piped directly into the exchange sink.

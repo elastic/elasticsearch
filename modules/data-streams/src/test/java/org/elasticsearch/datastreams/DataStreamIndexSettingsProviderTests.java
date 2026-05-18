@@ -39,20 +39,22 @@ import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirs
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.datastreams.DataStreamIndexSettingsProvider.FORMATTER;
+import static org.elasticsearch.datastreams.DataStreamsPlugin.LOOK_AHEAD_TIME_DEFAULT;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
-    private static final TimeValue DEFAULT_LOOK_BACK_TIME = TimeValue.timeValueHours(2); // default
-    private static final TimeValue DEFAULT_LOOK_AHEAD_TIME = TimeValue.timeValueMinutes(30); // default
+    private static final TimeValue DEFAULT_LOOK_BACK_TIME = TimeValue.timeValueHours(2);
+    private static final TimeValue DEFAULT_LOOK_AHEAD_TIME = TimeValue.timeValueMinutes(LOOK_AHEAD_TIME_DEFAULT);
 
     DataStreamIndexSettingsProvider provider;
     private boolean indexDimensionsTsidStrategyEnabledSetting;
     private boolean expectedIndexDimensionsTsidOptimizationEnabled;
     private IndexVersion indexVersion;
     private boolean expectedDisabledSequenceNumbers;
+    private boolean expectedSyntheticId;
 
     @Before
     public void setup() {
@@ -67,14 +69,23 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             indexVersion = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.TSID_CREATED_DURING_ROUTING);
         }
         expectedDisabledSequenceNumbers = indexVersion.onOrAfter(IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT);
+        expectedSyntheticId = indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD);
         indexDimensionsTsidStrategyEnabledSetting = usually();
         expectedIndexDimensionsTsidOptimizationEnabled = indexDimensionsTsidStrategyEnabledSetting
             && indexVersion.onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING);
     }
 
     int maybeAdjustIndexSettingCount(int baseCount) {
-        // We need to adjust to account for the seq_no removal and synthetic id settings
-        return expectedDisabledSequenceNumbers ? baseCount + 2 : baseCount;
+        // Adjust count independently: DISABLE_SEQUENCE_NUMBERS and SYNTHETIC_ID use different version thresholds
+        // (TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT and TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD respectively)
+        int count = baseCount;
+        if (expectedDisabledSequenceNumbers) {
+            count++;
+        }
+        if (expectedSyntheticId) {
+            count++;
+        }
+        return count;
     }
 
     public void testGetAdditionalIndexSettings() throws Exception {
@@ -381,10 +392,9 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
     public void testGetAdditionalIndexSettingsDataStreamAlreadyCreated() throws Exception {
         String dataStreamName = "logs-app1";
-        TimeValue lookAheadTime = TimeValue.timeValueMinutes(30);
 
         Instant sixHoursAgo = Instant.now().minus(6, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
-        Instant currentEnd = sixHoursAgo.plusMillis(lookAheadTime.getMillis());
+        Instant currentEnd = sixHoursAgo.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis());
         ProjectMetadata projectMetadata = DataStreamTestHelper.getProjectWithDataStream(
             randomProjectIdOrDefault(),
             dataStreamName,
@@ -410,7 +420,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(result.get(IndexSettings.TIME_SERIES_START_TIME.getKey()), equalTo(FORMATTER.format(currentEnd)));
         assertThat(
             result.get(IndexSettings.TIME_SERIES_END_TIME.getKey()),
-            equalTo(FORMATTER.format(now.plusMillis(lookAheadTime.getMillis())))
+            equalTo(FORMATTER.format(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())))
         );
         if (expectedDisabledSequenceNumbers) {
             assertThat(IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(result), equalTo(true));

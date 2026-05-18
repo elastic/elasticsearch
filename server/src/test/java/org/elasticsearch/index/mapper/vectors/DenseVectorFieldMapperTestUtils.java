@@ -91,6 +91,7 @@ public class DenseVectorFieldMapperTestUtils {
     public static DenseVectorFieldMapper.DenseVectorIndexOptions defaultDenseVectorIndexOptions(
         IndexVersion indexVersionCreated,
         boolean enterpriseLicense,
+        boolean statelessNode,
         Integer dims,
         DenseVectorFieldMapper.ElementType elementType,
         boolean experimentalFeaturesEnabled
@@ -104,7 +105,7 @@ public class DenseVectorFieldMapperTestUtils {
         final boolean defaultBBQHnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_HNSW);
         final boolean defaultBBQDisk = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_DISK);
 
-        if (defaultBBQDisk && enterpriseLicense) {
+        if (defaultBBQDisk && enterpriseLicense && statelessNode) {
             int bits = dims < BBQ_DIMS_DEFAULT_THRESHOLD ? 4 : 1;
             return new DenseVectorFieldMapper.BBQIVFIndexOptions(
                 ES940DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER,

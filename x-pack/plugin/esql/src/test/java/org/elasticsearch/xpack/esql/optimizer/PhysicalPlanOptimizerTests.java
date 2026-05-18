@@ -91,6 +91,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistanc
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplify;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.TopSnippets;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.vector.DotProduct;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -215,7 +216,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.stripThrough;
-import static org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns.ALL_FIELDS_PROJECTED;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.MAX_EXPRESSION_DEPTH;
 import static org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder.MAX_QUERY_DEPTH;
 import static org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests.randomEstimatedRowSize;
@@ -441,9 +441,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             new ResolvedEnrichPolicy(
                 "employee_id",
                 EnrichPolicy.MATCH_TYPE,
-                List.of("department"),
+                List.of("department", "description"),
                 Map.of("", ".enrich-departments-1", "cluster_1", ".enrich-departments-2"),
-                Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+                Map.of(
+                    "department",
+                    new EsField("department", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+                    "description",
+                    new EsField("description", DataType.TEXT, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+                )
             )
         );
         builder.addEnrichPolicy(
@@ -698,6 +703,79 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(eval.child(), FieldExtractExec.class);
         var query = source(extract.child());
         assertThat(query.limit(), is(l(42)));
+    }
+
+    /**
+     * Asserts that {@code EVAL TOP_SNIPPETS(...)} is placed on the coordinator side of the
+     * coordinator/data-node split (i.e. <em>above</em> the remote {@link ExchangeExec}).
+     *
+     * Unlike {@link Score} in {@link #testEvalWithScoreImplicitLimit()}, which is pushed down
+     * into the data-node fragment (it needs per-shard Lucene scoring), {@code TOP_SNIPPETS}
+     * has no rule to push it past the exchange and is therefore evaluated on the coordinator
+     * after field values have been streamed up from the shards. Any analyzer resolution that
+     * depends on per-index mappings must happen either (a) pre-planning via the coordinator's
+     * {@code AnalysisRegistry} or (b) by a future rule that pushes {@code TOP_SNIPPETS} into
+     * the fragment; this test guards against accidental silent changes to that placement.
+     *
+     * Expected shape:
+     * EvalExec[[TOP_SNIPPETS(gender{f}#..,foo[KEYWORD]) AS s#..]]
+     * \_LimitExec[1000[INTEGER], ...]
+     *   \_ExchangeExec[...,false]
+     *     \_ProjectExec[...]
+     *       \_FieldExtractExec[...]
+     *         \_EsQueryExec[test], ...
+     */
+    public void testEvalWithTopSnippetsRunsOnCoordinator() {
+        var plan = physicalPlan("""
+            FROM test
+            | EVAL s = TOP_SNIPPETS(gender, "foo")
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var eval = as(optimized, EvalExec.class);
+        assertThat(eval.fields(), hasSize(1));
+        assertThat(eval.fields().get(0).child(), isA(TopSnippets.class));
+        var limit = as(eval.child(), LimitExec.class);
+        assertThat(limit.limit(), is(l(1000)));
+        var exchange = asRemoteExchange(limit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var query = source(fieldExtract.child());
+        assertThat(query.limit(), is(l(1000)));
+    }
+
+    /**
+     * Sibling of {@link #testEvalWithTopSnippetsRunsOnCoordinator()} for the filter path.
+     * Unlike the EVAL case, {@code WHERE mv_count(TOP_SNIPPETS(...)) > 0} is pushed
+     * <em>below</em> the remote {@link ExchangeExec} into the data-node fragment: the
+     * filter predicate references only {@code gender}, so the optimizer treats it like any
+     * other scalar filter and evaluates it on the data node. This means the runtime site
+     * that must resolve {@code TOP_SNIPPETS}' analyzer is
+     * {@code LocalExecutionPlanner.planFilter} on the <em>data node</em>, whose
+     * {@code physicalOperationProviders} carries the node-level {@code AnalysisRegistry}
+     * wired in {@code ComputeService} from {@code searchService.getIndicesService().getAnalysis()}.
+     * This test guards the placement so any future change that moves {@code TOP_SNIPPETS}
+     * through a different planner path is flagged.
+     */
+    public void testWhereWithTopSnippetsPushedToDataNode() {
+        var plan = physicalPlan("""
+            FROM test
+            | WHERE mv_count(TOP_SNIPPETS(gender, "foo")) > 0
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        assertThat(topLimit.limit(), is(l(1000)));
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtractOuter = as(project.child(), FieldExtractExec.class);
+        var innerLimit = as(fieldExtractOuter.child(), LimitExec.class);
+        assertThat(innerLimit.limit(), is(l(1000)));
+        var filter = as(innerLimit.child(), FilterExec.class);
+        assertThat(filter.condition().anyMatch(TopSnippets.class::isInstance), is(true));
+        var fieldExtractInner = as(filter.child(), FieldExtractExec.class);
+        var query = source(fieldExtractInner.child());
+        assertNull(query.limit());
     }
 
     /**
@@ -2985,6 +3063,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES * 2 + Long.BYTES));
     }
 
+    public void testEnrichEstimateRowSize() {
+        var plan = physicalPlan("""
+                FROM test
+                | ENRICH departments ON emp_no
+                | KEEP emp_no, department, description
+            """);
+        var optimized = optimizedPlan(plan);
+        var source = (EsQueryExec) optimized.collectFirstChildren(e -> e instanceof EsQueryExec).getFirst();
+        assertThat(source.estimatedRowSize(), equalTo(108));
+    }
+
     /**
      * Expects the filter to transform the source into a local relationship
      * LimitExec[10000[INTEGER]]
@@ -3793,20 +3882,20 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * {@snippet lang="text":
      * LimitExec[1000[INTEGER],8]
-     * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS cnt#4],SINGLE,[$$cnt$count{r}#5, $$cnt$seen{r}#6],8]
-     *   \_MergeExec[[&lt;all-fields-projected&gt;{r$}#7]]
-     *     |_ExchangeExec[[&lt;all-fields-projected&gt;{r$}#7],false]
-     *     | \_ProjectExec[[&lt;all-fields-projected&gt;{r$}#7]]
-     *     |   \_EvalExec[[null[NULL] AS &lt;all-fields-projected&gt;#7]]
-     *     |     \_EsQueryExec[no_fields_index]
-     *     \_ExchangeExec[[&lt;all-fields-projected&gt;{r$}#8],false]
-     *       \_ProjectExec[[&lt;all-fields-projected&gt;{r$}#8]]
-     *         \_EvalExec[[null[NULL] AS &lt;all-fields-projected&gt;#8]]
-     *           \_EsQueryExec[no_fields_index]
+     * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count()#3],SINGLE,[$$count()$count{r}#4, $$count()$
+     * seen{r}#5],8]
+     *   \_MergeExec[[]]
+     *     |_ExchangeExec[[],false]
+     *     | \_ProjectExec[[]]
+     *     |   \_EsQueryExec[no_fields_index], ...]
+     *     \_ExchangeExec[[],false]
+     *       \_ProjectExec[[]]
+     *         \_EsQueryExec[no_fields_index], ...]
+     * }
      */
     public void testProjectAwayColumnsWithSubqueryCount() {
-        assumeTrue("Prune no-fields in subquery", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_PRUNE_NO_FIELDS.isEnabled());
         for (String count : List.of("count()", "count(*)", "count(1)")) {
             String query = LoggerMessageFormat.format(null, """
                 FROM no_fields_index, (FROM no_fields_index)
@@ -3817,22 +3906,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             LimitExec limit = as(plan, LimitExec.class);
             AggregateExec agg = as(limit.child(), AggregateExec.class);
             MergeExec merge = as(agg.child(), MergeExec.class);
-            assertEquals(1, merge.output().size());
-            Attribute attribute = merge.output().getFirst();
-            assertEquals(ALL_FIELDS_PROJECTED, attribute.name());
+            assertEquals(0, merge.output().size());
             assertEquals(2, merge.children().size());
 
             for (PhysicalPlan child : merge.children()) {
                 ExchangeExec exchange = as(child, ExchangeExec.class);
-                assertEquals(1, exchange.output().size());
-                Attribute attr = exchange.output().getFirst();
-                assertEquals(ALL_FIELDS_PROJECTED, attr.name());
+                assertEquals(0, exchange.output().size());
                 ProjectExec project = as(exchange.child(), ProjectExec.class);
-                assertEquals(1, project.projections().size());
-                NamedExpression namedExpression = project.projections().get(0);
-                assertEquals(ALL_FIELDS_PROJECTED, namedExpression.name());
-                EvalExec eval = as(project.child(), EvalExec.class);
-                EsQueryExec esQuery = as(eval.child(), EsQueryExec.class);
+                assertEquals(0, project.projections().size());
+                EsQueryExec esQuery = as(project.child(), EsQueryExec.class);
                 assertEquals("no_fields_index", esQuery.indexPattern());
             }
         }

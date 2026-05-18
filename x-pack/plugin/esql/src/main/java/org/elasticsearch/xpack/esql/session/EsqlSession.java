@@ -14,10 +14,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -40,8 +42,8 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
@@ -49,24 +51,30 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.PreAnalysisVerifier;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
-import org.elasticsearch.xpack.esql.approximation.Approximation;
+import org.elasticsearch.xpack.esql.approximation.ApproximationDriver;
+import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadata;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
@@ -102,6 +110,7 @@ import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
+import org.elasticsearch.xpack.esql.view.ViewCompaction;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.time.Clock;
@@ -174,13 +183,13 @@ public class EsqlSession {
     private final Mapper mapper;
     private final PlanTelemetry planTelemetry;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final InferenceService inferenceService;
     private final RemoteClusterService remoteClusterService;
     private final BlockFactory blockFactory;
     private final PlannerSettings plannerSettings;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final String clusterName;
-    private final TransportService transportService;
 
     private boolean explainMode;
     private String parsedPlanString;
@@ -222,6 +231,7 @@ public class EsqlSession {
         this.mapper = mapper;
         this.planTelemetry = planTelemetry;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
+        this.indexNameExpressionResolver = services.indexNameExpressionResolver();
         this.inferenceService = services.inferenceService();
         this.preMapper = new PreMapper(services);
         this.remoteClusterService = services.transportService().getRemoteClusterService();
@@ -229,7 +239,6 @@ public class EsqlSession {
         this.plannerSettings = plannerSettings;
         this.crossProjectModeDecider = services.crossProjectModeDecider();
         this.clusterName = services.clusterService().getClusterName().value();
-        this.transportService = services.transportService();
         this.projectMetadata = projectMetadata;
     }
 
@@ -259,6 +268,7 @@ public class EsqlSession {
         viewResolutionProfile.start();
         viewResolver.replaceViews(
             statement.plan(),
+            projectRouting(request, statement),
             (query, viewName) -> parser.parseView(
                 query,
                 request.params(),
@@ -317,7 +327,16 @@ public class EsqlSession {
             viewResolution.viewQueries()
         );
 
-        LogicalPlan plan = viewResolution.plan();
+        // Pre-analysis pass over the uncompacted plan from ViewResolver: reshape user-written
+        // Subquery/UnionAll structures into ViewUnionAll. ViewShadowRelation siblings and nested
+        // ViewUnionAlls are intentionally preserved here — they are stripped/flattened in
+        // ViewCompaction.postIndexResolution(), which runs as an analyzer rule after ResolveTable so
+        // lenient field-caps can pair each shadow with its strict sibling.
+        LogicalPlan plan = ViewCompaction.preIndexResolution(viewResolution.plan());
+        // Run structural checks that don't need analysis or index resolution. Doing this here
+        // (after view resolution, before pre-analysis) lets a malformed query fail-fast without
+        // paying for field-caps round trips.
+        PreAnalysisVerifier.verify(plan);
         Configuration configurationToUse = configuration;
         if (plan instanceof Explain explain) {
             explainMode = true;
@@ -354,6 +373,7 @@ public class EsqlSession {
                         new LogicalOptimizerContext(finalConfiguration, foldContext, minimumVersion)
                     );
 
+                    var columnMetadata = new Holder<Map<NameId, Map<String, Object>>>();
                     SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, planTimeProfile, l))
                         .<LogicalPlan>andThen(
                             (l, p) -> preMapper.preMapper(
@@ -361,21 +381,24 @@ public class EsqlSession {
                                 l
                             )
                         )
-                        .<Result>andThen(
-                            (l, p) -> executeOptimizedPlan(
+                        .<Result>andThen((l, p) -> {
+                            columnMetadata.set(createColumnMetadata(p, foldContext));
+                            executeOptimizedPlan(
                                 request,
                                 executionInfo,
                                 planRunner,
                                 p,
                                 finalConfiguration,
                                 foldContext,
-                                Approximation.create(p, configuration.approximationSettings()),
+                                new Holder<ApproximationDriver>(),
                                 minimumVersion,
                                 planTimeProfile,
                                 l
-                            )
+                            );
+                        })
+                        .<Versioned<Result>>andThen(
+                            (l, r) -> l.onResponse(attachMetadataAndVersion(r, columnMetadata.get(), minimumVersion))
                         )
-                        .<Versioned<Result>>andThen((l, r) -> l.onResponse(new Versioned<>(r, minimumVersion)))
                         .addListener(listener);
                 }
             }
@@ -394,11 +417,15 @@ public class EsqlSession {
         return projectRouting;
     }
 
-    public static ApproximationSettings approximationSettings(EsqlQueryRequest request, EsqlStatement statement) {
+    private ApproximationSettings approximationSettings(EsqlQueryRequest request, EsqlStatement statement) {
         // The precedence for settings is: SET in the statement > request parameter > default (=disabled).
-        return new ApproximationSettings.Builder(false).merge(request.approximation())
+        ApproximationSettings settings = new ApproximationSettings.Builder(false).merge(request.approximation())
             .merge(statement.setting(QuerySettings.APPROXIMATION))
             .build();
+        if (settings != null) {
+            EsqlLicenseChecker.checkQueryApproximation(verifier.licenseState());
+        }
+        return settings;
     }
 
     /**
@@ -412,7 +439,7 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         Configuration configuration,
         FoldContext foldContext,
-        Approximation approximation,
+        Holder<ApproximationDriver> approximation,
         TransportVersion minimumVersion,
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
@@ -428,7 +455,7 @@ public class EsqlSession {
 
         // In explain mode, wrap the listener to transform results into EXPLAIN table format.
         // We use the same execution path as normal queries to ensure accuracy.
-        ActionListener<Result> effectiveListener = explainMode
+        listener = explainMode
             ? createExplainListener(listener, optimizedPlan, request, physicalPlanOptimizer, planTimeProfile, configuration, planRunner)
             : listener;
 
@@ -443,7 +470,41 @@ public class EsqlSession {
             request,
             physicalPlanOptimizer,
             planTimeProfile,
-            effectiveListener
+            listener
+        );
+    }
+
+    private Map<NameId, Map<String, Object>> createColumnMetadata(LogicalPlan optimizedPlan, FoldContext foldContext) {
+        // TODO we need to enforce NameId do not change during optimization.
+        // Otherwise metadata might not be found when redering result.
+        // Bucket metadata is gated on the COLUMN_METADATA_BUCKET capability — snapshot-only until the feature is finalized.
+        Map<NameId, Map<String, Object>> bucketMetadata = EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET.isEnabled()
+            ? BucketColumnMetadata.createColumnMetadata(optimizedPlan, foldContext)
+            : Map.of();
+        return Maps.merge(
+            bucketMetadata,
+            ApproximationPlan.createColumnMetadata(optimizedPlan.output()),
+            (a, b) -> Maps.merge(a, b, (m1, m2) -> {
+                throw new IllegalStateException("Should not produce metadata with the same key");
+            })
+        );
+    }
+
+    private static Versioned<Result> attachMetadataAndVersion(
+        Result result,
+        Map<NameId, Map<String, Object>> columnMetadata,
+        TransportVersion minimumVersion
+    ) {
+        return new Versioned<>(
+            new Result(
+                result.schema(),
+                result.pages(),
+                columnMetadata,
+                result.configuration(),
+                result.completionInfo(),
+                result.executionInfo()
+            ),
+            minimumVersion
         );
     }
 
@@ -549,7 +610,7 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         Configuration configuration,
         FoldContext foldContext,
-        Approximation approximation,
+        Holder<ApproximationDriver> approximation,
         PlanRunner runner,
         EsqlExecutionInfo executionInfo,
         EsqlQueryRequest request,
@@ -558,14 +619,13 @@ public class EsqlSession {
         ActionListener<Result> listener
     ) {
         var subPlansResults = new HashSet<LocalRelation>();
-        var subPlan = firstSubPlan(optimizedPlan, approximation, subPlansResults);
+        var subPlan = firstSubPlan(optimizedPlan, configuration, approximation, subPlansResults);
 
         // TODO: merge into one method
         if (subPlan != null) {
             // code-path to execute subplans
             executeSubPlan(
                 new DriverCompletionInfo.Accumulator(),
-                optimizedPlan,
                 subPlan,
                 configuration,
                 foldContext,
@@ -598,35 +658,47 @@ public class EsqlSession {
         Runnable cleanup
     ) {};
 
-    private SubPlanAndCallback firstSubPlan(LogicalPlan optimizedPlan, Approximation approximation, Set<LocalRelation> subPlansResults) {
-        if (approximation != null) {
-            LogicalPlan subPlan = approximation.firstSubPlan();
+    private SubPlanAndCallback firstSubPlan(
+        LogicalPlan mainPlan,
+        Configuration configuration,
+        Holder<ApproximationDriver> approximation,
+        Set<LocalRelation> subPlansResults
+    ) {
+        SubPlanAndCallback subPlanAndCallback = null;
+
+        // InlineJoin must be first, because approximation may need to approximate a subplan of it.
+        InlineJoin.LogicalPlanTuple subPlans = InlineJoin.firstSubPlan(mainPlan, subPlansResults);
+        if (subPlans != null) {
+            AtomicReference<Page> localRelationPage = new AtomicReference<>();
+            subPlanAndCallback = new SubPlanAndCallback(subPlans.stubReplacedSubPlan(), result -> {
+                // Translate the subquery into a separate, coordinator based plan and the results 'broadcasted' as a local relation
+                LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan().source(), result);
+                localRelationPage.set(resultWrapper.supplier().get());
+                subPlansResults.add(resultWrapper);
+                return InlineJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
+            }, () -> releaseLocalRelationBlocks(localRelationPage));
+        }
+
+        LogicalPlan plan = subPlanAndCallback != null ? subPlanAndCallback.subPlan : mainPlan;
+        if (ApproximationPlan.is(plan)) {
+            if (approximation.get() == null) {
+                approximation.set(ApproximationDriver.create(plan, configuration.approximationSettings()));
+            }
+            LogicalPlan subPlan = approximation.get().firstSubPlan();
             if (subPlan != null) {
-                return new SubPlanAndCallback(subPlan, approximation::newMainPlan, () -> {});
+                subPlanAndCallback = new SubPlanAndCallback(subPlan, result -> approximation.get().newMainPlan(mainPlan, result), () -> {});
             }
         }
 
-        InlineJoin.LogicalPlanTuple subPlans = InlineJoin.firstSubPlan(optimizedPlan, subPlansResults);
-        if (subPlans == null) {
-            return null;
-        }
-        AtomicReference<Page> localRelationPage = new AtomicReference<>();
-        return new SubPlanAndCallback(subPlans.stubReplacedSubPlan(), result -> {
-            // Translate the subquery into a separate, coordinator based plan and the results 'broadcasted' as a local relation
-            LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan().source(), result);
-            localRelationPage.set(resultWrapper.supplier().get());
-            subPlansResults.add(resultWrapper);
-            return InlineJoin.newMainPlan(optimizedPlan, subPlans, resultWrapper);
-        }, () -> releaseLocalRelationBlocks(localRelationPage));
+        return subPlanAndCallback;
     }
 
     private void executeSubPlan(
         DriverCompletionInfo.Accumulator completionInfoAccumulator,
-        LogicalPlan optimizedPlan,
         SubPlanAndCallback subPlan,
         Configuration configuration,
         FoldContext foldContext,
-        Approximation approximation,
+        Holder<ApproximationDriver> approximation,
         EsqlExecutionInfo executionInfo,
         PlanRunner runner,
         EsqlQueryRequest request,
@@ -648,7 +720,7 @@ public class EsqlSession {
                 LogicalPlan newMainPlan = subPlan.newMainPlan.apply(result);
 
                 // look for the next inlinejoin plan
-                var newSubPlan = firstSubPlan(newMainPlan, approximation, subPlansResults);
+                var newSubPlan = firstSubPlan(newMainPlan, configuration, approximation, subPlansResults);
 
                 if (newSubPlan == null) {// run the final "main" plan
                     executionInfo.finishSubPlans();
@@ -664,6 +736,7 @@ public class EsqlSession {
                                 new Result(
                                     finalResult.schema(),
                                     finalResult.pages(),
+                                    null,
                                     configuration,
                                     completionInfoAccumulator.finish(),
                                     executionInfo
@@ -674,7 +747,6 @@ public class EsqlSession {
                 } else {// continue executing the subplans
                     executeSubPlan(
                         completionInfoAccumulator,
-                        newMainPlan,
                         newSubPlan,
                         configuration,
                         foldContext,
@@ -847,6 +919,12 @@ public class EsqlSession {
 
         TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
         preAnalysisProfile.start();
+        // Rewrite FROM targets that resolve to datasets into UnresolvedExternalRelation so the rest of
+        // pre-analysis + analysis treats them identically to the inline EXTERNAL command. Pattern
+        // expansion (wildcards, exclusions, date math, etc.) flows through the same
+        // IndexNameExpressionResolver path indices use. The rewriter bails internally when there are
+        // no datasets registered (the feature flag gates the CRUD layer that puts datasets there).
+        parsed = DatasetRewriter.rewrite(parsed, projectMetadata, indexNameExpressionResolver);
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         preAnalysisProfile.stop();
         // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also in
@@ -858,6 +936,13 @@ public class EsqlSession {
             unmappedResolution == UnmappedResolution.LOAD
         ).withMinimumTransportVersion(localClusterMinimumVersion);
         String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
+        // Extract timestamp bounds eagerly from the request filter so they can be threaded through to the analyzer,
+        // even when index resolution is retried without the filter (e.g. because the filter covers an empty time range).
+        // Extraction uses configuration::absoluteStartedTimeInMillis (fixed at request start), so it is safe to do here.
+        TimestampBounds timestampBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
+            requestFilter,
+            configuration::absoluteStartedTimeInMillis
+        );
 
         resolveIndicesAndAnalyze(
             parsed,
@@ -866,6 +951,7 @@ public class EsqlSession {
             executionInfo,
             description,
             requestFilter,
+            timestampBounds,
             preAnalysis,
             result,
             logicalPlanListener
@@ -879,6 +965,7 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         String description,
         QueryBuilder requestFilter,
+        TimestampBounds timestampBounds,
         PreAnalyzer.PreAnalysis preAnalysis,
         PreAnalysisResult result,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
@@ -963,7 +1050,18 @@ public class EsqlSession {
                     }));
             })
             .<Versioned<LogicalPlan>>andThen((l, r) -> {
-                analyzeWithRetry(parsed, unmappedResolution, configuration, executionInfo, description, requestFilter, preAnalysis, r, l);
+                analyzeWithRetry(
+                    parsed,
+                    unmappedResolution,
+                    configuration,
+                    executionInfo,
+                    description,
+                    requestFilter,
+                    timestampBounds,
+                    preAnalysis,
+                    r,
+                    l
+                );
             })
             .addListener(logicalPlanListener);
     }
@@ -1025,32 +1123,44 @@ public class EsqlSession {
             return;
         }
 
-        Map<String, Map<String, Expression>> pathParams = extractIcebergParams(plan);
+        Map<String, Map<String, Object>> pathConfigs = extractExternalConfigs(plan);
 
         var filterHints = PartitionFilterHintExtractor.extract(plan);
 
         externalSourceResolver.resolve(
             preAnalysis.icebergPaths(),
-            pathParams,
+            pathConfigs,
             filterHints.isEmpty() ? null : filterHints,
             listener.map(result::withExternalSourceResolution)
         );
     }
 
     /**
-     * Extract external source parameters from UnresolvedExternalRelation nodes in the plan.
-     * Returns a map from table path to parameter map.
+     * Map from table path to config across all {@code UnresolvedExternalRelation} nodes. Every
+     * {@code tablePath} is a non-null {@code Literal} post-parsing; non-Literal here is a
+     * precondition violation and throws.
      */
-    private Map<String, Map<String, Expression>> extractIcebergParams(LogicalPlan plan) {
-        Map<String, Map<String, Expression>> pathParams = new HashMap<>();
+    // package-private for testing
+    static Map<String, Map<String, Object>> extractExternalConfigs(LogicalPlan plan) {
+        Map<String, Map<String, Object>> pathConfigs = new HashMap<>();
         plan.forEachUp(org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation.class, p -> {
-            if (p.tablePath() instanceof org.elasticsearch.xpack.esql.core.expression.Literal literal && literal.value() != null) {
-                // Use BytesRefs.toString() which handles both BytesRef and String
+            org.elasticsearch.xpack.esql.core.expression.Expression tablePath = p.tablePath();
+            if (tablePath instanceof org.elasticsearch.xpack.esql.core.expression.Literal literal && literal.value() != null) {
                 String path = org.elasticsearch.common.lucene.BytesRefs.toString(literal.value());
-                pathParams.put(path, p.params());
+                // If two UnresolvedExternalRelation nodes share the same literal path the later config
+                // overwrites the earlier one. Today the dataset-rewrite pipeline produces at most one
+                // UER per concrete path, so this is benign; if plan shapes evolve to allow per-call
+                // config divergence at the same path this needs to become a merge or a verifier check.
+                pathConfigs.put(path, p.config());
+            } else {
+                throw new IllegalStateException(
+                    "UnresolvedExternalRelation tablePath is not a non-null Literal: ["
+                        + (tablePath == null ? "null" : tablePath.sourceText())
+                        + "]"
+                );
             }
         });
-        return pathParams;
+        return pathConfigs;
     }
 
     private void skipClusterOrError(String clusterAlias, EsqlExecutionInfo executionInfo, String message) {
@@ -1203,7 +1313,6 @@ public class EsqlSession {
                 lookupIndexResolution.get().mapping(),
                 Map.of(indexName, IndexMode.LOOKUP),
                 Map.of(),
-                Map.of(),
                 Map.of()
             );
             return IndexResolution.valid(newIndex, newIndex.concreteQualifiedIndices(), lookupIndexResolution.failures());
@@ -1282,6 +1391,10 @@ public class EsqlSession {
                 listener
             );
         } else {
+            // Strict pass first: resolves the user-typed UnresolvedRelation patterns and initialises
+            // cross-cluster state. After it completes we run the lenient pass over any
+            // ViewShadowRelation patterns (CPS-only) so their results land in
+            // result.optionalLinkedResolution() — empty iterator → no-op when there are no shadows.
             forAll(
                 preAnalysis.indexes().entrySet().iterator(),
                 result,
@@ -1296,7 +1409,23 @@ public class EsqlSession {
                     requestFilter,
                     l
                 ),
-                listener
+                listener.delegateFailureAndWrap(
+                    (l, strictResult) -> forAll(
+                        preAnalysis.optionalLinkedIndices().iterator(),
+                        strictResult,
+                        (sp, r, ll) -> preAnalyzeOptionalLinkedIndices(
+                            sp,
+                            configuration.projectRouting(),
+                            preAnalysis,
+                            executionInfo,
+                            trackUnmappedFieldIndices,
+                            r,
+                            requestFilter,
+                            ll
+                        ),
+                        l
+                    )
+                )
             );
         }
     }
@@ -1360,6 +1489,44 @@ public class EsqlSession {
         }
     }
 
+    /**
+     * This performs lenient field caps resolutions for linkedOptionalPatterns
+     * in order to resolve optional linked indices (if exist) shadowed by local views.
+     */
+    private void preAnalyzeOptionalLinkedIndices(
+        IndexPattern indexPattern,
+        String projectRouting,
+        PreAnalyzer.PreAnalysis preAnalysis,
+        EsqlExecutionInfo executionInfo,
+        boolean trackUnmappedFieldIndices,
+        PreAnalysisResult result,
+        QueryBuilder requestFilter,
+        ActionListener<PreAnalysisResult> listener
+    ) {
+        executionInfo.queryProfile().incFieldCapsCalls();
+        indexResolver.resolveFlatIndicesVersioned(
+            true /* lenient */,
+            indexPattern.indexPattern(),
+            projectRouting,
+            result.fieldNames,
+            createQueryFilter(IndexMode.STANDARD, requestFilter),
+            false /* not time-series — shadows are always STANDARD */,
+            result.minimumTransportVersion(),
+            preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
+            preAnalysis.useDenseVectorWhenNotSupported(),
+            preAnalysis.hasTimeSeriesAggregation(),
+            trackUnmappedFieldIndices,
+            listener.delegateFailureAndWrap((l, indexResolution) -> {
+                EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
+                EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
+                EsqlCCSUtils.checkForViewErrors(indexResolution.inner().failures());
+                EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
+                // TODO count distinct linked projects
+                l.onResponse(result.withWithOptionalLinkedIndices(indexPattern, indexResolution.inner()));
+            })
+        );
+    }
+
     private void preAnalyzeFlatMainIndices(
         IndexPattern indexPattern,
         IndexMode indexMode,
@@ -1372,7 +1539,8 @@ public class EsqlSession {
         ActionListener<PreAnalysisResult> listener
     ) {
         executionInfo.queryProfile().incFieldCapsCalls();
-        indexResolver.resolveMainFlatWorldIndicesVersioned(
+        indexResolver.resolveFlatIndicesVersioned(
+            false /* lenient */,
             indexPattern.indexPattern(),
             projectRouting,
             result.fieldNames,
@@ -1392,7 +1560,8 @@ public class EsqlSession {
                 planTelemetry.linkedProjectsCount(executionInfo.clusterInfo.size());
                 maybeRetryConcreteTimeSeriesResolution(indexPattern, indexMode, result, indexResolution, l, retryListener -> {
                     executionInfo.queryProfile().incFieldCapsCalls();
-                    indexResolver.resolveMainFlatWorldIndicesVersioned(
+                    indexResolver.resolveFlatIndicesVersioned(
+                        false /* lenient */,
                         indexPattern.indexPattern(),
                         projectRouting,
                         result.fieldNames,
@@ -1479,6 +1648,7 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         String description,
         QueryBuilder requestFilter,
+        TimestampBounds timestampBounds,
         PreAnalyzer.PreAnalysis preAnalysis,
         PreAnalysisResult result,
         ActionListener<Versioned<LogicalPlan>> listener
@@ -1491,12 +1661,13 @@ public class EsqlSession {
                 EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
                     executionInfo,
                     result.indexResolution.values(),
+                    result.optionalLinkedResolution.values(),
                     requestFilter != null
                 );
             }
             TimeSpanMarker analysisProfile = executionInfo.queryProfile().analysis();
             analysisProfile.start();
-            LogicalPlan plan = analyzedPlan(parsed, unmappedResolution, configuration, result, executionInfo, requestFilter);
+            LogicalPlan plan = analyzedPlan(parsed, unmappedResolution, configuration, result, executionInfo, timestampBounds);
             analysisProfile.stop();
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
             // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
@@ -1516,6 +1687,7 @@ public class EsqlSession {
                     executionInfo,
                     "second attempt, without filter",
                     null,
+                    timestampBounds,
                     preAnalysis,
                     result,
                     listener
@@ -1543,17 +1715,9 @@ public class EsqlSession {
         Configuration configuration,
         PreAnalysisResult r,
         EsqlExecutionInfo executionInfo,
-        QueryBuilder requestFilter
+        TimestampBounds timestampBounds
     ) throws Exception {
         handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, r.indexResolution());
-        var timestampBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
-            requestFilter,
-            // Resolve date math against the query start time. If this uses the wall clock during planning instead,
-            // filters like [@timestamp >= now-5m AND @timestamp <= now] drift relative to Configuration.now(), so inferred
-            // timestamp bounds can shift within one request and misanchor TBUCKET/TSTEP bucketing.
-            // TODO: support nanos resolution for date_nanos fields
-            configuration::absoluteStartedTimeInMillis
-        );
         AnalyzerContext analyzerContext = new AnalyzerContext(
             configuration,
             functionRegistry,
@@ -1641,6 +1805,8 @@ public class EsqlSession {
         Set<String> wildcardJoinIndices,
         Map<IndexPattern, IndexResolution> indexResolution,
         Map<String, IndexResolution> lookupIndices,
+        // CPS specific optionalLinkedPatterns. Such patterns references indices (if present) shadowing views resolved on origin
+        Map<IndexPattern, IndexResolution> optionalLinkedResolution,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
         ExternalSourceResolution externalSourceResolution,
@@ -1651,6 +1817,7 @@ public class EsqlSession {
             this(
                 fieldNames,
                 wildcardJoinIndices,
+                new HashMap<>(),
                 new HashMap<>(),
                 new HashMap<>(),
                 null,
@@ -1670,12 +1837,18 @@ public class EsqlSession {
             return this;
         }
 
+        PreAnalysisResult withWithOptionalLinkedIndices(IndexPattern indexPattern, IndexResolution indices) {
+            optionalLinkedResolution.put(indexPattern, indices);
+            return this;
+        }
+
         PreAnalysisResult withEnrichResolution(EnrichResolution enrichResolution) {
             return new PreAnalysisResult(
                 fieldNames,
                 wildcardJoinIndices,
                 indexResolution,
                 lookupIndices,
+                optionalLinkedResolution,
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
@@ -1689,6 +1862,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 indexResolution,
                 lookupIndices,
+                optionalLinkedResolution,
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
@@ -1702,6 +1876,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 indexResolution,
                 lookupIndices,
+                optionalLinkedResolution,
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
@@ -1721,6 +1896,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 indexResolution,
                 lookupIndices,
+                optionalLinkedResolution,
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,

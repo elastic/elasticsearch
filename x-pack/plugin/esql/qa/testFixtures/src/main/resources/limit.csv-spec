@@ -1086,6 +1086,58 @@ emp_no:integer | language_code:integer | language_name:keyword
 10005          | 1                     | English
 ;
 
+// SORT key renamed by a Project lifted above a LOOKUP JOIN.
+// https://github.com/elastic/elasticsearch/issues/148612
+sortRenameSortKeyLimitByWithLookupJoin
+required_capability: fix_reorder_limit_project_and_order_by_preserves_refs
+required_capability: esql_topn_by
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10004, 10005)
+| RENAME salary AS pay
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT pay
+| LIMIT 5 BY language_code
+| KEEP emp_no, language_code, pay, language_name
+| SORT emp_no, language_code
+;
+
+emp_no:integer | language_code:integer | pay:integer | language_name:keyword
+10001          | 2                     | 57305       | French
+10002          | 5                     | 56371       | null
+10003          | 4                     | 61805       | German
+10004          | 5                     | 36174       | null
+10005          | 1                     | 63528       | English
+;
+
+
+// Companion positive test: the RENAME targets the join column, so the SORT key still survives the Project.
+// https://github.com/elastic/elasticsearch/issues/148612
+sortLimitByRenamingJoinKey
+required_capability: fix_reorder_limit_project_and_order_by_preserves_refs
+required_capability: esql_topn_by
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10004, 10005)
+| RENAME languages AS language_code
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT salary
+| LIMIT 5 BY language_code
+| KEEP emp_no, language_code, salary, language_name
+| SORT emp_no, language_code
+;
+
+emp_no:integer | language_code:integer | salary:integer | language_name:keyword
+10001          | 2                     | 57305          | French
+10002          | 5                     | 56371          | null
+10003          | 4                     | 61805          | German
+10004          | 5                     | 36174          | null
+10005          | 1                     | 63528          | English
+;
+
 limitByWithEnrich
 required_capability: enrich_load
 required_capability: limit_by_enrich_fix
@@ -1169,4 +1221,70 @@ book_no:keyword | title:text                                            | author
 1502            | Selected Passages from Correspondence with Friends    | Nikolai Vasilevich Gogol | 0.019999999552965164
 1937            | The Best Short Stories of Dostoevsky (Modern Library) | Fyodor Dostoevsky        | 0.01886792480945587
 1985            | Brothers Karamazov                                    | Fyodor Dostoevsky        | 0.0555555559694767
+;
+
+limitByBucket
+required_capability: limit_by_allow_evaluatable_grouping_functions
+
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| LIMIT 1 BY BUCKET(hire_date, 1 month)
+| STATS c = COUNT(*)
+;
+
+c:long
+6
+;
+
+sortLimitByBucket
+required_capability: limit_by_allow_evaluatable_grouping_functions
+
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| SORT emp_no ASC
+| LIMIT 1 BY BUCKET(hire_date, 1 month)
+| KEEP emp_no, hire_date
+;
+
+emp_no:integer | hire_date:date
+10002          | 1985-11-21T00:00:00.000Z
+10009          | 1985-02-18T00:00:00.000Z
+10013          | 1985-10-20T00:00:00.000Z
+10061          | 1985-09-17T00:00:00.000Z
+10076          | 1985-07-09T00:00:00.000Z
+10098          | 1985-05-13T00:00:00.000Z
+;
+
+sortLimitByBucketAndField
+required_capability: limit_by_allow_evaluatable_grouping_functions
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10004, 10007)
+| SORT emp_no ASC
+| LIMIT 1 BY languages, BUCKET(hire_date, 1 year)
+| KEEP emp_no, languages, hire_date
+;
+
+emp_no:integer | languages:integer | hire_date:date
+10001          | 2                 | 1986-06-26T00:00:00.000Z
+10002          | 5                 | 1985-11-21T00:00:00.000Z
+10003          | 4                 | 1986-08-28T00:00:00.000Z
+10004          | 5                 | 1986-12-01T00:00:00.000Z
+10007          | 4                 | 1989-02-10T00:00:00.000Z
+;
+
+sortLimitByTBucket
+required_capability: limit_by_allow_evaluatable_grouping_functions
+
+FROM sample_data
+| SORT @timestamp ASC
+| LIMIT 1 BY TBUCKET(10 minutes)
+| KEEP @timestamp, message
+;
+
+@timestamp:date          | message:keyword
+2023-10-23T12:15:03.360Z | Connected to 10.1.0.3
+2023-10-23T12:27:28.948Z | Connected to 10.1.0.2
+2023-10-23T13:33:34.937Z | Disconnected
+2023-10-23T13:51:54.732Z | Connection error
 ;

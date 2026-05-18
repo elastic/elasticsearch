@@ -25,6 +25,7 @@ import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.FileMetaData;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.io.InputFile;
+import org.apache.parquet.io.SeekableInputStream;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
@@ -295,7 +296,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 // midpoint falls in the range, which would make getFooter() unusable for other
                 // splits. The underlying FooterByteCache ensures the tail bytes are fetched from
                 // storage only once on the first parse.
-                return ParquetFileReader.readFooter(adapter, readOptionsBuilder().build(), adapter.newStream());
+                //
+                // Note: this variant of readFooter doesn't close the stream.
+                try (SeekableInputStream stream = adapter.newStream()) {
+                    return ParquetFileReader.readFooter(adapter, readOptionsBuilder().build(), stream);
+                }
             });
         } catch (ExecutionException e) {
             // rethrowStructural handles Error/IOException/CircuitBreakingException/

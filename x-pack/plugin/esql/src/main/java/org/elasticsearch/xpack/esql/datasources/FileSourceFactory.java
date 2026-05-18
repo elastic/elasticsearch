@@ -11,6 +11,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -63,6 +65,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         keys.add(FormatNameResolver.CONFIG_READER);
         keys.addAll(ErrorPolicy.CONFIG_KEYS);
         keys.addAll(FileSplitProvider.CONFIG_KEYS);
+        keys.addAll(ExternalSourceResolver.CONFIG_KEYS);
         COORDINATOR_KEYS = Set.copyOf(keys);
     }
 
@@ -231,6 +234,16 @@ final class FileSourceFactory implements ExternalSourceFactory {
             }
 
             Executor readExecutor = context.fileReadExecutor() != null ? context.fileReadExecutor() : context.executor();
+            // Auto-detect the deferred-extraction signal: the synthetic _rowPosition column in the
+            // projection means InsertExternalFieldExtraction injected a paired
+            // ExternalFieldExtractExec downstream and expects this source to register a
+            // ColumnExtractor per opened file plus emit encoded row references. Only enable it
+            // when the resolved reader actually advertises ColumnExtractorAware — without that
+            // capability the builder would refuse to set the flag.
+            boolean deferredExtraction = format instanceof ColumnExtractorAware
+                && context.projectedColumns() != null
+                && context.projectedColumns().contains(ColumnExtractor.ROW_POSITION_COLUMN);
+
             return AsyncExternalSourceOperatorFactory.builder(
                 storage,
                 format,
@@ -242,6 +255,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
             )
                 .rowLimit(context.rowLimit())
                 .fileList(context.fileList())
+                .schemaMap(context.schemaMap())
                 .partitionColumnNames(context.partitionColumnNames())
                 .partitionValues(partitionValues)
                 .sliceQueue(context.sliceQueue())
@@ -251,6 +265,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 .pushedExpressions(pushedExpressions)
                 .pushdownSupport(pushdownSupport)
                 .onClose(onClose)
+                .deferredExtraction(deferredExtraction)
                 .build();
         };
     }

@@ -1949,49 +1949,88 @@ public class ParquetFormatReaderTests extends ESTestCase {
         FilterPredicate filter = FilterApi.gt(FilterApi.longColumn("id"), -1L);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withPushedFilter(FilterCompat.get(filter));
 
-        List<String> fullRows = new ArrayList<>();
-        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 500)) {
-            while (iterator.hasNext()) {
-                Page page = iterator.next();
-                LongBlock ids = (LongBlock) page.getBlock(0);
-                BytesRefBlock payloads = (BytesRefBlock) page.getBlock(1);
-                BytesRef scratch = new BytesRef();
-                for (int row = 0; row < page.getPositionCount(); row++) {
-                    fullRows.add(ids.getLong(row) + "|" + payloads.getBytesRef(row, scratch).utf8ToString());
-                }
-            }
-        }
+        List<String> fullRows = collectIdPayloadRows(reader.read(storageObject, null, 500));
 
         List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
         assertTrue("Need at least 2 ranges for this test, got " + ranges.size(), ranges.size() >= 2);
-
-        List<String> rangeRows = new ArrayList<>();
-        for (RangeAwareFormatReader.SplitRange range : ranges) {
-            long rangeStart = range.offset();
-            long rangeEnd = rangeStart + range.length();
-            try (
-                CloseableIterator<Page> iterator = reader.readRange(
-                    storageObject,
-                    new RangeReadContext(null, 500, rangeStart, rangeEnd, List.of(), ErrorPolicy.STRICT)
-                )
-            ) {
-                while (iterator.hasNext()) {
-                    Page page = iterator.next();
-                    LongBlock ids = (LongBlock) page.getBlock(0);
-                    BytesRefBlock payloads = (BytesRefBlock) page.getBlock(1);
-                    BytesRef scratch = new BytesRef();
-                    for (int row = 0; row < page.getPositionCount(); row++) {
-                        rangeRows.add(ids.getLong(row) + "|" + payloads.getBytesRef(row, scratch).utf8ToString());
-                    }
-                }
-            }
-        }
+        List<String> rangeRows = collectRangeRows(reader, storageObject, ranges);
 
         assertEquals(fullRows.size(), rangeRows.size());
         Comparator<String> byId = Comparator.comparingLong(s -> Long.parseLong(s.split("\\|", 2)[0]));
         fullRows.sort(byId);
         rangeRows.sort(byId);
         assertEquals(fullRows, rangeRows);
+    }
+
+    public void testReadRangeBaselineNoFilter() throws Exception {
+        byte[] parquetData = createWideMultiRowGroupFile(500);
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, false);
+
+        List<String> fullRows = collectIdPayloadRows(reader.read(storageObject, null, 500));
+
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertTrue("Need at least 2 ranges for this test, got " + ranges.size(), ranges.size() >= 2);
+        List<String> rangeRows = collectRangeRows(reader, storageObject, ranges);
+
+        assertEquals(fullRows.size(), rangeRows.size());
+        Comparator<String> byId = Comparator.comparingLong(s -> Long.parseLong(s.split("\\|", 2)[0]));
+        fullRows.sort(byId);
+        rangeRows.sort(byId);
+        assertEquals(fullRows, rangeRows);
+    }
+
+    public void testReadRangeBaselineWithFilterProducesCorrectResults() throws Exception {
+        byte[] parquetData = createWideMultiRowGroupFile(500);
+        StorageObject storageObject = createStorageObject(parquetData);
+        FilterPredicate filter = FilterApi.gt(FilterApi.longColumn("id"), -1L);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, false).withPushedFilter(FilterCompat.get(filter));
+
+        List<String> fullRows = collectIdPayloadRows(reader.read(storageObject, null, 500));
+
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertTrue("Need at least 2 ranges for this test, got " + ranges.size(), ranges.size() >= 2);
+        List<String> rangeRows = collectRangeRows(reader, storageObject, ranges);
+
+        assertEquals(fullRows.size(), rangeRows.size());
+        Comparator<String> byId = Comparator.comparingLong(s -> Long.parseLong(s.split("\\|", 2)[0]));
+        fullRows.sort(byId);
+        rangeRows.sort(byId);
+        assertEquals(fullRows, rangeRows);
+    }
+
+    private static List<String> collectIdPayloadRows(CloseableIterator<Page> iterator) throws IOException {
+        List<String> rows = new ArrayList<>();
+        try (iterator) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                LongBlock ids = (LongBlock) page.getBlock(0);
+                BytesRefBlock payloads = (BytesRefBlock) page.getBlock(1);
+                BytesRef scratch = new BytesRef();
+                for (int row = 0; row < page.getPositionCount(); row++) {
+                    rows.add(ids.getLong(row) + "|" + payloads.getBytesRef(row, scratch).utf8ToString());
+                }
+            }
+        }
+        return rows;
+    }
+
+    private static List<String> collectRangeRows(
+        ParquetFormatReader reader,
+        StorageObject storageObject,
+        List<RangeAwareFormatReader.SplitRange> ranges
+    ) throws IOException {
+        List<String> rows = new ArrayList<>();
+        for (RangeAwareFormatReader.SplitRange range : ranges) {
+            long rangeStart = range.offset();
+            long rangeEnd = rangeStart + range.length();
+            rows.addAll(
+                collectIdPayloadRows(
+                    reader.readRange(storageObject, new RangeReadContext(null, 500, rangeStart, rangeEnd, List.of(), ErrorPolicy.STRICT))
+                )
+            );
+        }
+        return rows;
     }
 
     // --- Test helpers ---

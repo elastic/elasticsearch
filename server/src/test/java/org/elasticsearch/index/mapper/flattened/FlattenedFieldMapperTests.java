@@ -29,7 +29,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -2122,12 +2121,11 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
                 BytesRef bytesRef = (BytesRef) block.get(0);
                 assertNotNull("block loader should return non-null value for doc with mapped properties", bytesRef);
 
-                Map<String, Object> parsed = XContentHelper.convertToMap(new BytesArray(bytesRef.utf8ToString()), false, XContentType.JSON)
-                    .v2();
-
-                assertThat("mapped keyword property must be present", parsed.get("status"), equalTo("ok"));
-                assertThat("mapped long property must be present", parsed.get("code"), equalTo(200));
-                assertThat("unmapped key must be present", parsed.get("unmapped_key"), equalTo("some_value"));
+                assertThat(
+                    "fields must be returned in alphabetical order",
+                    bytesRef.utf8ToString(),
+                    equalTo("{\"code\":200,\"status\":\"ok\",\"unmapped_key\":\"some_value\"}")
+                );
             } finally {
                 columnReader.close();
             }
@@ -2164,10 +2162,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
                 BytesRef bytesRef = (BytesRef) block.get(0);
                 assertNotNull("block loader should not return null when only mapped properties have values", bytesRef);
 
-                Map<String, Object> parsed = XContentHelper.convertToMap(new BytesArray(bytesRef.utf8ToString()), false, XContentType.JSON)
-                    .v2();
-
-                assertThat(parsed.get("status"), equalTo("active"));
+                assertThat("fields must be returned in alphabetical order", bytesRef.utf8ToString(), equalTo("{\"status\":\"active\"}"));
             } finally {
                 columnReader.close();
             }

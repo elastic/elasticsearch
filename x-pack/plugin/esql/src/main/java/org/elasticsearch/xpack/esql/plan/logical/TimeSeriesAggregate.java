@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sparkline;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -327,6 +328,10 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
                         fail(count, "count_star [{}] can't be used with TS command; use count on a field instead", outer.sourceText())
                     );
                     // reject COUNT(keyword), but allow COUNT(numeric)
+                }
+                // reject `TS metrics | STATS SPARKLINE(...)`
+                if (outer instanceof Sparkline sparkline) {
+                    failures.add(fail(sparkline, "sparkline [{}] can't be used with TS command", sparkline.sourceText()));
                 }
                 outer.field().forEachDown(AggregateFunction.class, nested -> {
                     if (nested instanceof TimeSeriesAggregateFunction == false) {

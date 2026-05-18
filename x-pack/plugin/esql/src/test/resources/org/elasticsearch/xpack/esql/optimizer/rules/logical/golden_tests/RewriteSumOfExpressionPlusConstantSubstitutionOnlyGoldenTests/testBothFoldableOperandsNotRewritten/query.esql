@@ -1,0 +1,2 @@
+FROM employees
+| STATS s1 = SUM(null + 1), s2 = SUM(null + 2)

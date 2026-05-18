@@ -854,13 +854,10 @@ public final class IndexSettings {
         IndexVersion iv = SETTING_INDEX_VERSION_CREATED.get(s);
         var indexMode = MODE.get(s);
         if (indexMode == IndexMode.TIME_SERIES) {
-            if (iv.onOrAfter(IndexVersions.STATELESS_SKIPPERS_ENABLED_FOR_TSDB)) {
-                return "true";
-            }
-            return "false";
+            return Boolean.toString(iv.onOrAfter(IndexVersions.STATELESS_SKIPPERS_ENABLED_FOR_TSDB));
         }
-        if (indexMode == IndexMode.LOGSDB || indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.LOGSDB_COLUMNAR) {
-            return iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB) ? "true" : "false";
+        if (indexMode == IndexMode.LOGSDB || indexMode.isStrictColumnar()) {
+            return Boolean.toString(iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB));
         }
         return "false";
     }, Property.IndexScope, Property.Final);
@@ -1079,7 +1076,7 @@ public final class IndexSettings {
     );
 
     static boolean indexModeSupportsSeqNoDocValuesOnly(IndexMode indexMode, IndexVersion indexVersionCreated) {
-        if (indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.LOGSDB_COLUMNAR) {
+        if (indexMode.isStrictColumnar()) {
             return true;
         }
         return (indexMode == IndexMode.LOGSDB || indexMode == IndexMode.TIME_SERIES)
@@ -1114,7 +1111,7 @@ public final class IndexSettings {
             return Boolean.FALSE.toString();
         }
         IndexMode indexMode = IndexSettings.MODE.get(settings);
-        if (indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.LOGSDB_COLUMNAR) {
+        if (indexMode.isStrictColumnar()) {
             var indexVersion = SETTING_INDEX_VERSION_CREATED.get(settings);
             // Only enable by default if the index version supports it
             if (indexVersion.onOrAfter(IndexVersions.DISABLE_SEQUENCE_NUMBERS)) {

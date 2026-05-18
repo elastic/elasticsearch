@@ -52,6 +52,10 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
 
     // this is compared against filter coverage which is in [0,1], so this marks it essentially off by default
     public static final float DEFAULT_POST_FILTERING_THRESHOLD = 1f;
+    // Early-exit check is skipped for small k, where the expected-hits heuristic is too noisy to
+    // be meaningful (e.g. k=3, selectivity=0.7 → expected=2.1, threshold=1.05, a single passer
+    // would block recovery rounds for no real reason).
+    private static final int EARLY_EXIT_MIN_K = 5;
     private static final Logger logger = LogManager.getLogger(PostFilterKnnQuery.class);
 
     private final PostFilterableKnnQuery innerQuery;
@@ -117,9 +121,9 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         ScoreDoc[] passingDocs = applyFilter(topDocs.scoreDocs, filterWeight, searcher);
         ScoreDoc[] scoreDocs = dedupAndSelectTopK(passingDocs, searcher.getIndexReader(), parentsFilter, k);
 
-        // exit early if we have found no results at all; this would probably imply a negatively correlated filter with the
-        // knn search so post-filtering is unlikely to generate enough results even after retrying
-        if (scoreDocs.length == 0) {
+        // Exit early when the filter is negatively correlated to the knn query and further rounds are unlikely
+        // to recover. Zero passers always exits.
+        if (scoreDocs.length == 0 || shouldExitEarly(scoreDocs.length, selectivity)) {
             return null;
         }
 
@@ -189,6 +193,38 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             return null;
         }
         return new KnnScoreDocQuery(scoreDocs, searcher.getIndexReader());
+    }
+
+    /**
+     * Decides whether to bypass remaining post-filter rounds because the filter is hostile to the
+     * kNN topology of this query. Skipped for {@code k < EARLY_EXIT_MIN_K}, where the expected
+     * hit count is too small for the heuristic to be informative.
+     * <p>
+     * For larger {@code k}, the expected number of post-filter hits under independence is
+     * {@code k * selectivity}. We bail when the observed count is below half of that - i.e. the
+     * filter is letting through fewer than half of what its global selectivity predicts in the
+     * kNN region.
+     */
+    private boolean shouldExitEarly(int scoreDocsCount, float selectivity) {
+        if (k < EARLY_EXIT_MIN_K) {
+            return false;
+        }
+        double expectedHits = k * (double) selectivity;
+        double threshold = expectedHits / 2.0;
+        boolean shouldExit = scoreDocsCount < threshold;
+        if (shouldExit) {
+            logger.debug(
+                "post-filter early exit (hostile filter): field=[{}], k=[{}], selectivity=[{}], "
+                    + "scoreDocs=[{}], expectedHits=[{}], threshold=[{}]",
+                field,
+                k,
+                selectivity,
+                scoreDocsCount,
+                expectedHits,
+                threshold
+            );
+        }
+        return shouldExit;
     }
 
     private static int[] trackedDocs(PostFilterableKnnQuery delegate, TopDocs topDocs) {

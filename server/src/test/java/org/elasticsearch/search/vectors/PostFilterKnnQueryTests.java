@@ -308,6 +308,71 @@ public class PostFilterKnnQueryTests extends ESTestCase {
         }
     }
 
+    /**
+     * 20 docs, selectivity=0.7 (14 pass, 6 fail), arranged so the kNN region around the query is
+     * filter-hostile: the 3 closest docs fail and only 2 close passers exist. With k=10 and
+     * scale=0.5 (scaledK=5), round 0's top-5 = {0..4} yields only {3,4} after filtering -
+     * scoreDocs.length=2. The early-exit fires: k=10 ≥ EARLY_EXIT_MIN_K and 2 &lt;
+     * (k * selectivity) / 2 = 3.5, so retry and fallback are skipped and the outer rewrite falls
+     * through to the bare inner query (which carries the user filter), returning the 10 closest
+     * passing docs.
+     */
+    public void testEarlyExitBailsOnHostileFilter() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            // Close cluster: 3 fail at vectors 0..2, 2 pass at vectors 3..4.
+            for (int i = 0; i < 3; i++) {
+                Document doc = new Document();
+                doc.add(new KnnFloatVectorField("vector", new float[] { (float) i }));
+                doc.add(new KeywordField("tag", "fail", Field.Store.NO));
+                writer.addDocument(doc);
+            }
+            for (int i = 3; i < 5; i++) {
+                Document doc = new Document();
+                doc.add(new KnnFloatVectorField("vector", new float[] { (float) i }));
+                doc.add(new KeywordField("tag", "pass", Field.Store.NO));
+                writer.addDocument(doc);
+            }
+            // Far fail cluster: 3 fail at vectors 100..102.
+            for (int i = 0; i < 3; i++) {
+                Document doc = new Document();
+                doc.add(new KnnFloatVectorField("vector", new float[] { 100f + i }));
+                doc.add(new KeywordField("tag", "fail", Field.Store.NO));
+                writer.addDocument(doc);
+            }
+            // Far pass cluster: 12 pass at vectors 200..211.
+            for (int i = 0; i < 12; i++) {
+                Document doc = new Document();
+                doc.add(new KnnFloatVectorField("vector", new float[] { 200f + i }));
+                doc.add(new KeywordField("tag", "pass", Field.Store.NO));
+                writer.addDocument(doc);
+            }
+            writer.forceMerge(1);
+            writer.commit();
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                IndexSearcher searcher = newSearcher(reader);
+                int k = 10;
+                Query userFilter = new TermQuery(new Term("tag", "pass"));
+                // scale=0.5 -> scaledK=5: top-5 closest = {0,1,2,3,4}, only {3,4} pass.
+                AssertingKnnQuery asserting = new AssertingKnnQuery("vector", new float[] { 0f }, k, 20, userFilter, 0.5f);
+                PostFilterKnnQuery pfq = new PostFilterKnnQuery(asserting, userFilter, k, "vector", null, 0f);
+
+                TopDocs td = searcher.search(pfq, k);
+
+                assertEquals(k, td.scoreDocs.length);
+                // Bare inner runs with the user filter; returns the 10 closest passing docs.
+                assertDocsByScoreDescending(td.scoreDocs, new int[] { 3, 4, 8, 9, 10, 11, 12, 13, 14, 15 });
+
+                AssertingKnnQuery.PostFilterMeta meta = asserting.postFilterMeta();
+                assertEquals(1, meta.postFilterDelegateCalls());
+                assertEquals(0.7f, meta.postFilterDelegateSelectivity(), 0.001f);
+                // Early-exit fires before retry/fallback can run.
+                assertEquals(0, meta.retryCalls());
+                assertEquals(0, meta.fallbackCalls());
+            }
+        }
+    }
+
     private static void assertDocsByScoreDescending(ScoreDoc[] actual, int[] expectedDocs) {
         assertEquals("doc count mismatch", expectedDocs.length, actual.length);
         for (int i = 0; i < expectedDocs.length; i++) {

@@ -538,8 +538,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 assert indexMetadata != null || event.isNewCluster()
                     : "index "
                         + index
-                        + " does not exist in the cluster state, it should either "
-                        + "have been deleted or the cluster must be new";
+                        + " does not exist in the cluster state, it should either have been deleted or the cluster must be new";
                 reason = indexMetadata != null && indexMetadata.getState() == IndexMetadata.State.CLOSE ? CLOSED : NO_LONGER_ASSIGNED;
             }
 
@@ -549,8 +548,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             } else {
                 // remove shards based on routing nodes (no deletion of data)
                 for (Shard shard : indexService) {
-                    ShardRouting currentRoutingEntry = shard.routingEntry();
-                    ShardId shardId = currentRoutingEntry.shardId();
+                    ShardRouting currentShardRouting = shard.routingEntry();
+                    ShardId shardId = currentShardRouting.shardId();
                     ShardRouting newShardRouting = localRoutingNode.getByShardId(shardId);
                     if (newShardRouting == null) {
                         // we can just remove the shard without cleaning it locally, since we will clean it in IndicesStore
@@ -562,11 +561,18 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             shardCloseExecutor,
                             getShardsClosedListener()
                         );
-                    } else if (newShardRouting.isSameAllocation(currentRoutingEntry) == false) {
+                        continue;
+                    }
+
+                    assert indexMetadata != null : "null index metadata but non-null new shard routing " + newShardRouting;
+                    final long newTerm = indexMetadata.primaryTerm(shardId.id());
+                    final long existingTerm = existingMetadata.primaryTerm(shardId.id());
+
+                    if (newShardRouting.isSameAllocation(currentShardRouting) == false) {
                         logger.debug(
                             "{} removing shard (stale allocation id, stale {}, new {})",
                             shardId,
-                            currentRoutingEntry,
+                            currentShardRouting,
                             newShardRouting
                         );
                         indexService.removeShard(
@@ -575,35 +581,54 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             shardCloseExecutor,
                             getShardsClosedListener()
                         );
-                    } else if (newShardRouting.initializing()) {
+                    } else if (newShardRouting.initializing() && currentShardRouting.active()) {
                         // This can happen if the node was isolated/gc-ed, rejoins the cluster and a new shard with the same allocation id
                         // is assigned to it.
                         // Batch cluster state processing or a shard fetching completion before the node gets a new cluster state may result
                         // in a new shard being initialized while having the same allocation id as the currently started shard.
-                        boolean currentRoutingActive = currentRoutingEntry.active();
-                        // This can happen either during a replica promotion or if a primary shard failed recovery and is re-assigned with
-                        // the same allocation id but a bumped primary term.
-                        // Batch cluster state processing could cause the cluster state changed event to go straight
-                        // from initializing (term1) -> initializing (term2). The stale shard should be cleaned up.
-                        boolean primaryTermBumped = indexMetadata != null
-                            && indexMetadata.primaryTerm(shardId.id()) > existingMetadata.primaryTerm(shardId.id());
-                        assert newShardRouting.primary() == false || currentRoutingEntry.primary() || primaryTermBumped
-                            : "replica-to-primary promotion must bump primary term: " + currentRoutingEntry + " -> " + newShardRouting;
-
-                        if (currentRoutingActive || primaryTermBumped) {
-                            logger.debug(
-                                "{} removing shard (not active, current {}, new {})",
-                                shardId,
-                                currentRoutingEntry,
-                                newShardRouting
+                        logger.debug("{} removing shard (not active, current {}, new {})", shardId, currentShardRouting, newShardRouting);
+                        indexService.removeShard(
+                            shardId.id(),
+                            "removing shard (stale copy)",
+                            shardCloseExecutor,
+                            getShardsClosedListener()
+                        );
+                    } else if (newShardRouting.initializing() && newShardRouting.primary() && currentShardRouting.primary() == false) {
+                        assert currentShardRouting.initializing() : currentShardRouting; // see above if clause
+                        assert newTerm > existingTerm
+                            : Strings.format(
+                                "replica-to-primary promotion must bump primary term: newTerm {}, existingTerm: {}, newRouting {}, currentRouting {}",
+                                newTerm,
+                                existingTerm,
+                                newShardRouting,
+                                currentShardRouting
                             );
-                            indexService.removeShard(
-                                shardId.id(),
-                                "removing shard (stale copy)",
-                                shardCloseExecutor,
-                                getShardsClosedListener()
-                            );
-                        }
+                        // During a replica promotion, batch cluster state processing could cause the cluster state changed event
+                        // to go straight from initializing (term1) -> initializing (term2). The stale shard should be cleaned up.
+                        logger.debug("{} removing shard (promotion, current {}, new {})", shardId, currentShardRouting, newShardRouting);
+                        indexService.removeShard(
+                            shardId.id(),
+                            "removing shard (stale copy)",
+                            shardCloseExecutor,
+                            getShardsClosedListener()
+                        );
+                    } else if (newShardRouting.initializing() && currentShardRouting.initializing() && newTerm > existingTerm) {
+                        // This can happen if a primary shard failed recovery and is re-assigned with the same allocation id but a
+                        // bumped primary term.
+                        // Batch cluster state processing could cause the cluster state changed event to go straight from
+                        // initializing (term1) -> initializing (term2). The stale shard should be cleaned up.
+                        logger.debug(
+                            "{} removing shard (primary term bumped, current {}, new {})",
+                            shardId,
+                            currentShardRouting,
+                            newShardRouting
+                        );
+                        indexService.removeShard(
+                            shardId.id(),
+                            "removing shard (stale copy)",
+                            shardCloseExecutor,
+                            getShardsClosedListener()
+                        );
                     }
                 }
             }

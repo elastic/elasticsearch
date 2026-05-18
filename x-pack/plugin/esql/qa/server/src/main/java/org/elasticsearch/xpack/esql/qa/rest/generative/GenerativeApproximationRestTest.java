@@ -146,7 +146,8 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
         );
         assumeFalse(
             "Subqueries in approximation require inline stats capability",
-            testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName()) && APPROXIMATION_INLINE_STATS_V2.isEnabled() == false
+            testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())
+                && APPROXIMATION_INLINE_STATS_V2.isEnabled() == false
         );
         assumeTrue("Test must contain STATS to be included in approximation tests", testCase.query.toLowerCase().contains("stats"));
     }

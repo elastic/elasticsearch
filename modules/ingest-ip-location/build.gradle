@@ -7,6 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+import org.elasticsearch.gradle.OS
+
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
@@ -36,6 +38,14 @@ dependencies {
 restResources {
   restApi {
     include '_common', 'indices', 'index', 'cluster', 'nodes', 'get', 'ingest'
+  }
+}
+
+if (OS.current() == OS.WINDOWS) {
+  tasks.named("test").configure {
+    // Windows cannot cleanup database files properly unless it loads everything on heap.
+    // See https://github.com/maxmind/MaxMind-DB-Reader-java#file-lock-on-windows for more information
+    systemProperty 'es.geoip.load_db_on_heap', 'true'
   }
 }
 

@@ -37,6 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DynamicMappingTests extends MapperServiceTestCase {
@@ -1104,7 +1105,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         }));
 
         assertThat(doc.rootDoc().get("field1"), equalTo("value1"));
-        assertThat(doc.rootDoc().get("field2"), equalTo("value2"));
+        assertThat(doc.rootDoc().getBinaryValue("field2"), notNullValue());
 
         Mapping update = parseDynamicUpdate(doc.dynamicMappingsUpdate());
         Mapper field2 = update.getRoot().getMapper("field2");

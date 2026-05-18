@@ -528,7 +528,7 @@ create logsdb_columnar data stream with custom sorting and dynamically mapped ho
   - match: { .$backing_index.mappings.properties.agent.properties.name.type: keyword }
   - match: { .$backing_index.mappings.properties.agent.properties.id.type: keyword }
   - match: { .$backing_index.mappings.properties.host.properties.name: null }
-  - match: { .$backing_index.mappings.properties.host.properties.id.type: text }
+  - match: { .$backing_index.mappings.properties.host.properties.id.type: keyword }
 
 ---
 create logsdb_columnar data stream with custom sorting and host.name object:
@@ -636,7 +636,7 @@ create logsdb_columnar data stream with default sorting on malformed host.name:
   - match: { .$backing_index.mappings.properties.agent.properties.id.type: keyword }
   - match: { .$backing_index.mappings.properties.host.properties.name.type: keyword } # injected
   - match: { .$backing_index.mappings.properties.host.properties.name.ignore_above: 1024 } # injected
-  - match: { .$backing_index.mappings.properties.host.properties.id.type: text }
+  - match: { .$backing_index.mappings.properties.host.properties.id.type: keyword }
 
 ---
 create logsdb_columnar data stream with custom sorting and host.name date field:

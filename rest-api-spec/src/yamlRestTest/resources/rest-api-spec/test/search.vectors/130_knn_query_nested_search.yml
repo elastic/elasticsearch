@@ -873,3 +873,51 @@ setup:
   - match: { hits.hits.0.inner_hits.nested.hits.total.value: 1 }
   - match: { hits.hits.1._id: "1" }
   - match: { hits.hits.1.inner_hits.nested.hits.total.value: 2 }
+
+---
+"kNN query search with nested bool filter containing must_not on nested field":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ knn_filter_on_nested_fields ]
+      test_runner_features: ["capabilities"]
+      reason: "Capability for filtering on nested fields required"
+
+  # Filter uses a nested bool structure:
+  # bool { must: [bool { must: [term name:cow.jpg], must_not: [term nested.language:FR] }] }
+  # This exercises the recursive decomposition path in decomposeFilter.
+  - do:
+      search:
+        index: test
+        body:
+          _source: false
+          query:
+            nested:
+              path: nested
+              query:
+                knn:
+                  field: nested.vector
+                  query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+                  k: 10
+                  num_candidates: 10
+                  filter:
+                    bool:
+                      must:
+                        - bool:
+                            must:
+                              - term:
+                                  name: "cow.jpg"
+                            must_not:
+                              - term:
+                                  nested.language: "FR"
+              inner_hits: { size: 3, "fields": [ "nested.paragraph_id", "nested.language"], _source: false }
+
+  # cow.jpg has 2 nested docs: paragraph_id 0 (EN) and paragraph_id 1 (FR).
+  # The parent filter (name:cow.jpg) restricts to cow.jpg only.
+  # The child filter (must_not nested.language:FR) excludes the FR nested doc.
+  # Result: 1 parent hit (cow.jpg) with 1 inner_hit (EN only).
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.inner_hits.nested.hits.total.value: 1 }
+  - match: { hits.hits.0.inner_hits.nested.hits.hits.0.fields.nested.0.language.0: "EN" }

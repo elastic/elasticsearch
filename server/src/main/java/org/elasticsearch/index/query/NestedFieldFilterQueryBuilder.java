@@ -26,8 +26,9 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * A query builder that applies a filter in a nested kNN inner_hits context, correctly handling
- * filters that contain {@code must_not} clauses targeting either parent or nested fields.
+ * An internal query builder used exclusively by kNN vector search to apply filters in nested
+ * inner_hits contexts. It correctly handles filters that contain {@code must_not} clauses
+ * targeting either parent or nested fields.
  *
  * <p>During inner_hits rewriting, the search context (field mappings, nested lookup) is not yet
  * available. This builder defers the decision of how to wrap the filter until {@link #doToQuery},
@@ -37,7 +38,8 @@ import java.util.Objects;
  * <p>This replaces the previous approach of using a syntactic heuristic at rewrite time, which
  * could not distinguish {@code must_not} on parent fields from {@code must_not} on nested fields.
  *
- * <p>This query is used only for internal purposes and is not exposed to a user.
+ * <p>This query is used only for internal kNN filter processing and is not exposed to users.
+ * It is never serialized across the wire.
  */
 public class NestedFieldFilterQueryBuilder extends LeafQueryBuilder<NestedFieldFilterQueryBuilder> {
     public static final String NAME = "nested_field_filter";

@@ -469,4 +469,138 @@ public class NestedHelperTests extends MapperServiceTestCase {
                 .anyMatch(c -> c.occur() == Occur.MUST_NOT && c.query().equals(new TermQuery(new Term("nested1.foo", "value"))))
         );
     }
+
+    public void testDecomposeFilterNestedBoolUnderMust() {
+        // Recursive case: outer MUST wraps an inner bool with mixed parent+child clauses.
+        // bool { must: [bool { must: [term parent], must_not: [term nested] }] }
+        // The inner bool should be recursed into, extracting parent and child clauses.
+        BooleanQuery innerBool = new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.MUST)
+            .add(new TermQuery(new Term("nested1.foo", "value")), Occur.MUST_NOT)
+            .build();
+        BooleanQuery outerBool = new BooleanQuery.Builder().add(innerBool, Occur.MUST).build();
+        NestedHelper.DecomposedFilter result = NestedHelper.decomposeFilter(outerBool, "nested1", searchExecutionContext);
+        assertNotNull(result);
+        assertTrue(result.hasBothLevels());
+        assertEquals(1, result.parentClauses().size());
+        assertEquals(new TermQuery(new Term("foo", "bar")), result.parentClauses().get(0).query());
+        assertEquals(2, result.childClauses().size());
+        assertTrue(
+            result.childClauses()
+                .stream()
+                .anyMatch(c -> c.occur() == Occur.MUST_NOT && c.query().equals(new TermQuery(new Term("nested1.foo", "value"))))
+        );
+        // Synthetic MatchAll added because child clauses are pure MUST_NOT
+        assertTrue(result.childClauses().stream().anyMatch(c -> c.isRequired() && c.query() instanceof MatchAllDocsQuery));
+    }
+
+    public void testDecomposeFilterNestedBoolUnderMustPureChild() {
+        // Outer MUST has a parent term + inner bool that is pure child (must_not on nested).
+        // bool { must: [term parent, bool { filter: MatchAll, must_not: [term nested] }] }
+        // The inner bool (after fixNegativeQueryIfNeeded) has MatchAll + must_not nested.
+        // Since MatchAll makes mightMatchNonNestedDocs true, the inner bool is mixed → recurse.
+        BooleanQuery innerBool = new BooleanQuery.Builder().add(Queries.ALL_DOCS_INSTANCE, Occur.FILTER)
+            .add(new TermQuery(new Term("nested1.foo", "value")), Occur.MUST_NOT)
+            .build();
+        BooleanQuery outerBool = new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.MUST)
+            .add(innerBool, Occur.FILTER)
+            .build();
+        NestedHelper.DecomposedFilter result = NestedHelper.decomposeFilter(outerBool, "nested1", searchExecutionContext);
+        assertNotNull(result);
+        assertTrue(result.hasBothLevels());
+        assertEquals(1, result.parentClauses().size());
+        assertEquals(new TermQuery(new Term("foo", "bar")), result.parentClauses().get(0).query());
+        // Child clauses: MatchAll (from inner) + MUST_NOT nested1.foo
+        assertTrue(result.childClauses().stream().anyMatch(c -> c.query() instanceof MatchAllDocsQuery));
+        assertTrue(
+            result.childClauses()
+                .stream()
+                .anyMatch(c -> c.occur() == Occur.MUST_NOT && c.query().equals(new TermQuery(new Term("nested1.foo", "value"))))
+        );
+    }
+
+    public void testDecomposeFilterShouldWithSimpleTermsReturnsNull() {
+        // SHOULD clauses cause bail-out regardless of whether they wrap simple terms or sub-booleans.
+        // Decomposing SHOULD across parent/child levels would change OR semantics to AND.
+        // bool { should: [term parent, term nested] }
+        BooleanQuery query = new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.SHOULD)
+            .add(new TermQuery(new Term("nested1.foo", "value")), Occur.SHOULD)
+            .build();
+        NestedHelper.DecomposedFilter result = NestedHelper.decomposeFilter(query, "nested1", searchExecutionContext);
+        assertNull(result);
+    }
+
+    public void testDecomposeFilterShouldWithMixedSubBoolReturnsNull() {
+        // SHOULD wrapping a mixed sub-boolean cannot be decomposed.
+        // bool { should: [bool { must: [term parent], must_not: [term nested] }], filter: [term parent2] }
+        BooleanQuery mixedInner = new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.MUST)
+            .add(new TermQuery(new Term("nested1.foo", "value")), Occur.MUST_NOT)
+            .build();
+        BooleanQuery query = new BooleanQuery.Builder().add(mixedInner, Occur.SHOULD)
+            .add(new TermQuery(new Term("foo2", "baz")), Occur.FILTER)
+            .build();
+        NestedHelper.DecomposedFilter result = NestedHelper.decomposeFilter(query, "nested1", searchExecutionContext);
+        // The mixed inner bool under SHOULD should cause bail-out
+        assertNull(result);
+    }
+
+    public void testDecomposeFilterMustNotMixedSubBoolReturnsNull() {
+        // MUST_NOT wrapping a mixed sub-boolean cannot be decomposed (De Morgan's law).
+        // bool { filter: [MatchAll], must_not: [bool { should: [term parent, term nested] }] }
+        // The inner bool uses SHOULD so mightMatchNonNestedDocs returns true (any SHOULD matches),
+        // and it contains a nested clause, making it mixed.
+        BooleanQuery mixedInner = new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.SHOULD)
+            .add(new TermQuery(new Term("nested1.foo", "value")), Occur.SHOULD)
+            .build();
+        BooleanQuery query = new BooleanQuery.Builder().add(Queries.ALL_DOCS_INSTANCE, Occur.FILTER)
+            .add(mixedInner, Occur.MUST_NOT)
+            .build();
+        NestedHelper.DecomposedFilter result = NestedHelper.decomposeFilter(query, "nested1", searchExecutionContext);
+        // MUST_NOT of mixed sub-bool should cause bail-out
+        assertNull(result);
+    }
+
+    public void testDecomposeFilterThreeLevelsDeep() {
+        // Three-level deep recursion: all conjunctive.
+        // bool { must: [bool { must: [term parent, bool { filter: MatchAll, must_not: [term nested] }] }] }
+        BooleanQuery innermost = new BooleanQuery.Builder().add(Queries.ALL_DOCS_INSTANCE, Occur.FILTER)
+            .add(new TermQuery(new Term("nested1.foo", "value")), Occur.MUST_NOT)
+            .build();
+        BooleanQuery middle = new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.MUST)
+            .add(innermost, Occur.FILTER)
+            .build();
+        BooleanQuery outer = new BooleanQuery.Builder().add(middle, Occur.MUST).build();
+        NestedHelper.DecomposedFilter result = NestedHelper.decomposeFilter(outer, "nested1", searchExecutionContext);
+        assertNotNull(result);
+        assertTrue(result.hasBothLevels());
+        assertEquals(1, result.parentClauses().size());
+        assertEquals(new TermQuery(new Term("foo", "bar")), result.parentClauses().get(0).query());
+        assertTrue(result.childClauses().stream().anyMatch(c -> c.query() instanceof MatchAllDocsQuery));
+        assertTrue(
+            result.childClauses()
+                .stream()
+                .anyMatch(c -> c.occur() == Occur.MUST_NOT && c.query().equals(new TermQuery(new Term("nested1.foo", "value"))))
+        );
+    }
+
+    public void testDecomposeFilterNestedBoolPureParentReturnsNull() {
+        // Inner bool is pure parent — no child clauses, no decomposition needed.
+        // bool { must: [bool { must: [term parent1, term parent2] }] }
+        BooleanQuery innerBool = new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.MUST)
+            .add(new TermQuery(new Term("foo2", "baz")), Occur.MUST)
+            .build();
+        BooleanQuery outerBool = new BooleanQuery.Builder().add(innerBool, Occur.MUST).build();
+        NestedHelper.DecomposedFilter result = NestedHelper.decomposeFilter(outerBool, "nested1", searchExecutionContext);
+        assertNull(result);
+    }
+
+    public void testDecomposeFilterNestedBoolPureChildReturnsNull() {
+        // Inner bool is pure child — no mixed levels, no decomposition needed.
+        // bool { must: [bool { must: [term nested1, term nested2] }] }
+        BooleanQuery innerBool = new BooleanQuery.Builder().add(new TermQuery(new Term("nested1.foo", "bar")), Occur.MUST)
+            .add(new TermQuery(new Term("nested1.bar", "baz")), Occur.MUST)
+            .build();
+        BooleanQuery outerBool = new BooleanQuery.Builder().add(innerBool, Occur.MUST).build();
+        NestedHelper.DecomposedFilter result = NestedHelper.decomposeFilter(outerBool, "nested1", searchExecutionContext);
+        assertNull(result);
+    }
 }

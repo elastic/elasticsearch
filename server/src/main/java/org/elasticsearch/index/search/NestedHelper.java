@@ -188,7 +188,9 @@ public final class NestedHelper {
     }
 
     /**
-     * Result of decomposing a filter query into parent-level and child-level clauses.
+     * Result of decomposing a kNN filter query into parent-level and child-level clauses.
+     * Used exclusively during kNN vector search filter processing to correctly handle
+     * filters containing {@code must_not} clauses on nested fields.
      *
      * @param parentClauses clauses that might match non-nested (parent) documents
      * @param childClauses clauses that only match nested documents at the target path
@@ -206,15 +208,32 @@ public final class NestedHelper {
     }
 
     /**
-     * Decomposes a filter query's boolean clauses into those that target parent/non-nested
-     * documents and those that target only nested documents at the given path. This allows
-     * callers (e.g., kNN filter wrapping) to apply different treatment to each group rather
-     * than wrapping the entire filter monolithically.
+     * Decomposes a kNN filter query's boolean clauses into those that target parent/non-nested
+     * documents and those that target only nested documents at the given path. This is used
+     * exclusively during kNN vector search filter processing to correctly handle filters
+     * containing {@code must_not} clauses on nested fields, which would otherwise become
+     * no-ops when the entire filter is wrapped with {@code ToChildBlockJoinQuery}.
      *
      * <p>For example, a query like {@code bool { must: [term parent_field], must_not: [term nested_field] }}
      * would be decomposed so the {@code must} clause is classified as parent-level (to be wrapped with
      * {@code ToChildBlockJoinQuery}) while the {@code must_not} clause is classified as child-level
      * (to be applied directly against nested documents).
+     *
+     * <p>The decomposition is recursive: if a MUST or FILTER clause is itself a {@link BooleanQuery}
+     * containing a mix of parent-level and child-level sub-clauses, those sub-clauses are recursively
+     * decomposed and merged into the outer parent/child lists. This handles arbitrarily nested
+     * conjunctive boolean trees (e.g., {@code bool { must: [bool { must: [term parent], must_not: [term nested] }] }}).
+     *
+     * <p>Recursion is <strong>not attempted</strong> (returns {@code null}) when the boolean structure
+     * would make decomposition semantically incorrect:
+     * <ul>
+     *   <li>Any SHOULD clauses — OR semantics cannot be preserved when splitting clauses across
+     *       parent/child levels, as decomposing would turn OR into AND</li>
+     *   <li>MUST_NOT clauses wrapping a mixed-level sub-BooleanQuery — negation of a conjunction
+     *       produces a disjunction (De Morgan's law), which cannot be split</li>
+     * </ul>
+     * In these cases, the caller falls back to wrapping the entire filter monolithically, which is
+     * safe but may cause nested {@code must_not} clauses to be silently ignored (the pre-existing behavior).
      *
      * <p>A synthetic {@link MatchAllDocsQuery} added by
      * {@link org.elasticsearch.common.lucene.search.Queries#fixNegativeQueryIfNeeded} to pure-negative
@@ -249,16 +268,8 @@ public final class NestedHelper {
         // (added by fixNegativeQueryIfNeeded) and should stay with child MUST_NOT clauses
         List<BooleanClause> matchAllFilterClauses = new ArrayList<>();
 
-        for (BooleanClause clause : bq) {
-            if (clause.isRequired() && clause.query() instanceof MatchAllDocsQuery) {
-                // Defer classification of synthetic MatchAllDocsQuery — it should stay with
-                // whichever group the MUST_NOT clauses end up in
-                matchAllFilterClauses.add(clause);
-            } else if (mightMatchNonNestedDocs(clause.query(), nestedPath, searchExecutionContext)) {
-                parentClauses.add(clause);
-            } else {
-                childClauses.add(clause);
-            }
+        if (decomposeFilterClauses(bq, nestedPath, searchExecutionContext, parentClauses, childClauses, matchAllFilterClauses) == false) {
+            return null;
         }
 
         // Assign synthetic MatchAllDocsQuery clauses: if there are child-level MUST_NOT clauses
@@ -289,6 +300,112 @@ public final class NestedHelper {
         }
 
         return new DecomposedFilter(parentClauses, childClauses);
+    }
+
+    /**
+     * Recursively classifies the clauses of a {@link BooleanQuery} into parent-level and child-level lists.
+     * Returns {@code true} if decomposition succeeded, {@code false} if the structure cannot be safely
+     * decomposed (e.g., SHOULD with mixed levels, MUST_NOT wrapping mixed sub-booleans).
+     *
+     * <p>The {@code matchAllFilterClauses} list intentionally accumulates across recursion levels.
+     * Synthetic {@link MatchAllDocsQuery} clauses from any level are collected into this shared list
+     * and assigned to the appropriate group (parent or child) by the caller ({@link #decomposeFilter})
+     * after all recursion completes. This is safe because the assignment logic only depends on whether
+     * child-level MUST_NOT clauses exist, not on which recursion level produced the MatchAllDocsQuery.
+     */
+    private static boolean decomposeFilterClauses(
+        BooleanQuery bq,
+        String nestedPath,
+        SearchExecutionContext searchExecutionContext,
+        List<BooleanClause> parentClauses,
+        List<BooleanClause> childClauses,
+        List<BooleanClause> matchAllFilterClauses
+    ) {
+        for (BooleanClause clause : bq) {
+            if (clause.isRequired() && clause.query() instanceof MatchAllDocsQuery) {
+                matchAllFilterClauses.add(clause);
+                continue;
+            }
+
+            Query clauseQuery = clause.query();
+            // Unwrap ConstantScoreQuery/BoostQuery so we can detect and recurse into sub-BooleanQueries
+            if (clauseQuery instanceof ConstantScoreQuery csq) {
+                clauseQuery = csq.getQuery();
+            } else if (clauseQuery instanceof BoostQuery boostQ) {
+                clauseQuery = boostQ.getQuery();
+            }
+
+            if (clause.occur() == Occur.SHOULD) {
+                // SHOULD semantics (OR) cannot be preserved when splitting clauses across parent/child
+                // levels — decomposing would turn OR into AND. Bail out and let the caller fall back
+                // to monolithic wrapping which preserves SHOULD semantics.
+                return false;
+            }
+
+            boolean matchesNonNested = mightMatchNonNestedDocs(clause.query(), nestedPath, searchExecutionContext);
+
+            if (matchesNonNested
+                && clauseQuery instanceof BooleanQuery subBool
+                && hasAnyNestedClause(subBool, nestedPath, searchExecutionContext)) {
+                // The sub-boolean has clauses targeting both levels (including in MUST_NOT).
+                // mightMatchNestedDocs ignores MUST_NOT, so we use hasAnyNestedClause to detect
+                // nested targeting in any clause type.
+                if (clause.isRequired()) {
+                    // MUST/FILTER with a mixed sub-boolean: recurse into it
+                    if (decomposeFilterClauses(
+                        subBool,
+                        nestedPath,
+                        searchExecutionContext,
+                        parentClauses,
+                        childClauses,
+                        matchAllFilterClauses
+                    ) == false) {
+                        return false;
+                    }
+                } else {
+                    // MUST_NOT wrapping a mixed sub-boolean: cannot decompose safely
+                    // (negation of a conjunction produces a disjunction via De Morgan's law)
+                    return false;
+                }
+            } else if (matchesNonNested) {
+                parentClauses.add(clause);
+            } else {
+                childClauses.add(clause);
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Returns {@code true} if any clause in the given {@link BooleanQuery} (including {@link Occur#MUST_NOT}
+     * clauses) might target nested documents at the given path. This differs from {@link #mightMatchNestedDocs}
+     * which intentionally ignores MUST_NOT clauses. Used by recursive decomposition to detect sub-booleans
+     * that contain nested field references in any position.
+     *
+     * <p>This check is conservative: it uses {@code mightMatchNonNestedDocs(clause) == false} as a proxy
+     * for "targets nested docs." Unrecognized query types default to {@code mightMatchNonNestedDocs == true},
+     * so nested clauses wrapped in unrecognized query types may be missed. In that case, the sub-boolean
+     * is not identified as mixed, recursion is skipped, and the caller falls back to monolithic wrapping —
+     * which is safe but may not correctly handle nested {@code must_not} clauses.
+     */
+    private static boolean hasAnyNestedClause(BooleanQuery bq, String nestedPath, SearchExecutionContext searchExecutionContext) {
+        for (BooleanClause clause : bq) {
+            if (mightMatchNonNestedDocs(clause.query(), nestedPath, searchExecutionContext) == false) {
+                // This clause targets only nested docs at nestedPath
+                return true;
+            }
+            Query clauseQuery = clause.query();
+            // Unwrap ConstantScoreQuery/BoostQuery so we can detect sub-BooleanQueries
+            if (clauseQuery instanceof ConstantScoreQuery csq) {
+                clauseQuery = csq.getQuery();
+            } else if (clauseQuery instanceof BoostQuery boostQ) {
+                clauseQuery = boostQ.getQuery();
+            }
+            if (clauseQuery instanceof BooleanQuery subBool && hasAnyNestedClause(subBool, nestedPath, searchExecutionContext)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

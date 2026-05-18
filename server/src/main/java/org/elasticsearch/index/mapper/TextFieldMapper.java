@@ -380,12 +380,6 @@ public final class TextFieldMapper extends FieldMapper {
             return this;
         }
 
-        public Builder docValues(DocValuesParameter.Values docValues) {
-            assert DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() || docValues.enabled() == false;
-            this.docValuesParameters.setValue(docValues);
-            return this;
-        }
-
         boolean usesBinaryDocValues() {
             return docValuesParameters.getValue().enabled()
                 && docValuesParameters.getValue().cardinality() == DocValuesParameter.Values.Cardinality.HIGH;

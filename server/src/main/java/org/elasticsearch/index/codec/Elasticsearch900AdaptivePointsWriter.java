@@ -25,9 +25,9 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IORunnable;
-import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.bkd.BKDConfig;
 import org.apache.lucene.util.bkd.BKDWriter;
+import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -99,7 +99,7 @@ class Elasticsearch900AdaptivePointsWriter extends PointsWriter {
                 writeState.segmentSuffix
             );
         } catch (Throwable t) {
-            IOUtils.closeWhileSuppressingExceptions(t, this);
+            IOUtils.closeWhileHandlingException(this);
             throw t;
         }
     }
@@ -263,7 +263,7 @@ class Elasticsearch900AdaptivePointsWriter extends PointsWriter {
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(metaOut, indexOut, dataOut);
+        IOUtils.closeWhileHandlingException(metaOut, indexOut, dataOut);
     }
 
     static int adjustMaxPointsInLeafNode(int maxPointsInLeafNode, int bytesPerDim, long pointCount) {

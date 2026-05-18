@@ -616,7 +616,7 @@ final class PageColumnReader implements Releasable {
             int produced = readNonNullBooleans(values, 0, maxRows);
             Block constant = ConstantBlockDetection.tryConstantBoolean(values, produced, blockFactory);
             if (constant != null) return constant;
-            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
             return blockFactory.newBooleanArrayVector(values, produced).asBlock();
         }
         WordMask nulls = buffers.nullsMask(maxRows);
@@ -633,14 +633,14 @@ final class PageColumnReader implements Releasable {
         if (nulls.isEmpty()) {
             Block constant = ConstantBlockDetection.tryConstantBoolean(values, produced, blockFactory);
             if (constant != null) return constant;
-            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
             return blockFactory.newBooleanArrayVector(values, produced).asBlock();
         }
         Block allNull = ConstantBlockDetection.tryAllNull(nulls.toBitSet(), produced, blockFactory);
         if (allNull != null) {
             return allNull;
         }
-        if (produced < maxRows) values = Arrays.copyOf(values, produced);
+        if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
         return blockFactory.newBooleanArrayBlock(values, produced, null, nulls.toBitSet(), Block.MvOrdering.UNORDERED);
     }
 
@@ -678,7 +678,7 @@ final class PageColumnReader implements Releasable {
             int produced = readNonNullInts(values, 0, maxRows);
             Block constant = ConstantBlockDetection.tryConstantInt(values, produced, blockFactory);
             if (constant != null) return constant;
-            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
             return blockFactory.newIntArrayVector(values, produced).asBlock();
         }
         WordMask nulls = buffers.nullsMask(maxRows);
@@ -695,14 +695,14 @@ final class PageColumnReader implements Releasable {
         if (nulls.isEmpty()) {
             Block constant = ConstantBlockDetection.tryConstantInt(values, produced, blockFactory);
             if (constant != null) return constant;
-            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
             return blockFactory.newIntArrayVector(values, produced).asBlock();
         }
         Block allNull = ConstantBlockDetection.tryAllNull(nulls.toBitSet(), produced, blockFactory);
         if (allNull != null) {
             return allNull;
         }
-        if (produced < maxRows) values = Arrays.copyOf(values, produced);
+        if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
         return blockFactory.newIntArrayBlock(values, produced, null, nulls.toBitSet(), Block.MvOrdering.UNORDERED);
     }
 
@@ -740,7 +740,7 @@ final class PageColumnReader implements Releasable {
             int produced = readNonNullLongs(values, 0, maxRows);
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
             if (constant != null) return constant;
-            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
             return blockFactory.newLongArrayVector(values, produced).asBlock();
         }
         WordMask nulls = buffers.nullsMask(maxRows);
@@ -757,14 +757,14 @@ final class PageColumnReader implements Releasable {
         if (nulls.isEmpty()) {
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
             if (constant != null) return constant;
-            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
             return blockFactory.newLongArrayVector(values, produced).asBlock();
         }
         Block allNull = ConstantBlockDetection.tryAllNull(nulls.toBitSet(), produced, blockFactory);
         if (allNull != null) {
             return allNull;
         }
-        if (produced < maxRows) values = Arrays.copyOf(values, produced);
+        if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
         return blockFactory.newLongArrayBlock(values, produced, null, nulls.toBitSet(), Block.MvOrdering.UNORDERED);
     }
 
@@ -810,7 +810,7 @@ final class PageColumnReader implements Releasable {
             int produced = readNonNullInt32AsLong(values, 0, maxRows);
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
             if (constant != null) return constant;
-            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
             return blockFactory.newLongArrayVector(values, produced).asBlock();
         }
         WordMask nulls = buffers.nullsMask(maxRows);
@@ -827,14 +827,14 @@ final class PageColumnReader implements Releasable {
         if (nulls.isEmpty()) {
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
             if (constant != null) return constant;
-            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
             return blockFactory.newLongArrayVector(values, produced).asBlock();
         }
         Block allNull = ConstantBlockDetection.tryAllNull(nulls.toBitSet(), produced, blockFactory);
         if (allNull != null) {
             return allNull;
         }
-        if (produced < maxRows) values = Arrays.copyOf(values, produced);
+        if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
         return blockFactory.newLongArrayBlock(values, produced, null, nulls.toBitSet(), Block.MvOrdering.UNORDERED);
     }
 
@@ -891,7 +891,7 @@ final class PageColumnReader implements Releasable {
             int produced = readNonNullDoubles(values, 0, maxRows, isFloat);
             Block constant = ConstantBlockDetection.tryConstantDouble(values, produced, blockFactory);
             if (constant != null) return constant;
-            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
             return blockFactory.newDoubleArrayVector(values, produced).asBlock();
         }
         WordMask nulls = buffers.nullsMask(maxRows);
@@ -908,14 +908,14 @@ final class PageColumnReader implements Releasable {
         if (nulls.isEmpty()) {
             Block constant = ConstantBlockDetection.tryConstantDouble(values, produced, blockFactory);
             if (constant != null) return constant;
-            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
             return blockFactory.newDoubleArrayVector(values, produced).asBlock();
         }
         Block allNull = ConstantBlockDetection.tryAllNull(nulls.toBitSet(), produced, blockFactory);
         if (allNull != null) {
             return allNull;
         }
-        if (produced < maxRows) values = Arrays.copyOf(values, produced);
+        if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
         return blockFactory.newDoubleArrayBlock(values, produced, null, nulls.toBitSet(), Block.MvOrdering.UNORDERED);
     }
 
@@ -971,7 +971,7 @@ final class PageColumnReader implements Releasable {
             }
             Block constant = ConstantBlockDetection.tryConstantDouble(values, produced, blockFactory);
             if (constant != null) return constant;
-            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
             return blockFactory.newDoubleArrayVector(values, produced).asBlock();
         }
         WordMask nulls = buffers.nullsMask(maxRows);
@@ -996,14 +996,14 @@ final class PageColumnReader implements Releasable {
         if (nulls.isEmpty()) {
             Block constant = ConstantBlockDetection.tryConstantDouble(values, produced, blockFactory);
             if (constant != null) return constant;
-            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
             return blockFactory.newDoubleArrayVector(values, produced).asBlock();
         }
         Block allNull = ConstantBlockDetection.tryAllNull(nulls.toBitSet(), produced, blockFactory);
         if (allNull != null) {
             return allNull;
         }
-        if (produced < maxRows) values = Arrays.copyOf(values, produced);
+        if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
         return blockFactory.newDoubleArrayBlock(values, produced, null, nulls.toBitSet(), Block.MvOrdering.UNORDERED);
     }
 
@@ -1045,7 +1045,7 @@ final class PageColumnReader implements Releasable {
             }
             Block constant = ConstantBlockDetection.tryConstantDouble(values, produced, blockFactory);
             if (constant != null) return constant;
-            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
             return blockFactory.newDoubleArrayVector(values, produced).asBlock();
         }
         WordMask nulls = buffers.nullsMask(maxRows);
@@ -1070,14 +1070,14 @@ final class PageColumnReader implements Releasable {
         if (nulls.isEmpty()) {
             Block constant = ConstantBlockDetection.tryConstantDouble(values, produced, blockFactory);
             if (constant != null) return constant;
-            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
             return blockFactory.newDoubleArrayVector(values, produced).asBlock();
         }
         Block allNull = ConstantBlockDetection.tryAllNull(nulls.toBitSet(), produced, blockFactory);
         if (allNull != null) {
             return allNull;
         }
-        if (produced < maxRows) values = Arrays.copyOf(values, produced);
+        if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
         return blockFactory.newDoubleArrayBlock(values, produced, null, nulls.toBitSet(), Block.MvOrdering.UNORDERED);
     }
 
@@ -1400,7 +1400,7 @@ final class PageColumnReader implements Releasable {
             }
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
             if (constant != null) return constant;
-            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
             return blockFactory.newLongArrayVector(values, produced).asBlock();
         }
         WordMask nulls = buffers.nullsMask(maxRows);
@@ -1425,14 +1425,14 @@ final class PageColumnReader implements Releasable {
         if (nulls.isEmpty()) {
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
             if (constant != null) return constant;
-            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
             return blockFactory.newLongArrayVector(values, produced).asBlock();
         }
         Block allNull = ConstantBlockDetection.tryAllNull(nulls.toBitSet(), produced, blockFactory);
         if (allNull != null) {
             return allNull;
         }
-        if (produced < maxRows) values = Arrays.copyOf(values, produced);
+        if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
         return blockFactory.newLongArrayBlock(values, produced, null, nulls.toBitSet(), Block.MvOrdering.UNORDERED);
     }
 
@@ -1479,7 +1479,7 @@ final class PageColumnReader implements Releasable {
             }
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
             if (constant != null) return constant;
-            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
             return blockFactory.newLongArrayVector(values, produced).asBlock();
         }
         WordMask nulls = buffers.nullsMask(maxRows);
@@ -1504,14 +1504,14 @@ final class PageColumnReader implements Releasable {
         if (nulls.isEmpty()) {
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
             if (constant != null) return constant;
-            if (produced < maxRows) values = Arrays.copyOf(values, produced);
+            if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
             return blockFactory.newLongArrayVector(values, produced).asBlock();
         }
         Block allNull = ConstantBlockDetection.tryAllNull(nulls.toBitSet(), produced, blockFactory);
         if (allNull != null) {
             return allNull;
         }
-        if (produced < maxRows) values = Arrays.copyOf(values, produced);
+        if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
         return blockFactory.newLongArrayBlock(values, produced, null, nulls.toBitSet(), Block.MvOrdering.UNORDERED);
     }
 
@@ -1535,6 +1535,11 @@ final class PageColumnReader implements Releasable {
             long epochDay = julianDay - JULIAN_EPOCH_OFFSET;
             values[offset + i] = epochDay * MILLIS_PER_DAY + nanosOfDay / NANOS_PER_MILLI;
         }
+    }
+
+    private static boolean needsShrinking(int produced, int maxRows) {
+        // Heuristic: resize if we save at least half the size
+        return produced < maxRows / 2;
     }
 
     // --- Block construction helpers ---

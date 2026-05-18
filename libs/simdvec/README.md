@@ -37,6 +37,7 @@ Source files follow a naming convention based on the ISA tier they target:
 
 - **Tier 1** (e.g. `vec_1.cpp`) — baseline: AVX2 on x64, NEON + dotprod on ARM.
 - **Tier 2** (e.g. `vec_2.cpp`) — extended: AVX-512 (icelake) on x64, SVE on ARM.
+- **Tier 3** (e.g. `vec_bf16_3.cpp`) — cooperlake on x64: adds `vdpbf16ps` for native BF16 dot product.
 
 At runtime, `caps.cpp` probes for CPU and OS support and the Java side selects
 the appropriate tier.
@@ -45,11 +46,24 @@ the appropriate tier.
 
 The native kernels cover single-pair and bulk scoring for:
 
-- **int7 / int8** — scalar quantized vectors (dot product, squared Euclidean, cosine)
-- **int4** — packed-nibble 4-bit quantized vectors
-- **BBQ** — binary quantized vectors (1-bit and 4-bit to 1-bit dot products, with correction terms)
-- **BFloat16** — 16-bit floating point comparisons (AVX-512 only)
-- **float32** — full-precision dot product and squared L2 (AVX-512 only)
+- **int7** (unsigned):
+  - Spaces: dot-product, squared-euclidean, cosine
+  - Architectures: AVX2, AVX-512
+- **int8** (signed):
+  - Spaces: dot-product, squared-euclidean, cosine
+  - Architectures: AVX2, AVX-512, ARM/NEON
+- **int4** (packed nibble):
+  - Spaces: dot-product
+  - Architectures: AVX2, AVX-512, ARM/NEON
+- **BBQ** (binary quantized):
+  - Spaces: 1-bit and 4-bit-to-1-bit dot products, with correction terms
+  - Architectures: AVX2, AVX-512, ARM/NEON, ARM/SVE
+- **BFloat16**:
+  - Spaces: dot-product
+  - Architectures: AVX-512, AVX-512-BF16 (cooperlake), ARM/NEON
+- **float32**:
+  - Spaces: dot-product, squared-euclidean
+  - Architectures: AVX2, AVX-512, ARM/NEON, ARM/SVE
 
 ## Building the native library
 

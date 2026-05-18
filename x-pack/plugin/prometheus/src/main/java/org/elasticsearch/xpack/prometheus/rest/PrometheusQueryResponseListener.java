@@ -151,9 +151,12 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         boolean useSeriesCol
     ) throws IOException {
         int seriesCount = 0;
-        boolean truncated = false;
 
         for (Iterable<Object> row : response.rows()) {
+            if (seriesCount++ == limit) {
+                return true;
+            }
+
             Object[] values = toArray(row, columns.size());
 
             // Both value and step are multi-valued (one entry per step) due to TimeSeriesCollapse.
@@ -174,19 +177,12 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
                 );
             }
 
-            if (seriesCount >= limit) {
-                truncated = true;
-                continue;
-            }
-
             builder.startObject();
             buildMetricLabels(builder, useSeriesCol, values, stepColIdx, columns);
             buildMetricValues(mode, builder, valueList, stepList);
             builder.endObject(); // result entry
-
-            seriesCount++;
         }
-        return truncated;
+        return false;
     }
 
     private static void buildMetricLabels(

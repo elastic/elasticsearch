@@ -11,12 +11,14 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.parser.PromqlParser;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
@@ -41,6 +43,10 @@ class PromqlQueryPlanBuilder {
      * for the {@code TO_LONG(step)} conversion used by the Prometheus response writer.
      */
     static EsqlStatement buildStatement(String query, String index, String startStr, String endStr, String stepStr) {
+        return buildStatement(query, index, startStr, endStr, stepStr, 0);
+    }
+
+    static EsqlStatement buildStatement(String query, String index, String startStr, String endStr, String stepStr, int limit) {
         Instant startInstant = PromqlParserUtils.parseDate(Source.EMPTY, startStr);
         Instant endInstant = PromqlParserUtils.parseDate(Source.EMPTY, endStr);
         Duration stepDuration = parseStep(Source.EMPTY, stepStr);
@@ -99,7 +105,12 @@ class PromqlQueryPlanBuilder {
         Eval eval = new Eval(Source.EMPTY, collapse, List.of(stepAlias));
 
         // No OrderBy: TimeSeriesCollapseOperator emits each series' MV samples in fixed step-ordinal order.
-        return new EsqlStatement(eval, List.of());
+        LogicalPlan plan = eval;
+        if (limit > 0) {
+            int sentinelLimit = limit == Integer.MAX_VALUE ? limit : limit + 1;
+            plan = new Limit(Source.EMPTY, new Literal(Source.EMPTY, sentinelLimit, DataType.INTEGER), plan);
+        }
+        return new EsqlStatement(plan, List.of());
     }
 
     private static Duration parseStep(Source source, String value) {

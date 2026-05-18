@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.prometheus.rest;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -91,5 +93,14 @@ public class PromqlQueryPlanBuilderTests extends ESTestCase {
         assertThat(promqlCommand.hasTimeRange(), equalTo(true));
         assertThat(promqlCommand.step().value(), equalTo(Duration.ofSeconds(60)));
         assertThat(((NamedExpression) ((InstantSelector) promqlCommand.promqlPlan()).series()).name(), equalTo("up"));
+    }
+
+    public void testBuildStatementWithLimitAddsSentinelLimit() {
+        EsqlStatement statement = PromqlQueryPlanBuilder.buildStatement("up", "*", "1735689600", "1735693200", "60", 10);
+        assertThat(statement.plan(), instanceOf(Limit.class));
+        Limit limit = (Limit) statement.plan();
+        assertThat(((Literal) limit.limit()).value(), equalTo(11));
+        assertThat(limit.child(), instanceOf(Eval.class));
+        assertThat(((Eval) limit.child()).child(), instanceOf(TimeSeriesCollapse.class));
     }
 }

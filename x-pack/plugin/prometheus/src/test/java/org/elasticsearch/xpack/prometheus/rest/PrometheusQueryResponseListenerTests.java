@@ -330,6 +330,24 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         }
     }
 
+    public void testLimitDoesNotWarnWhenExactlyAtLimit() throws IOException {
+        List<TestColumnInfo> columns = List.of(
+            new TestColumnInfo("value", "double"),
+            new TestColumnInfo("job", "keyword"),
+            new TestColumnInfo("step", "long")
+        );
+
+        List<List<Object>> rows = List.of(List.of(1.0, "a", 1735689600000L), List.of(2.0, "b", 1735689600000L));
+
+        EsqlResponse response = new TestEsqlResponse(columns, rows);
+        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, QueryMode.RANGE, 2)) {
+            ObjectPath path = toObjectPath(builder);
+            assertSuccessMatrix(path);
+            assertThat(path.evaluate("data.result"), hasSize(2));
+            assertThat(path.evaluate("warnings"), equalTo(null));
+        }
+    }
+
     public void testMaxValueLimitMeansNoLimit() throws IOException {
         List<TestColumnInfo> columns = List.of(
             new TestColumnInfo("value", "double"),

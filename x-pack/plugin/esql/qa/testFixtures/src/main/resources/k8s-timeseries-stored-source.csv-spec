@@ -15,7 +15,7 @@ required_capability: ts_command_v0
 required_capability: metrics_group_by_all
 required_capability: metrics_group_by_all_with_ts_dimensions
 
-TS k8s_stored_source
+TS stored_source_k8s
 | STATS avg = avg_over_time(network.cost)
 | SORT avg DESC
 ;
@@ -38,7 +38,7 @@ required_capability: ts_command_v0
 required_capability: metrics_group_by_all
 required_capability: metrics_group_by_all_with_ts_dimensions
 
-TS k8s_stored_source
+TS stored_source_k8s
 | STATS count = count_over_time(network.cost)
 | SORT count ASC
 ;

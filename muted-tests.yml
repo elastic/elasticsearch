@@ -542,12 +542,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
   method: testRightClosedBucketIsNotSubstituted
   issue: https://github.com/elastic/elasticsearch/issues/149133
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testSemanticTextItemFailures {useLegacyFormat=false useSyntheticSource=false}
-  issue: https://github.com/elastic/elasticsearch/issues/149250
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testSemanticTextItemFailures {useLegacyFormat=false useSyntheticSource=true}
-  issue: https://github.com/elastic/elasticsearch/issues/149251
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRecoveryIT
   method: testSnapshotRecovery
   issue: https://github.com/elastic/elasticsearch/issues/149252

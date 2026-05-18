@@ -1,0 +1,2 @@
+FROM employees
+| STATS c = COUNT(emp_no), s1 = SUM(emp_no + 1), s2 = SUM(emp_no + 2)

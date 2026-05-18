@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 public class ByteMatchersTests extends ESTestCase {
 
@@ -245,23 +246,153 @@ public class ByteMatchersTests extends ESTestCase {
         assertFalse(ByteMatchers.containsLiteral(value, new BytesRef("paris")));
     }
 
+    public void testContainsLiteralRespectsValueBytesRefOffset() {
+        // Symmetric with testContainsLiteralRespectsLiteralBytesRefOffset — pins the value-side
+        // half of the BytesRef contract. BinaryDocValuesContainsTermQuery#contains takes the
+        // backing array's offset and length explicitly; if either is ignored the SIMD scan would
+        // wander into the surrounding bytes. Guard bytes outside the window must not satisfy the
+        // search.
+        byte[] backing = "ZZZhttps://www.google.com/mapsZZZ".getBytes(StandardCharsets.UTF_8);
+        BytesRef windowed = new BytesRef(backing, 3, 27);
+        assertTrue(ByteMatchers.containsLiteral(windowed, new BytesRef("google")));
+        assertFalse(ByteMatchers.containsLiteral(windowed, new BytesRef("ZZZ")));
+    }
+
+    public void testContainsLiteralEqualLengthBoundary() {
+        // Boundary between the literal-longer-than-value short-circuit (returns false) and the
+        // SIMD scan: when lengths match exactly the SIMD scan runs and must return true iff the
+        // bytes are equal. Use a value long enough to cross the 24-byte SIMD activation threshold.
+        assertTrue(ByteMatchers.containsLiteral(new BytesRef("hello"), new BytesRef("hello")));
+        assertFalse(ByteMatchers.containsLiteral(new BytesRef("hello"), new BytesRef("world")));
+        BytesRef longValue = new BytesRef("https://www.google.com/maps/place");
+        assertTrue(ByteMatchers.containsLiteral(longValue, new BytesRef("https://www.google.com/maps/place")));
+        assertFalse(ByteMatchers.containsLiteral(longValue, new BytesRef("https://www.googly.com/maps/place")));
+    }
+
+    public void testContainsLiteralHighCollisionFirstLastFilter() {
+        // ESVectorUtil#contains filters candidate positions with value[i] == literal[0] &&
+        // value[i + litLen - 1] == literal[litLen - 1]. Tiny-alphabet inputs maximize candidate
+        // density so almost every position passes the filter and the fall-through full-literal
+        // comparison runs on every step.
+        byte[] buf = new byte[201];
+        Arrays.fill(buf, (byte) 'a');
+        buf[200] = (byte) 'b';
+        BytesRef value = new BytesRef(buf); // "aaa...aaab"
+        // "aab" hits only at the tail — every earlier position passes the first/last filter (a..a)
+        // but fails the full comparison.
+        assertTrue(ByteMatchers.containsLiteral(value, new BytesRef("aab")));
+        assertTrue(ByteMatchers.containsLiteral(value, new BytesRef("aaa")));
+        assertFalse(ByteMatchers.containsLiteral(value, new BytesRef("abc")));
+    }
+
+    public void testAffixContainsOverlappingPrefixAndSuffix() {
+        // prefix and suffix would each match the value but their matches overlap by one byte —
+        // the combined-length guard (prefix + literal + suffix > value.length) is the only thing
+        // that prevents a naive implementation from returning true. Pinned because the obvious
+        // refactor — computing tail-start independently of prefix-end — would silently break this.
+        assertFalse(ByteMatchers.affixContains(new BytesRef("abc"), new BytesRef("ab"), null, new BytesRef("bc")));
+        // Same shape, value extended by one byte so prefix and suffix no longer overlap.
+        assertTrue(ByteMatchers.affixContains(new BytesRef("abxc"), new BytesRef("ab"), null, new BytesRef("xc")));
+    }
+
     public void testContainsLiteralRandomizedAgainstStringIndexOf() {
-        // Cross-check the byte-level SIMD contains against the JDK's String#contains on randomized
-        // inputs. The inputs are restricted to ASCII so the two semantics coincide and we are only
-        // testing the search, not encoding edge cases.
+        // Cross-check byte-level SIMD contains against the JDK's String#contains on randomized
+        // inputs. Inputs are restricted to ASCII so the two semantics coincide and we are only
+        // testing the search, not encoding edge cases. The sweep varies four orthogonal axes so
+        // each named gap above is also covered statistically here:
+        // - value length 0..128 (straddles the 24-byte SIMD activation threshold),
+        // - literal length 0..16, occasionally == valueLen to pin the equal-length boundary,
+        // - alphabet size 26 (default) vs 2 (low-entropy, high-collision on the first/last
+        // candidate filter),
+        // - value-side BytesRef offset 0 (default) vs spliced into a padded backing array with
+        // guard bytes outside the alphabet that must not satisfy the search.
         for (int iter = 0; iter < 2000; iter++) {
+            String alphabet = randomBoolean() ? "ab" : "abcdefghijklmnopqrstuvwxyz";
             int valueLen = randomIntBetween(0, 128);
-            int literalLen = randomIntBetween(0, Math.min(valueLen + 2, 16));
-            String value = randomAlphaOfLength(valueLen);
-            String literal = literalLen == 0 ? "" : randomAlphaOfLength(literalLen);
+            int literalLen = randomIntBetween(0, 9) == 0 ? valueLen : randomIntBetween(0, Math.min(valueLen + 2, 16));
+            String value = randomStringFromAlphabet(alphabet, valueLen);
+            String literal = literalLen == 0 ? "" : randomStringFromAlphabet(alphabet, literalLen);
             // Bias half the iterations to "hit" cases by splicing the literal into the value.
             if (literalLen > 0 && literalLen <= valueLen && randomBoolean()) {
                 int insertAt = randomIntBetween(0, valueLen - literalLen);
                 value = value.substring(0, insertAt) + literal + value.substring(insertAt + literalLen);
             }
             boolean expected = value.contains(literal);
-            boolean actual = ByteMatchers.containsLiteral(new BytesRef(value), new BytesRef(literal));
+            BytesRef valueRef = randomBoolean() ? wrapWithGuards(value) : new BytesRef(value);
+            boolean actual = ByteMatchers.containsLiteral(valueRef, new BytesRef(literal));
             assertEquals("value=[" + value + "] literal=[" + literal + "]", expected, actual);
         }
+    }
+
+    public void testAffixContainsRandomized() {
+        // Cross-check affixContains against a Java-string reference impl. Each iteration draws
+        // independent prefix, literal, suffix lengths (any may be zero) and a value, then either
+        // constructs a hit (prefix + middle-containing-literal + suffix) or leaves the value
+        // random. Empty components are randomly passed as null or as empty BytesRef so both code
+        // paths agree on the contract. Statistically covers the overlapping-prefix-and-suffix
+        // case (prefix.length + suffix.length > value.length) because random short values draw
+        // them frequently.
+        for (int iter = 0; iter < 2000; iter++) {
+            int prefixLen = randomIntBetween(0, 8);
+            int literalLen = randomIntBetween(0, 8);
+            int suffixLen = randomIntBetween(0, 8);
+            String prefix = prefixLen == 0 ? "" : randomAlphaOfLength(prefixLen);
+            String literal = literalLen == 0 ? "" : randomAlphaOfLength(literalLen);
+            String suffix = suffixLen == 0 ? "" : randomAlphaOfLength(suffixLen);
+            String value;
+            if (randomBoolean()) {
+                int padLen = randomIntBetween(0, 10);
+                String middle = literal + (padLen == 0 ? "" : randomAlphaOfLength(padLen));
+                value = prefix + middle + suffix;
+            } else {
+                value = randomAlphaOfLength(randomIntBetween(0, 32));
+            }
+            boolean expected = referenceAffixContains(value, prefix, literal, suffix);
+            BytesRef pRef = prefixLen == 0 && randomBoolean() ? null : new BytesRef(prefix);
+            BytesRef lRef = literalLen == 0 && randomBoolean() ? null : new BytesRef(literal);
+            BytesRef sRef = suffixLen == 0 && randomBoolean() ? null : new BytesRef(suffix);
+            boolean actual = ByteMatchers.affixContains(new BytesRef(value), pRef, lRef, sRef);
+            assertEquals(
+                "value=[" + value + "] prefix=[" + prefix + "] literal=[" + literal + "] suffix=[" + suffix + "]",
+                expected,
+                actual
+            );
+        }
+    }
+
+    private static String randomStringFromAlphabet(String alphabet, int length) {
+        StringBuilder sb = new StringBuilder(length);
+        for (int i = 0; i < length; i++) {
+            sb.append(alphabet.charAt(randomIntBetween(0, alphabet.length() - 1)));
+        }
+        return sb.toString();
+    }
+
+    private static BytesRef wrapWithGuards(String value) {
+        byte[] core = value.getBytes(StandardCharsets.UTF_8);
+        int prePad = randomIntBetween(0, 4);
+        int postPad = randomIntBetween(0, 4);
+        byte[] padded = new byte[prePad + core.length + postPad];
+        // Fill padding with a byte outside any alphabet the search inputs use so guard bytes
+        // cannot accidentally satisfy a contains-check that leaks past the offset/length window.
+        Arrays.fill(padded, (byte) '!');
+        System.arraycopy(core, 0, padded, prePad, core.length);
+        return new BytesRef(padded, prePad, core.length);
+    }
+
+    private static boolean referenceAffixContains(String value, String prefix, String literal, String suffix) {
+        if (prefix.length() + literal.length() + suffix.length() > value.length()) {
+            return false;
+        }
+        if (value.startsWith(prefix) == false) {
+            return false;
+        }
+        if (value.endsWith(suffix) == false) {
+            return false;
+        }
+        if (literal.isEmpty()) {
+            return true;
+        }
+        return value.substring(prefix.length(), value.length() - suffix.length()).contains(literal);
     }
 }

@@ -29,17 +29,19 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
         int rows = 1000;
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        List<DataType> searchFieldTypes = new ArrayList<>(List.of(
-            DataType.INTEGER,
-            DataType.LONG,
-            DataType.DOUBLE,
-            DataType.KEYWORD,
-            DataType.TEXT,
-            DataType.IP,
-            DataType.BOOLEAN,
-            DataType.DATETIME,
-            DataType.DATE_NANOS
-        ));
+        List<DataType> searchFieldTypes = new ArrayList<>(
+            List.of(
+                DataType.INTEGER,
+                DataType.LONG,
+                DataType.DOUBLE,
+                DataType.KEYWORD,
+                DataType.TEXT,
+                DataType.IP,
+                DataType.BOOLEAN,
+                DataType.DATETIME,
+                DataType.DATE_NANOS
+            )
+        );
 
         if (isFirst) {
             searchFieldTypes.addAll(

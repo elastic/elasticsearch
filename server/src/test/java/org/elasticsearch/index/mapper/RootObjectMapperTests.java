@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -652,41 +653,45 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
 
     public void testStrictColumnarModesAutoFlattenSubobjects() throws Exception {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        IndexMode indexMode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
-        MapperService mapperService = createMapperService(settings, mapping(b -> {
-            b.startObject("metrics");
-            {
-                b.startObject("properties");
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("metrics");
                 {
-                    b.startObject("time").field("type", "long").endObject();
-                    b.startObject("count").field("type", "long").endObject();
+                    b.startObject("properties");
+                    {
+                        b.startObject("time").field("type", "long").endObject();
+                        b.startObject("count").field("type", "long").endObject();
+                    }
+                    b.endObject();
                 }
                 b.endObject();
-            }
-            b.endObject();
-        }));
-        assertNotNull(mapperService.fieldType("metrics.time"));
-        assertNotNull(mapperService.fieldType("metrics.count"));
-        assertNull(mapperService.mappingLookup().objectMappers().get("metrics"));
+            }));
+            assertNotNull(mapperService.fieldType("metrics.time"));
+            assertNotNull(mapperService.fieldType("metrics.count"));
+            assertNull(mapperService.mappingLookup().objectMappers().get("metrics"));
+        }
     }
 
     public void testStrictColumnarModesDefaultToSubobjectsFalse() throws Exception {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        IndexMode indexMode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
-        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
-        assertEquals(ObjectMapper.Subobjects.DISABLED, mapperService.documentMapper().mapping().getRoot().subobjects());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+            }));
+            assertEquals(ObjectMapper.Subobjects.DISABLED, mapperService.documentMapper().mapping().getRoot().subobjects());
+        }
     }
 
     public void testStrictColumnarModesRejectSubobjectsParam() {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        IndexMode indexMode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
-            () -> createMapperService(settings, topMapping(b -> b.field("subobjects", true)))
-        );
-        assertThat(e.getMessage(), containsString("subobjects params are not supported in columnar mode"));
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(settings, topMapping(b -> b.field("subobjects", true)))
+            );
+            assertThat(e.getMessage(), containsString("subobjects params are not supported in columnar mode"));
+        }
     }
 }

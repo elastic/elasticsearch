@@ -88,6 +88,9 @@ public class EncodeSplitDeltaBenchmark {
 
     private static final int SEED = 17;
     private static final int EXTRA_METADATA_SIZE = 512;
+    private static final long BASE_TIMESTAMP = 1_700_000_000_000L;
+    private static final long INTERVAL_MS = 10_000L;
+    private static final long BOUNDARY_JUMP_MS = 240L * 60L * 1000L;
 
     @Param({ "1", "2", "4", "8", "16" })
     private int flips;
@@ -113,6 +116,9 @@ public class EncodeSplitDeltaBenchmark {
     public void setupTrial() {
         final BoundaryBlockSupplier supplier = BoundaryBlockSupplier.builder(SEED, blockSize)
             .withFlips(flips)
+            .withBaseTimestamp(BASE_TIMESTAMP)
+            .withIntervalMs(INTERVAL_MS)
+            .withBoundaryJumpMs(BOUNDARY_JUMP_MS)
             .withJitterMs(jitterMs)
             .build();
         template = supplier.get();

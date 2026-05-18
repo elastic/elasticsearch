@@ -80,6 +80,9 @@ public class DecodeSplitDeltaBenchmark {
 
     private static final int SEED = 17;
     private static final int EXTRA_METADATA_SIZE = 512;
+    private static final long BASE_TIMESTAMP = 1_700_000_000_000L;
+    private static final long INTERVAL_MS = 10_000L;
+    private static final long BOUNDARY_JUMP_MS = 240L * 60L * 1000L;
 
     @Param({ "1", "2", "4", "8", "16" })
     private int flips;
@@ -94,14 +97,20 @@ public class DecodeSplitDeltaBenchmark {
     private int blocksPerInvocation;
 
     private byte[] encodedBlock;
-    private int encodedLength;
     private ByteArrayDataInput[] inputs;
     private long[][] outputs;
     private NumericBlockDecoder blockDecoder;
 
     @Setup(Level.Trial)
     public void setupTrial() throws IOException {
-        final long[] template = BoundaryBlockSupplier.builder(SEED, blockSize).withFlips(flips).withJitterMs(jitterMs).build().get();
+        final long[] template = BoundaryBlockSupplier.builder(SEED, blockSize)
+            .withFlips(flips)
+            .withBaseTimestamp(BASE_TIMESTAMP)
+            .withIntervalMs(INTERVAL_MS)
+            .withBoundaryJumpMs(BOUNDARY_JUMP_MS)
+            .withJitterMs(jitterMs)
+            .build()
+            .get();
 
         final PipelineConfig config = PipelineConfig.forLongs(blockSize).splitDelta().bitPack();
         final NumericEncoder encoder = NumericCodecFactory.DEFAULT.createEncoder(config);
@@ -112,7 +121,7 @@ public class DecodeSplitDeltaBenchmark {
         final long[] encodeBuffer = new long[blockSize];
         System.arraycopy(template, 0, encodeBuffer, 0, blockSize);
         blockEncoder.encode(encodeBuffer, blockSize, out);
-        encodedLength = out.getPosition();
+        int encodedLength = out.getPosition();
         encodedBlock = new byte[encodedLength];
         System.arraycopy(scratch, 0, encodedBlock, 0, encodedLength);
 

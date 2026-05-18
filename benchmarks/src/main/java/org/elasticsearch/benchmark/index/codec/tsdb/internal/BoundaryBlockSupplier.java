@@ -17,14 +17,18 @@ import java.util.function.Supplier;
  * in indices sorted by {@code [_tsid asc, @timestamp desc]}.
  *
  * <p>The block is composed of {@code flips + 1} descending sub runs separated by
- * upward boundary jumps. Each sub run decreases at a roughly fixed sampling interval
- * (default 10 sec) with optional ms-scale jitter; the upward jump between sub runs
- * simulates a {@code _tsid} transition (default 240 minutes).
+ * upward boundary jumps. Each sub run decreases at a fixed sampling interval with
+ * optional ms-scale jitter; the upward jump between sub runs simulates a
+ * {@code _tsid} transition.
  *
  * <p>This is the input shape that {@code SplitDelta} targets: at {@code flips=0} the
  * block is a strict descending run that {@code SplitDelta} declines (yielding a
  * baseline-equivalent encoding); at {@code flips>=1} the block crosses one or more
  * boundaries that the baseline {@code delta} stage rejects.
+ *
+ * <p>All shape parameters must be set explicitly via the builder; the class
+ * intentionally carries no default values so callers are forced to declare the
+ * synthetic workload they are generating.
  */
 public class BoundaryBlockSupplier implements Supplier<long[]> {
 
@@ -36,7 +40,7 @@ public class BoundaryBlockSupplier implements Supplier<long[]> {
     private final long boundaryJumpMs;
     private final long jitterMs;
 
-    private BoundaryBlockSupplier(Builder builder) {
+    private BoundaryBlockSupplier(final Builder builder) {
         this.random = new Random(builder.seed);
         this.size = builder.size;
         this.flips = builder.flips;
@@ -91,15 +95,18 @@ public class BoundaryBlockSupplier implements Supplier<long[]> {
         return data;
     }
 
-    /** Builder for {@link BoundaryBlockSupplier}. */
+    /** Builder for {@link BoundaryBlockSupplier}. All shape parameters are required. */
     public static class Builder {
+        private static final int UNSET_INT = -1;
+        private static final long UNSET_LONG = -1L;
+
         private final int seed;
         private final int size;
-        private int flips = 1;
-        private long baseTimestamp = 1_700_000_000_000L;
-        private long intervalMs = 10_000L;
-        private long boundaryJumpMs = 240L * 60L * 1000L;
-        private long jitterMs = 0L;
+        private int flips = UNSET_INT;
+        private long baseTimestamp = UNSET_LONG;
+        private long intervalMs = UNSET_LONG;
+        private long boundaryJumpMs = UNSET_LONG;
+        private long jitterMs = UNSET_LONG;
 
         private Builder(int seed, int size) {
             assert size >= 1 : "size must be positive";
@@ -118,6 +125,18 @@ public class BoundaryBlockSupplier implements Supplier<long[]> {
         public Builder withFlips(int flips) {
             assert flips >= 0 : "flips must be non-negative";
             this.flips = flips;
+            return this;
+        }
+
+        /**
+         * Sets the timestamp at the start of the first sub run (ms since epoch).
+         *
+         * @param baseTimestamp the base timestamp (must be non-negative)
+         * @return this builder
+         */
+        public Builder withBaseTimestamp(long baseTimestamp) {
+            assert baseTimestamp >= 0 : "baseTimestamp must be non-negative";
+            this.baseTimestamp = baseTimestamp;
             return this;
         }
 
@@ -168,6 +187,11 @@ public class BoundaryBlockSupplier implements Supplier<long[]> {
          * @return the configured supplier
          */
         public BoundaryBlockSupplier build() {
+            assert flips != UNSET_INT : "flips must be set via withFlips";
+            assert baseTimestamp != UNSET_LONG : "baseTimestamp must be set via withBaseTimestamp";
+            assert intervalMs != UNSET_LONG : "intervalMs must be set via withIntervalMs";
+            assert boundaryJumpMs != UNSET_LONG : "boundaryJumpMs must be set via withBoundaryJumpMs";
+            assert jitterMs != UNSET_LONG : "jitterMs must be set via withJitterMs";
             assert jitterMs < intervalMs / 2 : "jitterMs must be strictly less than intervalMs / 2";
             return new BoundaryBlockSupplier(this);
         }

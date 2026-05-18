@@ -120,6 +120,10 @@ public class EncodePipelineStageBenchmark {
     private static final int SEED = 17;
     private static final int EXTRA_METADATA_SIZE = 512;
     private static final int RANDOM_INTEGER_BITS = 32;
+    private static final long TSDB_BASE_TIMESTAMP = 1_700_000_000_000L;
+    private static final long TSDB_INTERVAL_MS = 10_000L;
+    private static final long TSDB_BOUNDARY_JUMP_MS = 240L * 60L * 1000L;
+    private static final long TSDB_NO_JITTER_MS = 0L;
 
     @Param({ "delta", "offset", "gcd", "splitDelta", "bitpackOnly", "full" })
     private String stage;
@@ -202,8 +206,20 @@ public class EncodePipelineStageBenchmark {
             case "counterWithResets" -> CounterWithResetsSupplier.builder(SEED, size).build();
             case "nearConstant" -> NearConstantWithOutliersSupplier.builder(SEED, size).build();
             case "timestampLike" -> TimestampLikeSupplier.builder(SEED, size).build();
-            case "tsdbBoundary" -> BoundaryBlockSupplier.builder(SEED, size).withFlips(1).build();
-            case "tsdbMultiBoundary" -> BoundaryBlockSupplier.builder(SEED, size).withFlips(4).build();
+            case "tsdbBoundary" -> BoundaryBlockSupplier.builder(SEED, size)
+                .withFlips(1)
+                .withBaseTimestamp(TSDB_BASE_TIMESTAMP)
+                .withIntervalMs(TSDB_INTERVAL_MS)
+                .withBoundaryJumpMs(TSDB_BOUNDARY_JUMP_MS)
+                .withJitterMs(TSDB_NO_JITTER_MS)
+                .build();
+            case "tsdbMultiBoundary" -> BoundaryBlockSupplier.builder(SEED, size)
+                .withFlips(4)
+                .withBaseTimestamp(TSDB_BASE_TIMESTAMP)
+                .withIntervalMs(TSDB_INTERVAL_MS)
+                .withBoundaryJumpMs(TSDB_BOUNDARY_JUMP_MS)
+                .withJitterMs(TSDB_NO_JITTER_MS)
+                .build();
             default -> throw new IllegalArgumentException("Unknown pattern: " + pattern);
         };
     }

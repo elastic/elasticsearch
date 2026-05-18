@@ -430,6 +430,15 @@ public class EsqlCapabilities {
         FIELD_EXTRACT_FUNCTION(Build.current().isSnapshot()),
 
         /**
+         * Pushdown optimizations for {@code field_extract(<flattened root>, "<literal key>")}: block-loader
+         * fusion that reads the keyed sub-field's doc values directly, and Lucene query pushdown for
+         * {@code ==}, {@code !=}, and {@code IN} against the same shape. Tests that depend on the fused
+         * multi-value output or on the {@code SingleValueQuery} warning text must require this capability
+         * so they skip on mixed clusters where any data node still runs the per-row evaluator.
+         */
+        FIELD_EXTRACT_FLATTENED_PUSHDOWN(Build.current().isSnapshot()),
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,
@@ -2150,6 +2159,12 @@ public class EsqlCapabilities {
         PROMQL_ABSENT_LABEL_MATCHING,
 
         /**
+         * Support for the {@code TS_COLLAPSE} pipe command, which collapses PromQL results
+         * into one multi-valued row per series.
+         */
+        TS_COLLAPSE,
+
+        /**
          * Support for`WITHOUT` grouping function
          * that excludes specific dimensions from time-series grouping.
          */
@@ -2585,7 +2600,7 @@ public class EsqlCapabilities {
         /**
          * TSDB Temporality support which is guarded by a feature flag.
          */
-        TSDB_TEMPORALITY_SUPPORT_V6(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
+        TSDB_TEMPORALITY_SUPPORT_V7(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
 
         /**
          * Support the null column type for the CHANGE_POINT command
@@ -2796,6 +2811,21 @@ public class EsqlCapabilities {
          * Support for the {@code !=} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_NOT_EQUALS_FLATTENED(Build.current().isSnapshot()),
+
+        /**
+         * Fix for {@code ReorderLimitProjectAndOrderBy} unconditionally lifting an {@code OrderBy} above a renaming/dropping
+         * {@code Project}: it now rewrites the {@code OrderBy}'s references through the {@code Project}'s aliases (so a sort on
+         * a renamed column stays valid) and bails out of the swap if a referenced column is dropped altogether.
+         * <p>
+         *     See <a href="https://github.com/elastic/elasticsearch/issues/148612">#148612</a>.
+         * </p>
+         */
+        FIX_REORDER_LIMIT_PROJECT_AND_ORDER_BY_PRESERVES_REFS,
+
+        /**
+         * Support query approximation with FORK and subqueries.
+         */
+        APPROXIMATION_FORK(Build.current().isSnapshot())
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

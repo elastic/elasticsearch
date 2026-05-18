@@ -39,3 +39,22 @@ bob          | 40       | null
 charlie      | 50       | paris
 dave         | 60       | london
 ;
+
+multiFileUnionByNameRecipeWithPruning
+required_capability: external_command
+required_capability: external_csv_header_row_option
+required_capability: external_source_read_schema
+required_capability: datasource_file_readers_no_text_type
+
+EXTERNAL "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "union_by_name"}
+| KEEP name, city
+| SORT name ASC
+| LIMIT 10
+;
+
+name:keyword | city:keyword
+alice        | null
+bob          | null
+charlie      | paris
+dave         | london
+;

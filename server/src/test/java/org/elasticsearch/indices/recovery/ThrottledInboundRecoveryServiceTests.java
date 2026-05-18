@@ -13,7 +13,9 @@ import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService.RecoveryListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -21,6 +23,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -160,7 +164,7 @@ public class ThrottledInboundRecoveryServiceTests extends ESTestCase {
         int totalEnqueuedTasks = maxConcurrentRecoveries * 3;
         CountDownLatch allFinished = new CountDownLatch(totalEnqueuedTasks);
 
-        RecoveryListener noopUserListener = new RecoveryListener() {
+        RecoveryListener decrementingListener = new RecoveryListener() {
             @Override
             public void onRecoveryDone(
                 RecoveryState state,
@@ -196,7 +200,7 @@ public class ThrottledInboundRecoveryServiceTests extends ESTestCase {
 
         int enqueued = 0;
         for (; enqueued < maxConcurrentRecoveries; enqueued++) {
-            service.enqueue(noopUserListener, recoveryBody);
+            service.enqueue(decrementingListener, recoveryBody);
         }
 
         assertTrue(
@@ -207,7 +211,7 @@ public class ThrottledInboundRecoveryServiceTests extends ESTestCase {
         assertThat(running.get(), equalTo(maxConcurrentRecoveries));
 
         for (; enqueued < totalEnqueuedTasks; enqueued++) {
-            service.enqueue(noopUserListener, recoveryBody);
+            service.enqueue(decrementingListener, recoveryBody);
         }
 
         unblock.countDown();
@@ -252,6 +256,198 @@ public class ThrottledInboundRecoveryServiceTests extends ESTestCase {
         assertThat(completionOrder.size(), equalTo(total));
         for (int i = 0; i < total; i++) {
             assertThat(completionOrder.get(i), equalTo(Integer.valueOf(i)));
+        }
+    }
+
+    /**
+     * Stress one {@link ThrottledInboundRecoveryService} from many producer threads for one second: alternating bursty
+     * submits (high contention on the throttle) and idle periods (little to no contention). Verify that all tasks finish
+     * and that no more than {@code maxConcurrentRecoveries} consumer bodies overlap.
+     *
+     * By randomizing burst sizes we exercise different backlog shapes where in some executions there are always pending
+     * recoveries, and in others the pending queue sometimes drains during idle periods.
+     */
+    public void testStressConcurrentEnqueueMaintainsBoundsFifoAndCompleteness() throws Exception {
+        final int maxConcurrentRecoveries = between(1, 20);
+        final int highContentionBurstSizeMin = between(1, maxConcurrentRecoveries);
+        final int highContentionBurstSizeMax = between(highContentionBurstSizeMin, maxConcurrentRecoveries * 2);
+        final ThrottledInboundRecoveryService service = new ThrottledInboundRecoveryService(threadPool, maxConcurrentRecoveries);
+        final AtomicInteger running = new AtomicInteger();
+        final AtomicInteger peakRunning = new AtomicInteger();
+        final AtomicInteger totalTasksEnqueued = new AtomicInteger();
+        final AtomicInteger totalTasksFinished = new AtomicInteger();
+        final DynamicTaskLatch taskLatch = new DynamicTaskLatch();
+
+        final RecoveryListener noopUserListener = new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {}
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                fail(e);
+            }
+        };
+
+        final long deadlineMillis = System.currentTimeMillis() + TimeUnit.MILLISECONDS.toMillis(1000);
+        final int producerThreads = between(1, 6);
+        final List<Thread> threads = new ArrayList<>(producerThreads);
+        for (int t = 0; t < producerThreads; t++) {
+            Thread thread = new Thread(() -> {
+                try {
+                    long phaseClock = System.currentTimeMillis();
+                    while (System.currentTimeMillis() < deadlineMillis) {
+                        long elapsedPhase = System.currentTimeMillis() - phaseClock;
+                        boolean highContention = (elapsedPhase / TimeUnit.MILLISECONDS.toMillis(100)) % 2 == 0;
+                        if (highContention) {
+                            int burst = between(highContentionBurstSizeMin, highContentionBurstSizeMax);
+                            for (int b = 0; b < burst && System.currentTimeMillis() < deadlineMillis; b++) {
+                                taskLatch.taskStarted();
+                                totalTasksEnqueued.incrementAndGet();
+                                service.enqueue(
+                                    noopUserListener,
+                                    schedulingListener -> runStressInboundRecoveryTask(
+                                        schedulingListener,
+                                        running,
+                                        peakRunning,
+                                        totalTasksFinished,
+                                        taskLatch,
+                                        random().nextBoolean(),
+                                        threadPool
+                                    )
+                                );
+                            }
+                        } else {
+                            int sleepMs = between(15, 80);
+                            Thread.sleep(sleepMs);
+                            if (System.currentTimeMillis() < deadlineMillis) {
+                                taskLatch.taskStarted();
+                                totalTasksEnqueued.incrementAndGet();
+                                service.enqueue(
+                                    noopUserListener,
+                                    schedulingListener -> runStressInboundRecoveryTask(
+                                        schedulingListener,
+                                        running,
+                                        peakRunning,
+                                        totalTasksFinished,
+                                        taskLatch,
+                                        random().nextBoolean(),
+                                        threadPool
+                                    )
+                                );
+                            }
+                        }
+                        Thread.sleep(between(1, 10));
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(e);
+                }
+            }, "recovery-inbound-throttle-stress-" + t);
+            threads.add(thread);
+            thread.start();
+        }
+
+        for (Thread thread : threads) {
+            thread.join();
+        }
+
+        assertTrue("timed out waiting for all stress tasks to finish", taskLatch.awaitZero(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS));
+        assertThat(totalTasksFinished.get(), equalTo(totalTasksEnqueued.get()));
+        assertThat(peakRunning.get(), lessThanOrEqualTo(maxConcurrentRecoveries));
+        assertThat(running.get(), equalTo(0));
+    }
+
+    private static void runStressInboundRecoveryTask(
+        RecoveryListener schedulingListener,
+        AtomicInteger running,
+        AtomicInteger peakRunning,
+        AtomicInteger totalTasksFinished,
+        DynamicTaskLatch latch,
+        boolean async,
+        ThreadPool threadPool
+    ) {
+        if (async) {
+            threadPool.generic()
+                .execute(() -> doRunStressInboundRecoveryTask(schedulingListener, running, peakRunning, totalTasksFinished, latch));
+        } else {
+            doRunStressInboundRecoveryTask(schedulingListener, running, peakRunning, totalTasksFinished, latch);
+        }
+    }
+
+    private static void doRunStressInboundRecoveryTask(
+        RecoveryListener schedulingListener,
+        AtomicInteger running,
+        AtomicInteger peakRunning,
+        AtomicInteger totalTasksFinished,
+        DynamicTaskLatch latch
+    ) {
+        int current = running.incrementAndGet();
+        peakRunning.accumulateAndGet(current, Integer::max);
+        try {
+            Thread.sleep(1);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        } finally {
+            running.decrementAndGet();
+            totalTasksFinished.incrementAndGet();
+            schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+            latch.taskFinished();
+        }
+    }
+
+    private static final class DynamicTaskLatch {
+        private final ReentrantLock lock = new ReentrantLock();
+        private final Condition zero = lock.newCondition();
+        private long count;
+
+        void taskStarted() {
+            lock.lock();
+            try {
+                if (count == Long.MAX_VALUE) {
+                    throw new IllegalStateException("Too many active tasks");
+                }
+                count++;
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        void taskFinished() {
+            lock.lock();
+            try {
+                if (count == 0) {
+                    throw new IllegalStateException("taskFinished without taskStarted");
+                }
+
+                count--;
+
+                if (count == 0) {
+                    zero.signalAll();
+                }
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        boolean awaitZero(long timeout, TimeUnit unit) throws InterruptedException {
+            lock.lock();
+            try {
+                long nanosRemaining = unit.toNanos(timeout);
+                while (count != 0) {
+                    if (nanosRemaining <= 0) {
+                        return false;
+                    }
+                    nanosRemaining = zero.awaitNanos(nanosRemaining);
+                }
+                return true;
+            } finally {
+                lock.unlock();
+            }
         }
     }
 }

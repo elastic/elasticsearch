@@ -40,6 +40,12 @@ import java.util.Map;
  *
  * <p>The ES|QL PROMQL command runs with {@code collapsed=true}, so each row in the response
  * represents one complete time series with multi-valued {@code value} and {@code step} columns.
+ * Example collapsed response shape:
+ * <pre>{@code
+ * value       | _timeseries                                      | step
+ * [1.0, 2.0]  | {"__name__":"http_requests_total","job":"api"}   | [1710000000000, 1710000060000]
+ * [3.0, 4.0]  | {"__name__":"http_requests_total","job":"web"}   | [1710000000000, 1710000060000]
+ * }</pre>
  *
  * @see <a href="https://prometheus.io/docs/prometheus/latest/querying/api/">Prometheus HTTP API</a>
  */
@@ -129,7 +135,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         builder.startObject("data");
         builder.field("resultType", mode == QueryMode.RANGE ? "matrix" : "vector");
         builder.startArray("result");
-        boolean truncated = writeResults(builder, response, mode, limit, columns, stepColIdx, useSeriesCol);
+        boolean truncated = writeResultArray(builder, response, mode, limit, columns, stepColIdx, useSeriesCol);
         builder.endArray(); // result
         builder.endObject(); // data
         if (truncated) {
@@ -141,7 +147,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         return builder;
     }
 
-    private static boolean writeResults(
+    private static boolean writeResultArray(
         XContentBuilder builder,
         EsqlResponse response,
         QueryMode mode,

@@ -81,6 +81,7 @@ import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -1262,6 +1263,16 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            BlockLoaderFunctionConfig functionConfig = blContext == null ? null : blContext.blockLoaderFunctionConfig();
+            if (functionConfig instanceof ExtractFlattenedSubfieldConfig(String key)) {
+                if (hasDocValues() == false) {
+                    throw new IllegalStateException(
+                        "ExtractFlattenedSubfieldConfig requires doc values on flattened root [" + name() + "]"
+                    );
+                }
+                return new KeyedFlattenedDocValuesBlockLoader(name() + KEYED_FIELD_SUFFIX, key, usesBinaryDocValues);
+            }
+
             // If a value trips ignore_above, it is stored in the fallback binary doc values field only if synthetic source is enabled.
             // Otherwise, that value only exists in stored _source.
             final boolean docValuesContainAllValues = ignoreAbove.valuesPotentiallyIgnored() == false || isSyntheticSourceEnabled;
@@ -1286,6 +1297,13 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             );
 
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext, name()));
+        }
+
+        @Override
+        public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, MappedFieldType.FieldExtractPreference preference) {
+            // Only the field_extract sub-key fusion is supported on the flattened root for now,
+            // and only when doc values are available (so we can use the keyed sub-field loader).
+            return config instanceof ExtractFlattenedSubfieldConfig && hasDocValues();
         }
 
         @Override

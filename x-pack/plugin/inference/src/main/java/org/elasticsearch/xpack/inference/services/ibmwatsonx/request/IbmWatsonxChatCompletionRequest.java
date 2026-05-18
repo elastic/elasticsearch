@@ -44,7 +44,7 @@ public class IbmWatsonxChatCompletionRequest implements OutboundUnifiedCompletio
 
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
 
-        decorateWithAuth(httpPost);
+        model.authHeaderDecorator().accept(httpPost, model);
 
         listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
@@ -52,10 +52,6 @@ public class IbmWatsonxChatCompletionRequest implements OutboundUnifiedCompletio
     @Override
     public URI getURI() {
         return model.uri();
-    }
-
-    public void decorateWithAuth(HttpPost httpPost) {
-        IbmWatsonxRequestUtils.decorateWithBearerToken(httpPost, model.getSecretSettings(), model.getInferenceEntityId());
     }
 
     @Override

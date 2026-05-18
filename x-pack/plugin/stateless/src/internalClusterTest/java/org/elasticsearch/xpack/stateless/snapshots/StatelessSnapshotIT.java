@@ -160,7 +160,7 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         assertFalse(snapshotReadSeen.get());
     }
 
-    public void testStatelessSnapshotBasic() {
+    public void testStatelessSnapshotBasic() throws Exception {
         final var settings = Settings.builder().put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), "read_from_object_store").build();
         startMasterAndIndexNode(settings);
         startSearchNode(settings);
@@ -190,6 +190,11 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
 
         ensureGreen(indexName);
         assertHitCount(prepareSearch(indexName), nDocs);
+
+        // continuing indexing works as expected
+        final var moreDocs = between(10, 50);
+        indexDocsAndRefresh(indexName, moreDocs);
+        assertHitCount(prepareSearch(indexName), nDocs + moreDocs);
     }
 
     public void testStatelessSnapshotDoesNotReadFromCache() {

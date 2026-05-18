@@ -1,4 +1,4 @@
-area: GeoIP database
+area: Ingest Node
 issues: []
 pr: 149287
 summary: Close `GeoIp` `configDatabases` to release open file locks

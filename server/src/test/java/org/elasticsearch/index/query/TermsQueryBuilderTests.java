@@ -314,4 +314,40 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         assertThat(query, CoreMatchers.instanceOf(TermsQueryBuilder.class));
         return query;
     }
+
+    // doRewrite on a coordinator context sorts BytesRef terms and returns a new builder.
+    public void testDoRewritePreSortsTermsOnCoordinator() throws IOException {
+        TermsQueryBuilder builder = new TermsQueryBuilder(TEXT_FIELD_NAME, "zzz", "aaa", "mmm", "bbb");
+        QueryRewriteContext ctx = new QueryRewriteContext(parserConfig(), null, null, () -> 0L);
+        QueryBuilder rewritten = builder.rewrite(ctx);
+
+        assertThat(rewritten, instanceOf(TermsQueryBuilder.class));
+        assertNotSame(builder, rewritten);
+        List<Object> values = ((TermsQueryBuilder) rewritten).values();
+        assertEquals(List.of("aaa", "bbb", "mmm", "zzz"), values);
+    }
+
+    // A second doRewrite on an already-sorted builder must be stable (returns same instance).
+    public void testDoRewriteIsStableAfterSort() throws IOException {
+        TermsQueryBuilder builder = new TermsQueryBuilder(TEXT_FIELD_NAME, "zzz", "aaa");
+        QueryRewriteContext ctx = new QueryRewriteContext(parserConfig(), null, null, () -> 0L);
+        QueryBuilder once = builder.rewrite(ctx);
+        QueryBuilder twice = once.rewrite(ctx);
+        assertSame(once, twice);
+    }
+
+    // doRewrite on a shard context must not trigger the pre-sort (guard: convertToSearchExecutionContext != null).
+    public void testDoRewriteSkipsPreSortOnShard() throws IOException {
+        TermsQueryBuilder builder = new TermsQueryBuilder(TEXT_FIELD_NAME, "zzz", "aaa", "mmm");
+        QueryBuilder rewritten = builder.rewrite(createSearchExecutionContext());
+        assertSame(builder, rewritten);
+    }
+
+    // Numeric terms cannot be pre-sorted as BytesRef; doRewrite falls through unchanged.
+    public void testDoRewriteSkipsPreSortForNonBytesRefTerms() throws IOException {
+        TermsQueryBuilder builder = new TermsQueryBuilder(TEXT_FIELD_NAME, 3, 1, 2);
+        QueryRewriteContext ctx = new QueryRewriteContext(parserConfig(), null, null, () -> 0L);
+        QueryBuilder rewritten = builder.rewrite(ctx);
+        assertSame(builder, rewritten);
+    }
 }

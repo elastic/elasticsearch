@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security;
 
 import org.apache.http.HttpHost;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -25,6 +26,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
@@ -103,6 +106,10 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
             "reindex resilience endpoints must be available",
             clusterHasCapability("GET", "/_reindex/{task_id}", List.of(), List.of("reindex_management_api")).orElse(false)
         );
+        // The test cluster framework's Process.destroy() maps to TerminateProcess on Windows, which kills the JVM without running
+        // shutdown hooks. As a result ShutdownPrepareService.prepareForShutdown() never fires, the reindex-stop hook never marks the
+        // task for relocation, and the assertions below cannot be satisfied.
+        assumeFalse("graceful JVM shutdown is not deliverable on Windows by the test cluster framework", Constants.WINDOWS);
 
         final int numDocs = 30;
         createSourceIndexAndPopulate(numDocs);
@@ -244,6 +251,10 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
             Request list = new Request("GET", "/_reindex");
             Response response = dataClient.performRequest(list);
             ObjectPath body = ObjectPath.createFromResponse(response);
+            // Surface fan-out failures up front so that an unexpectedly empty `reindex` array points at the real cause (e.g. the
+            // coordinator going unreachable mid-list) rather than a bare hasSize(1) mismatch.
+            assertThat(body.<List<?>>evaluate("node_failures"), anyOf(nullValue(), empty()));
+            assertThat(body.<List<?>>evaluate("task_failures"), anyOf(nullValue(), empty()));
             assertThat(body.<List<?>>evaluate("reindex"), hasSize(1));
             assertThat(body.evaluate("reindex.0.id"), equalTo(taskId));
         }

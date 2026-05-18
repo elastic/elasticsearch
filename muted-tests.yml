@@ -521,15 +521,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testMultipleInferencesTriggeringDownloadAndDeploy
   issue: https://github.com/elastic/elasticsearch/issues/149130
-- class: org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormatTests;
-  method: testOneRepeatedVector
-  issue: https://github.com/elastic/elasticsearch/issues/149168
-- class: org.elasticsearch.index.codec.vectors.diskbbq.es92.ES920DiskBBQVectorsFormatTests;
-  method: testOneRepeatedVector
-  issue: https://github.com/elastic/elasticsearch/issues/149168
-- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests;
-  method: testOneRepeatedVector
-  issue: https://github.com/elastic/elasticsearch/issues/149168
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148339
@@ -569,3 +560,12 @@ tests:
 - class: org.elasticsearch.repositories.SnapshotMetricsIT
   method: testSnapshotAPMMetrics
   issue: https://github.com/elastic/elasticsearch/issues/149256
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
+  method: testPitRelocationDuringReshard
+  issue: https://github.com/elastic/elasticsearch/issues/149271
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
+  method: testLongLivedPitRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/149272
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
+  method: testReshardedLongLivedPitRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/149273

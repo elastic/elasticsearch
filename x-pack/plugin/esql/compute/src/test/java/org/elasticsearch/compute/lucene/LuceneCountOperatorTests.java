@@ -54,6 +54,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 
@@ -93,6 +94,11 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
                     assertThat(count, equalTo((long) numDocs));
                 }
             }
+
+            @Override
+            LuceneSliceQueue.PartitioningStrategy expectedPartitioning() {
+                return LuceneSliceQueue.PartitioningStrategy.SHARD;
+            }
         },
         MATCH_0 {
             @Override
@@ -114,6 +120,11 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
                     count += getCount(p);
                 }
                 assertThat(count, equalTo((long) Math.min(numDocs, 1)));
+            }
+
+            @Override
+            LuceneSliceQueue.PartitioningStrategy expectedPartitioning() {
+                return LuceneSliceQueue.PartitioningStrategy.SEGMENT;
             }
         },
         MATCH_0_AND_1 {
@@ -141,6 +152,11 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
                     matcher = matcher.entry(456, 1L);
                 }
                 assertMap(counts, matcher);
+            }
+
+            @Override
+            LuceneSliceQueue.PartitioningStrategy expectedPartitioning() {
+                return LuceneSliceQueue.PartitioningStrategy.SEGMENT;
             }
         },
         LTE_100_GT_100 {
@@ -186,6 +202,11 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
                 assertThat(counts.keySet(), hasSize(either(equalTo(1)).or(equalTo(2))));
                 assertMap(counts, matcher);
             }
+
+            @Override
+            LuceneSliceQueue.PartitioningStrategy expectedPartitioning() {
+                return LuceneSliceQueue.PartitioningStrategy.SEGMENT;
+            }
         };
 
         abstract List<LuceneSliceQueue.QueryAndTags> queryAndExtra();
@@ -193,6 +214,8 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
         abstract List<ElementType> tagTypes();
 
         abstract void checkPages(int numDocs, int limit, List<Page> results);
+
+        abstract LuceneSliceQueue.PartitioningStrategy expectedPartitioning();
 
         // TODO check for the count of count shortcuts taken
     }
@@ -244,6 +267,7 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
             new IndexedByShardIdFromSingleton<>(ctx),
             queryFunction,
             dataPartitioning,
+            1,
             between(1, 8),
             testCase.tagTypes(),
             limit
@@ -314,6 +338,19 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
         OperatorTestCase.runDriver(drivers);
         assertThat(results.size(), lessThanOrEqualTo(taskConcurrency));
         testCase.checkPages(size, limit, results);
+        var expectedStrategy = switch (dataPartitioning) {
+            case SHARD -> LuceneSliceQueue.PartitioningStrategy.SHARD;
+            case SEGMENT -> LuceneSliceQueue.PartitioningStrategy.SEGMENT;
+            case AUTO, DOC -> size >= 1 ? testCase.expectedPartitioning() : LuceneSliceQueue.PartitioningStrategy.SHARD;
+        };
+        for (Driver driver : drivers) {
+            LuceneOperator.Status status = (LuceneOperator.Status) driver.status().completedOperators().get(0).status();
+            assertNotNull(status);
+            var strategies = status.partitioningStrategies();
+            for (var strategy : strategies.values()) {
+                assertThat(strategies.toString(), strategy, is(expectedStrategy));
+            }
+        }
     }
 
     private static long getCount(Page p) {

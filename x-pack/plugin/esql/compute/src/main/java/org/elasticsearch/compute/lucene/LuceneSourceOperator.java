@@ -81,6 +81,7 @@ public class LuceneSourceOperator extends LuceneOperator {
                 dataPartitioning == DataPartitioning.AUTO ? autoStrategy.pickStrategy(limit) : q -> {
                     throw new UnsupportedOperationException("locked in " + dataPartitioning);
                 },
+                LuceneOperator.SMALL_INDEX_BOUNDARY,
                 taskConcurrency,
                 limit,
                 needsScore,
@@ -154,7 +155,7 @@ public class LuceneSourceOperator extends LuceneOperator {
          * </ul>
          */
         private static PartitioningStrategy highSpeedAutoStrategy(Query query) {
-            Query unwrapped = unwrap(query);
+            Query unwrapped = unwrapQuery(query);
             log.trace("highSpeedAutoStrategy {} {}", query, unwrapped);
             return switch (unwrapped) {
                 case BooleanQuery q -> highSpeedAutoStrategyForBoolean(q);
@@ -164,7 +165,7 @@ public class LuceneSourceOperator extends LuceneOperator {
             };
         }
 
-        private static Query unwrap(Query query) {
+        static Query unwrapQuery(Query query) {
             while (true) {
                 switch (query) {
                     case BoostQuery q: {
@@ -194,7 +195,7 @@ public class LuceneSourceOperator extends LuceneOperator {
             List<PartitioningStrategy> clauses = new ArrayList<>(query.clauses().size());
             boolean allRequired = true;
             for (BooleanClause c : query) {
-                Query clauseQuery = unwrap(c.query());
+                Query clauseQuery = unwrapQuery(c.query());
                 log.trace("highSpeedAutoStrategyForBooleanClause {} {}", c.occur(), clauseQuery);
                 if ((c.isProhibited() && clauseQuery instanceof MatchAllDocsQuery)
                     || (c.isRequired() && clauseQuery instanceof MatchNoDocsQuery)) {

@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -777,6 +778,11 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 }, task)
             );
 
+        // Force recovery to await warming before opening the engine. Without this, warmCacheForSearchShardRecovery is
+        // fire-and-forget in the VBCC path (searchRecoveryTimeout returns skip() — single shard copy, not a relocation),
+        // so the engine can open while warming is still in progress. When warming then blocks the object store, any
+        // in-flight reads from the engine fail. Awaiting warming ensures the object store is blocked before the engine opens.
+        getSharedBlobCacheWarmingService(searchNode).setAwaitWarmingForSearchRecovery(true);
         failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(indexName, searchNode, Type.SEARCH);
 
         setReplicaCount(1, indexName);
@@ -1379,6 +1385,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             new CopyOnWriteArrayList<>();
         private final CopyOnWriteArrayList<Consumer<Type>> beforeWarmingStartsListeners = new CopyOnWriteArrayList<>();
 
+        private volatile boolean awaitWarmingForSearchRecovery = false;
+
         ObservableSharedBlobCacheWarmingService(
             StatelessSharedBlobCacheService cacheService,
             ThreadPool threadPool,
@@ -1387,6 +1395,49 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             WarmingRatioProvider warmingRatioProvider
         ) {
             super(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider);
+        }
+
+        void setAwaitWarmingForSearchRecovery(boolean await) {
+            this.awaitWarmingForSearchRecovery = await;
+        }
+
+        @Override
+        public void warmCacheForSearchShardRecovery(
+            ClusterState clusterState,
+            IndexShard indexShard,
+            StatelessCompoundCommit commit,
+            BlobStoreCacheDirectory directory,
+            @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+            ActionListener<Void> resumeRecoveryListener
+        ) {
+            if (awaitWarmingForSearchRecovery) {
+                // warmCache routes through ObservableSharedBlobCacheWarmingService.warmCache, which fires
+                // warmingCompletedListeners before the original listener, so the object-store block callback
+                // registered via addWarmingCompletedListener fires before resumeRecoveryListener completes.
+                warmCache(
+                    Type.SEARCH,
+                    indexShard,
+                    commit,
+                    directory,
+                    endOffsetsToWarm,
+                    false,
+                    searchRecoveryWarmingListener(
+                        TimeValue.timeValueMinutes(1),
+                        "test: awaiting warming",
+                        indexShard,
+                        resumeRecoveryListener
+                    )
+                );
+            } else {
+                super.warmCacheForSearchShardRecovery(
+                    clusterState,
+                    indexShard,
+                    commit,
+                    directory,
+                    endOffsetsToWarm,
+                    resumeRecoveryListener
+                );
+            }
         }
 
         /**

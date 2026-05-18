@@ -25,6 +25,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -33,7 +34,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -269,30 +269,22 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
         List<String> values = responseHeaders.get("X-Elasticsearch-Search-Metrics");
         assertThat("expected a single accumulated header value", values.size(), equalTo(1));
 
-        Map<String, Long> headerValues = parseHeader(values.get(0));
-        assertThat(headerValues, notNullValue());
-        assertThat(headerValues, hasKey("store_bytes_read"));
-        long total = headerValues.get("store_bytes_read");
-        assertThat(total, greaterThan(0L));
+        Tuple<String, Long> tuple = parseHeader(values.get(0));
+        assertThat(tuple.v1(), notNullValue());
+        assertThat(tuple.v2(), notNullValue());
+        assertThat(tuple.v1(), equalTo("store_bytes_read"));
+        assertThat(tuple.v2(), greaterThan(0L));
 
-        return total;
+        return tuple.v2();
     }
 
-    public static Map<String, Long> parseHeader(String headerValue) {
-        Map<String, Long> result = new HashMap<>();
-        for (String part : headerValue.split(";")) {
-            String trimmed = part.trim();
-            if (trimmed.isEmpty()) {
-                continue;
-            }
-            int splitterPos = trimmed.indexOf('=');
-            if (splitterPos < 0) {
-                throw new IllegalArgumentException("invalid header entry [" + trimmed + "]");
-            }
-            String key = trimmed.substring(0, splitterPos).trim();
-            long value = Long.parseLong(trimmed.substring(splitterPos + 1).trim());
-            result.put(key, value);
+    public static Tuple<String, Long> parseHeader(String headerValue) {
+        int splitterPos = headerValue.indexOf('=');
+        if (splitterPos < 0) {
+            throw new IllegalArgumentException("invalid header entry [" + headerValue + "]");
         }
-        return result;
+        String key = headerValue.substring(0, splitterPos).trim();
+        long value = Long.parseLong(headerValue.substring(splitterPos + 1).trim());
+        return Tuple.tuple(key, value);
     }
 }

@@ -652,12 +652,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     public static void createResponseHeaderFromDirectoryMetrics(ThreadContext threadContext, DirectoryMetrics directoryMetrics) {
         if (directoryMetrics.isEmpty() == false) {
-            StringBuilder sb = new StringBuilder();
             for (Map.Entry<String, String> entry : directoryMetrics.entries().entrySet()) {
-                if (sb.isEmpty() == false) sb.append(';');
-                sb.append(entry.getKey()).append('=').append(entry.getValue());
+                String value = entry.getKey() + "=" + entry.getValue();
+                threadContext.addResponseHeader(AbstractSearchAsyncAction.RESPONSE_HEADER_SEARCH_METRICS, value);
             }
-            threadContext.addResponseHeader(AbstractSearchAsyncAction.RESPONSE_HEADER_SEARCH_METRICS, sb.toString());
         }
     }
 

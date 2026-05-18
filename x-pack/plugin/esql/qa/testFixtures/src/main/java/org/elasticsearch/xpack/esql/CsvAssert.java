@@ -615,23 +615,31 @@ public final class CsvAssert {
                 x -> DEFAULT_DATE_NANOS_FORMATTER.formatNanos(DEFAULT_DATE_NANOS_FORMATTER.parseNanos((String) x))
             );
             case FLATTENED -> {
-                if (actualValue instanceof Map<?, ?> map) {
-                    // REST tests come back as a LinkedHashMap and our assertions are json strings.
-                    // So we convert to json strings. This preserves order *because* of the LinkedHashMap.
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> typedMap = (Map<String, Object>) map;
-                    try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                        builder.map(typedMap);
-                        yield BytesReference.bytes(builder).utf8ToString();
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
+                if (actualValue instanceof List<?> list) {
+                    // VALUES(flattened) returns a list of maps from REST; convert each to a JSON string
+                    yield list.stream().map(v -> convertActualFlattenedValue(v)).toList();
                 }
-                // CsvIT: value is already a JSON string from the block loader — compare directly
-                yield actualValue;
+                yield convertActualFlattenedValue(actualValue);
             }
             default -> actualValue;
         };
+    }
+
+    private static Object convertActualFlattenedValue(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            // REST tests come back as a LinkedHashMap and our assertions are json strings.
+            // So we convert to json strings. This preserves order *because* of the LinkedHashMap.
+            @SuppressWarnings("unchecked")
+            Map<String, Object> typedMap = (Map<String, Object>) map;
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                builder.map(typedMap);
+                return BytesReference.bytes(builder).utf8ToString();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+        // CsvIT: value is already a JSON string from the block loader — compare directly
+        return value;
     }
 
     private static Object rebuildExpected(Object expectedValue, Class<?> clazz, Function<Object, Object> mapper) {

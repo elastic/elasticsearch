@@ -61,7 +61,10 @@ dependencies {
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
   runtimeOnly "commons-logging:commons-logging:${versions.commonslogging}"
   runtimeOnly "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  runtimeOnly "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
+  // Reactive Streams API. Required transitively by the AWS SDK netty-nio-client at runtime
+  // and now also referenced directly at compile time by the custom AsyncResponseTransformer
+  // (KnownLengthAsyncResponseTransformer) which implements Subscriber<ByteBuffer>.
+  implementation "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
   runtimeOnly "software.amazon.awssdk:arns:${versions.awsv2sdk}"
   runtimeOnly "software.amazon.awssdk:aws-query-protocol:${versions.awsv2sdk}"
   runtimeOnly "software.amazon.awssdk:checksums-spi:${versions.awsv2sdk}"

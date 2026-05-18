@@ -1106,6 +1106,140 @@ public class ExternalSourceResolverTests extends ESTestCase {
         };
     }
 
+    /**
+     * Column statistics (min/max/null_count) flow through {@code aggregateFileStatistics} via the
+     * same shape branch as row counts: cached entries carry them as flat {@code _stats.columns.*}
+     * keys in {@code sourceMetadata()}, uncached entries carry them as typed
+     * {@link SourceStatistics.ColumnStatistics}. The regression on {@code stats_min_max_eventdate}
+     * (21× slower at the bench baseline) makes column stats load-bearing, so pin the full
+     * round-trip: merged {@code null_count} sums across both shapes; merged {@code min}/{@code max}
+     * span the union; the implicit-nulls pass does not over-count when both files contain the
+     * column.
+     */
+    public void testAggregateFileStatisticsMergesColumnStatsAcrossShapes() {
+        String col = "eventDate";
+        long uncachedRowCount = 100L;
+        long cachedRowCount = 200L;
+        long uncachedNullCount = 5L;
+        long cachedNullCount = 3L;
+        long uncachedMin = 10L;
+        long uncachedMax = 100L;
+        long cachedMin = 50L;
+        long cachedMax = 200L;
+
+        SourceStatistics uncachedStats = statsWithColumn(uncachedRowCount, col, uncachedNullCount, uncachedMin, uncachedMax);
+        SourceMetadata uncached = new SourceMetadata() {
+            @Override
+            public List<Attribute> schema() {
+                return List.of();
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+
+            @Override
+            public String location() {
+                return "s3://bucket/uncached.parquet";
+            }
+
+            @Override
+            public Optional<SourceStatistics> statistics() {
+                return Optional.of(uncachedStats);
+            }
+        };
+
+        Map<String, Object> cachedFlatStats = SourceStatisticsSerializer.embedStatistics(
+            Map.of(),
+            statsWithColumn(cachedRowCount, col, cachedNullCount, cachedMin, cachedMax)
+        );
+        SourceMetadata cached = new SourceMetadata() {
+            @Override
+            public List<Attribute> schema() {
+                return List.of();
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+
+            @Override
+            public String location() {
+                return "s3://bucket/cached.parquet";
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return cachedFlatStats;
+            }
+        };
+
+        Map<String, Object> merged = ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached));
+        assertNotNull("merging cached and uncached shapes with column stats must succeed", merged);
+        assertEquals(
+            "merged row count must sum both shapes",
+            uncachedRowCount + cachedRowCount,
+            ((Number) merged.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
+        );
+        assertEquals(
+            "merged null_count must sum across both shapes (no implicit nulls when column is present in every file)",
+            uncachedNullCount + cachedNullCount,
+            ((Number) merged.get(SourceStatisticsSerializer.columnNullCountKey(col))).longValue()
+        );
+        assertEquals(
+            "merged min must span the union",
+            uncachedMin,
+            ((Number) merged.get(SourceStatisticsSerializer.columnMinKey(col))).longValue()
+        );
+        assertEquals(
+            "merged max must span the union",
+            cachedMax,
+            ((Number) merged.get(SourceStatisticsSerializer.columnMaxKey(col))).longValue()
+        );
+    }
+
+    private static SourceStatistics statsWithColumn(long rowCount, String columnName, long nullCount, long min, long max) {
+        SourceStatistics.ColumnStatistics colStats = new SourceStatistics.ColumnStatistics() {
+            @Override
+            public OptionalLong nullCount() {
+                return OptionalLong.of(nullCount);
+            }
+
+            @Override
+            public OptionalLong distinctCount() {
+                return OptionalLong.empty();
+            }
+
+            @Override
+            public Optional<Object> minValue() {
+                return Optional.of(min);
+            }
+
+            @Override
+            public Optional<Object> maxValue() {
+                return Optional.of(max);
+            }
+        };
+        return new SourceStatistics() {
+            @Override
+            public OptionalLong rowCount() {
+                return OptionalLong.of(rowCount);
+            }
+
+            @Override
+            public OptionalLong sizeInBytes() {
+                return OptionalLong.empty();
+            }
+
+            @Override
+            public Optional<Map<String, ColumnStatistics>> columnStatistics() {
+                return Optional.of(Map.of(columnName, colStats));
+            }
+        };
+    }
+
     public void testSingleFileSchemaCacheHitAfterMiss() throws Exception {
         List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
         Map<String, List<Attribute>> schemasByPath = new HashMap<>();

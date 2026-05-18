@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.esql.core.type;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 
 import java.util.Collection;
@@ -45,7 +45,7 @@ public abstract sealed class UnionTypeEsField extends EsField permits MultiTypeE
 
     // Utility functions used by implementors.
     static <K> Map<K, Expression> replaceChildrenWithExpressionField(Map<K, Expression> map, Expression expression) {
-        return CollectionUtils.mapValues(map, e -> expression.replaceChildren(List.of(((AbstractConvertFunction) e).field())));
+        return Maps.transformValues(map, e -> expression.replaceChildren(List.of(((AbstractConvertFunction) e).field())));
     }
 
     record Resolution(DataType resolvedDataType, Map<DataType, Expression> typeToExpr) {}

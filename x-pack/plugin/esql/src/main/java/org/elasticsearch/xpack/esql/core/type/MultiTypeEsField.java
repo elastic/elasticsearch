@@ -24,7 +24,7 @@ import java.util.Objects;
 
 /**
  * <p>
- * N.B.: This class exists only as a backward-compatible version of {@link CompactInvalidMappedField}.
+ * N.B.: This class exists only as a backward-compatible version of {@link CompactMultiTypeEsField}.
  * </p>
  * During IndexResolution it can occur that the same field is mapped to different types in different indices.
  * An {@link InvalidMappedField} holds that information and allows for later resolution of the field

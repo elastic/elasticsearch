@@ -31,21 +31,40 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
     private final Map<DataType, Set<String>> typesToIndices;
     private final boolean isPotentiallyUnmapped;
 
-    public CompactInvalidMappedField(String name, Map<DataType, Set<String>> typesToIndices) {
-        this(name, buildErrorMessage(typesToIndices, false), truncate(typesToIndices), false);
+    public CompactInvalidMappedField(
+        String name,
+        Map<DataType, Set<String>> typesToIndices,
+        Map<Set<String>, Set<String>> indexDedupCache
+    ) {
+        this(name, buildErrorMessage(typesToIndices, false), truncate(typesToIndices), indexDedupCache, false);
     }
 
-    public static CompactInvalidMappedField potentiallyUnmapped(String name, Map<DataType, Set<String>> typesToIndices) {
-        return new CompactInvalidMappedField(name, buildErrorMessage(typesToIndices, true), truncate(typesToIndices), true);
+    public static CompactInvalidMappedField potentiallyUnmapped(
+        String name,
+        Map<DataType, Set<String>> typesToIndices,
+        Map<Set<String>, Set<String>> indexDedupCache
+    ) {
+        return new CompactInvalidMappedField(
+            name,
+            buildErrorMessage(typesToIndices, true),
+            truncate(typesToIndices),
+            indexDedupCache,
+            true
+        );
     }
 
     private CompactInvalidMappedField(
         String name,
         String errorMessage,
         Map<DataType, Set<String>> typesToIndices,
+        Map<Set<String>, Set<String>> dedupCache,
         boolean isPotentiallyUnmapped
     ) {
         super(name, DataType.UNSUPPORTED, new TreeMap<>(), false, TimeSeriesFieldType.UNKNOWN);
+
+        for (var entry : typesToIndices.entrySet()) {
+            entry.setValue(dedupCache.computeIfAbsent(entry.getValue(), unused -> entry.getValue()));
+        }
         this.errorMessage = errorMessage;
         this.typesToIndices = typesToIndices;
         this.isPotentiallyUnmapped = isPotentiallyUnmapped;
@@ -124,7 +143,7 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
         return Collections.unmodifiableSet(truncated);
     }
 
-    private static String buildErrorMessage(Map<DataType, Set<String>> typesToIndices, boolean includeInsistKeyword) {
+    private static String buildErrorMessage(Map<DataType, ? extends Set<String>> typesToIndices, boolean includeInsistKeyword) {
         Map<String, Set<String>> stringKeyed = new TreeMap<>();
         typesToIndices.forEach((k, v) -> stringKeyed.put(k.typeName(), v));
         return TypeConflictedField.makeErrorMessage(stringKeyed, includeInsistKeyword);

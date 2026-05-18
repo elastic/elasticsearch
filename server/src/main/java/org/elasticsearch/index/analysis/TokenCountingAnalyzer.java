@@ -53,7 +53,7 @@ public final class TokenCountingAnalyzer extends AnalyzerWrapper {
      * @param delegate      the underlying analyzer to wrap
      * @param maxTokenCount the maximum number of tokens allowed per field
      */
-    public TokenCountingAnalyzer(Analyzer delegate, long maxTokenCount) {
+    TokenCountingAnalyzer(Analyzer delegate, long maxTokenCount) {
         this(delegate, () -> maxTokenCount);
     }
 
@@ -98,11 +98,11 @@ public final class TokenCountingAnalyzer extends AnalyzerWrapper {
             this.fieldName = fieldName;
         }
 
-        public long getMaxTokenCount() {
+        long getMaxTokenCount() {
             return maxTokenCount;
         }
 
-        public String getFieldName() {
+        String getFieldName() {
             return fieldName;
         }
     }

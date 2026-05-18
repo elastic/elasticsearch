@@ -15,8 +15,8 @@
 # To build and push (see also build_cross_toolchain_image.sh):
 #   docker build \
 #     -f Dockerfile.cross-toolchain \
-#     -t docker.elastic.co/es-dev/es-native-cross-toolchain:2 .
-#   docker push docker.elastic.co/es-dev/es-native-cross-toolchain:2
+#     -t docker.elastic.co/es-dev/es-native-cross-toolchain:3 .
+#   docker push docker.elastic.co/es-dev/es-native-cross-toolchain:3
 
 FROM debian:trixie-slim
 
@@ -40,6 +40,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         clang-21 \
         lld-21 \
         llvm-21 \
+        llvm-21-tools \
         libstdc++-14-dev-arm64-cross \
         libstdc++-14-dev-amd64-cross \
     && rm -rf /var/lib/apt/lists/*

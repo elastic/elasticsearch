@@ -854,13 +854,10 @@ public final class IndexSettings {
         IndexVersion iv = SETTING_INDEX_VERSION_CREATED.get(s);
         var indexMode = MODE.get(s);
         if (indexMode == IndexMode.TIME_SERIES) {
-            if (iv.onOrAfter(IndexVersions.STATELESS_SKIPPERS_ENABLED_FOR_TSDB)) {
-                return "true";
-            }
-            return "false";
+            return Boolean.toString(iv.onOrAfter(IndexVersions.STATELESS_SKIPPERS_ENABLED_FOR_TSDB));
         }
-        if (indexMode == IndexMode.LOGSDB || indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.LOGSDB_COLUMNAR) {
-            return iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB) ? "true" : "false";
+        if (indexMode == IndexMode.LOGSDB || indexMode.isStrictColumnar()) {
+            return Boolean.toString(iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB));
         }
         return "false";
     }, Property.IndexScope, Property.Final);
@@ -968,7 +965,7 @@ public final class IndexSettings {
     public static final FeatureFlag INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG = new FeatureFlag("index_disabled_by_default");
     public static final Setting<Boolean> INDEX_DISABLED_BY_DEFAULT = Setting.boolSetting(
         "index.mapping.index_disabled_by_default",
-        false,
+        settings -> Boolean.toString(IndexSettings.MODE.get(settings).isStrictColumnar()),
         Property.IndexScope,
         Property.Final
     );
@@ -1079,7 +1076,7 @@ public final class IndexSettings {
     );
 
     static boolean indexModeSupportsSeqNoDocValuesOnly(IndexMode indexMode, IndexVersion indexVersionCreated) {
-        if (indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.LOGSDB_COLUMNAR) {
+        if (indexMode.isStrictColumnar()) {
             return true;
         }
         return (indexMode == IndexMode.LOGSDB || indexMode == IndexMode.TIME_SERIES)

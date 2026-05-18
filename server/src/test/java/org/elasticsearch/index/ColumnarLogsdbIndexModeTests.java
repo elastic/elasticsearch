@@ -245,6 +245,12 @@ public class ColumnarLogsdbIndexModeTests extends ESTestCase {
         assertFalse(MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.get(settings));
     }
 
+    public void testIndexDisabledByDefault() {
+        assumeTrue("index_disabled_by_default feature flag must be enabled", IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled());
+        Settings settings = IndexSettingsTests.newIndexMeta("test", buildSettings()).getSettings();
+        assertTrue(IndexSettings.INDEX_DISABLED_BY_DEFAULT.get(settings));
+    }
+
     private Settings buildSettings() {
         return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName()).build();
     }

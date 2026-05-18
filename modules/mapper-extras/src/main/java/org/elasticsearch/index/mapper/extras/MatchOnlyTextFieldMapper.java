@@ -140,7 +140,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         private final TextParams.Analyzers analyzers;
         private final boolean storedFieldInBinaryFormat;
         private final boolean usesBinaryDocValuesForFallbackFields;
-        private final boolean indexDisabledByDefault;
 
         private Builder(
             String name,
@@ -148,12 +147,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             IndexAnalyzers indexAnalyzers,
             boolean storedFieldInBinaryFormat,
             boolean isWithinMultiField,
-            boolean usesBinaryDocValuesForFallbackFields,
-            boolean indexDisabledByDefault
+            boolean usesBinaryDocValuesForFallbackFields
         ) {
             super(name, indexCreatedVersion, isWithinMultiField);
 
-            this.indexed = Parameter.indexParam(m -> ((MatchOnlyTextFieldMapper) m).indexed(), indexDisabledByDefault == false);
+            this.indexed = Parameter.indexParam(m -> ((MatchOnlyTextFieldMapper) m).indexed(), true);
 
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
@@ -163,7 +161,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             );
             this.storedFieldInBinaryFormat = storedFieldInBinaryFormat;
             this.usesBinaryDocValuesForFallbackFields = usesBinaryDocValuesForFallbackFields;
-            this.indexDisabledByDefault = indexDisabledByDefault;
         }
 
         public Builder(String name, MappingParserContext context) {
@@ -173,8 +170,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 context.getIndexAnalyzers(),
                 isSyntheticSourceStoredFieldInBinaryFormat(context.indexVersionCreated()),
                 context.isWithinMultiField(),
-                usesBinaryDocValuesForFallbackFields(context.getIndexSettings()),
-                context.getIndexSettings().isIndexDisabledByDefault()
+                usesBinaryDocValuesForFallbackFields(context.getIndexSettings())
             );
         }
 
@@ -881,7 +877,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     private final boolean usesBinaryDocValuesForFallbackFields;
     private final FieldMapper.DocValuesParameter.Values docValuesParameters;
     private final DocValuesFieldFactory dvFactory;
-    private final boolean indexDisabledByDefault;
     private final boolean indexed;
 
     private MatchOnlyTextFieldMapper(
@@ -906,7 +901,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         // match_only_text does not use doc values skippers
         this.dvFactory = new DocValuesFieldFactory(this.docValuesParameters.multiValue(), false, this.indexCreatedVersion);
         this.indexed = builder.indexed.get();
-        this.indexDisabledByDefault = builder.indexDisabledByDefault;
     }
 
     @Override
@@ -922,8 +916,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             indexAnalyzers,
             storedFieldInBinaryFormat,
             fieldType().isWithinMultiField(),
-            usesBinaryDocValuesForFallbackFields,
-            indexDisabledByDefault
+            usesBinaryDocValuesForFallbackFields
         ).init(this);
     }
 

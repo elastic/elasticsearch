@@ -71,8 +71,10 @@ setup:
   - do:
       indices.get_settings:
         index: test-columnar
+        include_defaults: true
 
   - match: { test-columnar.settings.index.mode: "columnar" }
+  - match: { test-columnar.defaults.index.mapping.index_disabled_by_default: "true" }
 
 ---
 "Create columnar data stream, index docs, and retrieve them":
@@ -197,8 +199,10 @@ setup:
   - do:
       indices.get_settings:
         index: test-columnar-logsdb
+        include_defaults: true
 
   - match: { test-columnar-logsdb.settings.index.mode: "logsdb_columnar" }
+  - match: { test-columnar-logsdb.defaults.index.mapping.index_disabled_by_default: "true" }
 
 ---
 "Create logsdb_columnar data stream, index docs, and retrieve them":

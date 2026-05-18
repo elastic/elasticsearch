@@ -165,6 +165,11 @@ public class LogsIndexModeTests extends ESTestCase {
         assertThat("_last", equalTo(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey())));
     }
 
+    public void testIndexDisabledByDefault() {
+        assumeTrue("index_disabled_by_default feature flag must be enabled", IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled());
+        assertFalse(IndexSettings.INDEX_DISABLED_BY_DEFAULT.get(buildSettings()));
+    }
+
     private Settings buildSettings() {
         return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName()).build();
     }

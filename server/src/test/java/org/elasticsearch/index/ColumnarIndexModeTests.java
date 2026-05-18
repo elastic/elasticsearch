@@ -85,4 +85,13 @@ public class ColumnarIndexModeTests extends ESTestCase {
         assertThat(IndexMode.LOGSDB_COLUMNAR.isColumnar(), equalTo(true));
         assertThat(IndexMode.LOOKUP.isColumnar(), equalTo(false));
     }
+
+    public void testIndexDisabledByDefault() {
+        assumeTrue("index_disabled_by_default feature flag must be enabled", IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled());
+        Settings settings = IndexSettingsTests.newIndexMeta(
+            "test",
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build()
+        ).getSettings();
+        assertTrue(IndexSettings.INDEX_DISABLED_BY_DEFAULT.get(settings));
+    }
 }

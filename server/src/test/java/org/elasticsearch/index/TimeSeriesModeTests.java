@@ -275,6 +275,11 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         return super.compileScript(script, context);
     }
 
+    public void testIndexDisabledByDefault() {
+        assumeTrue("index_disabled_by_default feature flag must be enabled", IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled());
+        assertFalse(IndexSettings.INDEX_DISABLED_BY_DEFAULT.get(getSettings()));
+    }
+
     private Settings getSettings() {
         return getSettings(randomAlphaOfLength(5), "2021-04-28T00:00:00Z", "2021-04-29T00:00:00Z");
     }

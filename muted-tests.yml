@@ -566,3 +566,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
   method: testLongLivedPitRelocation
   issue: https://github.com/elastic/elasticsearch/issues/149272
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
+  method: testReshardedLongLivedPitRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/149273

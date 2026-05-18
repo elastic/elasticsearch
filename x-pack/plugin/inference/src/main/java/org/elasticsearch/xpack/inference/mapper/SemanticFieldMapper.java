@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
-import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -41,6 +40,7 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMergeContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
@@ -84,6 +84,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED;
 import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
@@ -663,9 +664,9 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             return;
         }
         if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-            var value = parser.optimizedTextOrNull();
-            if (value != null) {
-                indexValue(context, value);
+            var xContentString = parser.optimizedTextOrNull();
+            if (xContentString != null) {
+                indexValue(context, xContentString);
             }
         } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
             try (XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType())) {
@@ -675,15 +676,15 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
     }
 
-    private boolean indexValue(DocumentParserContext context, XContentString value) {
+    private void indexValue(DocumentParserContext context, XContentString value) {
         var utfBytes = value.bytes();
+        var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
         final String fieldName = fieldType().name() + VALUE_SUFFIX;
-        context.doc().add(new StoredField(fieldName, utfBytes.bytes(), utfBytes.offset(), utfBytes.length()));
-        return true;
+        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(context.doc(), fieldName, bytesRef, UNSORTED);
     }
 
     private void indexValue(DocumentParserContext context, BytesRef bytesRef) {
-        context.doc().add(new StoredField(fieldType().name() + VALUE_SUFFIX, bytesRef.bytes, bytesRef.offset, bytesRef.length));
+        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(context.doc(), fieldType().name() + VALUE_SUFFIX, bytesRef, UNSORTED);
     }
 
     @Override
